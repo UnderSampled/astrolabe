@@ -22,6 +22,9 @@ classifiers = [
 dependencies = [
     "pycdlib>=1.14.0",  # ISO reading
     "click>=8.0",       # CLI framework
+    "pygltflib>=1.16",  # glTF export
+    "numpy>=1.24",      # Array operations for mesh data
+    "Pillow>=10.0",     # Image processing for textures
 ]
 
 [project.optional-dependencies]
