@@ -1,5 +1,5 @@
-"""ISO extraction utilities for game disc images."""
+"""ISO extraction utilities."""
 
-from astrolabe.iso.extractor import ISOExtractor
+from .extractor import ISOExtractor
 
 __all__ = ["ISOExtractor"]

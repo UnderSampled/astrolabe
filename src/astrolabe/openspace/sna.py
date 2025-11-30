@@ -7,7 +7,7 @@ Note: Montreal engine (Hype) does NOT encrypt SNA files, unlike R2/R3.
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .lzo import decompress
+from .lzo import decompress_lzo as decompress
 
 
 @dataclass

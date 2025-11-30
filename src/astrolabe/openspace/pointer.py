@@ -1,124 +1,144 @@
-"""Pointer and memory management for OpenSpace data structures.
+"""Pointer and file abstraction for OpenSpace engine."""
 
-This module handles pointer resolution within the SNA memory blocks.
-"""
+from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Optional, Callable, Any
+from io import BytesIO
 
 if TYPE_CHECKING:
-    from .sna import SNAFile, SNAMemoryBlock
+    from .encryption import EncryptedReader
 
 
 @dataclass
 class Pointer:
-    """A pointer to a location within the game data.
+    """
+    A pointer in OpenSpace engine data.
 
-    Pointers in OpenSpace SNA files reference locations as:
-    - module: Which SNA block type (5=level data, 6=world, etc.)
-    - block_id: Which block within that module
-    - offset: Offset within that block's data
+    Pointers in OpenSpace are 32-bit values that reference locations within
+    memory blocks. They need to be relocated based on relocation tables
+    to convert from in-memory addresses to file offsets.
     """
 
     offset: int
-    module: int = 0
-    block_id: int = 0
+    """Offset within the file after relocation."""
 
-    @property
-    def is_null(self) -> bool:
-        """Check if this is a null pointer."""
-        return self.offset == 0
+    file: Optional["FileWithPointers"] = None
+    """The file this pointer belongs to."""
+
+    def __hash__(self) -> int:
+        return hash((self.offset, id(self.file)))
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Pointer):
+            return False
+        return self.offset == other.offset and self.file is other.file
 
     def __repr__(self) -> str:
-        return f"Pointer(0x{self.offset:08x}, mod={self.module}, blk={self.block_id})"
+        return f"Pointer(0x{self.offset:08X})"
 
-
-class SNADataReader:
-    """Binary reader for data within an SNA block."""
-
-    def __init__(self, block: "SNAMemoryBlock", sna: "SNAFile"):
-        """Initialize reader with a memory block.
+    @classmethod
+    def read(cls, reader: "EncryptedReader", file: Optional["FileWithPointers"] = None) -> Optional["Pointer"]:
+        """
+        Read a pointer from the stream.
 
         Args:
-            block: The memory block to read from.
-            sna: Parent SNA file for pointer resolution.
+            reader: The reader to read from
+            file: The file context for the pointer
+
+        Returns:
+            A Pointer instance, or None if the pointer is null
         """
-        self.block = block
-        self.sna = sna
-        self.data = block.data
-        self.pos = 0
-        self.base_address = block.base_in_memory
+        value = reader.read_uint32()
+        if value == 0:
+            return None
+        return cls(offset=value, file=file)
 
-    def seek(self, offset: int) -> None:
-        """Seek to an offset within the block."""
-        # Convert absolute address to relative offset
-        if offset >= self.base_address:
-            self.pos = offset - self.base_address
-        else:
-            self.pos = offset
 
-    def tell(self) -> int:
-        """Return current position."""
-        return self.pos
+@dataclass
+class FileWithPointers:
+    """
+    Base class for files that contain relocatable pointers.
 
-    def remaining(self) -> int:
-        """Return remaining bytes."""
-        return len(self.data) - self.pos
+    OpenSpace engine files use a pointer relocation system where pointers
+    in the file are stored as memory addresses and must be converted to
+    file offsets using relocation tables.
+    """
 
-    def read_u8(self) -> int:
-        """Read unsigned 8-bit integer."""
-        val = self.data[self.pos]
-        self.pos += 1
-        return val
+    name: str = ""
+    """Name of the file."""
 
-    def read_u16(self) -> int:
-        """Read unsigned 16-bit integer (little endian)."""
-        val = int.from_bytes(self.data[self.pos : self.pos + 2], "little")
-        self.pos += 2
-        return val
+    base_offset: int = 0
+    """Base offset for pointer calculations."""
 
-    def read_i16(self) -> int:
-        """Read signed 16-bit integer (little endian)."""
-        val = int.from_bytes(self.data[self.pos : self.pos + 2], "little", signed=True)
-        self.pos += 2
-        return val
+    header_offset: int = 0
+    """Offset to the header/start of actual data."""
 
-    def read_u32(self) -> int:
-        """Read unsigned 32-bit integer (little endian)."""
-        val = int.from_bytes(self.data[self.pos : self.pos + 4], "little")
-        self.pos += 4
-        return val
+    pointers: dict[int, Pointer] = field(default_factory=dict)
+    """Map of file offsets to resolved pointers."""
 
-    def read_i32(self) -> int:
-        """Read signed 32-bit integer (little endian)."""
-        val = int.from_bytes(self.data[self.pos : self.pos + 4], "little", signed=True)
-        self.pos += 4
-        return val
+    _data: bytes = field(default=b"", repr=False)
+    """Raw file data."""
 
-    def read_float(self) -> float:
-        """Read 32-bit float (little endian)."""
-        import struct
+    _reader: Optional["EncryptedReader"] = field(default=None, repr=False)
+    """Reader for the file data."""
 
-        val = struct.unpack("<f", self.data[self.pos : self.pos + 4])[0]
-        self.pos += 4
-        return val
+    def get_pointer(self, offset: int) -> Optional[Pointer]:
+        """
+        Get a pointer at a specific offset.
 
-    def read_pointer(self) -> Pointer:
-        """Read a 32-bit pointer value."""
-        offset = self.read_u32()
-        return Pointer(offset=offset, module=self.block.module, block_id=self.block.block_id)
+        Args:
+            offset: File offset where the pointer is stored
 
-    def read_bytes(self, count: int) -> bytes:
-        """Read raw bytes."""
-        val = self.data[self.pos : self.pos + count]
-        self.pos += count
-        return val
+        Returns:
+            The resolved pointer, or None if not found
+        """
+        return self.pointers.get(offset)
 
-    def skip(self, count: int) -> None:
-        """Skip bytes."""
-        self.pos += count
+    def goto(self, pointer: Optional[Pointer]) -> bool:
+        """
+        Move the reader to a pointer's location.
 
-    def align(self, boundary: int) -> None:
-        """Align position to boundary."""
-        if self.pos % boundary != 0:
-            self.pos += boundary - (self.pos % boundary)
+        Args:
+            pointer: The pointer to go to
+
+        Returns:
+            True if successful, False if pointer is None
+        """
+        if pointer is None or self._reader is None:
+            return False
+
+        self._reader.seek(pointer.offset)
+        return True
+
+    def goto_header(self) -> None:
+        """Move the reader to the header offset."""
+        if self._reader is not None:
+            self._reader.seek(self.header_offset)
+
+    @classmethod
+    def do_at(
+        cls,
+        reader: "EncryptedReader",
+        pointer: Optional[Pointer],
+        action: Callable[[], Any],
+    ) -> Optional[Any]:
+        """
+        Execute an action at a pointer's location, then return to the original position.
+
+        Args:
+            reader: The reader to use
+            pointer: The pointer to go to
+            action: The action to execute
+
+        Returns:
+            The result of the action, or None if pointer is None
+        """
+        if pointer is None:
+            return None
+
+        original_pos = reader.position
+        reader.seek(pointer.offset)
+        result = action()
+        reader.seek(original_pos)
+        return result

@@ -1,58 +1,72 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "astrolabe"
 version = "0.1.0"
 description = "Extract and convert Hype: The Time Quest game data for Godot"
 readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.10"
-license = "MIT"
 authors = [
-    { name = "Astrolabe Contributors" }
+    {name = "Astrolabe Contributors"}
 ]
-keywords = ["hype", "time-quest", "godot", "game-modding", "openspace"]
+keywords = ["hype", "openspace", "game-modding", "godot", "gltf"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Games/Entertainment",
+    "Topic :: Multimedia :: Graphics :: 3D Modeling",
 ]
 
 dependencies = [
-    "pycdlib>=1.14.0",  # ISO reading
-    "click>=8.0",       # CLI framework
-    "pygltflib>=1.16",  # glTF export
-    "numpy>=1.24",      # Array operations for mesh data
-    "Pillow>=10.0",     # Image processing for textures
+    "python-lzo>=1.14",
+    "numpy>=1.24.0",
+    "pygltflib>=1.16.0",
+    "Pillow>=10.0.0",
+    "click>=8.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.0",
-    "mypy>=1.0",
-    "ruff>=0.1",
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
 ]
 
 [project.scripts]
 astrolabe = "astrolabe.cli:main"
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+[project.urls]
+Homepage = "https://github.com/yourusername/astrolabe"
+Repository = "https://github.com/yourusername/astrolabe"
+Issues = "https://github.com/yourusername/astrolabe/issues"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/astrolabe"]
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
 
 [tool.mypy]
 python_version = "3.10"
-strict = true
 warn_return_any = true
 warn_unused_configs = true
+ignore_missing_imports = true
 
-[tool.ruff]
-target-version = "py310"
-line-length = 100
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP"]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

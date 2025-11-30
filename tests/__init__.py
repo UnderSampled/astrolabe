@@ -1,1 +1,1 @@
-"""Tests for Astrolabe."""
+"""Test suite for Astrolabe."""

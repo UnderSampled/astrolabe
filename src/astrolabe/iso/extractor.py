@@ -1,188 +1,207 @@
-"""ISO extraction functionality using pycdlib with 7z fallback."""
+"""ISO extraction utilities using 7z."""
 
-import shutil
+from __future__ import annotations
+
 import subprocess
+import shutil
 from pathlib import Path
-from typing import Callable
-
-import pycdlib
+from typing import Callable, Optional
 
 
 class ISOExtractor:
-    """Extract files from a game ISO image.
+    """Extract files from game ISO using 7z."""
 
-    Uses pycdlib for standard ISOs, falls back to 7z for non-standard ones
-    (like Hype: The Time Quest which has multiple Primary Volume Descriptors).
-    """
-
-    def __init__(self, iso_path: Path) -> None:
-        """Initialize the extractor with a path to an ISO file.
+    def __init__(self, iso_path: str | Path):
+        """
+        Initialize the ISO extractor.
 
         Args:
-            iso_path: Path to the ISO file to extract from.
+            iso_path: Path to the ISO file
         """
-        self.iso_path = iso_path
-        self._iso: pycdlib.PyCdlib | None = None
-        self._use_7z = False
+        self.iso_path = Path(iso_path)
+        if not self.iso_path.exists():
+            raise FileNotFoundError(f"ISO file not found: {self.iso_path}")
+
+        # Verify 7z is available
+        self._7z_path = shutil.which("7z")
+        if not self._7z_path:
+            raise RuntimeError("7z not found. Please install p7zip.")
 
     def __enter__(self) -> "ISOExtractor":
-        """Open the ISO file for reading."""
-        try:
-            self._iso = pycdlib.PyCdlib()
-            self._iso.open(str(self.iso_path))
-            self._use_7z = False
-        except pycdlib.pycdlibexception.PyCdlibInvalidISO:
-            # Fall back to 7z for non-standard ISOs
-            if shutil.which("7z") is None:
-                raise RuntimeError(
-                    "ISO has non-standard format and 7z is not installed. "
-                    "Please install p7zip or 7zip."
-                )
-            self._use_7z = True
-            self._iso = None
+        """Context manager entry."""
         return self
 
-    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
-        """Close the ISO file."""
-        if self._iso is not None:
-            self._iso.close()
-            self._iso = None
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Context manager exit."""
+        pass
 
     def list_files(self) -> list[str]:
-        """List all files in the ISO.
+        """
+        List all files in the ISO.
 
         Returns:
-            List of file paths within the ISO.
+            List of file paths within the ISO
         """
-        if self._use_7z:
-            return self._list_files_7z()
-
-        if self._iso is None:
-            raise RuntimeError("ISO not opened. Use 'with' statement.")
-
-        files: list[str] = []
-        for dirname, _, filenames in self._iso.walk(iso_path="/"):
-            for filename in filenames:
-                # Remove version suffix (;1) from ISO9660 filenames
-                clean_name = filename.rsplit(";", 1)[0]
-                if dirname == "/":
-                    files.append(f"/{clean_name}")
-                else:
-                    files.append(f"{dirname}/{clean_name}")
-        return files
-
-    def _list_files_7z(self) -> list[str]:
-        """List files using 7z."""
         result = subprocess.run(
-            ["7z", "l", "-slt", str(self.iso_path)],
+            [self._7z_path, "l", "-slt", str(self.iso_path)],
             capture_output=True,
             text=True,
             check=True,
         )
-        files: list[str] = []
-        current_path: str | None = None
-        is_dir = False
 
+        files = []
+        current_path = None
         for line in result.stdout.splitlines():
-            if line.startswith("Path = "):
-                current_path = line[7:]
-            elif line.startswith("Attributes = "):
-                is_dir = "D" in line[13:]
-            elif line == "" and current_path is not None:
-                # End of entry
-                if not is_dir and current_path != str(self.iso_path):
-                    files.append("/" + current_path)
-                current_path = None
-                is_dir = False
+            if line.startswith("Path = ") and current_path is None:
+                # First "Path = " is the archive itself, skip it
+                current_path = ""
+            elif line.startswith("Path = "):
+                files.append(line[7:])
 
         return files
 
     def extract_all(
         self,
-        output_dir: Path,
-        progress_callback: Callable[[str, int, int], None] | None = None,
-    ) -> None:
-        """Extract all files from the ISO to the output directory.
+        output_dir: str | Path,
+        progress_callback: Optional[Callable[[str, int, int], None]] = None,
+    ) -> Path:
+        """
+        Extract all files from the ISO.
 
         Args:
-            output_dir: Directory to extract files to.
-            progress_callback: Optional callback(filename, current, total) for progress.
+            output_dir: Directory to extract files to
+            progress_callback: Optional callback(filename, current, total) for progress
+
+        Returns:
+            Path to the extraction directory
         """
-        if self._use_7z:
-            self._extract_all_7z(output_dir, progress_callback)
-            return
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
 
-        if self._iso is None:
-            raise RuntimeError("ISO not opened. Use 'with' statement.")
+        # If no progress callback, just extract everything at once
+        if progress_callback is None:
+            subprocess.run(
+                [self._7z_path, "x", "-y", f"-o{output_path}", str(self.iso_path)],
+                check=True,
+                capture_output=True,
+            )
+        else:
+            # Extract with progress tracking
+            files = self.list_files()
+            total = len(files)
+            for i, filepath in enumerate(files, 1):
+                progress_callback(filepath, i, total)
+                subprocess.run(
+                    [self._7z_path, "x", "-y", f"-o{output_path}", str(self.iso_path), filepath],
+                    check=True,
+                    capture_output=True,
+                )
 
-        files = self.list_files()
-        total = len(files)
+        return output_path
 
-        for i, filepath in enumerate(files):
-            if progress_callback:
-                progress_callback(filepath, i + 1, total)
+    def extract_file(self, internal_path: str, output_path: str | Path) -> Path:
+        """
+        Extract a single file from the ISO.
 
-            # Create output path
-            rel_path = filepath.lstrip("/")
-            out_path = output_dir / rel_path
-            out_path.parent.mkdir(parents=True, exist_ok=True)
+        Args:
+            internal_path: Path within the ISO
+            output_path: Where to save the extracted file
 
-            # Extract file
-            iso_path = filepath + ";1"  # Add back version suffix for pycdlib
-            self._iso.get_file_from_iso(str(out_path), iso_path=iso_path)
+        Returns:
+            Path to the extracted file
+        """
+        output = Path(output_path)
+        output.parent.mkdir(parents=True, exist_ok=True)
 
-    def _extract_all_7z(
-        self,
-        output_dir: Path,
-        progress_callback: Callable[[str, int, int], None] | None = None,
-    ) -> None:
-        """Extract all files using 7z."""
-        output_dir.mkdir(parents=True, exist_ok=True)
+        # Extract to a temp location then move
+        temp_dir = output.parent / ".astrolabe_temp"
+        temp_dir.mkdir(exist_ok=True)
 
-        if progress_callback:
-            progress_callback("Extracting with 7z...", 0, 1)
+        try:
+            subprocess.run(
+                [self._7z_path, "x", "-y", f"-o{temp_dir}", str(self.iso_path), internal_path],
+                check=True,
+                capture_output=True,
+            )
+
+            # Find the extracted file and move it
+            extracted = temp_dir / internal_path
+            if extracted.exists():
+                shutil.move(str(extracted), str(output))
+            else:
+                raise FileNotFoundError(f"Failed to extract: {internal_path}")
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+        return output
+
+    def extract_gamedata(self, output_dir: str | Path) -> Path:
+        """
+        Extract only the Gamedata folder from the ISO.
+
+        Args:
+            output_dir: Directory to extract to
+
+        Returns:
+            Path to the extracted Gamedata folder
+        """
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
 
         subprocess.run(
-            ["7z", "x", "-y", f"-o{output_dir}", str(self.iso_path)],
+            [
+                self._7z_path, "x", "-y",
+                f"-o{output_path}",
+                str(self.iso_path),
+                "Gamedata/*",
+            ],
             check=True,
             capture_output=True,
         )
 
-        if progress_callback:
-            progress_callback("Extraction complete", 1, 1)
+        return output_path / "Gamedata"
 
-    def extract_file(self, iso_filepath: str, output_path: Path) -> None:
-        """Extract a single file from the ISO.
-
-        Args:
-            iso_filepath: Path to file within the ISO (e.g., "/GAMEDATA/LEVELS.DAT").
-            output_path: Local path to write the extracted file.
+    def find_level_files(self) -> dict[str, dict[str, str]]:
         """
-        if self._use_7z:
-            self._extract_file_7z(iso_filepath, output_path)
-            return
+        Find all level files in the ISO.
 
-        if self._iso is None:
-            raise RuntimeError("ISO not opened. Use 'with' statement.")
+        Returns:
+            Dictionary mapping level names to their file paths
+        """
+        files = self.list_files()
+        levels: dict[str, dict[str, str]] = {}
 
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        iso_path = iso_filepath + ";1"
-        self._iso.get_file_from_iso(str(output_path), iso_path=iso_path)
+        for f in files:
+            f_lower = f.lower()
+            if "world/levels/" in f_lower and f_lower.endswith(".sna"):
+                # Extract level name from path like "Gamedata/World/Levels/brigand/brigand.sna"
+                parts = f.split("/")
+                if len(parts) >= 2:
+                    level_name = parts[-2]
+                    if level_name not in levels:
+                        levels[level_name] = {}
+                    levels[level_name]["sna"] = f
 
-    def _extract_file_7z(self, iso_filepath: str, output_path: Path) -> None:
-        """Extract a single file using 7z."""
-        import tempfile
+        # Find associated files for each level
+        for f in files:
+            f_lower = f.lower()
+            for level_name in levels:
+                level_dir = f"levels/{level_name}/".lower()
+                if level_dir in f_lower:
+                    if f_lower.endswith(".rtb"):
+                        if "fixlvl" in f_lower:
+                            levels[level_name]["fixlvl_rtb"] = f
+                        else:
+                            levels[level_name]["rtb"] = f
+                    elif f_lower.endswith(".rtp"):
+                        levels[level_name]["rtp"] = f
+                    elif f_lower.endswith(".rtt"):
+                        levels[level_name]["rtt"] = f
+                    elif f_lower.endswith(".gpt"):
+                        levels[level_name]["gpt"] = f
+                    elif f_lower.endswith(".ptx"):
+                        levels[level_name]["ptx"] = f
+                    elif f_lower.endswith(".sda"):
+                        levels[level_name]["sda"] = f
 
-        # 7z doesn't support extracting to a specific path directly,
-        # so we extract to temp and move
-        rel_path = iso_filepath.lstrip("/")
-        with tempfile.TemporaryDirectory() as tmpdir:
-            subprocess.run(
-                ["7z", "x", "-y", f"-o{tmpdir}", str(self.iso_path), rel_path],
-                check=True,
-                capture_output=True,
-            )
-            extracted = Path(tmpdir) / rel_path
-            if extracted.exists():
-                output_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.move(str(extracted), str(output_path))
+        return levels
