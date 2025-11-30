@@ -4,7 +4,8 @@ This module parses GeometricObject and related mesh data from SNA blocks.
 """
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+import struct
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from .pointer import SNADataReader
