@@ -463,9 +463,16 @@ class Program
             var meshes = scanner.ScanForMeshes();
 
             Console.WriteLine($"\nFound {meshes.Count} potential meshes:");
+            int withTriangles = meshes.Count(m => m.Indices != null && m.Indices.Length > 0);
+            int withoutTriangles = meshes.Count - withTriangles;
+            Console.WriteLine($"  With triangle indices: {withTriangles}");
+            Console.WriteLine($"  Without triangle indices (using fallback): {withoutTriangles}");
+            Console.WriteLine();
+
             foreach (var mesh in meshes.Take(20))
             {
-                Console.WriteLine($"  {mesh.Name}: {mesh.NumVertices} vertices, {mesh.NumElements} elements");
+                int triCount = mesh.Indices != null ? mesh.Indices.Length / 3 : 0;
+                Console.WriteLine($"  {mesh.Name}: {mesh.NumVertices} verts, {mesh.NumElements} elems, {triCount} tris");
                 if (mesh.Vertices.Length > 0)
                 {
                     var minX = mesh.Vertices.Min(v => v.X);
@@ -642,6 +649,27 @@ class Program
 
             Console.WriteLine($"\nTotal GeometricObjects with variation: {totalFound}");
 
+            // Debug: show pointer stats
+            Console.WriteLine("\n=== Pointer validation stats ===");
+            int vertPtrCount = 0, normPtrCount = 0, elemTypePtrCount = 0, elemsPtrCount = 0;
+            foreach (var block in loader.Sna.Blocks.Where(b => b.Data != null && b.Data.Length > 100))
+            {
+                int baseAddr = block.BaseInMemory;
+                for (int offset = 0; offset < block.Data.Length - 64; offset += 4)
+                {
+                    int memAddr = baseAddr + offset;
+                    var memory = new Astrolabe.Core.FileFormats.MemoryContext(loader.Sna, loader.Rtb);
+                    if (memory.GetPointerAt(memAddr + 4) != null) vertPtrCount++;
+                    if (memory.GetPointerAt(memAddr + 8) != null) normPtrCount++;
+                    if (memory.GetPointerAt(memAddr + 24) != null) elemTypePtrCount++;
+                    if (memory.GetPointerAt(memAddr + 28) != null) elemsPtrCount++;
+                }
+            }
+            Console.WriteLine($"Potential vert ptrs: {vertPtrCount}");
+            Console.WriteLine($"Potential norm ptrs: {normPtrCount}");
+            Console.WriteLine($"Potential elemType ptrs: {elemTypePtrCount}");
+            Console.WriteLine($"Potential elems ptrs: {elemsPtrCount}");
+
             return 0;
         }
         catch (Exception ex)
@@ -678,9 +706,10 @@ class Program
             var meshes = scanner.ScanForMeshes();
             Console.WriteLine($"Found {meshes.Count} potential meshes");
 
-            // Filter to meshes with reasonable size (not too tiny, not too huge)
+            // Filter to meshes with actual triangle data and reasonable size
             var validMeshes = meshes
                 .Where(m => m.Vertices.Length >= 3)
+                .Where(m => m.Indices != null && m.Indices.Length >= 3) // Must have triangles
                 .Where(m =>
                 {
                     var minX = m.Vertices.Min(v => v.X);
@@ -698,7 +727,7 @@ class Program
                     return (sizeX > 0.5f || sizeY > 0.5f || sizeZ > 0.5f) &&
                            sizeX < 1000 && sizeY < 1000 && sizeZ < 1000;
                 })
-                .Take(100) // Limit to first 100 for testing
+                .Take(100) // Limit to 100 meshes
                 .ToList();
 
             Console.WriteLine($"Exporting {validMeshes.Count} filtered meshes to {outputPath}...");
