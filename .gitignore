@@ -8,3 +8,20 @@ extracted/
 *.tscn
 *.tres
 output/
+
+# .NET build artifacts
+bin/
+obj/
+*.user
+*.suo
+*.cache
+.vs/
+
+# NuGet
+*.nupkg
+packages/
+
+# IDE
+.idea/
+*.swp
+*~

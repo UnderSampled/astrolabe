@@ -17,24 +17,68 @@ This project does not include any copyrighted game assets. Users must provide th
 
 ## Requirements
 
-- dotnet (TODO: clarify)
+- .NET 9.0 SDK or later
 - A legally obtained copy of Hype: The Time Quest (ISO format)
+
+## Building
+
+```bash
+dotnet build
+```
 
 ## Usage
 
-TODO
+### List files in ISO
+
+```bash
+dotnet run --project src/Astrolabe.Cli -- list path/to/hype.iso
+```
+
+### Extract game data from ISO
+
+```bash
+# Extract all files
+dotnet run --project src/Astrolabe.Cli -- extract path/to/hype.iso ./extracted
+
+# Extract only game data
+dotnet run --project src/Astrolabe.Cli -- extract path/to/hype.iso ./extracted --pattern "Gamedata/"
+
+# Extract specific file types
+dotnet run --project src/Astrolabe.Cli -- extract path/to/hype.iso ./extracted --pattern "*.sna"
+```
 
 ## Project Structure
 
 ```
 astrolabe/
 ├── src/
-│   └── astrolabe/
+│   ├── Astrolabe.Core/          # Core library for file format parsing
+│   │   ├── Extraction/          # ISO extraction utilities
+│   │   ├── FileFormats/         # OpenSpace file format readers
+│   │   └── Export/              # glTF and Godot scene exporters
+│   └── Astrolabe.Cli/           # Command-line interface
 ├── reference/
-│   └── raymap/              # Raymap Unity project (git submodule)
-├── tests/
-└── docs/
+│   └── raymap/                  # Raymap Unity project (git submodule)
+├── docs/                        # File format documentation
+└── extracted/                   # Extracted game data (gitignored)
 ```
+
+## File Formats
+
+Hype uses the OpenSpace engine's Montreal variant. Key file types:
+
+| Extension | Description |
+|-----------|-------------|
+| `.sna`    | Compressed level/fix data (LZO compression) |
+| `.cnt`    | Texture container (index of GF textures) |
+| `.gpt`    | Game pointer table |
+| `.ptx`    | Pointer table extension |
+| `.rtb`    | Runtime binary data |
+| `.rtp`    | Runtime pointer data |
+| `.rtt`    | Runtime texture data |
+| `.sda`    | Sound data |
+
+See the `docs/` directory for detailed format specifications.
 
 ## Acknowledgments
 
