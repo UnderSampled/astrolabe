@@ -1,3 +1,9 @@
 [submodule "reference/raymap"]
 	path = reference/raymap
 	url = https://github.com/byvar/raymap.git
+[submodule "lib/BinarySerializer.OpenSpace"]
+	path = lib/BinarySerializer.OpenSpace
+	url = https://github.com/BinarySerializer/BinarySerializer.OpenSpace.git
+[submodule "lib/BinarySerializer"]
+	path = lib/BinarySerializer
+	url = https://github.com/BinarySerializer/BinarySerializer.git

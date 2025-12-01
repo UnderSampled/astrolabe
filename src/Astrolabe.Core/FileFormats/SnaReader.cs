@@ -55,7 +55,7 @@ public class SnaReader
 
         block.Module = reader.ReadByte();
         block.Id = reader.ReadByte();
-        block.Unk1 = reader.ReadByte(); // Montreal variant
+        // NOTE: Montreal engine does NOT have unk1 byte here (only later engine versions do)
         block.BaseInMemory = reader.ReadInt32();
 
         if (block.BaseInMemory == -1)
@@ -69,34 +69,37 @@ public class SnaReader
         block.MaxPosMinus9 = reader.ReadUInt32();
         block.Size = reader.ReadUInt32();
 
-        // Read compressed data
-        block.IsCompressed = reader.ReadUInt32() == 1;
-        block.CompressedSize = reader.ReadUInt32();
-        block.CompressedChecksum = reader.ReadUInt32();
-        block.DecompressedSize = reader.ReadUInt32();
-        block.DecompressedChecksum = reader.ReadUInt32();
-
-        block.FileOffset = reader.BaseStream.Position;
-
-        if (block.CompressedSize > 0 && block.CompressedSize < reader.BaseStream.Length - reader.BaseStream.Position)
+        // Only read compressed data if size > 0
+        if (block.Size > 0)
         {
-            block.CompressedData = reader.ReadBytes((int)block.CompressedSize);
+            block.IsCompressed = reader.ReadUInt32() == 1;
+            block.CompressedSize = reader.ReadUInt32();
+            block.CompressedChecksum = reader.ReadUInt32();
+            block.DecompressedSize = reader.ReadUInt32();
+            block.DecompressedChecksum = reader.ReadUInt32();
 
-            if (block.IsCompressed)
+            block.FileOffset = reader.BaseStream.Position;
+
+            if (block.CompressedSize > 0 && block.CompressedSize < reader.BaseStream.Length - reader.BaseStream.Position)
             {
-                try
+                block.CompressedData = reader.ReadBytes((int)block.CompressedSize);
+
+                if (block.IsCompressed)
                 {
-                    block.Data = DecompressLzo(block.CompressedData, (int)block.DecompressedSize);
+                    try
+                    {
+                        block.Data = DecompressLzo(block.CompressedData, (int)block.DecompressedSize);
+                    }
+                    catch
+                    {
+                        // Decompression failed, use compressed data as-is
+                        block.Data = block.CompressedData;
+                    }
                 }
-                catch
+                else
                 {
-                    // Decompression failed, use compressed data as-is
                     block.Data = block.CompressedData;
                 }
-            }
-            else
-            {
-                block.Data = block.CompressedData;
             }
         }
 
