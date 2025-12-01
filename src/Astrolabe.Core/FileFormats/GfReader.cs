@@ -6,14 +6,16 @@ namespace Astrolabe.Core.FileFormats;
 public class GfReader
 {
     public byte Version { get; private set; }
+    public int Width { get; private set; }
+    public int Height { get; private set; }
+    public byte Channels { get; private set; }
+    public byte RepeatByte { get; private set; }
     public ushort PaletteLength { get; private set; }
     public byte PaletteBytesPerColor { get; private set; }
     public int PixelCount { get; private set; }
     public GfFormat Format { get; private set; }
-    public int Width { get; private set; }
-    public int Height { get; private set; }
     public byte[]? Palette { get; private set; }
-    public byte[] PixelData { get; private set; } = [];
+    public byte[] RawPixelData { get; private set; } = [];
 
     private readonly byte[] _data;
 
@@ -29,6 +31,13 @@ public class GfReader
 
         // Montreal variant header
         Version = reader.ReadByte();
+        Width = reader.ReadInt32();
+        Height = reader.ReadInt32();
+        Channels = reader.ReadByte();
+
+        // Montreal does NOT have mipmaps byte - it's calculated from PixelCount later
+        RepeatByte = reader.ReadByte();
+
         PaletteLength = reader.ReadUInt16();
         PaletteBytesPerColor = reader.ReadByte();
 
@@ -39,8 +48,8 @@ public class GfReader
         reader.ReadUInt32(); // uint_12
 
         PixelCount = reader.ReadInt32();
-        byte montrealType = reader.ReadByte();
 
+        byte montrealType = reader.ReadByte();
         Format = montrealType switch
         {
             5 => GfFormat.Palette,
@@ -51,98 +60,126 @@ public class GfReader
         };
 
         // Read palette if present
-        if (PaletteLength > 0)
+        if (PaletteLength > 0 && PaletteBytesPerColor > 0)
         {
             Palette = reader.ReadBytes(PaletteLength * PaletteBytesPerColor);
         }
 
-        // Try to determine dimensions from pixel count
-        // Assume square or power-of-2 dimensions
-        Width = (int)Math.Sqrt(PixelCount);
-        Height = PixelCount / Width;
+        // Read remaining RLE-encoded pixel data
+        int remaining = (int)(reader.BaseStream.Length - reader.BaseStream.Position);
+        RawPixelData = reader.ReadBytes(remaining);
+    }
 
-        // Adjust for non-square textures
-        if (Width * Height != PixelCount)
+    /// <summary>
+    /// Decodes the RLE-encoded pixel data.
+    /// </summary>
+    private byte[] DecodeRle()
+    {
+        int expectedSize = PixelCount * Channels;
+        var result = new byte[expectedSize];
+        int resultIndex = 0;
+
+        using var reader = new BinaryReader(new MemoryStream(RawPixelData));
+
+        // Decode each channel separately
+        for (int channel = 0; channel < Channels; channel++)
         {
-            // Try common aspect ratios
-            for (int w = 1; w <= PixelCount; w++)
+            int pixelsDecoded = 0;
+            while (pixelsDecoded < PixelCount && reader.BaseStream.Position < reader.BaseStream.Length)
             {
-                if (PixelCount % w == 0)
+                byte b = reader.ReadByte();
+
+                if (b == RepeatByte && reader.BaseStream.Position < reader.BaseStream.Length - 1)
                 {
-                    int h = PixelCount / w;
-                    if (IsPowerOfTwo(w) && IsPowerOfTwo(h))
+                    // RLE: next byte is value, byte after is count
+                    byte value = reader.ReadByte();
+                    byte count = reader.ReadByte();
+
+                    for (int i = 0; i < count && pixelsDecoded < PixelCount; i++)
                     {
-                        Width = w;
-                        Height = h;
-                        break;
+                        result[channel * PixelCount + pixelsDecoded] = value;
+                        pixelsDecoded++;
                     }
+                }
+                else
+                {
+                    // Literal byte
+                    result[channel * PixelCount + pixelsDecoded] = b;
+                    pixelsDecoded++;
                 }
             }
         }
 
-        // Read remaining pixel data
-        int remaining = (int)(reader.BaseStream.Length - reader.BaseStream.Position);
-        PixelData = reader.ReadBytes(remaining);
+        return result;
     }
 
-    private static bool IsPowerOfTwo(int x) => x > 0 && (x & (x - 1)) == 0;
-
     /// <summary>
-    /// Decodes the texture to RGBA8888 format.
+    /// Decodes the texture to RGBA8888 format (only the main texture, not mipmaps).
     /// </summary>
     public byte[] DecodeToRgba()
     {
-        var result = new byte[PixelCount * 4];
+        var decoded = DecodeRle();
+        int mainPixels = Width * Height;
+        var result = new byte[mainPixels * 4];
 
         switch (Format)
         {
             case GfFormat.Palette:
-                DecodePalette(result);
+                DecodePalette(decoded, result, mainPixels);
                 break;
             case GfFormat.RGB565:
-                DecodeRgb565(result);
+                DecodeRgb565(decoded, result, mainPixels);
                 break;
             case GfFormat.RGBA1555:
-                DecodeRgba1555(result);
+                DecodeRgba1555(decoded, result, mainPixels);
                 break;
             case GfFormat.RGBA4444:
-                DecodeRgba4444(result);
+                DecodeRgba4444(decoded, result, mainPixels);
                 break;
             default:
-                // Unknown format, try raw interpretation
-                DecodeRaw(result);
+                // Unknown format, fill with gray
+                for (int i = 0; i < mainPixels; i++)
+                {
+                    result[i * 4 + 0] = 128;
+                    result[i * 4 + 1] = 128;
+                    result[i * 4 + 2] = 128;
+                    result[i * 4 + 3] = 255;
+                }
                 break;
         }
 
         return result;
     }
 
-    private void DecodePalette(byte[] result)
+    private void DecodePalette(byte[] decoded, byte[] result, int mainPixels)
     {
         if (Palette == null) return;
 
-        for (int i = 0; i < PixelCount && i < PixelData.Length; i++)
+        for (int i = 0; i < mainPixels && i < decoded.Length; i++)
         {
-            int paletteIndex = PixelData[i];
+            int paletteIndex = decoded[i];
             int paletteOffset = paletteIndex * PaletteBytesPerColor;
 
             if (paletteOffset + PaletteBytesPerColor <= Palette.Length)
             {
-                result[i * 4 + 0] = Palette[paletteOffset + 0]; // R (or B)
+                // Palette is BGR or BGRA
+                result[i * 4 + 2] = Palette[paletteOffset + 0]; // B
                 result[i * 4 + 1] = Palette[paletteOffset + 1]; // G
-                result[i * 4 + 2] = PaletteBytesPerColor >= 3 ? Palette[paletteOffset + 2] : (byte)0; // B (or R)
+                result[i * 4 + 0] = Palette[paletteOffset + 2]; // R
                 result[i * 4 + 3] = PaletteBytesPerColor >= 4 ? Palette[paletteOffset + 3] : (byte)255; // A
             }
         }
     }
 
-    private void DecodeRgb565(byte[] result)
+    private void DecodeRgb565(byte[] decoded, byte[] result, int mainPixels)
     {
-        using var reader = new BinaryReader(new MemoryStream(PixelData));
-
-        for (int i = 0; i < PixelCount && reader.BaseStream.Position + 2 <= reader.BaseStream.Length; i++)
+        // Channels are stored separately: all channel0 bytes, then all channel1 bytes
+        for (int i = 0; i < mainPixels; i++)
         {
-            ushort pixel = reader.ReadUInt16();
+            byte lo = decoded[i];
+            byte hi = decoded[PixelCount + i];
+            ushort pixel = (ushort)(lo | (hi << 8));
+
             result[i * 4 + 2] = (byte)((pixel & 0x001F) << 3); // B
             result[i * 4 + 1] = (byte)((pixel & 0x07E0) >> 3); // G
             result[i * 4 + 0] = (byte)((pixel & 0xF800) >> 8); // R
@@ -150,13 +187,15 @@ public class GfReader
         }
     }
 
-    private void DecodeRgba1555(byte[] result)
+    private void DecodeRgba1555(byte[] decoded, byte[] result, int mainPixels)
     {
-        using var reader = new BinaryReader(new MemoryStream(PixelData));
-
-        for (int i = 0; i < PixelCount && reader.BaseStream.Position + 2 <= reader.BaseStream.Length; i++)
+        // Channels are stored separately
+        for (int i = 0; i < mainPixels; i++)
         {
-            ushort pixel = reader.ReadUInt16();
+            byte lo = decoded[i];
+            byte hi = decoded[PixelCount + i];
+            ushort pixel = (ushort)(lo | (hi << 8));
+
             result[i * 4 + 2] = (byte)((pixel & 0x001F) << 3); // B
             result[i * 4 + 1] = (byte)((pixel & 0x03E0) >> 2); // G
             result[i * 4 + 0] = (byte)((pixel & 0x7C00) >> 7); // R
@@ -164,38 +203,19 @@ public class GfReader
         }
     }
 
-    private void DecodeRgba4444(byte[] result)
+    private void DecodeRgba4444(byte[] decoded, byte[] result, int mainPixels)
     {
-        using var reader = new BinaryReader(new MemoryStream(PixelData));
-
-        for (int i = 0; i < PixelCount && reader.BaseStream.Position + 2 <= reader.BaseStream.Length; i++)
+        // Channels are stored separately
+        for (int i = 0; i < mainPixels; i++)
         {
-            ushort pixel = reader.ReadUInt16();
+            byte lo = decoded[i];
+            byte hi = decoded[PixelCount + i];
+            ushort pixel = (ushort)(lo | (hi << 8));
+
             result[i * 4 + 2] = (byte)((pixel & 0x000F) << 4); // B
             result[i * 4 + 1] = (byte)((pixel & 0x00F0)); // G
             result[i * 4 + 0] = (byte)((pixel & 0x0F00) >> 4); // R
             result[i * 4 + 3] = (byte)((pixel & 0xF000) >> 8); // A
-        }
-    }
-
-    private void DecodeRaw(byte[] result)
-    {
-        // Try to interpret as raw BGRA or BGR data
-        int bytesPerPixel = PixelData.Length / PixelCount;
-
-        if (bytesPerPixel >= 3)
-        {
-            for (int i = 0; i < PixelCount; i++)
-            {
-                int offset = i * bytesPerPixel;
-                if (offset + bytesPerPixel <= PixelData.Length)
-                {
-                    result[i * 4 + 2] = PixelData[offset + 0]; // B
-                    result[i * 4 + 1] = PixelData[offset + 1]; // G
-                    result[i * 4 + 0] = PixelData[offset + 2]; // R
-                    result[i * 4 + 3] = bytesPerPixel >= 4 ? PixelData[offset + 3] : (byte)255; // A
-                }
-            }
         }
     }
 
@@ -234,6 +254,13 @@ public class GfReader
                     writer.Write(rgba[i + 1]); // G
                     writer.Write(rgba[i + 0]); // R
                     writer.Write(rgba[i + 3]); // A
+                }
+                else
+                {
+                    writer.Write((byte)0);
+                    writer.Write((byte)0);
+                    writer.Write((byte)0);
+                    writer.Write((byte)255);
                 }
             }
         }
