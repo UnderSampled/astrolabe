@@ -1,6 +1,7 @@
 using Astrolabe.Core.Extraction;
 using Astrolabe.Core.FileFormats;
 using Astrolabe.Core.FileFormats.Geometry;
+using Astrolabe.Core.FileFormats.Godot;
 
 namespace Astrolabe.Cli;
 
@@ -36,6 +37,12 @@ class Program
                 return RunAnalyze(args[1..]);
             case "export-gltf":
                 return RunExportGltf(args[1..]);
+            case "textures-sna":
+                return RunTexturesSna(args[1..]);
+            case "scene":
+                return RunScene(args[1..]);
+            case "export-godot":
+                return RunExportGodot(args[1..]);
             case "help":
             case "--help":
             case "-h":
@@ -456,23 +463,39 @@ class Program
             Console.WriteLine($"Loading level: {levelName}");
             var loader = new LevelLoader(levelDir, levelName);
             Console.WriteLine($"Loaded {loader.Sna.Blocks.Count} SNA blocks");
+
+            // Load texture table from PTX
+            TextureTable? textureTable = null;
+            var ptxPath = Path.Combine(levelDir, $"{levelName}.ptx;1");
+            if (!File.Exists(ptxPath))
+            {
+                ptxPath = Directory.GetFiles(levelDir, $"{levelName}.ptx*").FirstOrDefault() ?? "";
+            }
+            if (File.Exists(ptxPath))
+            {
+                textureTable = new TextureTable(loader, ptxPath);
+                Console.WriteLine($"Loaded {textureTable.TextureNames.Count} texture references from PTX");
+            }
             Console.WriteLine();
 
-            var scanner = new MeshScanner(loader);
+            var scanner = new MeshScanner(loader, textureTable);
             Console.WriteLine("Scanning for meshes...");
             var meshes = scanner.ScanForMeshes();
 
             Console.WriteLine($"\nFound {meshes.Count} potential meshes:");
             int withTriangles = meshes.Count(m => m.Indices != null && m.Indices.Length > 0);
             int withoutTriangles = meshes.Count - withTriangles;
+            int withTextures = meshes.Count(m => !string.IsNullOrEmpty(m.TextureName));
             Console.WriteLine($"  With triangle indices: {withTriangles}");
             Console.WriteLine($"  Without triangle indices (using fallback): {withoutTriangles}");
+            Console.WriteLine($"  With texture references: {withTextures}");
             Console.WriteLine();
 
             foreach (var mesh in meshes.Take(20))
             {
                 int triCount = mesh.Indices != null ? mesh.Indices.Length / 3 : 0;
-                Console.WriteLine($"  {mesh.Name}: {mesh.NumVertices} verts, {mesh.NumElements} elems, {triCount} tris");
+                string texInfo = !string.IsNullOrEmpty(mesh.TextureName) ? $" tex={mesh.TextureName}" : "";
+                Console.WriteLine($"  {mesh.Name}: {mesh.NumVertices} verts, {mesh.NumElements} elems, {triCount} tris{texInfo}");
                 if (mesh.Vertices.Length > 0)
                 {
                     var minX = mesh.Vertices.Min(v => v.X);
@@ -685,15 +708,31 @@ class Program
         if (args.Length == 0)
         {
             Console.Error.WriteLine("Error: Level directory path required");
-            Console.Error.WriteLine("Usage: astrolabe export-gltf <level-dir> [level-name] [output.glb]");
+            Console.Error.WriteLine("Usage: astrolabe export-gltf <level-dir> [level-name] [output.glb] [--texture <path>]");
             return 1;
         }
 
-        var levelDir = args[0];
-        var levelName = args.Length > 1 && !args[1].EndsWith(".glb")
-            ? args[1]
+        // Filter out option arguments for positional arg parsing
+        var positionalArgs = new List<string>();
+        string? texturePath = null;
+        for (int i = 0; i < args.Length; i++)
+        {
+            if ((args[i] == "--texture" || args[i] == "-t") && i + 1 < args.Length)
+            {
+                texturePath = args[i + 1];
+                i++; // Skip next arg
+            }
+            else if (!args[i].StartsWith("-"))
+            {
+                positionalArgs.Add(args[i]);
+            }
+        }
+
+        var levelDir = positionalArgs[0];
+        var levelName = positionalArgs.Count > 1 && !positionalArgs[1].EndsWith(".glb")
+            ? positionalArgs[1]
             : Path.GetFileName(levelDir.TrimEnd('/', '\\'));
-        var outputPath = args.FirstOrDefault(a => a.EndsWith(".glb")) ?? $"{levelName}_meshes.glb";
+        var outputPath = positionalArgs.FirstOrDefault(a => a.EndsWith(".glb")) ?? $"output/{levelName}_meshes.glb";
 
         try
         {
@@ -701,7 +740,20 @@ class Program
             var loader = new LevelLoader(levelDir, levelName);
             Console.WriteLine($"Loaded {loader.Sna.Blocks.Count} SNA blocks");
 
-            var scanner = new MeshScanner(loader);
+            // Load texture table from PTX
+            TextureTable? textureTable = null;
+            var ptxPath = Path.Combine(levelDir, $"{levelName}.ptx;1");
+            if (!File.Exists(ptxPath))
+            {
+                ptxPath = Directory.GetFiles(levelDir, $"{levelName}.ptx*").FirstOrDefault() ?? "";
+            }
+            if (File.Exists(ptxPath))
+            {
+                textureTable = new TextureTable(loader, ptxPath);
+                Console.WriteLine($"Loaded {textureTable.TextureNames.Count} texture references from PTX");
+            }
+
+            var scanner = new MeshScanner(loader, textureTable);
             Console.WriteLine("Scanning for meshes...");
             var meshes = scanner.ScanForMeshes();
             Console.WriteLine($"Found {meshes.Count} potential meshes");
@@ -730,11 +782,454 @@ class Program
                 .Take(100) // Limit to 100 meshes
                 .ToList();
 
-            Console.WriteLine($"Exporting {validMeshes.Count} filtered meshes to {outputPath}...");
+            // Report UV statistics
+            var meshesWithUVs = validMeshes.Count(m => m.UVs != null && m.UVs.Length > 0);
+            var meshesWithTextures = validMeshes.Count(m => !string.IsNullOrEmpty(m.TextureName));
+            Console.WriteLine($"Meshes with UV data: {meshesWithUVs} / {validMeshes.Count}");
+            Console.WriteLine($"Meshes with texture refs: {meshesWithTextures} / {validMeshes.Count}");
 
-            GltfExporter.ExportMeshes(validMeshes, outputPath);
+            // Create output directory (use current directory if no path specified)
+            string outputDir = Path.GetDirectoryName(outputPath);
+            if (string.IsNullOrEmpty(outputDir)) outputDir = ".";
+            string baseName = Path.GetFileNameWithoutExtension(outputPath);
+            string meshOutputDir = Path.Combine(outputDir, baseName);
+            Directory.CreateDirectory(meshOutputDir);
 
-            Console.WriteLine($"Exported to: {outputPath}");
+            Console.WriteLine($"Exporting {validMeshes.Count} meshes to {meshOutputDir}/...");
+
+            // Build texture lookup from all extracted textures
+            string textureBaseDir = "textures";
+            var textureLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (Directory.Exists(textureBaseDir))
+            {
+                foreach (var file in Directory.EnumerateFiles(textureBaseDir, "*.tga", SearchOption.AllDirectories))
+                {
+                    var fileName = Path.GetFileName(file);
+                    if (!textureLookup.ContainsKey(fileName))
+                        textureLookup[fileName] = file;
+                }
+                foreach (var file in Directory.EnumerateFiles(textureBaseDir, "*.png", SearchOption.AllDirectories))
+                {
+                    var fileName = Path.GetFileName(file);
+                    if (!textureLookup.ContainsKey(fileName))
+                        textureLookup[fileName] = file;
+                }
+                Console.WriteLine($"Indexed {textureLookup.Count} textures from {textureBaseDir}/");
+            }
+
+            if (!string.IsNullOrEmpty(texturePath) && File.Exists(texturePath))
+            {
+                Console.WriteLine($"Using override texture: {texturePath}");
+            }
+
+            // Create texture lookup function
+            Func<string?, string?> lookupTexture = (texName) =>
+            {
+                if (!string.IsNullOrEmpty(texturePath))
+                    return texturePath; // Override all textures
+
+                if (string.IsNullOrEmpty(texName))
+                    return null;
+
+                string fileName = Path.GetFileName(texName);
+                if (!fileName.EndsWith(".tga", StringComparison.OrdinalIgnoreCase) &&
+                    !fileName.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                {
+                    fileName += ".tga";
+                }
+
+                if (textureLookup.TryGetValue(fileName, out var foundPath))
+                    return foundPath;
+
+                // Try PNG extension
+                var pngName = Path.ChangeExtension(fileName, ".png");
+                if (textureLookup.TryGetValue(pngName, out foundPath))
+                    return foundPath;
+
+                return null;
+            };
+
+            // Export each mesh as a separate file
+            int exported = 0;
+            int withTextures = 0;
+            int withTransparency = 0;
+            foreach (var mesh in validMeshes)
+            {
+                string meshFileName = $"{mesh.Name}.glb";
+                string meshPath = Path.Combine(meshOutputDir, meshFileName);
+
+                // Count submeshes with textures
+                int subMeshesWithTextures = mesh.SubMeshes.Count(sm => lookupTexture(sm.TextureName) != null);
+                if (subMeshesWithTextures > 0)
+                    withTextures++;
+
+                // Count submeshes with transparency flags
+                int transparentSubMeshes = mesh.SubMeshes.Count(sm =>
+                    sm.MaterialFlags != 0 || (sm.VisualMaterial?.IsTransparent ?? false));
+                if (transparentSubMeshes > 0)
+                    withTransparency++;
+
+                GltfExporter.ExportMesh(mesh, meshPath, lookupTexture);
+                exported++;
+            }
+
+            Console.WriteLine($"Meshes exported with textures: {withTextures} / {exported}");
+            Console.WriteLine($"Meshes with transparency flags: {withTransparency} / {exported}");
+
+            // Show material stats
+            var meshesWithVisualMat = validMeshes.Count(m => m.SubMeshes.Any(sm => sm.VisualMaterial != null));
+            var meshesWithGameMat = validMeshes.Count(m => m.SubMeshes.Any(sm => sm.GameMaterial != null));
+            Console.WriteLine($"Meshes with VisualMaterial: {meshesWithVisualMat} / {exported}");
+            Console.WriteLine($"Meshes with GameMaterial: {meshesWithGameMat} / {exported}");
+
+            Console.WriteLine($"Exported {exported} mesh files to: {meshOutputDir}/");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            Console.Error.WriteLine(ex.StackTrace);
+            return 1;
+        }
+    }
+
+    static int RunTexturesSna(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            Console.Error.WriteLine("Error: Level directory path required");
+            Console.Error.WriteLine("Usage: astrolabe textures-sna <level-dir> [level-name]");
+            return 1;
+        }
+
+        var levelDir = args[0];
+        var levelName = args.Length > 1 ? args[1] : Path.GetFileName(levelDir.TrimEnd('/', '\\'));
+
+        try
+        {
+            Console.WriteLine($"Loading level: {levelName}");
+            var loader = new LevelLoader(levelDir, levelName);
+            Console.WriteLine($"Loaded {loader.Sna.Blocks.Count} SNA blocks");
+
+            // Find PTX file
+            var ptxPath = Path.Combine(levelDir, $"{levelName}.ptx;1");
+            if (!File.Exists(ptxPath))
+            {
+                ptxPath = Directory.GetFiles(levelDir, $"{levelName}.ptx*").FirstOrDefault();
+            }
+
+            if (ptxPath == null || !File.Exists(ptxPath))
+            {
+                Console.WriteLine("PTX file not found");
+                return 1;
+            }
+
+            Console.WriteLine($"Loading PTX from: {ptxPath}");
+            var textureTable = new TextureTable(loader, ptxPath);
+
+            Console.WriteLine($"\nFound {textureTable.TextureNames.Count} texture names:");
+            foreach (var (addr, name) in textureTable.TextureNames.OrderBy(kv => kv.Key))
+            {
+                Console.WriteLine($"  0x{addr:X8}: {name}");
+            }
+
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            Console.Error.WriteLine(ex.StackTrace);
+            return 1;
+        }
+    }
+
+    static int RunScene(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            Console.Error.WriteLine("Error: Level directory path required");
+            Console.Error.WriteLine("Usage: astrolabe scene <level-dir> [level-name]");
+            return 1;
+        }
+
+        var levelDir = args[0];
+        var levelName = args.Length > 1 ? args[1] : Path.GetFileName(levelDir.TrimEnd('/', '\\'));
+
+        try
+        {
+            Console.WriteLine($"Loading level: {levelName}");
+            var loader = new LevelLoader(levelDir, levelName);
+            Console.WriteLine($"Loaded {loader.Sna.Blocks.Count} SNA blocks");
+
+            // Find GPT file
+            var gptPath = Path.Combine(levelDir, $"{levelName}.gpt;1");
+            if (!File.Exists(gptPath))
+            {
+                gptPath = Directory.GetFiles(levelDir, $"{levelName}.gpt*").FirstOrDefault() ?? "";
+            }
+
+            if (!File.Exists(gptPath))
+            {
+                Console.Error.WriteLine("GPT file not found");
+                return 1;
+            }
+
+            Console.WriteLine($"Loading GPT from: {gptPath}");
+            var gpt = new GptReader(gptPath);
+            gpt.PrintDebugInfo(Console.Out);
+            Console.WriteLine();
+
+            // Create memory context for pointer resolution
+            var memory = new MemoryContext(loader.Sna, loader.Rtb);
+
+            // Read scene graph
+            Console.WriteLine("Reading scene graph...");
+            var sceneReader = new SuperObjectReader(memory);
+            var sceneGraph = sceneReader.ReadSceneGraph(gpt);
+
+            // Print statistics
+            Console.WriteLine($"\nScene Graph Statistics:");
+            Console.WriteLine($"  Total nodes: {sceneGraph.AllNodes.Count}");
+
+            var typeGroups = sceneGraph.AllNodes.GroupBy(n => n.Type).OrderBy(g => g.Key);
+            foreach (var group in typeGroups)
+            {
+                Console.WriteLine($"  {group.Key}: {group.Count()}");
+            }
+
+            var geoNodes = sceneGraph.GetGeometryNodes().ToList();
+            Console.WriteLine($"\n  Nodes with geometry: {geoNodes.Count}");
+
+            // Print hierarchy (limited depth)
+            Console.WriteLine("\nScene Hierarchy (ActualWorld):");
+            if (sceneGraph.ActualWorld != null)
+            {
+                PrintHierarchy(sceneGraph.ActualWorld, 0, 3);
+            }
+            else
+            {
+                Console.WriteLine("  (no ActualWorld found)");
+            }
+
+            if (sceneGraph.DynamicWorld != null)
+            {
+                Console.WriteLine("\nDynamic World:");
+                PrintHierarchy(sceneGraph.DynamicWorld, 0, 2);
+            }
+
+            if (sceneGraph.FatherSector != null)
+            {
+                Console.WriteLine("\nFather Sector:");
+                PrintHierarchy(sceneGraph.FatherSector, 0, 2);
+            }
+
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            Console.Error.WriteLine(ex.StackTrace);
+            return 1;
+        }
+    }
+
+    static void PrintHierarchy(SceneNode node, int indent, int maxDepth)
+    {
+        if (indent > maxDepth) return;
+
+        var prefix = new string(' ', indent * 2);
+        string geoInfo = node.GeometricObjectAddress != 0 ? $" [geo@0x{node.GeometricObjectAddress:X8}]" : "";
+        Console.WriteLine($"{prefix}{node.Type} @ 0x{node.Address:X8}{geoInfo}");
+
+        if (indent < maxDepth)
+        {
+            foreach (var child in node.Children.Take(10))
+            {
+                PrintHierarchy(child, indent + 1, maxDepth);
+            }
+            if (node.Children.Count > 10)
+            {
+                Console.WriteLine($"{prefix}  ... and {node.Children.Count - 10} more children");
+            }
+        }
+        else if (node.Children.Count > 0)
+        {
+            Console.WriteLine($"{prefix}  ({node.Children.Count} children)");
+        }
+    }
+
+    static int RunExportGodot(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            Console.Error.WriteLine("Error: Level directory path required");
+            Console.Error.WriteLine("Usage: astrolabe export-godot <level-dir> [output-dir]");
+            return 1;
+        }
+
+        var levelDir = args[0];
+        var levelName = Path.GetFileName(levelDir.TrimEnd('/', '\\'));
+        var outputDir = args.Length > 1 ? args[1] : $"output/{levelName}";
+
+        try
+        {
+            Console.WriteLine($"Loading level: {levelName}");
+            var loader = new LevelLoader(levelDir, levelName);
+            Console.WriteLine($"Loaded {loader.Sna.Blocks.Count} SNA blocks");
+
+            // Load texture table from PTX
+            TextureTable? textureTable = null;
+            var ptxPath = Path.Combine(levelDir, $"{levelName}.ptx;1");
+            if (!File.Exists(ptxPath))
+            {
+                ptxPath = Directory.GetFiles(levelDir, $"{levelName}.ptx*").FirstOrDefault() ?? "";
+            }
+            if (File.Exists(ptxPath))
+            {
+                textureTable = new TextureTable(loader, ptxPath);
+                Console.WriteLine($"Loaded {textureTable.TextureNames.Count} texture references from PTX");
+            }
+
+            // Find GPT file
+            var gptPath = Path.Combine(levelDir, $"{levelName}.gpt;1");
+            if (!File.Exists(gptPath))
+            {
+                gptPath = Directory.GetFiles(levelDir, $"{levelName}.gpt*").FirstOrDefault() ?? "";
+            }
+
+            if (!File.Exists(gptPath))
+            {
+                Console.Error.WriteLine("GPT file not found - cannot build scene graph");
+                return 1;
+            }
+
+            Console.WriteLine($"Loading GPT from: {gptPath}");
+            var gpt = new GptReader(gptPath);
+
+            // Create memory context for pointer resolution
+            var memory = new MemoryContext(loader.Sna, loader.Rtb);
+
+            // Read scene graph
+            Console.WriteLine("Reading scene graph...");
+            var sceneReader = new SuperObjectReader(memory);
+            var sceneGraph = sceneReader.ReadSceneGraph(gpt);
+            Console.WriteLine($"Found {sceneGraph.AllNodes.Count} scene nodes");
+
+            // Scan for meshes
+            Console.WriteLine("Scanning for meshes...");
+            var scanner = new MeshScanner(loader, textureTable);
+            var meshes = scanner.ScanForMeshes();
+
+            // Filter valid meshes
+            var validMeshes = meshes
+                .Where(m => m.Vertices.Length >= 3)
+                .Where(m => m.Indices != null && m.Indices.Length >= 3)
+                .Where(m =>
+                {
+                    var minX = m.Vertices.Min(v => v.X);
+                    var maxX = m.Vertices.Max(v => v.X);
+                    var sizeX = maxX - minX;
+                    return sizeX > 0.5f && sizeX < 1000;
+                })
+                .ToList();
+
+            Console.WriteLine($"Found {validMeshes.Count} valid meshes");
+
+            // Create output directories
+            var meshDir = Path.Combine(outputDir, "meshes");
+            var texturesDir = Path.Combine(outputDir, "textures");
+            Directory.CreateDirectory(outputDir);
+            Directory.CreateDirectory(meshDir);
+            Directory.CreateDirectory(texturesDir);
+
+            // Build texture lookup
+            string textureBaseDir = "textures";
+            var textureLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (Directory.Exists(textureBaseDir))
+            {
+                foreach (var file in Directory.EnumerateFiles(textureBaseDir, "*.tga", SearchOption.AllDirectories))
+                {
+                    var fileName = Path.GetFileName(file);
+                    if (!textureLookup.ContainsKey(fileName))
+                        textureLookup[fileName] = file;
+                }
+                foreach (var file in Directory.EnumerateFiles(textureBaseDir, "*.png", SearchOption.AllDirectories))
+                {
+                    var fileName = Path.GetFileName(file);
+                    if (!textureLookup.ContainsKey(fileName))
+                        textureLookup[fileName] = file;
+                }
+                Console.WriteLine($"Indexed {textureLookup.Count} textures");
+            }
+
+            // Texture lookup function
+            Func<string?, string?> lookupTexture = (texName) =>
+            {
+                if (string.IsNullOrEmpty(texName)) return null;
+
+                string fileName = Path.GetFileName(texName);
+                if (!fileName.EndsWith(".tga", StringComparison.OrdinalIgnoreCase) &&
+                    !fileName.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                {
+                    fileName += ".tga";
+                }
+
+                if (textureLookup.TryGetValue(fileName, out var foundPath))
+                    return foundPath;
+
+                var pngName = Path.ChangeExtension(fileName, ".png");
+                if (textureLookup.TryGetValue(pngName, out foundPath))
+                    return foundPath;
+
+                return null;
+            };
+
+            // Build mapping from GeometricObject address to mesh data
+            var geoAddrToMesh = new Dictionary<int, MeshData>();
+            foreach (var mesh in validMeshes)
+            {
+                if (mesh.SourceBlock != null)
+                {
+                    int geoAddr = mesh.SourceBlock.BaseInMemory + mesh.SourceOffset;
+                    geoAddrToMesh[geoAddr] = mesh;
+                }
+            }
+
+            // Export meshes and build address-to-filename mapping
+            Console.WriteLine("Exporting meshes as GLTF...");
+            var geoAddrToMeshName = new Dictionary<int, string>();
+            foreach (var (geoAddr, mesh) in geoAddrToMesh)
+            {
+                string meshFileName = $"mesh_{geoAddr:X8}";
+                string meshPath = Path.Combine(meshDir, $"{meshFileName}.glb");
+
+                GltfExporter.ExportMesh(mesh, meshPath, lookupTexture);
+                geoAddrToMeshName[geoAddr] = meshFileName;
+            }
+
+            Console.WriteLine($"Exported {geoAddrToMeshName.Count} meshes");
+
+            // Match scene nodes to meshes
+            int matchedNodes = 0;
+            foreach (var node in sceneGraph.AllNodes)
+            {
+                if (node.GeometricObjectAddress != 0 && geoAddrToMesh.ContainsKey(node.GeometricObjectAddress))
+                {
+                    matchedNodes++;
+                }
+            }
+            Console.WriteLine($"Scene nodes with matched meshes: {matchedNodes}");
+
+            // Export Godot scene
+            Console.WriteLine("Exporting Godot scene...");
+            var godotExporter = new GodotExporter();
+            var tscnPath = Path.Combine(outputDir, $"{levelName}.tscn");
+            godotExporter.Export(sceneGraph, tscnPath, "meshes", geoAddrToMeshName);
+
+            Console.WriteLine($"\nExported to: {outputDir}");
+            Console.WriteLine($"  Scene: {levelName}.tscn");
+            Console.WriteLine($"  Meshes: meshes/ ({geoAddrToMeshName.Count} files)");
+
             return 0;
         }
         catch (Exception ex)

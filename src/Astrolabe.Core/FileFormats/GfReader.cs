@@ -173,49 +173,80 @@ public class GfReader
 
     private void DecodeRgb565(byte[] decoded, byte[] result, int mainPixels)
     {
-        // Channels are stored separately: all channel0 bytes, then all channel1 bytes
+        // Channels are stored separately: all lo bytes, then all hi bytes
         for (int i = 0; i < mainPixels; i++)
         {
             byte lo = decoded[i];
             byte hi = decoded[PixelCount + i];
             ushort pixel = (ushort)(lo | (hi << 8));
 
-            result[i * 4 + 2] = (byte)((pixel & 0x001F) << 3); // B
-            result[i * 4 + 1] = (byte)((pixel & 0x07E0) >> 3); // G
-            result[i * 4 + 0] = (byte)((pixel & 0xF800) >> 8); // R
-            result[i * 4 + 3] = 255; // A
+            // Format is RGB565:
+            // bits 11-15: red (5 bits)
+            // bits 5-10: green (6 bits)
+            // bits 0-4: blue (5 bits)
+            uint r = (uint)((pixel >> 11) & 0x1F);
+            uint g = (uint)((pixel >> 5) & 0x3F);
+            uint b = (uint)(pixel & 0x1F);
+
+            // Scale to 8-bit
+            result[i * 4 + 0] = (byte)((r * 255) / 31);
+            result[i * 4 + 1] = (byte)((g * 255) / 63);
+            result[i * 4 + 2] = (byte)((b * 255) / 31);
+            result[i * 4 + 3] = 255; // No alpha in RGB565
         }
     }
 
     private void DecodeRgba1555(byte[] decoded, byte[] result, int mainPixels)
     {
-        // Channels are stored separately
+        // Channels are stored separately: all lo bytes, then all hi bytes
         for (int i = 0; i < mainPixels; i++)
         {
             byte lo = decoded[i];
             byte hi = decoded[PixelCount + i];
             ushort pixel = (ushort)(lo | (hi << 8));
 
-            result[i * 4 + 2] = (byte)((pixel & 0x001F) << 3); // B
-            result[i * 4 + 1] = (byte)((pixel & 0x03E0) >> 2); // G
-            result[i * 4 + 0] = (byte)((pixel & 0x7C00) >> 7); // R
-            result[i * 4 + 3] = (byte)((pixel & 0x8000) != 0 ? 255 : 0); // A
+            // Format is ARGB1555:
+            // bit 15: alpha (1 bit)
+            // bits 10-14: red (5 bits)
+            // bits 5-9: green (5 bits)
+            // bits 0-4: blue (5 bits)
+            uint a = (uint)((pixel >> 15) & 0x1);
+            uint r = (uint)((pixel >> 10) & 0x1F);
+            uint g = (uint)((pixel >> 5) & 0x1F);
+            uint b = (uint)(pixel & 0x1F);
+
+            // Scale 5-bit values to 8-bit
+            result[i * 4 + 0] = (byte)((r * 255) / 31);
+            result[i * 4 + 1] = (byte)((g * 255) / 31);
+            result[i * 4 + 2] = (byte)((b * 255) / 31);
+            result[i * 4 + 3] = (byte)(a * 255);
         }
     }
 
     private void DecodeRgba4444(byte[] decoded, byte[] result, int mainPixels)
     {
-        // Channels are stored separately
+        // Channels are stored separately: all lo bytes, then all hi bytes
         for (int i = 0; i < mainPixels; i++)
         {
             byte lo = decoded[i];
             byte hi = decoded[PixelCount + i];
             ushort pixel = (ushort)(lo | (hi << 8));
 
-            result[i * 4 + 2] = (byte)((pixel & 0x000F) << 4); // B
-            result[i * 4 + 1] = (byte)((pixel & 0x00F0)); // G
-            result[i * 4 + 0] = (byte)((pixel & 0x0F00) >> 4); // R
-            result[i * 4 + 3] = (byte)((pixel & 0xF000) >> 8); // A
+            // Format is ARGB4444:
+            // bits 12-15: alpha (4 bits)
+            // bits 8-11: red (4 bits)
+            // bits 4-7: green (4 bits)
+            // bits 0-3: blue (4 bits)
+            uint a = (uint)((pixel >> 12) & 0xF);
+            uint r = (uint)((pixel >> 8) & 0xF);
+            uint g = (uint)((pixel >> 4) & 0xF);
+            uint b = (uint)(pixel & 0xF);
+
+            // Scale 4-bit values to 8-bit
+            result[i * 4 + 0] = (byte)((r * 255) / 15);
+            result[i * 4 + 1] = (byte)((g * 255) / 15);
+            result[i * 4 + 2] = (byte)((b * 255) / 15);
+            result[i * 4 + 3] = (byte)((a * 255) / 15);
         }
     }
 

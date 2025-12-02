@@ -1,4 +1,5 @@
 using System.Numerics;
+using Astrolabe.Core.FileFormats.Materials;
 
 namespace Astrolabe.Core.FileFormats.Geometry;
 
@@ -9,10 +10,14 @@ namespace Astrolabe.Core.FileFormats.Geometry;
 public class MeshScanner
 {
     private readonly MemoryContext _memory;
+    private readonly TextureTable? _textureTable;
+    private readonly GameMaterialReader _gameMaterialReader;
 
-    public MeshScanner(LevelLoader level)
+    public MeshScanner(LevelLoader level, TextureTable? textureTable = null)
     {
         _memory = new MemoryContext(level.Sna, level.Rtb);
+        _textureTable = textureTable;
+        _gameMaterialReader = new GameMaterialReader(_memory);
     }
 
     /// <summary>
@@ -105,8 +110,13 @@ public class MeshScanner
             if (elementTypes == null)
                 continue;
 
-            // Read elements and extract triangles
+            // Read elements and extract triangles/UVs per submesh
+            var subMeshes = new List<SubMeshData>();
             var allTriangles = new List<int>();
+            var allUVs = new List<Vector2>();
+            var allUVIndices = new List<int>();
+            string? textureName = null;
+
             for (int i = 0; i < numElements; i++)
             {
                 if (elementTypes[i] == 1) // Material/Triangles element
@@ -117,10 +127,45 @@ public class MeshScanner
                     if (elemReader == null) continue;
 
                     int elemAddr = elemReader.ReadInt32();
-                    var triangles = ReadElementTriangles(elemAddr, numVertices);
-                    if (triangles != null)
+                    var element = ReadElementTriangles(elemAddr, numVertices);
+                    if (element != null)
                     {
-                        allTriangles.AddRange(triangles);
+                        // Create submesh for this element
+                        var subMesh = new SubMeshData
+                        {
+                            Triangles = element.Triangles,
+                            TextureName = element.TextureName,
+                            MaterialFlags = element.MaterialFlags,
+                            GameMaterial = element.GameMaterial,
+                            VisualMaterial = element.GameMaterial?.VisualMaterial
+                        };
+
+                        if (element.UVs != null && element.UVMapping != null)
+                        {
+                            subMesh.UVs = element.UVs;
+                            subMesh.UVIndices = element.UVMapping;
+                        }
+
+                        subMeshes.Add(subMesh);
+
+                        // Also accumulate for legacy single-mesh support
+                        allTriangles.AddRange(element.Triangles);
+
+                        if (element.UVs != null && element.UVMapping != null)
+                        {
+                            int uvOffset = allUVs.Count;
+                            allUVs.AddRange(element.UVs);
+
+                            foreach (var uvIdx in element.UVMapping)
+                            {
+                                allUVIndices.Add(uvIdx + uvOffset);
+                            }
+                        }
+
+                        if (textureName == null && element.TextureName != null)
+                        {
+                            textureName = element.TextureName;
+                        }
                     }
                 }
             }
@@ -130,7 +175,11 @@ public class MeshScanner
                 Name = $"Mesh_{block.Module:X2}_{block.Id:X2}_{offset:X}",
                 Vertices = vertices,
                 Normals = normals,
+                SubMeshes = subMeshes,
                 Indices = allTriangles.Count > 0 ? allTriangles.ToArray() : null,
+                UVs = allUVs.Count > 0 ? allUVs.ToArray() : null,
+                UVIndices = allUVIndices.Count > 0 ? allUVIndices.ToArray() : null,
+                TextureName = textureName,
                 SourceBlock = block,
                 SourceOffset = offset,
                 NumVertices = numVertices,
@@ -222,7 +271,7 @@ public class MeshScanner
         }
     }
 
-    private int[]? ReadElementTriangles(int address, uint numVertices)
+    private ElementData? ReadElementTriangles(int address, uint numVertices)
     {
         // Montreal GeometricObjectElementTriangles structure:
         // ptr off_material           +0
@@ -247,6 +296,9 @@ public class MeshScanner
             ushort numTriangles = reader.ReadUInt16();
             ushort numUvs = reader.ReadUInt16();
             int offTriangles = reader.ReadInt32();
+            int offMappingUvs = reader.ReadInt32();
+            int offNormals = reader.ReadInt32();
+            int offUvs = reader.ReadInt32();
 
             if (numTriangles == 0 || numTriangles > 10000)
                 return null;
@@ -264,7 +316,54 @@ public class MeshScanner
                 triangles[i] = index;
             }
 
-            return triangles;
+            var element = new ElementData { Triangles = triangles };
+
+            // Read UVs
+            if (numUvs > 0 && offUvs != 0)
+            {
+                var uvReader = _memory.GetReaderAt(offUvs);
+                if (uvReader != null)
+                {
+                    element.UVs = new Vector2[numUvs];
+                    for (int i = 0; i < numUvs; i++)
+                    {
+                        float u = uvReader.ReadSingle();
+                        float v = uvReader.ReadSingle();
+                        element.UVs[i] = new Vector2(u, v);
+                    }
+                }
+            }
+
+            // Read UV mapping (maps each triangle vertex to a UV index)
+            if (offMappingUvs != 0 && numTriangles > 0)
+            {
+                var uvMapReader = _memory.GetReaderAt(offMappingUvs);
+                if (uvMapReader != null)
+                {
+                    element.UVMapping = new int[numTriangles * 3];
+                    for (int i = 0; i < numTriangles * 3; i++)
+                    {
+                        element.UVMapping[i] = uvMapReader.ReadInt16();
+                    }
+                }
+            }
+
+            // Read material using the full material reader
+            var gameMaterial = _gameMaterialReader.Read(offMaterial);
+            element.GameMaterial = gameMaterial;
+
+            if (gameMaterial?.VisualMaterial != null)
+            {
+                element.MaterialFlags = gameMaterial.VisualMaterial.Flags;
+
+                // Try to get texture name from texture table
+                if (_textureTable != null && gameMaterial.VisualMaterial.OffTexture != 0)
+                {
+                    element.TextureName = _textureTable.GetTextureName(gameMaterial.VisualMaterial.OffTexture);
+                }
+            }
+
+            return element;
         }
         catch
         {
@@ -309,16 +408,67 @@ public class MeshScanner
 }
 
 /// <summary>
-/// Represents extracted mesh data.
+/// Represents extracted mesh data with multiple submeshes.
 /// </summary>
 public class MeshData
 {
     public string Name { get; set; } = "";
     public Vector3[] Vertices { get; set; } = [];
     public Vector3[]? Normals { get; set; }
+
+    /// <summary>
+    /// Per-vertex colors (from radiosity/pre-baked lighting).
+    /// </summary>
+    public Vector4[]? VertexColors { get; set; }
+
+    /// <summary>
+    /// Submeshes, each with their own triangles, UVs, and texture.
+    /// </summary>
+    public List<SubMeshData> SubMeshes { get; set; } = [];
+
+    // Legacy properties for backward compatibility
     public int[]? Indices { get; set; }
+    public Vector2[]? UVs { get; set; }
+    public int[]? UVIndices { get; set; }
+    public string? TextureName { get; set; }
     public SnaBlock? SourceBlock { get; set; }
     public int SourceOffset { get; set; }
     public uint NumVertices { get; set; }
     public uint NumElements { get; set; }
 }
+
+/// <summary>
+/// A submesh with its own triangles, UVs, and texture.
+/// </summary>
+public class SubMeshData
+{
+    public int[] Triangles { get; set; } = [];
+    public Vector2[] UVs { get; set; } = [];
+    public int[] UVIndices { get; set; } = [];
+    public string? TextureName { get; set; }
+    public uint MaterialFlags { get; set; }
+
+    /// <summary>
+    /// Full visual material information.
+    /// </summary>
+    public VisualMaterial? VisualMaterial { get; set; }
+
+    /// <summary>
+    /// Full game material information.
+    /// </summary>
+    public GameMaterial? GameMaterial { get; set; }
+}
+
+/// <summary>
+/// Data from a single element (submesh).
+/// </summary>
+public class ElementData
+{
+    public int[] Triangles { get; set; } = [];
+    public Vector2[]? UVs { get; set; }
+    public int[]? UVMapping { get; set; }
+    public string? TextureName { get; set; }
+    public uint MaterialFlags { get; set; }
+    public GameMaterial? GameMaterial { get; set; }
+}
+
