@@ -47,6 +47,7 @@ public class SceneNode
 
     // Data (depends on type)
     public int GeometricObjectAddress { get; set; }
+    public int OffCollideSet { get; set; }
 
     public override string ToString()
     {

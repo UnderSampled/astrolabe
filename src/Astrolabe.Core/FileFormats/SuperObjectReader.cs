@@ -1,4 +1,5 @@
 using System.Numerics;
+using Astrolabe.Core.FileFormats.Materials;
 
 namespace Astrolabe.Core.FileFormats;
 
@@ -9,10 +10,12 @@ public class SuperObjectReader
 {
     private readonly MemoryContext _memory;
     private readonly HashSet<int> _visitedAddresses = new();
+    private readonly GameMaterialReader _gameMaterialReader;
 
     public SuperObjectReader(MemoryContext memory)
     {
         _memory = memory;
+        _gameMaterialReader = new GameMaterialReader(memory);
     }
 
     private SceneGraph? _currentGraph;
@@ -223,10 +226,17 @@ public class SuperObjectReader
         if (reader == null) return;
 
         int offVisualSet = reader.ReadInt32();
+        int offCollideSet = reader.ReadInt32();
 
         if (offVisualSet != 0)
         {
             ReadVisualSetData(node, offVisualSet);
+        }
+
+        // CollideSet address stored for future use
+        if (offCollideSet != 0)
+        {
+            node.OffCollideSet = offCollideSet;
         }
     }
 

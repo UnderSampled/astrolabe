@@ -90,6 +90,9 @@ public class GodotExporter
             WriteTransform(_nodes, t);
         }
 
+        // Add metadata for unimplemented features
+        WriteNodeMetadata(_nodes, node);
+
         _nodes.AppendLine();
 
         // If this node has geometry, add a child MeshInstance3D that references the GLTF
@@ -168,6 +171,26 @@ public class GodotExporter
             basisY.X, basisY.Y, basisY.Z,
             basisZ.X, basisZ.Y, basisZ.Z,
             origin.X, origin.Y, origin.Z));
+    }
+
+    private static void WriteNodeMetadata(StringBuilder sb, SceneNode node)
+    {
+        // Store OpenSpace addresses and type info as metadata
+        sb.AppendLine($"metadata/openspace_address = {node.Address}");
+        sb.AppendLine($"metadata/openspace_type = \"{node.Type}\"");
+        sb.AppendLine($"metadata/openspace_type_code = {node.TypeCode}");
+
+        if (node.GeometricObjectAddress != 0)
+            sb.AppendLine($"metadata/geometry_address = {node.GeometricObjectAddress}");
+
+        if (node.OffCollideSet != 0)
+            sb.AppendLine($"metadata/collide_set_address = {node.OffCollideSet}");
+
+        if (node.Flags != 0)
+            sb.AppendLine($"metadata/flags = {node.Flags}");
+
+        if (node.DrawFlags != 0)
+            sb.AppendLine($"metadata/draw_flags = {node.DrawFlags}");
     }
 
     private void WriteTscn(string outputPath, string rootName)
