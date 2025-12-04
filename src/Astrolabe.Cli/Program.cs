@@ -1,5 +1,6 @@
 using Astrolabe.Core.Extraction;
 using Astrolabe.Core.FileFormats;
+using Astrolabe.Core.FileFormats.Audio;
 using Astrolabe.Core.FileFormats.Geometry;
 using Astrolabe.Core.FileFormats.Godot;
 
@@ -43,6 +44,8 @@ class Program
                 return RunScene(args[1..]);
             case "export-godot":
                 return RunExportGodot(args[1..]);
+            case "audio":
+                return RunAudio(args[1..]);
             case "help":
             case "--help":
             case "-h":
@@ -68,9 +71,11 @@ class Program
                 list <iso-path>                    List files in ISO
                 textures <cnt-path> [output-dir]   Extract textures from CNT container
                 cnt <cnt-path>                     List files in CNT container
+                audio <apm-path> [output-path]     Convert APM audio to WAV
                 help                               Show this help message
 
             Options for 'extract':
+                --all, -a              Extract all files (default: only Gamedata, LangData, Sound)
                 --pattern <pattern>    Only extract files matching pattern (e.g., "*.lvl")
 
             Examples:
@@ -124,6 +129,7 @@ class Program
             : "extracted";
 
         string? pattern = null;
+        bool extractAll = false;
 
         // Parse options
         for (int i = 0; i < args.Length; i++)
@@ -132,6 +138,10 @@ class Program
             {
                 pattern = args[i + 1];
                 i++;
+            }
+            else if (args[i] == "--all" || args[i] == "-a")
+            {
+                extractAll = true;
             }
         }
 
@@ -151,9 +161,19 @@ class Program
                 Console.WriteLine($"Pattern: {pattern}");
                 extractor.ExtractPattern(pattern, outputDir, progress);
             }
-            else
+            else if (extractAll)
             {
                 extractor.ExtractAll(outputDir, progress);
+            }
+            else
+            {
+                // Default: extract only game data folders
+                string[] defaultFolders = ["Gamedata", "LangData", "Sound"];
+                Console.WriteLine($"Extracting: {string.Join(", ", defaultFolders)} (use --all for everything)");
+                foreach (var folder in defaultFolders)
+                {
+                    extractor.ExtractPattern($"{folder}/", outputDir, progress);
+                }
             }
 
             Console.WriteLine();
@@ -466,7 +486,7 @@ class Program
 
             // Load texture table from PTX
             TextureTable? textureTable = null;
-            var ptxPath = Path.Combine(levelDir, $"{levelName}.ptx;1");
+            var ptxPath = Path.Combine(levelDir, $"{levelName}.ptx");
             if (!File.Exists(ptxPath))
             {
                 ptxPath = Directory.GetFiles(levelDir, $"{levelName}.ptx*").FirstOrDefault() ?? "";
@@ -742,7 +762,7 @@ class Program
 
             // Load texture table from PTX
             TextureTable? textureTable = null;
-            var ptxPath = Path.Combine(levelDir, $"{levelName}.ptx;1");
+            var ptxPath = Path.Combine(levelDir, $"{levelName}.ptx");
             if (!File.Exists(ptxPath))
             {
                 ptxPath = Directory.GetFiles(levelDir, $"{levelName}.ptx*").FirstOrDefault() ?? "";
@@ -912,7 +932,7 @@ class Program
             Console.WriteLine($"Loaded {loader.Sna.Blocks.Count} SNA blocks");
 
             // Find PTX file
-            var ptxPath = Path.Combine(levelDir, $"{levelName}.ptx;1");
+            var ptxPath = Path.Combine(levelDir, $"{levelName}.ptx");
             if (!File.Exists(ptxPath))
             {
                 ptxPath = Directory.GetFiles(levelDir, $"{levelName}.ptx*").FirstOrDefault();
@@ -962,7 +982,7 @@ class Program
             Console.WriteLine($"Loaded {loader.Sna.Blocks.Count} SNA blocks");
 
             // Find GPT file
-            var gptPath = Path.Combine(levelDir, $"{levelName}.gpt;1");
+            var gptPath = Path.Combine(levelDir, $"{levelName}.gpt");
             if (!File.Exists(gptPath))
             {
                 gptPath = Directory.GetFiles(levelDir, $"{levelName}.gpt*").FirstOrDefault() ?? "";
@@ -1079,7 +1099,7 @@ class Program
 
             // Load texture table from PTX
             TextureTable? textureTable = null;
-            var ptxPath = Path.Combine(levelDir, $"{levelName}.ptx;1");
+            var ptxPath = Path.Combine(levelDir, $"{levelName}.ptx");
             if (!File.Exists(ptxPath))
             {
                 ptxPath = Directory.GetFiles(levelDir, $"{levelName}.ptx*").FirstOrDefault() ?? "";
@@ -1091,7 +1111,7 @@ class Program
             }
 
             // Find GPT file
-            var gptPath = Path.Combine(levelDir, $"{levelName}.gpt;1");
+            var gptPath = Path.Combine(levelDir, $"{levelName}.gpt");
             if (!File.Exists(gptPath))
             {
                 gptPath = Directory.GetFiles(levelDir, $"{levelName}.gpt*").FirstOrDefault() ?? "";
@@ -1247,5 +1267,93 @@ class Program
             Console.Error.WriteLine(ex.StackTrace);
             return 1;
         }
+    }
+
+    static int RunAudio(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            Console.Error.WriteLine("Error: APM path required");
+            Console.Error.WriteLine("Usage: astrolabe audio <apm-path> [output-path]");
+            Console.Error.WriteLine("       astrolabe audio <directory> [output-dir]  # Convert all APM files");
+            return 1;
+        }
+
+        var inputPath = args[0];
+        var outputPath = args.Length > 1 ? args[1] : null;
+
+        try
+        {
+            // Check if input is a directory
+            if (Directory.Exists(inputPath))
+            {
+                return ConvertAllApm(inputPath, outputPath);
+            }
+
+            // Single file conversion
+            if (!File.Exists(inputPath))
+            {
+                Console.Error.WriteLine($"Error: File not found: {inputPath}");
+                return 1;
+            }
+
+            outputPath ??= Path.ChangeExtension(inputPath, ".wav");
+
+            Console.WriteLine($"Converting: {inputPath}");
+            WavWriter.ConvertApmToWav(inputPath, outputPath);
+            Console.WriteLine($"Output: {outputPath}");
+
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+    }
+
+    static int ConvertAllApm(string inputDir, string? outputDir)
+    {
+        outputDir ??= inputDir;
+
+        var apmFiles = Directory.GetFiles(inputDir, "*.apm", SearchOption.AllDirectories);
+        if (apmFiles.Length == 0)
+        {
+            Console.WriteLine("No APM files found.");
+            return 0;
+        }
+
+        Console.WriteLine($"Found {apmFiles.Length} APM files");
+
+        int converted = 0;
+        int failed = 0;
+
+        foreach (var apmPath in apmFiles)
+        {
+            var relativePath = Path.GetRelativePath(inputDir, apmPath);
+            var wavPath = Path.Combine(outputDir, Path.ChangeExtension(relativePath, ".wav"));
+
+            // Ensure output directory exists
+            var wavDir = Path.GetDirectoryName(wavPath);
+            if (wavDir != null && !Directory.Exists(wavDir))
+            {
+                Directory.CreateDirectory(wavDir);
+            }
+
+            try
+            {
+                WavWriter.ConvertApmToWav(apmPath, wavPath);
+                Console.WriteLine($"  {relativePath} -> {Path.GetFileName(wavPath)}");
+                converted++;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"  {relativePath}: FAILED - {ex.Message}");
+                failed++;
+            }
+        }
+
+        Console.WriteLine($"\nConverted: {converted}, Failed: {failed}");
+        return failed > 0 ? 1 : 0;
     }
 }
