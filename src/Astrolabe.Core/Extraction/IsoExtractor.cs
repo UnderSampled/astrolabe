@@ -77,8 +77,9 @@ public class IsoExtractor
 
     private static void ExtractFile(CDReader cd, string isoPath, string outputDirectory)
     {
-        // Convert ISO path (backslash) to local path
+        // Convert ISO path (backslash) to local path and strip ISO 9660 version suffix
         var relativePath = isoPath.TrimStart('\\').Replace('\\', Path.DirectorySeparatorChar);
+        relativePath = StripVersionSuffix(relativePath);
         var outputPath = Path.Combine(outputDirectory, relativePath);
 
         // Ensure directory exists
@@ -141,6 +142,19 @@ public class IsoExtractor
             extractedCount++;
             progress?.Report(new ExtractionProgress(file, extractedCount, totalFiles));
         }
+    }
+
+    /// <summary>
+    /// Strips the ISO 9660 version suffix (e.g., ";1") from a filename.
+    /// </summary>
+    private static string StripVersionSuffix(string path)
+    {
+        var semicolonIndex = path.LastIndexOf(';');
+        if (semicolonIndex > 0 && semicolonIndex > path.LastIndexOf(Path.DirectorySeparatorChar))
+        {
+            return path[..semicolonIndex];
+        }
+        return path;
     }
 
     private static bool MatchesPattern(string fullPath, string pattern)

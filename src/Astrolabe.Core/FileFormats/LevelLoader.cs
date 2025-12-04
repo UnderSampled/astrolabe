@@ -18,10 +18,10 @@ public class LevelLoader
 
     public LevelLoader(string levelDir, string levelName)
     {
-        string snaPath = Path.Combine(levelDir, $"{levelName}.sna;1");
-        string rtbPath = Path.Combine(levelDir, $"{levelName}.rtb;1");
-        string rtpPath = Path.Combine(levelDir, $"{levelName}.rtp;1");
-        string rttPath = Path.Combine(levelDir, $"{levelName}.rtt;1");
+        string snaPath = Path.Combine(levelDir, $"{levelName}.sna");
+        string rtbPath = Path.Combine(levelDir, $"{levelName}.rtb");
+        string rtpPath = Path.Combine(levelDir, $"{levelName}.rtp");
+        string rttPath = Path.Combine(levelDir, $"{levelName}.rtt");
 
         // Handle case-insensitive file extensions
         if (!File.Exists(snaPath))
