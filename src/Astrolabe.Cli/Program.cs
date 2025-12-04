@@ -71,7 +71,7 @@ class Program
                 list <iso-path>                    List files in ISO
                 textures <cnt-path> [output-dir]   Extract textures from CNT container
                 cnt <cnt-path>                     List files in CNT container
-                audio <apm-path> [output-path]     Convert APM audio to WAV
+                audio <apm-path|bnm-path> [out]    Convert APM/BNM audio to WAV
                 help                               Show this help message
 
             Options for 'extract':
@@ -1273,9 +1273,10 @@ class Program
     {
         if (args.Length == 0)
         {
-            Console.Error.WriteLine("Error: APM path required");
+            Console.Error.WriteLine("Error: Audio file path required");
             Console.Error.WriteLine("Usage: astrolabe audio <apm-path> [output-path]");
-            Console.Error.WriteLine("       astrolabe audio <directory> [output-dir]  # Convert all APM files");
+            Console.Error.WriteLine("       astrolabe audio <bnm-path> [output-dir]   # Extract BNM sound bank");
+            Console.Error.WriteLine("       astrolabe audio <directory> [output-dir]  # Convert all APM/BNM files");
             return 1;
         }
 
@@ -1287,7 +1288,7 @@ class Program
             // Check if input is a directory
             if (Directory.Exists(inputPath))
             {
-                return ConvertAllApm(inputPath, outputPath);
+                return ConvertAllAudio(inputPath, outputPath);
             }
 
             // Single file conversion
@@ -1297,6 +1298,14 @@ class Program
                 return 1;
             }
 
+            // Check file type
+            var ext = Path.GetExtension(inputPath).ToLowerInvariant();
+            if (ext == ".bnm")
+            {
+                return ExtractBnm(inputPath, outputPath);
+            }
+
+            // APM file
             outputPath ??= Path.ChangeExtension(inputPath, ".wav");
 
             Console.WriteLine($"Converting: {inputPath}");
@@ -1312,44 +1321,96 @@ class Program
         }
     }
 
-    static int ConvertAllApm(string inputDir, string? outputDir)
+    static int ExtractBnm(string bnmPath, string? outputDir)
+    {
+        var bnmName = Path.GetFileNameWithoutExtension(bnmPath);
+        outputDir ??= Path.Combine(Path.GetDirectoryName(bnmPath) ?? ".", bnmName);
+
+        Console.WriteLine($"Reading BNM: {bnmPath}");
+        var bnm = new BnmReader(bnmPath);
+        Console.WriteLine($"Version: 0x{bnm.Version:X8}");
+        Console.WriteLine($"Entries: {bnm.Entries.Count}");
+
+        if (bnm.Entries.Count == 0)
+        {
+            Console.WriteLine("No audio entries found.");
+            return 0;
+        }
+
+        Console.WriteLine($"Extracting to: {outputDir}");
+        int extracted = bnm.ExtractAll(outputDir, verbose: true);
+        Console.WriteLine($"Extracted: {extracted}/{bnm.Entries.Count}");
+
+        return extracted > 0 ? 0 : 1;
+    }
+
+    static int ConvertAllAudio(string inputDir, string? outputDir)
     {
         outputDir ??= inputDir;
 
         var apmFiles = Directory.GetFiles(inputDir, "*.apm", SearchOption.AllDirectories);
-        if (apmFiles.Length == 0)
+        var bnmFiles = Directory.GetFiles(inputDir, "*.bnm", SearchOption.AllDirectories);
+
+        if (apmFiles.Length == 0 && bnmFiles.Length == 0)
         {
-            Console.WriteLine("No APM files found.");
+            Console.WriteLine("No APM or BNM files found.");
             return 0;
         }
-
-        Console.WriteLine($"Found {apmFiles.Length} APM files");
 
         int converted = 0;
         int failed = 0;
 
-        foreach (var apmPath in apmFiles)
+        // Convert APM files
+        if (apmFiles.Length > 0)
         {
-            var relativePath = Path.GetRelativePath(inputDir, apmPath);
-            var wavPath = Path.Combine(outputDir, Path.ChangeExtension(relativePath, ".wav"));
+            Console.WriteLine($"Found {apmFiles.Length} APM files");
+            foreach (var apmPath in apmFiles)
+            {
+                var relativePath = Path.GetRelativePath(inputDir, apmPath);
+                var wavPath = Path.Combine(outputDir, Path.ChangeExtension(relativePath, ".wav"));
 
-            // Ensure output directory exists
-            var wavDir = Path.GetDirectoryName(wavPath);
-            if (wavDir != null && !Directory.Exists(wavDir))
-            {
-                Directory.CreateDirectory(wavDir);
-            }
+                var wavDir = Path.GetDirectoryName(wavPath);
+                if (wavDir != null && !Directory.Exists(wavDir))
+                {
+                    Directory.CreateDirectory(wavDir);
+                }
 
-            try
-            {
-                WavWriter.ConvertApmToWav(apmPath, wavPath);
-                Console.WriteLine($"  {relativePath} -> {Path.GetFileName(wavPath)}");
-                converted++;
+                try
+                {
+                    WavWriter.ConvertApmToWav(apmPath, wavPath);
+                    Console.WriteLine($"  {relativePath} -> {Path.GetFileName(wavPath)}");
+                    converted++;
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"  {relativePath}: FAILED - {ex.Message}");
+                    failed++;
+                }
             }
-            catch (Exception ex)
+        }
+
+        // Extract BNM files
+        if (bnmFiles.Length > 0)
+        {
+            Console.WriteLine($"Found {bnmFiles.Length} BNM files");
+            foreach (var bnmPath in bnmFiles)
             {
-                Console.Error.WriteLine($"  {relativePath}: FAILED - {ex.Message}");
-                failed++;
+                var relativePath = Path.GetRelativePath(inputDir, bnmPath);
+                var bnmName = Path.GetFileNameWithoutExtension(bnmPath);
+                var bnmOutputDir = Path.Combine(outputDir, Path.GetDirectoryName(relativePath) ?? "", bnmName);
+
+                try
+                {
+                    var bnm = new BnmReader(bnmPath);
+                    int extracted = bnm.ExtractAll(bnmOutputDir);
+                    Console.WriteLine($"  {relativePath} -> {bnmName}/ ({extracted} files)");
+                    converted += extracted;
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"  {relativePath}: FAILED - {ex.Message}");
+                    failed++;
+                }
             }
         }
 
