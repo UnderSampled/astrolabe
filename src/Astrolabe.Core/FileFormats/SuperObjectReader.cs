@@ -278,28 +278,39 @@ public class SuperObjectReader
         var reader = _memory.GetReaderAt(address);
         if (reader == null) return null;
 
-        // 4x4 matrix stored as 16 floats (row-major or column-major depending on engine)
-        var m = new Matrix4x4();
+        // OpenSpace R2 matrix structure (from raymap):
+        // - uint32 type (always 0x02 for transformation matrix)
+        // - Position: 3 floats (translation)
+        // - Column 0: 3 floats (rotation X axis)
+        // - Column 1: 3 floats (rotation Y axis)
+        // - Column 2: 3 floats (rotation Z axis)
+        // - Scale matrix: 9 floats (we skip this)
 
-        m.M11 = reader.ReadSingle();
-        m.M12 = reader.ReadSingle();
-        m.M13 = reader.ReadSingle();
+        uint type = reader.ReadUInt32(); // Skip type field (usually 0x02)
+
+        var m = Matrix4x4.Identity;
+
+        // Position (3 floats) - stored in column 3
         m.M14 = reader.ReadSingle();
-
-        m.M21 = reader.ReadSingle();
-        m.M22 = reader.ReadSingle();
-        m.M23 = reader.ReadSingle();
         m.M24 = reader.ReadSingle();
-
-        m.M31 = reader.ReadSingle();
-        m.M32 = reader.ReadSingle();
-        m.M33 = reader.ReadSingle();
         m.M34 = reader.ReadSingle();
 
-        m.M41 = reader.ReadSingle();
-        m.M42 = reader.ReadSingle();
-        m.M43 = reader.ReadSingle();
-        m.M44 = reader.ReadSingle();
+        // Column 0 (X axis) - 3 floats
+        m.M11 = reader.ReadSingle();
+        m.M21 = reader.ReadSingle();
+        m.M31 = reader.ReadSingle();
+
+        // Column 1 (Y axis) - 3 floats
+        m.M12 = reader.ReadSingle();
+        m.M22 = reader.ReadSingle();
+        m.M32 = reader.ReadSingle();
+
+        // Column 2 (Z axis) - 3 floats
+        m.M13 = reader.ReadSingle();
+        m.M23 = reader.ReadSingle();
+        m.M33 = reader.ReadSingle();
+
+        // Skip scale matrix (9 floats) - we don't use it yet
 
         return m;
     }

@@ -1223,12 +1223,21 @@ class Program
             // Export Godot scene
             Console.WriteLine("Exporting Godot scene...");
             var godotExporter = new GodotExporter();
-            var tscnPath = Path.Combine(outputDir, $"{levelName}.tscn");
+            var tscnFileName = $"{levelName}.tscn";
+            var tscnPath = Path.Combine(outputDir, tscnFileName);
             godotExporter.Export(sceneGraph, tscnPath, "meshes", geoAddrToMeshName);
 
+            // Write Godot project file
+            GodotExporter.WriteProjectFile(outputDir, levelName, tscnFileName);
+
             Console.WriteLine($"\nExported to: {outputDir}");
-            Console.WriteLine($"  Scene: {levelName}.tscn");
+            Console.WriteLine($"  Project: project.godot");
+            Console.WriteLine($"  Scene: {tscnFileName}");
             Console.WriteLine($"  Meshes: meshes/ ({geoAddrToMeshName.Count} files)");
+            Console.WriteLine();
+            Console.WriteLine("To open in Godot:");
+            Console.WriteLine($"  godot --editor --path \"{outputDir}\"");
+            Console.WriteLine("(First run will import all meshes, which may take a moment)");
 
             return 0;
         }

@@ -1,5 +1,6 @@
 # Extracted game data (user-provided)
 extracted/
+textures/
 *.iso
 
 # Build artifacts
@@ -25,3 +26,8 @@ packages/
 .idea/
 *.swp
 *~
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
