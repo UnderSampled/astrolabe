@@ -7,3 +7,15 @@
 [submodule "lib/BinarySerializer"]
 	path = lib/BinarySerializer
 	url = https://github.com/BinarySerializer/BinarySerializer.git
+[submodule "reference/ray2get"]
+	path = reference/ray2get
+	url = https://github.com/Synthesis/ray2get.git
+[submodule "reference/vgmstream"]
+	path = reference/vgmstream
+	url = https://github.com/vgmstream/vgmstream.git
+[submodule "reference/Rayman2Lib"]
+	path = reference/Rayman2Lib
+	url = https://github.com/szymski/Rayman2Lib.git
+[submodule "reference/OpenRayman"]
+	path = reference/OpenRayman
+	url = https://github.com/imaginaryPineapple/OpenRayman.git
