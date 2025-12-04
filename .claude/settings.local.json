@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git submodule add:*)"
+      "Bash(git submodule add:*)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []
