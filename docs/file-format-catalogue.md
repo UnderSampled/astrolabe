@@ -309,54 +309,190 @@ SIF File (text)
 
 ### `.bnm` - Sound Bank (Bnk_*.bnm)
 **Format:** Binary (Ubisoft SBx)
-**Purpose:** Bundles multiple APM audio samples into a single bank
+**Purpose:** Bundles multiple audio samples into a single bank
 **Location:** `Gamedata/World/Sound/Bnk_*.bnm`
 
 ```
 BNM File
-├── Header (44 bytes)
-│   ├── int32 unknown0, unknown1
-│   ├── int32 event_count
-│   ├── int32 unknown2
-│   ├── int32 file_count
-│   ├── int32 size1, size2
-│   └── int32 unknown[4]
-├── Event Table (32 bytes each)
-│   └── Binary event definitions
-├── File Entry Table (92 bytes each)
-│   └── For each sound:
-│       ├── byte id, unknown[3]
-│       ├── int32 type (1=PCM ref, 0xA=ADPCM)
-│       ├── byte unknown[4]
-│       ├── int32 length
-│       ├── [type 0xA: int32 a_length + 40 bytes]
-│       ├── [else: 44 bytes padding]
-│       ├── int32 sample_rate
-│       ├── byte unknown[8]
-│       └── char name[20]
-└── Embedded Audio Data
-    └── IMA-ADPCM audio (same format as APM)
+├── Header (0x2C bytes)
+│   ├── 0x00: version: uint32         # 0x00000000 or 0x00000200
+│   ├── 0x04: section1_offset: uint32
+│   ├── 0x08: section1_count: uint32  # Event count
+│   ├── 0x0C: section2_offset: uint32
+│   ├── 0x10: section2_count: uint32  # Audio entry count
+│   ├── 0x14: mpdx_block_offset: uint32
+│   ├── 0x18: midi_block_offset: uint32
+│   ├── 0x1C: pcm_block_offset: uint32
+│   ├── 0x20: apm_block_offset: uint32
+│   ├── 0x24: streamed_block_offset: uint32
+│   └── 0x28: eof_offset: uint32
+│
+├── Section 1: Event Table
+│   └── Binary event definitions (32 bytes each)
+│
+├── Section 2: Audio Entry Table (0x5C or 0x60 bytes each)
+│   └── For each entry:
+│       ├── 0x00: header_id: uint32
+│       ├── 0x04: header_type: uint32   # 0x01 = audio entry
+│       ├── 0x0C: stream_size: uint32   # Audio data size in bytes
+│       ├── 0x10: stream_offset: uint32 # Offset (see notes below)
+│       ├── 0x3C: sample_rate: uint32
+│       ├── 0x42: channels: uint16
+│       ├── 0x44: stream_type: uint32   # 0x01=PCM, 0x02=MPDX, 0x04=APM
+│       └── 0x48: name: char[20]
+│
+└── Audio Data Blocks
+    ├── MPDX Block (Ubi-MPEG compressed voice/dialogue)
+    ├── PCM Block (raw 16-bit signed LE audio)
+    └── APM Block (IMA-ADPCM compressed audio)
 ```
+
+#### Stream Types
+
+| Type | Value | Format | Typical Use |
+|------|-------|--------|-------------|
+| PCM | 0x01 | Raw 16-bit signed little-endian | Sound effects |
+| MPDX | 0x02 | Ubi-MPEG (modified VBR MP2) | Voice/dialogue |
+| APM | 0x04 | IMA-ADPCM with APM header | Music, ambient |
 
 #### Extraction
 
-Use **vgmstream** to extract all subsongs from a BNM file:
+Use Astrolabe CLI to extract all audio from a BNM file:
 
 ```bash
-# Build vgmstream (from reference/vgmstream)
-cd reference/vgmstream && mkdir build && cd build
-cmake .. -DBUILD_AUDACIOUS=OFF -DUSE_MPEG=OFF -DUSE_FFMPEG=OFF -DUSE_VORBIS=OFF
-make -j4
+dotnet run --project src/Astrolabe.Cli -- audio Bnk_0.bnm ./output
+```
 
-# Extract all subsongs
+Or use **vgmstream** for APM entries:
+
+```bash
 ./cli/vgmstream-cli Bnk_0.bnm -o 'output/?n.wav' -S 0
 ```
 
 **Notes:**
 - Named "BNK" for "Bank" (sound bank), not related to Bink
-- vgmstream treats each sound as a "subsong" - use `-S 0` to extract all
-- Audio is IMA-ADPCM encoded (same as standalone APM files)
-- Bnk_0.bnm contains 195 subsongs
+- Version 0x200 has 4 extra bytes per entry (0x60 vs 0x5C)
+- **Offset interpretation varies by stream type:**
+  - PCM/APM: `stream_offset` is relative to their respective block start (pcm_block or apm_block)
+  - MPDX: `stream_offset` is an **absolute file offset** (not relative to mpdx_block)
+- APM uses IMA-ADPCM with **high nibble first** (non-standard nibble order)
+
+---
+
+### Ubi-MPEG Format (MPDX)
+
+**Format:** Modified VBR MPEG Layer 2 (MP2)
+**Purpose:** Compressed voice/dialogue audio in BNM banks
+**Codec:** Custom Ubisoft variant of MP2
+
+Ubi-MPEG is a proprietary audio format used by Ubisoft games from the late 1990s (Rayman 2,
+Tonic Trouble, Hype: The Time Quest). It's a modified VBR MP2 format optimized for speech.
+
+#### Differences from Standard MP2
+
+| Feature | Standard MP2 | Ubi-MPEG |
+|---------|-------------|----------|
+| Sync word | 11 bits (0x7FF) | 12 bits (0xFFF) |
+| Header size | 32 bits | 16 bits (sync + 4-bit mode) |
+| Frame alignment | Byte-aligned | Bit-aligned (frames follow immediately) |
+| Bitrate info | In header | Implicit (VBR ~128-160kbps) |
+| Sample rate info | In header | Fixed (44100 Hz) |
+| CRC/padding bits | In header | Omitted |
+
+#### Header Structure
+
+```
+Standard MP2 Header (32 bits):
+├── sync: 11 bits (0x7FF)
+├── mpeg_version: 2 bits
+├── layer: 2 bits
+├── protection: 1 bit
+├── bitrate_index: 4 bits
+├── sample_rate_index: 2 bits
+├── padding: 1 bit
+├── private: 1 bit
+├── channel_mode: 2 bits
+├── mode_extension: 2 bits
+├── copyright: 1 bit
+├── original: 1 bit
+└── emphasis: 2 bits
+
+Ubi-MPEG Header (16 bits):
+├── sync: 12 bits (0xFFF)
+└── mode: 4 bits
+    ├── mode_extension: 2 bits (joint stereo bounds)
+    └── channel_mode: 2 bits (0=stereo, 1=joint, 3=mono)
+```
+
+#### MPDX Stream Structure in BNM Files
+
+MPDX data in BNM files has a wrapper header before the Ubi-MPEG data:
+
+```
+MPDX Stream
+├── 4 bytes: unknown (stream ID or size-related field)
+├── Optional 4 bytes: surround marker ("2RUS" or "1RUS")
+└── Ubi-MPEG data (frames starting with 0xFFF sync)
+```
+
+#### Surround Mode Headers
+
+Some Ubi-MPEG streams include a 4-byte surround mode header after the 4-byte prefix:
+
+| Header | Meaning | Structure |
+|--------|---------|-----------|
+| `2RUS` | Stereo surround | Pairs of stereo + mono frames |
+| `1RUS` | Mono surround | Pairs of frames (rare) |
+| (none) | No surround | Ubi-MPEG starts directly after 4-byte prefix |
+
+In surround mode, each "logical frame" consists of:
+1. A stereo frame (main audio)
+2. A mono frame (surround/center channel data)
+
+The mono frame's coefficients are meant to be mixed with the stereo frame during
+synthesis to produce surround output. Current decoders typically ignore the mono frame.
+
+#### Frame Data Structure
+
+After the header, frame data follows standard MP2 structure:
+1. Bit allocation (per subband, per channel)
+2. Scalefactor selector information (SCFSI)
+3. Scalefactors (6 bits each, 1-3 per subband based on SCFSI)
+4. Quantized DCT coefficients (12 granules × subbands × channels)
+
+Key differences:
+- Only table 0 (27 subbands) is used
+- Frames are **not** byte-aligned - next frame starts immediately after data
+- No ancillary data or padding bytes
+
+#### Decoding Process
+
+To decode Ubi-MPEG:
+
+1. **Find sync** - Search for 12-bit 0xFFF pattern
+2. **Read mode** - 4 bits: extract channel_mode and mode_extension
+3. **Transform to MP2** - Write standard 32-bit header with compatible settings:
+   - Use 256kbps @ 48000Hz (allows sufficient frame size)
+   - Copy bit allocation, scalefactors, and samples verbatim
+   - Byte-align and pad output frame
+4. **Decode MP2** - Use standard MP2 decoder (e.g., NLayer, minimp3)
+5. **Repeat** - Process next frame (no byte alignment between frames)
+
+#### Reference Implementation
+
+The Astrolabe `UbiMpegDecoder` class transforms Ubi-MPEG to standard MP2 and uses
+NLayer for decoding. See `src/Astrolabe.Core/FileFormats/Audio/UbiMpegDecoder.cs`.
+
+vgmstream also implements Ubi-MPEG decoding in `src/coding/ubi_mpeg_decoder.c` and
+`src/coding/libs/ubi_mpeg_helpers.c`, using minimp3 for the transformed frames.
+
+#### Original Decoder DLLs
+
+The games shipped with decoder DLLs:
+- `MPGMXBVR.dll` - Regular version (no SIMD)
+- `MPGMXSVR.dll` - XMM/SIMD optimized version
+
+These DLLs implement the full Ubi-MPEG decoder natively without transformation
 
 ---
 
