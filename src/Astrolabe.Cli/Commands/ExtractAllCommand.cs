@@ -4,7 +4,9 @@ using Astrolabe.Core.FileFormats.Audio;
 namespace Astrolabe.Cli.Commands;
 
 /// <summary>
-/// Extracts all game assets to a well-organized output folder structure.
+/// Extracts all game assets, mirroring the ISO folder structure.
+/// Containers (CNT, BNM) become folders with their extracted contents.
+/// Audio files (APM) are converted to WAV in place.
 /// </summary>
 public static class ExtractAllCommand
 {
@@ -27,125 +29,91 @@ public static class ExtractAllCommand
         int totalExtracted = 0;
         int totalFailed = 0;
 
-        // 1. Extract Textures.cnt -> output/Textures/
-        var texturesCnt = Path.Combine(extractedDir, "Gamedata", "Textures.cnt");
-        if (File.Exists(texturesCnt))
+        // Find and process texture CNT files (Textures.cnt, Vignette.cnt)
+        // Note: fix.cnt and other CNT files are not texture containers
+        var cntFiles = Directory.GetFiles(extractedDir, "*.cnt", SearchOption.AllDirectories)
+            .Where(f => {
+                var name = Path.GetFileName(f).ToLowerInvariant();
+                return name == "textures.cnt" || name == "vignette.cnt";
+            })
+            .ToArray();
+        if (cntFiles.Length > 0)
         {
-            Console.WriteLine("=== Extracting Textures.cnt ===");
-            var (extracted, failed) = ExtractCnt(texturesCnt, Path.Combine(outputDir, "Textures"));
-            totalExtracted += extracted;
-            totalFailed += failed;
+            Console.WriteLine($"=== Extracting {cntFiles.Length} CNT texture containers ===");
+            foreach (var cntPath in cntFiles.OrderBy(f => f))
+            {
+                var relativePath = Path.GetRelativePath(extractedDir, cntPath);
+                var outputPath = Path.Combine(outputDir, Path.ChangeExtension(relativePath, null)); // Remove .cnt extension
+
+                Console.WriteLine($"  {relativePath}");
+                var (extracted, failed) = ExtractCnt(cntPath, outputPath);
+                totalExtracted += extracted;
+                totalFailed += failed;
+            }
             Console.WriteLine();
         }
 
-        // 2. Extract Vignette.cnt -> output/Vignette/
-        var vignetteCnt = Path.Combine(extractedDir, "Gamedata", "Vignette.cnt");
-        if (File.Exists(vignetteCnt))
+        // Find and process all BNM files
+        var bnmFiles = Directory.GetFiles(extractedDir, "*.bnm", SearchOption.AllDirectories);
+        if (bnmFiles.Length > 0)
         {
-            Console.WriteLine("=== Extracting Vignette.cnt ===");
-            var (extracted, failed) = ExtractCnt(vignetteCnt, Path.Combine(outputDir, "Vignette"));
-            totalExtracted += extracted;
-            totalFailed += failed;
-            Console.WriteLine();
-        }
-
-        // 3. Extract all BNM sound banks -> output/Sound/<bankname>/
-        var soundDir = Path.Combine(extractedDir, "Gamedata", "World", "Sound");
-        if (Directory.Exists(soundDir))
-        {
-            Console.WriteLine("=== Extracting BNM Sound Banks ===");
-            var bnmFiles = Directory.GetFiles(soundDir, "*.bnm");
-            Console.WriteLine($"Found {bnmFiles.Length} BNM files");
-
+            Console.WriteLine($"=== Extracting {bnmFiles.Length} BNM sound banks ===");
             foreach (var bnmPath in bnmFiles.OrderBy(f => f))
             {
-                var bankName = Path.GetFileNameWithoutExtension(bnmPath);
-                var bankOutputDir = Path.Combine(outputDir, "Sound", bankName);
+                var relativePath = Path.GetRelativePath(extractedDir, bnmPath);
+                var outputPath = Path.Combine(outputDir, Path.ChangeExtension(relativePath, null)); // Remove .bnm extension
 
                 try
                 {
                     var bnm = new BnmReader(bnmPath);
                     if (bnm.Entries.Count > 0)
                     {
-                        int extracted = bnm.ExtractAll(bankOutputDir);
-                        Console.WriteLine($"  {bankName}: {extracted} files");
+                        int extracted = bnm.ExtractAll(outputPath);
+                        Console.WriteLine($"  {relativePath} -> {extracted} files");
                         totalExtracted += extracted;
+                    }
+                    else
+                    {
+                        Console.WriteLine($"  {relativePath} -> (empty)");
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.Error.WriteLine($"  {bankName}: FAILED - {ex.Message}");
+                    Console.Error.WriteLine($"  {relativePath} -> FAILED: {ex.Message}");
                     totalFailed++;
                 }
             }
             Console.WriteLine();
         }
 
-        // 4. Convert APM ambient audio -> output/Sound/Ambient/
-        if (Directory.Exists(soundDir))
+        // Find and process all APM files
+        var apmFiles = Directory.GetFiles(extractedDir, "*.apm", SearchOption.AllDirectories);
+        if (apmFiles.Length > 0)
         {
-            Console.WriteLine("=== Converting APM Audio ===");
-            var apmFiles = Directory.GetFiles(soundDir, "*.apm");
-            Console.WriteLine($"Found {apmFiles.Length} APM files");
-
-            var ambientDir = Path.Combine(outputDir, "Sound", "Ambient");
-            Directory.CreateDirectory(ambientDir);
-
+            Console.WriteLine($"=== Converting {apmFiles.Length} APM audio files ===");
             foreach (var apmPath in apmFiles.OrderBy(f => f))
             {
-                var apmName = Path.GetFileNameWithoutExtension(apmPath);
-                var wavPath = Path.Combine(ambientDir, $"{apmName}.wav");
+                var relativePath = Path.GetRelativePath(extractedDir, apmPath);
+                var wavRelativePath = Path.ChangeExtension(relativePath, ".wav");
+                var wavPath = Path.Combine(outputDir, wavRelativePath);
+
+                var wavDir = Path.GetDirectoryName(wavPath);
+                if (!string.IsNullOrEmpty(wavDir))
+                {
+                    Directory.CreateDirectory(wavDir);
+                }
 
                 try
                 {
                     WavWriter.ConvertApmToWav(apmPath, wavPath);
-                    Console.WriteLine($"  {apmName}.apm -> {apmName}.wav");
+                    Console.WriteLine($"  {relativePath} -> .wav");
                     totalExtracted++;
                 }
                 catch (Exception ex)
                 {
-                    Console.Error.WriteLine($"  {apmName}: FAILED - {ex.Message}");
+                    Console.Error.WriteLine($"  {relativePath} -> FAILED: {ex.Message}");
                     totalFailed++;
                 }
-            }
-            Console.WriteLine();
-        }
-
-        // 5. Convert music CSB files -> output/Music/
-        var musicDir = Path.Combine(extractedDir, "Sound");
-        if (Directory.Exists(musicDir))
-        {
-            Console.WriteLine("=== Converting Music (CSB/APM) ===");
-
-            // CSB files contain references, but there may be APM files alongside
-            var musicApmFiles = Directory.GetFiles(musicDir, "*.apm", SearchOption.AllDirectories);
-            if (musicApmFiles.Length > 0)
-            {
-                Console.WriteLine($"Found {musicApmFiles.Length} music APM files");
-                var musicOutputDir = Path.Combine(outputDir, "Music");
-                Directory.CreateDirectory(musicOutputDir);
-
-                foreach (var apmPath in musicApmFiles.OrderBy(f => f))
-                {
-                    var apmName = Path.GetFileNameWithoutExtension(apmPath);
-                    var wavPath = Path.Combine(musicOutputDir, $"{apmName}.wav");
-
-                    try
-                    {
-                        WavWriter.ConvertApmToWav(apmPath, wavPath);
-                        Console.WriteLine($"  {apmName}.apm -> {apmName}.wav");
-                        totalExtracted++;
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.Error.WriteLine($"  {apmName}: FAILED - {ex.Message}");
-                        totalFailed++;
-                    }
-                }
-            }
-            else
-            {
-                Console.WriteLine("  No standalone APM music files found (music may be in CSB containers)");
             }
             Console.WriteLine();
         }
@@ -158,8 +126,10 @@ public static class ExtractAllCommand
             Console.WriteLine($"Total failed: {totalFailed}");
         }
         Console.WriteLine();
-        Console.WriteLine($"Output structure:");
-        PrintOutputStructure(outputDir);
+        Console.WriteLine("Output mirrors ISO structure with containers expanded:");
+        Console.WriteLine("  *.cnt -> folder/ (PNG textures)");
+        Console.WriteLine("  *.bnm -> folder/ (WAV audio)");
+        Console.WriteLine("  *.apm -> *.wav");
 
         return totalFailed > 0 ? 1 : 0;
     }
@@ -172,7 +142,6 @@ public static class ExtractAllCommand
         try
         {
             var cnt = new CntReader(cntPath);
-            Console.WriteLine($"Found {cnt.FileCount} files");
             Directory.CreateDirectory(outputDir);
 
             foreach (var file in cnt.Files)
@@ -198,39 +167,14 @@ public static class ExtractAllCommand
                 }
             }
 
-            Console.WriteLine($"Extracted: {extracted}, Failed: {failed}");
+            Console.WriteLine($"    -> {extracted} textures" + (failed > 0 ? $" ({failed} failed)" : ""));
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error reading CNT: {ex.Message}");
+            Console.Error.WriteLine($"    -> FAILED: {ex.Message}");
             failed++;
         }
 
         return (extracted, failed);
-    }
-
-    private static void PrintOutputStructure(string outputDir)
-    {
-        if (!Directory.Exists(outputDir))
-        {
-            Console.WriteLine("  (output directory not created)");
-            return;
-        }
-
-        foreach (var dir in Directory.GetDirectories(outputDir).OrderBy(d => d))
-        {
-            var dirName = Path.GetFileName(dir);
-            var fileCount = Directory.GetFiles(dir, "*", SearchOption.AllDirectories).Length;
-            var subDirCount = Directory.GetDirectories(dir, "*", SearchOption.AllDirectories).Length;
-
-            if (subDirCount > 0)
-            {
-                Console.WriteLine($"  {dirName}/ ({fileCount} files in {subDirCount + 1} folders)");
-            }
-            else
-            {
-                Console.WriteLine($"  {dirName}/ ({fileCount} files)");
-            }
-        }
     }
 }
