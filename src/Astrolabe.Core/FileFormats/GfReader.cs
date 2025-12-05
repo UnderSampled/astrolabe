@@ -1,3 +1,6 @@
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+
 namespace Astrolabe.Core.FileFormats;
 
 /// <summary>
@@ -251,50 +254,14 @@ public class GfReader
     }
 
     /// <summary>
-    /// Saves the texture as a TGA file.
+    /// Saves the texture as a PNG file.
     /// </summary>
-    public void SaveAsTga(string outputPath)
+    public void SaveAsPng(string outputPath)
     {
         var rgba = DecodeToRgba();
 
-        using var writer = new BinaryWriter(File.Create(outputPath));
-
-        // TGA header
-        writer.Write((byte)0);  // ID length
-        writer.Write((byte)0);  // Color map type
-        writer.Write((byte)2);  // Image type (uncompressed true-color)
-        writer.Write((short)0); // Color map first entry
-        writer.Write((short)0); // Color map length
-        writer.Write((byte)0);  // Color map entry size
-        writer.Write((short)0); // X origin
-        writer.Write((short)0); // Y origin
-        writer.Write((short)Width);  // Width
-        writer.Write((short)Height); // Height
-        writer.Write((byte)32); // Bits per pixel
-        writer.Write((byte)0x28); // Image descriptor (top-left origin, 8 alpha bits)
-
-        // Write pixel data as BGRA
-        for (int y = 0; y < Height; y++)
-        {
-            for (int x = 0; x < Width; x++)
-            {
-                int i = (y * Width + x) * 4;
-                if (i + 3 < rgba.Length)
-                {
-                    writer.Write(rgba[i + 2]); // B
-                    writer.Write(rgba[i + 1]); // G
-                    writer.Write(rgba[i + 0]); // R
-                    writer.Write(rgba[i + 3]); // A
-                }
-                else
-                {
-                    writer.Write((byte)0);
-                    writer.Write((byte)0);
-                    writer.Write((byte)0);
-                    writer.Write((byte)255);
-                }
-            }
-        }
+        using var image = Image.LoadPixelData<Rgba32>(rgba, Width, Height);
+        image.SaveAsPng(outputPath);
     }
 }
 

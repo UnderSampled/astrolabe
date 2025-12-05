@@ -267,14 +267,14 @@ class Program
                     var data = cnt.ExtractFile(file);
                     var gf = new GfReader(data);
 
-                    var outputPath = Path.Combine(outputDir, Path.ChangeExtension(file.FullPath, ".tga"));
+                    var outputPath = Path.Combine(outputDir, Path.ChangeExtension(file.FullPath, ".png"));
                     var dir = Path.GetDirectoryName(outputPath);
                     if (!string.IsNullOrEmpty(dir))
                     {
                         Directory.CreateDirectory(dir);
                     }
 
-                    gf.SaveAsTga(outputPath);
+                    gf.SaveAsPng(outputPath);
                     extracted++;
 
                     if (extracted % 100 == 0)
@@ -855,7 +855,7 @@ class Program
                 if (!fileName.EndsWith(".tga", StringComparison.OrdinalIgnoreCase) &&
                     !fileName.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
                 {
-                    fileName += ".tga";
+                    fileName += ".png";
                 }
 
                 if (textureLookup.TryGetValue(fileName, out var foundPath))
@@ -1191,7 +1191,7 @@ class Program
                 if (!fileName.EndsWith(".tga", StringComparison.OrdinalIgnoreCase) &&
                     !fileName.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
                 {
-                    fileName += ".tga";
+                    fileName += ".png";
                 }
 
                 if (textureLookup.TryGetValue(fileName, out var foundPath))
