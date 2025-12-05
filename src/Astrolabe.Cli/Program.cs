@@ -29,6 +29,7 @@ class Program
             "scene" => SceneCommand.Run(args[1..]),
             "export-godot" => ExportGodotCommand.Run(args[1..]),
             "audio" => AudioCommand.Run(args[1..]),
+            "extract-all" => ExtractAllCommand.Run(args[1..]),
             "help" or "--help" or "-h" => Help(),
             _ => UnknownCommand(command)
         };
@@ -57,6 +58,7 @@ class Program
 
             Commands:
                 extract <iso-path> [output-dir]    Extract files from ISO
+                extract-all [extracted] [output]   Extract all assets to organized layout
                 list <iso-path>                    List files in ISO
                 textures <cnt-path> [output-dir]   Extract textures from CNT container
                 cnt <cnt-path>                     List files in CNT container
