@@ -79,7 +79,6 @@ public class UbiMpegDecoder : IAudioDecoder
     {
         _data = data;
         SampleRate = sampleRate;
-        Channels = channels;
 
         // Check for surround mode headers
         if (data.Length >= 4)
@@ -90,6 +89,41 @@ public class UbiMpegDecoder : IAudioDecoder
             else if (header == 0x53555231) // "1RUS" in little-endian
                 _isSurround1 = true;
         }
+
+        // Detect actual channel count from first Ubi-MPEG frame header
+        // BNM metadata often says stereo when frames are actually mono
+        Channels = (ushort)DetectChannels();
+    }
+
+    /// <summary>
+    /// Detects channel count from the first Ubi-MPEG frame header.
+    /// </summary>
+    private int DetectChannels()
+    {
+        var bitReader = new BitReader(_data);
+
+        // Skip surround header if present
+        if (_isSurround1 || _isSurround2)
+            bitReader.Skip(32);
+
+        // Find sync (12-bit 0xFFF)
+        for (int i = 0; i < 32 && bitReader.BitsRemaining > 16; i++)
+        {
+            int sync = bitReader.ReadBits(12);
+            if (sync == 0xFFF)
+            {
+                // Read 4-bit mode field
+                int mode = bitReader.ReadBits(4);
+                int chMode = (mode >> 2) & 0x03;
+                // Mode 3 = mono, others = stereo
+                return chMode == 3 ? 1 : 2;
+            }
+            if (sync != 0)
+                break;
+        }
+
+        // Default to mono if detection fails
+        return 1;
     }
 
     public short[] Decode()
