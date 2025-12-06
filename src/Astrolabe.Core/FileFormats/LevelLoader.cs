@@ -26,24 +26,27 @@ public class LevelLoader
         // Handle case-insensitive file extensions
         if (!File.Exists(snaPath))
         {
-            snaPath = FindFile(levelDir, $"{levelName}.sna");
+            snaPath = FindFile(levelDir, $"{levelName}.sna") ?? snaPath;
         }
 
         Sna = new SnaReader(snaPath);
 
-        if (File.Exists(rtbPath) || (rtbPath = FindFile(levelDir, $"{levelName}.rtb")) != null)
+        var foundRtb = File.Exists(rtbPath) ? rtbPath : FindFile(levelDir, $"{levelName}.rtb");
+        if (foundRtb != null)
         {
-            Rtb = new RelocationTableReader(rtbPath);
+            Rtb = new RelocationTableReader(foundRtb);
         }
 
-        if (File.Exists(rtpPath) || (rtpPath = FindFile(levelDir, $"{levelName}.rtp")) != null)
+        var foundRtp = File.Exists(rtpPath) ? rtpPath : FindFile(levelDir, $"{levelName}.rtp");
+        if (foundRtp != null)
         {
-            Rtp = new RelocationTableReader(rtpPath);
+            Rtp = new RelocationTableReader(foundRtp);
         }
 
-        if (File.Exists(rttPath) || (rttPath = FindFile(levelDir, $"{levelName}.rtt")) != null)
+        var foundRtt = File.Exists(rttPath) ? rttPath : FindFile(levelDir, $"{levelName}.rtt");
+        if (foundRtt != null)
         {
-            Rtt = new RelocationTableReader(rttPath);
+            Rtt = new RelocationTableReader(foundRtt);
         }
 
         BuildMemoryMap();

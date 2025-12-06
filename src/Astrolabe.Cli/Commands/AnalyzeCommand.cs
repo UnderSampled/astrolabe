@@ -68,7 +68,7 @@ public static class AnalyzeCommand
             foreach (var block in loader.Sna.Blocks.Where(b => b.Data != null && b.Data.Length > 100))
             {
                 int baseAddr = block.BaseInMemory;
-                int endAddr = baseAddr + block.Data.Length;
+                int endAddr = baseAddr + block.Data!.Length;
                 int found = 0;
 
                 using var ms = new MemoryStream(block.Data);
@@ -159,7 +159,7 @@ public static class AnalyzeCommand
             foreach (var block in loader.Sna.Blocks.Where(b => b.Data != null && b.Data.Length > 100))
             {
                 int baseAddr = block.BaseInMemory;
-                for (int offset = 0; offset < block.Data.Length - 64; offset += 4)
+                for (int offset = 0; offset < block.Data!.Length - 64; offset += 4)
                 {
                     int memAddr = baseAddr + offset;
                     var memory = new MemoryContext(loader.Sna, loader.Rtb);

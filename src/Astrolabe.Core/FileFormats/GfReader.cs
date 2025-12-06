@@ -88,7 +88,6 @@ public class GfReader
     {
         int expectedSize = PixelCount * Channels;
         var result = new byte[expectedSize];
-        int resultIndex = 0;
 
         using var reader = new BinaryReader(new MemoryStream(RawPixelData));
 

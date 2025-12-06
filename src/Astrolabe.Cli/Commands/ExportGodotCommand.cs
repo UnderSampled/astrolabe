@@ -91,23 +91,25 @@ public static class ExportGodotCommand
             Directory.CreateDirectory(texturesDir);
 
             // Build texture lookup
-            string textureBaseDir = "textures";
             var textureLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            if (Directory.Exists(textureBaseDir))
+            foreach (var textureBaseDir in new[] { "output/textures", "textures" })
             {
-                foreach (var file in Directory.EnumerateFiles(textureBaseDir, "*.tga", SearchOption.AllDirectories))
+                if (Directory.Exists(textureBaseDir))
                 {
-                    var fileName = Path.GetFileName(file);
-                    if (!textureLookup.ContainsKey(fileName))
-                        textureLookup[fileName] = file;
+                    foreach (var file in Directory.EnumerateFiles(textureBaseDir, "*.tga", SearchOption.AllDirectories))
+                    {
+                        var fileName = Path.GetFileName(file);
+                        if (!textureLookup.ContainsKey(fileName))
+                            textureLookup[fileName] = file;
+                    }
+                    foreach (var file in Directory.EnumerateFiles(textureBaseDir, "*.png", SearchOption.AllDirectories))
+                    {
+                        var fileName = Path.GetFileName(file);
+                        if (!textureLookup.ContainsKey(fileName))
+                            textureLookup[fileName] = file;
+                    }
+                    Console.WriteLine($"Indexed {textureLookup.Count} textures from {textureBaseDir}/");
                 }
-                foreach (var file in Directory.EnumerateFiles(textureBaseDir, "*.png", SearchOption.AllDirectories))
-                {
-                    var fileName = Path.GetFileName(file);
-                    if (!textureLookup.ContainsKey(fileName))
-                        textureLookup[fileName] = file;
-                }
-                Console.WriteLine($"Indexed {textureLookup.Count} textures");
             }
 
             // Texture lookup function
