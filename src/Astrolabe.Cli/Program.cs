@@ -29,7 +29,6 @@ class Program
             "scene" => SceneCommand.Run(args[1..]),
             "export-godot" => ExportGodotCommand.Run(args[1..]),
             "audio" => AudioCommand.Run(args[1..]),
-            "extract-all" => ExtractAllCommand.Run(args[1..]),
             "scripts" => ScriptsCommand.Run(args[1..]),
             "help" or "--help" or "-h" => Help(),
             _ => UnknownCommand(command)
@@ -58,23 +57,27 @@ class Program
                 astrolabe <command> [options]
 
             Commands:
-                extract <iso-path> [output-dir]    Extract files from ISO
-                extract-all [extracted] [output]   Extract all assets to organized layout
-                list <iso-path>                    List files in ISO
+                extract <source> [output]          Extract and convert assets (PNG/WAV)
+                list <source>                      List files in ISO or directory
                 textures <cnt-path> [output-dir]   Extract textures from CNT container
                 cnt <cnt-path>                     List files in CNT container
                 audio <apm-path|bnm-path> [out]    Convert APM/BNM audio to WAV
                 help                               Show this help message
 
+            The <source> can be either:
+                - An ISO file (hype.iso)
+                - An extracted/mounted directory containing game files
+
             Options for 'extract':
-                --all, -a              Extract all files (default: only Gamedata, LangData, Sound)
-                --pattern <pattern>    Only extract files matching pattern (e.g., "*.lvl")
+                --raw, -r              Copy raw files without conversion
+                --all, -a              Include all files (with --raw only)
+                --pattern <pattern>    Only extract files matching pattern (with --raw only)
 
             Examples:
+                astrolabe extract hype.iso ./output
+                astrolabe extract ./disc ./output
+                astrolabe extract hype.iso ./disc --raw
                 astrolabe list hype.iso
-                astrolabe extract hype.iso ./extracted
-                astrolabe extract hype.iso ./extracted --pattern "Gamedata/"
-                astrolabe textures ./extracted/Gamedata/Textures.cnt ./textures
             """);
     }
 }

@@ -65,4 +65,16 @@ public static class WavWriter
         var samples = apm.Decode();
         Write(wavPath, samples, apm.SampleRate, apm.Channels);
     }
+
+    /// <summary>
+    /// Converts an APM stream to WAV.
+    /// </summary>
+    /// <param name="apmStream">Input APM stream</param>
+    /// <param name="wavPath">Output WAV file path</param>
+    public static void ConvertApmToWav(Stream apmStream, string wavPath)
+    {
+        var apm = new ApmReader(apmStream);
+        var samples = apm.Decode();
+        Write(wavPath, samples, apm.SampleRate, apm.Channels);
+    }
 }

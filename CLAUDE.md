@@ -17,10 +17,10 @@ dotnet run --project src/Astrolabe.Cli -- <command> [args]
 
 # Common commands
 dotnet run --project src/Astrolabe.Cli -- list path/to/hype.iso
-dotnet run --project src/Astrolabe.Cli -- extract path/to/hype.iso ./extracted
-dotnet run --project src/Astrolabe.Cli -- textures ./extracted/Gamedata/Textures.cnt ./textures
-dotnet run --project src/Astrolabe.Cli -- export-gltf ./extracted/Gamedata/World/Levels/LEVELNAME
-dotnet run --project src/Astrolabe.Cli -- export-godot ./extracted/Gamedata/World/Levels/LEVELNAME
+dotnet run --project src/Astrolabe.Cli -- extract path/to/hype.iso ./output        # Convert to PNG/WAV
+dotnet run --project src/Astrolabe.Cli -- extract path/to/hype.iso ./disc --raw    # Raw game files
+dotnet run --project src/Astrolabe.Cli -- export-gltf ./disc/Gamedata/World/Levels/LEVELNAME
+dotnet run --project src/Astrolabe.Cli -- export-godot ./disc/Gamedata/World/Levels/LEVELNAME
 ```
 
 ## Architecture
@@ -38,8 +38,8 @@ dotnet run --project src/Astrolabe.Cli -- export-godot ./extracted/Gamedata/Worl
 ### Data Pipeline
 
 ```
-ISO → Extract → SNA/GPT/PTX/RTB files → Load Level → Scan Meshes → Export glTF/TSCN
-           └→ CNT → GF textures → TGA
+ISO/disc → Extract → PNG textures, WAV audio (./output)
+        → Extract --raw → SNA/GPT/PTX/RTB files (./disc) → Load Level → Export glTF/TSCN
 ```
 
 ### Key Classes
@@ -77,13 +77,14 @@ OpenSpace uses virtual memory addresses resolved via relocation tables. The RTB 
 
 ```bash
 # Export meshes and view in Blender
-dotnet run --project src/Astrolabe.Cli -- export-gltf ./extracted/Gamedata/World/Levels/castle_village
+dotnet run --project src/Astrolabe.Cli -- export-gltf ./disc/Gamedata/World/Levels/castle_village
 flatpak run org.blender.Blender output/castle_village_meshes/mesh_*.glb
 
 # Export full Godot scene
-dotnet run --project src/Astrolabe.Cli -- export-godot ./extracted/Gamedata/World/Levels/castle_village output/castle_village
+dotnet run --project src/Astrolabe.Cli -- export-godot ./disc/Gamedata/World/Levels/castle_village output/castle_village
 godot --editor --path output/castle_village
 ```
 
-- The Original game disc ISO goes at ./hype.iso and should be extracted to ./extracted
-- Put the output from the conversion into the ./output folder
+- The original game disc ISO goes at ./hype.iso
+- Raw game files (for level loading) go in ./disc
+- Converted assets (PNG/WAV) go in ./output

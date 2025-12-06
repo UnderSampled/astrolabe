@@ -1,6 +1,5 @@
-# Extracted game data (user-provided)
-extracted/
-textures/
+# Game data (user-provided)
+disc
 *.iso
 
 # Build artifacts

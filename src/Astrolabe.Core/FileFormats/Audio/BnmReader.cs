@@ -59,6 +59,14 @@ public class BnmReader
     {
     }
 
+    public BnmReader(Stream stream)
+    {
+        using var ms = new MemoryStream();
+        stream.CopyTo(ms);
+        _data = ms.ToArray();
+        Parse();
+    }
+
     private void Parse()
     {
         using var reader = new BinaryReader(new MemoryStream(_data));

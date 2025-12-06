@@ -8,18 +8,19 @@ public static class ListCommand
     {
         if (args.Length == 0)
         {
-            Console.Error.WriteLine("Error: ISO path required");
+            Console.Error.WriteLine("Error: Source path required (ISO file or directory)");
             return 1;
         }
 
-        var isoPath = args[0];
+        var sourcePath = args[0];
 
         try
         {
-            var extractor = new IsoExtractor(isoPath);
-            var files = extractor.ListFiles();
+            using var source = GameSourceFactory.Create(sourcePath);
 
-            foreach (var file in files)
+            Console.WriteLine($"# Source: {source.SourcePath} ({(source.IsIso ? "ISO" : "Directory")})");
+
+            foreach (var file in source.ListFiles())
             {
                 Console.WriteLine(file);
             }
