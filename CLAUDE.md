@@ -84,3 +84,6 @@ flatpak run org.blender.Blender output/castle_village_meshes/mesh_*.glb
 dotnet run --project src/Astrolabe.Cli -- export-godot ./extracted/Gamedata/World/Levels/castle_village output/castle_village
 godot --editor --path output/castle_village
 ```
+
+- The Original game disc ISO goes at ./hype.iso and should be extracted to ./extracted
+- Put the output from the conversion into the ./output folder
