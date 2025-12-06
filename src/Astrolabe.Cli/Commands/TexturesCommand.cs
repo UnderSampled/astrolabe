@@ -19,6 +19,10 @@ public static class TexturesCommand
         {
             var cnt = new CntReader(cntPath);
 
+            // Vignette.cnt contains images for direct display (BGR, no flip)
+            // Textures.cnt contains GPU textures (RGB, flipped), except 640x480 images
+            bool isVignetteCnt = Path.GetFileName(cntPath).Equals("Vignette.cnt", StringComparison.OrdinalIgnoreCase);
+
             Console.WriteLine($"Extracting {cnt.FileCount} textures from {Path.GetFileName(cntPath)}...");
             Directory.CreateDirectory(outputDir);
 
@@ -31,6 +35,9 @@ public static class TexturesCommand
                 {
                     var data = cnt.ExtractFile(file);
                     var gf = new GfReader(data);
+
+                    // Vignettes are either from Vignette.cnt or are 640x480 (full-screen images)
+                    gf.IsVignette = isVignetteCnt || (gf.Width == 640 && gf.Height == 480);
 
                     var outputPath = Path.Combine(outputDir, Path.ChangeExtension(file.FullPath, ".png"));
                     var dir = Path.GetDirectoryName(outputPath);

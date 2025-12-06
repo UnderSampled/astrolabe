@@ -1,5 +1,6 @@
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 
 namespace Astrolabe.Core.FileFormats;
 
@@ -19,6 +20,13 @@ public class GfReader
     public GfFormat Format { get; private set; }
     public byte[]? Palette { get; private set; }
     public byte[] RawPixelData { get; private set; } = [];
+
+    /// <summary>
+    /// If true, treat as a vignette (direct display image) using BGR channel order and no flip.
+    /// If false, treat as a GPU texture using RGB channel order with vertical flip.
+    /// This should be set based on the source container (Vignette.cnt = true, Textures.cnt = false).
+    /// </summary>
+    public bool IsVignette { get; set; }
 
     private readonly byte[] _data;
 
@@ -183,13 +191,23 @@ public class GfReader
             byte hi = decoded[PixelCount + i];
             ushort pixel = (ushort)(lo | (hi << 8));
 
-            // Format is RGB565:
-            // bits 11-15: red (5 bits)
-            // bits 5-10: green (6 bits)
-            // bits 0-4: blue (5 bits)
-            uint r = (uint)((pixel >> 11) & 0x1F);
+            // bits 11-15: 5 bits, bits 5-10: 6 bits, bits 0-4: 5 bits
+            uint high5 = (uint)((pixel >> 11) & 0x1F);
             uint g = (uint)((pixel >> 5) & 0x3F);
-            uint b = (uint)(pixel & 0x1F);
+            uint low5 = (uint)(pixel & 0x1F);
+
+            // Vignettes use BGR565 (for direct display), textures use RGB565 (for GPU)
+            uint r, b;
+            if (IsVignette)
+            {
+                b = high5;
+                r = low5;
+            }
+            else
+            {
+                r = high5;
+                b = low5;
+            }
 
             // Scale to 8-bit
             result[i * 4 + 0] = (byte)((r * 255) / 31);
@@ -261,6 +279,14 @@ public class GfReader
         var rgba = DecodeToRgba();
 
         using var image = Image.LoadPixelData<Rgba32>(rgba, Width, Height);
+
+        // Textures (non-vignettes) need to be flipped vertically
+        // because they're stored for GPU texture coordinates (origin at bottom-left)
+        if (!IsVignette)
+        {
+            image.Mutate(x => x.Flip(FlipMode.Vertical));
+        }
+
         image.SaveAsPng(outputPath);
     }
 }

@@ -329,7 +329,9 @@ public class MeshScanner
                     {
                         float u = uvReader.ReadSingle();
                         float v = uvReader.ReadSingle();
-                        element.UVs[i] = new Vector2(u, v);
+                        // Flip V coordinate because we flip textures vertically on export
+                        // (game stores textures upside-down for GPU, we export right-side up)
+                        element.UVs[i] = new Vector2(u, 1.0f - v);
                     }
                 }
             }
