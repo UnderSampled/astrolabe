@@ -30,6 +30,7 @@ class Program
             "export-godot" => ExportGodotCommand.Run(args[1..]),
             "audio" => AudioCommand.Run(args[1..]),
             "extract-all" => ExtractAllCommand.Run(args[1..]),
+            "scripts" => ScriptsCommand.Run(args[1..]),
             "help" or "--help" or "-h" => Help(),
             _ => UnknownCommand(command)
         };
