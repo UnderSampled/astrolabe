@@ -129,9 +129,9 @@ public static class ExtractCommand
             Console.WriteLine($"=== Extracting {cntFiles.Length} texture containers ===");
             foreach (var cntPath in cntFiles.OrderBy(f => f))
             {
-                // Output to textures/ or vignette/ folder
-                var name = Path.GetFileNameWithoutExtension(cntPath).ToLowerInvariant();
-                var outputPath = Path.Combine(outputDir, name);
+                // Preserve the path structure: Gamedata/Textures.cnt -> Gamedata/Textures/
+                var relativePath = Path.ChangeExtension(cntPath, null);
+                var outputPath = Path.Combine(outputDir, relativePath);
 
                 Console.WriteLine($"  {cntPath}");
                 var (extracted, failed) = ExtractCnt(source, cntPath, outputPath);

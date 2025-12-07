@@ -1,5 +1,6 @@
 using System.Numerics;
 using Astrolabe.Core.FileFormats.Animation;
+using Astrolabe.Core.FileFormats.Materials;
 using SharpGLTF.Geometry;
 using SharpGLTF.Geometry.VertexTypes;
 using SharpGLTF.Materials;
@@ -20,6 +21,7 @@ public class FamilyExporter
     private readonly TextureTable? _textureTable;
     private readonly string? _textureBasePath;
     private readonly MeshScanner _meshScanner;
+    private readonly GameMaterialReader _gameMaterialReader;
 
     public FamilyExporter(LevelLoader level, TextureTable? textureTable = null, string? textureBasePath = null)
     {
@@ -27,6 +29,7 @@ public class FamilyExporter
         _textureTable = textureTable;
         _textureBasePath = textureBasePath;
         _meshScanner = new MeshScanner(level, textureTable);
+        _gameMaterialReader = new GameMaterialReader(_memory);
     }
 
     /// <summary>
@@ -525,27 +528,16 @@ public class FamilyExporter
                 }
             }
 
-            // Try to get texture name
+            // Try to get texture name from material using proper material reader
             if (_textureTable != null && offMaterial != 0)
             {
-                // Read visual material to get texture
-                var matReader = _memory.GetReaderAt(offMaterial);
-                if (matReader != null)
+                var gameMaterial = _gameMaterialReader.Read(offMaterial);
+                if (gameMaterial?.VisualMaterial != null)
                 {
-                    int offVisualMaterial = matReader.ReadInt32();
-                    if (offVisualMaterial != 0)
+                    element.MaterialFlags = gameMaterial.VisualMaterial.Flags;
+                    if (gameMaterial.VisualMaterial.OffTexture != 0)
                     {
-                        var visMatReader = _memory.GetReaderAt(offVisualMaterial);
-                        if (visMatReader != null)
-                        {
-                            // Skip to texture offset (structure varies)
-                            visMatReader.ReadBytes(0x28); // Skip to texture pointer area
-                            int offTexture = visMatReader.ReadInt32();
-                            if (offTexture != 0)
-                            {
-                                element.TextureName = _textureTable.GetTextureName(offTexture);
-                            }
-                        }
+                        element.TextureName = _textureTable.GetTextureName(gameMaterial.VisualMaterial.OffTexture);
                     }
                 }
             }

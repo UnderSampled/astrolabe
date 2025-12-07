@@ -123,9 +123,9 @@ public static class ExportFamiliesCommand
                 }
             }
 
-            // Build texture lookup
+            // Build texture lookup - search common texture directories
             var textureLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var textureBaseDir in new[] { "output/textures", "textures" })
+            foreach (var textureBaseDir in new[] { "output/Gamedata/Textures", "output/textures", "textures" })
             {
                 if (Directory.Exists(textureBaseDir))
                 {
