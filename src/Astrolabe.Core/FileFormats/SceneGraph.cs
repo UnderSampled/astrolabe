@@ -49,6 +49,11 @@ public class SceneNode
     public int GeometricObjectAddress { get; set; }
     public int OffCollideSet { get; set; }
 
+    // Perso-specific data
+    public uint FamilyIndex { get; set; }
+    public uint ModelIndex { get; set; }
+    public uint InstanceIndex { get; set; }
+
     public override string ToString()
     {
         return $"{Type} @ 0x{Address:X8}" + (Name != null ? $" ({Name})" : "");

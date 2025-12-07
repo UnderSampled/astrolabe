@@ -187,13 +187,124 @@ public class SuperObjectReader
                 ReadPhysicalObjectData(node, node.OffData);
                 break;
 
-            // World and Sector don't have geometry directly
-            case SuperObjectType.World:
             case SuperObjectType.Sector:
+                ReadSectorData(node);
+                break;
+
             case SuperObjectType.Perso:
+                ReadPersoData(node);
+                break;
+
+            // World doesn't have special data
+            case SuperObjectType.World:
             default:
                 break;
         }
+    }
+
+    private void ReadSectorData(SceneNode node)
+    {
+        if (node.OffData == 0) return;
+
+        // Search for a valid name pointer in the sector structure
+        // The structure varies, so we'll scan for a pointer that leads to a valid string
+        var baseReader = _memory.GetReaderAt(node.OffData);
+        if (baseReader == null) return;
+
+        try
+        {
+            // Read sector data and look for string pointers
+            // Scan from offset 0x60 to 0xA0 looking for valid string pointers
+            for (int offset = 0x60; offset <= 0xA0; offset += 4)
+            {
+                var reader = _memory.GetReaderAt(node.OffData + offset);
+                if (reader == null) continue;
+
+                int potentialPtr = reader.ReadInt32();
+                if (potentialPtr > 0x08000000 && potentialPtr < 0x10000000)
+                {
+                    // Try to read as string
+                    string? name = ReadNullTerminatedString(potentialPtr);
+                    if (name != null && name.Length > 0 && name.Length < 64 &&
+                        name.All(c => char.IsLetterOrDigit(c) || c == '_' || c == ' ' || c == '-'))
+                    {
+                        node.Name = name;
+                        return;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Structure parsing failed, leave name as null
+        }
+    }
+
+    private void ReadPersoData(SceneNode node)
+    {
+        if (node.OffData == 0) return;
+
+        // Perso structure (Montreal):
+        // +0x00: Pointer off_3dData
+        // +0x04: Pointer off_stdGame
+        // +0x08: Pointer off_dynam
+        // +0x0C: uint (Montreal only)
+        // ...
+
+        var reader = _memory.GetReaderAt(node.OffData);
+        if (reader == null) return;
+
+        try
+        {
+            int off3dData = reader.ReadInt32();
+            int offStdGame = reader.ReadInt32();
+
+            if (offStdGame != 0)
+            {
+                ReadStandardGame(node, offStdGame);
+            }
+        }
+        catch
+        {
+            // Structure parsing failed
+        }
+    }
+
+    private void ReadStandardGame(SceneNode node, int address)
+    {
+        // StandardGame structure (Montreal/R2):
+        // +0x00: uint objectTypes[0] (family index)
+        // +0x04: uint objectTypes[1] (model index)
+        // +0x08: uint objectTypes[2] (instance index)
+        // +0x0C: Pointer off_superobject
+        // ...
+
+        var reader = _memory.GetReaderAt(address);
+        if (reader == null) return;
+
+        node.FamilyIndex = reader.ReadUInt32();
+        node.ModelIndex = reader.ReadUInt32();
+        node.InstanceIndex = reader.ReadUInt32();
+
+        // Generate a name from the indices
+        node.Name = $"Family{node.FamilyIndex}/Model{node.ModelIndex}/Instance{node.InstanceIndex}";
+    }
+
+    private string? ReadNullTerminatedString(int address)
+    {
+        var reader = _memory.GetReaderAt(address);
+        if (reader == null) return null;
+
+        var chars = new List<char>();
+        while (true)
+        {
+            byte b = reader.ReadByte();
+            if (b == 0) break;
+            chars.Add((char)b);
+            if (chars.Count > 256) break; // Safety limit
+        }
+
+        return chars.Count > 0 ? new string(chars.ToArray()) : null;
     }
 
     private void ReadIPOData(SceneNode node)

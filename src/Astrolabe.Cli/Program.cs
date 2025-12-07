@@ -27,6 +27,7 @@ class Program
             "export-gltf" => ExportGltfCommand.Run(args[1..]),
             "textures-sna" => TexturesSnaCommand.Run(args[1..]),
             "scene" => SceneCommand.Run(args[1..]),
+            "tree" => TreeCommand.Run(args[1..]),
             "export-godot" => ExportGodotCommand.Run(args[1..]),
             "audio" => AudioCommand.Run(args[1..]),
             "scripts" => ScriptsCommand.Run(args[1..]),
@@ -62,6 +63,7 @@ class Program
                 textures <cnt-path> [output-dir]   Extract textures from CNT container
                 cnt <cnt-path>                     List files in CNT container
                 audio <apm-path|bnm-path> [out]    Convert APM/BNM audio to WAV
+                tree <path> [options]              Display scene graph as tree
                 help                               Show this help message
 
             The <source> can be either:
