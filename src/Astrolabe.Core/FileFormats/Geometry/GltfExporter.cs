@@ -97,10 +97,10 @@ public static class GltfExporter
                 var image = new MemoryImage(imageBytes);
                 material.WithBaseColor(image);
 
-                // Enable alpha blending if texture has alpha channel or material flags say so
+                // Use MASK for alpha cutout (avoids transparency overlap artifacts)
                 if (forceTransparent || hasAlpha)
                 {
-                    material.WithAlpha(SharpGLTF.Materials.AlphaMode.BLEND);
+                    material.WithAlpha(SharpGLTF.Materials.AlphaMode.MASK, 0.5f);
                 }
             }
             catch
@@ -353,21 +353,19 @@ public static class GltfExporter
                     // Set base color to black so only emissive contributes
                     material.WithBaseColor(new Vector4(0f, 0f, 0f, 1f));
                     material.WithEmissive(image, Vector3.One);
-                    // Use BLEND for additive-like effect
-                    material.WithAlpha(SharpGLTF.Materials.AlphaMode.BLEND);
+                    // Use MASK for alpha cutout (avoids transparency overlap)
+                    if (hasAlpha)
+                    {
+                        material.WithAlpha(SharpGLTF.Materials.AlphaMode.MASK, 0.5f);
+                    }
                 }
                 else
                 {
                     material.WithBaseColor(image);
 
-                    // Enable alpha blending if texture has alpha channel or material flags say so
-                    if (forceTransparent)
+                    // Use MASK for alpha cutout (avoids transparency overlap artifacts)
+                    if (forceTransparent || hasAlpha)
                     {
-                        material.WithAlpha(SharpGLTF.Materials.AlphaMode.BLEND);
-                    }
-                    else if (hasAlpha)
-                    {
-                        // Use MASK for binary alpha cutout (better depth sorting)
                         material.WithAlpha(SharpGLTF.Materials.AlphaMode.MASK, 0.5f);
                     }
                 }

@@ -645,25 +645,20 @@ public class FamilyExporter
                     // Set base color to black so only emissive contributes
                     material.WithBaseColor(new Vector4(0f, 0f, 0f, 1f));
                     material.WithEmissive(image, Vector3.One);
-                    // Use BLEND for additive-like effect
-                    material.WithAlpha(SharpGLTF.Materials.AlphaMode.BLEND);
+                    // Use MASK for alpha cutout (avoids transparency overlap)
+                    if (texturePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                    {
+                        material.WithAlpha(SharpGLTF.Materials.AlphaMode.MASK, 0.5f);
+                    }
                 }
                 else
                 {
                     material.WithBaseColor(image);
 
+                    // Use MASK for alpha cutout (avoids transparency overlap artifacts)
                     if (texturePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
                     {
-                        if (isTransparent)
-                        {
-                            // Material flagged as transparent - use BLEND for partial transparency
-                            material.WithAlpha(SharpGLTF.Materials.AlphaMode.BLEND);
-                        }
-                        else
-                        {
-                            // Not flagged transparent - use MASK for binary alpha cutout
-                            material.WithAlpha(SharpGLTF.Materials.AlphaMode.MASK, 0.5f);
-                        }
+                        material.WithAlpha(SharpGLTF.Materials.AlphaMode.MASK, 0.5f);
                     }
                 }
             }
