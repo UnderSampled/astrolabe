@@ -451,6 +451,11 @@ public class SubMeshData
     public uint MaterialFlags { get; set; }
 
     /// <summary>
+    /// True if this submesh should use additive/emissive blending (IsLight flag in texture).
+    /// </summary>
+    public bool IsLight { get; set; }
+
+    /// <summary>
     /// Full visual material information.
     /// </summary>
     public VisualMaterial? VisualMaterial { get; set; }
@@ -471,6 +476,7 @@ public class ElementData
     public int[]? UVMapping { get; set; }
     public string? TextureName { get; set; }
     public uint MaterialFlags { get; set; }
+    public bool IsLight { get; set; }
     public GameMaterial? GameMaterial { get; set; }
 }
 

@@ -219,10 +219,11 @@ public static class GltfExporter
                 var uv1 = GetSubMeshUV(subMesh, i + 1, hasUVs);
                 var uv2 = GetSubMeshUV(subMesh, i + 2, hasUVs);
 
+                // Swap indices 1 and 2 to match Raymap's winding order (m0, m2, m1)
                 primitive.AddTriangle(
                     (new VertexPositionNormal(v0, n0), new VertexTexture1(uv0)),
-                    (new VertexPositionNormal(v1, n1), new VertexTexture1(uv1)),
-                    (new VertexPositionNormal(v2, n2), new VertexTexture1(uv2)));
+                    (new VertexPositionNormal(v2, n2), new VertexTexture1(uv2)),
+                    (new VertexPositionNormal(v1, n1), new VertexTexture1(uv1)));
             }
         }
 
@@ -286,10 +287,11 @@ public static class GltfExporter
                 var c1 = hasVertexColors ? mesh.VertexColors![i1] : Vector4.One;
                 var c2 = hasVertexColors ? mesh.VertexColors![i2] : Vector4.One;
 
+                // Swap indices 1 and 2 to match Raymap's winding order (m0, m2, m1)
                 primitive.AddTriangle(
                     (new VertexPositionNormal(v0, n0), new VertexColor1Texture1(c0, uv0)),
-                    (new VertexPositionNormal(v1, n1), new VertexColor1Texture1(c1, uv1)),
-                    (new VertexPositionNormal(v2, n2), new VertexColor1Texture1(c2, uv2)));
+                    (new VertexPositionNormal(v2, n2), new VertexColor1Texture1(c2, uv2)),
+                    (new VertexPositionNormal(v1, n1), new VertexColor1Texture1(c1, uv1)));
             }
         }
 
@@ -412,10 +414,11 @@ public static class GltfExporter
                 var uv1 = GetUV(mesh, i + 1, hasUVs);
                 var uv2 = GetUV(mesh, i + 2, hasUVs);
 
+                // Swap indices 1 and 2 to match Raymap's winding order (m0, m2, m1)
                 primitive.AddTriangle(
                     (new VertexPositionNormal(v0, n0), new VertexTexture1(uv0)),
-                    (new VertexPositionNormal(v1, n1), new VertexTexture1(uv1)),
-                    (new VertexPositionNormal(v2, n2), new VertexTexture1(uv2)));
+                    (new VertexPositionNormal(v2, n2), new VertexTexture1(uv2)),
+                    (new VertexPositionNormal(v1, n1), new VertexTexture1(uv1)));
             }
         }
         else
@@ -438,10 +441,11 @@ public static class GltfExporter
                     var n1 = hasNormals ? SanitizeVector(mesh.Normals![i]) : n;
                     var n2 = hasNormals ? SanitizeVector(mesh.Normals![i + 1]) : n;
 
+                    // Swap indices 1 and 2 to match Raymap's winding order
                     primitive.AddTriangle(
                         (new VertexPositionNormal(center, hasNormals ? nCenter : n), new VertexTexture1(uvCenter)),
-                        (new VertexPositionNormal(v1, n1), new VertexTexture1(new Vector2(0, 0))),
-                        (new VertexPositionNormal(v2, n2), new VertexTexture1(new Vector2(1, 0))));
+                        (new VertexPositionNormal(v2, n2), new VertexTexture1(new Vector2(1, 0))),
+                        (new VertexPositionNormal(v1, n1), new VertexTexture1(new Vector2(0, 0))));
                 }
             }
         }

@@ -374,7 +374,8 @@ public class FamilyExporter
                         {
                             Triangles = element.Triangles,
                             TextureName = element.TextureName,
-                            MaterialFlags = element.MaterialFlags
+                            MaterialFlags = element.MaterialFlags,
+                            IsLight = element.IsLight
                         };
 
                         if (element.UVs != null && element.UVMapping != null)
@@ -537,7 +538,12 @@ public class FamilyExporter
                     element.MaterialFlags = gameMaterial.VisualMaterial.Flags;
                     if (gameMaterial.VisualMaterial.OffTexture != 0)
                     {
-                        element.TextureName = _textureTable.GetTextureName(gameMaterial.VisualMaterial.OffTexture);
+                        var textureEntry = _textureTable.GetTextureEntry(gameMaterial.VisualMaterial.OffTexture);
+                        if (textureEntry != null)
+                        {
+                            element.TextureName = textureEntry.Name;
+                            element.IsLight = textureEntry.IsLight;
+                        }
                     }
                 }
             }
@@ -561,11 +567,13 @@ public class FamilyExporter
         foreach (var subMesh in mesh.SubMeshes)
         {
             string? resolvedTexture = textureLookup?.Invoke(subMesh.TextureName);
-            string materialKey = resolvedTexture ?? "__default__";
+            bool isTransparent = (subMesh.MaterialFlags & 0x8) != 0; // Bit 3 = transparency flag
+            bool isLight = subMesh.IsLight; // Additive/emissive blending
+            string materialKey = $"{resolvedTexture ?? "__default__"}_{isTransparent}_{isLight}";
 
             if (!materialCache.TryGetValue(materialKey, out var material))
             {
-                material = CreateMaterial(resolvedTexture);
+                material = CreateMaterial(resolvedTexture, isTransparent, isLight);
                 materialCache[materialKey] = material;
             }
 
@@ -593,17 +601,18 @@ public class FamilyExporter
                 var uv1 = GetUV(subMesh, i + 1, hasUVs);
                 var uv2 = GetUV(subMesh, i + 2, hasUVs);
 
+                // Swap indices 1 and 2 to match Raymap's winding order (m0, m2, m1)
                 primitive.AddTriangle(
                     (new VertexPositionNormal(v0, n0), new VertexTexture1(uv0)),
-                    (new VertexPositionNormal(v1, n1), new VertexTexture1(uv1)),
-                    (new VertexPositionNormal(v2, n2), new VertexTexture1(uv2)));
+                    (new VertexPositionNormal(v2, n2), new VertexTexture1(uv2)),
+                    (new VertexPositionNormal(v1, n1), new VertexTexture1(uv1)));
             }
         }
 
         return meshBuilder;
     }
 
-    private static MaterialBuilder CreateMaterial(string? texturePath)
+    private static MaterialBuilder CreateMaterial(string? texturePath, bool isTransparent = false, bool isLight = false)
     {
         var material = new MaterialBuilder("material")
             .WithDoubleSide(true)
@@ -629,11 +638,33 @@ public class FamilyExporter
                 }
 
                 var image = new MemoryImage(imageBytes);
-                material.WithBaseColor(image);
 
-                if (texturePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                if (isLight)
                 {
+                    // Additive/Light material - use emissive channel for glow effect
+                    // Set base color to black so only emissive contributes
+                    material.WithBaseColor(new Vector4(0f, 0f, 0f, 1f));
+                    material.WithEmissive(image, Vector3.One);
+                    // Use BLEND for additive-like effect
                     material.WithAlpha(SharpGLTF.Materials.AlphaMode.BLEND);
+                }
+                else
+                {
+                    material.WithBaseColor(image);
+
+                    if (texturePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (isTransparent)
+                        {
+                            // Material flagged as transparent - use BLEND for partial transparency
+                            material.WithAlpha(SharpGLTF.Materials.AlphaMode.BLEND);
+                        }
+                        else
+                        {
+                            // Not flagged transparent - use MASK for binary alpha cutout
+                            material.WithAlpha(SharpGLTF.Materials.AlphaMode.MASK, 0.5f);
+                        }
+                    }
                 }
             }
             catch
