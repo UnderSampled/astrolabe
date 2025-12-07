@@ -601,7 +601,8 @@ public class FamilyExporter
                 var uv1 = GetUV(subMesh, i + 1, hasUVs);
                 var uv2 = GetUV(subMesh, i + 2, hasUVs);
 
-                // Swap indices 1 and 2 to match Raymap's winding order (m0, m2, m1)
+                // Original engine data uses CW winding (DirectX convention)
+                // glTF expects CCW winding, so swap v1↔v2 to reverse winding order
                 primitive.AddTriangle(
                     (new VertexPositionNormal(v0, n0), new VertexTexture1(uv0)),
                     (new VertexPositionNormal(v2, n2), new VertexTexture1(uv2)),

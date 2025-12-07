@@ -90,9 +90,9 @@ public static class ExportGodotCommand
             Directory.CreateDirectory(meshDir);
             Directory.CreateDirectory(texturesDir);
 
-            // Build texture lookup
+            // Build texture lookup from canonical and legacy locations
             var textureLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var textureBaseDir in new[] { "output/textures", "textures" })
+            foreach (var textureBaseDir in new[] { "output/Gamedata/Textures", "output/textures", "textures" })
             {
                 if (Directory.Exists(textureBaseDir))
                 {
