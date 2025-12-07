@@ -65,7 +65,6 @@ public static class GltfExporter
     private static MaterialBuilder CreateMaterial(string? texturePath, bool forceTransparent)
     {
         var material = new MaterialBuilder("default")
-            .WithDoubleSide(true)
             .WithMetallicRoughnessShader()
             .WithMetallicRoughness(0.0f, 1.0f); // Non-metallic, rough surface
 
@@ -308,7 +307,6 @@ public static class GltfExporter
     private static MaterialBuilder CreateMaterialFromVisual(string? texturePath, bool forceTransparent, bool isLight, VisualMaterial? visMat)
     {
         var material = new MaterialBuilder("material")
-            .WithDoubleSide(true)
             .WithMetallicRoughnessShader()
             .WithMetallicRoughness(0.0f, 1.0f); // Non-metallic, rough surface
 

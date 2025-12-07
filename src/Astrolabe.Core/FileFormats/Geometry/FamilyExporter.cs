@@ -616,7 +616,6 @@ public class FamilyExporter
     private static MaterialBuilder CreateMaterial(string? texturePath, bool isTransparent = false, bool isLight = false)
     {
         var material = new MaterialBuilder("material")
-            .WithDoubleSide(true)
             .WithMetallicRoughnessShader()
             .WithMetallicRoughness(0f, 1f);
 
