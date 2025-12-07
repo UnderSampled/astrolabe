@@ -176,7 +176,7 @@ public static class GltfExporter
         var meshBuilder = new MeshBuilder<VertexPositionNormal, VertexTexture1, VertexEmpty>(mesh.Name);
         bool hasNormals = mesh.Normals != null && mesh.Normals.Length == mesh.Vertices.Length;
 
-        // Cache materials by texture path + transparency flag combination
+        // Cache materials by texture path + transparency/light flag combination
         var materialCache = new Dictionary<string, MaterialBuilder>();
 
         foreach (var subMesh in mesh.SubMeshes)
@@ -187,11 +187,12 @@ public static class GltfExporter
             // Check if this material should be transparent based on engine flags or VisualMaterial
             bool isTransparent = IsTransparentFromFlags(subMesh.MaterialFlags) ||
                                  (subMesh.VisualMaterial?.IsTransparent ?? false);
-            string materialKey = (resolvedTexture ?? "__default__") + (isTransparent ? "_transparent" : "");
+            bool isLight = subMesh.IsLight; // Additive/emissive blending
+            string materialKey = (resolvedTexture ?? "__default__") + (isTransparent ? "_transparent" : "") + (isLight ? "_light" : "");
 
             if (!materialCache.TryGetValue(materialKey, out var material))
             {
-                material = CreateMaterialFromVisual(resolvedTexture, isTransparent, subMesh.VisualMaterial);
+                material = CreateMaterialFromVisual(resolvedTexture, isTransparent, isLight, subMesh.VisualMaterial);
                 materialCache[materialKey] = material;
             }
 
@@ -240,7 +241,7 @@ public static class GltfExporter
         bool hasNormals = mesh.Normals != null && mesh.Normals.Length == mesh.Vertices.Length;
         bool hasVertexColors = mesh.VertexColors != null && mesh.VertexColors.Length == mesh.Vertices.Length;
 
-        // Cache materials by texture path + transparency flag combination
+        // Cache materials by texture path + transparency/light flag combination
         var materialCache = new Dictionary<string, MaterialBuilder>();
 
         foreach (var subMesh in mesh.SubMeshes)
@@ -251,11 +252,12 @@ public static class GltfExporter
             // Check if this material should be transparent based on engine flags or VisualMaterial
             bool isTransparent = IsTransparentFromFlags(subMesh.MaterialFlags) ||
                                  (subMesh.VisualMaterial?.IsTransparent ?? false);
-            string materialKey = (resolvedTexture ?? "__default__") + (isTransparent ? "_transparent" : "");
+            bool isLight = subMesh.IsLight; // Additive/emissive blending
+            string materialKey = (resolvedTexture ?? "__default__") + (isTransparent ? "_transparent" : "") + (isLight ? "_light" : "");
 
             if (!materialCache.TryGetValue(materialKey, out var material))
             {
-                material = CreateMaterialFromVisual(resolvedTexture, isTransparent, subMesh.VisualMaterial);
+                material = CreateMaterialFromVisual(resolvedTexture, isTransparent, isLight, subMesh.VisualMaterial);
                 materialCache[materialKey] = material;
             }
 
@@ -301,7 +303,7 @@ public static class GltfExporter
     /// <summary>
     /// Creates a material from VisualMaterial data.
     /// </summary>
-    private static MaterialBuilder CreateMaterialFromVisual(string? texturePath, bool forceTransparent, VisualMaterial? visMat)
+    private static MaterialBuilder CreateMaterialFromVisual(string? texturePath, bool forceTransparent, bool isLight, VisualMaterial? visMat)
     {
         var material = new MaterialBuilder("material")
             .WithDoubleSide(true)
@@ -344,12 +346,30 @@ public static class GltfExporter
                 }
 
                 var image = new MemoryImage(imageBytes);
-                material.WithBaseColor(image);
 
-                // Enable alpha blending if texture has alpha channel or material flags say so
-                if (forceTransparent || hasAlpha)
+                if (isLight)
                 {
+                    // Additive/Light material - use emissive channel for glow effect
+                    // Set base color to black so only emissive contributes
+                    material.WithBaseColor(new Vector4(0f, 0f, 0f, 1f));
+                    material.WithEmissive(image, Vector3.One);
+                    // Use BLEND for additive-like effect
                     material.WithAlpha(SharpGLTF.Materials.AlphaMode.BLEND);
+                }
+                else
+                {
+                    material.WithBaseColor(image);
+
+                    // Enable alpha blending if texture has alpha channel or material flags say so
+                    if (forceTransparent)
+                    {
+                        material.WithAlpha(SharpGLTF.Materials.AlphaMode.BLEND);
+                    }
+                    else if (hasAlpha)
+                    {
+                        // Use MASK for binary alpha cutout (better depth sorting)
+                        material.WithAlpha(SharpGLTF.Materials.AlphaMode.MASK, 0.5f);
+                    }
                 }
             }
             catch
