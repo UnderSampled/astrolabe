@@ -1,5 +1,6 @@
 # Game data (user-provided)
 disc
+full-disk
 *.iso
 
 # Build artifacts
