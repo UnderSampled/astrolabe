@@ -30,6 +30,7 @@ class Program
             "textures-sna" => TexturesSnaCommand.Run(args[1..]),
             "scene" => SceneCommand.Run(args[1..]),
             "tree" => TreeCommand.Run(args[1..]),
+            "byte-tree" => ByteTreeCommand.Run(args[1..]),
             "export-godot" => ExportGodotCommand.Run(args[1..]),
             "audio" => AudioCommand.Run(args[1..]),
             "scripts" => ScriptsCommand.Run(args[1..]),
@@ -66,6 +67,7 @@ class Program
                 cnt <cnt-path>                     List files in CNT container
                 audio <apm-path|bnm-path> [out]    Convert APM/BNM audio to WAV
                 tree <path> [options]              Display scene graph as tree
+                byte-tree <level-dir> [options]   Show tree with byte coverage analysis
                 export-gltf <level-dir> [output]   Export level meshes to GLTF
                 export-families <level-dir> [out]  Export character Families (meshes + animations) to GLTF
                 export-godot <level-dir> [output]  Export level to Godot scene

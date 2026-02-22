@@ -65,9 +65,16 @@ public class SceneNode
 /// </summary>
 public class SceneGraph
 {
+    // Main scene roots
     public SceneNode? ActualWorld { get; set; }
     public SceneNode? DynamicWorld { get; set; }
     public SceneNode? FatherSector { get; set; }
+
+    // GPT-referenced additional roots
+    public List<SceneNode> SpawnablePersos { get; } = new();
+    public List<SceneNode> Families { get; } = new();
+    public List<SceneNode> ObjectTypeTables { get; } = new();
+    public SceneNode? AlwaysSuperObjects { get; set; }
 
     public List<SceneNode> AllNodes { get; } = new();
 
