@@ -20,7 +20,10 @@ dotnet run --project src/Astrolabe.Cli -- list path/to/hype.iso
 dotnet run --project src/Astrolabe.Cli -- extract path/to/hype.iso ./output        # Convert to PNG/WAV
 dotnet run --project src/Astrolabe.Cli -- extract path/to/hype.iso ./disc --raw    # Raw game files
 dotnet run --project src/Astrolabe.Cli -- export-gltf ./disc/Gamedata/World/Levels/LEVELNAME
+dotnet run --project src/Astrolabe.Cli -- export-families ./disc/Gamedata/World/Levels/LEVELNAME
 dotnet run --project src/Astrolabe.Cli -- export-godot ./disc/Gamedata/World/Levels/LEVELNAME
+dotnet run --project src/Astrolabe.Cli -- tree ./disc/Gamedata/World/Levels/LEVELNAME
+dotnet run --project src/Astrolabe.Cli -- byte-tree ./disc/Gamedata/World/Levels/LEVELNAME
 ```
 
 ## Architecture
@@ -31,15 +34,19 @@ dotnet run --project src/Astrolabe.Cli -- export-godot ./disc/Gamedata/World/Lev
 - **Astrolabe.Core** - Core library (no Unity dependencies)
   - `Extraction/` - ISO9660 extraction via DiscUtils
   - `FileFormats/` - OpenSpace format readers
-  - `FileFormats/Geometry/` - Mesh scanning and glTF export via SharpGLTF
+  - `FileFormats/Animation/` - Family/character reading and animation types
+  - `FileFormats/Geometry/` - Mesh scanning, glTF export, Family mesh export via SharpGLTF
   - `FileFormats/Godot/` - TSCN scene generation
   - `FileFormats/Materials/` - Visual/game material parsing
+  - `FileFormats/AI/` - AI script parsing and S-expression conversion
 
 ### Data Pipeline
 
 ```
 ISO/disc → Extract → PNG textures, WAV audio (./output)
         → Extract --raw → SNA/GPT/PTX/RTB files (./disc) → Load Level → Export glTF/TSCN
+                                                          → Load Level → Export Families (characters)
+                                                          → Load Level → tree / byte-tree (analysis)
 ```
 
 ### Key Classes
@@ -48,6 +55,11 @@ ISO/disc → Extract → PNG textures, WAV audio (./output)
 - **MemoryContext** - Pointer resolution using RTB relocation data
 - **MeshScanner** - Finds GeometricObject structures in SNA blocks by pattern matching
 - **SuperObjectReader** - Parses scene graph hierarchy from GPT
+- **GptReader** - Parses GPT header fields (scene roots, spawnable persos, families, object type tables)
+- **FamilyReader** - Discovers character Families and their mesh/animation data
+- **FamilyExporter** - Exports Family meshes with textures to glTF
+- **ByteRangeTracker** - Tracks which byte ranges the parser accounts for in SNA data
+- **TrackingSuperObjectReader** - SuperObjectReader wrapper that records byte coverage
 - **GltfExporter** - Exports mesh data to GLB format
 - **GodotExporter** - Generates Godot TSCN scene files
 
@@ -68,10 +80,15 @@ See `docs/` for detailed format specifications.
 
 OpenSpace uses virtual memory addresses resolved via relocation tables. The RTB file maps (module, block_id) pairs to pointer targets. `MemoryContext.GetPointerAt()` resolves these at runtime.
 
+### Fix Data
+
+Shared data (characters like Hype, common textures) lives in `Fix.sna`/`Fix.rtb` at `Gamedata/World/Levels/`. The `fixlvl.rtb` relocation table links level data to Fix data. LevelLoader merges Fix blocks so that cross-references (e.g. a level's spawnable perso pointing into Fix for its mesh) resolve correctly.
+
 ## Dependencies
 
 - **lib/BinarySerializer.OpenSpace** - Submodule for OpenSpace type definitions
 - **reference/raymap** - Reference Unity implementation (read-only, for documentation)
+- **reference/OpenSpaceToolbox** - OpenSpace reverse-engineering toolbox (read-only, for reference)
 
 ## Testing Exports
 
@@ -79,6 +96,9 @@ OpenSpace uses virtual memory addresses resolved via relocation tables. The RTB 
 # Export meshes and view in Blender
 dotnet run --project src/Astrolabe.Cli -- export-gltf ./disc/Gamedata/World/Levels/castle_village
 flatpak run org.blender.Blender output/castle_village_meshes/mesh_*.glb
+
+# Export character families (meshes + animations)
+dotnet run --project src/Astrolabe.Cli -- export-families ./disc/Gamedata/World/Levels/castle_village
 
 # Export full Godot scene
 dotnet run --project src/Astrolabe.Cli -- export-godot ./disc/Gamedata/World/Levels/castle_village output/castle_village
