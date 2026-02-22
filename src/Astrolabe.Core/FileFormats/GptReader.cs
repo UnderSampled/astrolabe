@@ -23,6 +23,18 @@ public class GptReader
     /// </summary>
     public int OffFatherSector { get; private set; }
 
+    /// <summary>
+    /// Number of "always" spawnable persos.
+    /// </summary>
+    public uint NumAlways { get; private set; }
+
+    /// <summary>
+    /// Spawnable persos linked list header (head, tail, count).
+    /// </summary>
+    public int SpawnablePersosHead { get; private set; }
+    public int SpawnablePersosTail { get; private set; }
+    public uint SpawnablePersosCount { get; private set; }
+
     public GptReader(string filePath)
     {
         Data = File.ReadAllBytes(filePath);
@@ -48,14 +60,21 @@ public class GptReader
         // +0x14: off_dynamicWorld
         // +0x18: off_fatherSector
 
-        reader.ReadInt32(); // sound related
-        reader.ReadInt32(); // skip
-        reader.ReadInt32(); // skip
-        reader.ReadUInt32(); // skip
+        reader.ReadInt32(); // 0x00: sound related
+        reader.ReadInt32(); // 0x04: skip
+        reader.ReadInt32(); // 0x08: skip
+        reader.ReadUInt32(); // 0x0C: skip (sound event index in Montreal)
 
-        OffActualWorld = reader.ReadInt32();
-        OffDynamicWorld = reader.ReadInt32();
-        OffFatherSector = reader.ReadInt32();
+        OffActualWorld = reader.ReadInt32();  // 0x10
+        OffDynamicWorld = reader.ReadInt32(); // 0x14
+        OffFatherSector = reader.ReadInt32(); // 0x18
+
+        // Montreal engine: spawnable persos (always structure)
+        reader.ReadInt32(); // 0x1C: off_always_reusableSO or similar
+        NumAlways = reader.ReadUInt32(); // 0x20: num_always
+        SpawnablePersosHead = reader.ReadInt32();  // 0x24: spawnablePersos head
+        SpawnablePersosTail = reader.ReadInt32();  // 0x28: spawnablePersos tail
+        SpawnablePersosCount = reader.ReadUInt32(); // 0x2C: spawnablePersos count
     }
 
     /// <summary>

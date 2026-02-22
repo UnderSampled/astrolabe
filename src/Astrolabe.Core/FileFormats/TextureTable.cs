@@ -70,6 +70,14 @@ public class TextureTable
                 _textureEntries[ptr] = entry;
             }
         }
+
+        // Debug: show address range
+        if (_textureNames.Count > 0)
+        {
+            int minAddr = _textureNames.Keys.Min();
+            int maxAddr = _textureNames.Keys.Max();
+            Console.WriteLine($"  TextureTable: {_textureNames.Count} entries, address range 0x{minAddr:X8} - 0x{maxAddr:X8}");
+        }
     }
 
     private TextureEntry? ReadTextureInfo(int address)
@@ -165,5 +173,74 @@ public class TextureTable
     public TextureEntry? GetTextureEntry(int textureInfoAddress)
     {
         return _textureEntries.GetValueOrDefault(textureInfoAddress);
+    }
+
+    /// <summary>
+    /// Merges texture entries from another PTX file.
+    /// </summary>
+    public void MergeFromPtx(string ptxPath)
+    {
+        if (!File.Exists(ptxPath)) return;
+
+        int countBefore = _textureNames.Count;
+
+        using var reader = new BinaryReader(File.OpenRead(ptxPath));
+
+        // Fix.ptx has different format: header at 0, unknown at 4, pointers start at 8
+        // Try both formats - skip first pointer if it's too small (< 0x01000000)
+        reader.BaseStream.Position = 4;
+        int testPtr = reader.ReadInt32();
+
+        // If first pointer is too small, skip it and start at offset 8
+        if (testPtr < 0x01000000)
+        {
+            reader.BaseStream.Position = 8;
+        }
+        else
+        {
+            reader.BaseStream.Position = 4;
+        }
+
+        var pointers = new List<int>();
+        while (reader.BaseStream.Position < reader.BaseStream.Length - 4)
+        {
+            int ptr = reader.ReadInt32();
+            if (ptr == 0) break;
+            if (ptr < 0x01000000) continue; // Skip invalid pointers
+            pointers.Add(ptr);
+        }
+
+        int resolvedCount = 0;
+        int failedCount = 0;
+        foreach (int ptr in pointers)
+        {
+            if (_textureNames.ContainsKey(ptr)) continue;
+
+            var entry = ReadTextureInfo(ptr);
+            if (entry != null && !string.IsNullOrEmpty(entry.Name))
+            {
+                _textureNames[ptr] = entry.Name;
+                _textureEntries[ptr] = entry;
+                resolvedCount++;
+            }
+            else
+            {
+                failedCount++;
+            }
+        }
+
+        Console.WriteLine($"  Fix.ptx: {pointers.Count} pointers, resolved {resolvedCount}, failed {failedCount}");
+        if (pointers.Count > 0)
+        {
+            Console.WriteLine($"  First pointer: 0x{pointers[0]:X8}, reader={(_level.GetReaderAt(pointers[0]) != null ? "OK" : "NULL")}");
+        }
+
+        int added = _textureNames.Count - countBefore;
+        if (added > 0)
+        {
+            int minAddr = _textureNames.Keys.Min();
+            int maxAddr = _textureNames.Keys.Max();
+            Console.WriteLine($"  Merged {added} texture entries, total {_textureNames.Count}, range 0x{minAddr:X8} - 0x{maxAddr:X8}");
+        }
     }
 }

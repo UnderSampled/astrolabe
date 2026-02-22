@@ -76,6 +76,17 @@ public class LevelLoader
     }
 
     /// <summary>
+    /// Rebuilds the memory map after SNA blocks have been merged.
+    /// Call this after Sna.Merge() to include the new blocks in address lookups.
+    /// </summary>
+    public void RebuildMemoryMap()
+    {
+        _memoryMap.Clear();
+        _blockMap.Clear();
+        BuildMemoryMap();
+    }
+
+    /// <summary>
     /// Gets a block by module and ID.
     /// </summary>
     public SnaBlock? GetBlock(byte module, byte id)

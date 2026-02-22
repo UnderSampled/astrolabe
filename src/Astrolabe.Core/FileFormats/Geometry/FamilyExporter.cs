@@ -37,6 +37,13 @@ public class FamilyExporter
     /// </summary>
     public void ExportFamily(Family family, string outputPath, Func<string?, string?>? textureLookup = null)
     {
+        // Reset debug counters per family
+        _loggedTextureDebug = false;
+        _matDebugCount = 0;
+        _elemDebugCount = 0;
+        string familyDebugName = family.Name ?? $"Family_{family.FamilyIndex}";
+        Console.WriteLine($"[{familyDebugName}] Starting export...");
+
         var scene = new SceneBuilder($"Family_{family.FamilyIndex}");
 
         // Create root node for the family
@@ -50,27 +57,66 @@ public class FamilyExporter
             return;
         }
 
+        // Get initial transforms from first frame of first animation
+        AnimFrameMontreal? initialFrame = null;
+        if (family.States.Count > 0 && family.States[0].Animation != null)
+        {
+            var firstAnim = family.States[0].Animation!;
+            if (firstAnim.Frames.Length > 0)
+            {
+                initialFrame = firstAnim.Frames[0];
+            }
+        }
+
         // Create nodes for each channel (mesh part)
         var channelNodes = new List<NodeBuilder>();
         var channelMeshes = new List<MeshBuilder<VertexPositionNormal, VertexTexture1, VertexEmpty>?>();
 
+        // First pass: create channel nodes with transforms (don't add to root yet)
         for (int i = 0; i < primaryObjectList.Entries.Count; i++)
         {
             var entry = primaryObjectList.Entries[i];
             var channelNode = new NodeBuilder($"Channel_{i}");
 
-            // Apply scale if present
-            if (entry.Scale.HasValue)
+            // Apply initial transform from first animation frame
+            if (initialFrame != null && initialFrame.Channels != null && i < initialFrame.Channels.Length)
+            {
+                var channel = initialFrame.Channels[i];
+                if (channel.Matrix != null)
+                {
+                    var scale = channel.Matrix.Scale;
+                    var rotation = channel.Matrix.Rotation;
+                    var translation = channel.Matrix.Position;
+
+                    if (i < 3)
+                    {
+                        Console.WriteLine($"    Channel_{i}: pos={translation}, rot={rotation}, scale={scale}");
+                    }
+
+                    if (entry.Scale.HasValue)
+                    {
+                        scale *= entry.Scale.Value;
+                    }
+
+                    var transform = Matrix4x4.CreateScale(scale) *
+                                   Matrix4x4.CreateFromQuaternion(rotation) *
+                                   Matrix4x4.CreateTranslation(translation);
+                    channelNode.LocalTransform = transform;
+                }
+                else if (entry.Scale.HasValue)
+                {
+                    channelNode.LocalTransform = Matrix4x4.CreateScale(entry.Scale.Value);
+                }
+            }
+            else if (entry.Scale.HasValue)
             {
                 channelNode.LocalTransform = Matrix4x4.CreateScale(entry.Scale.Value);
             }
 
             channelNodes.Add(channelNode);
-            rootNode.AddNode(channelNode);
 
-            // Read mesh at this entry's GeometricObject address
+            // Read mesh for this channel
             MeshBuilder<VertexPositionNormal, VertexTexture1, VertexEmpty>? meshBuilder = null;
-
             if (entry.GeometricObjectAddress != 0)
             {
                 var meshData = ReadGeometricObject(entry.GeometricObjectAddress);
@@ -79,23 +125,73 @@ public class FamilyExporter
                     meshBuilder = CreateMeshBuilder(meshData, $"Mesh_{i}", textureLookup);
                 }
             }
-
             channelMeshes.Add(meshBuilder);
+        }
 
-            // Add mesh to channel node
-            if (meshBuilder != null)
+        // Build hierarchy from first frame
+        var childToParent = new Dictionary<int, int>();
+        if (initialFrame != null && initialFrame.Hierarchies.Length > 0)
+        {
+            foreach (var h in initialFrame.Hierarchies)
             {
-                scene.AddRigidMesh(meshBuilder, channelNode);
+                if (h.ChildChannelId >= 0 && h.ChildChannelId < channelNodes.Count &&
+                    h.ParentChannelId >= 0 && h.ParentChannelId < channelNodes.Count &&
+                    h.ChildChannelId != h.ParentChannelId)
+                {
+                    childToParent[h.ChildChannelId] = h.ParentChannelId;
+                }
             }
         }
 
-        // Build hierarchy from first frame of first animation (if available)
-        if (family.States.Count > 0 && family.States[0].Animation != null)
+        // Build scene tree: add root channels and their children recursively
+        void AddNodeTree(NodeBuilder parent, int channelId, HashSet<int> added)
         {
-            var firstAnim = family.States[0].Animation;
-            if (firstAnim.Frames.Length > 0 && firstAnim.Frames[0].Hierarchies.Length > 0)
+            if (added.Contains(channelId)) return;
+            added.Add(channelId);
+
+            var node = channelNodes[channelId];
+            parent.AddNode(node);
+
+            // Add mesh to node
+            var mesh = channelMeshes[channelId];
+            if (mesh != null)
             {
-                ApplyHierarchy(channelNodes, firstAnim.Frames[0].Hierarchies, rootNode);
+                scene.AddRigidMesh(mesh, node);
+            }
+
+            // Add children
+            for (int childId = 0; childId < channelNodes.Count; childId++)
+            {
+                if (childToParent.TryGetValue(childId, out var parentId) && parentId == channelId)
+                {
+                    AddNodeTree(node, childId, added);
+                }
+            }
+        }
+
+        var addedNodes = new HashSet<int>();
+
+        // Find and add root channels (those without parents)
+        for (int i = 0; i < channelNodes.Count; i++)
+        {
+            if (!childToParent.ContainsKey(i))
+            {
+                AddNodeTree(rootNode, i, addedNodes);
+            }
+        }
+
+        // Add any remaining orphan nodes directly to root
+        for (int i = 0; i < channelNodes.Count; i++)
+        {
+            if (!addedNodes.Contains(i))
+            {
+                addedNodes.Add(i);
+                rootNode.AddNode(channelNodes[i]);
+                var mesh = channelMeshes[i];
+                if (mesh != null)
+                {
+                    scene.AddRigidMesh(mesh, channelNodes[i]);
+                }
             }
         }
 
@@ -122,7 +218,9 @@ public class FamilyExporter
         }
 
         // Save
+        Console.Out.Flush();
         model.SaveGLB(outputPath);
+        Console.Out.Flush();
         Console.WriteLine($"Exported Family {family.Name} to {outputPath}");
         Console.WriteLine($"  - {primaryObjectList.Entries.Count} mesh parts");
         Console.WriteLine($"  - {family.States.Count} animations");
@@ -154,7 +252,7 @@ public class FamilyExporter
     }
 
     /// <summary>
-    /// Applies hierarchy relationships to nodes.
+    /// Applies hierarchy relationships to nodes by rebuilding parent-child structure.
     /// </summary>
     private void ApplyHierarchy(List<NodeBuilder> channelNodes, AnimHierarchy[] hierarchies, NodeBuilder rootNode)
     {
@@ -164,23 +262,60 @@ public class FamilyExporter
         foreach (var h in hierarchies)
         {
             if (h.ChildChannelId >= 0 && h.ChildChannelId < channelNodes.Count &&
-                h.ParentChannelId >= 0 && h.ParentChannelId < channelNodes.Count)
+                h.ParentChannelId >= 0 && h.ParentChannelId < channelNodes.Count &&
+                h.ChildChannelId != h.ParentChannelId) // Avoid self-parenting
             {
                 childToParent[h.ChildChannelId] = h.ParentChannelId;
             }
         }
 
-        // Reparent nodes
-        foreach (var (childId, parentId) in childToParent)
+        // Find root channels (those without parents or with -1 parent)
+        var rootChannels = new HashSet<int>();
+        for (int i = 0; i < channelNodes.Count; i++)
         {
-            if (childId != parentId) // Avoid self-parenting
+            if (!childToParent.ContainsKey(i))
             {
-                var childNode = channelNodes[childId];
-                var parentNode = channelNodes[parentId];
+                rootChannels.Add(i);
+            }
+        }
 
-                // Remove from root and add to parent
-                // Note: SharpGLTF handles this differently, we need to rebuild
-                // For now, we'll just set up the hierarchy info for animation
+        // Clear existing children from root
+        // (NodeBuilder doesn't have RemoveNode, so we rebuild)
+        var newRootNode = new NodeBuilder(rootNode.Name);
+        newRootNode.LocalTransform = rootNode.LocalTransform;
+
+        // Build tree recursively
+        void AddNodeWithChildren(NodeBuilder parent, int channelId)
+        {
+            var node = channelNodes[channelId];
+            parent.AddNode(node);
+
+            // Add children
+            foreach (var (childId, parentId) in childToParent)
+            {
+                if (parentId == channelId)
+                {
+                    AddNodeWithChildren(node, childId);
+                }
+            }
+        }
+
+        // Add root channels to new root
+        foreach (var rootChannelId in rootChannels)
+        {
+            AddNodeWithChildren(newRootNode, rootChannelId);
+        }
+
+        // Also add any orphan channels that weren't in hierarchy at all
+        var allInHierarchy = new HashSet<int>(childToParent.Keys);
+        allInHierarchy.UnionWith(childToParent.Values);
+        allInHierarchy.UnionWith(rootChannels);
+
+        for (int i = 0; i < channelNodes.Count; i++)
+        {
+            if (!allInHierarchy.Contains(i))
+            {
+                newRootNode.AddNode(channelNodes[i]);
             }
         }
     }
@@ -466,6 +601,8 @@ public class FamilyExporter
         catch { return null; }
     }
 
+    private static int _elemDebugCount = 0;
+
     private ElementData? ReadElementTriangles(int address, uint numVertices)
     {
         var reader = _memory.GetReaderAt(address);
@@ -474,6 +611,12 @@ public class FamilyExporter
         try
         {
             int offMaterial = reader.ReadInt32();
+
+            if (_elemDebugCount < 5)
+            {
+                Console.WriteLine($"      Element at 0x{address:X8}: offMaterial=0x{offMaterial:X8}, textureTable={(_textureTable != null ? "OK" : "NULL")}");
+                _elemDebugCount++;
+            }
             ushort numTriangles = reader.ReadUInt16();
             ushort numUvs = reader.ReadUInt16();
             int offTriangles = reader.ReadInt32();
@@ -533,12 +676,22 @@ public class FamilyExporter
             if (_textureTable != null && offMaterial != 0)
             {
                 var gameMaterial = _gameMaterialReader.Read(offMaterial);
+                if (_elemDebugCount <= 5)
+                {
+                    bool hasVisMat = gameMaterial?.VisualMaterial != null;
+                    int offTex = gameMaterial?.VisualMaterial?.OffTexture ?? 0;
+                    Console.WriteLine($"        gameMaterial: hasVisMat={hasVisMat}, offTexture=0x{offTex:X8}");
+                }
                 if (gameMaterial?.VisualMaterial != null)
                 {
                     element.MaterialFlags = gameMaterial.VisualMaterial.Flags;
                     if (gameMaterial.VisualMaterial.OffTexture != 0)
                     {
                         var textureEntry = _textureTable.GetTextureEntry(gameMaterial.VisualMaterial.OffTexture);
+                        if (_elemDebugCount <= 5)
+                        {
+                            Console.WriteLine($"        textureEntry: {(textureEntry?.Name ?? "NULL")}");
+                        }
                         if (textureEntry != null)
                         {
                             element.TextureName = textureEntry.Name;
@@ -556,6 +709,8 @@ public class FamilyExporter
     /// <summary>
     /// Creates a GLTF mesh builder from mesh data.
     /// </summary>
+    private static bool _loggedTextureDebug = false;
+
     private MeshBuilder<VertexPositionNormal, VertexTexture1, VertexEmpty> CreateMeshBuilder(
         MeshData mesh, string name, Func<string?, string?>? textureLookup)
     {
@@ -564,11 +719,20 @@ public class FamilyExporter
 
         var materialCache = new Dictionary<string, MaterialBuilder>();
 
+        int subMeshCount = 0;
         foreach (var subMesh in mesh.SubMeshes)
         {
+            subMeshCount++;
             string? resolvedTexture = textureLookup?.Invoke(subMesh.TextureName);
-            bool isTransparent = (subMesh.MaterialFlags & 0x8) != 0; // Bit 3 = transparency flag
-            bool isLight = subMesh.IsLight; // Additive/emissive blending
+
+            // Debug: log texture resolution
+            if (subMeshCount <= 3)
+            {
+                Console.WriteLine($"    SubMesh {subMeshCount}: texName='{subMesh.TextureName ?? "NULL"}' -> resolved='{resolvedTexture ?? "NULL"}'");
+            }
+
+            bool isTransparent = (subMesh.MaterialFlags & 0x8) != 0;
+            bool isLight = subMesh.IsLight;
             string materialKey = $"{resolvedTexture ?? "__default__"}_{isTransparent}_{isLight}";
 
             if (!materialCache.TryGetValue(materialKey, out var material))
@@ -613,56 +777,63 @@ public class FamilyExporter
         return meshBuilder;
     }
 
+    private static int _matDebugCount = 0;
+
+    private static int _materialCounter = 0;
+
     private static MaterialBuilder CreateMaterial(string? texturePath, bool isTransparent = false, bool isLight = false)
     {
-        var material = new MaterialBuilder("material")
+        string matName = !string.IsNullOrEmpty(texturePath)
+            ? $"mat_{Path.GetFileNameWithoutExtension(texturePath)}"
+            : $"mat_default_{_materialCounter++}";
+
+        var material = new MaterialBuilder(matName)
             .WithMetallicRoughnessShader()
             .WithMetallicRoughness(0f, 1f);
 
-        if (!string.IsNullOrEmpty(texturePath) && File.Exists(texturePath))
+        if (!string.IsNullOrEmpty(texturePath))
         {
-            try
+            bool exists = File.Exists(texturePath);
+            if (_matDebugCount < 5)
             {
-                byte[] imageBytes;
+                Console.WriteLine($"    Material: path='{texturePath}', exists={exists}");
+                _matDebugCount++;
+            }
 
-                if (texturePath.EndsWith(".tga", StringComparison.OrdinalIgnoreCase))
+            if (exists)
+            {
+                try
                 {
-                    using var img = ImageSharpImage.Load(texturePath);
-                    using var ms = new MemoryStream();
-                    img.Save(ms, new PngEncoder());
-                    imageBytes = ms.ToArray();
-                }
-                else
-                {
-                    imageBytes = File.ReadAllBytes(texturePath);
-                }
+                    byte[] imageBytes = File.ReadAllBytes(texturePath);
+                    Console.WriteLine($"      Loaded {imageBytes.Length} bytes");
 
-                var image = new MemoryImage(imageBytes);
+                    var image = new MemoryImage(imageBytes);
+                    Console.WriteLine($"      Created MemoryImage, applying to material '{matName}'");
 
-                if (isLight)
-                {
-                    // Additive/Light material - use emissive channel for glow effect
-                    // Set base color to black so only emissive contributes
-                    material.WithBaseColor(new Vector4(0f, 0f, 0f, 1f));
-                    material.WithEmissive(image, Vector3.One);
-                    // Use MASK for alpha cutout (avoids transparency overlap)
+                    if (isLight)
+                    {
+                        material.WithBaseColor(new Vector4(0f, 0f, 0f, 1f));
+                        material.WithEmissive(image, Vector3.One);
+                    }
+                    else
+                    {
+                        material.WithBaseColor(image);
+                    }
+
                     if (texturePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
                     {
                         material.WithAlpha(SharpGLTF.Materials.AlphaMode.MASK, 0.5f);
                     }
-                }
-                else
-                {
-                    material.WithBaseColor(image);
 
-                    // Use MASK for alpha cutout (avoids transparency overlap artifacts)
-                    if (texturePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
-                    {
-                        material.WithAlpha(SharpGLTF.Materials.AlphaMode.MASK, 0.5f);
-                    }
+                    Console.WriteLine($"      Material configured successfully");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"      ERROR: {ex.GetType().Name}: {ex.Message}");
+                    material.WithBaseColor(new Vector4(0.8f, 0.8f, 0.8f, 1f));
                 }
             }
-            catch
+            else
             {
                 material.WithBaseColor(new Vector4(0.8f, 0.8f, 0.8f, 1f));
             }
