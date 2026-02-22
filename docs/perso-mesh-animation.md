@@ -254,7 +254,73 @@ Vector3 gltfPos = new Vector3(osPos.X, osPos.Z, osPos.Y);
 Quaternion gltfRot = new Quaternion(osRot.X, osRot.Z, osRot.Y, -osRot.W);
 ```
 
-## Object Type Names
+## Name Sources
+
+This section documents where different types of names come from in the OpenSpace Montreal engine.
+
+| Name Type | Source Location | Example |
+|-----------|-----------------|---------|
+| Level | Directory name | `casino/` → "casino" |
+| Texture | Inline in TextureInfo struct (SNA) | "castle_wall01txy" |
+| State | Inline 0x50-byte buffer in State struct | "Idle", "Walk" |
+| Family | objectTypes[0] linked list entries | "senekal", "gladiateur" |
+| Model | objectTypes[1] linked list entries | "MSenekal", "MGladiateur" |
+| Perso/Instance | objectTypes[2] linked list entries | "ISenekal", "IGladiateur" |
+
+### Level Names
+
+Level names are derived from the **directory name** containing the level files:
+
+```
+./disc/Gamedata/World/Levels/casino/
+                              ^^^^^^
+                              Level name = "casino"
+```
+
+The level name determines which files to load:
+- `{levelName}.sna` - Compressed level data
+- `{levelName}.gpt` - Global pointer table
+- `{levelName}.ptx` - Texture pointer table
+- `{levelName}.rtb` - Relocation table
+
+### Texture Names
+
+Texture names are stored **inline in TextureInfo structures** within SNA memory. The PTX file contains an array of pointers to these structures.
+
+```
+PTX file:
+├── count: uint32
+└── pointers[]: int32[]  → TextureInfo addresses in SNA
+
+TextureInfo (in SNA memory):
+├── flags, dimensions, etc.
+└── name: null-terminated string  (e.g., "castle_wall01txy")
+```
+
+Texture names typically end with suffixes like:
+- `txy` - Standard texture
+- `txynz` - Normal-mapped texture
+- `.gf` - Raw GF format reference
+
+The `TextureTable` class scans the structure to find these embedded names.
+
+### State Names
+
+State names are stored **inline at the start of State structures** in SNA memory:
+
+```
+State structure (Montreal engine):
+├── +0x00: name[0x50]    # 80-byte inline string buffer
+├── +0x50: off_next
+├── +0x54: off_prev
+├── +0x58: off_header
+├── +0x5C: off_anim_ref
+└── ...
+```
+
+State names describe animations like "Idle", "Walk", "Attack", etc.
+
+### Object Type Names (Family, Model, Perso)
 
 The OpenSpace Montreal engine stores names for Families, Models, and Persos in an **objectTypes** table. This is an array of 3 linked lists:
 

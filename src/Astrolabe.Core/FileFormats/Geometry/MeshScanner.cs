@@ -136,6 +136,7 @@ public class MeshScanner
                             Triangles = element.Triangles,
                             TextureName = element.TextureName,
                             MaterialFlags = element.MaterialFlags,
+                            IsLight = element.IsLight,
                             GameMaterial = element.GameMaterial,
                             VisualMaterial = element.GameMaterial?.VisualMaterial
                         };
@@ -358,10 +359,15 @@ public class MeshScanner
             {
                 element.MaterialFlags = gameMaterial.VisualMaterial.Flags;
 
-                // Try to get texture name from texture table
+                // Try to get texture entry from texture table (includes name and flags)
                 if (_textureTable != null && gameMaterial.VisualMaterial.OffTexture != 0)
                 {
-                    element.TextureName = _textureTable.GetTextureName(gameMaterial.VisualMaterial.OffTexture);
+                    var textureEntry = _textureTable.GetTextureEntry(gameMaterial.VisualMaterial.OffTexture);
+                    if (textureEntry != null)
+                    {
+                        element.TextureName = textureEntry.Name;
+                        element.IsLight = textureEntry.IsLight;
+                    }
                 }
             }
 
@@ -451,6 +457,11 @@ public class SubMeshData
     public uint MaterialFlags { get; set; }
 
     /// <summary>
+    /// True if this submesh should use additive/emissive blending (IsLight flag in texture).
+    /// </summary>
+    public bool IsLight { get; set; }
+
+    /// <summary>
     /// Full visual material information.
     /// </summary>
     public VisualMaterial? VisualMaterial { get; set; }
@@ -471,6 +482,7 @@ public class ElementData
     public int[]? UVMapping { get; set; }
     public string? TextureName { get; set; }
     public uint MaterialFlags { get; set; }
+    public bool IsLight { get; set; }
     public GameMaterial? GameMaterial { get; set; }
 }
 

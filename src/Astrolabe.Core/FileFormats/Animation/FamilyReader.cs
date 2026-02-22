@@ -61,6 +61,24 @@ public class FamilyReader
                 if (perso.P3dData?.OffFamily != 0)
                 {
                     perso.Family = ReadFamily(perso.P3dData!.OffFamily);
+
+                    // If Family has no ObjectLists, try getting from Perso3dData
+                    if (perso.Family != null && perso.Family.ObjectLists.Count == 0)
+                    {
+                        // Try OffObjectList first, then OffObjectListInitial
+                        int objListAddr = perso.P3dData.OffObjectList != 0
+                            ? perso.P3dData.OffObjectList
+                            : perso.P3dData.OffObjectListInitial;
+
+                        if (objListAddr != 0)
+                        {
+                            var persoObjList = ReadObjectList(objListAddr);
+                            if (persoObjList != null && persoObjList.Entries.Count > 0)
+                            {
+                                perso.Family.ObjectLists.Add(persoObjList);
+                            }
+                        }
+                    }
                 }
             }
 
@@ -445,8 +463,9 @@ public class FamilyReader
             ushort numEntries = reader.ReadUInt16();
             reader.ReadUInt16(); // padding
 
-            if (numEntries == 0 || numEntries > 256 || offObjListStart == 0)
+            if (numEntries == 0 || numEntries > 1024 || offObjListStart == 0)
             {
+                Console.WriteLine($"  DEBUG ObjectList at 0x{address:X8}: numEntries={numEntries}, offObjListStart=0x{offObjListStart:X8} - REJECTED");
                 return null;
             }
 
@@ -551,6 +570,14 @@ public class FamilyReader
     }
 
     /// <summary>
+    /// Public method to read an ObjectList at a specific address.
+    /// </summary>
+    public ObjectList? ReadObjectListAt(int address)
+    {
+        return ReadObjectList(address);
+    }
+
+    /// <summary>
     /// Finds all Persos in the scene graph.
     /// </summary>
     public List<Perso> FindPersosInSceneGraph(SceneGraph sceneGraph)
@@ -567,6 +594,60 @@ public class FamilyReader
                     persos.Add(perso);
                 }
             }
+        }
+
+        return persos;
+    }
+
+    /// <summary>
+    /// Finds spawnable persos from the GPT's always/spawnable persos linked list.
+    /// These are persos like the main character that can be dynamically spawned.
+    /// </summary>
+    public List<Perso> FindSpawnablePersos(int listHead, uint count)
+    {
+        var persos = new List<Perso>();
+        if (listHead == 0 || count == 0) return persos;
+
+        // Check if we can read at the head address
+        var testReader = _memory.GetReaderAt(listHead);
+        if (testReader == null)
+        {
+            return persos;
+        }
+
+        // Spawnable perso linked list entry structure (Montreal, Double + HasHeaderPointers):
+        // +0x00: Pointer off_next
+        // +0x04: Pointer off_prev
+        // +0x08: Pointer off_hdr (list header pointer)
+        // +0x0C: uint32 index
+        // +0x10: Pointer off_perso
+
+        int currentAddr = listHead;
+        int maxIterations = (int)Math.Min(count * 2, 200); // Safety limit
+
+        for (int i = 0; i < maxIterations && currentAddr != 0; i++)
+        {
+            var reader = _memory.GetReaderAt(currentAddr);
+            if (reader == null) break;
+
+            int offNext = reader.ReadInt32();  // +0x00
+            int offPrev = reader.ReadInt32();  // +0x04
+            int offHdr = reader.ReadInt32();   // +0x08
+            uint index = reader.ReadUInt32();  // +0x0C
+            int offPerso = reader.ReadInt32(); // +0x10
+
+            if (offPerso != 0)
+            {
+                var perso = ReadPerso(offPerso);
+                if (perso != null)
+                {
+                    persos.Add(perso);
+                }
+            }
+
+            // Move to next entry
+            if (offNext == 0 || offNext == listHead) break;
+            currentAddr = offNext;
         }
 
         return persos;

@@ -100,9 +100,9 @@ public static class ExportGltfCommand
             Console.WriteLine($"Exporting {validMeshes.Count} meshes to {meshOutputDir}/...");
 
             // Build texture lookup from all extracted textures
-            // Check both legacy "textures/" and new "output/textures/" locations
+            // Check canonical "output/Gamedata/Textures/" and legacy locations
             var textureLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var textureBaseDir in new[] { "output/textures", "textures" })
+            foreach (var textureBaseDir in new[] { "output/Gamedata/Textures", "output/textures", "textures" })
             {
                 if (Directory.Exists(textureBaseDir))
                 {

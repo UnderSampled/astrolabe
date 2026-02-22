@@ -3,6 +3,21 @@ using System.Text;
 namespace Astrolabe.Core.FileFormats;
 
 /// <summary>
+/// Texture info entry with name and flags.
+/// </summary>
+public class TextureEntry
+{
+    public string Name { get; set; } = "";
+    public uint Flags { get; set; }
+
+    // Flag bit 5 (0x20) = IsLight (additive blending)
+    public bool IsLight => (Flags & 0x20) != 0;
+
+    // Flag bit 3 (0x08) = IsTransparent
+    public bool IsTransparent => (Flags & 0x08) != 0;
+}
+
+/// <summary>
 /// Reads texture information from PTX file and SNA blocks.
 /// PTX contains an array of pointers to TextureInfo structures in SNA memory.
 /// </summary>
@@ -10,8 +25,10 @@ public class TextureTable
 {
     private readonly LevelLoader _level;
     private readonly Dictionary<int, string> _textureNames = new();
+    private readonly Dictionary<int, TextureEntry> _textureEntries = new();
 
     public IReadOnlyDictionary<int, string> TextureNames => _textureNames;
+    public IReadOnlyDictionary<int, TextureEntry> TextureEntries => _textureEntries;
 
     public TextureTable(LevelLoader level, string ptxPath)
     {
@@ -43,18 +60,27 @@ public class TextureTable
             pointers.Add(ptr);
         }
 
-        // Now resolve each pointer to find texture names
+        // Now resolve each pointer to find texture names and flags
         foreach (int ptr in pointers)
         {
-            string? name = ReadTextureInfoName(ptr);
-            if (!string.IsNullOrEmpty(name))
+            var entry = ReadTextureInfo(ptr);
+            if (entry != null && !string.IsNullOrEmpty(entry.Name))
             {
-                _textureNames[ptr] = name;
+                _textureNames[ptr] = entry.Name;
+                _textureEntries[ptr] = entry;
             }
+        }
+
+        // Debug: show address range
+        if (_textureNames.Count > 0)
+        {
+            int minAddr = _textureNames.Keys.Min();
+            int maxAddr = _textureNames.Keys.Max();
+            Console.WriteLine($"  TextureTable: {_textureNames.Count} entries, address range 0x{minAddr:X8} - 0x{maxAddr:X8}");
         }
     }
 
-    private string? ReadTextureInfoName(int address)
+    private TextureEntry? ReadTextureInfo(int address)
     {
         // TextureInfo structure in Montreal engine (Hype):
         // The structure varies, but we look for the texture filename
@@ -76,15 +102,24 @@ public class TextureTable
 
         try
         {
-            // Read some data and look for the texture name
-            // In Montreal, the name is often at a fixed offset, let's try common offsets
+            // TextureInfo structure for Montreal engine (Hype, R2):
+            // 0x00: unknown (4 bytes)
+            // 0x04: unknown (4 bytes)
+            // 0x08: flags (4 bytes) <- IsLight is bit 5 (0x20)
+            // 0x0C: height_ (4 bytes)
+            // 0x10: width_ (4 bytes)
+            // ... more fields, then name at variable offset
+
             byte[] buffer = new byte[128];
             int bytesRead = reader.Read(buffer, 0, buffer.Length);
-            if (bytesRead < 32) return null;
+            if (bytesRead < 0x14) return null;
+
+            // Flags at offset 0x08 for Montreal engine
+            uint flags = BitConverter.ToUInt32(buffer, 0x08);
 
             // Try to find a filename pattern (ends with .gf or starts with a letter)
-            // The name is typically near the end of the structure
-            for (int offset = 0; offset < bytesRead - 4; offset++)
+            // The name is typically after offset 0x14
+            for (int offset = 0x14; offset < bytesRead - 4; offset++)
             {
                 // Look for potential filename start (letter character)
                 if (buffer[offset] >= 'a' && buffer[offset] <= 'z' ||
@@ -110,7 +145,7 @@ public class TextureTable
                             potential.Contains("tex", StringComparison.OrdinalIgnoreCase) ||
                             (potential.Length > 3 && potential.All(c => char.IsLetterOrDigit(c) || c == '_' || c == '.')))
                         {
-                            return potential;
+                            return new TextureEntry { Name = potential, Flags = flags };
                         }
                     }
                 }
@@ -130,5 +165,82 @@ public class TextureTable
     public string? GetTextureName(int textureInfoAddress)
     {
         return _textureNames.GetValueOrDefault(textureInfoAddress);
+    }
+
+    /// <summary>
+    /// Gets the full texture entry (name + flags) for a given TextureInfo pointer address.
+    /// </summary>
+    public TextureEntry? GetTextureEntry(int textureInfoAddress)
+    {
+        return _textureEntries.GetValueOrDefault(textureInfoAddress);
+    }
+
+    /// <summary>
+    /// Merges texture entries from another PTX file.
+    /// </summary>
+    public void MergeFromPtx(string ptxPath)
+    {
+        if (!File.Exists(ptxPath)) return;
+
+        int countBefore = _textureNames.Count;
+
+        using var reader = new BinaryReader(File.OpenRead(ptxPath));
+
+        // Fix.ptx has different format: header at 0, unknown at 4, pointers start at 8
+        // Try both formats - skip first pointer if it's too small (< 0x01000000)
+        reader.BaseStream.Position = 4;
+        int testPtr = reader.ReadInt32();
+
+        // If first pointer is too small, skip it and start at offset 8
+        if (testPtr < 0x01000000)
+        {
+            reader.BaseStream.Position = 8;
+        }
+        else
+        {
+            reader.BaseStream.Position = 4;
+        }
+
+        var pointers = new List<int>();
+        while (reader.BaseStream.Position < reader.BaseStream.Length - 4)
+        {
+            int ptr = reader.ReadInt32();
+            if (ptr == 0) break;
+            if (ptr < 0x01000000) continue; // Skip invalid pointers
+            pointers.Add(ptr);
+        }
+
+        int resolvedCount = 0;
+        int failedCount = 0;
+        foreach (int ptr in pointers)
+        {
+            if (_textureNames.ContainsKey(ptr)) continue;
+
+            var entry = ReadTextureInfo(ptr);
+            if (entry != null && !string.IsNullOrEmpty(entry.Name))
+            {
+                _textureNames[ptr] = entry.Name;
+                _textureEntries[ptr] = entry;
+                resolvedCount++;
+            }
+            else
+            {
+                failedCount++;
+            }
+        }
+
+        Console.WriteLine($"  Fix.ptx: {pointers.Count} pointers, resolved {resolvedCount}, failed {failedCount}");
+        if (pointers.Count > 0)
+        {
+            Console.WriteLine($"  First pointer: 0x{pointers[0]:X8}, reader={(_level.GetReaderAt(pointers[0]) != null ? "OK" : "NULL")}");
+        }
+
+        int added = _textureNames.Count - countBefore;
+        if (added > 0)
+        {
+            int minAddr = _textureNames.Keys.Min();
+            int maxAddr = _textureNames.Keys.Max();
+            Console.WriteLine($"  Merged {added} texture entries, total {_textureNames.Count}, range 0x{minAddr:X8} - 0x{maxAddr:X8}");
+        }
     }
 }

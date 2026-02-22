@@ -19,3 +19,6 @@
 [submodule "reference/OpenRayman"]
 	path = reference/OpenRayman
 	url = https://github.com/imaginaryPineapple/OpenRayman.git
+[submodule "reference/OpenSpaceToolbox"]
+	path = reference/OpenSpaceToolbox
+	url = https://github.com/raytools/OpenSpaceToolbox.git

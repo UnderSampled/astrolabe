@@ -113,6 +113,38 @@ public class RelocationTableReader
     {
         return PointerBlocks.FirstOrDefault(b => b.Module == module && b.Id == id);
     }
+
+    /// <summary>
+    /// Merges pointer blocks from another relocation table into this one.
+    /// Blocks with the same key have their pointers merged.
+    /// </summary>
+    public void Merge(RelocationTableReader other)
+    {
+        foreach (var otherBlock in other.PointerBlocks)
+        {
+            var existingBlock = GetBlock(otherBlock.Module, otherBlock.Id);
+            if (existingBlock != null)
+            {
+                // Merge pointers into existing block
+                var mergedPointers = existingBlock.Pointers.ToList();
+                var existingOffsets = new HashSet<uint>(mergedPointers.Select(p => p.OffsetInMemory));
+                foreach (var ptr in otherBlock.Pointers)
+                {
+                    if (!existingOffsets.Contains(ptr.OffsetInMemory))
+                    {
+                        mergedPointers.Add(ptr);
+                    }
+                }
+                existingBlock.Pointers = mergedPointers.ToArray();
+                existingBlock.Count = (uint)existingBlock.Pointers.Length;
+            }
+            else
+            {
+                // Add new block
+                PointerBlocks.Add(otherBlock);
+            }
+        }
+    }
 }
 
 /// <summary>

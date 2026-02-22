@@ -65,7 +65,6 @@ public static class GltfExporter
     private static MaterialBuilder CreateMaterial(string? texturePath, bool forceTransparent)
     {
         var material = new MaterialBuilder("default")
-            .WithDoubleSide(true)
             .WithMetallicRoughnessShader()
             .WithMetallicRoughness(0.0f, 1.0f); // Non-metallic, rough surface
 
@@ -98,10 +97,10 @@ public static class GltfExporter
                 var image = new MemoryImage(imageBytes);
                 material.WithBaseColor(image);
 
-                // Enable alpha blending if texture has alpha channel or material flags say so
+                // Use MASK for alpha cutout (avoids transparency overlap artifacts)
                 if (forceTransparent || hasAlpha)
                 {
-                    material.WithAlpha(SharpGLTF.Materials.AlphaMode.BLEND);
+                    material.WithAlpha(SharpGLTF.Materials.AlphaMode.MASK, 0.5f);
                 }
             }
             catch
@@ -176,7 +175,7 @@ public static class GltfExporter
         var meshBuilder = new MeshBuilder<VertexPositionNormal, VertexTexture1, VertexEmpty>(mesh.Name);
         bool hasNormals = mesh.Normals != null && mesh.Normals.Length == mesh.Vertices.Length;
 
-        // Cache materials by texture path + transparency flag combination
+        // Cache materials by texture path + transparency/light flag combination
         var materialCache = new Dictionary<string, MaterialBuilder>();
 
         foreach (var subMesh in mesh.SubMeshes)
@@ -187,11 +186,12 @@ public static class GltfExporter
             // Check if this material should be transparent based on engine flags or VisualMaterial
             bool isTransparent = IsTransparentFromFlags(subMesh.MaterialFlags) ||
                                  (subMesh.VisualMaterial?.IsTransparent ?? false);
-            string materialKey = (resolvedTexture ?? "__default__") + (isTransparent ? "_transparent" : "");
+            bool isLight = subMesh.IsLight; // Additive/emissive blending
+            string materialKey = (resolvedTexture ?? "__default__") + (isTransparent ? "_transparent" : "") + (isLight ? "_light" : "");
 
             if (!materialCache.TryGetValue(materialKey, out var material))
             {
-                material = CreateMaterialFromVisual(resolvedTexture, isTransparent, subMesh.VisualMaterial);
+                material = CreateMaterialFromVisual(resolvedTexture, isTransparent, isLight, subMesh.VisualMaterial);
                 materialCache[materialKey] = material;
             }
 
@@ -219,10 +219,12 @@ public static class GltfExporter
                 var uv1 = GetSubMeshUV(subMesh, i + 1, hasUVs);
                 var uv2 = GetSubMeshUV(subMesh, i + 2, hasUVs);
 
+                // Original engine data uses CW winding (DirectX convention)
+                // glTF expects CCW winding, so swap v1↔v2 to reverse winding order
                 primitive.AddTriangle(
                     (new VertexPositionNormal(v0, n0), new VertexTexture1(uv0)),
-                    (new VertexPositionNormal(v1, n1), new VertexTexture1(uv1)),
-                    (new VertexPositionNormal(v2, n2), new VertexTexture1(uv2)));
+                    (new VertexPositionNormal(v2, n2), new VertexTexture1(uv2)),
+                    (new VertexPositionNormal(v1, n1), new VertexTexture1(uv1)));
             }
         }
 
@@ -239,7 +241,7 @@ public static class GltfExporter
         bool hasNormals = mesh.Normals != null && mesh.Normals.Length == mesh.Vertices.Length;
         bool hasVertexColors = mesh.VertexColors != null && mesh.VertexColors.Length == mesh.Vertices.Length;
 
-        // Cache materials by texture path + transparency flag combination
+        // Cache materials by texture path + transparency/light flag combination
         var materialCache = new Dictionary<string, MaterialBuilder>();
 
         foreach (var subMesh in mesh.SubMeshes)
@@ -250,11 +252,12 @@ public static class GltfExporter
             // Check if this material should be transparent based on engine flags or VisualMaterial
             bool isTransparent = IsTransparentFromFlags(subMesh.MaterialFlags) ||
                                  (subMesh.VisualMaterial?.IsTransparent ?? false);
-            string materialKey = (resolvedTexture ?? "__default__") + (isTransparent ? "_transparent" : "");
+            bool isLight = subMesh.IsLight; // Additive/emissive blending
+            string materialKey = (resolvedTexture ?? "__default__") + (isTransparent ? "_transparent" : "") + (isLight ? "_light" : "");
 
             if (!materialCache.TryGetValue(materialKey, out var material))
             {
-                material = CreateMaterialFromVisual(resolvedTexture, isTransparent, subMesh.VisualMaterial);
+                material = CreateMaterialFromVisual(resolvedTexture, isTransparent, isLight, subMesh.VisualMaterial);
                 materialCache[materialKey] = material;
             }
 
@@ -286,10 +289,12 @@ public static class GltfExporter
                 var c1 = hasVertexColors ? mesh.VertexColors![i1] : Vector4.One;
                 var c2 = hasVertexColors ? mesh.VertexColors![i2] : Vector4.One;
 
+                // Original engine data uses CW winding (DirectX convention)
+                // glTF expects CCW winding, so swap v1↔v2 to reverse winding order
                 primitive.AddTriangle(
                     (new VertexPositionNormal(v0, n0), new VertexColor1Texture1(c0, uv0)),
-                    (new VertexPositionNormal(v1, n1), new VertexColor1Texture1(c1, uv1)),
-                    (new VertexPositionNormal(v2, n2), new VertexColor1Texture1(c2, uv2)));
+                    (new VertexPositionNormal(v2, n2), new VertexColor1Texture1(c2, uv2)),
+                    (new VertexPositionNormal(v1, n1), new VertexColor1Texture1(c1, uv1)));
             }
         }
 
@@ -299,10 +304,9 @@ public static class GltfExporter
     /// <summary>
     /// Creates a material from VisualMaterial data.
     /// </summary>
-    private static MaterialBuilder CreateMaterialFromVisual(string? texturePath, bool forceTransparent, VisualMaterial? visMat)
+    private static MaterialBuilder CreateMaterialFromVisual(string? texturePath, bool forceTransparent, bool isLight, VisualMaterial? visMat)
     {
         var material = new MaterialBuilder("material")
-            .WithDoubleSide(true)
             .WithMetallicRoughnessShader()
             .WithMetallicRoughness(0.0f, 1.0f); // Non-metallic, rough surface
 
@@ -342,12 +346,28 @@ public static class GltfExporter
                 }
 
                 var image = new MemoryImage(imageBytes);
-                material.WithBaseColor(image);
 
-                // Enable alpha blending if texture has alpha channel or material flags say so
-                if (forceTransparent || hasAlpha)
+                if (isLight)
                 {
-                    material.WithAlpha(SharpGLTF.Materials.AlphaMode.BLEND);
+                    // Additive/Light material - use emissive channel for glow effect
+                    // Set base color to black so only emissive contributes
+                    material.WithBaseColor(new Vector4(0f, 0f, 0f, 1f));
+                    material.WithEmissive(image, Vector3.One);
+                    // Use MASK for alpha cutout (avoids transparency overlap)
+                    if (hasAlpha)
+                    {
+                        material.WithAlpha(SharpGLTF.Materials.AlphaMode.MASK, 0.5f);
+                    }
+                }
+                else
+                {
+                    material.WithBaseColor(image);
+
+                    // Use MASK for alpha cutout (avoids transparency overlap artifacts)
+                    if (forceTransparent || hasAlpha)
+                    {
+                        material.WithAlpha(SharpGLTF.Materials.AlphaMode.MASK, 0.5f);
+                    }
                 }
             }
             catch
@@ -412,10 +432,12 @@ public static class GltfExporter
                 var uv1 = GetUV(mesh, i + 1, hasUVs);
                 var uv2 = GetUV(mesh, i + 2, hasUVs);
 
+                // Original engine data uses CW winding (DirectX convention)
+                // glTF expects CCW winding, so swap v1↔v2 to reverse winding order
                 primitive.AddTriangle(
                     (new VertexPositionNormal(v0, n0), new VertexTexture1(uv0)),
-                    (new VertexPositionNormal(v1, n1), new VertexTexture1(uv1)),
-                    (new VertexPositionNormal(v2, n2), new VertexTexture1(uv2)));
+                    (new VertexPositionNormal(v2, n2), new VertexTexture1(uv2)),
+                    (new VertexPositionNormal(v1, n1), new VertexTexture1(uv1)));
             }
         }
         else
@@ -438,10 +460,12 @@ public static class GltfExporter
                     var n1 = hasNormals ? SanitizeVector(mesh.Normals![i]) : n;
                     var n2 = hasNormals ? SanitizeVector(mesh.Normals![i + 1]) : n;
 
+                    // Original engine data uses CW winding (DirectX convention)
+                    // glTF expects CCW winding, so swap v1↔v2 to reverse winding order
                     primitive.AddTriangle(
                         (new VertexPositionNormal(center, hasNormals ? nCenter : n), new VertexTexture1(uvCenter)),
-                        (new VertexPositionNormal(v1, n1), new VertexTexture1(new Vector2(0, 0))),
-                        (new VertexPositionNormal(v2, n2), new VertexTexture1(new Vector2(1, 0))));
+                        (new VertexPositionNormal(v2, n2), new VertexTexture1(new Vector2(1, 0))),
+                        (new VertexPositionNormal(v1, n1), new VertexTexture1(new Vector2(0, 0))));
                 }
             }
         }

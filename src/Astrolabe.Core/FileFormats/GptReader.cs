@@ -72,15 +72,15 @@ public class GptReader
         // +0x00: Pointer (sound related, skip)
         // +0x04: Pointer (skip)
         // +0x08: Pointer (skip)
-        // +0x0C: uint32 (skip)
+        // +0x0C: uint32 (skip, sound event index in Montreal)
         // +0x10: off_actualWorld
         // +0x14: off_dynamicWorld
         // +0x18: off_fatherSector
 
-        reader.ReadInt32(); // sound related
-        reader.ReadInt32(); // skip
-        reader.ReadInt32(); // skip
-        reader.ReadUInt32(); // skip
+        reader.ReadInt32(); // 0x00: sound related
+        reader.ReadInt32(); // 0x04: skip
+        reader.ReadInt32(); // 0x08: skip
+        reader.ReadUInt32(); // 0x0C: skip (sound event index in Montreal)
 
         OffActualWorld = reader.ReadInt32();
         OffDynamicWorld = reader.ReadInt32();

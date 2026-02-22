@@ -142,6 +142,55 @@ public class SnaReader
         }
         return output.ToArray();
     }
+
+    /// <summary>
+    /// Merges blocks from another SNA reader into this one.
+    /// Blocks with the same key are not duplicated.
+    /// </summary>
+    public void Merge(SnaReader other)
+    {
+        int addedCount = 0;
+        int replacedCount = 0;
+        int skippedCount = 0;
+
+        // Build a map of existing blocks by key, so we can replace empty blocks with data blocks
+        var existingBlocksByKey = Blocks.ToDictionary(b => b.Key, b => b);
+
+        foreach (var block in other.Blocks)
+        {
+            if (!existingBlocksByKey.ContainsKey(block.Key))
+            {
+                // New key - add the block
+                Blocks.Add(block);
+                existingBlocksByKey[block.Key] = block;
+                addedCount++;
+            }
+            else
+            {
+                // Key exists - check if we should replace (prefer blocks with data)
+                var existingBlock = existingBlocksByKey[block.Key];
+                bool existingHasData = existingBlock.Data != null && existingBlock.Data.Length > 0;
+                bool newHasData = block.Data != null && block.Data.Length > 0;
+
+                if (!existingHasData && newHasData)
+                {
+                    // Replace empty block with block that has data
+                    int idx = Blocks.IndexOf(existingBlock);
+                    if (idx >= 0)
+                    {
+                        Blocks[idx] = block;
+                        existingBlocksByKey[block.Key] = block;
+                        replacedCount++;
+                    }
+                }
+                else
+                {
+                    skippedCount++;
+                }
+            }
+        }
+        Console.WriteLine($"    Merge: added {addedCount}, replaced {replacedCount} empty blocks, skipped {skippedCount}");
+    }
 }
 
 /// <summary>
