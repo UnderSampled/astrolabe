@@ -29,6 +29,7 @@ These paths are ignored by `reference/.gitignore` and will not exist in a clean 
 | --- | --- | --- |
 | `hype_patch/` | Download <https://www.zeus-software.com/files/nglide/hype_patch.zip> and extract it into `reference/hype_patch/`. | Zeus nGlide patch package for Hype. It contains `MaiDFXvr_bleu.exe` and `maidfxvr_bleu.sdb`. The patched EXE is useful for decompilation because it is a runnable/unwrapped counterpart to the protected Glide payload rather than the small SafeDisc CD-check loader. |
 | `decompilation/` | Generate locally with Ghidra from `reference/hype_patch/MaiDFXvr_bleu.exe`. | Ghidra project, logs, function index, all-functions C-like output, and per-function output. |
+| `raymap-webgl/` | Download a local snapshot of <https://raym.app/maps/> into `reference/raymap-webgl/`. | Raymap's Unity WebGL build for browser automation comparisons. Include `Build/raymap.loader.js`, `Build/raymap.data.unityweb`, `Build/raymap.framework.js.unityweb`, `Build/raymap.wasm.unityweb`, the page shell, shared CSS/JS assets, `json/content.json`, and `json/raymap/playmobil_hype/pc.json`. Serve this directory with a local static server before using Playwright, for example `python3 -m http.server 8899 --directory reference/raymap-webgl`. To test against local Hype disc data, create local symlinks such as `ln -s ../../disc/Gamedata reference/raymap-webgl/Gamedata` and `ln -s ../../disc/LangData reference/raymap-webgl/LangData`; these symlinks live inside the ignored snapshot and are not tracked. |
 
 ## Hype Decompilation Notes
 
