@@ -1,31 +1,18 @@
 namespace Astrolabe.Core.Extraction;
 
 /// <summary>
-/// Factory for creating game sources from ISOs or directories.
+/// Factory for creating game sources from extracted or mounted directories.
 /// </summary>
 public static class GameSourceFactory
 {
     /// <summary>
-    /// Creates a game source from the given path, auto-detecting whether it's an ISO or directory.
+    /// Creates a game source from the given directory path.
     /// </summary>
     public static IGameSource Create(string path)
     {
         if (File.Exists(path))
         {
-            // Check if it's an ISO file
-            var extension = Path.GetExtension(path).ToLowerInvariant();
-            if (extension == ".iso" || extension == ".bin" || extension == ".img")
-            {
-                return new IsoGameSource(path);
-            }
-
-            // Try to detect ISO by reading magic bytes
-            if (IsIsoFile(path))
-            {
-                return new IsoGameSource(path);
-            }
-
-            throw new ArgumentException($"File exists but is not a recognized ISO format: {path}");
+            throw new ArgumentException($"Expected an extracted or mounted game directory, not a file: {path}");
         }
 
         if (Directory.Exists(path))
@@ -33,33 +20,7 @@ public static class GameSourceFactory
             return new DirectoryGameSource(path);
         }
 
-        throw new FileNotFoundException($"Path not found: {path}");
-    }
-
-    /// <summary>
-    /// Checks if a file is an ISO by looking for ISO 9660 signature.
-    /// </summary>
-    private static bool IsIsoFile(string path)
-    {
-        try
-        {
-            using var fs = File.OpenRead(path);
-            // ISO 9660 signature "CD001" is at sector 16 (offset 0x8000 + 1)
-            if (fs.Length < 0x8006)
-                return false;
-
-            fs.Seek(0x8001, SeekOrigin.Begin);
-            var buffer = new byte[5];
-            if (fs.Read(buffer, 0, 5) != 5)
-                return false;
-
-            return buffer[0] == 'C' && buffer[1] == 'D' &&
-                   buffer[2] == '0' && buffer[3] == '0' && buffer[4] == '1';
-        }
-        catch
-        {
-            return false;
-        }
+        throw new DirectoryNotFoundException($"Directory not found: {path}");
     }
 
     /// <summary>

@@ -1,4 +1,4 @@
-Okay, Here is the project: We're going to make tools to import game data (3D models, maps, etc.) from the 1990s game "Hype: the Time Quest" into Godot.  We will be C# to make a tool that will generate Godot scene files for maps, gdscript for interractions where needed, and gltf for 3D models.
+Okay, Here is the project: We're going to make tools to import game data (3D models, maps, etc.) from the 1990s game "Hype: the Time Quest" into Godot. We will use C# to generate intermediate OpenSpace data, Godot scene files for maps, Godot-native mesh resources, and GDScript for interactions where needed.
 
 The game was made by Ubisoft for Brandstätter Group (who makes Playmobil), under the name 'Playmobil Interactive'. It used the game engine from "Tonic Trouble" and Rayman 2, OpenSpace. The single most important resource we have available to us is Raymap, made by the Rayman Community, which is able to read much of the date (maps, models, state graphs, etc.) as a library for Unity, and display it in that engine. The code for that is here: https://github.com/byvar/raymap. I have imported it as a git submodule to reference it during development, located at /reference/raymap.
 
@@ -6,13 +6,13 @@ Raymap has a dependency on https://github.com/BinarySerializer/BinarySerializer.
 
 ## Game Files
 
-Do to copyright concerns, any user will have to bring their own copy of the original game iso in order to use any of the assets. So, our scripts should start with the iso, extracting and converting it from there. This is a pattern used by several other high profile community remaster projects, such as OpenMW or Freespace Open, so I feel fairly confident that it should be sufficient to forgo any legal concerns.
+Due to copyright concerns, any user will have to bring their own copy of the original game in order to use any of the assets. Astrolabe should work from a mounted ISO directory or pre-extracted files, then convert from there.
 
-I have put my own copy of the Hype ISO in /hype.iso.
+Use a mounted or pre-extracted copy of the Hype disc for local testing.
 
 ## First task
 
-Let's start by editing the README, and setting up the basic project structure. Set it up so I can drop in the iso and the script will extract it; we'll move on from there to porting raymapp and importing meshes with textures. The last step (both in development, and for the actions the script takes) will then be to generate the godot scene files and capture the state graphs and interractions -- this will be a todo item for now.
+Let's start by editing the README, and setting up the basic project structure. Set it up so I can point the tool at mounted or pre-extracted files; we'll move on from there to porting Raymap concepts and importing meshes with textures. The last step (both in development, and for the actions the tool takes) will then be to generate the Godot scene files and capture the state graphs and interactions -- this will be a todo item for now.
 
 Think ahead for what architecture makes sense so that we will be able to easily review code, fix bugs, and package an "installer" that anyone can use to extract the data needed to run the game in whichever Godot-based engine someone might make using the extracted data.
 
@@ -22,4 +22,4 @@ Read through the raymap code and write professional-quality documentation for ea
 
 ## Third Task
 
-Implement the conversion tool up to the point where the extracted meshes can be imported as GTLF files into blender. I recommend trying to import it into blender from the command-line (e.g. blender python). I have blender installed through flatpack. You have succeeded once you are able to see the mesh and texture data loaded into blender.
+Implement the conversion tool up to the point where extracted meshes are written as Godot-native mesh resources and load in a generated Godot project. You have succeeded once the mesh and texture data are visible in Godot from the generated project.

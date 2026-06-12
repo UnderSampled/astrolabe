@@ -1,7 +1,7 @@
 namespace Astrolabe.Core.Extraction;
 
 /// <summary>
-/// Provides unified access to game files from either an ISO image or an extracted/mounted directory.
+/// Provides unified access to game files from an extracted or mounted directory.
 /// </summary>
 public interface IGameSource : IDisposable
 {
@@ -26,12 +26,7 @@ public interface IGameSource : IDisposable
     IEnumerable<string> GetFiles(string pattern);
 
     /// <summary>
-    /// Gets the source description (path to ISO or directory).
+    /// Gets the source description.
     /// </summary>
     string SourcePath { get; }
-
-    /// <summary>
-    /// Whether this source is an ISO file.
-    /// </summary>
-    bool IsIso { get; }
 }

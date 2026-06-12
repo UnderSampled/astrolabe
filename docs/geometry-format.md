@@ -129,10 +129,10 @@ OpenSpace uses a right-handed coordinate system:
 - Y: Up
 - Z: Forward (into screen)
 
-When exporting to glTF (which uses a different convention), you may need to transform:
-- glTF Y = OpenSpace Y
-- glTF Z = -OpenSpace Z
-- glTF X = OpenSpace X
+When exporting to Godot, keep OpenSpace coordinates in the intermediate representation and apply any required axis conversion in the Godot writer:
+- Godot Y = OpenSpace Y
+- Godot Z = -OpenSpace Z, if the final import path requires handedness conversion
+- Godot X = OpenSpace X
 
 ## LookAt Modes (Billboard)
 

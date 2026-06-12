@@ -181,11 +181,11 @@ Animations can switch which mesh is visible per channel per frame. This is contr
 - `objectIndex = -1` means invisible (no mesh shown)
 - This allows animations to swap body parts (e.g., open/closed hand)
 
-## GLTF Export Strategy
+## Godot/Intermediate Export Strategy
 
 ### Node Hierarchy
 
-Each channel becomes a GLTF node:
+Each channel becomes an intermediate scene node that can be written to Godot:
 
 ```
 Family_Root
@@ -200,7 +200,7 @@ Family_Root
 
 ### Animations
 
-Each State becomes a GLTF animation:
+Each State becomes an intermediate animation track that can be written to Godot animation resources:
 
 ```
 animations:
@@ -219,14 +219,14 @@ animations:
 
 ### Limitations
 
-1. **Dynamic hierarchies**: Montreal animations can change parent-child relationships per frame. GLTF requires a static skeleton. We'll use the first frame's hierarchy as the base.
+1. **Dynamic hierarchies**: Montreal animations can change parent-child relationships per frame. Godot skeletons and node hierarchies are static during import. We'll use the first frame's hierarchy as the base and preserve per-frame relationship data in the intermediate form.
 
-2. **Object switching**: GLTF doesn't support swapping meshes per frame. Options:
+2. **Object switching**: Meshes can swap per frame. Options:
    - Export all mesh variants, use visibility animations
-   - Export separate GLTF per ObjectList variant
+   - Export separate resources per ObjectList variant
    - Use morph targets (limited)
 
-3. **Mesh parts vs single mesh**: GLTF expects meshes under nodes. We'll create one node per channel with its mesh attached.
+3. **Mesh parts vs single mesh**: We'll create one node per channel with its mesh resource attached.
 
 ## File Locations
 
@@ -241,17 +241,17 @@ The data is all in the level's SNA file, accessed via pointer resolution using R
 ## Coordinate System
 
 OpenSpace uses:
-- Y-up coordinate system (same as GLTF)
+- Y-up coordinate system
 - But may need axis conversion for some data
 - Raymap uses `convertAxes: true` which swaps Y and Z
 
-When exporting to GLTF:
+When exporting to Godot, preserve OpenSpace coordinates in the intermediate form and apply any proven conversion in the final Godot writer:
 ```csharp
 // Position conversion
-Vector3 gltfPos = new Vector3(osPos.X, osPos.Z, osPos.Y);
+Vector3 godotPos = new Vector3(osPos.X, osPos.Z, osPos.Y);
 
 // Quaternion conversion
-Quaternion gltfRot = new Quaternion(osRot.X, osRot.Z, osRot.Y, -osRot.W);
+Quaternion godotRot = new Quaternion(osRot.X, osRot.Z, osRot.Y, -osRot.W);
 ```
 
 ## Name Sources

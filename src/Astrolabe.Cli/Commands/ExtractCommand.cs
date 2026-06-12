@@ -5,7 +5,7 @@ using Astrolabe.Core.FileFormats.Audio;
 namespace Astrolabe.Cli.Commands;
 
 /// <summary>
-/// Extracts game assets from an ISO or directory.
+/// Extracts game assets from an extracted or mounted directory.
 /// By default, converts assets to usable formats (PNG, WAV).
 /// With --raw, copies files without conversion.
 /// </summary>
@@ -15,7 +15,7 @@ public static class ExtractCommand
     {
         if (args.Length == 0)
         {
-            Console.Error.WriteLine("Error: Source path required (ISO file or directory)");
+            Console.Error.WriteLine("Error: Source directory required");
             Console.Error.WriteLine("Usage: astrolabe extract <source> [output] [options]");
             Console.Error.WriteLine();
             Console.Error.WriteLine("Options:");
@@ -56,7 +56,7 @@ public static class ExtractCommand
         {
             using var source = GameSourceFactory.Create(sourcePath);
 
-            Console.WriteLine($"Source: {source.SourcePath} ({(source.IsIso ? "ISO" : "Directory")})");
+            Console.WriteLine($"Source: {source.SourcePath}");
             Console.WriteLine($"Output: {outputDir}");
             Console.WriteLine($"Mode: {(rawMode ? "raw (copy files as-is)" : "convert (PNG/WAV)")}");
             Console.WriteLine();

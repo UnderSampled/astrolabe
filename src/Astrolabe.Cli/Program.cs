@@ -25,8 +25,6 @@ class Program
             "debug-names" => DebugNamesCommand.Run(args[1..]),
             "meshes" => MeshesCommand.Run(args[1..]),
             "analyze" => AnalyzeCommand.Run(args[1..]),
-            "export-gltf" => ExportGltfCommand.Run(args[1..]),
-            "export-families" => ExportFamiliesCommand.Run(args[1..]),
             "textures-sna" => TexturesSnaCommand.Run(args[1..]),
             "scene" => SceneCommand.Run(args[1..]),
             "tree" => TreeCommand.Run(args[1..]),
@@ -62,20 +60,16 @@ class Program
 
             Commands:
                 extract <source> [output]          Extract and convert assets (PNG/WAV)
-                list <source>                      List files in ISO or directory
+                list <source>                      List files in a directory
                 textures <cnt-path> [output-dir]   Extract textures from CNT container
                 cnt <cnt-path>                     List files in CNT container
                 audio <apm-path|bnm-path> [out]    Convert APM/BNM audio to WAV
                 tree <path> [options]              Display scene graph as tree
                 byte-tree <level-dir> [options]   Show tree with byte coverage analysis
-                export-gltf <level-dir> [output]   Export level meshes to GLTF
-                export-families <level-dir> [out]  Export character Families (meshes + animations) to GLTF
-                export-godot <level-dir> [output]  Export level to Godot scene
+                export-godot <level-dir> [output]  Export level to a Godot project
                 help                               Show this help message
 
-            The <source> can be either:
-                - An ISO file (hype.iso)
-                - An extracted/mounted directory containing game files
+            The <source> is an extracted or mounted directory containing game files.
 
             Options for 'extract':
                 --raw, -r              Copy raw files without conversion
@@ -83,10 +77,9 @@ class Program
                 --pattern <pattern>    Only extract files matching pattern (with --raw only)
 
             Examples:
-                astrolabe extract hype.iso ./output
                 astrolabe extract ./disc ./output
-                astrolabe extract hype.iso ./disc --raw
-                astrolabe list hype.iso
+                astrolabe extract ./disc ./raw --raw
+                astrolabe list ./disc
             """);
     }
 }

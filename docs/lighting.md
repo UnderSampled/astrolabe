@@ -298,21 +298,21 @@ Key implementation files in raymap:
 - `Assets/Scripts/Unity/LightBehaviour.cs` - Unity light wrapper
 - `Assets/Shaders/GouraudShared.cginc` - Vertex lighting shader
 
-## glTF Export Considerations
+## Godot Export Considerations
 
-When exporting to glTF:
+When exporting to Godot:
 
-| OpenSpace Type | glTF Equivalent |
+| OpenSpace Type | Godot Equivalent |
 |----------------|-----------------|
-| Parallel | `KHR_lights_punctual` directional |
-| Spherical | `KHR_lights_punctual` point |
-| Hotspot | `KHR_lights_punctual` spot |
+| Parallel | `DirectionalLight3D` |
+| Spherical | `OmniLight3D` |
+| Hotspot | `SpotLight3D` |
 | Ambient | Scene ambient or baked into vertex colors |
-| Fog | No direct equivalent; export as metadata |
+| Fog | `WorldEnvironment` fog or exported metadata |
 
-Vertex colors (radiosity) should be exported as glTF vertex colors with `COLOR_0` attribute. Materials using pre-lit mode should have vertex colors enabled in the glTF material.
+Vertex colors (radiosity) should be exported as Godot mesh color attributes. Materials using pre-lit mode should use the matching Godot material/shader path.
 
 For shadows:
 - Baked shadows in vertex colors export naturally
-- Shadow reception flags have no glTF equivalent
+- Shadow reception flags need explicit Godot material or node metadata handling
 - Consider baking shadow intensity into vertex color alpha

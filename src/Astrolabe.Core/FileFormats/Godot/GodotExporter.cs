@@ -9,7 +9,7 @@ namespace Astrolabe.Core.FileFormats.Godot;
 /// </summary>
 public class GodotExporter
 {
-    private readonly Dictionary<int, string> _meshPaths = new();
+    private readonly Dictionary<int, int> _meshResourceIds = new();
     private readonly List<ExtResource> _extResources = new();
     private readonly StringBuilder _nodes = new();
     private int _extResourceId = 1;
@@ -19,12 +19,12 @@ public class GodotExporter
     /// </summary>
     /// <param name="graph">The scene graph to export</param>
     /// <param name="outputPath">Path for the .tscn file</param>
-    /// <param name="meshDirectory">Directory containing exported GLTF meshes (relative to tscn)</param>
+    /// <param name="meshDirectory">Directory containing exported Godot mesh resources (relative to tscn)</param>
     /// <param name="geometryAddressToMeshName">Maps GeometricObject addresses to mesh filenames</param>
     public void Export(SceneGraph graph, string outputPath, string meshDirectory,
         Dictionary<int, string> geometryAddressToMeshName)
     {
-        _meshPaths.Clear();
+        _meshResourceIds.Clear();
         _extResources.Clear();
         _nodes.Clear();
         _extResourceId = 1;
@@ -32,15 +32,15 @@ public class GodotExporter
         // Build mesh path lookup and register external resources
         foreach (var (address, meshName) in geometryAddressToMeshName)
         {
-            var relativePath = $"{meshDirectory}/{meshName}.glb";
+            var relativePath = $"{meshDirectory}/{meshName}.tres";
             var id = _extResourceId++;
             _extResources.Add(new ExtResource
             {
                 Id = id,
-                Type = "PackedScene",
+                Type = "ArrayMesh",
                 Path = relativePath
             });
-            _meshPaths[address] = $"ExtResource(\"{id}\")";
+            _meshResourceIds[address] = id;
         }
 
         // Export the scene tree
@@ -94,22 +94,12 @@ public class GodotExporter
 
         _nodes.AppendLine();
 
-        // If this node has geometry, add a child MeshInstance3D that references the GLTF
-        if (node.GeometricObjectAddress != 0 && _meshPaths.TryGetValue(node.GeometricObjectAddress, out var meshRef))
+        if (node.GeometricObjectAddress != 0 && _meshResourceIds.TryGetValue(node.GeometricObjectAddress, out var meshResourceId))
         {
             string meshNodeName = "Mesh";
-            string meshPath = currentPath == "." ? meshNodeName : $"{currentPath}/{meshNodeName}";
-
-            // Find the ExtResource ID from the reference
-            var match = System.Text.RegularExpressions.Regex.Match(meshRef, @"ExtResource\(""(\d+)""\)");
-            if (match.Success)
-            {
-                int resId = int.Parse(match.Groups[1].Value);
-
-                // Add an instantiated scene node for the GLTF
-                _nodes.AppendLine($"[node name=\"{meshNodeName}\" parent=\"{currentPath}\" instance=ExtResource(\"{resId}\")]");
-                _nodes.AppendLine();
-            }
+            _nodes.AppendLine($"[node name=\"{meshNodeName}\" type=\"MeshInstance3D\" parent=\"{currentPath}\"]");
+            _nodes.AppendLine($"mesh = ExtResource(\"{meshResourceId}\")");
+            _nodes.AppendLine();
         }
 
         // Export children
@@ -215,7 +205,7 @@ public class GodotExporter
         writer.WriteLine("[gd_scene load_steps={0} format=3]", _extResources.Count + 1);
         writer.WriteLine();
 
-        // External resources (GLTF meshes)
+        // External resources (Godot mesh resources)
         foreach (var res in _extResources)
         {
             writer.WriteLine("[ext_resource type=\"{0}\" path=\"res://{1}\" id=\"{2}\"]",

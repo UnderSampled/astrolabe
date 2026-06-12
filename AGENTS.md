@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Astrolabe extracts and converts game data from **Hype: The Time Quest** (1999) into modern formats (glTF, Godot scenes). The game uses the OpenSpace Montreal engine (shared with Rayman 2 and Tonic Trouble).
+Astrolabe reads and converts game data from **Hype: The Time Quest** (1999) into Godot-oriented project assets and inspection formats. The game uses the OpenSpace Montreal engine (shared with Rayman 2 and Tonic Trouble).
 
 ## Build Commands
 
@@ -16,11 +16,9 @@ dotnet build
 dotnet run --project src/Astrolabe.Cli -- <command> [args]
 
 # Common commands
-dotnet run --project src/Astrolabe.Cli -- list path/to/hype.iso
-dotnet run --project src/Astrolabe.Cli -- extract path/to/hype.iso ./output        # Convert to PNG/WAV
-dotnet run --project src/Astrolabe.Cli -- extract path/to/hype.iso ./disc --raw    # Raw game files
-dotnet run --project src/Astrolabe.Cli -- export-gltf ./disc/Gamedata/World/Levels/LEVELNAME
-dotnet run --project src/Astrolabe.Cli -- export-families ./disc/Gamedata/World/Levels/LEVELNAME
+dotnet run --project src/Astrolabe.Cli -- list ./disc
+dotnet run --project src/Astrolabe.Cli -- extract ./disc ./output                 # Convert to PNG/WAV
+dotnet run --project src/Astrolabe.Cli -- extract /mnt/hype ./disc --raw          # Copy raw game files
 dotnet run --project src/Astrolabe.Cli -- export-godot ./disc/Gamedata/World/Levels/LEVELNAME
 dotnet run --project src/Astrolabe.Cli -- tree ./disc/Gamedata/World/Levels/LEVELNAME
 dotnet run --project src/Astrolabe.Cli -- byte-tree ./disc/Gamedata/World/Levels/LEVELNAME
@@ -32,21 +30,20 @@ dotnet run --project src/Astrolabe.Cli -- byte-tree ./disc/Gamedata/World/Levels
 
 - **Astrolabe.Cli** - Command-line interface with commands for extraction and export
 - **Astrolabe.Core** - Core library (no Unity dependencies)
-  - `Extraction/` - ISO9660 extraction via DiscUtils
+  - `Extraction/` - Directory-backed game sources
   - `FileFormats/` - OpenSpace format readers
   - `FileFormats/Animation/` - Family/character reading and animation types
-  - `FileFormats/Geometry/` - Mesh scanning, glTF export, Family mesh export via SharpGLTF
-  - `FileFormats/Godot/` - TSCN scene generation
+  - `FileFormats/Geometry/` - Mesh scanning
+  - `FileFormats/Godot/` - TSCN scene and ArrayMesh resource generation
   - `FileFormats/Materials/` - Visual/game material parsing
   - `FileFormats/AI/` - AI script parsing and S-expression conversion
 
 ### Data Pipeline
 
 ```
-ISO/disc → Extract → PNG textures, WAV audio (./output)
-        → Extract --raw → SNA/GPT/PTX/RTB files (./disc) → Load Level → Export glTF/TSCN
-                                                          → Load Level → Export Families (characters)
-                                                          → Load Level → tree / byte-tree (analysis)
+mounted disc/extracted files → Extract → PNG textures, WAV audio (./output)
+                             → Extract --raw → SNA/GPT/PTX/RTB files (./disc) → Load Level → Export Godot TSCN/ArrayMesh
+                                                                               → Load Level → tree / byte-tree (analysis)
 ```
 
 ### Key Classes
@@ -57,11 +54,10 @@ ISO/disc → Extract → PNG textures, WAV audio (./output)
 - **SuperObjectReader** - Parses scene graph hierarchy from GPT
 - **GptReader** - Parses GPT header fields (scene roots, spawnable persos, families, object type tables)
 - **FamilyReader** - Discovers character Families and their mesh/animation data
-- **FamilyExporter** - Exports Family meshes with textures to glTF
 - **ByteRangeTracker** - Tracks which byte ranges the parser accounts for in SNA data
 - **TrackingSuperObjectReader** - SuperObjectReader wrapper that records byte coverage
-- **GltfExporter** - Exports mesh data to GLB format
 - **GodotExporter** - Generates Godot TSCN scene files
+- **GodotMeshExporter** - Writes Godot-native ArrayMesh `.tres` resources
 
 ### OpenSpace File Formats
 
@@ -93,18 +89,11 @@ Shared data (characters like Hype, common textures) lives in `Fix.sna`/`Fix.rtb`
 ## Testing Exports
 
 ```bash
-# Export meshes and view in Blender
-dotnet run --project src/Astrolabe.Cli -- export-gltf ./disc/Gamedata/World/Levels/castle_village
-flatpak run org.blender.Blender output/castle_village_meshes/mesh_*.glb
-
-# Export character families (meshes + animations)
-dotnet run --project src/Astrolabe.Cli -- export-families ./disc/Gamedata/World/Levels/castle_village
-
-# Export full Godot scene
+# Export full Godot scene and native mesh resources
 dotnet run --project src/Astrolabe.Cli -- export-godot ./disc/Gamedata/World/Levels/castle_village output/castle_village
 godot --editor --path output/castle_village
 ```
 
-- The original game disc ISO goes at ./hype.iso
+- Mount or pre-extract the original game disc before running Astrolabe
 - Raw game files (for level loading) go in ./disc
 - Converted assets (PNG/WAV) go in ./output

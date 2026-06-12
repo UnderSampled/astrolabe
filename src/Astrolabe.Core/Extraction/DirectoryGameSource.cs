@@ -6,7 +6,6 @@ namespace Astrolabe.Core.Extraction;
 public class DirectoryGameSource : IGameSource
 {
     public string SourcePath { get; }
-    public bool IsIso => false;
 
     public DirectoryGameSource(string directoryPath)
     {

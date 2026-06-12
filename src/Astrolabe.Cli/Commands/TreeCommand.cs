@@ -15,7 +15,6 @@ public static class TreeCommand
             Console.Error.WriteLine("The path can be:");
             Console.Error.WriteLine("  - A level directory (e.g., disc/Gamedata/World/Levels/brigand)");
             Console.Error.WriteLine("  - An extracted game directory (e.g., disc/)");
-            Console.Error.WriteLine("  - An ISO file (e.g., hype.iso)");
             Console.Error.WriteLine();
             Console.Error.WriteLine("Options:");
             Console.Error.WriteLine("  --depth, -d <n>    Maximum depth to display (default: unlimited)");
@@ -161,7 +160,7 @@ public static class TreeCommand
     private static int ProcessGameSource(string sourcePath, int? maxDepth, bool showActual, bool showDynamic, bool showSector, bool showStats)
     {
         using var source = GameSourceFactory.Create(sourcePath);
-        Console.WriteLine($"Source: {source.SourcePath} ({(source.IsIso ? "ISO" : "Directory")})");
+        Console.WriteLine($"Source: {source.SourcePath}");
         Console.WriteLine();
 
         // Find all level directories by looking for .gpt files
@@ -179,13 +178,6 @@ public static class TreeCommand
         Console.WriteLine($"Found {gptFiles.Count} levels");
         Console.WriteLine();
 
-        // For ISO sources, we need to extract level files to temp directory
-        if (source.IsIso)
-        {
-            return ProcessLevelsFromIso(source, gptFiles, maxDepth, showActual, showDynamic, showSector, showStats);
-        }
-
-        // For directory sources, process directly
         foreach (var gptFile in gptFiles)
         {
             var levelDir = Path.Combine(source.SourcePath, Path.GetDirectoryName(gptFile) ?? "");
@@ -203,59 +195,6 @@ public static class TreeCommand
             }
 
             Console.WriteLine();
-        }
-
-        return 0;
-    }
-
-    private static int ProcessLevelsFromIso(IGameSource source, List<string> gptFiles, int? maxDepth, bool showActual, bool showDynamic, bool showSector, bool showStats)
-    {
-        var tempDir = Path.Combine(Path.GetTempPath(), "astrolabe-tree-" + Guid.NewGuid().ToString("N")[..8]);
-
-        try
-        {
-            Directory.CreateDirectory(tempDir);
-
-            foreach (var gptFile in gptFiles)
-            {
-                var levelDir = Path.GetDirectoryName(gptFile) ?? "";
-                var levelName = Path.GetFileNameWithoutExtension(gptFile);
-
-                Console.WriteLine($"=== {levelName} ===");
-
-                try
-                {
-                    // Extract required level files to temp
-                    var levelTempDir = Path.Combine(tempDir, levelName);
-                    Directory.CreateDirectory(levelTempDir);
-
-                    string[] extensions = [".sna", ".gpt", ".rtb", ".rtp", ".rtt", ".ptx"];
-                    foreach (var ext in extensions)
-                    {
-                        var filePath = Path.Combine(levelDir, levelName + ext);
-                        if (source.FileExists(filePath))
-                        {
-                            using var srcStream = source.OpenFile(filePath);
-                            var destPath = Path.Combine(levelTempDir, levelName + ext);
-                            using var destStream = File.Create(destPath);
-                            srcStream.CopyTo(destStream);
-                        }
-                    }
-
-                    ProcessLevelDirect(levelTempDir, levelName, maxDepth, showActual, showDynamic, showSector, showStats);
-                }
-                catch (Exception ex)
-                {
-                    Console.Error.WriteLine($"  Error: {ex.Message}");
-                }
-
-                Console.WriteLine();
-            }
-        }
-        finally
-        {
-            // Cleanup temp directory
-            try { Directory.Delete(tempDir, true); } catch { }
         }
 
         return 0;

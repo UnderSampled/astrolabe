@@ -1,6 +1,8 @@
 using Astrolabe.Core.FileFormats;
 using Astrolabe.Core.FileFormats.Geometry;
 using Astrolabe.Core.FileFormats.Godot;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Astrolabe.Cli.Commands;
 
@@ -112,8 +114,7 @@ public static class ExportGodotCommand
                 }
             }
 
-            // Texture lookup function
-            Func<string?, string?> lookupTexture = (texName) =>
+            Func<string?, string?> lookupTexture = texName =>
             {
                 if (string.IsNullOrEmpty(texName)) return null;
 
@@ -134,6 +135,16 @@ public static class ExportGodotCommand
                 return null;
             };
 
+            var copiedTextures = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var textureFileClaims = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            Func<string?, string?> lookupGodotTexture = texName =>
+            {
+                var texturePath = lookupTexture(texName);
+                return texturePath == null
+                    ? null
+                    : CopyTextureForGodot(texturePath, texturesDir, copiedTextures, textureFileClaims);
+            };
+
             // Build mapping from GeometricObject address to mesh data
             var geoAddrToMesh = new Dictionary<int, MeshData>();
             foreach (var mesh in validMeshes)
@@ -146,14 +157,14 @@ public static class ExportGodotCommand
             }
 
             // Export meshes and build address-to-filename mapping
-            Console.WriteLine("Exporting meshes as GLTF...");
+            Console.WriteLine("Exporting meshes as Godot ArrayMesh resources...");
             var geoAddrToMeshName = new Dictionary<int, string>();
             foreach (var (geoAddr, mesh) in geoAddrToMesh)
             {
                 string meshFileName = $"mesh_{geoAddr:X8}";
-                string meshPath = Path.Combine(meshDir, $"{meshFileName}.glb");
+                string meshPath = Path.Combine(meshDir, $"{meshFileName}.tres");
 
-                GltfExporter.ExportMesh(mesh, meshPath, lookupTexture);
+                GodotMeshExporter.ExportMesh(mesh, meshPath, lookupGodotTexture);
                 geoAddrToMeshName[geoAddr] = meshFileName;
             }
 
@@ -184,10 +195,11 @@ public static class ExportGodotCommand
             Console.WriteLine($"  Project: project.godot");
             Console.WriteLine($"  Scene: {tscnFileName}");
             Console.WriteLine($"  Meshes: meshes/ ({geoAddrToMeshName.Count} files)");
+            Console.WriteLine($"  Textures: textures/ ({copiedTextures.Count} files)");
             Console.WriteLine();
             Console.WriteLine("To open in Godot:");
             Console.WriteLine($"  godot --editor --path \"{outputDir}\"");
-            Console.WriteLine("(First run will import all meshes, which may take a moment)");
+            Console.WriteLine("(First run will import referenced textures, which may take a moment)");
 
             return 0;
         }
@@ -197,5 +209,43 @@ public static class ExportGodotCommand
             Console.Error.WriteLine(ex.StackTrace);
             return 1;
         }
+    }
+
+    private static string CopyTextureForGodot(
+        string sourcePath,
+        string texturesDir,
+        Dictionary<string, string> copiedTextures,
+        Dictionary<string, string> textureFileClaims)
+    {
+        var fullSourcePath = Path.GetFullPath(sourcePath);
+        if (copiedTextures.TryGetValue(fullSourcePath, out var resourcePath))
+        {
+            return resourcePath;
+        }
+
+        var fileName = Path.GetFileName(sourcePath);
+        if (textureFileClaims.TryGetValue(fileName, out var claimedSource) &&
+            !string.Equals(claimedSource, fullSourcePath, StringComparison.OrdinalIgnoreCase))
+        {
+            var stem = Path.GetFileNameWithoutExtension(fileName);
+            var extension = Path.GetExtension(fileName);
+            fileName = $"{stem}_{ShortHash(fullSourcePath)}{extension}";
+        }
+
+        textureFileClaims[fileName] = fullSourcePath;
+
+        Directory.CreateDirectory(texturesDir);
+        var destinationPath = Path.Combine(texturesDir, fileName);
+        File.Copy(fullSourcePath, destinationPath, overwrite: true);
+
+        resourcePath = $"res://textures/{fileName.Replace('\\', '/')}";
+        copiedTextures[fullSourcePath] = resourcePath;
+        return resourcePath;
+    }
+
+    private static string ShortHash(string value)
+    {
+        var hash = SHA1.HashData(Encoding.UTF8.GetBytes(value));
+        return Convert.ToHexString(hash, 0, 4).ToLowerInvariant();
     }
 }
