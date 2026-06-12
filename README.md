@@ -86,4 +86,4 @@ This project heavily references [Raymap](https://github.com/byvar/raymap) by the
 
 ## License
 
-MIT License - See LICENSE file for details.
+CC0 License - See LICENSE file for details.
