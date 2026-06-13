@@ -9,12 +9,6 @@ public sealed class VisualMaterialCodec : IStructCodec<VisualMaterialRecord>
 
     public static VisualMaterialCodec Instance { get; } = new();
 
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true
-    };
-
     private static readonly PointerField[] PointerFieldsList =
     [
         new PointerField(0x48, "offTexture", PointerTarget.Any),
@@ -101,22 +95,11 @@ public sealed class VisualMaterialCodec : IStructCodec<VisualMaterialRecord>
         return bytes;
     }
 
-    public VisualMaterialRecord FromJson(JsonElement json)
-    {
-        var value = json.Deserialize<VisualMaterialRecord>(JsonOptions)
-            ?? throw new InvalidDataException($"Could not deserialize {Schema} JSON.");
-        if (value.Schema != Schema)
-        {
-            throw new InvalidDataException($"Unsupported visual material schema: {value.Schema}");
-        }
+    public VisualMaterialRecord FromJson(JsonElement json) =>
+        JsonStructCodec.Deserialize<VisualMaterialRecord>(json, Schema);
 
-        return value;
-    }
-
-    public void ToJson(VisualMaterialRecord value, Utf8JsonWriter writer)
-    {
-        JsonSerializer.Serialize(writer, value, JsonOptions);
-    }
+    public void ToJson(VisualMaterialRecord value, Utf8JsonWriter writer) =>
+        JsonStructCodec.Serialize(writer, value);
 
     private static void ValidateVector(float[] values, string fieldName)
     {

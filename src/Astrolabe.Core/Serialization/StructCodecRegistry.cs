@@ -52,7 +52,18 @@ public static class StructCodecRegistry
 
     static StructCodecRegistry()
     {
+        Register(Codecs.SuperObjectCodec.Instance);
+        Register(Codecs.MatrixCodec.Instance);
+        Register(Codecs.GeometricObjectCodec.Instance);
+        Register(Codecs.PhysicalObjectCodec.Instance);
+        Register(Codecs.IpoCodec.Instance);
+        Register(Codecs.GameMaterialCodec.Instance);
         Register(Codecs.VisualMaterialCodec.Instance);
+        Register(Codecs.UInt32RecordCodec.BoundingVolume);
+        Register(Codecs.UInt32RecordCodec.CollideMaterial);
+        Register(Codecs.Float3ArrayCodec.Vertices);
+        Register(Codecs.Float3ArrayCodec.Normals);
+        Register(Codecs.Float3ArrayCodec.TriangleNormals);
     }
 
     public static void Register<T>(IStructCodec<T> codec)

@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats;
 using Astrolabe.Core.Serialization;
+using Astrolabe.Core.Serialization.Codecs;
 
 namespace Astrolabe.Core.Intermediate;
 
@@ -220,86 +221,29 @@ public static class LevelIntermediateCodec
             string dataPath;
             byte[] emittedBytes;
 
-            if (plan.Kind == "superObject")
-            {
-                var superObject = ReadIntermediateSuperObject(data, plan.Start);
-                var virtualAddress = block.BaseInMemory + plan.Start;
-                if (sceneNodePaths.TryGetValue(virtualAddress, out var sceneNodePath))
-                {
-                    dataPath = sceneNodePath;
-                }
-                else
-                {
-                    dataPath = GetTypedDataPath(plan.Kind, blockStem, i, "json");
-                    WriteJson(ResolvePath(outputDir, dataPath), superObject);
-                }
-
-                emittedBytes = WriteIntermediateSuperObject(superObject);
-            }
-            else if (plan.Kind == "matrix")
-            {
-                var matrix = ReadIntermediateMatrix(data, plan.Start);
-                var virtualAddress = block.BaseInMemory + plan.Start;
-                if (sceneNodePaths.TryGetValue(virtualAddress, out var matrixPath))
-                {
-                    dataPath = matrixPath;
-                }
-                else
-                {
-                    dataPath = GetTypedDataPath(plan.Kind, blockStem, i, "json");
-                    WriteJson(ResolvePath(outputDir, dataPath), matrix);
-                }
-
-                emittedBytes = WriteIntermediateMatrix(matrix);
-            }
-            else if (plan.Kind == "geometricobject")
-            {
-                var value = ReadIntermediateGeometricObject(data, plan.Start);
-                dataPath = GetTypedDataPath(plan.Kind, blockStem, i, "json");
-                WriteJson(ResolvePath(outputDir, dataPath), value);
-                emittedBytes = WriteIntermediateGeometricObject(value);
-            }
-            else if (plan.Kind == "physicalobject")
-            {
-                var value = ReadIntermediatePhysicalObject(data, plan.Start);
-                dataPath = GetTypedDataPath(plan.Kind, blockStem, i, "json");
-                WriteJson(ResolvePath(outputDir, dataPath), value);
-                emittedBytes = WriteIntermediatePhysicalObject(value);
-            }
-            else if (plan.Kind == "ipo")
-            {
-                var value = ReadIntermediateIpo(data, plan.Start);
-                dataPath = GetTypedDataPath(plan.Kind, blockStem, i, "json");
-                WriteJson(ResolvePath(outputDir, dataPath), value);
-                emittedBytes = WriteIntermediateIpo(value);
-            }
-            else if (plan.Kind == "gamematerial")
-            {
-                var value = ReadIntermediateGameMaterial(data, plan.Start);
-                dataPath = GetTypedDataPath(plan.Kind, blockStem, i, "json");
-                WriteJson(ResolvePath(outputDir, dataPath), value);
-                emittedBytes = WriteIntermediateGameMaterial(value);
-            }
-            else if (plan.Kind is "boundingvolume" or "collidematerial")
-            {
-                var value = ReadIntermediateUInt32Record(data, plan.Start, plan.Length, plan.Kind);
-                dataPath = GetTypedDataPath(plan.Kind, blockStem, i, "json");
-                WriteJson(ResolvePath(outputDir, dataPath), value);
-                emittedBytes = WriteIntermediateUInt32Record(value);
-            }
-            else if (plan.Kind is "vertices" or "normals" or "trianglenormals")
-            {
-                var value = ReadIntermediateFloat3Array(data, plan.Start, plan.Length, plan.Kind);
-                dataPath = GetTypedDataPath(plan.Kind, blockStem, i, "json");
-                WriteJson(ResolvePath(outputDir, dataPath), value);
-                emittedBytes = WriteIntermediateFloat3Array(value);
-            }
-            else if (StructCodecRegistry.TryGet(plan.Kind, out var codec))
+            if (StructCodecRegistry.TryGet(plan.Kind, out var codec))
             {
                 var value = codec.ReadFromBytes(data, plan.Start, plan.Length);
-                dataPath = GetTypedDataPath(plan.Kind, blockStem, i, "json");
-                codec.WriteJson(ResolvePath(outputDir, dataPath), value);
                 emittedBytes = codec.WriteFromObject(value);
+
+                if (plan.Kind is "superObject" or "matrix")
+                {
+                    var virtualAddress = block.BaseInMemory + plan.Start;
+                    if (sceneNodePaths.TryGetValue(virtualAddress, out var existingPath))
+                    {
+                        dataPath = existingPath;
+                    }
+                    else
+                    {
+                        dataPath = GetTypedDataPath(plan.Kind, blockStem, i, "json");
+                        codec.WriteJson(ResolvePath(outputDir, dataPath), value);
+                    }
+                }
+                else
+                {
+                    dataPath = GetTypedDataPath(plan.Kind, blockStem, i, "json");
+                    codec.WriteJson(ResolvePath(outputDir, dataPath), value);
+                }
             }
             else
             {
@@ -516,7 +460,7 @@ public static class LevelIntermediateCodec
             return;
         }
 
-        var superObject = ReadIntermediateSuperObject(data, 0);
+        var superObject = SuperObjectCodec.Instance.Read(data, 0, SuperObjectCodec.Size);
         var sceneNode = new IntermediateSceneNode
         {
             Id = GetSceneNodeId(node),
@@ -577,7 +521,7 @@ public static class LevelIntermediateCodec
             return null;
         }
 
-        var matrix = ReadIntermediateMatrix(data, 0);
+        var matrix = MatrixCodec.Instance.Read(data, 0, MatrixCodec.Size);
         var matrixPath = $"{nodeDir}/{name}.json";
         WriteJson(ResolvePath(outputDir, matrixPath), matrix);
         paths.TryAdd(address, matrixPath);
@@ -614,303 +558,6 @@ public static class LevelIntermediateCodec
         }
 
         return string.IsNullOrWhiteSpace(normalized) ? "typed" : normalized;
-    }
-
-    private static IntermediateSuperObject ReadIntermediateSuperObject(byte[] data, int start)
-    {
-        using var reader = new BinaryReader(new MemoryStream(data, start, 0x38));
-        var typeCode = reader.ReadUInt32();
-
-        return new IntermediateSuperObject
-        {
-            TypeCode = typeCode,
-            Type = TrackingSuperObjectReader.GetSuperObjectType(typeCode).ToString(),
-            OffData = reader.ReadInt32(),
-            ChildrenHead = reader.ReadInt32(),
-            ChildrenTail = reader.ReadInt32(),
-            ChildrenCount = reader.ReadUInt32(),
-            BrotherNext = reader.ReadInt32(),
-            BrotherPrev = reader.ReadInt32(),
-            Parent = reader.ReadInt32(),
-            Matrix = reader.ReadInt32(),
-            StaticMatrix = reader.ReadInt32(),
-            GlobalMatrix = reader.ReadInt32(),
-            DrawFlags = reader.ReadUInt32(),
-            Flags = reader.ReadUInt32(),
-            BoundingVolume = reader.ReadInt32()
-        };
-    }
-
-    private static byte[] WriteIntermediateSuperObject(IntermediateSuperObject superObject)
-    {
-        using var stream = new MemoryStream(0x38);
-        using var writer = new BinaryWriter(stream);
-
-        writer.Write(superObject.TypeCode);
-        writer.Write(superObject.OffData);
-        writer.Write(superObject.ChildrenHead);
-        writer.Write(superObject.ChildrenTail);
-        writer.Write(superObject.ChildrenCount);
-        writer.Write(superObject.BrotherNext);
-        writer.Write(superObject.BrotherPrev);
-        writer.Write(superObject.Parent);
-        writer.Write(superObject.Matrix);
-        writer.Write(superObject.StaticMatrix);
-        writer.Write(superObject.GlobalMatrix);
-        writer.Write(superObject.DrawFlags);
-        writer.Write(superObject.Flags);
-        writer.Write(superObject.BoundingVolume);
-        writer.Flush();
-
-        return stream.ToArray();
-    }
-
-    private static IntermediateMatrix ReadIntermediateMatrix(byte[] data, int start)
-    {
-        using var reader = new BinaryReader(new MemoryStream(data, start, 88));
-        var matrix = new IntermediateMatrix
-        {
-            Type = reader.ReadUInt32(),
-            Translation = [reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()],
-            BasisX = [reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()],
-            BasisY = [reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()],
-            BasisZ = [reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()]
-        };
-
-        var remaining = 88 - (int)reader.BaseStream.Position;
-        if (remaining > 0)
-        {
-            matrix.ExtraBase64 = Convert.ToBase64String(reader.ReadBytes(remaining));
-        }
-
-        return matrix;
-    }
-
-    private static byte[] WriteIntermediateMatrix(IntermediateMatrix matrix)
-    {
-        using var stream = new MemoryStream(88);
-        using var writer = new BinaryWriter(stream);
-
-        writer.Write(matrix.Type);
-        WriteFloat3(writer, matrix.Translation, nameof(matrix.Translation));
-        WriteFloat3(writer, matrix.BasisX, nameof(matrix.BasisX));
-        WriteFloat3(writer, matrix.BasisY, nameof(matrix.BasisY));
-        WriteFloat3(writer, matrix.BasisZ, nameof(matrix.BasisZ));
-
-        if (!string.IsNullOrWhiteSpace(matrix.ExtraBase64))
-        {
-            writer.Write(Convert.FromBase64String(matrix.ExtraBase64));
-        }
-
-        writer.Flush();
-        var bytes = stream.ToArray();
-        if (bytes.Length != 88)
-        {
-            throw new InvalidDataException($"Matrix serialized to {bytes.Length} bytes, expected 88 bytes.");
-        }
-
-        return bytes;
-    }
-
-    private static void WriteFloat3(BinaryWriter writer, float[] values, string fieldName)
-    {
-        if (values.Length != 3)
-        {
-            throw new InvalidDataException($"{fieldName} must contain exactly 3 floats.");
-        }
-
-        writer.Write(values[0]);
-        writer.Write(values[1]);
-        writer.Write(values[2]);
-    }
-
-    private static IntermediateGeometricObject ReadIntermediateGeometricObject(byte[] data, int start)
-    {
-        using var reader = new BinaryReader(new MemoryStream(data, start, 0x40));
-        return new IntermediateGeometricObject
-        {
-            NumVertices = reader.ReadUInt32(),
-            Vertices = reader.ReadInt32(),
-            Normals = reader.ReadInt32(),
-            Materials = reader.ReadInt32(),
-            Unknown0 = reader.ReadInt32(),
-            NumElements = reader.ReadUInt32(),
-            ElementTypes = reader.ReadInt32(),
-            Elements = reader.ReadInt32(),
-            Unknowns = [reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32(), reader.ReadInt32()],
-            SphereRadius = reader.ReadSingle(),
-            SphereCenterRaw = [reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()]
-        };
-    }
-
-    private static byte[] WriteIntermediateGeometricObject(IntermediateGeometricObject value)
-    {
-        using var stream = new MemoryStream(0x40);
-        using var writer = new BinaryWriter(stream);
-        writer.Write(value.NumVertices);
-        writer.Write(value.Vertices);
-        writer.Write(value.Normals);
-        writer.Write(value.Materials);
-        writer.Write(value.Unknown0);
-        writer.Write(value.NumElements);
-        writer.Write(value.ElementTypes);
-        writer.Write(value.Elements);
-        WriteIntArray(writer, value.Unknowns, 4, nameof(value.Unknowns));
-        writer.Write(value.SphereRadius);
-        WriteFloat3(writer, value.SphereCenterRaw, nameof(value.SphereCenterRaw));
-        writer.Flush();
-        return RequireLength(stream.ToArray(), 0x40, nameof(IntermediateGeometricObject));
-    }
-
-    private static IntermediatePhysicalObject ReadIntermediatePhysicalObject(byte[] data, int start)
-    {
-        using var reader = new BinaryReader(new MemoryStream(data, start, 0x10));
-        return new IntermediatePhysicalObject
-        {
-            VisualSet = reader.ReadInt32(),
-            CollideSet = reader.ReadInt32(),
-            VisualBoundingVolume = reader.ReadInt32(),
-            Unknown0 = reader.ReadInt32()
-        };
-    }
-
-    private static byte[] WriteIntermediatePhysicalObject(IntermediatePhysicalObject value)
-    {
-        using var stream = new MemoryStream(0x10);
-        using var writer = new BinaryWriter(stream);
-        writer.Write(value.VisualSet);
-        writer.Write(value.CollideSet);
-        writer.Write(value.VisualBoundingVolume);
-        writer.Write(value.Unknown0);
-        writer.Flush();
-        return RequireLength(stream.ToArray(), 0x10, nameof(IntermediatePhysicalObject));
-    }
-
-    private static IntermediateIpo ReadIntermediateIpo(byte[] data, int start)
-    {
-        using var reader = new BinaryReader(new MemoryStream(data, start, 8));
-        return new IntermediateIpo
-        {
-            PhysicalObject = reader.ReadInt32(),
-            Radiosity = reader.ReadInt32()
-        };
-    }
-
-    private static byte[] WriteIntermediateIpo(IntermediateIpo value)
-    {
-        using var stream = new MemoryStream(8);
-        using var writer = new BinaryWriter(stream);
-        writer.Write(value.PhysicalObject);
-        writer.Write(value.Radiosity);
-        writer.Flush();
-        return RequireLength(stream.ToArray(), 8, nameof(IntermediateIpo));
-    }
-
-    private static IntermediateGameMaterial ReadIntermediateGameMaterial(byte[] data, int start)
-    {
-        using var reader = new BinaryReader(new MemoryStream(data, start, 0x10));
-        return new IntermediateGameMaterial
-        {
-            VisualMaterial = reader.ReadInt32(),
-            MechanicsMaterial = reader.ReadInt32(),
-            SoundMaterial = reader.ReadUInt32(),
-            CollideMaterial = reader.ReadInt32()
-        };
-    }
-
-    private static byte[] WriteIntermediateGameMaterial(IntermediateGameMaterial value)
-    {
-        using var stream = new MemoryStream(0x10);
-        using var writer = new BinaryWriter(stream);
-        writer.Write(value.VisualMaterial);
-        writer.Write(value.MechanicsMaterial);
-        writer.Write(value.SoundMaterial);
-        writer.Write(value.CollideMaterial);
-        writer.Flush();
-        return RequireLength(stream.ToArray(), 0x10, nameof(IntermediateGameMaterial));
-    }
-
-    private static IntermediateUInt32Record ReadIntermediateUInt32Record(byte[] data, int start, int length, string type)
-    {
-        if (length % 4 != 0)
-        {
-            throw new InvalidDataException($"{type} length {length} is not a multiple of 4.");
-        }
-
-        using var reader = new BinaryReader(new MemoryStream(data, start, length));
-        var values = new uint[length / 4];
-        for (var i = 0; i < values.Length; i++)
-        {
-            values[i] = reader.ReadUInt32();
-        }
-
-        return new IntermediateUInt32Record { Type = type, Values = values };
-    }
-
-    private static byte[] WriteIntermediateUInt32Record(IntermediateUInt32Record value)
-    {
-        using var stream = new MemoryStream(value.Values.Length * 4);
-        using var writer = new BinaryWriter(stream);
-        foreach (var item in value.Values)
-        {
-            writer.Write(item);
-        }
-
-        writer.Flush();
-        return stream.ToArray();
-    }
-
-    private static IntermediateFloat3Array ReadIntermediateFloat3Array(byte[] data, int start, int length, string type)
-    {
-        if (length % 12 != 0)
-        {
-            throw new InvalidDataException($"{type} length {length} is not a multiple of 12.");
-        }
-
-        using var reader = new BinaryReader(new MemoryStream(data, start, length));
-        var values = new float[length / 12][];
-        for (var i = 0; i < values.Length; i++)
-        {
-            values[i] = [reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()];
-        }
-
-        return new IntermediateFloat3Array { Type = type, Values = values };
-    }
-
-    private static byte[] WriteIntermediateFloat3Array(IntermediateFloat3Array value)
-    {
-        using var stream = new MemoryStream(value.Values.Length * 12);
-        using var writer = new BinaryWriter(stream);
-        for (var i = 0; i < value.Values.Length; i++)
-        {
-            WriteFloat3(writer, value.Values[i], $"{value.Type}[{i}]");
-        }
-
-        writer.Flush();
-        return stream.ToArray();
-    }
-
-    private static void WriteIntArray(BinaryWriter writer, int[] values, int expectedLength, string fieldName)
-    {
-        if (values.Length != expectedLength)
-        {
-            throw new InvalidDataException($"{fieldName} must contain exactly {expectedLength} integers.");
-        }
-
-        foreach (var value in values)
-        {
-            writer.Write(value);
-        }
-    }
-
-    private static byte[] RequireLength(byte[] data, int expectedLength, string typeName)
-    {
-        if (data.Length != expectedLength)
-        {
-            throw new InvalidDataException($"{typeName} serialized to {data.Length} bytes, expected {expectedLength} bytes.");
-        }
-
-        return data;
     }
 
     private static RelocationTableFileManifest ExtractRelocationTable(string tablePath, string outputDir)
@@ -1076,28 +723,9 @@ public static class LevelIntermediateCodec
 
             foreach (var element in document.Elements.OrderBy(s => s.Order))
             {
-                var data = element.Kind switch
-                {
-                    "superObject" => WriteIntermediateSuperObject(
-                        ReadJson<IntermediateSuperObject>(ResolvePath(intermediateDir, element.DataPath))),
-                    "matrix" => WriteIntermediateMatrix(
-                        ReadJson<IntermediateMatrix>(ResolvePath(intermediateDir, element.DataPath))),
-                    "geometricobject" => WriteIntermediateGeometricObject(
-                        ReadJson<IntermediateGeometricObject>(ResolvePath(intermediateDir, element.DataPath))),
-                    "physicalobject" => WriteIntermediatePhysicalObject(
-                        ReadJson<IntermediatePhysicalObject>(ResolvePath(intermediateDir, element.DataPath))),
-                    "ipo" => WriteIntermediateIpo(
-                        ReadJson<IntermediateIpo>(ResolvePath(intermediateDir, element.DataPath))),
-                    "gamematerial" => WriteIntermediateGameMaterial(
-                        ReadJson<IntermediateGameMaterial>(ResolvePath(intermediateDir, element.DataPath))),
-                    "boundingvolume" or "collidematerial" => WriteIntermediateUInt32Record(
-                        ReadJson<IntermediateUInt32Record>(ResolvePath(intermediateDir, element.DataPath))),
-                    "vertices" or "normals" or "trianglenormals" => WriteIntermediateFloat3Array(
-                        ReadJson<IntermediateFloat3Array>(ResolvePath(intermediateDir, element.DataPath))),
-                    _ when StructCodecRegistry.TryGet(element.Kind, out _) =>
-                        StructCodecRegistry.ReadElementBytes(intermediateDir, element.DataPath, element.Kind),
-                    _ => File.ReadAllBytes(ResolvePath(intermediateDir, element.DataPath))
-                };
+                var data = StructCodecRegistry.TryGet(element.Kind, out _)
+                    ? StructCodecRegistry.ReadElementBytes(intermediateDir, element.DataPath, element.Kind)
+                    : File.ReadAllBytes(ResolvePath(intermediateDir, element.DataPath));
 
                 stream.Write(data);
             }

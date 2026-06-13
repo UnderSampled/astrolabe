@@ -1,3 +1,5 @@
+using Astrolabe.Core.FileFormats;
+
 namespace Astrolabe.Core.Intermediate;
 
 public sealed class LevelIntermediateManifest
@@ -57,27 +59,7 @@ public sealed class SnaBlockContentElement
     public List<string> Labels { get; set; } = new();
 }
 
-public class IntermediateSuperObject
-{
-    public string Schema { get; set; } = "astrolabe.super-object.v1";
-    public uint TypeCode { get; set; }
-    public string Type { get; set; } = "";
-    public int OffData { get; set; }
-    public int ChildrenHead { get; set; }
-    public int ChildrenTail { get; set; }
-    public uint ChildrenCount { get; set; }
-    public int BrotherNext { get; set; }
-    public int BrotherPrev { get; set; }
-    public int Parent { get; set; }
-    public int Matrix { get; set; }
-    public int StaticMatrix { get; set; }
-    public int GlobalMatrix { get; set; }
-    public uint DrawFlags { get; set; }
-    public uint Flags { get; set; }
-    public int BoundingVolume { get; set; }
-}
-
-public sealed class IntermediateSceneNode : IntermediateSuperObject
+public sealed class IntermediateSceneNode : SuperObjectRecord
 {
     public new string Schema { get; set; } = "astrolabe.scene-node.v1";
     public string Id { get; set; } = "";
@@ -88,72 +70,6 @@ public sealed class IntermediateSceneNode : IntermediateSuperObject
     public string? MatrixPath { get; set; }
     public string? StaticMatrixPath { get; set; }
     public List<string> Children { get; set; } = new();
-}
-
-public sealed class IntermediateMatrix
-{
-    public string Schema { get; set; } = "astrolabe.matrix.v1";
-    public uint Type { get; set; }
-    public float[] Translation { get; set; } = [];
-    public float[] BasisX { get; set; } = [];
-    public float[] BasisY { get; set; } = [];
-    public float[] BasisZ { get; set; } = [];
-    public string ExtraBase64 { get; set; } = "";
-}
-
-public sealed class IntermediateGeometricObject
-{
-    public string Schema { get; set; } = "astrolabe.geometric-object.v1";
-    public uint NumVertices { get; set; }
-    public int Vertices { get; set; }
-    public int Normals { get; set; }
-    public int Materials { get; set; }
-    public int Unknown0 { get; set; }
-    public uint NumElements { get; set; }
-    public int ElementTypes { get; set; }
-    public int Elements { get; set; }
-    public int[] Unknowns { get; set; } = [];
-    public float SphereRadius { get; set; }
-    public float[] SphereCenterRaw { get; set; } = [];
-}
-
-public sealed class IntermediatePhysicalObject
-{
-    public string Schema { get; set; } = "astrolabe.physical-object.v1";
-    public int VisualSet { get; set; }
-    public int CollideSet { get; set; }
-    public int VisualBoundingVolume { get; set; }
-    public int Unknown0 { get; set; }
-}
-
-public sealed class IntermediateIpo
-{
-    public string Schema { get; set; } = "astrolabe.ipo.v1";
-    public int PhysicalObject { get; set; }
-    public int Radiosity { get; set; }
-}
-
-public sealed class IntermediateGameMaterial
-{
-    public string Schema { get; set; } = "astrolabe.game-material.v1";
-    public int VisualMaterial { get; set; }
-    public int MechanicsMaterial { get; set; }
-    public uint SoundMaterial { get; set; }
-    public int CollideMaterial { get; set; }
-}
-
-public sealed class IntermediateUInt32Record
-{
-    public string Schema { get; set; } = "astrolabe.uint32-record.v1";
-    public string Type { get; set; } = "";
-    public uint[] Values { get; set; } = [];
-}
-
-public sealed class IntermediateFloat3Array
-{
-    public string Schema { get; set; } = "astrolabe.float3-array.v1";
-    public string Type { get; set; } = "";
-    public float[][] Values { get; set; } = [];
 }
 
 public sealed class SnaStorageManifest

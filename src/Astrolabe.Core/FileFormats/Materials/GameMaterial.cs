@@ -1,5 +1,14 @@
 namespace Astrolabe.Core.FileFormats.Materials;
 
+public sealed class GameMaterialRecord
+{
+    public string Schema { get; set; } = "astrolabe.game-material.v1";
+    public int VisualMaterial { get; set; }
+    public int MechanicsMaterial { get; set; }
+    public uint SoundMaterial { get; set; }
+    public int CollideMaterial { get; set; }
+}
+
 /// <summary>
 /// Game Material - top-level container linking visual, physics, and collision materials.
 /// </summary>
