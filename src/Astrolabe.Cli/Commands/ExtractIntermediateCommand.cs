@@ -1,4 +1,4 @@
-using Astrolabe.Core.Intermediate;
+using Astrolabe.Core.Rete;
 
 namespace Astrolabe.Cli.Commands;
 
@@ -21,9 +21,9 @@ public static class ExtractIntermediateCommand
 
         try
         {
-            var manifest = LevelIntermediateCodec.ExtractLevel(levelDir, outputDir);
+            var manifest = OpenSpaceImporter.ImportLevel(levelDir, outputDir);
 
-            Console.WriteLine($"Extracted intermediate level: {manifest.LevelName}");
+            Console.WriteLine($"Extracted Rete package: {manifest.LevelName}");
             Console.WriteLine($"Output: {outputDir}");
             Console.WriteLine($"SNA files: {manifest.SnaFiles.Count}");
             Console.WriteLine($"SNA blocks: {manifest.SnaFiles.Sum(f => f.Blocks.Count)}");

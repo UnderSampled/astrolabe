@@ -1,4 +1,4 @@
-using Astrolabe.Core.Intermediate;
+using Astrolabe.Core.Rete;
 
 namespace Astrolabe.Cli.Commands;
 
@@ -8,20 +8,20 @@ public static class CompileIntermediateCommand
     {
         if (args.Length == 0)
         {
-            Console.Error.WriteLine("Error: Intermediate directory path required");
-            Console.Error.WriteLine("Usage: astrolabe compile-intermediate <intermediate-dir> [output-level-dir]");
+            Console.Error.WriteLine("Error: Rete package directory path required");
+            Console.Error.WriteLine("Usage: astrolabe compile-intermediate <rete-dir> [output-level-dir]");
             return 1;
         }
 
-        var intermediateDir = args[0];
+        var packageDir = args[0];
         var outputDir = args.Length > 1
             ? args[1]
-            : Path.Combine("output", "compiled", Path.GetFileName(intermediateDir.TrimEnd('/', '\\')));
+            : Path.Combine("output", "compiled", Path.GetFileName(packageDir.TrimEnd('/', '\\')));
 
         try
         {
-            LevelIntermediateCodec.CompileLevel(intermediateDir, outputDir);
-            Console.WriteLine($"Compiled intermediate level: {intermediateDir}");
+            OpenSpaceExporter.ExportLevel(packageDir, outputDir);
+            Console.WriteLine($"Exported OpenSpace level from Rete package: {packageDir}");
             Console.WriteLine($"Output: {outputDir}");
             return 0;
         }

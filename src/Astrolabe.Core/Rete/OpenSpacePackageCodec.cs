@@ -1,14 +1,17 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats;
+using Astrolabe.Core.Rete.OpenSpace;
 using Astrolabe.Core.Serialization;
 using Astrolabe.Core.Serialization.Codecs;
 
-namespace Astrolabe.Core.Intermediate;
+namespace Astrolabe.Core.Rete;
 
-public static class LevelIntermediateCodec
+internal static class OpenSpacePackageCodec
 {
     public const string ManifestFileName = "manifest.json";
+    public const string ReteManifestSchema = "astrolabe.rete.v1";
+    public const string LegacyManifestSchema = "astrolabe.level-intermediate.v1";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -29,7 +32,7 @@ public static class LevelIntermediateCodec
         ".rtv"
     };
 
-    public static LevelIntermediateManifest ExtractLevel(string levelDir, string outputDir)
+    public static RetePackageManifest ImportLevel(string levelDir, string outputDir)
     {
         if (!Directory.Exists(levelDir))
         {
@@ -39,8 +42,10 @@ public static class LevelIntermediateCodec
         Directory.CreateDirectory(outputDir);
 
         var levelName = Path.GetFileName(levelDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-        var manifest = new LevelIntermediateManifest
+        var manifest = new RetePackageManifest
         {
+            Schema = ReteManifestSchema,
+            PackageRole = "level",
             LevelName = levelName,
             SourceDirectoryName = Path.GetFileName(levelDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
         };
@@ -81,36 +86,36 @@ public static class LevelIntermediateCodec
         return manifest;
     }
 
-    public static void CompileLevel(string intermediateDir, string outputDir)
+    public static void ExportLevel(string packageDir, string outputDir)
     {
-        var manifestPath = Path.Combine(intermediateDir, ManifestFileName);
+        var manifestPath = Path.Combine(packageDir, ManifestFileName);
         if (!File.Exists(manifestPath))
         {
-            throw new FileNotFoundException($"Intermediate manifest not found: {manifestPath}");
+            throw new FileNotFoundException($"Rete manifest not found: {manifestPath}");
         }
 
-        var manifest = ReadJson<LevelIntermediateManifest>(manifestPath);
-        if (manifest.Schema != "astrolabe.level-intermediate.v1")
+        var manifest = ReadJson<RetePackageManifest>(manifestPath);
+        if (manifest.Schema is not (ReteManifestSchema or LegacyManifestSchema))
         {
-            throw new InvalidDataException($"Unsupported intermediate schema: {manifest.Schema}");
+            throw new InvalidDataException($"Unsupported Rete manifest schema: {manifest.Schema}");
         }
 
         Directory.CreateDirectory(outputDir);
 
         foreach (var snaFile in manifest.SnaFiles)
         {
-            CompileSnaFile(intermediateDir, snaFile, Path.Combine(outputDir, snaFile.FileName));
+            CompileSnaFile(packageDir, snaFile, Path.Combine(outputDir, snaFile.FileName));
         }
 
         foreach (var table in manifest.RelocationTables)
         {
-            var tableDocument = ReadJson<RelocationTableDocument>(ResolvePath(intermediateDir, table.JsonPath));
-            CompileRelocationTable(intermediateDir, tableDocument, Path.Combine(outputDir, table.FileName));
+            var tableDocument = ReadJson<RelocationTableDocument>(ResolvePath(packageDir, table.JsonPath));
+            CompileRelocationTable(packageDir, tableDocument, Path.Combine(outputDir, table.FileName));
         }
 
         foreach (var looseFile in manifest.LooseFiles)
         {
-            var sourcePath = ResolvePath(intermediateDir, looseFile.Path);
+            var sourcePath = ResolvePath(packageDir, looseFile.Path);
             var outputPath = Path.Combine(outputDir, looseFile.FileName);
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
             File.Copy(sourcePath, outputPath, overwrite: true);

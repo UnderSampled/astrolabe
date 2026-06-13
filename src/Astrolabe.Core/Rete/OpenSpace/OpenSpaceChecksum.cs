@@ -1,4 +1,4 @@
-namespace Astrolabe.Core.Intermediate;
+namespace Astrolabe.Core.Rete.OpenSpace;
 
 public static class OpenSpaceChecksum
 {

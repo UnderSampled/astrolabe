@@ -1,10 +1,11 @@
 using Astrolabe.Core.FileFormats;
 
-namespace Astrolabe.Core.Intermediate;
+namespace Astrolabe.Core.Rete;
 
-public sealed class LevelIntermediateManifest
+public sealed class RetePackageManifest
 {
-    public string Schema { get; set; } = "astrolabe.level-intermediate.v1";
+    public string Schema { get; set; } = "astrolabe.rete.v1";
+    public string PackageRole { get; set; } = "level";
     public string LevelName { get; set; } = "";
     public string SourceDirectoryName { get; set; } = "";
     public List<SnaFileManifest> SnaFiles { get; set; } = new();
