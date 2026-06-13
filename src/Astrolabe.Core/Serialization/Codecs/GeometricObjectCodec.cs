@@ -11,11 +11,11 @@ public sealed class GeometricObjectCodec : IStructCodec<GeometricObjectRecord>
 
     private static readonly PointerField[] PointerFieldsList =
     [
-        new PointerField(0x04, "vertices", PointerTarget.Any),
-        new PointerField(0x08, "normals", PointerTarget.Any),
-        new PointerField(0x0C, "materials", PointerTarget.Any),
-        new PointerField(0x18, "elementTypes", PointerTarget.Any),
-        new PointerField(0x1C, "elements", PointerTarget.Any)
+        new PointerField(0x04, "vertices", PointerTarget.BlockRelative),
+        new PointerField(0x08, "normals", PointerTarget.BlockRelative),
+        new PointerField(0x0C, "materials", PointerTarget.BlockRelative),
+        new PointerField(0x18, "elementTypes", PointerTarget.BlockRelative),
+        new PointerField(0x1C, "elements", PointerTarget.BlockRelative)
     ];
 
     public string Kind => "geometricobject";

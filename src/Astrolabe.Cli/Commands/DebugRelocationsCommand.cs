@@ -17,6 +17,21 @@ public static class DebugRelocationsCommand
         {
             var packageDir = args[0];
             var showDetails = args.Any(a => a.Equals("--details", StringComparison.OrdinalIgnoreCase));
+            if (Environment.GetEnvironmentVariable("ASTROLABE_DEBUG_RELOC") == "1")
+            {
+                var generated = OpenSpaceExporter.GenerateRtb(
+                    packageDir,
+                    "astrolabe.rtb",
+                    [Path.Combine(Path.GetDirectoryName(Path.GetFullPath(packageDir))!, "fix")]);
+                var total = generated.Blocks.Sum(b => b.Pointers.Count);
+                foreach (var block in generated.Blocks)
+                {
+                    Console.WriteLine($"debug block {block.Key}: {block.Pointers.Count}");
+                }
+
+                Console.WriteLine($"debug generated total: {total}");
+            }
+
             var results = OpenSpaceExporter.CompareGeneratedRelocations(packageDir);
             foreach (var result in results)
             {

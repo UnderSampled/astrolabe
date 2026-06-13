@@ -11,9 +11,9 @@ public sealed class VisualMaterialCodec : IStructCodec<VisualMaterialRecord>
 
     private static readonly PointerField[] PointerFieldsList =
     [
-        new PointerField(0x48, "offTexture", PointerTarget.Any),
-        new PointerField(0x64, "offAnimTexturesFirst", PointerTarget.Any),
-        new PointerField(0x68, "offAnimTexturesCurrent", PointerTarget.Any)
+        new PointerField(0x48, "offTexture", PointerTarget.BlockRelative),
+        new PointerField(0x64, "offAnimTexturesFirst", PointerTarget.BlockRelative),
+        new PointerField(0x68, "offAnimTexturesCurrent", PointerTarget.BlockRelative)
     ];
 
     public string Kind => "visualmaterial";

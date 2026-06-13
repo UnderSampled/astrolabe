@@ -11,8 +11,8 @@ public sealed class VisualSetCodec : IStructCodec<VisualSetRecord>
 
     private static readonly PointerField[] PointerFieldsList =
     [
-        new PointerField(0x08, "lodDistances", PointerTarget.Any),
-        new PointerField(0x0C, "lodDataOffsets", PointerTarget.Any)
+        new PointerField(0x08, "lodDistances", PointerTarget.BlockRelative),
+        new PointerField(0x0C, "lodDataOffsets", PointerTarget.BlockRelative)
     ];
 
     public string Kind => "visualset";

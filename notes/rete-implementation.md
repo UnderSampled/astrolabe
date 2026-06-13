@@ -165,10 +165,17 @@ Progress as of 2026-06-13:
 - Level import now creates/reuses sibling `fix/` and Fix export validates independently against `Fix.*` plus `fix.cnt`.
 - Promoted structured pointer fields are URI/null on import and resolved back to virtual addresses on export.
 - Relocation JSON and preserved encoded RT payloads remain in packages as the bridge for Step 5.
-- Step 5 has started: `RelocationGenerator` can generate an exact RTB subset from promoted pointer metadata. On `astrolabe`, `debug-relocations` reports `astrolabe.rtb` as 1,450 generated / 1,450 matching / 0 extra against 69,922 preserved pointers after `visualset`, `elementtriangles`, and `radiosityheader` promotion. On Fix, `Fix.rtb` reports 8 generated / 8 matching / 0 extra against 493,305 preserved pointers.
+- Step 5 has started: `RelocationGenerator` can generate a large RTB subset from promoted pointer metadata. On `astrolabe`, `debug-relocations` reports `astrolabe.rtb` as 44,152 generated / 44,152 matching / 0 extra against 69,922 preserved pointers after pointer-array codecs, `animchannel`, geometry array codecs, `elementsprites`, `perso`/`perso3ddata`, and `brain`/`state` promotion. On Fix, `Fix.rtb` reports 8 generated / 8 matching / 0 extra against 493,305 preserved pointers.
 - `fixlvl.rtb` is now wired into diagnostics as a Fix-source to level-target table. Current promoted Fix-side fields generate 0 / 1,117 entries; most preserved entries still target `[FF:FF]` or opaque Fix leaves.
 - RTP/RTT diagnostic generation is complete for current GPT/PTX sidecars: `astrolabe.rtp`, `astrolabe.rtt`, `Fix.rtp`, and `Fix.rtt` all report matching pointer counts and `pointer data: match`.
 - The `astrolabe` fixture did not emit `../fix/...` in promoted structured JSON yet; cross-Fix links are likely still inside opaque leaves pending Step 7 promotions.
+
+`animchannel` pointer semantics (Montreal):
+
+- `isIdentity` (bytes `0x00–0x03`): sentinel `0` / `1` or a compressed-matrix virtual address. Import/export accept legacy JSON key `matrixPointer` (numeric sentinels and URI strings via `IPointerFieldAliases`).
+- `unknown10` (bytes `0x10–0x13`): polymorphic — small inline integers (e.g. `3`, `17`) or a virtual-address pointer rewritten to a URI. Relocation generation skips non-VM-range values via `IsLikelyVirtualAddress` (`0x08000000–0x0FFFFFFF`).
+
+`PointerTarget` is honored in `RelocationGenerator.FindTargetBlock`: `BlockRelative` searches only the source package, `Fix` only Fix packages, `Any` searches all loaded layouts.
 
 Next agent should continue Step 5 with the existing bridge intact: promote more pointer-bearing leaves so generated RTB/fixlvl coverage grows without extra entries, add a deliberate representation for variable pointer arrays and `[FF:FF]` sentinel targets, then phase out relocation storage only after generated RT files `cmp` against preserved originals.
 

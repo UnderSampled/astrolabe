@@ -11,9 +11,9 @@ public sealed class PhysicalObjectCodec : IStructCodec<PhysicalObjectRecord>
 
     private static readonly PointerField[] PointerFieldsList =
     [
-        new PointerField(0x00, "visualSet", PointerTarget.Any),
-        new PointerField(0x04, "collideSet", PointerTarget.Any),
-        new PointerField(0x08, "visualBoundingVolume", PointerTarget.Any)
+        new PointerField(0x00, "visualSet", PointerTarget.BlockRelative),
+        new PointerField(0x04, "collideSet", PointerTarget.BlockRelative),
+        new PointerField(0x08, "visualBoundingVolume", PointerTarget.BlockRelative)
     ];
 
     public string Kind => "physicalobject";

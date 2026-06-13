@@ -11,7 +11,7 @@ public sealed class RadiosityHeaderCodec : IStructCodec<RadiosityHeaderRecord>
 
     private static readonly PointerField[] PointerFieldsList =
     [
-        new PointerField(0x04, "lods", PointerTarget.Any)
+        new PointerField(0x04, "lods", PointerTarget.BlockRelative)
     ];
 
     public string Kind => "radiosityheader";

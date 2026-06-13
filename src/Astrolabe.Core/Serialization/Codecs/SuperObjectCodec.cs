@@ -11,16 +11,16 @@ public sealed class SuperObjectCodec : IStructCodec<SuperObjectRecord>
 
     private static readonly PointerField[] PointerFieldsList =
     [
-        new PointerField(0x04, "offData", PointerTarget.Any),
-        new PointerField(0x08, "childrenHead", PointerTarget.Any),
-        new PointerField(0x0C, "childrenTail", PointerTarget.Any),
-        new PointerField(0x14, "brotherNext", PointerTarget.Any),
-        new PointerField(0x18, "brotherPrev", PointerTarget.Any),
-        new PointerField(0x1C, "parent", PointerTarget.Any),
-        new PointerField(0x20, "matrix", PointerTarget.Any),
-        new PointerField(0x24, "staticMatrix", PointerTarget.Any),
-        new PointerField(0x28, "globalMatrix", PointerTarget.Any),
-        new PointerField(0x34, "boundingVolume", PointerTarget.Any)
+        new PointerField(0x04, "offData", PointerTarget.BlockRelative),
+        new PointerField(0x08, "childrenHead", PointerTarget.BlockRelative),
+        new PointerField(0x0C, "childrenTail", PointerTarget.BlockRelative),
+        new PointerField(0x14, "brotherNext", PointerTarget.BlockRelative),
+        new PointerField(0x18, "brotherPrev", PointerTarget.BlockRelative),
+        new PointerField(0x1C, "parent", PointerTarget.BlockRelative),
+        new PointerField(0x20, "matrix", PointerTarget.BlockRelative),
+        new PointerField(0x24, "staticMatrix", PointerTarget.BlockRelative),
+        new PointerField(0x28, "globalMatrix", PointerTarget.BlockRelative),
+        new PointerField(0x34, "boundingVolume", PointerTarget.BlockRelative)
     ];
 
     public string Kind => "superObject";

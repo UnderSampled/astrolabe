@@ -67,3 +67,82 @@ public sealed class RadiosityHeaderRecord
     public uint Unknown08 { get; set; }
     public uint Unknown0C { get; set; }
 }
+
+public sealed class ElementSpritesRecord
+{
+    public string Schema { get; set; } = "astrolabe.element-sprites.v1";
+    public uint NumSprites { get; set; }
+    public int Sprites { get; set; }
+    public uint Unknown08 { get; set; }
+    public uint Unknown0C { get; set; }
+    public int Unknown10 { get; set; }
+    public float Unknown14 { get; set; }
+    public float Unknown18 { get; set; }
+    public float Unknown1C { get; set; }
+}
+
+public sealed class CollideSetRecord
+{
+    public string Schema { get; set; } = "astrolabe.collide-set.v1";
+    public int ZdxList { get; set; }
+    public int ZddList { get; set; }
+    public int ZdeList { get; set; }
+    public byte[] Unknown0C { get; set; } = [];
+}
+
+public sealed class SectorRecord
+{
+    public string Schema { get; set; } = "astrolabe.sector.v1";
+    public int CollideObj { get; set; }
+    public int EnvHead { get; set; }
+    public int EnvTail { get; set; }
+    public int EnvHdr { get; set; }
+    public uint EnvCount { get; set; }
+    public int SurfHead { get; set; }
+    public int SurfTail { get; set; }
+    public int SurfHdr { get; set; }
+    public uint SurfCount { get; set; }
+    public int PersosHead { get; set; }
+    public int PersosTail { get; set; }
+    public int PersosHdr { get; set; }
+    public uint PersosCount { get; set; }
+    public int StaticLightsHead { get; set; }
+    public int StaticLightsTail { get; set; }
+    public int StaticLightsHdr { get; set; }
+    public uint StaticLightsCount { get; set; }
+    public int DynLightsHead { get; set; }
+    public int DynLightsTail { get; set; }
+    public int DynLightsHdr { get; set; }
+    public uint DynLightsCount { get; set; }
+    public int StreamsHead { get; set; }
+    public int StreamsTail { get; set; }
+    public int StreamsHdr { get; set; }
+    public uint StreamsCount { get; set; }
+    public int GraphicSectorsHead { get; set; }
+    public int GraphicSectorsTail { get; set; }
+    public int GraphicSectorsHdr { get; set; }
+    public uint GraphicSectorsCount { get; set; }
+    public int CollisionSectorsHead { get; set; }
+    public int CollisionSectorsTail { get; set; }
+    public int CollisionSectorsHdr { get; set; }
+    public uint CollisionSectorsCount { get; set; }
+    public int ActivitySectorsHead { get; set; }
+    public int ActivitySectorsTail { get; set; }
+    public int ActivitySectorsHdr { get; set; }
+    public uint ActivitySectorsCount { get; set; }
+    public int SoundSectorsHead { get; set; }
+    public int SoundSectorsTail { get; set; }
+    public int SoundSectorsHdr { get; set; }
+    public uint SoundSectorsCount { get; set; }
+    public int PlaceholderHead { get; set; }
+    public int PlaceholderTail { get; set; }
+    public int PlaceholderHdr { get; set; }
+    public uint PlaceholderCount { get; set; }
+    public uint UnknownB4 { get; set; }
+    public uint UnknownB8 { get; set; }
+    public uint UnknownBC { get; set; }
+    public uint IsSectorVirtual { get; set; }
+    public uint ActivationFlag { get; set; }
+    public int Name { get; set; }
+    public uint UnknownCC { get; set; }
+}

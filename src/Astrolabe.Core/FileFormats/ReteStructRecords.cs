@@ -44,3 +44,31 @@ public sealed class Float3ArrayRecord
     public string Type { get; set; } = "";
     public float[][] Values { get; set; } = [];
 }
+
+public sealed class PointerArrayRecord
+{
+    public string Schema { get; set; } = "astrolabe.pointer-array.v1";
+    public string Type { get; set; } = "";
+    public int[] Values { get; set; } = [];
+}
+
+public sealed class UInt16ArrayRecord
+{
+    public string Schema { get; set; } = "astrolabe.uint16-array.v1";
+    public string Type { get; set; } = "";
+    public ushort[] Values { get; set; } = [];
+}
+
+public sealed class FloatArrayRecord
+{
+    public string Schema { get; set; } = "astrolabe.float-array.v1";
+    public string Type { get; set; } = "";
+    public float[] Values { get; set; } = [];
+}
+
+public sealed class Float2ArrayRecord
+{
+    public string Schema { get; set; } = "astrolabe.float2-array.v1";
+    public string Type { get; set; } = "";
+    public float[][] Values { get; set; } = [];
+}

@@ -10,4 +10,6 @@ public enum PointerTarget
 public readonly record struct PointerField(
     int Offset,
     string Name,
-    PointerTarget Target);
+    PointerTarget Target,
+    int[]? IgnoreValues = null,
+    bool RequiresVmRange = false);

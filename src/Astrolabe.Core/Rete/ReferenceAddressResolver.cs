@@ -19,6 +19,24 @@ internal sealed class ReferenceAddressResolver
         LoadPackage(packageRoot);
     }
 
+    internal static ReferenceAddressResolver CreateForExport(string packageRoot)
+    {
+        var resolver = new ReferenceAddressResolver(packageRoot);
+        var packageParent = Directory.GetParent(Path.GetFullPath(packageRoot))?.FullName;
+        if (packageParent == null)
+        {
+            return resolver;
+        }
+
+        var fixPackageDir = Path.Combine(packageParent, "fix");
+        if (File.Exists(Path.Combine(fixPackageDir, OpenSpacePackageCodec.ManifestFileName)))
+        {
+            resolver.LoadPackage(fixPackageDir);
+        }
+
+        return resolver;
+    }
+
     public void LoadPackage(string packageRoot)
     {
         var normalizedRoot = Path.GetFullPath(packageRoot);

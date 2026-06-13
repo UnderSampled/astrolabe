@@ -85,8 +85,8 @@ public class ObjectTypeReader
         for (int i = 0; i < block.Data.Length - 32; i++)
         {
             // Look for the marker pattern: 01 00 00 00 followed by an id byte, then a name
-            if (block.Data[i] == 0x01 && block.Data[i+1] == 0x00 &&
-                block.Data[i+2] == 0x00 && block.Data[i+3] == 0x00)
+            if (block.Data[i] == 0x01 && block.Data[i + 1] == 0x00 &&
+                block.Data[i + 2] == 0x00 && block.Data[i + 3] == 0x00)
             {
                 // Read internal id (next 4 bytes) - just for validation
                 uint internalId = BitConverter.ToUInt32(block.Data, i + 4);

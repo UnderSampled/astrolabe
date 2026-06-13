@@ -11,9 +11,9 @@ public sealed class GameMaterialCodec : IStructCodec<GameMaterialRecord>
 
     private static readonly PointerField[] PointerFieldsList =
     [
-        new PointerField(0x00, "visualMaterial", PointerTarget.Any),
-        new PointerField(0x04, "mechanicsMaterial", PointerTarget.Any),
-        new PointerField(0x0C, "collideMaterial", PointerTarget.Any)
+        new PointerField(0x00, "visualMaterial", PointerTarget.BlockRelative),
+        new PointerField(0x04, "mechanicsMaterial", PointerTarget.BlockRelative),
+        new PointerField(0x0C, "collideMaterial", PointerTarget.BlockRelative)
     ];
 
     public string Kind => "gamematerial";

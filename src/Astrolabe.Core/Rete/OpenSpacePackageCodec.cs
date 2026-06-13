@@ -167,7 +167,7 @@ internal static class OpenSpacePackageCodec
                 foreach (var element in content.Elements)
                 {
                     if (!StructCodecRegistry.TryGet(element.Kind, out var codec) ||
-                        codec.PointerFields.Count == 0)
+                        (codec.PointerFields.Count == 0 && !codec.IsPointerArray))
                     {
                         continue;
                     }
@@ -182,7 +182,7 @@ internal static class OpenSpacePackageCodec
                     ReferenceJson.RewritePointersToUris(
                         elementPath,
                         packageDir,
-                        codec.PointerFields,
+                        codec,
                         resolver);
                 }
             }
@@ -204,7 +204,7 @@ internal static class OpenSpacePackageCodec
         }
 
         Directory.CreateDirectory(outputDir);
-        var referenceResolver = new ReferenceAddressResolver(packageDir);
+        var referenceResolver = CreateExportResolver(packageDir);
 
         foreach (var snaFile in manifest.SnaFiles)
         {
@@ -259,12 +259,10 @@ internal static class OpenSpacePackageCodec
                         continue;
                     }
 
-                    var generatedFixLevel = RelocationGenerator.GenerateRtb(
+                    var generatedFixLevel = RelocationGenerator.GenerateFixLevelRtb(
                         fixPackageDir,
-                        table.FileName,
-                        [packageDir],
-                        includeEmptyBlocks: true,
-                        includeSourcePackageAsTarget: false);
+                        packageDir,
+                        table.FileName);
                     results.Add(RelocationGenerator.Compare(preserved, generatedFixLevel));
                     continue;
                 }
@@ -347,6 +345,9 @@ internal static class OpenSpacePackageCodec
             yield return fixPackageDir;
         }
     }
+
+    internal static ReferenceAddressResolver CreateExportResolver(string packageDir) =>
+        ReferenceAddressResolver.CreateForExport(packageDir);
 
     private static RelocationComparisonResult UnsupportedRelocationComparison(
         string fileName,
@@ -1005,28 +1006,12 @@ internal static class OpenSpacePackageCodec
     private static byte[] ReadStructuredElementBytes(
         string packageDir,
         SnaBlockContentElement element,
-        ReferenceAddressResolver referenceResolver)
-    {
-        if (!StructCodecRegistry.TryGet(element.Kind, out var codec))
-        {
-            return File.ReadAllBytes(ResolvePath(packageDir, element.DataPath));
-        }
-
-        var elementPath = ReferenceUri.Resolve(packageDir, element.DataPath).FilePath;
-        if (!elementPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
-        {
-            return File.ReadAllBytes(elementPath);
-        }
-
-        using var document = JsonDocument.Parse(File.ReadAllText(elementPath));
-        using var resolvedDocument = ReferenceJson.ResolvePointersForExport(
-            document.RootElement,
+        ReferenceAddressResolver referenceResolver) =>
+        ReferenceJson.WriteElementBytesForExport(
             packageDir,
-            codec.PointerFields,
+            element.Kind,
+            element.DataPath,
             referenceResolver);
-
-        return codec.WriteFromJsonElement(resolvedDocument.RootElement);
-    }
 
     private static uint GetMaxPosMinus9(SnaBlockManifest block, uint size)
     {

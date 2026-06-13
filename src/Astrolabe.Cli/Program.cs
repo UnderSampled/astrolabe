@@ -25,6 +25,7 @@ class Program
             "debug-gf" => DebugGfCommand.Run(args[1..]),
             "debug-sna" => DebugSnaCommand.Run(args[1..]),
             "debug-relocations" => DebugRelocationsCommand.Run(args[1..]),
+            "debug-pointer-probe" => DebugPointerProbeCommand.Run(args[1..]),
             "debug-names" => DebugNamesCommand.Run(args[1..]),
             "meshes" => MeshesCommand.Run(args[1..]),
             "analyze" => AnalyzeCommand.Run(args[1..]),

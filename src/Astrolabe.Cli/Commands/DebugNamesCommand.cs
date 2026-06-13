@@ -63,8 +63,8 @@ public static class DebugNamesCommand
                 for (int i = 0; i < block.Data.Length - 32; i++)
                 {
                     // Check for pattern: 01 00 00 00 followed by a byte id, then a name string
-                    if (block.Data[i] == 0x01 && block.Data[i+1] == 0x00 &&
-                        block.Data[i+2] == 0x00 && block.Data[i+3] == 0x00)
+                    if (block.Data[i] == 0x01 && block.Data[i + 1] == 0x00 &&
+                        block.Data[i + 2] == 0x00 && block.Data[i + 3] == 0x00)
                     {
                         // Read the id (next 4 bytes)
                         int id = BitConverter.ToInt32(block.Data, i + 4);

@@ -68,4 +68,12 @@ internal static class JsonStructCodec
 
     public static byte[] RequireExactSize(byte[] data, int expectedLength, string typeName) =>
         StructBinaryIO.RequireExactSize(data, expectedLength, typeName);
+
+    public static void RequireValuesArray<T>(T[]? values, string schema, string kind)
+    {
+        if (values == null)
+        {
+            throw new InvalidDataException($"{schema} ({kind}) requires a non-null values array.");
+        }
+    }
 }

@@ -11,12 +11,12 @@ public sealed class ElementTrianglesCodec : IStructCodec<ElementTrianglesRecord>
 
     private static readonly PointerField[] PointerFieldsList =
     [
-        new PointerField(0x00, "material", PointerTarget.Any),
-        new PointerField(0x08, "triangles", PointerTarget.Any),
-        new PointerField(0x0C, "mappingUvs", PointerTarget.Any),
-        new PointerField(0x10, "normals", PointerTarget.Any),
-        new PointerField(0x14, "uvs", PointerTarget.Any),
-        new PointerField(0x1C, "vertexIndices", PointerTarget.Any)
+        new PointerField(0x00, "material", PointerTarget.BlockRelative),
+        new PointerField(0x08, "triangles", PointerTarget.BlockRelative),
+        new PointerField(0x0C, "mappingUvs", PointerTarget.BlockRelative),
+        new PointerField(0x10, "normals", PointerTarget.BlockRelative),
+        new PointerField(0x14, "uvs", PointerTarget.BlockRelative),
+        new PointerField(0x1C, "vertexIndices", PointerTarget.BlockRelative)
     ];
 
     public string Kind => "elementtriangles";

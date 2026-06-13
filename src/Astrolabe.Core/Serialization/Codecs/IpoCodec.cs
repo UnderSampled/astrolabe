@@ -11,8 +11,8 @@ public sealed class IpoCodec : IStructCodec<IpoRecord>
 
     private static readonly PointerField[] PointerFieldsList =
     [
-        new PointerField(0x00, "physicalObject", PointerTarget.Any),
-        new PointerField(0x04, "radiosity", PointerTarget.Any)
+        new PointerField(0x00, "physicalObject", PointerTarget.BlockRelative),
+        new PointerField(0x04, "radiosity", PointerTarget.BlockRelative)
     ];
 
     public string Kind => "ipo";
