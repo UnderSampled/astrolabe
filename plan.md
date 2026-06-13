@@ -92,48 +92,56 @@ astrolabe export-godot <rete-dir> [godot-dir]
 
 Current commands `extract-intermediate` and `compile-intermediate` map to import/export-openspace during transition.
 
-## Implementation phases
+## Implementation steps
 
-### Phase 1 — Serialization scaffold
+The refactor proceeds as **sequential steps** on one branch — not as separate pull requests. Finish each step, pass the byte-identical verification gate (see [`notes/rete-implementation.md`](notes/rete-implementation.md)), then move on. Code map and API contracts live in that guide.
+
+### Step 1 — Serialization scaffold (no behavior change)
 
 - Add `Astrolabe.Core/Serialization/`: `IStructCodec<T>`, `BinaryPrimitives`, `StructCodecRegistry`.
-- Add `Astrolabe.Core/Rete/`: split package orchestration out of `LevelIntermediateCodec`.
-- Wire extract/compile dispatch through the registry.
+- Move one codec (`VisualMaterialCodec`) out of `LevelIntermediateCodec`; register it; dispatch through the registry for `visualmaterial` only.
+- Build + byte-identical round-trip on `astrolabe` must pass.
 
-### Phase 2 — Canonical type migration
+### Step 2 — Migrate promoted codecs
 
 Migrate promoted types in dependency order (materials → geometry headers → scene → generics). For each type:
 
 - Merge fields into FileFormats canonical type (including unknowns).
-- Implement per-type codec with pointer metadata.
+- One codec file per kind; delete `Read/WriteIntermediate*` for migrated kinds.
 - Register in `StructCodecRegistry`.
 - Pass byte-identical round-trip on `astrolabe` test level.
 
-Track progress in [`notes/intermediate-type-checklist.md`](notes/intermediate-type-checklist.md).
+Track per-type progress in [`notes/intermediate-type-checklist.md`](notes/intermediate-type-checklist.md).
 
-### Phase 3 — Paths primary
+### Step 3 — Split orchestrator + Rete rename
 
-- Import resolves and writes path references alongside structs.
-- Import emits relative URIs for Fix-owned records (typically `../fix/...`).
+- `Intermediate/` → `Rete/`; models → `RetePackageModels.cs`.
+- Accept manifest schemas `astrolabe.level-intermediate.v1` and `astrolabe.rete.v1`.
+- Emit `astrolabe.rete.v1` on new imports; add `packageRole`.
+
+### Step 4 — Fix import layout + reference URIs
+
+- Import writes `output/fix/` + `output/{level}/` together in one pass.
+- Pointer JSON fields become URI strings; `../fix/...` for Fix targets.
 - OpenSpace export resolves all reference URIs by relative path → addresses.
-- JSON pointer fields become path objects in new imports.
+- `ReferenceUri` resolver in export/import.
 
-### Phase 4 — Relocation generator
+### Step 5 — Relocation generator
 
 - Implement `RelocationGenerator` for RTB from struct pointer metadata and layout.
 - Add RTP/RTT generators for GPT and PTX.
 - Validate: generated RT files `cmp` equal to originals on unedited imports.
 - Remove relocation JSON and encoded RT leaves from Rete packages.
 
-### Phase 5 — Exporter symmetry
+### Step 6 — CLI + Godot
 
-- Rename CLI to `import-openspace` / `export-openspace`.
-- `export-godot` accepts Rete package input.
+- Rename CLI to `import-openspace` / `export-openspace` (keep old names as aliases).
+- `export-godot` accepts Rete package input; resolves URIs including `../fix/`.
 - Godot formatters consume canonical types only.
 
-### Phase 6 — Coverage expansion
+### Step 7 — Coverage expansion
 
-Promote remaining documented leaves per checklist: `visualset`, element types, Perso/family, animation, AI/DSG, sectors/collision. Each promotion adds codec + pointer metadata; relocation generator coverage grows with it.
+Promote remaining documented leaves per checklist: `visualset`, element types, Perso/family, animation, AI/DSG, sectors/collision. Each promotion adds codec + pointer metadata; relocation generator coverage grows with it. This step continues alongside earlier steps as types are ready — it does not block Steps 1–6.
 
 ## Type promotion priorities
 

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats;
+using Astrolabe.Core.Serialization;
 
 namespace Astrolabe.Core.Intermediate;
 
@@ -292,6 +293,13 @@ public static class LevelIntermediateCodec
                 dataPath = GetTypedDataPath(plan.Kind, blockStem, i, "json");
                 WriteJson(ResolvePath(outputDir, dataPath), value);
                 emittedBytes = WriteIntermediateFloat3Array(value);
+            }
+            else if (StructCodecRegistry.TryGet(plan.Kind, out var codec))
+            {
+                var value = codec.ReadFromBytes(data, plan.Start, plan.Length);
+                dataPath = GetTypedDataPath(plan.Kind, blockStem, i, "json");
+                codec.WriteJson(ResolvePath(outputDir, dataPath), value);
+                emittedBytes = codec.WriteFromObject(value);
             }
             else
             {
@@ -1086,6 +1094,8 @@ public static class LevelIntermediateCodec
                         ReadJson<IntermediateUInt32Record>(ResolvePath(intermediateDir, element.DataPath))),
                     "vertices" or "normals" or "trianglenormals" => WriteIntermediateFloat3Array(
                         ReadJson<IntermediateFloat3Array>(ResolvePath(intermediateDir, element.DataPath))),
+                    _ when StructCodecRegistry.TryGet(element.Kind, out _) =>
+                        StructCodecRegistry.ReadElementBytes(intermediateDir, element.DataPath, element.Kind),
                     _ => File.ReadAllBytes(ResolvePath(intermediateDir, element.DataPath))
                 };
 

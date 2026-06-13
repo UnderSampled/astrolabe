@@ -3,6 +3,34 @@ using System.Numerics;
 namespace Astrolabe.Core.FileFormats.Materials;
 
 /// <summary>
+/// Lossless Rete serialization record for a fixed-size VisualMaterial struct.
+/// </summary>
+public sealed class VisualMaterialRecord
+{
+    public string Schema { get; set; } = "astrolabe.visual-material.v1";
+    public uint Flags { get; set; }
+    public float[] AmbientCoef { get; set; } = [];
+    public float[] DiffuseCoef { get; set; } = [];
+    public float[] SpecularCoef { get; set; } = [];
+    public float[] Color { get; set; } = [];
+    public uint Unknown44 { get; set; }
+    public int OffTexture { get; set; }
+    public float CurrentScrollX { get; set; }
+    public float CurrentScrollY { get; set; }
+    public float ScrollX { get; set; }
+    public float ScrollY { get; set; }
+    public uint ScrollMode { get; set; }
+    public int RefreshNumber { get; set; }
+    public int OffAnimTexturesFirst { get; set; }
+    public int OffAnimTexturesCurrent { get; set; }
+    public ushort NumAnimTextures { get; set; }
+    public ushort Padding6E { get; set; }
+    public uint Unknown70 { get; set; }
+    public byte Properties { get; set; }
+    public byte[] Padding75 { get; set; } = [];
+}
+
+/// <summary>
 /// Visual Material - controls rendering/appearance of geometry.
 /// </summary>
 public class VisualMaterial

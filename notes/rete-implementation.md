@@ -2,9 +2,9 @@
 
 Cold-start entrypoint for the Rete refactor. Read in order:
 
-1. [`plan.md`](../plan.md) — architecture and phases
+1. [`plan.md`](../plan.md) — architecture and implementation steps
 2. [`docs/rete-format.md`](../docs/rete-format.md) — format specification
-3. This file — code map, APIs, PR boundaries
+3. This file — code map, APIs, step boundaries
 4. [`intermediate-type-checklist.md`](intermediate-type-checklist.md) — per-type promotion
 
 ## Goal
@@ -133,44 +133,21 @@ Until step 4 is done, keep reading preserved RT* from import as a bridge (curren
 
 Merge `Intermediate*` fields into canonical types (including unknown bytes). `VisualMaterialReader` delegates to `VisualMaterialCodec`.
 
-## PR sequence
+## Implementation steps
 
-### PR 1 — Scaffold (no behavior change)
+Sequential work units are defined in [`plan.md`](../plan.md#implementation-steps). This file adds code-level detail per step:
 
-- Add `Serialization/` + `StructCodecRegistry`.
-- Move one codec (`VisualMaterialCodec`) out of `LevelIntermediateCodec`; register it; dispatch through registry for `visualmaterial` only.
-- Build + byte-identical round-trip on `astrolabe` must pass.
+| Step | Focus here |
+|------|------------|
+| 1 | `IStructCodec<T>`, `StructCodecRegistry`, first `VisualMaterialCodec` |
+| 2 | Promoted types table below; delete `Intermediate*` DTOs as kinds migrate |
+| 3 | Target layout (`Rete/`, `RetePackageModels.cs`); manifest schema transition |
+| 4 | `ReferenceUri.cs`; Fix output layout; pointer fields as URI strings |
+| 5 | `RelocationGenerator`; drop preserved RT* from packages |
+| 6 | CLI aliases; Godot export from Rete |
+| 7 | Checklist backlog — per-type codec + pointer metadata |
 
-### PR 2 — Migrate all promoted codecs
-
-- One codec file per kind; delete `Read/WriteIntermediate*` for migrated kinds.
-- Merge `IntermediateVisualMaterial` etc. into FileFormats types.
-- Checklist verification items per type.
-
-### PR 3 — Split orchestrator + Rete rename
-
-- `Intermediate/` → `Rete/`; models → `RetePackageModels.cs`.
-- Accept manifest schemas `astrolabe.level-intermediate.v1` and `astrolabe.rete.v1`.
-- Emit `astrolabe.rete.v1` on new imports; add `packageRole`.
-
-### PR 4 — Fix import layout + reference URIs on structs
-
-- Import writes `output/fix/` + `output/{level}/` together.
-- Pointer JSON fields become URI strings; `../fix/...` for Fix targets.
-- `ReferenceUri` resolver in export/import.
-
-### PR 5 — RelocationGenerator
-
-- RTB from `PointerFields` + layout; `cmp` generated vs original on unedited packages.
-- Drop `relocationTables` from Rete packages once passing.
-- RTP/RTT generators follow.
-
-### PR 6 — CLI + Godot
-
-- `import-openspace` / `export-openspace` (keep old names as aliases).
-- `export-godot <rete-dir>` resolves URIs including `../fix/`.
-
-## Verification (every PR)
+## Verification (every step)
 
 ```bash
 dotnet build
