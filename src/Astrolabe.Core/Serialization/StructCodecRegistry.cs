@@ -65,6 +65,9 @@ public static class StructCodecRegistry
         Register(Codecs.GeometricObjectCodec.Instance);
         Register(Codecs.PhysicalObjectCodec.Instance);
         Register(Codecs.IpoCodec.Instance);
+        Register(Codecs.VisualSetCodec.Instance);
+        Register(Codecs.ElementTrianglesCodec.Instance);
+        Register(Codecs.RadiosityHeaderCodec.Instance);
         Register(Codecs.GameMaterialCodec.Instance);
         Register(Codecs.VisualMaterialCodec.Instance);
         Register(Codecs.UInt32RecordCodec.BoundingVolume);

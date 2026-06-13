@@ -226,6 +226,147 @@ internal static class OpenSpacePackageCodec
         }
     }
 
+    public static IReadOnlyList<RelocationComparisonResult> CompareGeneratedRelocations(string packageDir)
+    {
+        var manifestPath = Path.Combine(packageDir, ManifestFileName);
+        if (!File.Exists(manifestPath))
+        {
+            throw new FileNotFoundException($"Rete manifest not found: {manifestPath}");
+        }
+
+        var manifest = ReadJson<RetePackageManifest>(manifestPath);
+        if (manifest.Schema is not (ReteManifestSchema or LegacyManifestSchema))
+        {
+            throw new InvalidDataException($"Unsupported Rete manifest schema: {manifest.Schema}");
+        }
+
+        var results = new List<RelocationComparisonResult>();
+        foreach (var table in manifest.RelocationTables)
+        {
+            var preserved = ReadJson<RelocationTableDocument>(ResolvePath(packageDir, table.JsonPath));
+            var extension = Path.GetExtension(table.FileName);
+            if (extension.Equals(".rtb", StringComparison.OrdinalIgnoreCase))
+            {
+                if (table.FileName.Equals("fixlvl.rtb", StringComparison.OrdinalIgnoreCase))
+                {
+                    var fixPackageDir = FindTargetPackageRoots(packageDir, manifest).FirstOrDefault();
+                    if (fixPackageDir == null)
+                    {
+                        results.Add(UnsupportedRelocationComparison(
+                            table.FileName,
+                            preserved,
+                            "fixlvl.rtb requires a sibling Fix Rete package."));
+                        continue;
+                    }
+
+                    var generatedFixLevel = RelocationGenerator.GenerateRtb(
+                        fixPackageDir,
+                        table.FileName,
+                        [packageDir],
+                        includeEmptyBlocks: true,
+                        includeSourcePackageAsTarget: false);
+                    results.Add(RelocationGenerator.Compare(preserved, generatedFixLevel));
+                    continue;
+                }
+
+                var generated = RelocationGenerator.GenerateRtb(
+                    packageDir,
+                    table.FileName,
+                    FindTargetPackageRoots(packageDir, manifest).ToList());
+                results.Add(RelocationGenerator.Compare(preserved, generated));
+                continue;
+            }
+
+            if (TryGetPointerFilePath(packageDir, manifest, table.FileName, out var pointerFilePath))
+            {
+                var generated = RelocationGenerator.GeneratePointerFileTable(
+                    packageDir,
+                    table.FileName,
+                    pointerFilePath,
+                    FindTargetPackageRoots(packageDir, manifest).ToList());
+                results.Add(RelocationGenerator.Compare(preserved, generated));
+                continue;
+            }
+
+            results.Add(UnsupportedRelocationComparison(
+                table.FileName,
+                preserved,
+                "Relocation generation is not implemented for this table type."));
+        }
+
+        return results;
+    }
+
+    private static bool TryGetPointerFilePath(
+        string packageDir,
+        RetePackageManifest manifest,
+        string relocationFileName,
+        out string pointerFilePath)
+    {
+        pointerFilePath = "";
+        var extension = Path.GetExtension(relocationFileName);
+        var pointerExtension = extension.ToLowerInvariant() switch
+        {
+            ".rtp" => ".gpt",
+            ".rtt" => ".ptx",
+            _ => null
+        };
+        if (pointerExtension == null)
+        {
+            return false;
+        }
+
+        var expectedName = Path.ChangeExtension(relocationFileName, pointerExtension);
+        var looseFile = manifest.LooseFiles.FirstOrDefault(f =>
+            f.FileName.Equals(expectedName, StringComparison.OrdinalIgnoreCase));
+        if (looseFile == null)
+        {
+            return false;
+        }
+
+        pointerFilePath = ResolvePath(packageDir, looseFile.Path);
+        return File.Exists(pointerFilePath);
+    }
+
+    private static IEnumerable<string> FindTargetPackageRoots(string packageDir, RetePackageManifest manifest)
+    {
+        if (!manifest.PackageRole.Equals("level", StringComparison.OrdinalIgnoreCase))
+        {
+            yield break;
+        }
+
+        var packageParent = Directory.GetParent(Path.GetFullPath(packageDir))?.FullName;
+        if (packageParent == null)
+        {
+            yield break;
+        }
+
+        var fixPackageDir = Path.Combine(packageParent, "fix");
+        if (File.Exists(Path.Combine(fixPackageDir, ManifestFileName)))
+        {
+            yield return fixPackageDir;
+        }
+    }
+
+    private static RelocationComparisonResult UnsupportedRelocationComparison(
+        string fileName,
+        RelocationTableDocument preserved,
+        string note)
+    {
+        return new RelocationComparisonResult(
+            fileName,
+            Supported: false,
+            PreservedPointerCount: preserved.Blocks.Sum(b => b.Pointers.Count),
+            GeneratedPointerCount: 0,
+            MatchingPointerCount: 0,
+            MissingPointerCount: preserved.Blocks.Sum(b => b.Pointers.Count),
+            ExtraPointerCount: 0,
+            PointerDataMatches: false,
+            Note: note,
+            MissingSamples: [],
+            ExtraSamples: []);
+    }
+
     private static SnaFileManifest ExtractSnaFile(
         string snaPath,
         string outputDir,

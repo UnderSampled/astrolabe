@@ -24,6 +24,7 @@ class Program
             "cnt" => CntCommand.Run(args[1..]),
             "debug-gf" => DebugGfCommand.Run(args[1..]),
             "debug-sna" => DebugSnaCommand.Run(args[1..]),
+            "debug-relocations" => DebugRelocationsCommand.Run(args[1..]),
             "debug-names" => DebugNamesCommand.Run(args[1..]),
             "meshes" => MeshesCommand.Run(args[1..]),
             "analyze" => AnalyzeCommand.Run(args[1..]),
@@ -67,6 +68,7 @@ class Program
                 list <source>                      List files in a directory
                 textures <cnt-path> [output-dir]   Extract textures from CNT container
                 cnt <cnt-path>                     List files in CNT container
+                debug-relocations <rete-dir>       Compare generated RT data with preserved relocation tables
                 audio <apm-path|bnm-path> [out]    Convert APM/BNM audio to WAV
                 tree <path> [options]              Display scene graph as tree
                 byte-tree <level-dir> [options]   Show tree with byte coverage analysis

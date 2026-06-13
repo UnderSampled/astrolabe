@@ -58,13 +58,15 @@ Represents a submesh with triangle data.
 | 0x00 | Pointer | off_material | Pointer to material |
 | 0x04 | uint16 | num_triangles | Number of triangles |
 | 0x06 | uint16 | num_uvs | Number of UV coordinates |
-| 0x08 | uint16 | num_uvMaps | Number of UV maps |
-| 0x0A | uint16 | num_vertex_indices | Number of indexed vertices |
-| 0x0C | Pointer | off_triangles | Pointer to triangle indices |
-| 0x10 | Pointer | off_mapping_uvs | Pointer to UV mapping |
-| 0x14 | Pointer | off_normals | Pointer to per-vertex normals |
-| 0x18 | Pointer | off_uvs | Pointer to UV coordinates |
+| 0x08 | Pointer | off_triangles | Pointer to triangle indices |
+| 0x0C | Pointer | off_mapping_uvs | Pointer to UV mapping |
+| 0x10 | Pointer | off_normals | Pointer to per-triangle normals |
+| 0x14 | Pointer | off_uvs | Pointer to UV coordinates |
+| 0x18 | uint32 | unknown18 | Unknown field preserved by Rete |
 | 0x1C | Pointer | off_vertex_indices | Pointer to vertex indices |
+| 0x20 | uint16 | num_vertex_indices | Number of indexed vertices |
+| 0x22 | uint16 | parallelBox | Unknown/parallel-box field |
+| 0x24 | uint32 | unknown24 | Unknown field preserved by Rete |
 
 ### Optimization Fields (Revolution/later engines)
 

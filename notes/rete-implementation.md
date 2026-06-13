@@ -22,8 +22,10 @@ Rete is the canonical level representation. OpenSpace level dirs and Godot proje
 | `src/Astrolabe.Core/Rete/ReferenceAddressResolver.cs` | Builds package address indexes from `content.json`; resolves URI ↔ virtual address | Feed relocation generation/layout |
 | `src/Astrolabe.Core/Rete/ReferenceJson.cs` | Rewrites promoted JSON pointer fields to URI/null on import and back to int addresses on export | Remove numeric fallback once all pointer fields are URI-backed |
 | `src/Astrolabe.Core/Rete/RetePackageModels.cs` | Manifest/content models; content elements include offsets, lengths, and virtual addresses | Drop preserved relocation models after Step 5 |
+| `src/Astrolabe.Core/Rete/OpenSpace/RelocationGenerator.cs` | Generates diagnostic RTB/fixlvl subsets from promoted struct pointer metadata and GPT/PTX pointer-file tables; compares generated data with preserved RT data | Expand RTB coverage to opaque promoted types and `[FF:FF]` sentinel cases; then replace preserved relocation export |
 | `src/Astrolabe.Core/Serialization/Codecs/*` | Registered codecs for the promoted Step 2 kinds | Keep expanding per checklist |
 | `extract-intermediate` / `compile-intermediate` CLI | Still the active transition commands | Aliases → `import-openspace` / `export-openspace` |
+| `debug-relocations` CLI | Compares generated relocation diagnostics against preserved relocation tables | Remove once generated RT output is the normal exporter path |
 | `FileFormats/*Reader` | Read-only scanners/readers used for semantic discovery | Thin wrappers over struct codecs where practical |
 | `FileFormats/Godot/*` | Export from memory scan | Also consume canonical types / Rete URIs |
 
@@ -133,6 +135,9 @@ Until Step 5 is done, keep reading preserved RT* from import as a bridge (curren
 | `geometricobject` | `astrolabe.geometric-object.v1` | 0x40 | `FileFormats/Geometry/` |
 | `physicalobject` | `astrolabe.physical-object.v1` | 0x10 | `FileFormats/Geometry/` |
 | `ipo` | `astrolabe.ipo.v1` | 8 | `FileFormats/Geometry/` |
+| `visualset` | `astrolabe.visual-set.v1` | 0x10 | `FileFormats/Geometry/` |
+| `elementtriangles` | `astrolabe.element-triangles.v1` | 0x28 | `FileFormats/Geometry/` |
+| `radiosityheader` | `astrolabe.radiosity-header.v1` | 0x10 | `FileFormats/Geometry/` |
 | `gamematerial` | `astrolabe.game-material.v1` | 0x10 | `FileFormats/Materials/GameMaterial.cs` |
 | `visualmaterial` | `astrolabe.visual-material.v1` | 0x78 | `FileFormats/Materials/VisualMaterial.cs` |
 | `boundingvolume` / `collidematerial` | `astrolabe.uint32-record.v1` | variable | generic codec |
@@ -160,9 +165,12 @@ Progress as of 2026-06-13:
 - Level import now creates/reuses sibling `fix/` and Fix export validates independently against `Fix.*` plus `fix.cnt`.
 - Promoted structured pointer fields are URI/null on import and resolved back to virtual addresses on export.
 - Relocation JSON and preserved encoded RT payloads remain in packages as the bridge for Step 5.
+- Step 5 has started: `RelocationGenerator` can generate an exact RTB subset from promoted pointer metadata. On `astrolabe`, `debug-relocations` reports `astrolabe.rtb` as 1,450 generated / 1,450 matching / 0 extra against 69,922 preserved pointers after `visualset`, `elementtriangles`, and `radiosityheader` promotion. On Fix, `Fix.rtb` reports 8 generated / 8 matching / 0 extra against 493,305 preserved pointers.
+- `fixlvl.rtb` is now wired into diagnostics as a Fix-source to level-target table. Current promoted Fix-side fields generate 0 / 1,117 entries; most preserved entries still target `[FF:FF]` or opaque Fix leaves.
+- RTP/RTT diagnostic generation is complete for current GPT/PTX sidecars: `astrolabe.rtp`, `astrolabe.rtt`, `Fix.rtp`, and `Fix.rtt` all report matching pointer counts and `pointer data: match`.
 - The `astrolabe` fixture did not emit `../fix/...` in promoted structured JSON yet; cross-Fix links are likely still inside opaque leaves pending Step 7 promotions.
 
-Next agent should start Step 5 with the existing bridge intact: generate RTB first from content layout + codec `PointerFields`, compare generated RT files against preserved originals, then phase out relocation storage only after `cmp` passes.
+Next agent should continue Step 5 with the existing bridge intact: promote more pointer-bearing leaves so generated RTB/fixlvl coverage grows without extra entries, add a deliberate representation for variable pointer arrays and `[FF:FF]` sentinel targets, then phase out relocation storage only after generated RT files `cmp` against preserved originals.
 
 ## Verification (every step)
 

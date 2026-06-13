@@ -170,6 +170,9 @@ Current struct schemas:
 - `astrolabe.geometric-object.v1`
 - `astrolabe.physical-object.v1`
 - `astrolabe.ipo.v1`
+- `astrolabe.visual-set.v1`
+- `astrolabe.element-triangles.v1`
+- `astrolabe.radiosity-header.v1`
 - `astrolabe.game-material.v1`
 - `astrolabe.visual-material.v1`
 - `astrolabe.uint32-record.v1`

@@ -174,11 +174,11 @@ References: `docs/geometry-format.md`, `docs/lighting.md`, `src/Astrolabe.Core/F
 
 - [x] `geometricobject` structured JSON exists.
 - [x] `physicalobject` structured JSON exists.
+- [x] `visualset`: LOD count/type plus LOD distance/data pointer fields.
 - [x] `gamematerial` structured JSON exists.
 - [x] `visualmaterial`: flags, texture pointer/index data, material coefficients, transparency/lighting fields, unknown fields.
-- [ ] `visualset`: visual material/geometric object grouping and object references.
 - [ ] `elementtypes`: typed element table with sprite/triangle element kind values.
-- [ ] `elementtriangles`: triangle-element header, counts, pointer fields, material references.
+- [x] `elementtriangles`: triangle-element header, counts, pointer fields, material references.
 - [ ] `elementsprites`: sprite-element header and pointer/material fields.
 - [ ] `triangles`: triangle index/material records.
 - [ ] `vertexindices`: index arrays used by triangle elements.
@@ -186,7 +186,7 @@ References: `docs/geometry-format.md`, `docs/lighting.md`, `src/Astrolabe.Core/F
 - [ ] `uvmapping`: UV mapping records.
 - [ ] `loddataoffsets`: LOD data pointer table.
 - [ ] `loddistances`: LOD distance values.
-- [ ] `radiosityheader`: radiosity/lit vertex-color metadata.
+- [x] `radiosityheader`: radiosity/lit vertex-color metadata.
 
 ### Perso, Families, Object Lists, and Names
 

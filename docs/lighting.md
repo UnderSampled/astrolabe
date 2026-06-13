@@ -166,6 +166,15 @@ public class GeometricObject {
 }
 ```
 
+In the Hype/Montreal level data currently emitted as `radiosityheader`, Rete preserves a 0x10-byte header:
+
+| Offset | Type | Field | Description |
+|--------|------|-------|-------------|
+| 0x00 | uint32 | num_lod | Number of radiosity LOD records |
+| 0x04 | Pointer | off_lod | Pointer to radiosity LOD data |
+| 0x08 | uint32 | unknown08 | Unknown field preserved by Rete |
+| 0x0C | uint32 | unknown0C | Unknown field preserved by Rete |
+
 During mesh creation, radiosity colors are applied to vertices:
 
 ```csharp
