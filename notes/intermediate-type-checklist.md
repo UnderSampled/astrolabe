@@ -177,75 +177,75 @@ References: `docs/geometry-format.md`, `docs/lighting.md`, `src/Astrolabe.Core/F
 - [x] `visualset`: LOD count/type plus LOD distance/data pointer fields.
 - [x] `gamematerial` structured JSON exists.
 - [x] `visualmaterial`: flags, texture pointer/index data, material coefficients, transparency/lighting fields, unknown fields.
-- [ ] `elementtypes`: typed element table with sprite/triangle element kind values.
+- [x] `elementtypes`: typed element table with sprite/triangle element kind values (`UInt16ArrayCodec`).
 - [x] `elementtriangles`: triangle-element header, counts, pointer fields, material references.
-- [ ] `elementsprites`: sprite-element header and pointer/material fields.
-- [ ] `triangles`: triangle index/material records.
-- [ ] `vertexindices`: index arrays used by triangle elements.
-- [ ] `uvs`: UV coordinate arrays.
-- [ ] `uvmapping`: UV mapping records.
-- [ ] `loddataoffsets`: LOD data pointer table.
-- [ ] `loddistances`: LOD distance values.
+- [x] `elementsprites`: sprite-element header and pointer/material fields.
+- [x] `triangles`: triangle index/material records (`UInt16ArrayCodec`).
+- [x] `vertexindices`: index arrays used by triangle elements (`UInt16ArrayCodec`).
+- [x] `uvs`: UV coordinate arrays (`Float2ArrayCodec`).
+- [x] `uvmapping`: UV mapping records (`UInt16ArrayCodec`).
+- [x] `loddataoffsets`: LOD data pointer table (`PointerArrayCodec`).
+- [x] `loddistances`: LOD distance values (`FloatArrayCodec`).
 - [x] `radiosityheader`: radiosity/lit vertex-color metadata.
 
 ### Perso, Families, Object Lists, and Names
 
 References: `docs/perso-mesh-animation.md`, `docs/file-format-catalogue.md`, `src/Astrolabe.Core/FileFormats/Animation/FamilyReader.cs`, `src/Astrolabe.Core/FileFormats/ObjectTypeReader.cs`, `src/Astrolabe.Core/FileFormats/TrackingSuperObjectReader.cs`, `reference/raymap/Assets/Scripts/OpenSpace/`.
 
-- [ ] `perso`: instance fields, links to 3D data, standard game, brain, mind/intelligence, collision, sector info.
-- [ ] `perso3ddata`: family/object-list/state links and graphics state.
-- [ ] `standardgame`: family/model/instance indices and object type references.
-- [ ] `objectlist`: object-list header and entries.
+- [x] `perso`: instance fields, links to 3D data, standard game, brain, mind/intelligence, collision, sector info.
+- [x] `perso3ddata`: family/object-list/state links and graphics state.
+- [x] `standardgame`: family/model/instance indices and object type references.
+- [x] `objectlist`: object-list header and entries.
 - [ ] `objecttypeentry`: object type table entries.
 - [ ] `objecttypename`: decoded names as text JSON, preserving original bytes when needed.
-- [ ] `spawnableentry`: spawnable perso list entries.
+- [x] `spawnableentry`: spawnable perso list entries.
 - [ ] `alwayssuperobjects`: always-loaded SuperObject list entries.
 
 ### Animation and State Machines
 
 References: `docs/perso-mesh-animation.md`, `docs/file-format-catalogue.md`, `src/Astrolabe.Core/FileFormats/Animation/`, `src/Astrolabe.Core/FileFormats/TrackingSuperObjectReader.cs`, `reference/raymap/Assets/Scripts/OpenSpace/Animation/`.
 
-- [ ] `state`: state name buffer, animation reference, transition list, mechanics/flags.
-- [ ] `transition`: transition target, condition/action references, unknown fields.
+- [x] `state`: state name buffer, animation reference, transition list, mechanics/flags.
+- [x] `transition`: transition target, condition/action references, unknown fields.
 - [ ] `actiontable`: action table header and pointers.
 - [ ] `actiontree`: action tree nodes or encoded action graph data.
-- [ ] `animationmontreal`: animation header, frame/channel counts, speed/timing data.
-- [ ] `animframes`: frame records.
-- [ ] `animchannel`: channel records, object index switching, hierarchy/compressed matrix links.
-- [ ] `animchannelptrs`: channel pointer table.
+- [x] `animationmontreal`: animation header, frame/channel counts, speed/timing data.
+- [x] `animframes`: frame records.
+- [x] `animchannel`: channel records, object index switching, hierarchy/compressed matrix links.
+- [x] `animchannelptrs`: channel pointer table (`PointerArrayCodec`).
 - [ ] `animhierarchies`: hierarchy records.
-- [ ] `animhierarchiesheader`: hierarchy header/counts.
+- [x] `animhierarchiesheader`: hierarchy header/counts.
 - [ ] `compressedmatrix`: compressed transform fields as documented in `docs/perso-mesh-animation.md`.
 
 ### AI, Scripts, DSG, and Behavior
 
 References: `docs/ai-script-format.md`, `src/Astrolabe.Core/FileFormats/AI/`, `src/Astrolabe.Core/FileFormats/Animation/FamilyReader.cs`, `src/Astrolabe.Core/FileFormats/TrackingSuperObjectReader.cs`, `reference/raymap/Assets/Scripts/OpenSpace/AI/`.
 
-- [ ] `brain`: links to mind and AI model data.
-- [ ] `mind`: current AI state and AI model references.
-- [ ] `intelligence`: current behavior state and active behavior references.
-- [ ] `aimodel`: behavior lists, macro lists, DSG variable definitions.
+- [x] `brain`: links to mind and AI model data.
+- [x] `mind`: current AI state and AI model references.
+- [x] `intelligence`: current behavior state and active behavior references.
+- [x] `aimodel`: behavior lists, macro lists, DSG variable definitions.
 - [ ] `behaviorlist_normal`: normal behavior list header and entries.
 - [ ] `behaviorlist_reflex`: reflex behavior list header and entries.
 - [ ] `behaviors_normal`: normal behavior records.
 - [ ] `behaviors_reflex`: reflex behavior records.
-- [ ] `scriptptrs`: script pointer arrays.
+- [x] `scriptptrs`: script pointer arrays (`PointerArrayCodec`).
 - [ ] `script`: S-expression AST source, plus raw ScriptNode preservation only as needed for byte-perfect compilation.
 - [ ] `dsgvar`: designer variable definitions with documented type ids.
 - [ ] `dsgmem`: per-instance DSG variable values.
-- [ ] `dsgvarptrindirect`: indirect pointer/value table for DSG data.
+- [x] `dsgvarptrindirect`: indirect pointer/value table for DSG data (`PointerArrayCodec`).
 
 ### Sectors and Collision
 
 References: `docs/file-format-catalogue.md`, `docs/lighting.md`, `src/Astrolabe.Core/FileFormats/SuperObjectReader.cs`, `src/Astrolabe.Core/FileFormats/TrackingSuperObjectReader.cs`, `reference/raymap/Assets/Scripts/OpenSpace/`.
 
-- [ ] `sector`: sector structure, linked lists, neighbor entries, activity/sound/graphics/collision sector references.
+- [x] `sector`: sector structure, linked lists, neighbor entries, activity/sound/graphics/collision sector references.
 - [ ] `sectorname`: decoded sector names as text JSON, preserving original bytes when needed.
-- [ ] `persosectorinfo`: perso sector membership links.
+- [x] `persosectorinfo`: perso sector membership links.
 - [ ] `sectorcollidegeo`: sector collision geometry header and references.
 - [ ] `sectorcollideverts`: sector collision vertex arrays.
-- [ ] `collideset`: collide set header and pointers.
-- [ ] `collideelementptrs`: collide element pointer arrays.
+- [x] `collideset`: collide set header and pointers.
+- [x] `collideelementptrs`: collide element pointer arrays (`PointerArrayCodec`).
 - [ ] `collidezdxlist`: ZDX collision zone list entries and target zone references.
 - [ ] `collidezddlist`: ZDD collision zone list entries and target zone references.
 - [ ] `collidezdelist`: ZDE collision zone list entries and target zone references.
@@ -257,12 +257,13 @@ References: `docs/file-format-catalogue.md`, `docs/lighting.md`, `src/Astrolabe.
 References: `docs/file-format-catalogue.md`, `src/Astrolabe.Core/FileFormats/TrackingSuperObjectReader.cs`, `reference/raymap/`.
 
 - [ ] `dynam`: dynamic object/physics state fields.
-- [ ] `elementptrs`: generic element pointer arrays where not covered by geometry-specific serializers.
+- [x] `elementptrs`: generic element pointer arrays where not covered by geometry-specific serializers (`PointerArrayCodec`).
 
 ## Current Verification
 
 - [x] Build succeeds on .NET 10.
 - [x] Unchanged intermediate extraction and compilation round-trips byte-identically on `astrolabe`.
+- [x] `debug-relocations`: `astrolabe.rtb` 49,531 / 69,922 matching, 0 extra; RTP/RTT exact; `fixlvl.rtb` 1,060 / 1,117 matching.
 - [x] Editing `scene/.../node.json` changes the rebuilt SNA.
 - [x] Editing `scene/.../matrix.json` changes the rebuilt SNA.
 - [x] Editing `types/vertices/*.json` changes the rebuilt SNA.

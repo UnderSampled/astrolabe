@@ -96,7 +96,7 @@ Current commands `extract-intermediate` and `compile-intermediate` map to import
 
 The refactor proceeds as **sequential steps** on one branch — not as separate pull requests. Finish each step, pass the byte-identical verification gate (see [`notes/rete-implementation.md`](notes/rete-implementation.md)), then move on. Code map and API contracts live in that guide.
 
-**Progress:** Steps 1-4 are complete as of 2026-06-13. Step 5 is in progress: RTB generation from promoted struct and pointer-array metadata now matches 43,196 / 69,922 preserved `astrolabe.rtb` pointers; pointer-array codecs, `animchannel`, geometry array codecs, and `elementsprites` are promoted; RTP/RTT generation for GPT/PTX matches on `astrolabe` and Fix; preserved relocation files remain in Rete packages as the export bridge.
+**Progress:** Steps 1–4 are complete. Step 5 is in progress (~71% RTB coverage on `astrolabe`): generated `astrolabe.rtb` matches **49,531 / 69,922** preserved pointers with **0 extra**; `astrolabe.rtp` / `astrolabe.rtt` and Fix RTP/RTT are exact; `fixlvl.rtb` matches **1,060 / 1,117** (57 missing, 62 extra). Thirty-five struct codecs are registered (geometry arrays, pointer arrays, animation, perso, AI, sector/collision). URI-backed pointer fields resolve through `ReferenceJson.WriteElementBytesForExport`; byte-identical `cmp` on `astrolabe` passes. Preserved relocation files remain in Rete packages as the export bridge until generated RT files reach `cmp` parity. Steps 6–7 not started.
 
 ### Step 1 — Serialization scaffold (no behavior change)
 
@@ -147,11 +147,11 @@ Promote remaining documented leaves per checklist: `visualset`, element types, P
 
 ## Type promotion priorities
 
-1. Geometry and materials (in progress)
-2. Perso, families, object lists
-3. Animation and state machines
-4. AI, scripts, DSG
-5. Sectors and collision
+1. Geometry and materials — **mostly done** on `astrolabe`; collision-geometry leaves (`sectorcollide*`, `collidez*`) remain opaque
+2. Perso, families, object lists — **partial** (`perso`, `perso3ddata`, `standardgame`, `objectlist`, `spawnableentry` promoted; `objecttype*` and `alwayssuperobjects` still opaque)
+3. Animation and state machines — **partial** (`state`, `transition`, `animationmontreal`, `animchannel`, `animframes`, `animhierarchiesheader` promoted; `actiontable`, `actiontree`, `animhierarchies`, `compressedmatrix` still opaque)
+4. AI, scripts, DSG — **partial** (`brain`, `mind`, `intelligence`, `aimodel` promoted; behavior lists, `script`, `dsgvar`/`dsgmem` still opaque)
+5. Sectors and collision — **partial** (`sector`, `collideset`, `persosectorinfo` promoted; `sectorname`, `sectorcollide*`, `collidez*` still opaque)
 
 ## Documentation
 
