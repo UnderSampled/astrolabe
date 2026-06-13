@@ -39,20 +39,36 @@ internal static class OpenSpacePackageCodec
             throw new DirectoryNotFoundException($"Level directory not found: {levelDir}");
         }
 
+        var levelName = Path.GetFileName(levelDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+        var fixPackageDir = ImportSiblingFixPackageIfAvailable(levelDir, outputDir);
+        var manifest = ImportPackage(levelDir, levelName, outputDir, "level", _ => true);
+        RewritePointerReferences(outputDir, fixPackageDir);
+        return manifest;
+    }
+
+    private static RetePackageManifest ImportPackage(
+        string sourceDir,
+        string packageName,
+        string outputDir,
+        string packageRole,
+        Func<string, bool> includeFile)
+    {
         Directory.CreateDirectory(outputDir);
 
-        var levelName = Path.GetFileName(levelDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         var manifest = new RetePackageManifest
         {
             Schema = ReteManifestSchema,
-            PackageRole = "level",
-            LevelName = levelName,
-            SourceDirectoryName = Path.GetFileName(levelDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+            PackageRole = packageRole,
+            LevelName = packageName,
+            SourceDirectoryName = Path.GetFileName(sourceDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
         };
 
         var handledFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var files = Directory.GetFiles(levelDir).OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase).ToList();
-        var semanticContext = TryBuildSemanticContext(levelDir, levelName);
+        var files = Directory.GetFiles(sourceDir)
+            .Where(includeFile)
+            .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var semanticContext = TryBuildSemanticContext(sourceDir, packageName);
         var sceneNodePaths = WriteSceneSourceTree(outputDir, semanticContext);
 
         foreach (var snaPath in files.Where(f => Path.GetExtension(f).Equals(".sna", StringComparison.OrdinalIgnoreCase)))
@@ -80,10 +96,97 @@ internal static class OpenSpacePackageCodec
             manifest.LooseFiles.Add(CopyLooseFile(file, outputDir));
         }
 
-        manifest.Semantic = WriteSemanticMetadata(levelName, outputDir, semanticContext);
+        manifest.Semantic = WriteSemanticMetadata(packageName, outputDir, semanticContext);
 
         WriteJson(Path.Combine(outputDir, ManifestFileName), manifest);
         return manifest;
+    }
+
+    private static string? ImportSiblingFixPackageIfAvailable(string levelDir, string levelOutputDir)
+    {
+        var levelsDir = Directory.GetParent(Path.GetFullPath(levelDir))?.FullName;
+        if (levelsDir == null || FindFile(levelsDir, "Fix.sna") == null)
+        {
+            return null;
+        }
+
+        var outputParent = Directory.GetParent(Path.GetFullPath(levelOutputDir))?.FullName;
+        if (outputParent == null)
+        {
+            return null;
+        }
+
+        var fixOutputDir = Path.Combine(outputParent, "fix");
+        if (Path.GetFullPath(fixOutputDir).Equals(Path.GetFullPath(levelOutputDir), StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var fixManifestPath = Path.Combine(fixOutputDir, ManifestFileName);
+        if (!File.Exists(fixManifestPath))
+        {
+            ImportPackage(levelsDir, "Fix", fixOutputDir, "fix", IsFixFile);
+        }
+
+        RewritePointerReferences(fixOutputDir, null);
+        return fixOutputDir;
+    }
+
+    private static bool IsFixFile(string filePath)
+    {
+        var fileName = Path.GetFileName(filePath);
+        return fileName.StartsWith("Fix.", StringComparison.OrdinalIgnoreCase) ||
+            fileName.Equals("fix.cnt", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void RewritePointerReferences(string packageDir, string? extraPackageDir)
+    {
+        var manifestPath = Path.Combine(packageDir, ManifestFileName);
+        if (!File.Exists(manifestPath))
+        {
+            return;
+        }
+
+        var resolver = new ReferenceAddressResolver(packageDir);
+        if (!string.IsNullOrWhiteSpace(extraPackageDir))
+        {
+            resolver.LoadPackage(extraPackageDir);
+        }
+
+        var manifest = ReadJson<RetePackageManifest>(manifestPath);
+        foreach (var snaFile in manifest.SnaFiles)
+        {
+            foreach (var block in snaFile.Blocks)
+            {
+                if (block.ContentPath == null)
+                {
+                    continue;
+                }
+
+                var content = ReadJson<SnaBlockContentDocument>(ResolvePath(packageDir, block.ContentPath));
+                foreach (var element in content.Elements)
+                {
+                    if (!StructCodecRegistry.TryGet(element.Kind, out var codec) ||
+                        codec.PointerFields.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    var elementPath = ReferenceUri.Resolve(packageDir, element.DataPath).FilePath;
+                    if (!elementPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ||
+                        !File.Exists(elementPath))
+                    {
+                        continue;
+                    }
+
+                    ReferenceJson.RewritePointersToUris(
+                        elementPath,
+                        packageDir,
+                        codec.PointerFields,
+                        resolver);
+                }
+            }
+        }
     }
 
     public static void ExportLevel(string packageDir, string outputDir)
@@ -101,10 +204,11 @@ internal static class OpenSpacePackageCodec
         }
 
         Directory.CreateDirectory(outputDir);
+        var referenceResolver = new ReferenceAddressResolver(packageDir);
 
         foreach (var snaFile in manifest.SnaFiles)
         {
-            CompileSnaFile(packageDir, snaFile, Path.Combine(outputDir, snaFile.FileName));
+            CompileSnaFile(packageDir, snaFile, Path.Combine(outputDir, snaFile.FileName), referenceResolver);
         }
 
         foreach (var table in manifest.RelocationTables)
@@ -264,6 +368,10 @@ internal static class OpenSpacePackageCodec
                 Order = document.Elements.Count,
                 Kind = plan.Kind,
                 DataPath = dataPath,
+                OffsetInBlock = plan.Start,
+                Length = plan.Length,
+                VirtualAddress = block.BaseInMemory + plan.Start,
+                VirtualAddressHex = ToHex(block.BaseInMemory + plan.Start),
                 Sha256 = HashBytes(emittedBytes),
                 Labels = plan.Labels
             });
@@ -652,7 +760,11 @@ internal static class OpenSpacePackageCodec
         };
     }
 
-    private static void CompileSnaFile(string intermediateDir, SnaFileManifest manifest, string outputPath)
+    private static void CompileSnaFile(
+        string intermediateDir,
+        SnaFileManifest manifest,
+        string outputPath,
+        ReferenceAddressResolver referenceResolver)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
 
@@ -671,7 +783,7 @@ internal static class OpenSpacePackageCodec
             byte[] data = [];
             if (block.HasPayload)
             {
-                data = ReadSnaBlockData(intermediateDir, block);
+                data = ReadSnaBlockData(intermediateDir, block, referenceResolver);
             }
 
             var size = block.HasPayload ? checked((uint)data.Length) : 0u;
@@ -709,7 +821,10 @@ internal static class OpenSpacePackageCodec
         }
     }
 
-    private static byte[] ReadSnaBlockData(string intermediateDir, SnaBlockManifest block)
+    private static byte[] ReadSnaBlockData(
+        string intermediateDir,
+        SnaBlockManifest block,
+        ReferenceAddressResolver referenceResolver)
     {
         if (block.ContentPath != null)
         {
@@ -729,7 +844,7 @@ internal static class OpenSpacePackageCodec
             foreach (var element in document.Elements.OrderBy(s => s.Order))
             {
                 var data = StructCodecRegistry.TryGet(element.Kind, out _)
-                    ? StructCodecRegistry.ReadElementBytes(intermediateDir, element.DataPath, element.Kind)
+                    ? ReadStructuredElementBytes(intermediateDir, element, referenceResolver)
                     : File.ReadAllBytes(ResolvePath(intermediateDir, element.DataPath));
 
                 stream.Write(data);
@@ -744,6 +859,32 @@ internal static class OpenSpacePackageCodec
         }
 
         throw new InvalidDataException($"SNA block {block.Key} is missing content and data paths.");
+    }
+
+    private static byte[] ReadStructuredElementBytes(
+        string packageDir,
+        SnaBlockContentElement element,
+        ReferenceAddressResolver referenceResolver)
+    {
+        if (!StructCodecRegistry.TryGet(element.Kind, out var codec))
+        {
+            return File.ReadAllBytes(ResolvePath(packageDir, element.DataPath));
+        }
+
+        var elementPath = ReferenceUri.Resolve(packageDir, element.DataPath).FilePath;
+        if (!elementPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+        {
+            return File.ReadAllBytes(elementPath);
+        }
+
+        using var document = JsonDocument.Parse(File.ReadAllText(elementPath));
+        using var resolvedDocument = ReferenceJson.ResolvePointersForExport(
+            document.RootElement,
+            packageDir,
+            codec.PointerFields,
+            referenceResolver);
+
+        return codec.WriteFromJsonElement(resolvedDocument.RootElement);
     }
 
     private static uint GetMaxPosMinus9(SnaBlockManifest block, uint size)

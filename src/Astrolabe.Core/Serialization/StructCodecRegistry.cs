@@ -5,9 +5,12 @@ namespace Astrolabe.Core.Serialization;
 public interface IStructCodecBinding
 {
     string Kind { get; }
+    int? FixedSize { get; }
+    IReadOnlyList<PointerField> PointerFields { get; }
 
     object ReadFromBytes(ReadOnlySpan<byte> data, int offset, int length);
     byte[] WriteFromObject(object value);
+    byte[] WriteFromJsonElement(JsonElement json);
     byte[] WriteFromJsonPath(string jsonPath);
     void WriteJson(string jsonPath, object value);
 }
@@ -22,6 +25,8 @@ internal sealed class StructCodecBinding<T> : IStructCodecBinding
     }
 
     public string Kind => _codec.Kind;
+    public int? FixedSize => _codec.FixedSize;
+    public IReadOnlyList<PointerField> PointerFields => _codec.PointerFields;
 
     public object ReadFromBytes(ReadOnlySpan<byte> data, int offset, int length) =>
         _codec.Read(data, offset, length)!;
@@ -29,10 +34,13 @@ internal sealed class StructCodecBinding<T> : IStructCodecBinding
     public byte[] WriteFromObject(object value) =>
         _codec.Write((T)value);
 
+    public byte[] WriteFromJsonElement(JsonElement json) =>
+        _codec.Write(_codec.FromJson(json));
+
     public byte[] WriteFromJsonPath(string jsonPath)
     {
         using var document = JsonDocument.Parse(File.ReadAllText(jsonPath));
-        return _codec.Write(_codec.FromJson(document.RootElement));
+        return WriteFromJsonElement(document.RootElement);
     }
 
     public void WriteJson(string jsonPath, object value)

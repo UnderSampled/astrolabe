@@ -13,18 +13,21 @@ Rete is the canonical level representation. OpenSpace level dirs and Godot proje
 
 **Acceptance test:** unedited Rete → OpenSpace export → `cmp` every file in the source level directory. No engine runtime.
 
-## Current code (transition)
+## Current code (transition, after Step 4)
 
-| Today | Role | Target |
-|-------|------|--------|
-| `src/Astrolabe.Core/Intermediate/LevelIntermediateCodec.cs` | Import/export monolith (~1.5k lines) | Split into `Rete/` + `Serialization/` |
-| `src/Astrolabe.Core/Intermediate/LevelIntermediateModels.cs` | Parallel DTOs (`Intermediate*`) | Merge into `FileFormats/` canonical types |
-| `src/Astrolabe.Core/Intermediate/OpenSpaceChecksum.cs` | Checksum helper | `Rete/OpenSpace/` or `FileFormats/` |
-| `extract-intermediate` / `compile-intermediate` CLI | Works today | Aliases → `import-openspace` / `export-openspace` |
-| `FileFormats/*Reader` | Read-only, drops unknowns | Thin wrappers over struct codecs |
+| Current | Role | Remaining target |
+|---------|------|------------------|
+| `src/Astrolabe.Core/Rete/OpenSpacePackageCodec.cs` | Import/export bridge for Rete packages, sibling Fix import, URI rewrite/export resolution | Split further as pipeline pieces mature |
+| `src/Astrolabe.Core/Rete/ReferenceUri.cs` | Relative URI parse/resolve helper | Keep as shared URI primitive |
+| `src/Astrolabe.Core/Rete/ReferenceAddressResolver.cs` | Builds package address indexes from `content.json`; resolves URI ↔ virtual address | Feed relocation generation/layout |
+| `src/Astrolabe.Core/Rete/ReferenceJson.cs` | Rewrites promoted JSON pointer fields to URI/null on import and back to int addresses on export | Remove numeric fallback once all pointer fields are URI-backed |
+| `src/Astrolabe.Core/Rete/RetePackageModels.cs` | Manifest/content models; content elements include offsets, lengths, and virtual addresses | Drop preserved relocation models after Step 5 |
+| `src/Astrolabe.Core/Serialization/Codecs/*` | Registered codecs for the promoted Step 2 kinds | Keep expanding per checklist |
+| `extract-intermediate` / `compile-intermediate` CLI | Still the active transition commands | Aliases → `import-openspace` / `export-openspace` |
+| `FileFormats/*Reader` | Read-only scanners/readers used for semantic discovery | Thin wrappers over struct codecs where practical |
 | `FileFormats/Godot/*` | Export from memory scan | Also consume canonical types / Rete URIs |
 
-Manifest schema today: `astrolabe.level-intermediate.v1`. Target: `astrolabe.rete.v1` (accept both during transition). Struct schemas (`astrolabe.visual-material.v1`, etc.) stay unchanged.
+New imports emit manifest schema `astrolabe.rete.v1` and accept both `astrolabe.rete.v1` and legacy `astrolabe.level-intermediate.v1` during transition. Struct schemas (`astrolabe.visual-material.v1`, etc.) stay unchanged.
 
 Relocation tables are still preserved on import/export today. Target: generated at OpenSpace export only; not stored in Rete.
 
@@ -45,6 +48,8 @@ src/Astrolabe.Core/
     OpenSpaceExporter.cs      # was CompileLevel
     SnaBlockSegmenter.cs
     ReferenceUri.cs           # parse/resolve relative URIs + #fragment
+    ReferenceAddressResolver.cs
+    ReferenceJson.cs
     RetePackageModels.cs      # manifest models
     OpenSpace/
       OpenSpaceChecksum.cs
@@ -89,6 +94,7 @@ Registry drives import element extract and export element serialize — **no gro
 - Resolved from the **referring package root** (relative path + optional `#` RFC 6901 fragment).
 - Import emits `../fix/...` when the converter writes Fix at `output/fix/` and the level at `output/{level}/` in the same pass.
 - Resolver: `Path.GetFullPath(Path.Combine(packageRoot, relativePath))` after splitting `#`.
+- Current Step 4 bridge rewrites promoted pointer fields to URI strings when the raw address maps to a package content element. `0` becomes `null`. Unresolved sentinel values and unpromoted pointer-like fields remain numeric to preserve byte-identical export.
 
 ```csharp
 // ReferenceUri.cs
@@ -97,15 +103,16 @@ public static bool TryResolve(string packageRoot, string uri, out string filePat
 
 ## Import behavior (Fix)
 
-Single `import-openspace <level-dir> <output-parent>` pass:
+Current transition command: `extract-intermediate <level-dir> <level-package-dir>`.
 
-1. Ensure `<output-parent>/fix/` exists; import Fix from `Gamedata/World/Levels/Fix.*` if missing or `--refresh-fix`.
-2. Import level into `<output-parent>/{levelName}/`.
-3. Merge Fix + level VM for pointer resolution during segmentation.
-4. Write only level-owned elements into the level package.
-5. Emit reference URIs to Fix targets as `../fix/...` relative to the level package.
+When `Fix.*` exists in the parent `Gamedata/World/Levels/` directory:
 
-Do not duplicate Fix elements into level packages. Subsequent level imports into the same output parent reuse `fix/`.
+1. Import/reuse sibling `<output-parent>/fix/`, where `<output-parent>` is the parent of `<level-package-dir>`.
+2. Import the level into `<level-package-dir>`.
+3. Build address indexes for the level and Fix packages from their `content.json` element offsets/virtual addresses.
+4. Rewrite promoted pointer JSON fields to relative URIs (`types/...`, `scene/...`, or `../fix/...` when resolvable).
+
+Do not duplicate Fix elements into level packages. Subsequent level imports into the same output parent reuse `fix/`. There is not yet a `--refresh-fix` option.
 
 ## OpenSpace export pipeline
 
@@ -115,7 +122,7 @@ Do not duplicate Fix elements into level packages. Subsequent level imports into
 4. **RelocationGenerator** → `.rtb`, `fixlvl.rtb`, `.rtp`, `.rtt`, … (phase 4).
 5. Encode SNA; copy `files/` sidecars.
 
-Until step 4 is done, keep reading preserved RT* from import as a bridge (current behavior).
+Until Step 5 is done, keep reading preserved RT* from import as a bridge (current behavior).
 
 ## Promoted types (migrate to codecs first)
 
@@ -146,6 +153,16 @@ Sequential work units are defined in [`plan.md`](../plan.md#implementation-steps
 | 5 | `RelocationGenerator`; drop preserved RT* from packages |
 | 6 | CLI aliases; Godot export from Rete |
 | 7 | Checklist backlog — per-type codec + pointer metadata |
+
+Progress as of 2026-06-13:
+
+- Steps 1-4 are complete on `astrolabe`, preserving byte-identical OpenSpace export.
+- Level import now creates/reuses sibling `fix/` and Fix export validates independently against `Fix.*` plus `fix.cnt`.
+- Promoted structured pointer fields are URI/null on import and resolved back to virtual addresses on export.
+- Relocation JSON and preserved encoded RT payloads remain in packages as the bridge for Step 5.
+- The `astrolabe` fixture did not emit `../fix/...` in promoted structured JSON yet; cross-Fix links are likely still inside opaque leaves pending Step 7 promotions.
+
+Next agent should start Step 5 with the existing bridge intact: generate RTB first from content layout + codec `PointerFields`, compare generated RT files against preserved originals, then phase out relocation storage only after `cmp` passes.
 
 ## Verification (every step)
 

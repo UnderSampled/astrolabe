@@ -96,6 +96,8 @@ Current commands `extract-intermediate` and `compile-intermediate` map to import
 
 The refactor proceeds as **sequential steps** on one branch — not as separate pull requests. Finish each step, pass the byte-identical verification gate (see [`notes/rete-implementation.md`](notes/rete-implementation.md)), then move on. Code map and API contracts live in that guide.
 
+**Progress:** Steps 1-4 are complete as of 2026-06-13. Step 5, relocation generation, is next; preserved relocation files remain in Rete packages as the export bridge.
+
 ### Step 1 — Serialization scaffold (no behavior change)
 
 - Add `Astrolabe.Core/Serialization/`: `IStructCodec<T>`, `BinaryPrimitives`, `StructCodecRegistry`.

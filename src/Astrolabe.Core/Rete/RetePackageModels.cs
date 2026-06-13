@@ -56,6 +56,10 @@ public sealed class SnaBlockContentElement
     public int Order { get; set; }
     public string Kind { get; set; } = "";
     public string DataPath { get; set; } = "";
+    public int OffsetInBlock { get; set; }
+    public int Length { get; set; }
+    public int VirtualAddress { get; set; }
+    public string VirtualAddressHex { get; set; } = "";
     public string Sha256 { get; set; } = "";
     public List<string> Labels { get; set; } = new();
 }
