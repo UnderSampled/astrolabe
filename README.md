@@ -66,19 +66,19 @@ Inspect mesh candidates before export:
 astrolabe meshes ./disc/Gamedata/World/Levels/castle_village
 ```
 
-Extract a reversible intermediate level package:
+Import an OpenSpace level into a **Rete** package:
 
 ```bash
-astrolabe extract-intermediate ./disc/Gamedata/World/Levels/castle_village ./output/castle_village.intermediate
+astrolabe extract-intermediate ./disc/Gamedata/World/Levels/castle_village ./output/castle_village.rete
 ```
 
-Compile that package back to OpenSpace level files:
+Export back to OpenSpace level files:
 
 ```bash
-astrolabe compile-intermediate ./output/castle_village.intermediate ./output/castle_village.rebuilt
+astrolabe compile-intermediate ./output/castle_village.rete ./output/castle_village.rebuilt
 ```
 
-The intermediate package keeps the scene as native folders with `node.json` files, SNA payloads as ordered content manifests with typed JSON elements and raw binary siblings, relocation tables as JSON plus preserved encoded leaves, and loose level files as exact binary leaves. If content is unchanged, compilation reuses the original encoded payloads for byte-identical output. If editable content or relocation data changes, Astrolabe writes an uncompressed replacement block with updated OpenSpace checksums.
+Rete is Astrolabe's canonical level representation — a JSON reference network over binary payloads, named for the rete plate on a historical astrolabe. OpenSpace level directories and Godot projects are export targets. The acceptance test for OpenSpace export is byte-identical `cmp` against the source on unedited packages. See [`docs/rete-format.md`](docs/rete-format.md) and [`plan.md`](plan.md).
 
 Generate a Godot project with native scene and mesh resources:
 
@@ -101,8 +101,8 @@ The Godot export writes:
 | `list <source>` | List files in a mounted or extracted directory. |
 | `extract <source> [output]` | Convert supported assets to PNG/WAV. |
 | `extract <source> [output] --raw` | Copy raw files from one directory source to another. |
-| `extract-intermediate <level-dir> [output-dir]` | Extract a reversible intermediate level package. |
-| `compile-intermediate <intermediate-dir> [output-dir]` | Compile an intermediate level package back to OpenSpace files. |
+| `extract-intermediate <level-dir> [output-dir]` | Import OpenSpace level → Rete package (`import-openspace`). |
+| `compile-intermediate <rete-dir> [output-dir]` | Export Rete package → OpenSpace level (`export-openspace`). |
 | `textures <cnt-path> [output-dir]` | Extract textures from a CNT container. |
 | `cnt <cnt-path>` | Print CNT container metadata and sample entries. |
 | `audio <apm-path\|bnm-path\|directory> [output]` | Convert APM files or extract BNM sound banks to WAV. |
@@ -136,7 +136,7 @@ Level loading can also use shared `Fix.sna`, `Fix.rtb`, `Fix.ptx`, and `fixlvl.r
 astrolabe/
 ├── src/
 │   ├── Astrolabe.Cli/           # Command-line interface
-│   └── Astrolabe.Core/          # OpenSpace readers, intermediate types, exporters
+│   └── Astrolabe.Core/          # OpenSpace readers, Rete codecs, exporters
 ├── docs/                        # OpenSpace, Hype, and Astrolabe file format documentation
 ├── notes/                       # Development notes and implementation checklists
 ├── lib/                         # Build-time dependency submodules
@@ -169,9 +169,9 @@ astrolabe/
 | `.bnm` | Sound bank containing audio entries. |
 | `.sda` | Sound data. |
 
-See `docs/` for documentation on CNT, GF, SNA, geometry, relocation tables, lighting, Perso meshes/animation, AI scripts, the intermediate package format, and the broader file catalogue.
+See `docs/` for documentation on CNT, GF, SNA, geometry, relocation tables, lighting, Perso meshes/animation, AI scripts, the Rete format, and the broader file catalogue.
 
-The reversible intermediate package format is documented in `docs/intermediate-format.md`. Current intermediate implementation status and type-promotion work are tracked in `notes/intermediate-type-checklist.md`.
+The Rete format is specified in `docs/rete-format.md`. Architecture and implementation phases are in `plan.md`. Type promotion progress is tracked in `notes/intermediate-type-checklist.md`.
 
 ## References
 

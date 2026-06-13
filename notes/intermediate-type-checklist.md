@@ -1,8 +1,8 @@
-# Intermediate Type Checklist
+# Rete Type Promotion Checklist
 
-This is an implementation checklist for the native-filesystem intermediate package. It is intentionally kept outside `docs/`, which is reserved for file-format documentation.
+Implementation checklist for promoting OpenSpace structs into Rete canonical types. Read [`notes/rete-implementation.md`](rete-implementation.md) first. Format: [`docs/rete-format.md`](../docs/rete-format.md). Plan: [`plan.md`](../plan.md).
 
-Checked items are represented as intermediate content elements and compile back through the intermediate compiler. Some checked kinds are structured JSON; others are named binary leaves that still need field-level schemas.
+Checked items are represented as Rete content elements and export through struct codecs. Some checked kinds are structured JSON; others are named binary leaves that still need field-level schemas.
 
 ## Next Agent Goal
 
@@ -10,15 +10,15 @@ Flesh out every type that is documented in `docs/` but still emitted as a named 
 
 Definition of done for each promoted type:
 
-- [ ] Add a schema model in `src/Astrolabe.Core/Intermediate/LevelIntermediateModels.cs`.
-- [ ] Add extraction and serialization in `src/Astrolabe.Core/Intermediate/LevelIntermediateCodec.cs`.
+- [ ] Add canonical type fields in `src/Astrolabe.Core/FileFormats/`.
+- [ ] Add struct codec in `src/Astrolabe.Core/Serialization/` with pointer metadata.
 - [ ] Preserve every byte needed for byte-perfect compilation, but do not depend on original file offsets or original element lengths for normal rebuilds.
 - [ ] Use JSON as metadata/control structure, not as the default representation for dense numeric or byte buffers.
 - [ ] For dense arrays, emit a JSON descriptor plus a binary payload leaf.
 - [ ] For AI scripts and behavior ASTs, emit S-expression source as the meaningful editable representation.
-- [ ] Represent pointers as numeric virtual addresses plus useful linked paths/names when the current parsers can resolve them.
+- [ ] Represent pointers as one-line reference URIs (`file.json`, `doc.json#/key`, `../fix/types/...`); virtual addresses are derived at OpenSpace export.
 - [ ] Preserve unknown fields as explicitly named `unknown*` fields, typed integers/floats where their width is known, or Base64 only when the internal shape is not known yet.
-- [ ] Keep the unedited `extract-intermediate` -> `compile-intermediate` round trip byte-identical.
+- [ ] Keep the unedited import -> export-openspace round trip byte-identical (`cmp` every level file).
 - [ ] Add at least one changed-content smoke check for the promoted type where a safe scalar edit changes the rebuilt SNA.
 
 ## Package Shape Direction
@@ -175,7 +175,7 @@ References: `docs/geometry-format.md`, `docs/lighting.md`, `src/Astrolabe.Core/F
 - [x] `geometricobject` structured JSON exists.
 - [x] `physicalobject` structured JSON exists.
 - [x] `gamematerial` structured JSON exists.
-- [ ] `visualmaterial`: flags, texture pointer/index data, material coefficients, transparency/lighting fields, unknown fields.
+- [x] `visualmaterial`: flags, texture pointer/index data, material coefficients, transparency/lighting fields, unknown fields.
 - [ ] `visualset`: visual material/geometric object grouping and object references.
 - [ ] `elementtypes`: typed element table with sprite/triangle element kind values.
 - [ ] `elementtriangles`: triangle-element header, counts, pointer fields, material references.
@@ -266,6 +266,7 @@ References: `docs/file-format-catalogue.md`, `src/Astrolabe.Core/FileFormats/Tra
 - [x] Editing `scene/.../node.json` changes the rebuilt SNA.
 - [x] Editing `scene/.../matrix.json` changes the rebuilt SNA.
 - [x] Editing `types/vertices/*.json` changes the rebuilt SNA.
+- [x] Editing `types/visualmaterial/*.json` changes the rebuilt SNA.
 
 ## Verification Commands
 

@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Astrolabe reads and converts game data from **Hype: The Time Quest** (1999) into Godot-oriented project assets and inspection formats. The game uses the OpenSpace Montreal engine (shared with Rayman 2 and Tonic Trouble).
+Astrolabe reads and converts game data from **Hype: The Time Quest** (1999) into **Rete** (canonical level representation), OpenSpace level files, and Godot project assets. The game uses the OpenSpace Montreal engine (shared with Rayman 2 and Tonic Trouble).
+
+**Rete refactor:** read [`plan.md`](plan.md), [`docs/rete-format.md`](docs/rete-format.md), [`notes/rete-implementation.md`](notes/rete-implementation.md) before changing import/export architecture.
 
 ## Build Commands
 
@@ -37,14 +39,18 @@ dotnet run --project src/Astrolabe.Cli -- byte-tree ./disc/Gamedata/World/Levels
   - `FileFormats/Godot/` - TSCN scene and ArrayMesh resource generation
   - `FileFormats/Materials/` - Visual/game material parsing
   - `FileFormats/AI/` - AI script parsing and S-expression conversion
+  - `Intermediate/` (→ `Rete/`) - Rete package import/export; becoming `Serialization/` + `Rete/`
 
 ### Data Pipeline
 
 ```
-mounted disc/extracted files → Extract → PNG textures, WAV audio (./output)
-                             → Extract --raw → SNA/GPT/PTX/RTB files (./disc) → Load Level → Export Godot TSCN/ArrayMesh
-                                                                               → Load Level → tree / byte-tree (analysis)
+disc files → import-openspace → Rete package (JSON + bin)
+          → export-openspace → OpenSpace level dir (cmp-validated)
+          → export-godot     → Godot project
+          → extract          → PNG/WAV assets
 ```
+
+CLI today: `extract-intermediate` / `compile-intermediate` (becoming `import-openspace` / `export-openspace`).
 
 ### Key Classes
 
@@ -78,7 +84,7 @@ OpenSpace uses virtual memory addresses resolved via relocation tables. The RTB 
 
 ### Fix Data
 
-Shared data (characters like Hype, common textures) lives in `Fix.sna`/`Fix.rtb` at `Gamedata/World/Levels/`. The `fixlvl.rtb` relocation table links level data to Fix data. LevelLoader merges Fix blocks so that cross-references (e.g. a level's spawnable perso pointing into Fix for its mesh) resolve correctly.
+Shared data (characters like Hype, common textures) lives in `Fix.sna`/`Fix.rtb` at `Gamedata/World/Levels/`. The `fixlvl.rtb` relocation table links level data to Fix data. On Rete import, Fix is extracted once to `output/fix/` alongside `output/{level}/`; level records reference Fix via relative URIs (`../fix/...`). OpenSpace export regenerates relocation tables (target); they are not stored in Rete packages.
 
 ## Dependencies
 
