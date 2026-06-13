@@ -17,6 +17,8 @@ class Program
         return command switch
         {
             "extract" => ExtractCommand.Run(args[1..]),
+            "extract-intermediate" => ExtractIntermediateCommand.Run(args[1..]),
+            "compile-intermediate" => CompileIntermediateCommand.Run(args[1..]),
             "list" => ListCommand.Run(args[1..]),
             "textures" => TexturesCommand.Run(args[1..]),
             "cnt" => CntCommand.Run(args[1..]),
@@ -60,6 +62,8 @@ class Program
 
             Commands:
                 extract <source> [output]          Extract and convert assets (PNG/WAV)
+                extract-intermediate <level> [out] Extract a reversible intermediate level package
+                compile-intermediate <dir> [out]   Compile an intermediate package back to level files
                 list <source>                      List files in a directory
                 textures <cnt-path> [output-dir]   Extract textures from CNT container
                 cnt <cnt-path>                     List files in CNT container

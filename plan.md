@@ -1,25 +1,31 @@
-Okay, Here is the project: We're going to make tools to import game data (3D models, maps, etc.) from the 1990s game "Hype: the Time Quest" into Godot. We will use C# to generate intermediate OpenSpace data, Godot scene files for maps, Godot-native mesh resources, and GDScript for interactions where needed.
+# Astrolabe Plan
 
-The game was made by Ubisoft for Brandstätter Group (who makes Playmobil), under the name 'Playmobil Interactive'. It used the game engine from "Tonic Trouble" and Rayman 2, OpenSpace. The single most important resource we have available to us is Raymap, made by the Rayman Community, which is able to read much of the date (maps, models, state graphs, etc.) as a library for Unity, and display it in that engine. The code for that is here: https://github.com/byvar/raymap. I have imported it as a git submodule to reference it during development, located at /reference/raymap.
+Astrolabe imports data from *Hype: The Time Quest* into inspection formats and Godot-oriented project assets. The project should stay focused on a clean C# core library, a practical CLI, and output that can eventually power a Godot recreation or compatible engine.
 
-Raymap has a dependency on https://github.com/BinarySerializer/BinarySerializer.OpenSpace (and https://github.com/BinarySerializer/BinarySerializer). We should also be able to use these libraries, and any others Raymap uses. Much of it's code can also be reused, though it is important that no Unity-specific code is added to this project.
+The game uses Ubisoft's OpenSpace Montreal engine, shared with *Rayman 2* and *Tonic Trouble*. Raymap, BinarySerializer.OpenSpace, OpenSpaceToolbox, and the other checked-in reference projects are the main research sources. Reference code is useful, but `Astrolabe.Core` should remain independent of Unity.
 
 ## Game Files
 
-Due to copyright concerns, any user will have to bring their own copy of the original game in order to use any of the assets. Astrolabe should work from a mounted ISO directory or pre-extracted files, then convert from there.
+Users must provide their own legally obtained copy of the game. Astrolabe should continue to work from either a mounted disc directory or pre-extracted raw files.
 
-Use a mounted or pre-extracted copy of the Hype disc for local testing.
+Local testing currently uses the raw disc copy under `disc/`, especially `disc/Gamedata/World/Levels/astrolabe`.
 
-## First task
+## Current Direction
 
-Let's start by editing the README, and setting up the basic project structure. Set it up so I can point the tool at mounted or pre-extracted files; we'll move on from there to porting Raymap concepts and importing meshes with textures. The last step (both in development, and for the actions the tool takes) will then be to generate the Godot scene files and capture the state graphs and interactions -- this will be a todo item for now.
+The main development focus is the reversible native-filesystem intermediate package for OpenSpace level data.
 
-Think ahead for what architecture makes sense so that we will be able to easily review code, fix bugs, and package an "installer" that anyone can use to extract the data needed to run the game in whichever Godot-based engine someone might make using the extracted data.
+The intermediate package should make level data increasingly meaningful as normal files and folders. JSON should describe structure, relationships, pointers, names, and buffer formats. Binary files should remain available for dense arrays, preserved payloads, and genuinely unknown spans. Compilation must remain byte-perfect for unedited packages while being driven by the intermediate content rather than by original byte positions.
 
-## Second task
+Implementation details and promotion checklists live under `notes/`. Stable package and file-format documentation lives under `docs/`.
 
-Read through the raymap code and write professional-quality documentation for each of the file formats we will expect to see in the game files. I imagine this would be things like the asset archive format, the mesh format, scene description format, etc. 
+## Near-Term Work
 
-## Third Task
+Start by reading `README.md`, `docs/intermediate-format.md`, and `notes/intermediate-type-checklist.md` to recover the current command surface, package format, and implementation checklist.
 
-Implement the conversion tool up to the point where extracted meshes are written as Godot-native mesh resources and load in a generated Godot project. You have succeeded once the mesh and texture data are visible in Godot from the generated project.
+Finish promoting documented intermediate leaves into structured JSON, JSON-described binary buffers, and S-expression ASTs for AI scripts and behavior trees. Start with geometry/material data, then Perso/family/object-list data, animation/state machines, AI/script/DSG data, and sectors/collision.
+
+Each promotion should preserve reversible compilation, expose useful names and pointers where possible, and keep unknown fields explicit instead of hiding documented structures in opaque blobs. Avoid exploding the package into thousands of tiny JSON files when a larger hierarchical JSON document can describe the same structure clearly.
+
+## Later Work
+
+Once the intermediate package has enough semantic coverage, use it as the source layer for Godot export. The Godot side should generate scene trees, mesh resources, materials, animations, scripts/interactions where practical, and enough metadata to keep improving the conversion without losing reversibility.

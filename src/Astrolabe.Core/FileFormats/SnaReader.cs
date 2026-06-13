@@ -60,8 +60,9 @@ public class SnaReader
 
         if (block.BaseInMemory == -1)
         {
-            // Block not loaded, skip to next
-            return null;
+            // Block not loaded. It still belongs to the container and must be
+            // preserved by reversible intermediate exports.
+            return block;
         }
 
         block.Unk2 = reader.ReadUInt32();
@@ -78,9 +79,7 @@ public class SnaReader
             block.DecompressedSize = reader.ReadUInt32();
             block.DecompressedChecksum = reader.ReadUInt32();
 
-            block.FileOffset = reader.BaseStream.Position;
-
-            if (block.CompressedSize > 0 && block.CompressedSize < reader.BaseStream.Length - reader.BaseStream.Position)
+            if (block.CompressedSize > 0 && block.CompressedSize <= reader.BaseStream.Length - reader.BaseStream.Position)
             {
                 block.CompressedData = reader.ReadBytes((int)block.CompressedSize);
 
@@ -211,7 +210,6 @@ public class SnaBlock
     public uint CompressedChecksum { get; set; }
     public uint DecompressedSize { get; set; }
     public uint DecompressedChecksum { get; set; }
-    public long FileOffset { get; set; }
     public byte[]? CompressedData { get; set; }
     public byte[]? Data { get; set; }
 

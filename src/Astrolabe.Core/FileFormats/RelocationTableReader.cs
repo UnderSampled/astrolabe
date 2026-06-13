@@ -35,6 +35,7 @@ public class RelocationTableReader
         {
             var block = new RelocationPointerBlock
             {
+                HeaderOffset = reader.BaseStream.Position,
                 Module = reader.ReadByte(),
                 Id = reader.ReadByte(),
                 Count = reader.ReadUInt32()
@@ -43,28 +44,32 @@ public class RelocationTableReader
             if (block.Count > 0)
             {
                 // Montreal uses compression for pointer blocks
-                uint isCompressed = reader.ReadUInt32();
-                uint compressedSize = reader.ReadUInt32();
-                uint compressedChecksum = reader.ReadUInt32();
-                uint decompressedSize = reader.ReadUInt32();
-                uint decompressedChecksum = reader.ReadUInt32();
+                block.IsCompressed = reader.ReadUInt32() != 0;
+                block.CompressedSize = reader.ReadUInt32();
+                block.CompressedChecksum = reader.ReadUInt32();
+                block.DecompressedSize = reader.ReadUInt32();
+                block.DecompressedChecksum = reader.ReadUInt32();
 
-                if (compressedSize > reader.BaseStream.Length - reader.BaseStream.Position)
+                if (block.CompressedSize > reader.BaseStream.Length - reader.BaseStream.Position)
                 {
                     break;
                 }
 
-                byte[] compressedData = reader.ReadBytes((int)compressedSize);
+                block.EncodedDataOffset = reader.BaseStream.Position;
+                block.CompressedData = reader.ReadBytes((int)block.CompressedSize);
 
                 byte[] pointerData;
-                if (isCompressed != 0)
+                if (block.IsCompressed)
                 {
-                    pointerData = DecompressLzo(compressedData, (int)decompressedSize);
+                    pointerData = DecompressLzo(block.CompressedData, (int)block.DecompressedSize);
                 }
                 else
                 {
-                    pointerData = compressedData;
+                    pointerData = block.CompressedData;
                 }
+
+                block.PointerData = pointerData;
+                block.EntrySize = GetPointerEntrySize(pointerData.Length, block.Count);
 
                 // Parse pointers from decompressed data
                 using var pointerReader = new BinaryReader(new MemoryStream(pointerData));
@@ -78,16 +83,43 @@ public class RelocationTableReader
                         TargetModule = pointerReader.ReadByte(),
                         TargetId = pointerReader.ReadByte()
                     };
-                    // Montreal uses 6-byte pointer entries (no extra 2 bytes like R2/R3)
+
+                    if (block.EntrySize >= 8)
+                    {
+                        block.Pointers[j].Byte6 = pointerReader.ReadByte();
+                        block.Pointers[j].Byte7 = pointerReader.ReadByte();
+                    }
+                }
+
+                var trailingLength = pointerData.Length - (int)(block.Count * block.EntrySize);
+                if (trailingLength > 0)
+                {
+                    block.TrailingData = pointerReader.ReadBytes(trailingLength);
                 }
             }
             else
             {
                 block.Pointers = [];
+                block.PointerData = [];
             }
 
             PointerBlocks.Add(block);
         }
+    }
+
+    private static int GetPointerEntrySize(int pointerDataLength, uint count)
+    {
+        if (count == 0)
+        {
+            return 0;
+        }
+
+        if (pointerDataLength >= count * 8)
+        {
+            return 8;
+        }
+
+        return 6;
     }
 
     private static byte[] DecompressLzo(byte[] compressedData, int decompressedSize)
@@ -156,6 +188,17 @@ public class RelocationPointerBlock
     public byte Id { get; set; }
     public uint Count { get; set; }
     public RelocationPointerInfo[] Pointers { get; set; } = [];
+    public bool IsCompressed { get; set; }
+    public uint CompressedSize { get; set; }
+    public uint CompressedChecksum { get; set; }
+    public uint DecompressedSize { get; set; }
+    public uint DecompressedChecksum { get; set; }
+    public byte[] CompressedData { get; set; } = [];
+    public byte[] PointerData { get; set; } = [];
+    public byte[] TrailingData { get; set; } = [];
+    public int EntrySize { get; set; }
+    public long HeaderOffset { get; set; }
+    public long EncodedDataOffset { get; set; }
 
     public ushort Key => (ushort)((Module << 8) | Id);
 }
@@ -179,6 +222,10 @@ public class RelocationPointerInfo
     /// Target block ID this pointer points to.
     /// </summary>
     public byte TargetId { get; set; }
+
+    public byte Byte6 { get; set; }
+
+    public byte Byte7 { get; set; }
 
     public ushort TargetKey => (ushort)((TargetModule << 8) | TargetId);
 }
