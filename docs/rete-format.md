@@ -223,7 +223,13 @@ Dense numeric or byte data uses a descriptor JSON plus a `.bin` buffer:
 
 Buffers are appropriate for vertices, normals, UVs, triangle indices, animation frames, collision vertices, and large opaque spans. AI script node arrays may remain as preservation buffers alongside S-expression source files.
 
-Opaque preservation records also use a JSON descriptor plus sidecar `.bin`, even for small blobs. When an opaque blob contains pointer fields that must survive export, the JSON descriptor carries a `pointers` map keyed by byte offset (`"0x10": "types/..."`, `null` for zero), and the exporter patches those addresses into the binary payload before SNA serialization.
+Opaque preservation records also use a JSON descriptor plus sidecar `.bin`, even for small blobs. When an opaque blob contains pointer fields that must survive export, the JSON descriptor carries a `pointers` map keyed by byte offset (`"0x10": "types/..."`, `null` for sentinel/zero), and the exporter patches those addresses into the binary payload before SNA serialization.
+
+Promoted struct JSON descriptors may carry the same optional top-level `pointers` map (same shape as opaque LUT). Import merges transient disc `.rtb` rows into this overlay (including padding/gap sites inside the element `length` from SNA metadata); `null` marks disc sentinel `FF:FF` rows. Export emits RTB rows from the overlay after codec `PointerFields` gap-fill. LUT-authoritative sites emit sentinel rows even when the preserved value is not in the VM band heuristic.
+
+### Compile-time relocation payload reuse
+
+When `compile-intermediate` generates relocation tables, it may **reuse source-disc compressed pointer blocks** when generated logical rows (offset + target) match the original disc table and pointer data bytes align. This opportunistic bridge requires `sourceDirectoryName` / disc availability via `TryResolveSourceRelocationPath`; it is **not** stored in Rete packages (no encoding cache). It enabled `astrolabe.rtt` byte-identical cmp when row sets match; `astrolabe.rtp` may still differ when reuse preconditions fail.
 
 ## Scene tree
 

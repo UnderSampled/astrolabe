@@ -109,11 +109,11 @@ A useful rule of thumb:
 
 ## Astrolabe / Rete implications
 
-**Import:** Preserved `fixlvl.rtb` is read alongside `Fix.rtb` when resolving cross-package pointers. Opaque pointer annotation from level RTB does not cover `fixlvl`; Fix-owned JSON uses separate import paths.
+**Import:** Transient disc `fixlvl.rtb` is read during level import. Mapped rows annotate Fix opaque LUT entries with `level:/slots/0x{fixSite:X8}.json` and copy the resolved level record into `slots/0x{fixSite:X8}.json`. Sentinel (`FF:FF`) rows record `null` URI in the Fix opaque LUT. No fixlvl site inventory is persisted in the Fix package. Fix.rtb import (on the Fix package) is separate and does not substitute for fixlvl site discovery.
 
-**Export:** `RelocationGenerator.GenerateFixLevelRtb` derives `fixlvl.rtb` by walking preserved `Fix.rtb`, reading each Fix pointer value, and emitting a row when the value falls outside Fix's allocated VM range. Mapped rows get the level block from layout; unmapped rows get `FF:FF`.
+**Export:** `RelocationGenerator.GenerateFixLevelRtb` scans Fix opaque elements for LUT entries with a `level:/` URI or `null` URI (fixlvl sentinel from import). Pointer values are read from raw `.bin` (`record.Data`). Mapped rows resolve via `level:/` URI or value fallback against level layout; unresolved rows (including in-VM disc sentinels) emit `FF:FF`. Escaping Fix pointers without a `level:/` URI also emit `FF:FF` when the value leaves the Fix VM range. Struct `PointerFields` are **not** scanned for fixlvl (`fix:/` and package-relative LUT entries from Fix.rtb are ignored).
 
-**Generator parity (Step 5, `astrolabe`):** `fixlvl.rtb` — ~1060 / 1117 matching with some missing/extra rows. Improving Fix-side struct coverage (the `0x15C` Fix records, spawnable linkage, and out-of-range `0x094Dxxxx` cases) should close the gap.
+**Generator parity (`astrolabe` gate):** `fixlvl.rtb` — 1116 / 1117 row match (1 missing, 1 extra fringe). `astrolabe.rtb` — 69777 / 69922 (145 missing sentinels, 0 extra).
 
 **Debugging workflow:**
 

@@ -7,7 +7,7 @@ Astrolabe Rete packages are **shared Fix** plus **per-level** packages. Cross-pa
 - Do **not** embed VM block+offset (copyright-sensitive; discovered at import, not predetermined in the repo)
 - **Do** name a filesystem record path under the target package role
 
-This document specifies `fix:/` and `level:/` URIs and the **planned** import/export workflow. Resolver support exists in `ReferenceUri.cs`; import emission and level-slot assignment are **not implemented yet**.
+This document specifies `fix:/` and `level:/` URIs and the import/export workflow. Resolver support exists in `ReferenceUri.cs`. **Transient import** annotates Fix opaque LUT entries from disc `fixlvl.rtb` (mapped rows → `level:/slots/0x{fixSite:X8}.json` plus per-level slot files; sentinel rows → `null` URI). Export generates `fixlvl.rtb` from Fix opaque LUT only (`level:/` mapped rows and `null`/escaping sentinel rows), not from walking Fix.rtb or any persisted site registry.
 
 See also: [`rete-format.md`](rete-format.md) (overview), [`fixlvl-rtb.md`](fixlvl-rtb.md) (Fix→level relocation context), [`perso-mesh-animation.md`](perso-mesh-animation.md) (`ObjectList` semantics).
 
@@ -69,7 +69,7 @@ Opaque or unmapped Fix→level pointer sites use codec sentinels or omit relocat
 Primary stable identity for a Fix→level mapped pointer:
 
 ```text
-fixSite := lower-hex Fix VM address of the int32 slot (no 0x prefix required in path)
+fixSite := 0x + 8-digit uppercase hex Fix VM address of the int32 slot
 ```
 
 Canonical level path (default convention):
@@ -78,7 +78,7 @@ Canonical level path (default convention):
 level:/slots/{fixSite}.json
 ```
 
-Example: Fix pointer at `0x0262C4C0` → `level:/slots/0262C4C0.json` in Fix JSON; file `slots/0262C4C0.json` in each level package.
+Example: Fix pointer at `0x0262C4C0` → `level:/slots/0x0262C4C0.json` in Fix JSON; file `slots/0x0262C4C0.json` in each level package.
 
 Alternative layouts under `level:/` are allowed (e.g. `level:/types/objectlist/…`) once import assigns them; the prefix `level:/` is what matters for resolution.
 
@@ -194,10 +194,11 @@ Same Fix bytes; different level SNA; per-level `fixlvl` (mostly identical sentin
 |-----------|--------|
 | `ReferenceUri` parse/emit `fix:/`, `level:/` | **Done** |
 | Legacy `../fix/…` resolve | **Done** |
-| Import rewrite → `fix:/` | **Not started** (still emits `../fix/…`) |
-| Import Fix→level slot assignment | **Not started** |
-| `level-slot-manifest.json` | **Not started** |
-| Export via generated `fixlvl` | **Not started** (still compiles preserved RT) |
+| Transient `fixlvl.rtb` import → `level:/slots/0x…` + slot files | **Done** (`AnnotateOpaquePointersFromFixLevelRelocations`) |
+| Persisted fixlvl site registry on Fix package | **Removed** (URI-only opaque LUT; no `*-sites.json`) |
+| Export `fixlvl.rtb` via `GenerateFixLevelRtb` | **Done** (opaque LUT only; not Fix.rtb walk) |
+| Import rewrite → `fix:/` | **Partial** (legacy `../fix/…` still accepted) |
+| `level-slot-manifest.json` union manifest | **Not started** |
 
 ## Verification (when implemented)
 

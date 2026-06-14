@@ -57,13 +57,7 @@ internal static class ReferenceJson
         var elementPath = ReferenceUri.Resolve(packageRoot, dataPath).FilePath;
         if (!elementPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
         {
-            var binary = File.ReadAllBytes(elementPath);
-            return ApplyRelocationPointerOverlay(
-                packageRoot,
-                RelocationPointerOverlay.GetOverlayPath(elementPath),
-                binary,
-                resolver,
-                explicitInlineOverlay: false);
+            return File.ReadAllBytes(elementPath);
         }
 
         if (codec.UsesExternalBinaryPayload)
@@ -77,83 +71,47 @@ internal static class ReferenceJson
             packageRoot,
             codec,
             resolver);
-        var bytes = codec.WriteFromJsonElement(resolvedDocument.RootElement);
-        return ApplyRelocationPointerOverlay(
-            packageRoot,
-            RelocationPointerOverlay.GetOverlayPath(elementPath),
-            bytes,
-            resolver,
-            explicitInlineOverlay: false);
+        return codec.WriteFromJsonElement(resolvedDocument.RootElement);
     }
 
-    private static byte[] ApplyRelocationPointerOverlay(
-        string packageRoot,
-        string overlayPath,
+    private static byte[] ApplyInlinePointerOverlay(
         byte[] data,
         ReferenceAddressResolver resolver,
-        IReadOnlyDictionary<string, string?>? inlineOverlay = null,
-        bool explicitInlineOverlay = false)
+        string packageRoot,
+        IReadOnlyDictionary<string, string?> inlineOverlay,
+        bool explicitInlineOverlay)
     {
-        var mergedOverlay = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-        var inlineKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        Dictionary<string, RelocationOverlayTarget>? targetOverlay = null;
-
-        if (inlineOverlay != null)
-        {
-            foreach (var pair in inlineOverlay)
-            {
-                mergedOverlay[pair.Key] = pair.Value;
-                inlineKeys.Add(pair.Key);
-            }
-        }
-
-        if (RelocationPointerOverlay.TryRead(overlayPath, out var fileOverlay, out var fileTargets))
-        {
-            foreach (var pair in fileOverlay)
-            {
-                mergedOverlay.TryAdd(pair.Key, pair.Value);
-            }
-
-            targetOverlay = fileTargets;
-        }
-
-        if (mergedOverlay.Count == 0 && targetOverlay is not { Count: > 0 })
+        if (inlineOverlay.Count == 0)
         {
             return data;
         }
 
-        var offsetKeys = mergedOverlay.Keys
-            .Concat(targetOverlay == null ? [] : targetOverlay.Keys)
-            .Distinct(StringComparer.OrdinalIgnoreCase);
         var bytes = data.ToArray();
-        foreach (var offsetKey in offsetKeys)
+        foreach (var (offsetKey, uri) in inlineOverlay)
         {
             if (!TryParsePointerOffset(offsetKey, out var offset))
             {
-                throw new InvalidDataException($"Invalid relocation overlay offset '{offsetKey}' in {overlayPath}.");
+                throw new InvalidDataException($"Invalid opaque pointer offset '{offsetKey}'.");
             }
 
             if (offset < 0 || offset % sizeof(int) != 0)
             {
-                throw new InvalidDataException(
-                    $"Misaligned relocation overlay offset '{offsetKey}' in {overlayPath}.");
+                throw new InvalidDataException($"Misaligned opaque pointer offset '{offsetKey}'.");
             }
 
             if (offset + sizeof(int) > bytes.Length)
             {
                 throw new InvalidDataException(
-                    $"Relocation overlay offset '{offsetKey}' is out of range for element span in {overlayPath}.");
+                    $"Opaque pointer offset '{offsetKey}' is out of range for element span.");
             }
 
-            mergedOverlay.TryGetValue(offsetKey, out var uri);
             if (string.IsNullOrWhiteSpace(uri))
             {
-                if (explicitInlineOverlay && inlineKeys.Contains(offsetKey))
+                if (explicitInlineOverlay)
                 {
                     BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(offset, sizeof(int)), 0);
                 }
 
-                // Sidecar null entries preserve serialized bytes for URI-less relocation rows.
                 continue;
             }
 
@@ -190,6 +148,173 @@ internal static class ReferenceJson
         stream.Position = 0;
         return JsonDocument.Parse(stream);
     }
+
+    internal static bool MergePointerLut(
+        IDictionary<string, string?> lut,
+        string offsetKey,
+        string? uri)
+    {
+        if (lut.TryGetValue(offsetKey, out var existing) &&
+            string.Equals(existing, uri, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        lut[offsetKey] = uri;
+        return true;
+    }
+
+    internal static bool MergePointerLut(
+        IDictionary<string, string?> lut,
+        IReadOnlyDictionary<string, string?> discovered)
+    {
+        var changed = false;
+        foreach (var (offsetKey, uri) in discovered)
+        {
+            if (MergePointerLut(lut, offsetKey, uri))
+            {
+                changed = true;
+            }
+        }
+
+        return changed;
+    }
+
+    internal static string FormatPointerOffset(int offset) => $"0x{offset:X}";
+
+    internal static void ValidatePointerOffset(int offset, int spanLength, string context)
+    {
+        if (!TryValidatePointerOffset(offset, spanLength, out var error))
+        {
+            throw new InvalidDataException($"{error} in {context}.");
+        }
+    }
+
+    internal static bool TryValidatePointerOffset(int offset, int spanLength, out string error)
+    {
+        if (offset < 0 || offset % sizeof(int) != 0)
+        {
+            error = $"Misaligned pointer offset 0x{offset:X}";
+            return false;
+        }
+
+        if (offset + sizeof(int) > spanLength)
+        {
+            error = $"Pointer offset 0x{offset:X} is out of range (span length 0x{spanLength:X})";
+            return false;
+        }
+
+        error = "";
+        return true;
+    }
+
+    internal static bool MergeStructPointerLut(string jsonPath, string offsetKey, string? uri)
+    {
+        var discovered = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+        {
+            [offsetKey] = uri
+        };
+        return ApplyStructPointerLut(jsonPath, discovered);
+    }
+
+    internal static bool ApplyStructPointerLut(
+        string jsonPath,
+        IReadOnlyDictionary<string, string?> discovered)
+    {
+        if (discovered.Count == 0)
+        {
+            return false;
+        }
+
+        using var document = JsonDocument.Parse(File.ReadAllText(jsonPath));
+        var pointers = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        if (document.RootElement.TryGetProperty("pointers", out var existing) &&
+            existing.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in existing.EnumerateObject())
+            {
+                pointers[property.Name] = property.Value.ValueKind == JsonValueKind.Null
+                    ? null
+                    : property.Value.GetString();
+            }
+        }
+
+        if (!MergePointerLut(pointers, discovered))
+        {
+            return false;
+        }
+
+        WriteStructPointerLut(jsonPath, pointers);
+        return true;
+    }
+
+    internal static bool TryReadStructPointerLut(
+        string jsonPath,
+        out Dictionary<string, string?> pointers)
+    {
+        pointers = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        using var document = JsonDocument.Parse(File.ReadAllText(jsonPath));
+        if (!document.RootElement.TryGetProperty("pointers", out var pointersElement) ||
+            pointersElement.ValueKind != JsonValueKind.Object)
+        {
+            return false;
+        }
+
+        foreach (var property in pointersElement.EnumerateObject())
+        {
+            pointers[property.Name] = property.Value.ValueKind == JsonValueKind.Null
+                ? null
+                : property.Value.GetString();
+        }
+
+        return pointers.Count > 0;
+    }
+
+    private static void WriteStructPointerLut(
+        string jsonPath,
+        IReadOnlyDictionary<string, string?> pointers)
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(jsonPath));
+        using var stream = new MemoryStream();
+        using (var writer = CreateWriter(stream))
+        {
+            writer.WriteStartObject();
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (property.Name.Equals("pointers", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                writer.WritePropertyName(property.Name);
+                property.Value.WriteTo(writer);
+            }
+
+            writer.WritePropertyName("pointers");
+            writer.WriteStartObject();
+            foreach (var (offsetKey, uri) in pointers.OrderBy(pair => OrderPointerOffset(pair.Key)))
+            {
+                writer.WritePropertyName(offsetKey);
+                if (uri == null)
+                {
+                    writer.WriteNullValue();
+                }
+                else
+                {
+                    writer.WriteStringValue(uri);
+                }
+            }
+
+            writer.WriteEndObject();
+            writer.WriteEndObject();
+            writer.Flush();
+        }
+
+        File.WriteAllBytes(jsonPath, stream.ToArray());
+    }
+
+    private static int OrderPointerOffset(string value) =>
+        TryParsePointerOffset(value, out var offset) ? offset : int.MaxValue;
 
     private static bool RewriteOpaquePointersToUris(
         string jsonPath,
@@ -238,11 +363,10 @@ internal static class ReferenceJson
     {
         var record = (OpaqueBinaryRecord)codec.ReadFromJsonPath(packageRoot, jsonPath);
         var data = record.Data.ToArray();
-        return ApplyRelocationPointerOverlay(
-            packageRoot,
-            RelocationPointerOverlay.GetOverlayPath(jsonPath),
+        return ApplyInlinePointerOverlay(
             data,
             resolver,
+            packageRoot,
             record.Pointers,
             explicitInlineOverlay: true);
     }
@@ -432,8 +556,6 @@ internal static class ReferenceJson
 
         return WriteReplacement.Number(resolver.ResolveAddress(packageRoot, uri));
     }
-
-    private static string FormatPointerOffset(int offset) => $"0x{offset:X}";
 
     private static bool TryParsePointerOffset(string value, out int offset)
     {

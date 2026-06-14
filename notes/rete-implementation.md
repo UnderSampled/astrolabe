@@ -17,7 +17,7 @@ Rete is the canonical level representation. OpenSpace level dirs and Godot proje
 
 | Current | Role | Remaining target |
 |---------|------|------------------|
-| `src/Astrolabe.Core/Rete/OpenSpacePackageCodec.cs` | Import/export bridge for Rete packages, sibling Fix import, URI rewrite/export resolution, Fix `fixlvl` metadata emission (`semantic/fix-level-sites.json`) | Split further as pipeline pieces mature |
+| `src/Astrolabe.Core/Rete/OpenSpacePackageCodec.cs` | Import/export bridge for Rete packages, sibling Fix import, URI rewrite/export resolution, transient Fix `fixlvl` opaque LUT annotation (`level:/slots/…`, no persisted site registry) | Split further as pipeline pieces mature |
 | `src/Astrolabe.Core/Rete/ReferenceUri.cs` | Relative URI parse/resolve helper | Keep as shared URI primitive |
 | `src/Astrolabe.Core/Rete/ReferenceAddressResolver.cs` | Builds package address indexes from `content.json`; resolves URI ↔ virtual address | Feed relocation generation/layout |
 | `src/Astrolabe.Core/Rete/ReferenceJson.cs` | Rewrites promoted JSON pointer fields to URI/null on import; `WriteElementBytesForExport` resolves URIs before serialization | Remove numeric fallback once all pointer fields are URI-backed |
@@ -165,7 +165,7 @@ Progress as of 2026-06-14 (commits `5ca7ef4`, `137265d`):
 - Level import creates/reuses sibling `fix/`; Fix export validates independently against `Fix.*` plus `fix.cnt`.
 - Promoted structured pointer fields are URI/null on import and resolved back to virtual addresses on export via `ReferenceJson.WriteElementBytesForExport`.
 - Relocation JSON and preserved encoded RT payloads remain in packages as the bridge for Step 5.
-- Fresh level imports now write `semantic/fix-level-sites.json`, which preserves the imported `fixlvl.rtb` block list plus per-site metadata: `TargetUri` for mapped Fix→level rows when a `level:/...` URI is resolvable during import, preserved target module/id for sentinel rows, and no broad Fix relocation scan at generation time.
+- Fresh level imports annotate Fix opaque LUT entries from transient disc `fixlvl.rtb`: mapped rows get `level:/slots/0x{fixSite}.json` plus per-level slot files; sentinel rows get `null` URI. No fixlvl site inventory is persisted on the Fix package.
 - **35 struct codecs** registered: original ten structured kinds plus pointer arrays (`elementptrs`, `loddataoffsets`, `animchannelptrs`, `scriptptrs`, `dsgvarptrindirect`, `collideelementptrs`), dense arrays (`elementtypes`, `triangles`, `vertexindices`, `uvs`, `uvmapping`, `loddistances`), and promoted leaves (`animchannel`, `elementsprites`, `animationmontreal`, `animframes`, `animhierarchiesheader`, `perso`, `perso3ddata`, `brain`, `state`, `transition`, `standardgame`, `objectlist`, `spawnableentry`, `mind`, `intelligence`, `aimodel`, `sector`, `collideset`, `persosectorinfo`).
 - `debug-relocations` on `astrolabe` (after fresh `extract-intermediate`):
   - `astrolabe.rtb`: **68,932** generated / **68,932** matching / **0** extra (69,922 preserved; **990 missing**, ~98.6% coverage)
@@ -178,7 +178,7 @@ Progress as of 2026-06-14 (commits `5ca7ef4`, `137265d`):
   - `Fix.rtt`: 435/435 matching, `pointer data: match`
   - `Fix.rtv`: unsupported placeholder table
 - RTP/RTT generation is complete only for the PTX sidecars at byte parity; GPT-side `.rtp` output still has byte/count drift on both level and Fix.
-- On `astrolabe`, imported `semantic/fix-level-sites.json` currently contains **6 source blocks**, **1,117 sites**, **55 mapped `TargetUri`s**, and **1,006 `[FF:FF]` sentinel rows**.
+- On `astrolabe`, transient fixlvl import annotates **16 Fix opaque elements** with **1,117 LUT keys** (**111 mapped `level:/…`**, **1,006 `null` sentinel**).
 - Cross-Fix `fix:/...` and Fix→level `level:/...` URIs now appear in imported JSON, but most remaining RTB gaps are still inside opaque leaves and not yet promoted into explicit pointer metadata.
 
 `animchannel` pointer semantics (Montreal):
@@ -190,14 +190,14 @@ Progress as of 2026-06-14 (commits `5ca7ef4`, `137265d`):
 
 Next agent should continue Step 5 with the existing bridge intact:
 
-- Keep the new `fixlvl` path metadata-driven. Do not reintroduce the broad Fix relocation scan. `GenerateFixLevelRtb` is supposed to read `semantic/fix-level-sites.json` and only use `TargetUri` when present; sentinel rows come from imported target module/id metadata.
+- Keep the `fixlvl` path URI-driven. Do not reintroduce the broad Fix relocation scan or any `*-sites.json` registry. `GenerateFixLevelRtb` reads Fix opaque LUT only (`level:/` mapped rows; `null`/escaping sentinel rows).
 - Close the remaining main-generator parity gaps:
   - `astrolabe.rtb`: resolve the last **990 missing** pointers without introducing extras.
   - `Fix.rtb`: eliminate **1,125 missing** / **57 extra**.
   - `astrolabe.rtp` / `Fix.rtp`: fix pointer-data/count parity.
   - decide whether `Fix.rtv` stays unsupported or needs an explicit generator/bridge rule.
 - Promote remaining opaque leaves (`actiontable`, `actiontree`, `animhierarchies`, `compressedmatrix`, behavior lists, `script`, `dsgvar`/`dsgmem`, `objecttype*`, `sectorcollide*`, `collidez*`) in the order that best attacks the outstanding RTB mismatches.
-- Re-run `extract-intermediate` before judging `fixlvl` on any package created before 2026-06-14; old imports do not contain `semantic/fix-level-sites.json`.
+- Re-run `extract-intermediate` before judging `fixlvl` on any package created before 2026-06-14; old imports may still carry legacy `semantic/fixlvl-sites.json` (pruned on re-import).
 - Re-run `extract-intermediate` on packages imported before 2026-06-14 if they still have inline `pointers`/`targets` on promoted JSON elements (for example scene `node.json`) without matching `*.reloc.json` sidecars. Export and relocation generation only read overlay data from sidecars now; pre-sidecar packages must be re-imported (or manually migrated) before Step 5 parity checks are meaningful.
 - Phase out relocation storage only after generated RT files `cmp` against preserved originals. Step 6 (CLI aliases, Godot-from-Rete) still waits on RT parity.
 

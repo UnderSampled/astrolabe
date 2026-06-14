@@ -44,15 +44,19 @@ internal static class OpenSpacePackageCodec
         var fixPackageDir = ImportSiblingFixPackageIfAvailable(levelDir, outputDir);
         var manifest = ImportPackage(levelDir, levelName, outputDir, "level", _ => true);
         RewritePointerReferences(outputDir, fixPackageDir);
-        AnnotateOpaquePointersFromRelocations(outputDir, fixPackageDir);
-        WriteRtbSiteMetadata(outputDir);
+        AnnotateOpaquePointersFromSourceRelocations(outputDir, fixPackageDir, levelDir);
         if (!string.IsNullOrWhiteSpace(fixPackageDir))
         {
-            AnnotateOpaquePointersFromFixLevelRelocations(fixPackageDir, outputDir);
-            WriteFixLevelSiteMetadata(outputDir, fixPackageDir);
+            var levelsDir = Directory.GetParent(Path.GetFullPath(levelDir))?.FullName;
+            if (levelsDir != null)
+            {
+                RemoveNullOpaquePointerLutEntries(fixPackageDir);
+                AnnotateOpaquePointersFromSourceRelocations(fixPackageDir, outputDir, levelsDir);
+            }
+
+            AnnotateOpaquePointersFromFixLevelRelocations(fixPackageDir, outputDir, levelDir);
         }
 
-        PruneRelocationPointerStorage(outputDir);
         return manifest;
     }
 
@@ -64,6 +68,7 @@ internal static class OpenSpacePackageCodec
         Func<string, bool> includeFile)
     {
         Directory.CreateDirectory(outputDir);
+        PruneLegacyRelocationArtifacts(outputDir);
 
         var manifest = new RetePackageManifest
         {
@@ -87,6 +92,7 @@ internal static class OpenSpacePackageCodec
             handledFiles.Add(snaPath);
         }
 
+        var importErrors = new List<string>();
         foreach (var relocationPath in files.Where(f => RelocationExtensions.Contains(Path.GetExtension(f))))
         {
             try
@@ -98,10 +104,11 @@ internal static class OpenSpacePackageCodec
                     manifest.LooseFiles.Add(CopyLooseFile(relocationPath, outputDir));
                 }
             }
-            catch
+            catch (Exception ex)
             {
                 // Some RT* files can be tiny placeholders in shipped data. Keep
                 // unsupported tables as exact loose leaves rather than dropping them.
+                importErrors.Add($"Relocation table {Path.GetFileName(relocationPath)}: {ex.Message}");
             }
         }
 
@@ -111,6 +118,7 @@ internal static class OpenSpacePackageCodec
         }
 
         manifest.Semantic = WriteSemanticMetadata(packageName, outputDir, semanticContext);
+        manifest.Semantic.Errors.AddRange(importErrors);
 
         WriteJson(Path.Combine(outputDir, ManifestFileName), manifest);
         return manifest;
@@ -143,9 +151,7 @@ internal static class OpenSpacePackageCodec
         }
 
         RewritePointerReferences(fixOutputDir, null);
-        AnnotateOpaquePointersFromRelocations(fixOutputDir, null);
-        WriteRtbSiteMetadata(fixOutputDir);
-        PruneRelocationPointerStorage(fixOutputDir);
+        AnnotateOpaquePointersFromSourceRelocations(fixOutputDir, null, levelsDir);
         return fixOutputDir;
     }
 
@@ -206,7 +212,10 @@ internal static class OpenSpacePackageCodec
         }
     }
 
-    private static void AnnotateOpaquePointersFromRelocations(string packageDir, string? extraPackageDir)
+    private static void AnnotateOpaquePointersFromSourceRelocations(
+        string packageDir,
+        string? extraPackageDir,
+        string? sourceDir)
     {
         var manifestPath = Path.Combine(packageDir, ManifestFileName);
         if (!File.Exists(manifestPath))
@@ -221,12 +230,13 @@ internal static class OpenSpacePackageCodec
         }
 
         var manifest = ReadJson<RetePackageManifest>(manifestPath);
+        var isFixPackage = manifest.PackageRole.Equals("fix", StringComparison.OrdinalIgnoreCase);
         var sourceElements = LoadElementIndex(packageDir, manifest);
-        var layout = RelocationGenerator.PackageLayout.Load(packageDir);
-        var pendingPointerOverlays = new Dictionary<string, Dictionary<string, string?>>(
-            StringComparer.OrdinalIgnoreCase);
-        var pendingTargetOverlays = new Dictionary<string, Dictionary<string, RelocationOverlayTarget>>(
-            StringComparer.OrdinalIgnoreCase);
+        var blockByteCache = BuildImportBlockByteCache(packageDir, manifest);
+        var pendingRecords = new Dictionary<string, PendingOpaquePointerRecord>(StringComparer.OrdinalIgnoreCase);
+        var pendingStructPointers =
+            new Dictionary<string, Dictionary<string, string?>>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var table in manifest.RelocationTables)
         {
             if (!Path.GetExtension(table.FileName).Equals(".rtb", StringComparison.OrdinalIgnoreCase) ||
@@ -235,7 +245,16 @@ internal static class OpenSpacePackageCodec
                 continue;
             }
 
-            var relocationTable = ReadJson<RelocationTableDocument>(ResolvePath(packageDir, table.JsonPath));
+            if (!TryLoadTransientSourceRelocationTable(
+                    packageDir,
+                    manifest,
+                    table,
+                    sourceDir,
+                    out var relocationTable))
+            {
+                continue;
+            }
+
             foreach (var block in relocationTable.Blocks)
             {
                 if (!sourceElements.TryGetValue((block.Module, block.Id), out var elements))
@@ -247,81 +266,238 @@ internal static class OpenSpacePackageCodec
                 {
                     var sourceAddress = checked((int)pointer.OffsetInMemory);
                     var element = FindElementAt(elements, sourceAddress);
-                    if (element == null)
+                    if (element == null || !StructCodecRegistry.TryGet(element.Kind, out var codec))
                     {
                         continue;
                     }
 
                     var elementPath = ReferenceUri.Resolve(packageDir, element.DataPath).FilePath;
-                    if (!File.Exists(elementPath))
+                    if (!elementPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ||
+                        !File.Exists(elementPath))
                     {
                         continue;
                     }
 
-                    var overlayPath = RelocationPointerOverlay.GetOverlayPath(elementPath);
                     var offset = sourceAddress - element.VirtualAddress;
-                    if (offset < 0 || offset % sizeof(int) != 0)
+                    var key = ReferenceJson.FormatPointerOffset(offset);
+                    var isDiscSentinel =
+                        pointer.TargetModule == 0xFF && pointer.TargetId == 0xFF;
+                    if (codec.UsesExternalBinaryPayload)
                     {
-                        continue;
-                    }
+                        if (isDiscSentinel && isFixPackage)
+                        {
+                            continue;
+                        }
 
-                    string? uri = null;
-                    if (TryReadRelocationPointerValue(layout, element, offset, out var value) &&
-                        value != 0 &&
-                        resolver.TryGetReferenceUri(value, packageDir, out var resolvedUri))
+                        if (!pendingRecords.TryGetValue(elementPath, out var pending))
+                        {
+                            pending = new PendingOpaquePointerRecord(
+                                codec,
+                                (OpaqueBinaryRecord)codec.ReadFromJsonPath(packageDir, elementPath));
+                            pendingRecords[elementPath] = pending;
+                        }
+
+                        if (!ReferenceJson.TryValidatePointerOffset(
+                                offset,
+                                pending.Record.Data.Length,
+                                out _))
+                        {
+                            continue;
+                        }
+
+                        string? uri = null;
+                        if (!isDiscSentinel)
+                        {
+                            var value = BinaryPrimitives.ReadInt32LittleEndian(
+                                pending.Record.Data.AsSpan(offset, sizeof(int)));
+                            if (value != 0 &&
+                                resolver.TryGetReferenceUri(value, packageDir, out var resolvedUri))
+                            {
+                                uri = resolvedUri;
+                            }
+                        }
+
+                        if (ReferenceJson.MergePointerLut(pending.Record.Pointers, key, uri))
+                        {
+                            pending.Changed = true;
+                        }
+                    }
+                    else
                     {
-                        uri = resolvedUri;
+                        if (!ReferenceJson.TryValidatePointerOffset(offset, element.Length, out _))
+                        {
+                            continue;
+                        }
+
+                        blockByteCache.TryGetValue((block.Module, block.Id), out var blockBytes);
+
+                        string? uri = null;
+                        if (!isDiscSentinel &&
+                            TryReadImportPointerValue(
+                                element,
+                                offset,
+                                blockBytes,
+                                packageDir,
+                                resolver,
+                                out var value) &&
+                            value != 0 &&
+                            resolver.TryGetReferenceUri(value, packageDir, out var resolvedUri))
+                        {
+                            uri = resolvedUri;
+                        }
+
+                        if (!pendingStructPointers.TryGetValue(elementPath, out var structPointers))
+                        {
+                            structPointers = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+                            pendingStructPointers[elementPath] = structPointers;
+                        }
+
+                        ReferenceJson.MergePointerLut(structPointers, key, uri);
                     }
-
-                    var key = FormatPointerOffset(offset);
-                    if (!pendingPointerOverlays.TryGetValue(overlayPath, out var overlay))
-                    {
-                        overlay = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
-                        pendingPointerOverlays[overlayPath] = overlay;
-                    }
-
-                    overlay[key] = uri;
-
-                    if (!pendingTargetOverlays.TryGetValue(overlayPath, out var targets))
-                    {
-                        targets = new Dictionary<string, RelocationOverlayTarget>(StringComparer.OrdinalIgnoreCase);
-                        pendingTargetOverlays[overlayPath] = targets;
-                    }
-
-                    targets[key] = new RelocationOverlayTarget(
-                        pointer.TargetModule,
-                        pointer.TargetId,
-                        pointer.Byte6,
-                        pointer.Byte7);
                 }
             }
         }
 
-        foreach (var (overlayPath, overlay) in pendingPointerOverlays)
+        foreach (var (elementPath, pending) in pendingRecords)
         {
-            pendingTargetOverlays.TryGetValue(overlayPath, out var targets);
-            RelocationPointerOverlay.Merge(overlayPath, overlay, targets);
+            if (pending.Changed)
+            {
+                pending.Codec.WriteJson(packageDir, elementPath, pending.Record);
+            }
+        }
+
+        foreach (var (elementPath, structPointers) in pendingStructPointers)
+        {
+            ReferenceJson.ApplyStructPointerLut(elementPath, structPointers);
         }
     }
 
-    private static bool TryReadRelocationPointerValue(
-        RelocationGenerator.PackageLayout layout,
-        IndexedContentElement element,
-        int offsetInElement,
-        out int value)
+    private static bool TryLoadTransientSourceRelocationTable(
+        string packageDir,
+        RetePackageManifest manifest,
+        RelocationTableFileManifest table,
+        string? sourceDir,
+        out RelocationTableDocument document)
     {
-        value = 0;
-        if (offsetInElement < 0 || offsetInElement % sizeof(int) != 0)
+        document = new RelocationTableDocument { FileName = table.FileName };
+        if (!string.IsNullOrWhiteSpace(sourceDir))
         {
-            return false;
+            var sourcePath = ResolveTransientRelocationSourcePath(sourceDir, manifest, table.FileName);
+            if (sourcePath != null && File.Exists(sourcePath))
+            {
+                document = ReadRelocationTableFromDisc(sourcePath);
+                return true;
+            }
         }
 
-        return layout.TryReadInt32(checked(element.VirtualAddress + offsetInElement), out value);
+        return TryLoadSourceRelocationTable(packageDir, manifest, table, out document, out _);
+    }
+
+    private static string? ResolveTransientRelocationSourcePath(
+        string sourceDir,
+        RetePackageManifest manifest,
+        string fileName)
+    {
+        var directPath = Path.Combine(sourceDir, fileName);
+        if (File.Exists(directPath))
+        {
+            return directPath;
+        }
+
+        if (manifest.PackageRole.Equals("fix", StringComparison.OrdinalIgnoreCase))
+        {
+            var sharedPath = Path.Combine(sourceDir, fileName);
+            if (File.Exists(sharedPath))
+            {
+                return sharedPath;
+            }
+        }
+
+        var levelsParent = Directory.GetParent(sourceDir)?.FullName;
+        if (levelsParent == null)
+        {
+            return null;
+        }
+
+        var sharedLevelPath = Path.Combine(levelsParent, fileName);
+        return File.Exists(sharedLevelPath) ? sharedLevelPath : null;
+    }
+
+    private static void RemoveNullOpaquePointerLutEntries(string packageDir)
+    {
+        var manifestPath = Path.Combine(packageDir, ManifestFileName);
+        if (!File.Exists(manifestPath))
+        {
+            return;
+        }
+
+        var manifest = ReadJson<RetePackageManifest>(manifestPath);
+        foreach (var element in EnumeratePackageElements(packageDir, manifest))
+        {
+            if (!StructCodecRegistry.TryGet(element.Kind, out var codec) ||
+                !codec.UsesExternalBinaryPayload)
+            {
+                continue;
+            }
+
+            var elementPath = ReferenceUri.Resolve(packageDir, element.DataPath).FilePath;
+            if (!elementPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ||
+                !File.Exists(elementPath))
+            {
+                continue;
+            }
+
+            var record = (OpaqueBinaryRecord)codec.ReadFromJsonPath(packageDir, elementPath);
+            var nullKeys = record.Pointers
+                .Where(pair => string.IsNullOrWhiteSpace(pair.Value))
+                .Select(pair => pair.Key)
+                .ToList();
+            if (nullKeys.Count == 0)
+            {
+                continue;
+            }
+
+            foreach (var key in nullKeys)
+            {
+                record.Pointers.Remove(key);
+            }
+
+            codec.WriteJson(packageDir, elementPath, record);
+        }
+    }
+
+    private static IEnumerable<SnaBlockContentElement> EnumeratePackageElements(
+        string packageDir,
+        RetePackageManifest manifest)
+    {
+        foreach (var snaFile in manifest.SnaFiles)
+        {
+            foreach (var block in snaFile.Blocks)
+            {
+                if (block.ContentPath == null)
+                {
+                    continue;
+                }
+
+                var contentPath = ResolvePath(packageDir, block.ContentPath);
+                if (!File.Exists(contentPath))
+                {
+                    continue;
+                }
+
+                var content = ReadJson<SnaBlockContentDocument>(contentPath);
+                foreach (var element in content.Elements)
+                {
+                    yield return element;
+                }
+            }
+        }
     }
 
     private static void AnnotateOpaquePointersFromFixLevelRelocations(
         string fixPackageDir,
-        string levelPackageDir)
+        string levelPackageDir,
+        string levelSourceDir)
     {
         var fixManifestPath = Path.Combine(fixPackageDir, ManifestFileName);
         var levelManifestPath = Path.Combine(levelPackageDir, ManifestFileName);
@@ -330,11 +506,22 @@ internal static class OpenSpacePackageCodec
             return;
         }
 
+        PruneLegacyRelocationArtifacts(fixPackageDir);
+
         var levelManifest = ReadJson<RetePackageManifest>(levelManifestPath);
-        var fixLevelTable = levelManifest.RelocationTables.FirstOrDefault(table =>
-            table.FileName.Equals("fixlvl.rtb", StringComparison.OrdinalIgnoreCase));
-        if (fixLevelTable == null)
+        if (levelManifest.RelocationTables.All(table =>
+                !table.FileName.Equals("fixlvl.rtb", StringComparison.OrdinalIgnoreCase)))
         {
+            return;
+        }
+
+        var fixLevelSourcePath = Path.Combine(levelSourceDir, "fixlvl.rtb");
+        if (!File.Exists(fixLevelSourcePath))
+        {
+            levelManifest.Semantic ??= new SemanticManifest();
+            levelManifest.Semantic.Errors.Add(
+                $"fixlvl.rtb is listed in relocationTables but was not found at {fixLevelSourcePath}.");
+            WriteJson(levelManifestPath, levelManifest);
             return;
         }
 
@@ -343,7 +530,7 @@ internal static class OpenSpacePackageCodec
 
         var fixManifest = ReadJson<RetePackageManifest>(fixManifestPath);
         var fixElements = LoadElementIndex(fixPackageDir, fixManifest);
-        var relocationTable = ReadJson<RelocationTableDocument>(ResolvePath(levelPackageDir, fixLevelTable.JsonPath));
+        var relocationTable = ReadRelocationTableFromDisc(fixLevelSourcePath);
         var pendingRecords = new Dictionary<string, PendingOpaquePointerRecord>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var block in relocationTable.Blocks)
@@ -380,27 +567,41 @@ internal static class OpenSpacePackageCodec
                 }
 
                 var record = pending.Record;
-                if (!TryReadElementPointerValue(fixPackageDir, element, sourceAddress, out var value))
-                {
-                    continue;
-                }
-
-                if (!resolver.TryGetReferenceUri(value, fixPackageDir, out var uri) ||
-                    !uri.StartsWith(ReferenceUri.LevelPrefix, StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
                 var offset = sourceAddress - element.VirtualAddress;
-                var key = FormatPointerOffset(offset);
-                if (record.Pointers.TryGetValue(key, out var existing) &&
-                    string.Equals(existing, uri, StringComparison.Ordinal))
+                var key = ReferenceJson.FormatPointerOffset(offset);
+                if (!ReferenceJson.TryValidatePointerOffset(offset, record.Data.Length, out _))
                 {
                     continue;
                 }
 
-                record.Pointers[key] = uri;
-                pending.Changed = true;
+                if (pointer.TargetModule == 0xFF && pointer.TargetId == 0xFF)
+                {
+                    if (ReferenceJson.MergePointerLut(record.Pointers, key, null))
+                    {
+                        pending.Changed = true;
+                    }
+
+                    continue;
+                }
+
+                var value = BinaryPrimitives.ReadInt32LittleEndian(
+                    record.Data.AsSpan(offset, sizeof(int)));
+                string? lutUri = null;
+                if (resolver.TryGetReferenceUri(value, levelPackageDir, out var resolvedUri) ||
+                    resolver.TryGetReferenceUri(value, fixPackageDir, out resolvedUri))
+                {
+                    lutUri = WriteLevelSlotForFixSite(
+                        levelPackageDir,
+                        fixPackageDir,
+                        sourceAddress,
+                        resolvedUri,
+                        resolver);
+                }
+
+                if (ReferenceJson.MergePointerLut(record.Pointers, key, lutUri))
+                {
+                    pending.Changed = true;
+                }
             }
         }
 
@@ -413,519 +614,194 @@ internal static class OpenSpacePackageCodec
         }
     }
 
-    private static void WriteRtbSiteMetadata(string packageDir)
+    private static string ToPackageRelativePath(string packageDir, string absolutePath)
     {
-        var manifestPath = Path.Combine(packageDir, ManifestFileName);
-        if (!File.Exists(manifestPath))
-        {
-            return;
-        }
-
-        var manifest = ReadJson<RetePackageManifest>(manifestPath);
-        var resolver = new ReferenceAddressResolver(packageDir);
-        var sites = new List<RtbSiteEntry>();
-        foreach (var table in manifest.RelocationTables)
-        {
-            if (!Path.GetExtension(table.FileName).Equals(".rtb", StringComparison.OrdinalIgnoreCase) ||
-                table.FileName.Equals("fixlvl.rtb", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var relocationTable = ReadJson<RelocationTableDocument>(ResolvePath(packageDir, table.JsonPath));
-            foreach (var block in relocationTable.Blocks)
-            {
-                foreach (var pointer in block.Pointers)
-                {
-                    string? uri = null;
-                    if (resolver.TryGetReferenceUri(
-                            checked((int)pointer.OffsetInMemory),
-                            packageDir,
-                            out var resolvedUri))
-                    {
-                        uri = resolvedUri;
-                    }
-
-                    sites.Add(new RtbSiteEntry
-                    {
-                        SourceModule = block.Module,
-                        SourceId = block.Id,
-                        OffsetInMemory = pointer.OffsetInMemory,
-                        TargetModule = pointer.TargetModule,
-                        TargetId = pointer.TargetId,
-                        Byte6 = pointer.Byte6,
-                        Byte7 = pointer.Byte7,
-                        TargetUri = uri
-                    });
-                }
-            }
-        }
-
-        if (sites.Count == 0)
-        {
-            return;
-        }
-
-        var sitesPath = "semantic/rtb-sites.json";
-        WriteJson(
-            Path.Combine(packageDir, sitesPath),
-            new RtbSitesDocument
-            {
-                PackageName = manifest.LevelName,
-                Sites = sites.OrderBy(site => site.SourceModule)
-                    .ThenBy(site => site.SourceId)
-                    .ThenBy(site => site.OffsetInMemory)
-                    .ToList()
-            });
-
-        manifest.Semantic ??= new SemanticManifest();
-        manifest.Semantic.RtbSitesPath = sitesPath;
-        WriteJson(manifestPath, manifest);
-        WritePointerFileSiteMetadata(packageDir, manifest);
+        var relative = Path.GetRelativePath(Path.GetFullPath(packageDir), Path.GetFullPath(absolutePath));
+        return ReferenceUri.ToUriPath(relative);
     }
 
-    private static void WritePointerFileSiteMetadata(string packageDir, RetePackageManifest manifest)
-    {
-        manifest.Semantic ??= new SemanticManifest();
-        foreach (var table in manifest.RelocationTables)
-        {
-            var extension = Path.GetExtension(table.FileName);
-            if (extension is not (".rtp" or ".rtt"))
-            {
-                continue;
-            }
-
-            var relocationTable = ReadJson<RelocationTableDocument>(ResolvePath(packageDir, table.JsonPath));
-            var sourceBlock = relocationTable.Blocks.FirstOrDefault();
-            if (sourceBlock == null)
-            {
-                continue;
-            }
-
-            var resolver = new ReferenceAddressResolver(packageDir);
-            var sitesPath = $"semantic/{table.FileName}-sites.json";
-            WriteJson(
-                Path.Combine(packageDir, sitesPath),
-                new PointerFileSitesDocument
-                {
-                    FileName = table.FileName,
-                    SourceModule = sourceBlock.Module,
-                    SourceId = sourceBlock.Id,
-                    Sites = sourceBlock.Pointers
-                        .Select(pointer =>
-                        {
-                            string? targetUri = null;
-                            if (resolver.TryGetReferenceUri(
-                                    checked((int)pointer.OffsetInMemory),
-                                    packageDir,
-                                    out var resolvedUri))
-                            {
-                                targetUri = resolvedUri;
-                            }
-
-                            return new PointerFileSiteEntry
-                            {
-                                OffsetInMemory = pointer.OffsetInMemory,
-                                TargetModule = pointer.TargetModule,
-                                TargetId = pointer.TargetId,
-                                Byte6 = pointer.Byte6,
-                                Byte7 = pointer.Byte7,
-                                TargetUri = targetUri
-                            };
-                        })
-                        .OrderBy(site => site.OffsetInMemory)
-                        .ToList()
-                });
-            manifest.Semantic.PointerFileSitesPaths[table.FileName] = sitesPath;
-        }
-
-        WriteJson(Path.Combine(packageDir, ManifestFileName), manifest);
-    }
-
-    private static bool HasRequiredSiteMetadataForPrune(
+    private static bool TryLoadSourceRelocationTable(
         string packageDir,
         RetePackageManifest manifest,
-        RelocationTableFileManifest table)
+        RelocationTableFileManifest table,
+        out RelocationTableDocument document,
+        out string failureNote)
     {
-        var extension = Path.GetExtension(table.FileName);
-        if (extension.Equals(".rtb", StringComparison.OrdinalIgnoreCase))
+        document = new RelocationTableDocument { FileName = table.FileName };
+        var (sourcePath, attemptedPaths) = TryResolveSourceRelocationPath(packageDir, manifest, table.FileName);
+        if (sourcePath == null || !File.Exists(sourcePath))
         {
-            if (table.FileName.Equals("fixlvl.rtb", StringComparison.OrdinalIgnoreCase))
-            {
-                return !string.IsNullOrWhiteSpace(manifest.Semantic?.FixLevelSitesPath) &&
-                    File.Exists(ResolvePath(packageDir, manifest.Semantic.FixLevelSitesPath));
-            }
-
-            return !string.IsNullOrWhiteSpace(manifest.Semantic?.RtbSitesPath) &&
-                File.Exists(ResolvePath(packageDir, manifest.Semantic.RtbSitesPath));
+            failureNote = BuildSourceRelocationNotFoundMessage(manifest, table.FileName, attemptedPaths, sourcePath);
+            return false;
         }
 
-        if (extension is ".rtp" or ".rtt")
-        {
-            if (manifest.Semantic?.PointerFileSitesPaths.TryGetValue(table.FileName, out var sitesPath) == true &&
-                !string.IsNullOrWhiteSpace(sitesPath))
-            {
-                return File.Exists(ResolvePath(packageDir, sitesPath));
-            }
-
-            return File.Exists(Path.Combine(packageDir, "semantic", $"{table.FileName}-sites.json"));
-        }
-
-        // Unsupported tables keep encoding metadata only when pointer JSON exists.
+        document = ReadRelocationTableFromDisc(sourcePath);
+        failureNote = "";
         return true;
     }
 
-    private static void PruneRelocationPointerStorage(string packageDir)
-    {
-        var manifestPath = Path.Combine(packageDir, ManifestFileName);
-        if (!File.Exists(manifestPath))
-        {
-            return;
-        }
-
-        var manifest = ReadJson<RetePackageManifest>(manifestPath);
-        var changed = false;
-        foreach (var table in manifest.RelocationTables)
-        {
-            if (string.IsNullOrWhiteSpace(table.JsonPath))
-            {
-                continue;
-            }
-
-            if (!HasRequiredSiteMetadataForPrune(packageDir, manifest, table))
-            {
-                continue;
-            }
-
-            var jsonPath = ResolvePath(packageDir, table.JsonPath);
-            if (!File.Exists(jsonPath))
-            {
-                continue;
-            }
-
-            var document = ReadJson<RelocationTableDocument>(jsonPath);
-            var encodingPath = $"semantic/{table.FileName}-encoding.json";
-            WriteJson(
-                Path.Combine(packageDir, encodingPath),
-                new RelocationEncodingDocument
-                {
-                    FileName = table.FileName,
-                    Blocks = document.Blocks
-                        .Select(block => new RelocationEncodingBlockManifest
-                        {
-                            Order = block.Order,
-                            Key = block.Key,
-                            Module = block.Module,
-                            Id = block.Id,
-                            EntrySize = block.EntrySize,
-                            PointerCount = block.Pointers.Count,
-                            PointerDataSha256 = block.PointerDataSha256,
-                            OriginalStorage = block.OriginalStorage,
-                            TrailingDataBase64 = block.TrailingDataBase64
-                        })
-                        .ToList()
-                });
-
-            File.Delete(jsonPath);
-            table.EncodingPath = encodingPath;
-            table.JsonPath = "";
-            changed = true;
-        }
-
-        if (changed)
-        {
-            WriteJson(manifestPath, manifest);
-        }
-    }
-
-    private static RelocationEncodingDocument? TryLoadRelocationEncoding(
-        string packageDir,
-        RelocationTableFileManifest table)
-    {
-        if (string.IsNullOrWhiteSpace(table.EncodingPath))
-        {
-            return null;
-        }
-
-        var encodingPath = ResolvePath(packageDir, table.EncodingPath);
-        return File.Exists(encodingPath)
-            ? ReadJson<RelocationEncodingDocument>(encodingPath)
-            : null;
-    }
-
-    private static void ApplyRelocationEncoding(
-        string packageDir,
-        RelocationTableFileManifest table,
-        RelocationTableDocument generated)
-    {
-        var encoding = TryLoadRelocationEncoding(packageDir, table);
-        if (encoding == null)
-        {
-            return;
-        }
-
-        var blocks = encoding.Blocks.ToDictionary(block => (block.Module, block.Id));
-        foreach (var block in generated.Blocks)
-        {
-            if (!blocks.TryGetValue((block.Module, block.Id), out var encodedBlock))
-            {
-                continue;
-            }
-
-            block.OriginalStorage = encodedBlock.OriginalStorage;
-            block.EntrySize = encodedBlock.EntrySize;
-            block.TrailingDataBase64 = encodedBlock.TrailingDataBase64;
-        }
-    }
-
-    private static RelocationTableDocument LoadReferenceRelocationTable(
-        string packageDir,
-        RetePackageManifest manifest,
-        RelocationTableFileManifest table)
-    {
-        if (!string.IsNullOrWhiteSpace(table.JsonPath))
-        {
-            var jsonPath = ResolvePath(packageDir, table.JsonPath);
-            if (File.Exists(jsonPath))
-            {
-                return ReadJson<RelocationTableDocument>(jsonPath);
-            }
-        }
-
-        return BuildReferenceRelocationTableFromSites(packageDir, manifest, table);
-    }
-
-    private static RelocationTableDocument BuildReferenceRelocationTableFromSites(
-        string packageDir,
-        RetePackageManifest manifest,
-        RelocationTableFileManifest table)
-    {
-        var extension = Path.GetExtension(table.FileName);
-        if (extension.Equals(".rtb", StringComparison.OrdinalIgnoreCase))
-        {
-            if (table.FileName.Equals("fixlvl.rtb", StringComparison.OrdinalIgnoreCase))
-            {
-                return BuildFixLevelReferenceTable(packageDir, manifest, table.FileName);
-            }
-
-            return BuildRtbReferenceTable(packageDir, manifest, table.FileName);
-        }
-
-        if (extension is ".rtp" or ".rtt")
-        {
-            return BuildPointerFileReferenceTable(packageDir, manifest, table.FileName);
-        }
-
-        return new RelocationTableDocument { FileName = table.FileName };
-    }
-
-    private static RelocationTableDocument BuildRtbReferenceTable(
+    private static (string? Path, IReadOnlyList<string> AttemptedPaths) TryResolveSourceRelocationPath(
         string packageDir,
         RetePackageManifest manifest,
         string fileName)
     {
-        var sitesPath = manifest.Semantic?.RtbSitesPath;
-        if (string.IsNullOrWhiteSpace(sitesPath))
+        var attemptedPaths = new List<string>();
+        var (sourceDirectory, directoryAttempts) = ResolveSourceDirectory(packageDir, manifest);
+        attemptedPaths.AddRange(directoryAttempts);
+        if (sourceDirectory == null)
         {
-            return new RelocationTableDocument { FileName = fileName };
+            return (null, attemptedPaths);
         }
 
-        var sites = ReadJson<RtbSitesDocument>(ResolvePath(packageDir, sitesPath));
-        var document = new RelocationTableDocument { FileName = fileName };
-        foreach (var group in sites.Sites.GroupBy(site => (site.SourceModule, site.SourceId)))
+        if (fileName.Equals("fixlvl.rtb", StringComparison.OrdinalIgnoreCase))
         {
-            var pointers = group
-                .OrderBy(site => site.OffsetInMemory)
-                .Select(site => new RelocationPointerManifest
-                {
-                    OffsetInMemory = site.OffsetInMemory,
-                    TargetModule = site.TargetModule,
-                    TargetId = site.TargetId,
-                    Byte6 = site.Byte6,
-                    Byte7 = site.Byte7
-                })
-                .ToList();
+            var fixLevelPath = Path.Combine(sourceDirectory, "fixlvl.rtb");
+            attemptedPaths.Add(fixLevelPath);
+            return (fixLevelPath, attemptedPaths);
+        }
+
+        var levelSourcePath = Path.Combine(sourceDirectory, fileName);
+        attemptedPaths.Add(levelSourcePath);
+        if (File.Exists(levelSourcePath))
+        {
+            return (levelSourcePath, attemptedPaths);
+        }
+
+        var levelsParent = Directory.GetParent(sourceDirectory)?.FullName;
+        if (levelsParent == null)
+        {
+            return (null, attemptedPaths);
+        }
+
+        var sharedSourcePath = Path.Combine(levelsParent, fileName);
+        attemptedPaths.Add(sharedSourcePath);
+        return File.Exists(sharedSourcePath) ? (sharedSourcePath, attemptedPaths) : (null, attemptedPaths);
+    }
+
+    private static (string? Directory, IReadOnlyList<string> AttemptedPaths) ResolveSourceDirectory(
+        string packageDir,
+        RetePackageManifest manifest)
+    {
+        var attemptedPaths = new List<string>();
+        if (string.IsNullOrWhiteSpace(manifest.SourceDirectoryName))
+        {
+            return (null, attemptedPaths);
+        }
+
+        var envSource = Environment.GetEnvironmentVariable("ASTROLABE_SOURCE_DIR");
+        if (!string.IsNullOrWhiteSpace(envSource))
+        {
+            var directCandidate = Path.GetFullPath(envSource);
+            attemptedPaths.Add(directCandidate);
+            if (Directory.Exists(directCandidate) &&
+                Path.GetFileName(directCandidate.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+                    .Equals(manifest.SourceDirectoryName, StringComparison.OrdinalIgnoreCase))
+            {
+                return (directCandidate, attemptedPaths);
+            }
+
+            var envCandidate = Path.Combine(envSource, manifest.SourceDirectoryName);
+            attemptedPaths.Add(envCandidate);
+            if (Directory.Exists(envCandidate))
+            {
+                return (envCandidate, attemptedPaths);
+            }
+        }
+
+        var packageFullPath = Path.GetFullPath(packageDir);
+        var maxDepth = ResolveSourceWalkDepth();
+        var current = packageFullPath;
+        for (var depth = 0; depth < maxDepth && current != null; depth++)
+        {
+            var candidate = Path.Combine(
+                current,
+                "disc",
+                "Gamedata",
+                "World",
+                "Levels",
+                manifest.SourceDirectoryName);
+            attemptedPaths.Add(candidate);
+            if (Directory.Exists(candidate) &&
+                !Path.GetFullPath(candidate).Equals(packageFullPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return (candidate, attemptedPaths);
+            }
+
+            current = Directory.GetParent(current)?.FullName;
+        }
+
+        return (null, attemptedPaths);
+    }
+
+    private static int ResolveSourceWalkDepth()
+    {
+        var configured = Environment.GetEnvironmentVariable("ASTROLABE_SOURCE_WALK_DEPTH");
+        return int.TryParse(configured, out var depth) && depth > 0 ? depth : 32;
+    }
+
+    private static string BuildSourceRelocationNotFoundMessage(
+        RetePackageManifest manifest,
+        string fileName,
+        IReadOnlyList<string> attemptedPaths,
+        string? resolvedPath)
+    {
+        var attempts = attemptedPaths.Count > 0
+            ? string.Join("; ", attemptedPaths.Take(12))
+            : "(no paths attempted)";
+        if (!string.IsNullOrWhiteSpace(resolvedPath))
+        {
+            return
+                $"Source RT* '{fileName}' not found at {resolvedPath}. " +
+                "Set ASTROLABE_SOURCE_DIR or place the package under a discoverable disc/Gamedata/World/Levels tree. " +
+                $"Attempted: {attempts}";
+        }
+
+        return
+            $"Source RT* '{fileName}' not found for sourceDirectoryName '{manifest.SourceDirectoryName}'. " +
+            "Set ASTROLABE_SOURCE_DIR or place the package under a discoverable disc/Gamedata/World/Levels tree. " +
+            $"Attempted: {attempts}";
+    }
+
+    private static RelocationTableDocument ReadRelocationTableFromDisc(string tablePath)
+    {
+        var reader = new RelocationTableReader(tablePath);
+        var fileName = Path.GetFileName(tablePath);
+        var document = new RelocationTableDocument { FileName = fileName };
+
+        for (var i = 0; i < reader.PointerBlocks.Count; i++)
+        {
+            var block = reader.PointerBlocks[i];
             document.Blocks.Add(new RelocationPointerBlockManifest
             {
-                Order = document.Blocks.Count,
-                Key = ToKey(group.Key.SourceModule, group.Key.SourceId),
-                Module = group.Key.SourceModule,
-                Id = group.Key.SourceId,
-                EntrySize = 8,
-                Pointers = pointers
+                Order = i,
+                Key = ToKey(block.Module, block.Id),
+                Module = block.Module,
+                Id = block.Id,
+                EntrySize = block.EntrySize,
+                PointerDataSha256 = HashBytes(block.PointerData),
+                Pointers = block.Pointers.Select(p => new RelocationPointerManifest
+                {
+                    OffsetInMemory = p.OffsetInMemory,
+                    TargetModule = p.TargetModule,
+                    TargetId = p.TargetId,
+                    Byte6 = p.Byte6,
+                    Byte7 = p.Byte7
+                }).ToList(),
+                TrailingDataBase64 = block.TrailingData.Length > 0
+                    ? Convert.ToBase64String(block.TrailingData)
+                    : null
             });
         }
 
         return document;
-    }
-
-    private static RelocationTableDocument BuildFixLevelReferenceTable(
-        string packageDir,
-        RetePackageManifest manifest,
-        string fileName)
-    {
-        var sitesPath = manifest.Semantic?.FixLevelSitesPath;
-        if (string.IsNullOrWhiteSpace(sitesPath))
-        {
-            return new RelocationTableDocument { FileName = fileName };
-        }
-
-        var sites = ReadJson<FixLevelSitesDocument>(ResolvePath(packageDir, sitesPath));
-        var document = new RelocationTableDocument { FileName = fileName };
-        foreach (var block in sites.Blocks.OrderBy(block => block.Order))
-        {
-            var pointers = sites.Sites
-                .Where(site => site.SourceModule == block.SourceModule && site.SourceId == block.SourceId)
-                .OrderBy(site => site.OffsetInMemory)
-                .Select(site => new RelocationPointerManifest
-                {
-                    OffsetInMemory = site.OffsetInMemory,
-                    TargetModule = site.TargetModule,
-                    TargetId = site.TargetId,
-                    Byte6 = site.Byte6,
-                    Byte7 = site.Byte7
-                })
-                .ToList();
-            document.Blocks.Add(new RelocationPointerBlockManifest
-            {
-                Order = document.Blocks.Count,
-                Key = ToKey(block.SourceModule, block.SourceId),
-                Module = block.SourceModule,
-                Id = block.SourceId,
-                EntrySize = 8,
-                Pointers = pointers
-            });
-        }
-
-        return document;
-    }
-
-    private static RelocationTableDocument BuildPointerFileReferenceTable(
-        string packageDir,
-        RetePackageManifest manifest,
-        string fileName)
-    {
-        string? sitesPath = null;
-        if (manifest.Semantic?.PointerFileSitesPaths.TryGetValue(fileName, out var manifestPath) == true &&
-            !string.IsNullOrWhiteSpace(manifestPath))
-        {
-            sitesPath = ResolvePath(packageDir, manifestPath);
-        }
-        else
-        {
-            var defaultPath = Path.Combine(packageDir, "semantic", $"{fileName}-sites.json");
-            if (File.Exists(defaultPath))
-            {
-                sitesPath = defaultPath;
-            }
-        }
-
-        if (sitesPath == null || !File.Exists(sitesPath))
-        {
-            return new RelocationTableDocument { FileName = fileName };
-        }
-
-        var sites = ReadJson<PointerFileSitesDocument>(sitesPath);
-        return new RelocationTableDocument
-        {
-            FileName = fileName,
-            Blocks =
-            [
-                new RelocationPointerBlockManifest
-                {
-                    Order = 0,
-                    Key = ToKey(sites.SourceModule, sites.SourceId),
-                    Module = sites.SourceModule,
-                    Id = sites.SourceId,
-                    EntrySize = 8,
-                    Pointers = sites.Sites
-                        .OrderBy(site => site.OffsetInMemory)
-                        .Select(site => new RelocationPointerManifest
-                        {
-                            OffsetInMemory = site.OffsetInMemory,
-                            TargetModule = site.TargetModule,
-                            TargetId = site.TargetId,
-                            Byte6 = site.Byte6,
-                            Byte7 = site.Byte7
-                        })
-                        .ToList()
-                }
-            ]
-        };
-    }
-
-    private static void WriteFixLevelSiteMetadata(
-        string levelPackageDir,
-        string fixPackageDir)
-    {
-        var levelManifestPath = Path.Combine(levelPackageDir, ManifestFileName);
-        var fixManifestPath = Path.Combine(fixPackageDir, ManifestFileName);
-        if (!File.Exists(levelManifestPath) || !File.Exists(fixManifestPath))
-        {
-            return;
-        }
-
-        var levelManifest = ReadJson<RetePackageManifest>(levelManifestPath);
-        var fixManifest = ReadJson<RetePackageManifest>(fixManifestPath);
-        var fixLevelTable = levelManifest.RelocationTables.FirstOrDefault(table =>
-            table.FileName.Equals("fixlvl.rtb", StringComparison.OrdinalIgnoreCase));
-        if (fixLevelTable == null)
-        {
-            return;
-        }
-
-        var resolver = new ReferenceAddressResolver(fixPackageDir);
-        resolver.LoadPackage(levelPackageDir);
-        var fixElements = LoadElementIndex(fixPackageDir, fixManifest);
-        var relocationTable = ReadJson<RelocationTableDocument>(ResolvePath(levelPackageDir, fixLevelTable.JsonPath));
-        var document = new FixLevelSitesDocument { LevelName = levelManifest.LevelName };
-
-        foreach (var block in relocationTable.Blocks.OrderBy(b => b.Order))
-        {
-            document.Blocks.Add(new FixLevelSiteBlock
-            {
-                Order = block.Order,
-                SourceModule = block.Module,
-                SourceId = block.Id
-            });
-            fixElements.TryGetValue((block.Module, block.Id), out var elements);
-            foreach (var pointer in block.Pointers.OrderBy(p => p.OffsetInMemory))
-            {
-                string? targetUri = null;
-                if (elements != null &&
-                    FindElementAt(elements, checked((int)pointer.OffsetInMemory)) is { } element &&
-                    TryReadElementPointerValue(fixPackageDir, element, checked((int)pointer.OffsetInMemory), out var value) &&
-                    resolver.TryGetReferenceUri(value, fixPackageDir, out var uri) &&
-                    uri.StartsWith(ReferenceUri.LevelPrefix, StringComparison.Ordinal))
-                {
-                    targetUri = uri;
-                }
-
-                document.Sites.Add(new FixLevelSiteEntry
-                {
-                    SourceModule = block.Module,
-                    SourceId = block.Id,
-                    OffsetInMemory = pointer.OffsetInMemory,
-                    TargetModule = pointer.TargetModule,
-                    TargetId = pointer.TargetId,
-                    Byte6 = pointer.Byte6,
-                    Byte7 = pointer.Byte7,
-                    TargetUri = targetUri
-                });
-            }
-        }
-
-        levelManifest.Semantic ??= new SemanticManifest();
-        levelManifest.Semantic.FixLevelSitesPath = "semantic/fix-level-sites.json";
-        WriteJson(ResolvePath(levelPackageDir, levelManifest.Semantic.FixLevelSitesPath), document);
-        WriteJson(levelManifestPath, levelManifest);
     }
 
     private static bool TryReadElementPointerValue(
         string packageDir,
         IndexedContentElement element,
         int virtualAddress,
-        out int value)
+        out int value,
+        ReferenceAddressResolver? resolver = null)
     {
         value = 0;
         if (!StructCodecRegistry.TryGet(element.Kind, out var codec))
@@ -943,7 +819,13 @@ internal static class OpenSpacePackageCodec
         byte[] bytes;
         if (elementPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
         {
-            bytes = codec.WriteFromJsonPath(packageDir, elementPath);
+            bytes = resolver != null
+                ? ReferenceJson.WriteElementBytesForExport(
+                    packageDir,
+                    element.Kind,
+                    element.DataPath,
+                    resolver)
+                : codec.WriteFromJsonPath(packageDir, elementPath);
         }
         else
         {
@@ -979,7 +861,8 @@ internal static class OpenSpacePackageCodec
                         e.Kind,
                         e.DataPath,
                         e.VirtualAddress,
-                        e.Length))
+                        e.Length,
+                        e.OffsetInBlock))
                     .OrderBy(e => e.VirtualAddress)
                     .ToList();
                 result[(block.Module, block.Id)] = elements;
@@ -1029,6 +912,9 @@ internal static class OpenSpacePackageCodec
         }
 
         Directory.CreateDirectory(outputDir);
+        var targetPackageRoots = FindTargetPackageRoots(packageDir, manifest).ToList();
+        GuardAgainstLegacyRelocationArtifacts(packageDir, targetPackageRoots);
+        ValidateExportRelocationTables(packageDir, manifest, targetPackageRoots);
         var referenceResolver = CreateExportResolver(packageDir);
 
         foreach (var snaFile in manifest.SnaFiles)
@@ -1036,7 +922,7 @@ internal static class OpenSpacePackageCodec
             CompileSnaFile(packageDir, snaFile, Path.Combine(outputDir, snaFile.FileName), referenceResolver);
         }
 
-        ExportGeneratedRelocationTables(packageDir, manifest, outputDir);
+        ExportGeneratedRelocationTables(packageDir, manifest, outputDir, targetPackageRoots);
 
         foreach (var looseFile in manifest.LooseFiles)
         {
@@ -1063,6 +949,7 @@ internal static class OpenSpacePackageCodec
 
         var results = new List<RelocationComparisonResult>();
         var targetPackageRoots = FindTargetPackageRoots(packageDir, manifest).ToList();
+        var legacyArtifactWarning = BuildLegacyRelocationArtifactWarning(packageDir, targetPackageRoots);
         var relocationContext = new RelocationGenerator.RelocationPackageContext();
         relocationContext.EnsureLayout(packageDir);
         foreach (var targetPackageRoot in targetPackageRoots)
@@ -1072,7 +959,25 @@ internal static class OpenSpacePackageCodec
 
         foreach (var table in manifest.RelocationTables)
         {
-            var preserved = LoadReferenceRelocationTable(packageDir, manifest, table);
+            if (IsUnsupportedRelocationTable(table.FileName))
+            {
+                var passThrough = ComparePassThroughRelocationTable(packageDir, manifest, table);
+                results.Add(passThrough with
+                {
+                    Note = AppendLegacyArtifactWarning(passThrough.Note, legacyArtifactWarning)
+                });
+                continue;
+            }
+
+            if (!TryLoadSourceRelocationTable(packageDir, manifest, table, out var preserved, out var loadNote))
+            {
+                results.Add(UnsupportedRelocationComparison(
+                    table.FileName,
+                    new RelocationTableDocument { FileName = table.FileName },
+                    AppendLegacyArtifactWarning(loadNote, legacyArtifactWarning) ?? loadNote));
+                continue;
+            }
+
             var extension = Path.GetExtension(table.FileName);
             if (extension.Equals(".rtb", StringComparison.OrdinalIgnoreCase))
             {
@@ -1084,7 +989,9 @@ internal static class OpenSpacePackageCodec
                         results.Add(UnsupportedRelocationComparison(
                             table.FileName,
                             preserved,
-                            "fixlvl.rtb requires a sibling Fix Rete package."));
+                            AppendLegacyArtifactWarning(
+                                "fixlvl.rtb requires a sibling Fix Rete package.",
+                                legacyArtifactWarning) ?? "fixlvl.rtb requires a sibling Fix Rete package."));
                         continue;
                     }
 
@@ -1093,7 +1000,11 @@ internal static class OpenSpacePackageCodec
                         packageDir,
                         table.FileName,
                         relocationContext);
-                    results.Add(RelocationGenerator.Compare(preserved, generatedFixLevel));
+                    var fixLevelResult = RelocationGenerator.Compare(preserved, generatedFixLevel);
+                    results.Add(fixLevelResult with
+                    {
+                        Note = AppendLegacyArtifactWarning(fixLevelResult.Note, legacyArtifactWarning)
+                    });
                     continue;
                 }
 
@@ -1102,7 +1013,11 @@ internal static class OpenSpacePackageCodec
                     table.FileName,
                     targetPackageRoots,
                     context: relocationContext);
-                results.Add(RelocationGenerator.Compare(preserved, generated));
+                var rtbResult = RelocationGenerator.Compare(preserved, generated);
+                results.Add(rtbResult with
+                {
+                    Note = AppendLegacyArtifactWarning(rtbResult.Note, legacyArtifactWarning)
+                });
                 continue;
             }
 
@@ -1114,20 +1029,20 @@ internal static class OpenSpacePackageCodec
                     pointerFilePath,
                     targetPackageRoots,
                     relocationContext);
-                results.Add(RelocationGenerator.Compare(preserved, generated));
-                continue;
-            }
-
-            if (IsUnsupportedRelocationTable(table.FileName))
-            {
-                results.Add(ComparePassThroughRelocationTable(packageDir, manifest, table));
+                var pointerFileResult = RelocationGenerator.Compare(preserved, generated);
+                results.Add(pointerFileResult with
+                {
+                    Note = AppendLegacyArtifactWarning(pointerFileResult.Note, legacyArtifactWarning)
+                });
                 continue;
             }
 
             results.Add(UnsupportedRelocationComparison(
                 table.FileName,
                 preserved,
-                "Relocation generation is not implemented for this table type."));
+                AppendLegacyArtifactWarning(
+                    "Relocation generation is not implemented for this table type.",
+                    legacyArtifactWarning) ?? "Relocation generation is not implemented for this table type."));
         }
 
         return results;
@@ -1223,7 +1138,7 @@ internal static class OpenSpacePackageCodec
             ExtraPointerCount: 0,
             PointerDataMatches: hashMatches,
             Note: hashMatches
-                ? "Pass-through export from files/ loose copy."
+                ? "Pass-through package fidelity check (files/ loose copy SHA256; not source-disc RT* parity)."
                 : $"Loose file SHA256 mismatch: expected {looseFile.Sha256}, actual {actualHash}.",
             MissingSamples: [],
             ExtraSamples: []);
@@ -1713,73 +1628,243 @@ internal static class OpenSpacePackageCodec
 
     private static RelocationTableFileManifest ExtractRelocationTable(string tablePath, string outputDir)
     {
-        var reader = new RelocationTableReader(tablePath);
+        _ = outputDir;
         var fileName = Path.GetFileName(tablePath);
-        var stem = fileName;
-        var document = new RelocationTableDocument { FileName = fileName };
-
-        for (var i = 0; i < reader.PointerBlocks.Count; i++)
+        var extension = Path.GetExtension(fileName);
+        if (extension is ".rtb" or ".rtp" or ".rtt")
         {
-            var block = reader.PointerBlocks[i];
-            var blockStem = $"{i:D4}_{block.Module:X2}_{block.Id:X2}";
-            var blockDir = $"relocations/{stem}/blocks";
-
-            var blockManifest = new RelocationPointerBlockManifest
-            {
-                Order = i,
-                Key = ToKey(block.Module, block.Id),
-                Module = block.Module,
-                Id = block.Id,
-                EntrySize = block.EntrySize,
-                PointerDataSha256 = HashBytes(block.PointerData),
-                Pointers = block.Pointers.Select(p => new RelocationPointerManifest
-                {
-                    OffsetInMemory = p.OffsetInMemory,
-                    TargetModule = p.TargetModule,
-                    TargetId = p.TargetId,
-                    Byte6 = p.Byte6,
-                    Byte7 = p.Byte7
-                }).ToList()
-            };
-
-            if (block.TrailingData.Length > 0)
-            {
-                blockManifest.TrailingDataBase64 = Convert.ToBase64String(block.TrailingData);
-            }
-
-            if (block.Count > 0)
-            {
-                var storage = new RelocationStorageManifest
-                {
-                    IsCompressed = block.IsCompressed,
-                    CompressedSize = block.CompressedSize,
-                    CompressedChecksum = block.CompressedChecksum,
-                    DecompressedSize = block.DecompressedSize,
-                    DecompressedChecksum = block.DecompressedChecksum
-                };
-
-                if (block.CompressedData.Length > 0)
-                {
-                    var encodedPath = $"{blockDir}/{blockStem}.encoded.bin";
-                    WriteBytes(outputDir, encodedPath, block.CompressedData);
-                    storage.EncodedPath = encodedPath;
-                    storage.EncodedSha256 = HashBytes(block.CompressedData);
-                }
-
-                blockManifest.OriginalStorage = storage;
-            }
-
-            document.Blocks.Add(blockManifest);
+            _ = new RelocationTableReader(tablePath);
         }
-
-        var jsonPath = $"relocations/{stem}.json";
-        WriteJson(ResolvePath(outputDir, jsonPath), document);
 
         return new RelocationTableFileManifest
         {
-            FileName = fileName,
-            JsonPath = jsonPath
+            FileName = fileName
         };
+    }
+
+    private static void ValidateExportRelocationTables(
+        string packageDir,
+        RetePackageManifest manifest,
+        IReadOnlyList<string> targetPackageRoots)
+    {
+        foreach (var table in manifest.RelocationTables)
+        {
+            if (!table.FileName.Equals("fixlvl.rtb", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            _ = targetPackageRoots.FirstOrDefault()
+                ?? throw new InvalidDataException("fixlvl.rtb requires a sibling Fix Rete package.");
+        }
+    }
+
+    private static void GuardAgainstLegacyRelocationArtifacts(
+        string packageDir,
+        IReadOnlyList<string>? siblingPackageRoots = null)
+    {
+        var artifacts = CollectLegacyRelocationArtifacts(packageDir, siblingPackageRoots);
+        if (artifacts.Count == 0)
+        {
+            return;
+        }
+
+        throw new InvalidDataException(
+            "Package contains legacy relocation bridge artifacts and must be re-imported before export. " +
+            $"Found: {string.Join(", ", artifacts.Take(8))}" +
+            (artifacts.Count > 8 ? $" (+{artifacts.Count - 8} more)" : ""));
+    }
+
+    private static string? BuildLegacyRelocationArtifactWarning(
+        string packageDir,
+        IReadOnlyList<string>? siblingPackageRoots = null)
+    {
+        var artifacts = CollectLegacyRelocationArtifacts(packageDir, siblingPackageRoots);
+        if (artifacts.Count == 0)
+        {
+            return null;
+        }
+
+        return
+            "Legacy relocation bridge artifacts detected; re-import required for reliable compare/export. " +
+            $"Found: {string.Join(", ", artifacts.Take(8))}" +
+            (artifacts.Count > 8 ? $" (+{artifacts.Count - 8} more)" : "");
+    }
+
+    private static List<string> CollectLegacyRelocationArtifacts(
+        string packageDir,
+        IReadOnlyList<string>? siblingPackageRoots)
+    {
+        var artifacts = FindLegacyRelocationArtifacts(packageDir).ToList();
+        if (siblingPackageRoots != null)
+        {
+            foreach (var siblingPackageRoot in siblingPackageRoots
+                         .Distinct(StringComparer.OrdinalIgnoreCase)
+                         .Where(root => !root.Equals(packageDir, StringComparison.OrdinalIgnoreCase)))
+            {
+                artifacts.AddRange(FindLegacyRelocationArtifacts(siblingPackageRoot));
+            }
+        }
+
+        return artifacts
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string? AppendLegacyArtifactWarning(string? note, string? legacyArtifactWarning)
+    {
+        if (string.IsNullOrWhiteSpace(legacyArtifactWarning))
+        {
+            return note;
+        }
+
+        return string.IsNullOrWhiteSpace(note)
+            ? legacyArtifactWarning
+            : $"{note} {legacyArtifactWarning}";
+    }
+
+    private static void PruneLegacyRelocationArtifacts(string packageDir)
+    {
+        var semanticDir = Path.Combine(packageDir, "semantic");
+        if (Directory.Exists(semanticDir))
+        {
+            foreach (var file in Directory.EnumerateFiles(semanticDir))
+            {
+                var fileName = Path.GetFileName(file);
+                if (IsLegacySemanticArtifactFileName(fileName))
+                {
+                    File.Delete(file);
+                }
+            }
+        }
+
+        var relocationsDir = Path.Combine(packageDir, "relocations");
+        if (Directory.Exists(relocationsDir))
+        {
+            Directory.Delete(relocationsDir, recursive: true);
+        }
+
+        foreach (var relocJson in Directory.EnumerateFiles(packageDir, "*.reloc.json", SearchOption.AllDirectories))
+        {
+            File.Delete(relocJson);
+        }
+
+        PruneLegacyRelocationManifestFields(packageDir);
+    }
+
+    private static void PruneLegacyRelocationManifestFields(string packageDir)
+    {
+        var manifestPath = Path.Combine(packageDir, ManifestFileName);
+        if (!File.Exists(manifestPath))
+        {
+            return;
+        }
+
+        var manifest = ReadJson<RetePackageManifest>(manifestPath);
+        WriteJson(manifestPath, manifest);
+    }
+
+    private static bool IsLegacySemanticArtifactFileName(string fileName) =>
+        fileName.EndsWith("-sites.json", StringComparison.OrdinalIgnoreCase) ||
+        fileName.EndsWith("-encoding.json", StringComparison.OrdinalIgnoreCase) ||
+        fileName.Equals("rtb-sites.json", StringComparison.OrdinalIgnoreCase) ||
+        fileName.Equals("fix-level-sites.json", StringComparison.OrdinalIgnoreCase) ||
+        fileName.Equals("fixlvl-sites.json", StringComparison.OrdinalIgnoreCase);
+
+    private static IReadOnlyList<string> FindLegacyRelocationArtifacts(string packageDir)
+    {
+        var artifacts = new List<string>();
+        var semanticDir = Path.Combine(packageDir, "semantic");
+        if (Directory.Exists(semanticDir))
+        {
+            foreach (var file in Directory.EnumerateFiles(semanticDir))
+            {
+                var fileName = Path.GetFileName(file);
+                if (IsLegacySemanticArtifactFileName(fileName))
+                {
+                    artifacts.Add(Path.GetRelativePath(packageDir, file).Replace('\\', '/'));
+                }
+            }
+        }
+
+        var relocationsDir = Path.Combine(packageDir, "relocations");
+        if (Directory.Exists(relocationsDir))
+        {
+            artifacts.Add("relocations/");
+        }
+
+        foreach (var relocJson in Directory.EnumerateFiles(packageDir, "*.reloc.json", SearchOption.AllDirectories))
+        {
+            artifacts.Add(Path.GetRelativePath(packageDir, relocJson).Replace('\\', '/'));
+        }
+
+        var manifestPath = Path.Combine(packageDir, ManifestFileName);
+        if (File.Exists(manifestPath))
+        {
+            artifacts.AddRange(FindLegacyManifestRelocationProperties(manifestPath));
+        }
+
+        return artifacts
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static IEnumerable<string> FindLegacyManifestRelocationProperties(string manifestPath)
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(manifestPath));
+        var root = document.RootElement;
+        if (!root.TryGetProperty("relocationTables", out var relocationTables) ||
+            relocationTables.ValueKind != JsonValueKind.Array)
+        {
+            yield break;
+        }
+
+        for (var index = 0; index < relocationTables.GetArrayLength(); index++)
+        {
+            var table = relocationTables[index];
+            if (table.TryGetProperty("jsonPath", out var jsonPath) &&
+                jsonPath.ValueKind == JsonValueKind.String &&
+                !string.IsNullOrWhiteSpace(jsonPath.GetString()))
+            {
+                yield return $"manifest.json: relocationTables[{index}].jsonPath";
+            }
+
+            if (table.TryGetProperty("encodingPath", out var encodingPath) &&
+                encodingPath.ValueKind == JsonValueKind.String &&
+                !string.IsNullOrWhiteSpace(encodingPath.GetString()))
+            {
+                yield return $"manifest.json: relocationTables[{index}].encodingPath";
+            }
+        }
+
+        if (!root.TryGetProperty("semantic", out var semantic) ||
+            semantic.ValueKind != JsonValueKind.Object)
+        {
+            yield break;
+        }
+
+        if (semantic.TryGetProperty("rtbSitesPath", out var rtbSitesPath) &&
+            rtbSitesPath.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrWhiteSpace(rtbSitesPath.GetString()))
+        {
+            yield return "manifest.json: semantic.rtbSitesPath";
+        }
+
+        if (semantic.TryGetProperty("fixLevelSitesPath", out var fixLevelSitesPath) &&
+            fixLevelSitesPath.ValueKind == JsonValueKind.String &&
+            !string.IsNullOrWhiteSpace(fixLevelSitesPath.GetString()))
+        {
+            yield return "manifest.json: semantic.fixLevelSitesPath";
+        }
+
+        if (semantic.TryGetProperty("pointerFileSitesPaths", out var pointerFileSitesPaths) &&
+            pointerFileSitesPaths.ValueKind == JsonValueKind.Object &&
+            pointerFileSitesPaths.EnumerateObject().Any())
+        {
+            yield return "manifest.json: semantic.pointerFileSitesPaths";
+        }
     }
 
     private static LooseFileManifest CopyLooseFile(string filePath, string outputDir)
@@ -1925,9 +2010,9 @@ internal static class OpenSpacePackageCodec
     private static void ExportGeneratedRelocationTables(
         string packageDir,
         RetePackageManifest manifest,
-        string outputDir)
+        string outputDir,
+        IReadOnlyList<string> targetPackageRoots)
     {
-        var targetPackageRoots = FindTargetPackageRoots(packageDir, manifest).ToList();
         var relocationContext = new RelocationGenerator.RelocationPackageContext();
         relocationContext.EnsureLayout(packageDir);
         foreach (var targetPackageRoot in targetPackageRoots)
@@ -1975,10 +2060,10 @@ internal static class OpenSpacePackageCodec
             }
             else
             {
-                generated = LoadReferenceRelocationTable(packageDir, manifest, table);
+                throw new InvalidDataException(
+                    $"Relocation generation is not implemented for table {table.FileName}.");
             }
 
-            ApplyRelocationEncoding(packageDir, table, generated);
             CompileRelocationTable(packageDir, generated, Path.Combine(outputDir, table.FileName));
         }
     }
@@ -2030,6 +2115,8 @@ internal static class OpenSpacePackageCodec
             throw new InvalidDataException($"Relocation table {document.FileName} has too many pointer blocks.");
         }
 
+        var sourceBlocks = TryLoadSourceRelocationBlocks(intermediateDir, document.FileName);
+
         using var writer = new BinaryWriter(File.Create(outputPath));
         writer.Write((byte)document.Blocks.Count);
 
@@ -2044,29 +2131,127 @@ internal static class OpenSpacePackageCodec
                 continue;
             }
 
-            var pointerData = BuildPointerData(block);
+            RelocationPointerBlock? sourceBlock = null;
+            sourceBlocks?.TryGetValue((block.Module, block.Id), out sourceBlock);
+            if (sourceBlock != null &&
+                TryEnrichGeneratedBlockFromSource(block, sourceBlock) &&
+                TryWriteSourceRelocationPointerBlock(writer, block, sourceBlock))
+            {
+                continue;
+            }
 
-            if (CanReuseRelocationStorage(intermediateDir, block, pointerData, out var encodedData))
-            {
-                var storage = block.OriginalStorage!;
-                writer.Write(storage.IsCompressed ? 1u : 0u);
-                writer.Write(storage.CompressedSize);
-                writer.Write(storage.CompressedChecksum);
-                writer.Write(storage.DecompressedSize);
-                writer.Write(storage.DecompressedChecksum);
-                writer.Write(encodedData);
-            }
-            else
-            {
-                var checksum = OpenSpaceChecksum.Calculate(pointerData);
-                writer.Write(0u);
-                writer.Write((uint)pointerData.Length);
-                writer.Write(checksum);
-                writer.Write((uint)pointerData.Length);
-                writer.Write(checksum);
-                writer.Write(pointerData);
-            }
+            WriteRelocationPointerBlock(writer, block);
         }
+    }
+
+    private static Dictionary<(byte Module, byte Id), RelocationPointerBlock>? TryLoadSourceRelocationBlocks(
+        string packageDir,
+        string fileName)
+    {
+        var manifestPath = Path.Combine(packageDir, ManifestFileName);
+        if (!File.Exists(manifestPath))
+        {
+            return null;
+        }
+
+        var manifest = ReadJson<RetePackageManifest>(manifestPath);
+        var (sourcePath, _) = TryResolveSourceRelocationPath(packageDir, manifest, fileName);
+        if (sourcePath == null || !File.Exists(sourcePath))
+        {
+            return null;
+        }
+
+        var reader = new RelocationTableReader(sourcePath);
+        return reader.PointerBlocks.ToDictionary(block => (block.Module, block.Id));
+    }
+
+    private static bool TryEnrichGeneratedBlockFromSource(
+        RelocationPointerBlockManifest generatedBlock,
+        RelocationPointerBlock sourceBlock)
+    {
+        if (sourceBlock.Count != generatedBlock.Pointers.Count)
+        {
+            return false;
+        }
+
+        var sourceByOffset = sourceBlock.Pointers.ToDictionary(p => p.OffsetInMemory);
+        foreach (var pointer in generatedBlock.Pointers)
+        {
+            if (!sourceByOffset.TryGetValue(pointer.OffsetInMemory, out var sourcePointer) ||
+                sourcePointer.TargetModule != pointer.TargetModule ||
+                sourcePointer.TargetId != pointer.TargetId)
+            {
+                return false;
+            }
+
+            pointer.Byte6 = sourcePointer.Byte6;
+            pointer.Byte7 = sourcePointer.Byte7;
+        }
+
+        if (sourceBlock.TrailingData.Length > 0)
+        {
+            generatedBlock.TrailingDataBase64 = Convert.ToBase64String(sourceBlock.TrailingData);
+        }
+
+        return BuildPointerData(generatedBlock).AsSpan().SequenceEqual(sourceBlock.PointerData);
+    }
+
+    private static bool TryWriteSourceRelocationPointerBlock(
+        BinaryWriter writer,
+        RelocationPointerBlockManifest generatedBlock,
+        RelocationPointerBlock sourceBlock)
+    {
+        if (sourceBlock.Count == 0 ||
+            sourceBlock.Count != generatedBlock.Pointers.Count ||
+            !BuildPointerData(generatedBlock).AsSpan().SequenceEqual(sourceBlock.PointerData))
+        {
+            return false;
+        }
+
+        if (sourceBlock.IsCompressed)
+        {
+            writer.Write(1u);
+            writer.Write(sourceBlock.CompressedSize);
+            writer.Write(sourceBlock.CompressedChecksum);
+            writer.Write(sourceBlock.DecompressedSize);
+            writer.Write(sourceBlock.DecompressedChecksum);
+            writer.Write(sourceBlock.CompressedData);
+            return true;
+        }
+
+        writer.Write(0u);
+        writer.Write(sourceBlock.DecompressedSize);
+        writer.Write(sourceBlock.DecompressedChecksum);
+        writer.Write(sourceBlock.DecompressedSize);
+        writer.Write(sourceBlock.DecompressedChecksum);
+        writer.Write(sourceBlock.CompressedData);
+        return true;
+    }
+
+    private static void WriteRelocationPointerBlock(BinaryWriter writer, RelocationPointerBlockManifest block)
+    {
+        var pointerData = BuildPointerData(block);
+        var decompressedSize = (uint)pointerData.Length;
+        var decompressedChecksum = OpenSpaceChecksum.Calculate(pointerData);
+
+        if (OpenSpaceLzo.TryCompress(pointerData, out var compressed) &&
+            compressed.Length < pointerData.Length)
+        {
+            writer.Write(1u);
+            writer.Write((uint)compressed.Length);
+            writer.Write(OpenSpaceChecksum.Calculate(compressed));
+            writer.Write(decompressedSize);
+            writer.Write(decompressedChecksum);
+            writer.Write(compressed);
+            return;
+        }
+
+        writer.Write(0u);
+        writer.Write(decompressedSize);
+        writer.Write(decompressedChecksum);
+        writer.Write(decompressedSize);
+        writer.Write(decompressedChecksum);
+        writer.Write(pointerData);
     }
 
     private static bool CanReuseSnaStorage(string intermediateDir, SnaBlockManifest block, byte[] data, out byte[] encodedData)
@@ -2085,41 +2270,6 @@ internal static class OpenSpacePackageCodec
         }
 
         if (data.Length != storage.DecompressedSize || OpenSpaceChecksum.Calculate(data) != storage.DecompressedChecksum)
-        {
-            return false;
-        }
-
-        var encodedPath = ResolvePath(intermediateDir, storage.EncodedPath);
-        if (!File.Exists(encodedPath))
-        {
-            return false;
-        }
-
-        encodedData = File.ReadAllBytes(encodedPath);
-        return HashBytes(encodedData).Equals(storage.EncodedSha256, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool CanReuseRelocationStorage(
-        string intermediateDir,
-        RelocationPointerBlockManifest block,
-        byte[] pointerData,
-        out byte[] encodedData)
-    {
-        encodedData = [];
-
-        var storage = block.OriginalStorage;
-        if (storage?.EncodedPath == null || storage.EncodedSha256 == null)
-        {
-            return false;
-        }
-
-        if (!HashBytes(pointerData).Equals(block.PointerDataSha256, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (pointerData.Length != storage.DecompressedSize ||
-            OpenSpaceChecksum.Calculate(pointerData) != storage.DecompressedChecksum)
         {
             return false;
         }
@@ -2357,7 +2507,155 @@ internal static class OpenSpacePackageCodec
         string Kind,
         string DataPath,
         int VirtualAddress,
-        int Length);
+        int Length,
+        int OffsetInBlock);
+
+    private static Dictionary<(byte Module, byte Id), byte[]?> BuildImportBlockByteCache(
+        string packageDir,
+        RetePackageManifest manifest)
+    {
+        var cache = new Dictionary<(byte Module, byte Id), byte[]?>();
+        foreach (var snaFile in manifest.SnaFiles)
+        {
+            foreach (var block in snaFile.Blocks)
+            {
+                cache[(block.Module, block.Id)] = TryLoadImportBlockBytes(packageDir, block, out var bytes)
+                    ? bytes
+                    : null;
+            }
+        }
+
+        return cache;
+    }
+
+    private static bool TryLoadImportBlockBytes(
+        string packageDir,
+        SnaBlockManifest block,
+        out byte[] bytes)
+    {
+        bytes = [];
+        if (!block.HasPayload)
+        {
+            return false;
+        }
+
+        var storage = block.OriginalStorage;
+        if (storage?.EncodedPath != null && storage.DecompressedSize > 0)
+        {
+            var encodedPath = ResolvePath(packageDir, storage.EncodedPath);
+            if (File.Exists(encodedPath))
+            {
+                var encoded = File.ReadAllBytes(encodedPath);
+                bytes = storage.IsCompressed
+                    ? OpenSpaceLzo.Decompress(encoded, checked((int)storage.DecompressedSize))
+                    : encoded;
+                return bytes.Length >= sizeof(int);
+            }
+        }
+
+        if (block.ContentPath == null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var resolver = new ReferenceAddressResolver(packageDir);
+            bytes = ReadSnaBlockData(packageDir, block, resolver);
+            return bytes.Length >= sizeof(int);
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
+    }
+
+    private static bool TryReadImportPointerValue(
+        IndexedContentElement element,
+        int offsetInElement,
+        byte[]? blockBytes,
+        string packageDir,
+        ReferenceAddressResolver resolver,
+        out int value)
+    {
+        value = 0;
+        if (blockBytes != null &&
+            element.OffsetInBlock + offsetInElement + sizeof(int) <= blockBytes.Length)
+        {
+            value = BinaryPrimitives.ReadInt32LittleEndian(
+                blockBytes.AsSpan(element.OffsetInBlock + offsetInElement, sizeof(int)));
+            return true;
+        }
+
+        if (!StructCodecRegistry.TryGet(element.Kind, out _))
+        {
+            return false;
+        }
+
+        var elementBytes = ReferenceJson.WriteElementBytesForExport(
+            packageDir,
+            element.Kind,
+            element.DataPath,
+            resolver);
+        if (offsetInElement + sizeof(int) > elementBytes.Length)
+        {
+            return false;
+        }
+
+        value = BinaryPrimitives.ReadInt32LittleEndian(elementBytes.AsSpan(offsetInElement, sizeof(int)));
+        return true;
+    }
+
+    private static bool TryResolveLevelTargetPath(
+        string levelPackageDir,
+        string fixPackageDir,
+        string resolvedLevelUri,
+        out string sourcePath)
+    {
+        if (ReferenceUri.TryResolve(levelPackageDir, resolvedLevelUri, out sourcePath, out _))
+        {
+            return true;
+        }
+
+        return ReferenceUri.TryResolve(
+            fixPackageDir,
+            resolvedLevelUri,
+            out sourcePath,
+            out _,
+            levelPackageRoot: levelPackageDir);
+    }
+
+    private static string MakeLevelSlotUri(int fixSiteAddress) =>
+        $"{ReferenceUri.LevelPrefix}slots/0x{fixSiteAddress:X8}.json";
+
+    private static string MakeLevelSlotRelativePath(int fixSiteAddress) =>
+        $"slots/0x{fixSiteAddress:X8}.json";
+
+    private static string? WriteLevelSlotForFixSite(
+        string levelPackageDir,
+        string fixPackageDir,
+        int fixSiteAddress,
+        string resolvedLevelUri,
+        ReferenceAddressResolver resolver)
+    {
+        if (!TryResolveLevelTargetPath(
+                levelPackageDir,
+                fixPackageDir,
+                resolvedLevelUri,
+                out var sourcePath) ||
+            !File.Exists(sourcePath))
+        {
+            return null;
+        }
+
+        var slotRelativePath = MakeLevelSlotRelativePath(fixSiteAddress);
+        var slotPath = Path.Combine(levelPackageDir, slotRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(slotPath)!);
+        File.Copy(sourcePath, slotPath, overwrite: true);
+
+        resolver.LoadPackage(levelPackageDir);
+        return MakeLevelSlotUri(fixSiteAddress);
+    }
 
     private sealed class PendingOpaquePointerRecord
     {
@@ -2382,8 +2680,4 @@ internal static class OpenSpacePackageCodec
         return $"0x{value:X8}";
     }
 
-    private static string FormatPointerOffset(int offset)
-    {
-        return $"0x{offset:X}";
-    }
 }

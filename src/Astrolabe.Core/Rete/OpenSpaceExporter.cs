@@ -29,4 +29,10 @@ public static class OpenSpaceExporter
         string fileName,
         IReadOnlyList<string> targetPackageRoots) =>
         OpenSpace.RelocationGenerator.GenerateRtb(packageRoot, fileName, targetPackageRoots);
+
+    public static RelocationTableDocument GenerateFixLevelRtb(
+        string fixPackageRoot,
+        string levelPackageRoot,
+        string fileName) =>
+        OpenSpace.RelocationGenerator.GenerateFixLevelRtb(fixPackageRoot, levelPackageRoot, fileName);
 }
