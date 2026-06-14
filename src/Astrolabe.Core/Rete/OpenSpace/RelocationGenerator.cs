@@ -261,7 +261,7 @@ internal static class RelocationGenerator
                 continue;
             }
 
-            if (!TryLoadElementData(sourcePackageRoot, element, codec, resolver, out var data))
+            if (!TryLoadElementData(sourcePackageRoot, element, resolver, out var data))
             {
                 continue;
             }
@@ -303,7 +303,6 @@ internal static class RelocationGenerator
     private static bool TryLoadElementData(
         string sourcePackageRoot,
         ElementLayout element,
-        IStructCodecBinding codec,
         ReferenceAddressResolver resolver,
         out byte[] data)
     {
@@ -316,13 +315,11 @@ internal static class RelocationGenerator
 
         if (elementPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
         {
-            using var json = JsonDocument.Parse(File.ReadAllText(elementPath));
-            using var resolvedJson = ReferenceJson.ResolvePointersForExport(
-                json.RootElement,
+            data = ReferenceJson.WriteElementBytesForExport(
                 sourcePackageRoot,
-                codec,
+                element.Kind,
+                element.DataPath,
                 resolver);
-            data = codec.WriteFromJsonElement(resolvedJson.RootElement);
             return true;
         }
 

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Astrolabe.Core.Serialization;
 
 namespace Astrolabe.Core.Rete;
@@ -13,22 +12,13 @@ public static class OpenSpaceExporter
 
     public static byte[] PreviewStructuredElementBytes(string packageDir, string kind, string relativeDataPath)
     {
-        if (!StructCodecRegistry.TryGet(kind, out var codec))
+        if (!StructCodecRegistry.TryGet(kind, out _))
         {
             throw new InvalidDataException($"No struct codec registered for kind '{kind}'.");
         }
 
         var resolver = ReferenceAddressResolver.CreateForExport(packageDir);
-
-        var elementPath = ReferenceUri.Resolve(packageDir, relativeDataPath).FilePath;
-        using var document = JsonDocument.Parse(File.ReadAllText(elementPath));
-        using var resolvedDocument = ReferenceJson.ResolvePointersForExport(
-            document.RootElement,
-            packageDir,
-            codec,
-            resolver);
-
-        return codec.WriteFromJsonElement(resolvedDocument.RootElement);
+        return ReferenceJson.WriteElementBytesForExport(packageDir, kind, relativeDataPath, resolver);
     }
 
     public static string? FindTargetBlockKey(string packageRoot, int address) =>

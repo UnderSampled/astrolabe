@@ -8,6 +8,7 @@ public interface IStructCodecBinding
     int? FixedSize { get; }
     IReadOnlyList<PointerField> PointerFields { get; }
     bool IsPointerArray { get; }
+    bool UsesExternalBinaryPayload { get; }
     string PointerArrayPropertyName { get; }
     int PointerEntryStride { get; }
     IReadOnlyDictionary<string, string> PointerFieldAliases { get; }
@@ -15,10 +16,12 @@ public interface IStructCodecBinding
     IReadOnlyList<PointerField> ResolvePointerFields(int serializedByteLength);
     IReadOnlyList<PointerField> EnumeratePointerFields(ReadOnlySpan<byte> data);
     object ReadFromBytes(ReadOnlySpan<byte> data, int offset, int length);
+    object ReadFromJsonElement(JsonElement json);
+    object ReadFromJsonPath(string packageRoot, string jsonPath);
     byte[] WriteFromObject(object value);
     byte[] WriteFromJsonElement(JsonElement json);
-    byte[] WriteFromJsonPath(string jsonPath);
-    void WriteJson(string jsonPath, object value);
+    byte[] WriteFromJsonPath(string packageRoot, string jsonPath);
+    void WriteJson(string packageRoot, string jsonPath, object value);
 }
 
 internal sealed class StructCodecBinding<T> : IStructCodecBinding
@@ -34,6 +37,7 @@ internal sealed class StructCodecBinding<T> : IStructCodecBinding
     public int? FixedSize => _codec.FixedSize;
     public IReadOnlyList<PointerField> PointerFields => _codec.PointerFields;
     public bool IsPointerArray => _codec is IPointerArrayCodec;
+    public bool UsesExternalBinaryPayload => typeof(T) == typeof(Codecs.OpaqueBinaryRecord);
     public string PointerArrayPropertyName =>
         (_codec as IPointerArrayCodec)?.PointerArrayPropertyName ?? "values";
     public int PointerEntryStride =>
@@ -53,20 +57,46 @@ internal sealed class StructCodecBinding<T> : IStructCodecBinding
     public object ReadFromBytes(ReadOnlySpan<byte> data, int offset, int length) =>
         _codec.Read(data, offset, length)!;
 
+    public object ReadFromJsonElement(JsonElement json)
+    {
+        if (UsesExternalBinaryPayload)
+        {
+            return OpaqueBinaryStorage.Read(json, _codec.Schema);
+        }
+
+        return _codec.FromJson(json)!;
+    }
+
+    public object ReadFromJsonPath(string packageRoot, string jsonPath)
+    {
+        if (UsesExternalBinaryPayload)
+        {
+            return OpaqueBinaryStorage.Read(packageRoot, jsonPath, _codec.Schema);
+        }
+
+        using var document = JsonDocument.Parse(File.ReadAllText(jsonPath));
+        return _codec.FromJson(document.RootElement)!;
+    }
+
     public byte[] WriteFromObject(object value) =>
         _codec.Write((T)value);
 
     public byte[] WriteFromJsonElement(JsonElement json) =>
-        _codec.Write(_codec.FromJson(json));
+        _codec.Write((T)ReadFromJsonElement(json));
 
-    public byte[] WriteFromJsonPath(string jsonPath)
+    public byte[] WriteFromJsonPath(string packageRoot, string jsonPath)
     {
-        using var document = JsonDocument.Parse(File.ReadAllText(jsonPath));
-        return WriteFromJsonElement(document.RootElement);
+        return WriteFromObject(ReadFromJsonPath(packageRoot, jsonPath));
     }
 
-    public void WriteJson(string jsonPath, object value)
+    public void WriteJson(string packageRoot, string jsonPath, object value)
     {
+        if (UsesExternalBinaryPayload)
+        {
+            OpaqueBinaryStorage.Write(packageRoot, jsonPath, (Codecs.OpaqueBinaryRecord)value);
+            return;
+        }
+
         Directory.CreateDirectory(Path.GetDirectoryName(jsonPath)!);
         using var stream = File.Create(jsonPath);
         using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true });
@@ -168,7 +198,7 @@ public static class StructCodecRegistry
         if (dataPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) &&
             TryGet(kind, out var codec))
         {
-            return codec.WriteFromJsonPath(fullPath);
+            return codec.WriteFromJsonPath(intermediateDir, fullPath);
         }
 
         return File.ReadAllBytes(fullPath);

@@ -206,8 +206,7 @@ internal sealed class RetePackageAddressIndex
 
             if (dataPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
             {
-                using var document = JsonDocument.Parse(File.ReadAllText(dataPath));
-                return codec.WriteFromJsonElement(document.RootElement).Length;
+                return codec.WriteFromJsonPath(packageRoot, dataPath).Length;
             }
         }
 

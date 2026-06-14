@@ -251,6 +251,8 @@ Dense numeric or byte data uses a descriptor JSON plus a `.bin` buffer:
 
 Buffers are appropriate for vertices, normals, UVs, triangle indices, animation frames, collision vertices, and large opaque spans. AI script node arrays may remain as preservation buffers alongside S-expression source files.
 
+Opaque preservation records also use a JSON descriptor plus sidecar `.bin`, even for small blobs. When an opaque blob contains pointer fields that must survive export, the JSON descriptor carries a `pointers` map keyed by byte offset (`"0x10": "types/..."`, `null` for zero), and the exporter patches those addresses into the binary payload before SNA serialization.
+
 ## Scene tree
 
 `scene/` holds the editable scene hierarchy. Each node folder contains `node.json` (`astrolabe.scene-node.v1`) with SuperObject fields, stable node id, package path, display name, child paths, matrix paths, and semantic links.

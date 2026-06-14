@@ -1,5 +1,7 @@
+using System.Buffers.Binary;
 using System.Text.Json;
 using Astrolabe.Core.Serialization;
+using Astrolabe.Core.Serialization.Codecs;
 
 namespace Astrolabe.Core.Rete;
 
@@ -14,6 +16,11 @@ internal static class ReferenceJson
         if (codec.PointerFields.Count == 0 && !codec.IsPointerArray)
         {
             return false;
+        }
+
+        if (codec.UsesExternalBinaryPayload)
+        {
+            return RewriteOpaquePointersToUris(jsonPath, packageRoot, codec, resolver);
         }
 
         using var document = JsonDocument.Parse(File.ReadAllText(jsonPath));
@@ -53,6 +60,11 @@ internal static class ReferenceJson
             return File.ReadAllBytes(elementPath);
         }
 
+        if (codec.UsesExternalBinaryPayload)
+        {
+            return WriteOpaqueElementBytesForExport(packageRoot, elementPath, codec, resolver);
+        }
+
         using var document = JsonDocument.Parse(File.ReadAllText(elementPath));
         using var resolvedDocument = ResolvePointersForExport(
             document.RootElement,
@@ -68,7 +80,8 @@ internal static class ReferenceJson
         IStructCodecBinding codec,
         ReferenceAddressResolver resolver)
     {
-        if (codec.PointerFields.Count == 0 && !codec.IsPointerArray)
+        if (codec.UsesExternalBinaryPayload ||
+            (codec.PointerFields.Count == 0 && !codec.IsPointerArray))
         {
             return JsonDocument.Parse(root.GetRawText());
         }
@@ -86,6 +99,76 @@ internal static class ReferenceJson
 
         stream.Position = 0;
         return JsonDocument.Parse(stream);
+    }
+
+    private static bool RewriteOpaquePointersToUris(
+        string jsonPath,
+        string packageRoot,
+        IStructCodecBinding codec,
+        ReferenceAddressResolver resolver)
+    {
+        var record = (OpaqueBinaryRecord)codec.ReadFromJsonPath(packageRoot, jsonPath);
+        var rewrittenPointers = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var field in codec.EnumeratePointerFields(record.Data).OrderBy(f => f.Offset))
+        {
+            if (field.Offset < 0 || field.Offset + sizeof(int) > record.Data.Length)
+            {
+                continue;
+            }
+
+            var value = BinaryPrimitives.ReadInt32LittleEndian(record.Data.AsSpan(field.Offset, sizeof(int)));
+            if (value == 0)
+            {
+                rewrittenPointers[FormatPointerOffset(field.Offset)] = null;
+                continue;
+            }
+
+            if (resolver.TryGetReferenceUri(value, packageRoot, out var uri))
+            {
+                rewrittenPointers[FormatPointerOffset(field.Offset)] = uri;
+            }
+        }
+
+        if (PointerMapsEqual(record.Pointers, rewrittenPointers))
+        {
+            return false;
+        }
+
+        record.Pointers = rewrittenPointers;
+        codec.WriteJson(packageRoot, jsonPath, record);
+        return true;
+    }
+
+    private static byte[] WriteOpaqueElementBytesForExport(
+        string packageRoot,
+        string jsonPath,
+        IStructCodecBinding codec,
+        ReferenceAddressResolver resolver)
+    {
+        var record = (OpaqueBinaryRecord)codec.ReadFromJsonPath(packageRoot, jsonPath);
+        var data = record.Data.ToArray();
+
+        foreach (var entry in record.Pointers)
+        {
+            if (!TryParsePointerOffset(entry.Key, out var offset))
+            {
+                throw new InvalidDataException($"Invalid opaque pointer offset '{entry.Key}' in {jsonPath}.");
+            }
+
+            if (offset < 0 || offset + sizeof(int) > data.Length || offset % sizeof(int) != 0)
+            {
+                throw new InvalidDataException(
+                    $"Opaque pointer offset '{entry.Key}' is out of bounds for {jsonPath}.");
+            }
+
+            var address = string.IsNullOrWhiteSpace(entry.Value)
+                ? 0
+                : resolver.ResolveAddress(packageRoot, entry.Value);
+            BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(offset, sizeof(int)), address);
+        }
+
+        return data;
     }
 
     private static Utf8JsonWriter CreateWriter(Stream stream) =>
@@ -272,6 +355,53 @@ internal static class ReferenceJson
         }
 
         return WriteReplacement.Number(resolver.ResolveAddress(packageRoot, uri));
+    }
+
+    private static string FormatPointerOffset(int offset) => $"0x{offset:X}";
+
+    private static bool TryParsePointerOffset(string value, out int offset)
+    {
+        offset = 0;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        if (value.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        {
+            return int.TryParse(
+                value.AsSpan(2),
+                System.Globalization.NumberStyles.HexNumber,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out offset);
+        }
+
+        return int.TryParse(value, out offset);
+    }
+
+    private static bool PointerMapsEqual(
+        IReadOnlyDictionary<string, string?> left,
+        IReadOnlyDictionary<string, string?> right)
+    {
+        if (left.Count != right.Count)
+        {
+            return false;
+        }
+
+        foreach (var pair in left)
+        {
+            if (!right.TryGetValue(pair.Key, out var rightValue))
+            {
+                return false;
+            }
+
+            if (!string.Equals(pair.Value, rightValue, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private readonly record struct WriteReplacement(ReplacementKind Kind, int NumberValue, string? StringValue)

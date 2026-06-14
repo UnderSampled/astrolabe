@@ -488,13 +488,13 @@ internal static class OpenSpacePackageCodec
                     else
                     {
                         dataPath = GetTypedDataPath(plan.Kind, blockStem, i, "json");
-                        codec.WriteJson(ResolvePath(outputDir, dataPath), value);
+                        codec.WriteJson(outputDir, ResolvePath(outputDir, dataPath), value);
                     }
                 }
                 else
                 {
                     dataPath = GetTypedDataPath(plan.Kind, blockStem, i, "json");
-                    codec.WriteJson(ResolvePath(outputDir, dataPath), value);
+                    codec.WriteJson(outputDir, ResolvePath(outputDir, dataPath), value);
                 }
             }
             else
