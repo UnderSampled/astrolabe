@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Text.Json;
 using Astrolabe.Core.Rete;
+using Astrolabe.Core.Rete.OpenSpace;
 using Astrolabe.Core.Serialization;
 using Astrolabe.Core.Serialization.Codecs;
 using Xunit;
@@ -203,7 +204,7 @@ public sealed class RelocationGeneratorTests
 
             CreateOpaquePackageFixture(
                 levelDir,
-                new Dictionary<string, string?> { ["0x0"] = "../fix/types/raw/target.json" },
+                new Dictionary<string, string?> { ["0x0"] = "fix:/types/raw/target.json" },
                 sourceData: [0x00, 0x00, 0x00, 0x09, 0, 0, 0, 0],
                 module: 0x00,
                 id: 0x01);
@@ -222,6 +223,88 @@ public sealed class RelocationGeneratorTests
             Assert.Equal((uint)0x0900_0004, pointer.OffsetInMemory);
             Assert.Equal(0x02, pointer.TargetModule);
             Assert.Equal(0x03, pointer.TargetId);
+        }
+        finally
+        {
+            Directory.Delete(workspaceDir, true);
+        }
+    }
+
+    [Fact]
+    public void GenerateFixLevelRtb_UsesLevelSchemeReferences()
+    {
+        var workspaceDir = CreateTempDir();
+        try
+        {
+            var levelDir = Path.Combine(workspaceDir, "astrolabe");
+            var fixDir = Path.Combine(workspaceDir, "fix");
+
+            CreateOpaquePackageFixture(
+                levelDir,
+                [],
+                module: 0x04,
+                id: 0x05);
+            CreateOpaquePackageFixture(
+                fixDir,
+                new Dictionary<string, string?> { ["0x0"] = "level:/types/raw/target.json" },
+                sourceData: [0x00, 0x00, 0x00, 0x09, 0, 0, 0, 0],
+                packageRole: "fix",
+                levelName: "Fix",
+                module: 0x02,
+                id: 0x03);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                PropertyNameCaseInsensitive = true
+            };
+            var levelManifestPath = Path.Combine(levelDir, "manifest.json");
+            var levelManifest = JsonSerializer.Deserialize<RetePackageManifest>(
+                File.ReadAllText(levelManifestPath),
+                jsonOptions)!;
+            levelManifest.Semantic = new SemanticManifest
+            {
+                FixLevelSitesPath = "semantic/fix-level-sites.json"
+            };
+            WriteJson(levelManifestPath, levelManifest, jsonOptions);
+            WriteJson(
+                Path.Combine(levelDir, "semantic/fix-level-sites.json"),
+                new FixLevelSitesDocument
+                {
+                    LevelName = "test",
+                    Blocks =
+                    [
+                        new FixLevelSiteBlock
+                        {
+                            Order = 0,
+                            SourceModule = 0x02,
+                            SourceId = 0x03
+                        }
+                    ],
+                    Sites =
+                    [
+                        new FixLevelSiteEntry
+                        {
+                            SourceModule = 0x02,
+                            SourceId = 0x03,
+                            OffsetInMemory = 0x0900_0004,
+                            TargetModule = 0x04,
+                            TargetId = 0x05,
+                            TargetUri = "level:/types/raw/target.json"
+                        }
+                    ]
+                },
+                jsonOptions);
+
+            var table = RelocationGenerator.GenerateFixLevelRtb(
+                fixDir,
+                levelDir,
+                "fixlvl.rtb");
+            var block = Assert.Single(table.Blocks);
+            var pointer = Assert.Single(block.Pointers);
+
+            Assert.Equal((uint)0x0900_0004, pointer.OffsetInMemory);
+            Assert.Equal(0x04, pointer.TargetModule);
+            Assert.Equal(0x05, pointer.TargetId);
         }
         finally
         {

@@ -45,6 +45,11 @@ internal static class OpenSpacePackageCodec
         var manifest = ImportPackage(levelDir, levelName, outputDir, "level", _ => true);
         RewritePointerReferences(outputDir, fixPackageDir);
         AnnotateOpaquePointersFromRelocations(outputDir, fixPackageDir);
+        if (!string.IsNullOrWhiteSpace(fixPackageDir))
+        {
+            AnnotateOpaquePointersFromFixLevelRelocations(fixPackageDir, outputDir);
+            WriteFixLevelSiteMetadata(outputDir, fixPackageDir);
+        }
         return manifest;
     }
 
@@ -286,6 +291,203 @@ internal static class OpenSpacePackageCodec
         }
     }
 
+    private static void AnnotateOpaquePointersFromFixLevelRelocations(
+        string fixPackageDir,
+        string levelPackageDir)
+    {
+        var fixManifestPath = Path.Combine(fixPackageDir, ManifestFileName);
+        var levelManifestPath = Path.Combine(levelPackageDir, ManifestFileName);
+        if (!File.Exists(fixManifestPath) || !File.Exists(levelManifestPath))
+        {
+            return;
+        }
+
+        var levelManifest = ReadJson<RetePackageManifest>(levelManifestPath);
+        var fixLevelTable = levelManifest.RelocationTables.FirstOrDefault(table =>
+            table.FileName.Equals("fixlvl.rtb", StringComparison.OrdinalIgnoreCase));
+        if (fixLevelTable == null)
+        {
+            return;
+        }
+
+        var resolver = new ReferenceAddressResolver(fixPackageDir);
+        resolver.LoadPackage(levelPackageDir);
+
+        var fixManifest = ReadJson<RetePackageManifest>(fixManifestPath);
+        var fixElements = LoadElementIndex(fixPackageDir, fixManifest);
+        var relocationTable = ReadJson<RelocationTableDocument>(ResolvePath(levelPackageDir, fixLevelTable.JsonPath));
+        var pendingRecords = new Dictionary<string, PendingOpaquePointerRecord>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var block in relocationTable.Blocks)
+        {
+            if (!fixElements.TryGetValue((block.Module, block.Id), out var elements))
+            {
+                continue;
+            }
+
+            foreach (var pointer in block.Pointers)
+            {
+                var sourceAddress = checked((int)pointer.OffsetInMemory);
+                var element = FindElementAt(elements, sourceAddress);
+                if (element == null ||
+                    !StructCodecRegistry.TryGet(element.Kind, out var codec) ||
+                    !codec.UsesExternalBinaryPayload)
+                {
+                    continue;
+                }
+
+                var elementPath = ReferenceUri.Resolve(fixPackageDir, element.DataPath).FilePath;
+                if (!elementPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ||
+                    !File.Exists(elementPath))
+                {
+                    continue;
+                }
+
+                if (!pendingRecords.TryGetValue(elementPath, out var pending))
+                {
+                    pending = new PendingOpaquePointerRecord(
+                        codec,
+                        (OpaqueBinaryRecord)codec.ReadFromJsonPath(fixPackageDir, elementPath));
+                    pendingRecords[elementPath] = pending;
+                }
+
+                var record = pending.Record;
+                if (!TryReadElementPointerValue(fixPackageDir, element, sourceAddress, out var value))
+                {
+                    continue;
+                }
+
+                if (!resolver.TryGetReferenceUri(value, fixPackageDir, out var uri) ||
+                    !uri.StartsWith(ReferenceUri.LevelPrefix, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var offset = sourceAddress - element.VirtualAddress;
+                var key = FormatPointerOffset(offset);
+                if (record.Pointers.TryGetValue(key, out var existing) &&
+                    string.Equals(existing, uri, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                record.Pointers[key] = uri;
+                pending.Changed = true;
+            }
+        }
+
+        foreach (var (elementPath, pending) in pendingRecords)
+        {
+            if (pending.Changed)
+            {
+                pending.Codec.WriteJson(fixPackageDir, elementPath, pending.Record);
+            }
+        }
+    }
+
+    private static void WriteFixLevelSiteMetadata(
+        string levelPackageDir,
+        string fixPackageDir)
+    {
+        var levelManifestPath = Path.Combine(levelPackageDir, ManifestFileName);
+        var fixManifestPath = Path.Combine(fixPackageDir, ManifestFileName);
+        if (!File.Exists(levelManifestPath) || !File.Exists(fixManifestPath))
+        {
+            return;
+        }
+
+        var levelManifest = ReadJson<RetePackageManifest>(levelManifestPath);
+        var fixManifest = ReadJson<RetePackageManifest>(fixManifestPath);
+        var fixLevelTable = levelManifest.RelocationTables.FirstOrDefault(table =>
+            table.FileName.Equals("fixlvl.rtb", StringComparison.OrdinalIgnoreCase));
+        if (fixLevelTable == null)
+        {
+            return;
+        }
+
+        var resolver = new ReferenceAddressResolver(fixPackageDir);
+        resolver.LoadPackage(levelPackageDir);
+        var fixElements = LoadElementIndex(fixPackageDir, fixManifest);
+        var relocationTable = ReadJson<RelocationTableDocument>(ResolvePath(levelPackageDir, fixLevelTable.JsonPath));
+        var document = new FixLevelSitesDocument { LevelName = levelManifest.LevelName };
+
+        foreach (var block in relocationTable.Blocks.OrderBy(b => b.Order))
+        {
+            document.Blocks.Add(new FixLevelSiteBlock
+            {
+                Order = block.Order,
+                SourceModule = block.Module,
+                SourceId = block.Id
+            });
+            fixElements.TryGetValue((block.Module, block.Id), out var elements);
+            foreach (var pointer in block.Pointers.OrderBy(p => p.OffsetInMemory))
+            {
+                string? targetUri = null;
+                if (elements != null &&
+                    FindElementAt(elements, checked((int)pointer.OffsetInMemory)) is { } element &&
+                    TryReadElementPointerValue(fixPackageDir, element, checked((int)pointer.OffsetInMemory), out var value) &&
+                    resolver.TryGetReferenceUri(value, fixPackageDir, out var uri) &&
+                    uri.StartsWith(ReferenceUri.LevelPrefix, StringComparison.Ordinal))
+                {
+                    targetUri = uri;
+                }
+
+                document.Sites.Add(new FixLevelSiteEntry
+                {
+                    SourceModule = block.Module,
+                    SourceId = block.Id,
+                    OffsetInMemory = pointer.OffsetInMemory,
+                    TargetModule = pointer.TargetModule,
+                    TargetId = pointer.TargetId,
+                    TargetUri = targetUri
+                });
+            }
+        }
+
+        levelManifest.Semantic ??= new SemanticManifest();
+        levelManifest.Semantic.FixLevelSitesPath = "semantic/fix-level-sites.json";
+        WriteJson(ResolvePath(levelPackageDir, levelManifest.Semantic.FixLevelSitesPath), document);
+        WriteJson(levelManifestPath, levelManifest);
+    }
+
+    private static bool TryReadElementPointerValue(
+        string packageDir,
+        IndexedContentElement element,
+        int virtualAddress,
+        out int value)
+    {
+        value = 0;
+        if (!StructCodecRegistry.TryGet(element.Kind, out var codec))
+        {
+            return false;
+        }
+
+        var elementPath = ReferenceUri.Resolve(packageDir, element.DataPath).FilePath;
+        if (!File.Exists(elementPath))
+        {
+            return false;
+        }
+
+        var elementOffset = virtualAddress - element.VirtualAddress;
+        byte[] bytes;
+        if (elementPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+        {
+            bytes = codec.WriteFromJsonPath(packageDir, elementPath);
+        }
+        else
+        {
+            bytes = File.ReadAllBytes(elementPath);
+        }
+
+        if (elementOffset < 0 || elementOffset + sizeof(int) > bytes.Length || elementOffset % sizeof(int) != 0)
+        {
+            return false;
+        }
+
+        value = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(elementOffset, sizeof(int)));
+        return true;
+    }
+
     private static Dictionary<(byte Module, byte Id), List<IndexedContentElement>> LoadElementIndex(
         string packageDir,
         RetePackageManifest manifest)
@@ -384,6 +586,14 @@ internal static class OpenSpacePackageCodec
         }
 
         var results = new List<RelocationComparisonResult>();
+        var targetPackageRoots = FindTargetPackageRoots(packageDir, manifest).ToList();
+        var relocationContext = new RelocationGenerator.RelocationPackageContext();
+        relocationContext.EnsureLayout(packageDir);
+        foreach (var targetPackageRoot in targetPackageRoots)
+        {
+            relocationContext.EnsureLayout(targetPackageRoot);
+        }
+
         foreach (var table in manifest.RelocationTables)
         {
             var preserved = ReadJson<RelocationTableDocument>(ResolvePath(packageDir, table.JsonPath));
@@ -392,7 +602,7 @@ internal static class OpenSpacePackageCodec
             {
                 if (table.FileName.Equals("fixlvl.rtb", StringComparison.OrdinalIgnoreCase))
                 {
-                    var fixPackageDir = FindTargetPackageRoots(packageDir, manifest).FirstOrDefault();
+                    var fixPackageDir = targetPackageRoots.FirstOrDefault();
                     if (fixPackageDir == null)
                     {
                         results.Add(UnsupportedRelocationComparison(
@@ -405,7 +615,8 @@ internal static class OpenSpacePackageCodec
                     var generatedFixLevel = RelocationGenerator.GenerateFixLevelRtb(
                         fixPackageDir,
                         packageDir,
-                        table.FileName);
+                        table.FileName,
+                        relocationContext);
                     results.Add(RelocationGenerator.Compare(preserved, generatedFixLevel));
                     continue;
                 }
@@ -413,7 +624,8 @@ internal static class OpenSpacePackageCodec
                 var generated = RelocationGenerator.GenerateRtb(
                     packageDir,
                     table.FileName,
-                    FindTargetPackageRoots(packageDir, manifest).ToList());
+                    targetPackageRoots,
+                    context: relocationContext);
                 results.Add(RelocationGenerator.Compare(preserved, generated));
                 continue;
             }
@@ -424,7 +636,8 @@ internal static class OpenSpacePackageCodec
                     packageDir,
                     table.FileName,
                     pointerFilePath,
-                    FindTargetPackageRoots(packageDir, manifest).ToList());
+                    targetPackageRoots,
+                    relocationContext);
                 results.Add(RelocationGenerator.Compare(preserved, generated));
                 continue;
             }

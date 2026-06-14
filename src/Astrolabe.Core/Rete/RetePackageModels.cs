@@ -146,7 +146,33 @@ public sealed class SemanticManifest
 {
     public string? SceneTreePath { get; set; }
     public string? CoveragePath { get; set; }
+    public string? FixLevelSitesPath { get; set; }
     public List<string> Errors { get; set; } = new();
+}
+
+public sealed class FixLevelSitesDocument
+{
+    public string Schema { get; set; } = "astrolabe.fix-level-sites.v1";
+    public string LevelName { get; set; } = "";
+    public List<FixLevelSiteBlock> Blocks { get; set; } = new();
+    public List<FixLevelSiteEntry> Sites { get; set; } = new();
+}
+
+public sealed class FixLevelSiteBlock
+{
+    public int Order { get; set; }
+    public byte SourceModule { get; set; }
+    public byte SourceId { get; set; }
+}
+
+public sealed class FixLevelSiteEntry
+{
+    public byte SourceModule { get; set; }
+    public byte SourceId { get; set; }
+    public uint OffsetInMemory { get; set; }
+    public byte TargetModule { get; set; }
+    public byte TargetId { get; set; }
+    public string? TargetUri { get; set; }
 }
 
 public sealed class SemanticSceneDocument
