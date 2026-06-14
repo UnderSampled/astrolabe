@@ -609,7 +609,7 @@ Gamedata/World/Levels/{levelname}/
 ├── {levelname}.dlg     # Dialog pointers
 ├── {levelname}.lng     # Language data
 ├── {levelname}pgb.bin  # Polygon/collision data
-└── fixlvl.rtb/rtg      # Fix-level relocations
+└── fixlvl.rtb/rtg      # Fix→level relocations (see docs/fixlvl-rtb.md)
 
 Gamedata/World/Sound/
 ├── Bnk_*.bnm           # Sound banks (bundled APM samples)

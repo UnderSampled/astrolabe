@@ -15,6 +15,10 @@ Relocation tables map virtual memory pointers to file offsets.
 | `.rtg` | 6 | Language-specific SNA blocks |
 | `.rtv` | 7 | Video data relocations |
 
+### fixlvl.rtb (per-level, Fix → level)
+
+`fixlvl.rtb` uses the same RTB binary format but lives under each level directory and applies to **pointers in shared `Fix.sna` whose targets are in that level's SNA**. The engine merges it into the Fix relocation set at load time. Entries are relocation metadata (`Fix address → level block`); semantic targets are resolved by reading the raw `int32` in Fix and interpreting it in level memory (mostly level **`ObjectList`** tables — see [`fixlvl-rtb.md`](fixlvl-rtb.md)).
+
 ## File Structure
 
 ### Header

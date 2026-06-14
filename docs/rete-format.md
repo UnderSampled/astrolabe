@@ -26,7 +26,7 @@ Both exporters consume the same **canonical types** (`VisualMaterial`, `GameMate
 
 ### Virtual memory and Fix data
 
-OpenSpace loads **two SNA sources** into one virtual address space: the level and **Fix** — shared data used across levels (characters, common textures, and other global content). Fix lives alongside levels under `Gamedata/World/Levels/` as `Fix.sna`, `Fix.rtb`, `Fix.ptx`, and related files. Each level carries `fixlvl.rtb` (and related tables) linking level pointers into Fix blocks.
+OpenSpace loads **two SNA sources** into one virtual address space: the level and **Fix** — shared data used across levels (characters, common textures, and other global content). Fix lives alongside levels under `Gamedata/World/Levels/` as `Fix.sna`, `Fix.rtb`, `Fix.ptx`, and related files. Each level carries `fixlvl.rtb` (and related tables) linking **Fix pointers into that level's blocks** (chiefly level `ObjectList` mesh tables — see [`fixlvl-rtb.md`](fixlvl-rtb.md)).
 
 Rete models this as **separate packages**:
 
@@ -46,9 +46,9 @@ output/
     types/...            (level-local)
 ```
 
-Because the converter chooses that layout at emit time, level records that point into Fix get URIs like `../fix/types/visualmaterial/hype-body.json` — relative to where the level package actually landed. `output/astrolabe` sits next to `output/fix` because the importer put them there, not because the format hard-codes a sibling relationship.
+Because the converter chooses that layout at emit time, level packages land beside `output/fix/`. Cross-package URIs use `fix:/` and `level:/` package roles (see [`cross-package-uris.md`](cross-package-uris.md)), not level directory names.
 
-Re-importing another level into the same `output/` reuses existing `fix/` when present; new level packages still emit `../fix/...` URIs against the shared Fix tree.
+Re-importing another level into the same `output/` reuses existing `fix/` when present.
 
 Import merges level and Fix into one virtual memory map for pointer resolution, but only **level-owned** elements are written into the level package. References into Fix memory are recorded as relative URIs pointing at the Fix paths the converter wrote (or will write).
 
@@ -182,53 +182,25 @@ Every struct document includes a `schema` field. Struct codecs declare pointer f
 
 ## References
 
-Cross-record links are **reference URIs**: one-line, self-locating strings. No parallel id layer and no multi-field reference objects — open the URI, get the record.
+Cross-record links are **reference URIs**: one-line strings that resolve to a filesystem record. No parallel id layer.
 
-```text
-reference-uri := relative-path [ "#" json-pointer ]
-```
+| Form | Meaning |
+|------|---------|
+| `types/foo.json` | Intra-package (relative to referring package root) |
+| `fix:/types/foo.json` | Shared **Fix** package (`packageRole: fix`) |
+| `level:/slots/….json` | **Level** package (`packageRole: level`) — not a level name |
+| `../fix/…` | Legacy; still accepted |
 
-| Part | Role |
-|------|------|
-| `relative-path` | Path to a JSON, descriptor, or binary file, relative to the **referring package root** (may include `..` segments) |
-| `#json-pointer` | Optional [RFC 6901](https://datatracker.ietf.org/doc/html/rfc6901) fragment selecting a sub-record within the file |
+**Full specification** (grammar, level slots, multi-level import union, export modes, implementation status): [`cross-package-uris.md`](cross-package-uris.md).
 
-Cross-package links are ordinary relative paths. After a typical import, Fix targets look like `../fix/types/...` because the converter placed the level at `output/{level}/` and Fix at `output/fix/`. A different import layout would emit different prefixes; resolution always follows the URI literally.
-
-When the fragment is omitted, the entire document at `file-path` is the record (one-struct-per-file). When several records share one JSON file, the fragment addresses within it. Use JSON Pointer in the fragment, not JSONPath; prefer semantic keys (`#/materials/hype-body`) over array indices.
-
-### Intra-package
+Quick examples:
 
 ```json
-{
-  "visualMaterial": "types/visualmaterial/hype-body.json"
-}
+{ "visualMaterial": "fix:/types/visualmaterial/hype-body.json" }
+{ "defaultObjectList": "level:/slots/0262C4C0.json" }
 ```
 
-```json
-{
-  "mesh": "geometry/meshes.json#/meshes/castle-gate"
-}
-```
-
-### Fix references
-
-Typical URIs after import (converter placed Fix at `../fix/` relative to the level package):
-
-```json
-{
-  "visualMaterial": "../fix/types/visualmaterial/hype-body.json",
-  "perso": "../fix/types/perso/hype.json#/perso"
-}
-```
-
-### Resolution
-
-1. Resolve `relative-path` from the referring package root (standard filesystem relative path semantics, including `..`).
-2. Split `#` into path and JSON Pointer fragment.
-3. Read the file; apply the fragment if present; deserialize the canonical type.
-
-Import merges level and Fix virtual memory, resolves targets, and writes reference URIs for Fix-owned records. OpenSpace export walks all URIs, computes pointer values against the combined virtual layout, and emits relocation entries including `fixlvl.rtb` links.
+Import merges level and Fix virtual memory, resolves targets, and writes reference URIs. OpenSpace export walks URIs, computes pointer values, and emits relocation tables including `fixlvl.rtb` (see [`fixlvl-rtb.md`](fixlvl-rtb.md)).
 
 `content.json` element `dataPath` values are reference URIs without a fragment when the whole file is the element payload, or with a fragment when serialized bytes come from a sub-record inside an aggregate JSON document.
 
@@ -327,4 +299,5 @@ Script-like structures with documented AST shape are stored as S-expression sour
 - Type promotion checklist: [`notes/intermediate-type-checklist.md`](../notes/intermediate-type-checklist.md)
 - OpenSpace geometry and materials: [`geometry-format.md`](geometry-format.md), [`lighting.md`](lighting.md)
 - Relocation table binary layout: [`relocation-tables.md`](relocation-tables.md)
+- Cross-package URIs (`fix:/`, `level:/`): [`cross-package-uris.md`](cross-package-uris.md)
 - Implementation plan: [`plan.md`](../plan.md)

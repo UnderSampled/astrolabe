@@ -65,6 +65,8 @@ Each PhysicalObject contains:
 
 **Key insight**: A character is NOT one mesh - it's a collection of mesh parts that are individually transformed by animation channels.
 
+**Cross-package note:** `Family` templates live in shared Fix data, but `ObjectList` bodies live in level SNA. Per-level `fixlvl.rtb` tells the loader how to fix Fix-side pointers into those level tables. See [`fixlvl-rtb.md`](fixlvl-rtb.md).
+
 ## Animation System
 
 ### AnimationMontreal Structure

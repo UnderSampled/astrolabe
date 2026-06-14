@@ -94,7 +94,7 @@ Registry drives import element extract and export element serialize — **no gro
 
 - One string per pointer field on canonical types.
 - Resolved from the **referring package root** (relative path + optional `#` RFC 6901 fragment).
-- Import emits `../fix/...` when the converter writes Fix at `output/fix/` and the level at `output/{level}/` in the same pass.
+- Cross-package URIs: `fix:/` (level→Fix) and `level:/` (Fix→level). Spec: [`docs/cross-package-uris.md`](../docs/cross-package-uris.md). Resolver done; import slot assignment not started. Legacy `../fix/...` still emitted.
 - Resolver: `Path.GetFullPath(Path.Combine(packageRoot, relativePath))` after splitting `#`.
 - Current Step 4 bridge rewrites promoted pointer fields to URI strings when the raw address maps to a package content element. `0` becomes `null`. Unresolved sentinel values and unpromoted pointer-like fields remain numeric to preserve byte-identical export.
 
