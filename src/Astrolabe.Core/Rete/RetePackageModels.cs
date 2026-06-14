@@ -92,6 +92,27 @@ public sealed class RelocationTableFileManifest
 {
     public string FileName { get; set; } = "";
     public string JsonPath { get; set; } = "";
+    public string? EncodingPath { get; set; }
+}
+
+public sealed class RelocationEncodingDocument
+{
+    public string Schema { get; set; } = "astrolabe.relocation-encoding.v1";
+    public string FileName { get; set; } = "";
+    public List<RelocationEncodingBlockManifest> Blocks { get; set; } = new();
+}
+
+public sealed class RelocationEncodingBlockManifest
+{
+    public int Order { get; set; }
+    public string Key { get; set; } = "";
+    public byte Module { get; set; }
+    public byte Id { get; set; }
+    public int EntrySize { get; set; }
+    public int PointerCount { get; set; }
+    public string PointerDataSha256 { get; set; } = "";
+    public RelocationStorageManifest? OriginalStorage { get; set; }
+    public string? TrailingDataBase64 { get; set; }
 }
 
 public sealed class RelocationTableDocument
@@ -147,7 +168,47 @@ public sealed class SemanticManifest
     public string? SceneTreePath { get; set; }
     public string? CoveragePath { get; set; }
     public string? FixLevelSitesPath { get; set; }
+    public string? RtbSitesPath { get; set; }
+    public Dictionary<string, string> PointerFileSitesPaths { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public List<string> Errors { get; set; } = new();
+}
+
+public sealed class RtbSitesDocument
+{
+    public string Schema { get; set; } = "astrolabe.rtb-sites.v1";
+    public string PackageName { get; set; } = "";
+    public List<RtbSiteEntry> Sites { get; set; } = new();
+}
+
+public sealed class RtbSiteEntry
+{
+    public byte SourceModule { get; set; }
+    public byte SourceId { get; set; }
+    public uint OffsetInMemory { get; set; }
+    public byte TargetModule { get; set; }
+    public byte TargetId { get; set; }
+    public byte Byte6 { get; set; }
+    public byte Byte7 { get; set; }
+    public string? TargetUri { get; set; }
+}
+
+public sealed class PointerFileSitesDocument
+{
+    public string Schema { get; set; } = "astrolabe.pointer-file-sites.v1";
+    public string FileName { get; set; } = "";
+    public byte SourceModule { get; set; }
+    public byte SourceId { get; set; }
+    public List<PointerFileSiteEntry> Sites { get; set; } = new();
+}
+
+public sealed class PointerFileSiteEntry
+{
+    public uint OffsetInMemory { get; set; }
+    public byte TargetModule { get; set; }
+    public byte TargetId { get; set; }
+    public byte Byte6 { get; set; }
+    public byte Byte7 { get; set; }
+    public string? TargetUri { get; set; }
 }
 
 public sealed class FixLevelSitesDocument
@@ -172,6 +233,8 @@ public sealed class FixLevelSiteEntry
     public uint OffsetInMemory { get; set; }
     public byte TargetModule { get; set; }
     public byte TargetId { get; set; }
+    public byte Byte6 { get; set; }
+    public byte Byte7 { get; set; }
     public string? TargetUri { get; set; }
 }
 

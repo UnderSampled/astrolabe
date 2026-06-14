@@ -17,12 +17,12 @@ Rete is the canonical level representation. OpenSpace level dirs and Godot proje
 
 | Current | Role | Remaining target |
 |---------|------|------------------|
-| `src/Astrolabe.Core/Rete/OpenSpacePackageCodec.cs` | Import/export bridge for Rete packages, sibling Fix import, URI rewrite/export resolution | Split further as pipeline pieces mature |
+| `src/Astrolabe.Core/Rete/OpenSpacePackageCodec.cs` | Import/export bridge for Rete packages, sibling Fix import, URI rewrite/export resolution, Fix `fixlvl` metadata emission (`semantic/fix-level-sites.json`) | Split further as pipeline pieces mature |
 | `src/Astrolabe.Core/Rete/ReferenceUri.cs` | Relative URI parse/resolve helper | Keep as shared URI primitive |
 | `src/Astrolabe.Core/Rete/ReferenceAddressResolver.cs` | Builds package address indexes from `content.json`; resolves URI ↔ virtual address | Feed relocation generation/layout |
 | `src/Astrolabe.Core/Rete/ReferenceJson.cs` | Rewrites promoted JSON pointer fields to URI/null on import; `WriteElementBytesForExport` resolves URIs before serialization | Remove numeric fallback once all pointer fields are URI-backed |
-| `src/Astrolabe.Core/Rete/RetePackageModels.cs` | Manifest/content models; content elements include offsets, lengths, and virtual addresses | Drop preserved relocation models after Step 5 |
-| `src/Astrolabe.Core/Rete/OpenSpace/RelocationGenerator.cs` | Generates diagnostic RTB/fixlvl subsets from promoted struct pointer metadata and GPT/PTX pointer-file tables; compares generated data with preserved RT data | Expand RTB coverage to opaque promoted types and `[FF:FF]` sentinel cases; then replace preserved relocation export |
+| `src/Astrolabe.Core/Rete/RetePackageModels.cs` | Manifest/content models; content elements include offsets, lengths, virtual addresses, and imported Fix→level site metadata | Drop preserved relocation models after Step 5 |
+| `src/Astrolabe.Core/Rete/OpenSpace/RelocationGenerator.cs` | Generates diagnostic RTB/fixlvl subsets from promoted struct pointer metadata, imported `fixlvl` site metadata, and GPT/PTX pointer-file tables; compares generated data with preserved RT data | Expand RTB coverage to remaining opaque promoted types; then replace preserved relocation export |
 | `src/Astrolabe.Core/Serialization/Codecs/*` | 35 registered codecs (structs, pointer arrays, dense arrays) | Keep expanding per checklist; ~20k RTB pointers still opaque |
 | `extract-intermediate` / `compile-intermediate` CLI | Still the active transition commands | Aliases → `import-openspace` / `export-openspace` |
 | `debug-relocations` CLI | Compares generated relocation diagnostics against preserved relocation tables | Remove once generated RT output is the normal exporter path |
@@ -159,22 +159,27 @@ Sequential work units are defined in [`plan.md`](../plan.md#implementation-steps
 | 6 | CLI aliases; Godot export from Rete |
 | 7 | Checklist backlog — per-type codec + pointer metadata |
 
-Progress as of 2026-06-13 (commit `b6baf75`):
+Progress as of 2026-06-14 (commits `5ca7ef4`, `137265d`):
 
 - Steps 1–4 are complete on `astrolabe`, preserving byte-identical OpenSpace export.
 - Level import creates/reuses sibling `fix/`; Fix export validates independently against `Fix.*` plus `fix.cnt`.
 - Promoted structured pointer fields are URI/null on import and resolved back to virtual addresses on export via `ReferenceJson.WriteElementBytesForExport`.
 - Relocation JSON and preserved encoded RT payloads remain in packages as the bridge for Step 5.
+- Fresh level imports now write `semantic/fix-level-sites.json`, which preserves the imported `fixlvl.rtb` block list plus per-site metadata: `TargetUri` for mapped Fix→level rows when a `level:/...` URI is resolvable during import, preserved target module/id for sentinel rows, and no broad Fix relocation scan at generation time.
 - **35 struct codecs** registered: original ten structured kinds plus pointer arrays (`elementptrs`, `loddataoffsets`, `animchannelptrs`, `scriptptrs`, `dsgvarptrindirect`, `collideelementptrs`), dense arrays (`elementtypes`, `triangles`, `vertexindices`, `uvs`, `uvmapping`, `loddistances`), and promoted leaves (`animchannel`, `elementsprites`, `animationmontreal`, `animframes`, `animhierarchiesheader`, `perso`, `perso3ddata`, `brain`, `state`, `transition`, `standardgame`, `objectlist`, `spawnableentry`, `mind`, `intelligence`, `aimodel`, `sector`, `collideset`, `persosectorinfo`).
 - `debug-relocations` on `astrolabe` (after fresh `extract-intermediate`):
-  - `astrolabe.rtb`: **49,531** generated / **49,531** matching / **0** extra (69,922 preserved; ~71% coverage)
-  - `astrolabe.rtp` / `astrolabe.rtt`: 86/86 and 125/125 matching, `pointer data: match`
-  - `fixlvl.rtb`: **1,060** matching / 57 missing / 62 extra (1,117 preserved)
+  - `astrolabe.rtb`: **68,932** generated / **68,932** matching / **0** extra (69,922 preserved; **990 missing**, ~98.6% coverage)
+  - `astrolabe.rtp`: 86/86 matching, **0 missing**, **0 extra**, `pointer data: diff`
+  - `astrolabe.rtt`: 125/125 matching, `pointer data: match`
+  - `fixlvl.rtb`: **1,117** generated / **1,117** matching / **0 missing** / **0 extra**, `pointer data: match`
 - `debug-relocations` on sibling `fix/`:
-  - `Fix.rtb`: 9 generated / 9 matching / 0 extra (493,305 preserved)
-  - `Fix.rtp` / `Fix.rtt`: exact match
-- RTP/RTT generation is complete for current GPT/PTX sidecars on both level and Fix packages.
-- Cross-Fix `../fix/...` URIs are still sparse in promoted JSON; most Fix-crossing pointers remain inside opaque leaves or `fixlvl` `[FF:FF]` sentinel targets.
+  - `Fix.rtb`: **492,237** generated / **492,180** matching / **57 extra** (**493,305 preserved; 1,125 missing**), `pointer data: diff`
+  - `Fix.rtp`: **790** generated / **789** matching / **1 extra**, `pointer data: diff`
+  - `Fix.rtt`: 435/435 matching, `pointer data: match`
+  - `Fix.rtv`: unsupported placeholder table
+- RTP/RTT generation is complete only for the PTX sidecars at byte parity; GPT-side `.rtp` output still has byte/count drift on both level and Fix.
+- On `astrolabe`, imported `semantic/fix-level-sites.json` currently contains **6 source blocks**, **1,117 sites**, **55 mapped `TargetUri`s**, and **1,006 `[FF:FF]` sentinel rows**.
+- Cross-Fix `fix:/...` and Fix→level `level:/...` URIs now appear in imported JSON, but most remaining RTB gaps are still inside opaque leaves and not yet promoted into explicit pointer metadata.
 
 `animchannel` pointer semantics (Montreal):
 
@@ -183,7 +188,18 @@ Progress as of 2026-06-13 (commit `b6baf75`):
 
 `PointerTarget` is honored in `RelocationGenerator.FindTargetBlock`: `BlockRelative` searches only the source package, `Fix` only Fix packages, `Any` searches all loaded layouts.
 
-Next agent should continue Step 5 with the existing bridge intact: promote remaining opaque leaves (`actiontable`, `actiontree`, `animhierarchies`, `compressedmatrix`, behavior lists, `script`, `dsgvar`/`dsgmem`, `objecttype*`, `sectorcollide*`, `collidez*`), tighten `fixlvl.rtb` generation (eliminate 57 missing / 62 extra), then phase out relocation storage only after generated RT files `cmp` against preserved originals. Step 6 (CLI aliases, Godot-from-Rete) waits on RT parity.
+Next agent should continue Step 5 with the existing bridge intact:
+
+- Keep the new `fixlvl` path metadata-driven. Do not reintroduce the broad Fix relocation scan. `GenerateFixLevelRtb` is supposed to read `semantic/fix-level-sites.json` and only use `TargetUri` when present; sentinel rows come from imported target module/id metadata.
+- Close the remaining main-generator parity gaps:
+  - `astrolabe.rtb`: resolve the last **990 missing** pointers without introducing extras.
+  - `Fix.rtb`: eliminate **1,125 missing** / **57 extra**.
+  - `astrolabe.rtp` / `Fix.rtp`: fix pointer-data/count parity.
+  - decide whether `Fix.rtv` stays unsupported or needs an explicit generator/bridge rule.
+- Promote remaining opaque leaves (`actiontable`, `actiontree`, `animhierarchies`, `compressedmatrix`, behavior lists, `script`, `dsgvar`/`dsgmem`, `objecttype*`, `sectorcollide*`, `collidez*`) in the order that best attacks the outstanding RTB mismatches.
+- Re-run `extract-intermediate` before judging `fixlvl` on any package created before 2026-06-14; old imports do not contain `semantic/fix-level-sites.json`.
+- Re-run `extract-intermediate` on packages imported before 2026-06-14 if they still have inline `pointers`/`targets` on promoted JSON elements (for example scene `node.json`) without matching `*.reloc.json` sidecars. Export and relocation generation only read overlay data from sidecars now; pre-sidecar packages must be re-imported (or manually migrated) before Step 5 parity checks are meaningful.
+- Phase out relocation storage only after generated RT files `cmp` against preserved originals. Step 6 (CLI aliases, Godot-from-Rete) still waits on RT parity.
 
 ## Verification (every step)
 

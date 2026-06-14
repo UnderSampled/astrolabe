@@ -57,7 +57,13 @@ internal static class ReferenceJson
         var elementPath = ReferenceUri.Resolve(packageRoot, dataPath).FilePath;
         if (!elementPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
         {
-            return File.ReadAllBytes(elementPath);
+            var binary = File.ReadAllBytes(elementPath);
+            return ApplyRelocationPointerOverlay(
+                packageRoot,
+                RelocationPointerOverlay.GetOverlayPath(elementPath),
+                binary,
+                resolver,
+                explicitInlineOverlay: false);
         }
 
         if (codec.UsesExternalBinaryPayload)
@@ -71,7 +77,91 @@ internal static class ReferenceJson
             packageRoot,
             codec,
             resolver);
-        return codec.WriteFromJsonElement(resolvedDocument.RootElement);
+        var bytes = codec.WriteFromJsonElement(resolvedDocument.RootElement);
+        return ApplyRelocationPointerOverlay(
+            packageRoot,
+            RelocationPointerOverlay.GetOverlayPath(elementPath),
+            bytes,
+            resolver,
+            explicitInlineOverlay: false);
+    }
+
+    private static byte[] ApplyRelocationPointerOverlay(
+        string packageRoot,
+        string overlayPath,
+        byte[] data,
+        ReferenceAddressResolver resolver,
+        IReadOnlyDictionary<string, string?>? inlineOverlay = null,
+        bool explicitInlineOverlay = false)
+    {
+        var mergedOverlay = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        var inlineKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, RelocationOverlayTarget>? targetOverlay = null;
+
+        if (inlineOverlay != null)
+        {
+            foreach (var pair in inlineOverlay)
+            {
+                mergedOverlay[pair.Key] = pair.Value;
+                inlineKeys.Add(pair.Key);
+            }
+        }
+
+        if (RelocationPointerOverlay.TryRead(overlayPath, out var fileOverlay, out var fileTargets))
+        {
+            foreach (var pair in fileOverlay)
+            {
+                mergedOverlay.TryAdd(pair.Key, pair.Value);
+            }
+
+            targetOverlay = fileTargets;
+        }
+
+        if (mergedOverlay.Count == 0 && targetOverlay is not { Count: > 0 })
+        {
+            return data;
+        }
+
+        var offsetKeys = mergedOverlay.Keys
+            .Concat(targetOverlay == null ? [] : targetOverlay.Keys)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+        var bytes = data.ToArray();
+        foreach (var offsetKey in offsetKeys)
+        {
+            if (!TryParsePointerOffset(offsetKey, out var offset))
+            {
+                throw new InvalidDataException($"Invalid relocation overlay offset '{offsetKey}' in {overlayPath}.");
+            }
+
+            if (offset < 0 || offset % sizeof(int) != 0)
+            {
+                throw new InvalidDataException(
+                    $"Misaligned relocation overlay offset '{offsetKey}' in {overlayPath}.");
+            }
+
+            if (offset + sizeof(int) > bytes.Length)
+            {
+                throw new InvalidDataException(
+                    $"Relocation overlay offset '{offsetKey}' is out of range for element span in {overlayPath}.");
+            }
+
+            mergedOverlay.TryGetValue(offsetKey, out var uri);
+            if (string.IsNullOrWhiteSpace(uri))
+            {
+                if (explicitInlineOverlay && inlineKeys.Contains(offsetKey))
+                {
+                    BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(offset, sizeof(int)), 0);
+                }
+
+                // Sidecar null entries preserve serialized bytes for URI-less relocation rows.
+                continue;
+            }
+
+            var address = resolver.ResolveAddress(packageRoot, uri);
+            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(offset, sizeof(int)), address);
+        }
+
+        return bytes;
     }
 
     public static JsonDocument ResolvePointersForExport(
@@ -148,27 +238,13 @@ internal static class ReferenceJson
     {
         var record = (OpaqueBinaryRecord)codec.ReadFromJsonPath(packageRoot, jsonPath);
         var data = record.Data.ToArray();
-
-        foreach (var entry in record.Pointers)
-        {
-            if (!TryParsePointerOffset(entry.Key, out var offset))
-            {
-                throw new InvalidDataException($"Invalid opaque pointer offset '{entry.Key}' in {jsonPath}.");
-            }
-
-            if (offset < 0 || offset + sizeof(int) > data.Length || offset % sizeof(int) != 0)
-            {
-                throw new InvalidDataException(
-                    $"Opaque pointer offset '{entry.Key}' is out of bounds for {jsonPath}.");
-            }
-
-            var address = string.IsNullOrWhiteSpace(entry.Value)
-                ? 0
-                : resolver.ResolveAddress(packageRoot, entry.Value);
-            BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(offset, sizeof(int)), address);
-        }
-
-        return data;
+        return ApplyRelocationPointerOverlay(
+            packageRoot,
+            RelocationPointerOverlay.GetOverlayPath(jsonPath),
+            data,
+            resolver,
+            record.Pointers,
+            explicitInlineOverlay: true);
     }
 
     private static Utf8JsonWriter CreateWriter(Stream stream) =>

@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.IO.Compression;
 using System.Text.Json;
 using Astrolabe.Core.Serialization;
@@ -38,6 +39,19 @@ internal static class RelocationGenerator
     {
         context ??= new RelocationPackageContext();
         var sourceLayout = context.GetLayout(sourcePackageRoot);
+        var importedSites = LoadImportedRtbSites(sourcePackageRoot);
+        if (importedSites.Sites.Count > 0)
+        {
+            return CompleteImportedRtbDocument(
+                sourcePackageRoot,
+                fileName,
+                importedSites,
+                sourceLayout,
+                targetPackageRoots,
+                includeEmptyBlocks,
+                context);
+        }
+
         var targetRoots = includeSourcePackageAsTarget
             ? targetPackageRoots.Prepend(sourcePackageRoot)
             : targetPackageRoots;
@@ -56,7 +70,12 @@ internal static class RelocationGenerator
         var document = new RelocationTableDocument { FileName = fileName };
         foreach (var sourceBlock in sourceLayout.Blocks)
         {
-            var pointers = GenerateBlockPointers(sourcePackageRoot, sourceBlock, targetResolver, resolver);
+            var pointers = GenerateBlockPointers(
+                sourcePackageRoot,
+                sourceLayout,
+                sourceBlock,
+                targetResolver,
+                resolver);
             if (pointers.Count == 0 && !includeEmptyBlocks)
             {
                 continue;
@@ -86,6 +105,17 @@ internal static class RelocationGenerator
         RelocationPackageContext? context = null)
     {
         context ??= new RelocationPackageContext();
+        var importedSites = LoadImportedPointerFileSites(sourcePackageRoot, fileName);
+        if (importedSites.Sites.Count > 0)
+        {
+            return BuildImportedPointerFileDocument(
+                sourcePackageRoot,
+                fileName,
+                importedSites,
+                targetPackageRoots,
+                context);
+        }
+
         var sourceLayout = context.GetLayout(sourcePackageRoot);
         var sourceBlock = sourceLayout.Blocks.FirstOrDefault(b => b.Elements.Count > 0)
             ?? sourceLayout.Blocks.FirstOrDefault()
@@ -124,6 +154,216 @@ internal static class RelocationGenerator
             : null;
     }
 
+    private static RelocationTableDocument BuildImportedPointerFileDocument(
+        string sourcePackageRoot,
+        string fileName,
+        PointerFileSitesDocument importedSites,
+        IReadOnlyList<string> targetPackageRoots,
+        RelocationPackageContext context)
+    {
+        var targetLayouts = targetPackageRoots
+            .Prepend(sourcePackageRoot)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(context.GetLayout)
+            .ToList();
+        var targetResolver = new TargetBlockResolver(sourcePackageRoot, targetLayouts);
+        var resolver = new ReferenceAddressResolver(sourcePackageRoot);
+        foreach (var targetPackageRoot in targetPackageRoots)
+        {
+            resolver.LoadPackage(targetPackageRoot);
+        }
+
+        var importedBlock = new RelocationPointerBlockManifest
+        {
+            Order = 0,
+            Key = ToKey(importedSites.SourceModule, importedSites.SourceId),
+            Module = importedSites.SourceModule,
+            Id = importedSites.SourceId,
+            EntrySize = 8,
+            Pointers = importedSites.Sites
+                .OrderBy(site => site.OffsetInMemory)
+                .Select(site => ResolveImportedPointerFileSite(
+                    site,
+                    sourcePackageRoot,
+                    targetResolver,
+                    resolver))
+                .ToList()
+        };
+        importedBlock.PointerDataSha256 = HashBytes(BuildPointerData(importedBlock));
+        return new RelocationTableDocument
+        {
+            FileName = fileName,
+            Blocks = [importedBlock]
+        };
+    }
+
+    private static RelocationTableDocument CompleteImportedRtbDocument(
+        string sourcePackageRoot,
+        string fileName,
+        RtbSitesDocument importedSites,
+        PackageLayout sourceLayout,
+        IReadOnlyList<string> targetPackageRoots,
+        bool includeEmptyBlocks,
+        RelocationPackageContext context)
+    {
+        var targetRoots = targetPackageRoots.Prepend(sourcePackageRoot);
+        var targetLayouts = targetRoots
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(context.GetLayout)
+            .ToList();
+        var targetResolver = new TargetBlockResolver(sourcePackageRoot, targetLayouts);
+        var resolver = new ReferenceAddressResolver(sourcePackageRoot);
+        foreach (var targetPackageRoot in targetPackageRoots)
+        {
+            resolver.LoadPackage(targetPackageRoot);
+        }
+
+        var document = GenerateImportedRtb(
+            sourcePackageRoot,
+            fileName,
+            importedSites,
+            targetPackageRoots,
+            context);
+        var generatedBlocks = document.Blocks.ToDictionary(block => (block.Module, block.Id));
+        var sitesByBlock = importedSites.Sites
+            .GroupBy(site => (site.SourceModule, site.SourceId))
+            .ToDictionary(group => group.Key, group => group.Count());
+        var expectedEncodingBlocks = LoadExpectedEncodingBlocks(sourcePackageRoot, fileName);
+        if (expectedEncodingBlocks == null && importedSites.Sites.Count > 0)
+        {
+            Trace.TraceWarning(
+                "RTB sites metadata exists for {0} without paired encoding metadata; " +
+                "per-block site counts will be used for hybrid fallback validation.",
+                fileName);
+        }
+
+        foreach (var sourceBlock in sourceLayout.Blocks.OrderBy(block => block.Order))
+        {
+            var blockKey = (sourceBlock.Module, sourceBlock.Id);
+            sitesByBlock.TryGetValue(blockKey, out var siteCount);
+            var expectedCount = expectedEncodingBlocks?.GetValueOrDefault(blockKey)?.PointerCount ?? 0;
+            generatedBlocks.TryGetValue(blockKey, out var generatedBlock);
+            var generatedCount = generatedBlock?.Pointers.Count ?? 0;
+            var needsFallback = generatedBlock == null ||
+                (expectedEncodingBlocks != null && expectedCount > 0 && siteCount != expectedCount) ||
+                (expectedEncodingBlocks == null && siteCount > 0 && generatedCount != siteCount);
+            if (!needsFallback)
+            {
+                continue;
+            }
+
+            if (generatedBlocks.Remove(blockKey, out var existingBlock))
+            {
+                document.Blocks.Remove(existingBlock);
+            }
+
+            var pointers = GenerateBlockPointers(
+                sourcePackageRoot,
+                sourceLayout,
+                sourceBlock,
+                targetResolver,
+                resolver);
+            if (pointers.Count == 0 && !includeEmptyBlocks)
+            {
+                continue;
+            }
+
+            var block = new RelocationPointerBlockManifest
+            {
+                Order = document.Blocks.Count,
+                Key = ToKey(sourceBlock.Module, sourceBlock.Id),
+                Module = sourceBlock.Module,
+                Id = sourceBlock.Id,
+                EntrySize = 8,
+                Pointers = pointers
+            };
+            block.PointerDataSha256 = HashBytes(BuildPointerData(block));
+            if (expectedEncodingBlocks != null &&
+                expectedEncodingBlocks.TryGetValue(blockKey, out var expectedBlock) &&
+                expectedBlock.PointerCount > 0)
+            {
+                if (pointers.Count != expectedBlock.PointerCount)
+                {
+                    throw new InvalidDataException(
+                        $"RTB fallback for block {block.Key} in {fileName} generated {pointers.Count} pointers, " +
+                        $"but encoding metadata expects {expectedBlock.PointerCount}.");
+                }
+
+                if (!string.IsNullOrWhiteSpace(expectedBlock.PointerDataSha256) &&
+                    !block.PointerDataSha256.Equals(
+                        expectedBlock.PointerDataSha256,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidDataException(
+                        $"RTB fallback for block {block.Key} in {fileName} produced pointer data SHA256 " +
+                        $"{block.PointerDataSha256}, but encoding metadata expects {expectedBlock.PointerDataSha256}.");
+                }
+            }
+
+            document.Blocks.Add(block);
+        }
+
+        return document;
+    }
+
+    public static RelocationTableDocument GenerateImportedRtb(
+        string sourcePackageRoot,
+        string fileName,
+        RtbSitesDocument importedSites,
+        IReadOnlyList<string> targetPackageRoots,
+        RelocationPackageContext? context = null)
+    {
+        context ??= new RelocationPackageContext();
+        var sourceLayout = context.GetLayout(sourcePackageRoot);
+        var targetLayouts = targetPackageRoots
+            .Prepend(sourcePackageRoot)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(context.GetLayout)
+            .ToList();
+        var targetResolver = new TargetBlockResolver(sourcePackageRoot, targetLayouts);
+        var resolver = new ReferenceAddressResolver(sourcePackageRoot);
+        foreach (var targetPackageRoot in targetPackageRoots)
+        {
+            resolver.LoadPackage(targetPackageRoot);
+        }
+
+        var document = new RelocationTableDocument { FileName = fileName };
+        var sitesByBlock = importedSites.Sites
+            .GroupBy(site => (site.SourceModule, site.SourceId))
+            .ToDictionary(group => group.Key, group => group.ToList());
+
+        foreach (var sourceBlock in sourceLayout.Blocks.OrderBy(block => block.Order))
+        {
+            if (!sitesByBlock.TryGetValue((sourceBlock.Module, sourceBlock.Id), out var sites))
+            {
+                continue;
+            }
+
+            var pointers = sites
+                .OrderBy(site => site.OffsetInMemory)
+                .Select(site => ResolveImportedRtbSite(
+                    site,
+                    sourcePackageRoot,
+                    targetPackageRoots,
+                    targetResolver,
+                    resolver))
+                .ToList();
+            var block = new RelocationPointerBlockManifest
+            {
+                Order = document.Blocks.Count,
+                Key = ToKey(sourceBlock.Module, sourceBlock.Id),
+                Module = sourceBlock.Module,
+                Id = sourceBlock.Id,
+                EntrySize = 8,
+                Pointers = pointers
+            };
+            block.PointerDataSha256 = HashBytes(BuildPointerData(block));
+            document.Blocks.Add(block);
+        }
+
+        return document;
+    }
+
     public static RelocationTableDocument GenerateFixLevelRtb(
         string fixPackageRoot,
         string levelPackageRoot,
@@ -141,6 +381,8 @@ internal static class RelocationGenerator
             .ToDictionary(group => group.Key, group => group.ToList());
         var fixBlocksByKey = fixLayout.Blocks.ToDictionary(block => (block.Module, block.Id));
 
+        var targetLayouts = new[] { context.GetLayout(fixPackageRoot), levelLayout };
+        var targetResolver = new TargetBlockResolver(fixPackageRoot, targetLayouts);
         var document = new RelocationTableDocument { FileName = fileName };
         foreach (var importedBlock in importedSites.Blocks.OrderBy(block => block.Order))
         {
@@ -153,8 +395,9 @@ internal static class RelocationGenerator
                 fixPackageRoot,
                 levelPackageRoot,
                 sourceBlock,
-                levelLayout,
+                targetResolver,
                 resolver,
+                [levelPackageRoot],
                 sitesByBlock);
             var block = new RelocationPointerBlockManifest
             {
@@ -196,6 +439,7 @@ internal static class RelocationGenerator
 
     private static List<RelocationPointerManifest> GenerateBlockPointers(
         string sourcePackageRoot,
+        PackageLayout sourceLayout,
         BlockLayout sourceBlock,
         TargetBlockResolver targetResolver,
         ReferenceAddressResolver resolver)
@@ -205,27 +449,39 @@ internal static class RelocationGenerator
 
         foreach (var element in sourceBlock.Elements)
         {
-            if (!StructCodecRegistry.TryGet(element.Kind, out var codec) ||
-                (!codec.UsesExternalBinaryPayload &&
-                    codec.PointerFields.Count == 0 &&
-                    !codec.IsPointerArray))
-            {
-                continue;
-            }
-
-            if (TryEmitOpaquePointerMap(
+            var elementPath = ReferenceUri.Resolve(sourcePackageRoot, element.DataPath).FilePath;
+            var overlayPath = RelocationPointerOverlay.GetOverlayPath(elementPath);
+            var hasRelocationOverlay = File.Exists(overlayPath) &&
+                RelocationPointerOverlay.TryRead(overlayPath, out _, out _);
+            if (hasRelocationOverlay &&
+                EmitJsonRelocationOverlay(
                     pointers,
                     seenOffsets,
                     sourceBlock,
                     element,
-                    codec,
                     sourcePackageRoot,
-                    targetResolver))
+                    targetResolver,
+                    sourceLayout,
+                    resolver))
             {
                 continue;
             }
 
-            if (!TryLoadElementData(sourcePackageRoot, element, resolver, out var data))
+            if (!StructCodecRegistry.TryGet(element.Kind, out var codec) ||
+                (!codec.UsesExternalBinaryPayload &&
+                 codec.PointerFields.Count == 0 &&
+                 !codec.IsPointerArray))
+            {
+                continue;
+            }
+
+            if (!TryLoadElementDataForRelocation(
+                    sourcePackageRoot,
+                    sourceLayout,
+                    sourceBlock,
+                    element,
+                    resolver,
+                    out var data))
             {
                 continue;
             }
@@ -272,8 +528,9 @@ internal static class RelocationGenerator
         string sourcePackageRoot,
         string targetPackageRoot,
         BlockLayout sourceBlock,
-        PackageLayout targetLayout,
+        TargetBlockResolver targetResolver,
         ReferenceAddressResolver resolver,
+        IReadOnlyList<string> targetPackageRoots,
         IReadOnlyDictionary<(byte Module, byte Id), List<FixLevelSiteEntry>> sitesByBlock)
     {
         var pointers = new List<RelocationPointerManifest>();
@@ -284,32 +541,139 @@ internal static class RelocationGenerator
 
         foreach (var site in sites.OrderBy(site => site.OffsetInMemory))
         {
-            var targetModule = site.TargetModule;
-            var targetId = site.TargetId;
-            if (!string.IsNullOrWhiteSpace(site.TargetUri) &&
-                TryResolveExplicitTargetBlock(
-                    sourcePackageRoot,
-                    targetPackageRoot,
-                    targetLayout,
-                    resolver,
-                    site.TargetUri,
-                    out var targetBlock))
-            {
-                targetModule = targetBlock.Module;
-                targetId = targetBlock.Id;
-            }
+            var (targetModule, targetId) = ResolveImportedSiteTarget(
+                site.TargetModule,
+                site.TargetId,
+                site.TargetUri,
+                sourcePackageRoot,
+                targetPackageRoots,
+                targetResolver,
+                resolver);
 
             pointers.Add(new RelocationPointerManifest
             {
                 OffsetInMemory = site.OffsetInMemory,
                 TargetModule = targetModule,
                 TargetId = targetId,
-                Byte6 = 0,
-                Byte7 = 0
+                Byte6 = site.Byte6,
+                Byte7 = site.Byte7
             });
         }
 
         return pointers;
+    }
+
+    private static RelocationPointerManifest ResolveImportedRtbSite(
+        RtbSiteEntry site,
+        string sourcePackageRoot,
+        IReadOnlyList<string> targetPackageRoots,
+        TargetBlockResolver targetResolver,
+        ReferenceAddressResolver resolver)
+    {
+        var (targetModule, targetId) = ResolveImportedSiteTarget(
+            site.TargetModule,
+            site.TargetId,
+            site.TargetUri,
+            sourcePackageRoot,
+            targetPackageRoots,
+            targetResolver,
+            resolver);
+        return new RelocationPointerManifest
+        {
+            OffsetInMemory = site.OffsetInMemory,
+            TargetModule = targetModule,
+            TargetId = targetId,
+            Byte6 = site.Byte6,
+            Byte7 = site.Byte7
+        };
+    }
+
+    private static RelocationPointerManifest ResolveImportedPointerFileSite(
+        PointerFileSiteEntry site,
+        string sourcePackageRoot,
+        TargetBlockResolver targetResolver,
+        ReferenceAddressResolver resolver)
+    {
+        var (targetModule, targetId) = ResolveImportedSiteTarget(
+            site.TargetModule,
+            site.TargetId,
+            site.TargetUri,
+            sourcePackageRoot,
+            [],
+            targetResolver,
+            resolver);
+        return new RelocationPointerManifest
+        {
+            OffsetInMemory = site.OffsetInMemory,
+            TargetModule = targetModule,
+            TargetId = targetId,
+            Byte6 = site.Byte6,
+            Byte7 = site.Byte7
+        };
+    }
+
+    private static (byte Module, byte Id) ResolveImportedSiteTarget(
+        byte storedModule,
+        byte storedId,
+        string? targetUri,
+        string sourcePackageRoot,
+        IReadOnlyList<string> targetPackageRoots,
+        TargetBlockResolver targetResolver,
+        ReferenceAddressResolver resolver)
+    {
+        if (string.IsNullOrWhiteSpace(targetUri))
+        {
+            return (storedModule, storedId);
+        }
+
+        foreach (var targetPackageRoot in GetTargetPackageRootsForUri(
+                     targetUri,
+                     sourcePackageRoot,
+                     targetPackageRoots))
+        {
+            var targetLayout = PackageLayout.Load(targetPackageRoot);
+            if (TryResolveExplicitTargetBlock(
+                    sourcePackageRoot,
+                    targetPackageRoot,
+                    targetLayout,
+                    resolver,
+                    targetUri,
+                    out var targetBlock))
+            {
+                return (targetBlock.Module, targetBlock.Id);
+            }
+        }
+
+        if (!targetUri.StartsWith(ReferenceUri.LevelPrefix, StringComparison.Ordinal) &&
+            !targetUri.StartsWith(ReferenceUri.FixPrefix, StringComparison.Ordinal) &&
+            targetResolver.FindOpaqueTargetBlock(targetUri, 0) is { } opaqueTarget)
+        {
+            return (opaqueTarget.Module, opaqueTarget.Id);
+        }
+
+        return (storedModule, storedId);
+    }
+
+    private static IEnumerable<string> GetTargetPackageRootsForUri(
+        string targetUri,
+        string sourcePackageRoot,
+        IReadOnlyList<string> targetPackageRoots)
+    {
+        if (targetUri.StartsWith(ReferenceUri.LevelPrefix, StringComparison.Ordinal))
+        {
+            return targetPackageRoots.Distinct(StringComparer.OrdinalIgnoreCase);
+        }
+
+        if (targetUri.StartsWith(ReferenceUri.FixPrefix, StringComparison.Ordinal))
+        {
+            return targetPackageRoots
+                .Prepend(sourcePackageRoot)
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+        }
+
+        return targetPackageRoots
+            .Prepend(sourcePackageRoot)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
     }
 
     private static bool TryResolveExplicitTargetBlock(
@@ -344,6 +708,102 @@ internal static class RelocationGenerator
         }
     }
 
+    private static PointerFileSitesDocument LoadImportedPointerFileSites(
+        string packageRoot,
+        string fileName)
+    {
+        var sitesPath = ResolvePointerFileSitesPath(packageRoot, fileName);
+        if (sitesPath == null || !File.Exists(sitesPath))
+        {
+            return new PointerFileSitesDocument();
+        }
+
+        return JsonSerializer.Deserialize<PointerFileSitesDocument>(
+            File.ReadAllText(sitesPath),
+            JsonOptions) ?? new PointerFileSitesDocument();
+    }
+
+    private static string? ResolvePointerFileSitesPath(string packageRoot, string fileName)
+    {
+        var manifestPath = Path.Combine(packageRoot, OpenSpacePackageCodec.ManifestFileName);
+        if (File.Exists(manifestPath))
+        {
+            var manifest = JsonSerializer.Deserialize<RetePackageManifest>(
+                File.ReadAllText(manifestPath),
+                JsonOptions);
+            if (manifest?.Semantic?.PointerFileSitesPaths.TryGetValue(fileName, out var manifestPath_) == true &&
+                !string.IsNullOrWhiteSpace(manifestPath_))
+            {
+                return Path.Combine(packageRoot, manifestPath_.Replace('/', Path.DirectorySeparatorChar));
+            }
+        }
+
+        var defaultPath = Path.Combine(packageRoot, "semantic", $"{fileName}-sites.json");
+        return defaultPath;
+    }
+
+    private static Dictionary<(byte Module, byte Id), RelocationEncodingBlockManifest>? LoadExpectedEncodingBlocks(
+        string packageRoot,
+        string fileName)
+    {
+        var manifestPath = Path.Combine(packageRoot, OpenSpacePackageCodec.ManifestFileName);
+        if (!File.Exists(manifestPath))
+        {
+            return null;
+        }
+
+        var manifest = JsonSerializer.Deserialize<RetePackageManifest>(
+            File.ReadAllText(manifestPath),
+            JsonOptions);
+        var table = manifest?.RelocationTables.FirstOrDefault(entry =>
+            entry.FileName.Equals(fileName, StringComparison.OrdinalIgnoreCase));
+        if (table == null || string.IsNullOrWhiteSpace(table.EncodingPath))
+        {
+            return null;
+        }
+
+        var encodingPath = Path.Combine(
+            packageRoot,
+            table.EncodingPath.Replace('/', Path.DirectorySeparatorChar));
+        if (!File.Exists(encodingPath))
+        {
+            return null;
+        }
+
+        var encoding = JsonSerializer.Deserialize<RelocationEncodingDocument>(
+            File.ReadAllText(encodingPath),
+            JsonOptions);
+        return encoding?.Blocks.ToDictionary(block => (block.Module, block.Id));
+    }
+
+    private static RtbSitesDocument LoadImportedRtbSites(string packageRoot)
+    {
+        var manifestPath = Path.Combine(packageRoot, OpenSpacePackageCodec.ManifestFileName);
+        if (!File.Exists(manifestPath))
+        {
+            return new RtbSitesDocument();
+        }
+
+        var manifest = JsonSerializer.Deserialize<RetePackageManifest>(
+            File.ReadAllText(manifestPath),
+            JsonOptions);
+        var sitesPath = manifest?.Semantic?.RtbSitesPath;
+        if (string.IsNullOrWhiteSpace(sitesPath))
+        {
+            return new RtbSitesDocument();
+        }
+
+        var fullPath = Path.Combine(packageRoot, sitesPath.Replace('/', Path.DirectorySeparatorChar));
+        if (!File.Exists(fullPath))
+        {
+            return new RtbSitesDocument();
+        }
+
+        return JsonSerializer.Deserialize<RtbSitesDocument>(
+            File.ReadAllText(fullPath),
+            JsonOptions) ?? new RtbSitesDocument();
+    }
+
     private static FixLevelSitesDocument LoadImportedFixLevelSites(string levelPackageRoot)
     {
         var manifestPath = Path.Combine(levelPackageRoot, OpenSpacePackageCodec.ManifestFileName);
@@ -372,51 +832,57 @@ internal static class RelocationGenerator
             JsonOptions) ?? new FixLevelSitesDocument();
     }
 
-    private static bool TryEmitOpaquePointerMap(
+    private static bool EmitJsonRelocationOverlay(
         List<RelocationPointerManifest> pointers,
         HashSet<uint> seenOffsets,
         BlockLayout sourceBlock,
         ElementLayout element,
-        IStructCodecBinding codec,
         string sourcePackageRoot,
-        TargetBlockResolver targetResolver)
+        TargetBlockResolver targetResolver,
+        PackageLayout sourceLayout,
+        ReferenceAddressResolver resolver)
     {
-        if (!codec.UsesExternalBinaryPayload)
-        {
-            return false;
-        }
-
         var elementPath = ReferenceUri.Resolve(sourcePackageRoot, element.DataPath).FilePath;
-        if (!elementPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ||
-            !File.Exists(elementPath))
+        if (!File.Exists(elementPath))
         {
             return false;
         }
 
-        var record = (OpaqueBinaryRecord)codec.ReadFromJsonPath(sourcePackageRoot, elementPath);
-        if (record.Pointers.Count == 0)
+        var overlayPath = RelocationPointerOverlay.GetOverlayPath(elementPath);
+        if (!RelocationPointerOverlay.TryRead(overlayPath, out var pointerOverlay, out var targetOverlay))
         {
             return false;
         }
 
-        foreach (var entry in record.Pointers.OrderBy(e => ParsePointerOffset(e.Key)))
+        var overlayOffsets = pointerOverlay.Keys
+            .Concat(targetOverlay.Keys)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(ParsePointerOffset)
+            .Select(offsetKey => (OffsetKey: offsetKey, Offset: ParsePointerOffset(offsetKey)))
+            .ToList();
+        if (overlayOffsets.Count == 0)
         {
-            if (string.IsNullOrWhiteSpace(entry.Value))
-            {
-                continue;
-            }
+            return false;
+        }
 
-            var offset = ParsePointerOffset(entry.Key);
-            if (offset < 0 || offset + sizeof(int) > record.Data.Length || offset % sizeof(int) != 0)
+        if (!sourceLayout.TryReadElementBytes(sourceBlock, element, out var elementBytes) &&
+            !TryLoadElementData(sourcePackageRoot, element, resolver, out elementBytes))
+        {
+            return false;
+        }
+
+        foreach (var (offsetKey, offset) in overlayOffsets)
+        {
+            if (offset < 0 || offset % sizeof(int) != 0)
             {
                 throw new InvalidDataException(
-                    $"Opaque pointer offset '{entry.Key}' is out of bounds for {elementPath}.");
+                    $"Misaligned relocation overlay offset '{offsetKey}' in {overlayPath}.");
             }
 
-            var value = BinaryPrimitives.ReadInt32LittleEndian(record.Data.AsSpan(offset, sizeof(int)));
-            if (!ShouldEmitRelocation(pointerField: null, value))
+            if (offset + sizeof(int) > elementBytes.Length)
             {
-                continue;
+                throw new InvalidDataException(
+                    $"Relocation overlay offset '{offsetKey}' is out of range for element span in {overlayPath}.");
             }
 
             var offsetInMemory = checked((uint)(sourceBlock.BaseInMemory + element.OffsetInBlock + offset));
@@ -425,9 +891,40 @@ internal static class RelocationGenerator
                 continue;
             }
 
-            var target = targetResolver.FindOpaqueTargetBlock(entry.Value, value);
+            if (targetOverlay.TryGetValue(offsetKey, out var explicitTarget))
+            {
+                pointers.Add(new RelocationPointerManifest
+                {
+                    OffsetInMemory = offsetInMemory,
+                    TargetModule = explicitTarget.Module,
+                    TargetId = explicitTarget.Id,
+                    Byte6 = explicitTarget.Byte6,
+                    Byte7 = explicitTarget.Byte7
+                });
+                continue;
+            }
+
+            var value = BinaryPrimitives.ReadInt32LittleEndian(elementBytes.AsSpan(offset, sizeof(int)));
+            if (!ShouldEmitRelocation(pointerField: null, value))
+            {
+                continue;
+            }
+
+            pointerOverlay.TryGetValue(offsetKey, out var uri);
+            BlockLayout? target = null;
+            if (!string.IsNullOrWhiteSpace(uri))
+            {
+                target = targetResolver.FindOpaqueTargetBlock(uri, value);
+            }
+
+            target ??= targetResolver.FindTargetBlock(value, PointerTarget.Any);
             if (target == null)
             {
+                if (ShouldEmitSentinelRelocation(pointerField: null, value))
+                {
+                    pointers.Add(CreateSentinelPointer(offsetInMemory));
+                }
+
                 continue;
             }
 
@@ -442,6 +939,22 @@ internal static class RelocationGenerator
         }
 
         return true;
+    }
+
+    private static bool TryLoadElementDataForRelocation(
+        string sourcePackageRoot,
+        PackageLayout sourceLayout,
+        BlockLayout sourceBlock,
+        ElementLayout element,
+        ReferenceAddressResolver resolver,
+        out byte[] data)
+    {
+        if (sourceLayout.TryReadElementBytes(sourceBlock, element, out data))
+        {
+            return true;
+        }
+
+        return TryLoadElementData(sourcePackageRoot, element, resolver, out data);
     }
 
     private static bool TryLoadElementData(
@@ -521,6 +1034,41 @@ internal static class RelocationGenerator
                 Byte7 = 0
             });
         }
+    }
+
+    private static RelocationPointerManifest CreateSentinelPointer(uint offsetInMemory) =>
+        new()
+        {
+            OffsetInMemory = offsetInMemory,
+            TargetModule = 0xFF,
+            TargetId = 0xFF,
+            Byte6 = 0,
+            Byte7 = 0
+        };
+
+    private static bool ShouldEmitSentinelRelocation(PointerField? pointerField, int value)
+    {
+        if (value == 0)
+        {
+            return false;
+        }
+
+        if (pointerField is { } field)
+        {
+            if (IsIgnoredPointerValue(field, value))
+            {
+                return false;
+            }
+
+            if (field.RequiresVmRange)
+            {
+                return VmPointerScanning.IsLikelyVirtualAddress(value);
+            }
+
+            return true;
+        }
+
+        return VmPointerScanning.IsLikelyVirtualAddress(value);
     }
 
     private static bool ShouldEmitRelocation(PointerField? pointerField, int value)
@@ -975,6 +1523,21 @@ internal static class RelocationGenerator
                     TryReadBlockBytes(block, out _);
                 }
             }
+        }
+
+        internal bool TryReadElementBytes(BlockLayout block, ElementLayout element, out byte[] data)
+        {
+            data = [];
+            if (!TryReadBlockBytes(block, out var blockBytes) ||
+                element.OffsetInBlock < 0 ||
+                element.Length <= 0 ||
+                element.OffsetInBlock + element.Length > blockBytes.Length)
+            {
+                return false;
+            }
+
+            data = blockBytes.AsSpan(element.OffsetInBlock, element.Length).ToArray();
+            return true;
         }
 
         internal bool TryReadInt32(int virtualAddress, out int value)
