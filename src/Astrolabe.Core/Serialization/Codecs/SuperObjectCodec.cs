@@ -11,9 +11,11 @@ public sealed class SuperObjectCodec : IStructCodec<SuperObjectRecord>
 
     private static readonly PointerField[] PointerFieldsList =
     [
+        new PointerField(0x00, "typeCode", PointerTarget.BlockRelative, RequiresVmRange: true),
         new PointerField(0x04, "offData", PointerTarget.BlockRelative),
         new PointerField(0x08, "childrenHead", PointerTarget.BlockRelative),
         new PointerField(0x0C, "childrenTail", PointerTarget.BlockRelative),
+        new PointerField(0x10, "childrenCount", PointerTarget.BlockRelative, RequiresVmRange: true),
         new PointerField(0x14, "brotherNext", PointerTarget.BlockRelative),
         new PointerField(0x18, "brotherPrev", PointerTarget.BlockRelative),
         new PointerField(0x1C, "parent", PointerTarget.BlockRelative),

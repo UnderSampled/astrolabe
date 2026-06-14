@@ -137,20 +137,152 @@ public sealed class RelocationGeneratorTests
         }
     }
 
-    private static void CreateOpaquePackageFixture(string packageDir, Dictionary<string, string?> pointers)
+    [Fact]
+    public void GenerateRtb_OpaquePointerMap_UsesExplicitOffsetsOnly()
     {
+        var packageDir = CreateTempDir();
+        try
+        {
+            var sourceData = new byte[8];
+            BinaryPrimitives.WriteInt32LittleEndian(sourceData.AsSpan(0, 4), 0x1234_5678);
+            BinaryPrimitives.WriteInt32LittleEndian(sourceData.AsSpan(4, 4), 0x0900_0000);
+            CreateOpaquePackageFixture(
+                packageDir,
+                new Dictionary<string, string?> { ["0x0"] = "types/raw/target.json" },
+                sourceData: sourceData);
+
+            var table = OpenSpaceExporter.GenerateRtb(packageDir, "test.rtb", []);
+            var block = Assert.Single(table.Blocks);
+            var pointer = Assert.Single(block.Pointers);
+
+            Assert.Equal((uint)0x0900_0004, pointer.OffsetInMemory);
+            Assert.Equal(0x00, pointer.TargetModule);
+            Assert.Equal(0x01, pointer.TargetId);
+        }
+        finally
+        {
+            Directory.Delete(packageDir, true);
+        }
+    }
+
+    [Fact]
+    public void GenerateRtb_OpaquePointerMap_DoesNotRequireCodecPointerMetadata()
+    {
+        var packageDir = CreateTempDir();
+        try
+        {
+            StructCodecRegistry.Register(TestOpaqueNoMetadataCodec.Instance);
+            CreateOpaquePackageFixture(
+                packageDir,
+                new Dictionary<string, string?> { ["0x0"] = "types/raw/target.json" },
+                kind: TestOpaqueNoMetadataCodec.Instance.Kind,
+                schema: TestOpaqueNoMetadataCodec.Instance.Schema);
+
+            var table = OpenSpaceExporter.GenerateRtb(packageDir, "test.rtb", []);
+            var block = Assert.Single(table.Blocks);
+            var pointer = Assert.Single(block.Pointers);
+
+            Assert.Equal((uint)0x0900_0004, pointer.OffsetInMemory);
+            Assert.Equal(0x00, pointer.TargetModule);
+            Assert.Equal(0x01, pointer.TargetId);
+        }
+        finally
+        {
+            Directory.Delete(packageDir, true);
+        }
+    }
+
+    [Fact]
+    public void GenerateRtb_OpaquePointerMap_PrefersExplicitUriTargetPackage()
+    {
+        var workspaceDir = CreateTempDir();
+        try
+        {
+            var levelDir = Path.Combine(workspaceDir, "astrolabe");
+            var fixDir = Path.Combine(workspaceDir, "fix");
+
+            CreateOpaquePackageFixture(
+                levelDir,
+                new Dictionary<string, string?> { ["0x0"] = "../fix/types/raw/target.json" },
+                sourceData: [0x00, 0x00, 0x00, 0x09, 0, 0, 0, 0],
+                module: 0x00,
+                id: 0x01);
+            CreateOpaquePackageFixture(
+                fixDir,
+                [],
+                packageRole: "fix",
+                levelName: "Fix",
+                module: 0x02,
+                id: 0x03);
+
+            var table = OpenSpaceExporter.GenerateRtb(levelDir, "test.rtb", [fixDir]);
+            var block = Assert.Single(table.Blocks);
+            var pointer = Assert.Single(block.Pointers);
+
+            Assert.Equal((uint)0x0900_0004, pointer.OffsetInMemory);
+            Assert.Equal(0x02, pointer.TargetModule);
+            Assert.Equal(0x03, pointer.TargetId);
+        }
+        finally
+        {
+            Directory.Delete(workspaceDir, true);
+        }
+    }
+
+    [Fact]
+    public void ReferenceAddressResolver_InteriorElementAddress_UsesByteOffsetFragment()
+    {
+        var packageDir = CreateTempDir();
+        try
+        {
+            CreateOpaquePackageFixture(
+                packageDir,
+                [],
+                targetData: [0xAA, 0xBB, 0xCC, 0xDD, 0x11, 0x22, 0x33, 0x44]);
+
+            var resolver = new ReferenceAddressResolver(packageDir);
+
+            Assert.True(resolver.TryGetReferenceUri(0x0900_0000, packageDir, out var exactUri));
+            Assert.True(resolver.TryGetReferenceUri(0x0900_0004, packageDir, out var interiorUri));
+            Assert.Equal("types/raw/target.json", exactUri);
+            Assert.Equal("types/raw/target.json#byteOffset=4", interiorUri);
+            Assert.Equal(0x0900_0004, resolver.ResolveAddress(packageDir, interiorUri));
+        }
+        finally
+        {
+            Directory.Delete(packageDir, true);
+        }
+    }
+
+    private static void CreateOpaquePackageFixture(
+        string packageDir,
+        Dictionary<string, string?> pointers,
+        string kind = "raw",
+        string? schema = null,
+        byte[]? sourceData = null,
+        byte[]? targetData = null,
+        string packageRole = "level",
+        string levelName = "test",
+        byte module = 0x00,
+        byte id = 0x01)
+    {
+        schema ??= RawBlobCodec.Instance.Schema;
+        targetData ??= [0xAA, 0xBB, 0xCC, 0xDD];
+        sourceData ??= [0x78, 0x56, 0x34, 0x12, 0, 0, 0, 0];
+        var sourceOffset = targetData.Length;
         var jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
 
         Directory.CreateDirectory(packageDir);
-        Assert.True(StructCodecRegistry.TryGet("raw", out var codec));
+        Assert.True(StructCodecRegistry.TryGet(kind, out var codec));
 
         var manifest = new RetePackageManifest
         {
-            LevelName = "test",
-            SourceDirectoryName = "test",
+            PackageRole = packageRole,
+            LevelName = levelName,
+            SourceDirectoryName = levelName,
             SnaFiles =
             [
                 new SnaFileManifest
@@ -161,9 +293,9 @@ public sealed class RelocationGeneratorTests
                         new SnaBlockManifest
                         {
                             Order = 0,
-                            Key = "00:01",
-                            Module = 0x00,
-                            Id = 0x01,
+                            Key = $"{module:X2}:{id:X2}",
+                            Module = module,
+                            Id = id,
                             BaseInMemory = 0x0900_0000,
                             HasPayload = true,
                             ContentPath = "sna/test/blocks/0000/content.json"
@@ -177,9 +309,9 @@ public sealed class RelocationGeneratorTests
         {
             FileName = "test.sna",
             BlockOrder = 0,
-            BlockKey = "00:01",
-            Module = 0x00,
-            Id = 0x01,
+            BlockKey = $"{module:X2}:{id:X2}",
+            Module = module,
+            Id = id,
             BaseInMemory = 0x0900_0000,
             BaseInMemoryHex = "0x09000000",
             OriginalDataSha256 = "test",
@@ -188,10 +320,10 @@ public sealed class RelocationGeneratorTests
                 new SnaBlockContentElement
                 {
                     Order = 0,
-                    Kind = "raw",
+                    Kind = kind,
                     DataPath = "types/raw/target.json",
                     OffsetInBlock = 0,
-                    Length = 4,
+                    Length = targetData.Length,
                     VirtualAddress = 0x0900_0000,
                     VirtualAddressHex = "0x09000000",
                     Sha256 = "target"
@@ -199,12 +331,12 @@ public sealed class RelocationGeneratorTests
                 new SnaBlockContentElement
                 {
                     Order = 1,
-                    Kind = "raw",
+                    Kind = kind,
                     DataPath = "types/raw/source.json",
-                    OffsetInBlock = 4,
-                    Length = 8,
-                    VirtualAddress = 0x0900_0004,
-                    VirtualAddressHex = "0x09000004",
+                    OffsetInBlock = sourceOffset,
+                    Length = sourceData.Length,
+                    VirtualAddress = 0x0900_0000 + sourceOffset,
+                    VirtualAddressHex = $"0x{0x0900_0000 + sourceOffset:X8}",
                     Sha256 = "source"
                 }
             ]
@@ -215,14 +347,14 @@ public sealed class RelocationGeneratorTests
 
         codec.WriteJson(packageDir, Path.Combine(packageDir, "types/raw/target.json"), new OpaqueBinaryRecord
         {
-            Schema = RawBlobCodec.Instance.Schema,
-            Data = [0xAA, 0xBB, 0xCC, 0xDD]
+            Schema = schema,
+            Data = targetData
         });
 
         codec.WriteJson(packageDir, Path.Combine(packageDir, "types/raw/source.json"), new OpaqueBinaryRecord
         {
-            Schema = RawBlobCodec.Instance.Schema,
-            Data = [0x78, 0x56, 0x34, 0x12, 0, 0, 0, 0],
+            Schema = schema,
+            Data = sourceData,
             Pointers = pointers
         });
     }
@@ -238,5 +370,26 @@ public sealed class RelocationGeneratorTests
         var path = Path.Combine(Path.GetTempPath(), "astrolabe-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(path);
         return path;
+    }
+
+    private sealed class TestOpaqueNoMetadataCodec : IStructCodec<OpaqueBinaryRecord>
+    {
+        public static TestOpaqueNoMetadataCodec Instance { get; } = new();
+
+        public string Kind => "testopaque_nometa";
+        public string Schema => "astrolabe.test-opaque-no-metadata.v1";
+        public int? FixedSize => null;
+        public IReadOnlyList<PointerField> PointerFields { get; } = [];
+
+        public OpaqueBinaryRecord Read(ReadOnlySpan<byte> data, int offset, int length) =>
+            OpaqueBinaryRecord.FromSlice(Schema, data, offset, length);
+
+        public byte[] Write(OpaqueBinaryRecord value) => value.Data;
+
+        public OpaqueBinaryRecord FromJson(JsonElement json) =>
+            JsonStructCodec.Deserialize<OpaqueBinaryRecord>(json, Schema);
+
+        public void ToJson(OpaqueBinaryRecord value, Utf8JsonWriter writer) =>
+            JsonStructCodec.Serialize(writer, value);
     }
 }

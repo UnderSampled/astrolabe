@@ -44,6 +44,7 @@ internal static class OpenSpacePackageCodec
         var fixPackageDir = ImportSiblingFixPackageIfAvailable(levelDir, outputDir);
         var manifest = ImportPackage(levelDir, levelName, outputDir, "level", _ => true);
         RewritePointerReferences(outputDir, fixPackageDir);
+        AnnotateOpaquePointersFromRelocations(outputDir, fixPackageDir);
         return manifest;
     }
 
@@ -130,6 +131,7 @@ internal static class OpenSpacePackageCodec
         }
 
         RewritePointerReferences(fixOutputDir, null);
+        AnnotateOpaquePointersFromRelocations(fixOutputDir, null);
         return fixOutputDir;
     }
 
@@ -188,6 +190,146 @@ internal static class OpenSpacePackageCodec
                 }
             }
         }
+    }
+
+    private static void AnnotateOpaquePointersFromRelocations(string packageDir, string? extraPackageDir)
+    {
+        var manifestPath = Path.Combine(packageDir, ManifestFileName);
+        if (!File.Exists(manifestPath))
+        {
+            return;
+        }
+
+        var resolver = new ReferenceAddressResolver(packageDir);
+        if (!string.IsNullOrWhiteSpace(extraPackageDir))
+        {
+            resolver.LoadPackage(extraPackageDir);
+        }
+
+        var manifest = ReadJson<RetePackageManifest>(manifestPath);
+        var sourceElements = LoadElementIndex(packageDir, manifest);
+        var pendingRecords = new Dictionary<string, PendingOpaquePointerRecord>(StringComparer.OrdinalIgnoreCase);
+        foreach (var table in manifest.RelocationTables)
+        {
+            if (!Path.GetExtension(table.FileName).Equals(".rtb", StringComparison.OrdinalIgnoreCase) ||
+                table.FileName.Equals("fixlvl.rtb", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var relocationTable = ReadJson<RelocationTableDocument>(ResolvePath(packageDir, table.JsonPath));
+            foreach (var block in relocationTable.Blocks)
+            {
+                if (!sourceElements.TryGetValue((block.Module, block.Id), out var elements))
+                {
+                    continue;
+                }
+
+                foreach (var pointer in block.Pointers)
+                {
+                    var sourceAddress = checked((int)pointer.OffsetInMemory);
+                    var element = FindElementAt(elements, sourceAddress);
+                    if (element == null ||
+                        !StructCodecRegistry.TryGet(element.Kind, out var codec) ||
+                        !codec.UsesExternalBinaryPayload)
+                    {
+                        continue;
+                    }
+
+                    var elementPath = ReferenceUri.Resolve(packageDir, element.DataPath).FilePath;
+                    if (!elementPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ||
+                        !File.Exists(elementPath))
+                    {
+                        continue;
+                    }
+
+                    if (!pendingRecords.TryGetValue(elementPath, out var pending))
+                    {
+                        pending = new PendingOpaquePointerRecord(
+                            codec,
+                            (OpaqueBinaryRecord)codec.ReadFromJsonPath(packageDir, elementPath));
+                        pendingRecords[elementPath] = pending;
+                    }
+
+                    var record = pending.Record;
+                    var offset = sourceAddress - element.VirtualAddress;
+                    if (offset < 0 || offset + sizeof(int) > record.Data.Length || offset % sizeof(int) != 0)
+                    {
+                        continue;
+                    }
+
+                    var value = BinaryPrimitives.ReadInt32LittleEndian(record.Data.AsSpan(offset, sizeof(int)));
+                    if (!resolver.TryGetReferenceUri(value, packageDir, out var uri))
+                    {
+                        continue;
+                    }
+
+                    var key = FormatPointerOffset(offset);
+                    if (record.Pointers.TryGetValue(key, out var existing) &&
+                        string.Equals(existing, uri, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    record.Pointers[key] = uri;
+                    pending.Changed = true;
+                }
+            }
+        }
+
+        foreach (var (elementPath, pending) in pendingRecords)
+        {
+            if (pending.Changed)
+            {
+                pending.Codec.WriteJson(packageDir, elementPath, pending.Record);
+            }
+        }
+    }
+
+    private static Dictionary<(byte Module, byte Id), List<IndexedContentElement>> LoadElementIndex(
+        string packageDir,
+        RetePackageManifest manifest)
+    {
+        var result = new Dictionary<(byte Module, byte Id), List<IndexedContentElement>>();
+        foreach (var snaFile in manifest.SnaFiles)
+        {
+            foreach (var block in snaFile.Blocks)
+            {
+                if (block.ContentPath == null)
+                {
+                    continue;
+                }
+
+                var content = ReadJson<SnaBlockContentDocument>(ResolvePath(packageDir, block.ContentPath));
+                var elements = content.Elements
+                    .Select(e => new IndexedContentElement(
+                        e.Kind,
+                        e.DataPath,
+                        e.VirtualAddress,
+                        e.Length))
+                    .OrderBy(e => e.VirtualAddress)
+                    .ToList();
+                result[(block.Module, block.Id)] = elements;
+            }
+        }
+
+        return result;
+    }
+
+    private static IndexedContentElement? FindElementAt(
+        IReadOnlyList<IndexedContentElement> elements,
+        int virtualAddress)
+    {
+        foreach (var element in elements)
+        {
+            if (virtualAddress >= element.VirtualAddress &&
+                virtualAddress < checked(element.VirtualAddress + element.Length))
+            {
+                return element;
+            }
+        }
+
+        return null;
     }
 
     public static void ExportLevel(string packageDir, string outputDir)
@@ -1375,6 +1517,25 @@ internal static class OpenSpacePackageCodec
 
     private sealed record SnaContentPlan(int Start, int Length, string Kind, List<string> Labels);
 
+    private sealed record IndexedContentElement(
+        string Kind,
+        string DataPath,
+        int VirtualAddress,
+        int Length);
+
+    private sealed class PendingOpaquePointerRecord
+    {
+        public PendingOpaquePointerRecord(IStructCodecBinding codec, OpaqueBinaryRecord record)
+        {
+            Codec = codec;
+            Record = record;
+        }
+
+        public IStructCodecBinding Codec { get; }
+        public OpaqueBinaryRecord Record { get; }
+        public bool Changed { get; set; }
+    }
+
     private static string ToKey(byte module, byte id)
     {
         return $"{module:X2}:{id:X2}";
@@ -1383,5 +1544,10 @@ internal static class OpenSpacePackageCodec
     private static string ToHex(int value)
     {
         return $"0x{value:X8}";
+    }
+
+    private static string FormatPointerOffset(int offset)
+    {
+        return $"0x{offset:X}";
     }
 }

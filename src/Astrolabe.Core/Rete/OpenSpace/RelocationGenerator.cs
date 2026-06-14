@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Text.Json;
 using Astrolabe.Core.Serialization;
+using Astrolabe.Core.Serialization.Codecs;
 using lzo.net;
 
 namespace Astrolabe.Core.Rete.OpenSpace;
@@ -42,6 +43,7 @@ internal static class RelocationGenerator
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(PackageLayout.Load)
             .ToList();
+        var targetResolver = new TargetBlockResolver(sourcePackageRoot, targetLayouts);
 
         var resolver = new ReferenceAddressResolver(sourcePackageRoot);
         foreach (var targetPackageRoot in targetPackageRoots)
@@ -52,7 +54,7 @@ internal static class RelocationGenerator
         var document = new RelocationTableDocument { FileName = fileName };
         foreach (var sourceBlock in sourceLayout.Blocks)
         {
-            var pointers = GenerateBlockPointers(sourcePackageRoot, sourceBlock, targetLayouts, resolver);
+            var pointers = GenerateBlockPointers(sourcePackageRoot, sourceBlock, targetResolver, resolver);
             if (pointers.Count == 0 && !includeEmptyBlocks)
             {
                 continue;
@@ -89,8 +91,9 @@ internal static class RelocationGenerator
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(PackageLayout.Load)
             .ToList();
+        var targetResolver = new TargetBlockResolver(sourcePackageRoot, targetLayouts);
 
-        var pointers = GeneratePointerFileEntries(sourcePackageRoot, pointerFilePath, targetLayouts);
+        var pointers = GeneratePointerFileEntries(pointerFilePath, targetResolver);
         var block = new RelocationPointerBlockManifest
         {
             Order = 0,
@@ -247,7 +250,7 @@ internal static class RelocationGenerator
     private static List<RelocationPointerManifest> GenerateBlockPointers(
         string sourcePackageRoot,
         BlockLayout sourceBlock,
-        IReadOnlyList<PackageLayout> targetLayouts,
+        TargetBlockResolver targetResolver,
         ReferenceAddressResolver resolver)
     {
         var pointers = new List<RelocationPointerManifest>();
@@ -256,12 +259,31 @@ internal static class RelocationGenerator
         foreach (var element in sourceBlock.Elements)
         {
             if (!StructCodecRegistry.TryGet(element.Kind, out var codec) ||
-                (codec.PointerFields.Count == 0 && !codec.IsPointerArray))
+                (!codec.UsesExternalBinaryPayload &&
+                    codec.PointerFields.Count == 0 &&
+                    !codec.IsPointerArray))
+            {
+                continue;
+            }
+
+            if (TryEmitOpaquePointerMap(
+                    pointers,
+                    seenOffsets,
+                    sourceBlock,
+                    element,
+                    codec,
+                    sourcePackageRoot,
+                    targetResolver))
             {
                 continue;
             }
 
             if (!TryLoadElementData(sourcePackageRoot, element, resolver, out var data))
+            {
+                continue;
+            }
+
+            if (codec.PointerFields.Count == 0 && !codec.IsPointerArray)
             {
                 continue;
             }
@@ -289,8 +311,7 @@ internal static class RelocationGenerator
                 element,
                 pointerData,
                 pointerFields,
-                sourcePackageRoot,
-                targetLayouts);
+                targetResolver);
         }
 
         return pointers
@@ -298,6 +319,78 @@ internal static class RelocationGenerator
             .ThenBy(p => p.TargetModule)
             .ThenBy(p => p.TargetId)
             .ToList();
+    }
+
+    private static bool TryEmitOpaquePointerMap(
+        List<RelocationPointerManifest> pointers,
+        HashSet<uint> seenOffsets,
+        BlockLayout sourceBlock,
+        ElementLayout element,
+        IStructCodecBinding codec,
+        string sourcePackageRoot,
+        TargetBlockResolver targetResolver)
+    {
+        if (!codec.UsesExternalBinaryPayload)
+        {
+            return false;
+        }
+
+        var elementPath = ReferenceUri.Resolve(sourcePackageRoot, element.DataPath).FilePath;
+        if (!elementPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ||
+            !File.Exists(elementPath))
+        {
+            return false;
+        }
+
+        var record = (OpaqueBinaryRecord)codec.ReadFromJsonPath(sourcePackageRoot, elementPath);
+        if (record.Pointers.Count == 0)
+        {
+            return false;
+        }
+
+        foreach (var entry in record.Pointers.OrderBy(e => ParsePointerOffset(e.Key)))
+        {
+            if (string.IsNullOrWhiteSpace(entry.Value))
+            {
+                continue;
+            }
+
+            var offset = ParsePointerOffset(entry.Key);
+            if (offset < 0 || offset + sizeof(int) > record.Data.Length || offset % sizeof(int) != 0)
+            {
+                throw new InvalidDataException(
+                    $"Opaque pointer offset '{entry.Key}' is out of bounds for {elementPath}.");
+            }
+
+            var value = BinaryPrimitives.ReadInt32LittleEndian(record.Data.AsSpan(offset, sizeof(int)));
+            if (!ShouldEmitRelocation(pointerField: null, value))
+            {
+                continue;
+            }
+
+            var offsetInMemory = checked((uint)(sourceBlock.BaseInMemory + element.OffsetInBlock + offset));
+            if (!seenOffsets.Add(offsetInMemory))
+            {
+                continue;
+            }
+
+            var target = targetResolver.FindOpaqueTargetBlock(entry.Value, value);
+            if (target == null)
+            {
+                continue;
+            }
+
+            pointers.Add(new RelocationPointerManifest
+            {
+                OffsetInMemory = offsetInMemory,
+                TargetModule = target.Module,
+                TargetId = target.Id,
+                Byte6 = 0,
+                Byte7 = 0
+            });
+        }
+
+        return true;
     }
 
     private static bool TryLoadElementData(
@@ -334,8 +427,7 @@ internal static class RelocationGenerator
         ElementLayout element,
         ReadOnlySpan<byte> data,
         IReadOnlyList<PointerField> pointerFields,
-        string sourcePackageRoot,
-        IReadOnlyList<PackageLayout> targetLayouts)
+        TargetBlockResolver targetResolver)
     {
         foreach (var pointerField in pointerFields.OrderBy(f => f.Offset))
         {
@@ -357,7 +449,7 @@ internal static class RelocationGenerator
                 continue;
             }
 
-            var target = FindTargetBlock(value, pointerField.Target, sourcePackageRoot, targetLayouts);
+            var target = targetResolver.FindTargetBlock(value, pointerField.Target);
             if (target == null)
             {
                 continue;
@@ -427,30 +519,43 @@ internal static class RelocationGenerator
         return true;
     }
 
-    private static BlockLayout? FindTargetBlock(
-        int address,
-        PointerTarget pointerTarget,
-        string sourcePackageRoot,
-        IReadOnlyList<PackageLayout> layouts)
+    private static bool IsPathWithinPackageRoot(string path, string packageRoot)
     {
-        var best = FindBestTargetBlock(
-            FilterTargetLayouts(layouts, pointerTarget, sourcePackageRoot),
-            address,
-            sourcePackageRoot);
-        if (best != null)
+        var relative = Path.GetRelativePath(packageRoot, path);
+        return relative != ".." &&
+            !relative.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal) &&
+            !relative.StartsWith($"..{Path.AltDirectorySeparatorChar}", StringComparison.Ordinal) &&
+            !Path.IsPathRooted(relative);
+    }
+
+    private static int ParsePointerOffset(string value)
+    {
+        if (TryParsePointerOffset(value, out var offset))
         {
-            return best;
+            return offset;
         }
 
-        if (pointerTarget == PointerTarget.BlockRelative)
+        throw new InvalidDataException($"Invalid opaque pointer offset '{value}'.");
+    }
+
+    private static bool TryParsePointerOffset(string value, out int offset)
+    {
+        offset = 0;
+        if (string.IsNullOrWhiteSpace(value))
         {
-            return FindBestTargetBlock(
-                FilterBlockRelativeFallbackLayouts(layouts, sourcePackageRoot),
-                address,
-                sourcePackageRoot);
+            return false;
         }
 
-        return null;
+        if (value.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        {
+            return int.TryParse(
+                value.AsSpan(2),
+                System.Globalization.NumberStyles.HexNumber,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out offset);
+        }
+
+        return int.TryParse(value, out offset);
     }
 
     private static BlockLayout? FindBestTargetBlock(
@@ -509,69 +614,16 @@ internal static class RelocationGenerator
             return false;
         }
 
-        var normalizedSourceRoot = Path.GetFullPath(sourcePackageRoot);
-        var candidateIsSource = Path.GetFullPath(candidate.PackageRoot)
-            .Equals(normalizedSourceRoot, StringComparison.OrdinalIgnoreCase);
-        var currentIsSource = Path.GetFullPath(current.PackageRoot)
-            .Equals(normalizedSourceRoot, StringComparison.OrdinalIgnoreCase);
+        var candidateIsSource = candidate.PackageRoot
+            .Equals(sourcePackageRoot, StringComparison.OrdinalIgnoreCase);
+        var currentIsSource = current.PackageRoot
+            .Equals(sourcePackageRoot, StringComparison.OrdinalIgnoreCase);
         return candidateIsSource && !currentIsSource;
     }
 
-    private static IEnumerable<PackageLayout> FilterBlockRelativeFallbackLayouts(
-        IReadOnlyList<PackageLayout> layouts,
-        string sourcePackageRoot)
-    {
-        var normalizedSourceRoot = Path.GetFullPath(sourcePackageRoot);
-        foreach (var layout in layouts)
-        {
-            if (Path.GetFullPath(layout.PackageRoot).Equals(normalizedSourceRoot, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            if (layout.PackageRole.Equals("fix", StringComparison.OrdinalIgnoreCase))
-            {
-                yield return layout;
-            }
-        }
-    }
-
-    private static IEnumerable<PackageLayout> FilterTargetLayouts(
-        IReadOnlyList<PackageLayout> layouts,
-        PointerTarget pointerTarget,
-        string sourcePackageRoot)
-    {
-        var normalizedSourceRoot = Path.GetFullPath(sourcePackageRoot);
-        foreach (var layout in layouts)
-        {
-            switch (pointerTarget)
-            {
-                case PointerTarget.BlockRelative:
-                    if (Path.GetFullPath(layout.PackageRoot).Equals(normalizedSourceRoot, StringComparison.OrdinalIgnoreCase))
-                    {
-                        yield return layout;
-                    }
-
-                    break;
-                case PointerTarget.Fix:
-                    if (layout.PackageRole.Equals("fix", StringComparison.OrdinalIgnoreCase))
-                    {
-                        yield return layout;
-                    }
-
-                    break;
-                case PointerTarget.Any:
-                default:
-                    yield return layout;
-                    break;
-            }
-        }
-    }
-
     private static List<RelocationPointerManifest> GeneratePointerFileEntries(
-        string sourcePackageRoot,
         string pointerFilePath,
-        IReadOnlyList<PackageLayout> targetLayouts)
+        TargetBlockResolver targetResolver)
     {
         var data = File.ReadAllBytes(pointerFilePath);
         var pointers = new List<RelocationPointerManifest>();
@@ -586,7 +638,7 @@ internal static class RelocationGenerator
                 continue;
             }
 
-            var target = FindTargetBlock(unchecked((int)value), PointerTarget.Any, sourcePackageRoot, targetLayouts);
+            var target = targetResolver.FindTargetBlock(unchecked((int)value), PointerTarget.Any);
             if (target == null)
             {
                 continue;
@@ -1027,6 +1079,142 @@ internal static class RelocationGenerator
         private static string ResolvePackagePath(string packageRoot, string relativePath) =>
             Path.Combine(relativePath.Split('/').Prepend(packageRoot).ToArray());
     }
+
+    private sealed class TargetBlockResolver
+    {
+        private readonly string _sourcePackageRoot;
+        private readonly IReadOnlyList<PackageLayout> _allLayouts;
+        private readonly IReadOnlyList<PackageLayout> _sourceLayouts;
+        private readonly IReadOnlyList<PackageLayout> _fixLayouts;
+        private readonly IReadOnlyList<PackageLayout> _blockRelativeFallbackLayouts;
+        private readonly ReferenceAddressResolver _referenceResolver;
+        private readonly Dictionary<(string TargetUri, int Address), BlockLayout?> _opaqueTargetCache =
+            new();
+        private readonly Dictionary<string, PackageLayout?> _opaqueLayoutCache =
+            new(StringComparer.Ordinal);
+        private readonly Dictionary<string, OpaqueTargetAddressResolution> _opaqueAddressCache =
+            new(StringComparer.Ordinal);
+
+        public TargetBlockResolver(string sourcePackageRoot, IReadOnlyList<PackageLayout> layouts)
+        {
+            _sourcePackageRoot = Path.GetFullPath(sourcePackageRoot);
+            _allLayouts = layouts;
+            _sourceLayouts = layouts
+                .Where(layout => layout.PackageRoot.Equals(_sourcePackageRoot, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            _fixLayouts = layouts
+                .Where(layout => layout.PackageRole.Equals("fix", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            _blockRelativeFallbackLayouts = _fixLayouts
+                .Where(layout => !layout.PackageRoot.Equals(_sourcePackageRoot, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            _referenceResolver = new ReferenceAddressResolver(_sourcePackageRoot);
+            foreach (var layout in layouts)
+            {
+                _referenceResolver.LoadPackage(layout.PackageRoot);
+            }
+        }
+
+        public BlockLayout? FindTargetBlock(int address, PointerTarget pointerTarget)
+        {
+            var best = FindBestTargetBlock(GetTargetLayouts(pointerTarget), address, _sourcePackageRoot);
+            if (best != null)
+            {
+                return best;
+            }
+
+            if (pointerTarget == PointerTarget.BlockRelative)
+            {
+                return FindBestTargetBlock(_blockRelativeFallbackLayouts, address, _sourcePackageRoot);
+            }
+
+            return null;
+        }
+
+        public BlockLayout? FindOpaqueTargetBlock(string targetUri, int address)
+        {
+            var cacheKey = (targetUri, address);
+            if (_opaqueTargetCache.TryGetValue(cacheKey, out var cached))
+            {
+                return cached;
+            }
+
+            var lookupAddress = address;
+            if (TryResolveOpaqueTargetAddress(targetUri, out var resolvedAddress))
+            {
+                lookupAddress = resolvedAddress;
+            }
+
+            var targetBlock = FindExplicitOpaqueTargetBlock(targetUri, lookupAddress)
+                ?? FindTargetBlock(lookupAddress, PointerTarget.Any);
+            _opaqueTargetCache[cacheKey] = targetBlock;
+            return targetBlock;
+        }
+
+        private IReadOnlyList<PackageLayout> GetTargetLayouts(PointerTarget pointerTarget) =>
+            pointerTarget switch
+            {
+                PointerTarget.BlockRelative => _sourceLayouts,
+                PointerTarget.Fix => _fixLayouts,
+                _ => _allLayouts
+            };
+
+        private PackageLayout? GetOpaqueTargetLayout(string targetUri)
+        {
+            if (_opaqueLayoutCache.TryGetValue(targetUri, out var cached))
+            {
+                return cached;
+            }
+
+            PackageLayout? targetLayout = null;
+            if (ReferenceUri.TryResolve(_sourcePackageRoot, targetUri, out var targetPath, out _))
+            {
+                targetLayout = _allLayouts
+                    .Where(layout => IsPathWithinPackageRoot(targetPath, layout.PackageRoot))
+                    .OrderByDescending(layout => layout.PackageRoot.Length)
+                    .FirstOrDefault();
+            }
+
+            _opaqueLayoutCache[targetUri] = targetLayout;
+            return targetLayout;
+        }
+
+        private bool TryResolveOpaqueTargetAddress(string targetUri, out int address)
+        {
+            if (_opaqueAddressCache.TryGetValue(targetUri, out var cached))
+            {
+                address = cached.Address;
+                return cached.Success;
+            }
+
+            try
+            {
+                address = _referenceResolver.ResolveAddress(_sourcePackageRoot, targetUri);
+                _opaqueAddressCache[targetUri] = new OpaqueTargetAddressResolution(true, address);
+                return true;
+            }
+            catch (InvalidDataException)
+            {
+            }
+
+            address = 0;
+            _opaqueAddressCache[targetUri] = new OpaqueTargetAddressResolution(false, 0);
+            return false;
+        }
+
+        private BlockLayout? FindExplicitOpaqueTargetBlock(string targetUri, int address)
+        {
+            var targetLayout = GetOpaqueTargetLayout(targetUri);
+            if (targetLayout != null && targetLayout.TryFindBlock(address, out var explicitTarget))
+            {
+                return explicitTarget;
+            }
+
+            return null;
+        }
+    }
+
+    private readonly record struct OpaqueTargetAddressResolution(bool Success, int Address);
 
     private sealed record BlockLayout(
         int Order,

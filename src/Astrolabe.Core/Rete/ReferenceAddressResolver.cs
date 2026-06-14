@@ -58,9 +58,14 @@ internal sealed class ReferenceAddressResolver
     {
         foreach (var index in _indexes.Values)
         {
-            if (index.TryGetPath(virtualAddress, out var targetPath))
+            if (index.TryGetPath(virtualAddress, out var targetPath, out var byteOffset))
             {
                 uri = ReferenceUri.MakeRelative(referringPackageRoot, targetPath);
+                if (byteOffset != 0)
+                {
+                    uri = $"{uri}#byteOffset={byteOffset}";
+                }
+
                 return true;
             }
         }
@@ -133,6 +138,7 @@ internal sealed class RetePackageAddressIndex
 {
     private readonly Dictionary<int, string> _pathByAddress = new();
     private readonly Dictionary<string, int> _addressByPath = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<AddressRange> _ranges = new();
 
     private RetePackageAddressIndex()
     {
@@ -172,7 +178,7 @@ internal sealed class RetePackageAddressIndex
                         : checked(content.BaseInMemory + offset);
                     var dataPath = ReferenceUri.Resolve(packageRoot, element.DataPath).FilePath;
 
-                    index.Add(virtualAddress, dataPath);
+                    index.Add(virtualAddress, length, dataPath);
                     cursor = checked(offset + length);
                 }
             }
@@ -181,17 +187,52 @@ internal sealed class RetePackageAddressIndex
         return index;
     }
 
-    public bool TryGetPath(int virtualAddress, out string path) =>
-        _pathByAddress.TryGetValue(virtualAddress, out path!);
+    public bool TryGetPath(int virtualAddress, out string path, out int byteOffset)
+    {
+        if (_pathByAddress.TryGetValue(virtualAddress, out path!))
+        {
+            byteOffset = 0;
+            return true;
+        }
+
+        AddressRange? bestRange = null;
+        foreach (var range in _ranges)
+        {
+            if (!range.Contains(virtualAddress))
+            {
+                continue;
+            }
+
+            if (bestRange == null || range.Length < bestRange.Length)
+            {
+                bestRange = range;
+            }
+        }
+
+        if (bestRange is { } match)
+        {
+            path = match.Path;
+            byteOffset = checked(virtualAddress - match.Start);
+            return true;
+        }
+
+        path = "";
+        byteOffset = 0;
+        return false;
+    }
 
     public bool TryGetAddress(string path, out int virtualAddress) =>
         _addressByPath.TryGetValue(Path.GetFullPath(path), out virtualAddress);
 
-    private void Add(int virtualAddress, string dataPath)
+    private void Add(int virtualAddress, int length, string dataPath)
     {
         var normalizedPath = Path.GetFullPath(dataPath);
         _pathByAddress.TryAdd(virtualAddress, normalizedPath);
         _addressByPath.TryAdd(normalizedPath, virtualAddress);
+        if (length > 0)
+        {
+            _ranges.Add(new AddressRange(virtualAddress, length, normalizedPath));
+        }
     }
 
     private static int DetermineElementLength(string packageRoot, SnaBlockContentElement element)
@@ -215,4 +256,10 @@ internal sealed class RetePackageAddressIndex
 
     private static string ResolvePackagePath(string packageRoot, string relativePath) =>
         Path.Combine(relativePath.Split('/').Prepend(packageRoot).ToArray());
+
+    private sealed record AddressRange(int Start, int Length, string Path)
+    {
+        public bool Contains(int address) =>
+            address >= Start && address < checked(Start + Length);
+    }
 }

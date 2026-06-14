@@ -2130,15 +2130,12 @@ public class TrackingSuperObjectReader
 
             if (numScripts > 0 && numScripts < 50 && offScripts != 0)
             {
-                int scriptPtrsSize = numScripts * 4;
-                _tracker.RecordForNode(nodeAddr, offScripts, scriptPtrsSize, "ScriptPtrs");
-
-                var scriptsReader = _memory.GetReaderAt(offScripts);
-                if (scriptsReader != null)
+                if (TryReadScriptPointerEntries(offScripts, numScripts, out var scriptAddrs))
                 {
-                    for (int i = 0; i < numScripts; i++)
+                    _tracker.RecordForNode(nodeAddr, offScripts, scriptAddrs.Count * 4, "ScriptPtrs");
+
+                    foreach (var scriptAddr in scriptAddrs)
                     {
-                        int scriptAddr = scriptsReader.ReadInt32();
                         if (scriptAddr != 0)
                         {
                             ReadScript(nodeAddr, scriptAddr);
@@ -2153,6 +2150,39 @@ public class TrackingSuperObjectReader
             }
         }
         catch { }
+    }
+
+    private bool TryReadScriptPointerEntries(int address, int count, out List<int> scriptAddrs)
+    {
+        scriptAddrs = [];
+        var scriptsReader = _memory.GetReaderAt(address);
+        if (scriptsReader == null) return false;
+
+        try
+        {
+            for (int i = 0; i < count; i++)
+            {
+                int scriptAddr = scriptsReader.ReadInt32();
+                if (scriptAddr == 0)
+                {
+                    scriptAddrs.Add(scriptAddr);
+                    continue;
+                }
+
+                if (!TryGetScriptSize(scriptAddr, out _))
+                {
+                    break;
+                }
+
+                scriptAddrs.Add(scriptAddr);
+            }
+        }
+        catch
+        {
+            return false;
+        }
+
+        return scriptAddrs.Count > 0 && scriptAddrs.Any(addr => addr != 0);
     }
 
     private void ReadMacroList(int nodeAddr, int address)
@@ -2198,16 +2228,26 @@ public class TrackingSuperObjectReader
         if (_visitedAI.Contains(address)) return;
         _visitedAI.Add(address);
 
+        if (TryGetScriptSize(address, out var scriptSize))
+        {
+            _tracker.RecordForNode(nodeAddr, address, scriptSize, "Script");
+        }
+    }
+
+    private bool TryGetScriptSize(int address, out int scriptSize)
+    {
         const int MaxNodes = 500;
         const int NodeSize = 8;
+        scriptSize = 0;
 
         int nodeCount = 0;
         int pos = address;
+        bool foundTerminator = false;
 
         while (nodeCount < MaxNodes)
         {
             var reader = _memory.GetReaderAt(pos);
-            if (reader == null) break;
+            if (reader == null) return false;
 
             try
             {
@@ -2218,7 +2258,7 @@ public class TrackingSuperObjectReader
 
                 if (type > 50 || indent > 30)
                 {
-                    break;
+                    return false;
                 }
 
                 nodeCount++;
@@ -2226,20 +2266,23 @@ public class TrackingSuperObjectReader
 
                 if (indent == 0)
                 {
+                    foundTerminator = true;
                     break;
                 }
             }
             catch
             {
-                break;
+                return false;
             }
         }
 
-        if (nodeCount > 0)
+        if (nodeCount == 0 || !foundTerminator)
         {
-            int scriptSize = nodeCount * NodeSize;
-            _tracker.RecordForNode(nodeAddr, address, scriptSize, "Script");
+            return false;
         }
+
+        scriptSize = nodeCount * NodeSize;
+        return true;
     }
 
     // ==================== END STRUCTURES ====================
