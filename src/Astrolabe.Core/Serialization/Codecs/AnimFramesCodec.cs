@@ -14,18 +14,16 @@ public sealed class AnimFramesCodec : IStructCodec<AnimFramesRecord>, IPointerAr
     public int? FixedSize => null;
     public IReadOnlyList<PointerField> PointerFields { get; } = [];
     public string PointerArrayPropertyName => "frames";
+    public int PointerEntryStride => FrameSize;
 
-    public IReadOnlyList<PointerField> GetPointerFieldsForLength(int byteLength)
+    public IReadOnlyList<PointerField> GetPointerFieldsForLength(int byteLength) =>
+        BuildPointerFields(byteLength);
+
+    private static IReadOnlyList<PointerField> BuildPointerFields(int byteLength)
     {
-        if (byteLength == 0)
+        if (byteLength == 0 || byteLength % FrameSize != 0)
         {
             return [];
-        }
-
-        if (byteLength % FrameSize != 0)
-        {
-            throw new InvalidDataException(
-                $"{Kind} serialized length {byteLength} is not a multiple of {FrameSize}.");
         }
 
         var frameCount = byteLength / FrameSize;

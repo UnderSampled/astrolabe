@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats;
@@ -582,7 +583,11 @@ internal static class OpenSpacePackageCodec
 
         if (selectedRanges.Count == 0)
         {
-            return SplitRawContent(data, 0, length, MaxSegmentLength);
+            return RefineDynamPlans(
+                SplitRawContent(data, 0, length, MaxSegmentLength),
+                data,
+                block.Module,
+                block.Id);
         }
 
         selectedRanges.Sort((a, b) => a.Start != b.Start ? a.Start.CompareTo(b.Start) : a.End.CompareTo(b.End));
@@ -610,7 +615,7 @@ internal static class OpenSpacePackageCodec
             plans.AddRange(SplitRawContent(data, cursor, length, MaxSegmentLength));
         }
 
-        return plans;
+        return RefineDynamPlans(plans, data, block.Module, block.Id);
     }
 
     private static string GetContentKind(IReadOnlyList<string> labels)
@@ -623,6 +628,11 @@ internal static class OpenSpacePackageCodec
         if (labels.Contains("Matrix", StringComparer.Ordinal))
         {
             return "matrix";
+        }
+
+        if (labels.Contains("Dynam", StringComparer.Ordinal))
+        {
+            return "dynam";
         }
 
         return NormalizeKind(labels[0]);
@@ -651,6 +661,13 @@ internal static class OpenSpacePackageCodec
 
         return plans;
     }
+
+    private static List<SnaContentPlan> RefineDynamPlans(
+        List<SnaContentPlan> plans,
+        byte[] data,
+        byte module,
+        byte id) =>
+        plans;
 
     private static bool IsPadding(byte[] data, int start, int length)
     {

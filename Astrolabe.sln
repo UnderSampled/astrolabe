@@ -9,26 +9,61 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Astrolabe.Core", "src\Astro
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Astrolabe.Cli", "src\Astrolabe.Cli\Astrolabe.Cli.csproj", "{2A2A2045-D09E-4EA9-BDA0-8FEEA0B9E2B6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Astrolabe.Core.Tests", "src\Astrolabe.Core.Tests\Astrolabe.Core.Tests.csproj", "{0130488A-863E-449C-8AEB-B4EB9DD7E0A8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
 		Release|Any CPU = Release|Any CPU
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{8AFFFB32-8BBE-4AC5-B670-CDC6E8B82F6A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{8AFFFB32-8BBE-4AC5-B670-CDC6E8B82F6A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8AFFFB32-8BBE-4AC5-B670-CDC6E8B82F6A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8AFFFB32-8BBE-4AC5-B670-CDC6E8B82F6A}.Debug|x64.Build.0 = Debug|Any CPU
+		{8AFFFB32-8BBE-4AC5-B670-CDC6E8B82F6A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{8AFFFB32-8BBE-4AC5-B670-CDC6E8B82F6A}.Debug|x86.Build.0 = Debug|Any CPU
 		{8AFFFB32-8BBE-4AC5-B670-CDC6E8B82F6A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8AFFFB32-8BBE-4AC5-B670-CDC6E8B82F6A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8AFFFB32-8BBE-4AC5-B670-CDC6E8B82F6A}.Release|x64.ActiveCfg = Release|Any CPU
+		{8AFFFB32-8BBE-4AC5-B670-CDC6E8B82F6A}.Release|x64.Build.0 = Release|Any CPU
+		{8AFFFB32-8BBE-4AC5-B670-CDC6E8B82F6A}.Release|x86.ActiveCfg = Release|Any CPU
+		{8AFFFB32-8BBE-4AC5-B670-CDC6E8B82F6A}.Release|x86.Build.0 = Release|Any CPU
 		{2A2A2045-D09E-4EA9-BDA0-8FEEA0B9E2B6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{2A2A2045-D09E-4EA9-BDA0-8FEEA0B9E2B6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2A2A2045-D09E-4EA9-BDA0-8FEEA0B9E2B6}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{2A2A2045-D09E-4EA9-BDA0-8FEEA0B9E2B6}.Debug|x64.Build.0 = Debug|Any CPU
+		{2A2A2045-D09E-4EA9-BDA0-8FEEA0B9E2B6}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{2A2A2045-D09E-4EA9-BDA0-8FEEA0B9E2B6}.Debug|x86.Build.0 = Debug|Any CPU
 		{2A2A2045-D09E-4EA9-BDA0-8FEEA0B9E2B6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2A2A2045-D09E-4EA9-BDA0-8FEEA0B9E2B6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2A2A2045-D09E-4EA9-BDA0-8FEEA0B9E2B6}.Release|x64.ActiveCfg = Release|Any CPU
+		{2A2A2045-D09E-4EA9-BDA0-8FEEA0B9E2B6}.Release|x64.Build.0 = Release|Any CPU
+		{2A2A2045-D09E-4EA9-BDA0-8FEEA0B9E2B6}.Release|x86.ActiveCfg = Release|Any CPU
+		{2A2A2045-D09E-4EA9-BDA0-8FEEA0B9E2B6}.Release|x86.Build.0 = Release|Any CPU
+		{0130488A-863E-449C-8AEB-B4EB9DD7E0A8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0130488A-863E-449C-8AEB-B4EB9DD7E0A8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0130488A-863E-449C-8AEB-B4EB9DD7E0A8}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0130488A-863E-449C-8AEB-B4EB9DD7E0A8}.Debug|x64.Build.0 = Debug|Any CPU
+		{0130488A-863E-449C-8AEB-B4EB9DD7E0A8}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0130488A-863E-449C-8AEB-B4EB9DD7E0A8}.Debug|x86.Build.0 = Debug|Any CPU
+		{0130488A-863E-449C-8AEB-B4EB9DD7E0A8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0130488A-863E-449C-8AEB-B4EB9DD7E0A8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0130488A-863E-449C-8AEB-B4EB9DD7E0A8}.Release|x64.ActiveCfg = Release|Any CPU
+		{0130488A-863E-449C-8AEB-B4EB9DD7E0A8}.Release|x64.Build.0 = Release|Any CPU
+		{0130488A-863E-449C-8AEB-B4EB9DD7E0A8}.Release|x86.ActiveCfg = Release|Any CPU
+		{0130488A-863E-449C-8AEB-B4EB9DD7E0A8}.Release|x86.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{8AFFFB32-8BBE-4AC5-B670-CDC6E8B82F6A} = {1E180BC4-8925-46F0-B414-3C3B9119A61E}
 		{2A2A2045-D09E-4EA9-BDA0-8FEEA0B9E2B6} = {1E180BC4-8925-46F0-B414-3C3B9119A61E}
+		{0130488A-863E-449C-8AEB-B4EB9DD7E0A8} = {1E180BC4-8925-46F0-B414-3C3B9119A61E}
 	EndGlobalSection
 EndGlobal

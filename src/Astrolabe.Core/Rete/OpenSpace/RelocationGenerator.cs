@@ -1,6 +1,8 @@
 using System.Buffers.Binary;
+using System.IO.Compression;
 using System.Text.Json;
 using Astrolabe.Core.Serialization;
+using lzo.net;
 
 namespace Astrolabe.Core.Rete.OpenSpace;
 
@@ -79,7 +81,8 @@ internal static class RelocationGenerator
         IReadOnlyList<string> targetPackageRoots)
     {
         var sourceLayout = PackageLayout.Load(sourcePackageRoot);
-        var sourceBlock = sourceLayout.Blocks.FirstOrDefault()
+        var sourceBlock = sourceLayout.Blocks.FirstOrDefault(b => b.Elements.Count > 0)
+            ?? sourceLayout.Blocks.FirstOrDefault()
             ?? throw new InvalidDataException($"Rete package has no payload blocks: {sourcePackageRoot}");
         var targetLayouts = targetPackageRoots
             .Prepend(sourcePackageRoot)
@@ -130,7 +133,7 @@ internal static class RelocationGenerator
             {
                 if (!fixLayout.TryReadInt32((int)candidate.OffsetInMemory, out var value) ||
                     !ShouldEmitRelocation(pointerField: null, value) ||
-                    fixLayout.ContainsAddress(value))
+                    fixLayout.ContainsAllocatedAddress(value))
                 {
                     continue;
                 }
@@ -258,64 +261,36 @@ internal static class RelocationGenerator
                 continue;
             }
 
-            var elementPath = ReferenceUri.Resolve(sourcePackageRoot, element.DataPath).FilePath;
-            if (!elementPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ||
-                !File.Exists(elementPath))
+            if (!TryLoadElementData(sourcePackageRoot, element, codec, resolver, out var data))
             {
                 continue;
             }
 
-            using var json = JsonDocument.Parse(File.ReadAllText(elementPath));
-            using var resolvedJson = ReferenceJson.ResolvePointersForExport(
-                json.RootElement,
+            var pointerLength = data.Length;
+            if (codec.IsPointerArray)
+            {
+                var stride = codec.PointerEntryStride;
+                if (pointerLength % stride != 0)
+                {
+                    pointerLength -= pointerLength % stride;
+                    if (pointerLength == 0)
+                    {
+                        continue;
+                    }
+                }
+            }
+
+            var pointerData = data.AsSpan(0, pointerLength);
+            var pointerFields = codec.EnumeratePointerFields(pointerData);
+            EmitPointerFields(
+                pointers,
+                seenOffsets,
+                sourceBlock,
+                element,
+                pointerData,
+                pointerFields,
                 sourcePackageRoot,
-                codec,
-                resolver);
-            var data = codec.WriteFromJsonElement(resolvedJson.RootElement);
-            if (codec.IsPointerArray && data.Length % 4 != 0)
-            {
-                throw new InvalidDataException(
-                    $"{element.Kind} at {element.DataPath} serialized to {data.Length} bytes, " +
-                    "which is not a multiple of 4 for pointer-array relocation generation.");
-            }
-
-            var pointerFields = codec.ResolvePointerFields(data.Length);
-
-            foreach (var pointerField in pointerFields.OrderBy(f => f.Offset))
-            {
-                if (pointerField.Offset < 0 || pointerField.Offset + 4 > data.Length)
-                {
-                    continue;
-                }
-
-                var value = BinaryPrimitives.ReadInt32LittleEndian(
-                    data.AsSpan(pointerField.Offset, sizeof(int)));
-                if (!ShouldEmitRelocation(pointerField, value))
-                {
-                    continue;
-                }
-
-                var offsetInMemory = checked((uint)(sourceBlock.BaseInMemory + element.OffsetInBlock + pointerField.Offset));
-                if (!seenOffsets.Add(offsetInMemory))
-                {
-                    continue;
-                }
-
-                var target = FindTargetBlock(value, pointerField.Target, sourcePackageRoot, targetLayouts);
-                if (target == null)
-                {
-                    continue;
-                }
-
-                pointers.Add(new RelocationPointerManifest
-                {
-                    OffsetInMemory = offsetInMemory,
-                    TargetModule = target.Module,
-                    TargetId = target.Id,
-                    Byte6 = 0,
-                    Byte7 = 0
-                });
-            }
+                targetLayouts);
         }
 
         return pointers
@@ -323,6 +298,89 @@ internal static class RelocationGenerator
             .ThenBy(p => p.TargetModule)
             .ThenBy(p => p.TargetId)
             .ToList();
+    }
+
+    private static bool TryLoadElementData(
+        string sourcePackageRoot,
+        ElementLayout element,
+        IStructCodecBinding codec,
+        ReferenceAddressResolver resolver,
+        out byte[] data)
+    {
+        data = [];
+        var elementPath = ReferenceUri.Resolve(sourcePackageRoot, element.DataPath).FilePath;
+        if (!File.Exists(elementPath))
+        {
+            return false;
+        }
+
+        if (elementPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+        {
+            using var json = JsonDocument.Parse(File.ReadAllText(elementPath));
+            using var resolvedJson = ReferenceJson.ResolvePointersForExport(
+                json.RootElement,
+                sourcePackageRoot,
+                codec,
+                resolver);
+            data = codec.WriteFromJsonElement(resolvedJson.RootElement);
+            return true;
+        }
+
+        data = File.ReadAllBytes(elementPath);
+        return true;
+    }
+
+    private static void EmitPointerFields(
+        List<RelocationPointerManifest> pointers,
+        HashSet<uint> seenOffsets,
+        BlockLayout sourceBlock,
+        ElementLayout element,
+        ReadOnlySpan<byte> data,
+        IReadOnlyList<PointerField> pointerFields,
+        string sourcePackageRoot,
+        IReadOnlyList<PackageLayout> targetLayouts)
+    {
+        foreach (var pointerField in pointerFields.OrderBy(f => f.Offset))
+        {
+            if (pointerField.Offset < 0 || pointerField.Offset + 4 > data.Length)
+            {
+                continue;
+            }
+
+            var value = BinaryPrimitives.ReadInt32LittleEndian(
+                data.Slice(pointerField.Offset, sizeof(int)));
+            if (!ShouldEmitRelocation(pointerField, value))
+            {
+                continue;
+            }
+
+            var offsetInMemory = checked((uint)(sourceBlock.BaseInMemory + element.OffsetInBlock + pointerField.Offset));
+            if (!seenOffsets.Add(offsetInMemory))
+            {
+                continue;
+            }
+
+            var target = FindTargetBlock(value, pointerField.Target, sourcePackageRoot, targetLayouts);
+            if (target == null)
+            {
+                continue;
+            }
+
+            var targetRank = target.GetMatchRank(value);
+            if (!ShouldEmitTargetMatch(pointerField, targetRank, sourceBlock, element))
+            {
+                continue;
+            }
+
+            pointers.Add(new RelocationPointerManifest
+            {
+                OffsetInMemory = offsetInMemory,
+                TargetModule = target.Module,
+                TargetId = target.Id,
+                Byte6 = 0,
+                Byte7 = 0
+            });
+        }
     }
 
     private static bool ShouldEmitRelocation(PointerField? pointerField, int value)
@@ -342,7 +400,7 @@ internal static class RelocationGenerator
             return false;
         }
 
-        if (field.RequiresVmRange && !IsLikelyVirtualAddress(value))
+        if (field.RequiresVmRange && !VmPointerScanning.IsLikelyVirtualAddress(value))
         {
             return false;
         }
@@ -353,8 +411,24 @@ internal static class RelocationGenerator
     private static bool IsIgnoredPointerValue(PointerField pointerField, int value) =>
         pointerField.IgnoreValues?.Contains(value) == true;
 
-    private static bool IsLikelyVirtualAddress(int value) =>
-        value >= 0x0800_0000 && value < 0x1000_0000;
+    private static bool AllowsPlaceholderTarget(BlockLayout sourceBlock, ElementLayout element) =>
+        sourceBlock.Elements.Count == 0 ||
+        element.Kind.Equals("raw", StringComparison.OrdinalIgnoreCase) ||
+        element.Kind.Equals("padding", StringComparison.OrdinalIgnoreCase);
+
+    private static bool ShouldEmitTargetMatch(
+        PointerField pointerField,
+        int targetRank,
+        BlockLayout sourceBlock,
+        ElementLayout element)
+    {
+        if (pointerField.RequiresDecompressedTarget && targetRank > 0)
+        {
+            return false;
+        }
+
+        return true;
+    }
 
     private static BlockLayout? FindTargetBlock(
         int address,
@@ -362,15 +436,107 @@ internal static class RelocationGenerator
         string sourcePackageRoot,
         IReadOnlyList<PackageLayout> layouts)
     {
-        foreach (var layout in FilterTargetLayouts(layouts, pointerTarget, sourcePackageRoot))
+        var best = FindBestTargetBlock(
+            FilterTargetLayouts(layouts, pointerTarget, sourcePackageRoot),
+            address,
+            sourcePackageRoot);
+        if (best != null)
         {
-            if (layout.TryFindBlock(address, out var block))
-            {
-                return block;
-            }
+            return best;
+        }
+
+        if (pointerTarget == PointerTarget.BlockRelative)
+        {
+            return FindBestTargetBlock(
+                FilterBlockRelativeFallbackLayouts(layouts, sourcePackageRoot),
+                address,
+                sourcePackageRoot);
         }
 
         return null;
+    }
+
+    private static BlockLayout? FindBestTargetBlock(
+        IEnumerable<PackageLayout> layouts,
+        int address,
+        string? sourcePackageRoot)
+    {
+        BlockLayout? bestBlock = null;
+        PackageLayout? bestLayout = null;
+        var bestRank = int.MaxValue;
+        var bestSpan = int.MaxValue;
+
+        foreach (var layout in layouts)
+        {
+            if (!layout.TryFindBlock(address, out var block))
+            {
+                continue;
+            }
+
+            var rank = block.GetMatchRank(address);
+            var span = block.GetMatchSpan(address);
+            if (bestBlock == null || rank < bestRank || (rank == bestRank && span < bestSpan))
+            {
+                bestRank = rank;
+                bestSpan = span;
+                bestBlock = block;
+                bestLayout = layout;
+            }
+            else if (rank == bestRank && span == bestSpan && bestLayout != null)
+            {
+                if (PreferLayoutOnTie(layout, bestLayout, sourcePackageRoot))
+                {
+                    bestBlock = block;
+                    bestLayout = layout;
+                }
+            }
+        }
+
+        return bestBlock;
+    }
+
+    private static bool PreferLayoutOnTie(
+        PackageLayout candidate,
+        PackageLayout current,
+        string? sourcePackageRoot)
+    {
+        var candidateIsLevel = candidate.PackageRole.Equals("level", StringComparison.OrdinalIgnoreCase);
+        var currentIsLevel = current.PackageRole.Equals("level", StringComparison.OrdinalIgnoreCase);
+        if (candidateIsLevel != currentIsLevel)
+        {
+            return candidateIsLevel;
+        }
+
+        if (sourcePackageRoot == null)
+        {
+            return false;
+        }
+
+        var normalizedSourceRoot = Path.GetFullPath(sourcePackageRoot);
+        var candidateIsSource = Path.GetFullPath(candidate.PackageRoot)
+            .Equals(normalizedSourceRoot, StringComparison.OrdinalIgnoreCase);
+        var currentIsSource = Path.GetFullPath(current.PackageRoot)
+            .Equals(normalizedSourceRoot, StringComparison.OrdinalIgnoreCase);
+        return candidateIsSource && !currentIsSource;
+    }
+
+    private static IEnumerable<PackageLayout> FilterBlockRelativeFallbackLayouts(
+        IReadOnlyList<PackageLayout> layouts,
+        string sourcePackageRoot)
+    {
+        var normalizedSourceRoot = Path.GetFullPath(sourcePackageRoot);
+        foreach (var layout in layouts)
+        {
+            if (Path.GetFullPath(layout.PackageRoot).Equals(normalizedSourceRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (layout.PackageRole.Equals("fix", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return layout;
+            }
+        }
     }
 
     private static IEnumerable<PackageLayout> FilterTargetLayouts(
@@ -412,12 +578,13 @@ internal static class RelocationGenerator
     {
         var data = File.ReadAllBytes(pointerFilePath);
         var pointers = new List<RelocationPointerManifest>();
-        var seenValues = new HashSet<uint>();
+        var seenEntries = new HashSet<(int FileOffset, uint Value)>();
 
         for (var offset = 0; offset <= data.Length - sizeof(uint); offset += sizeof(uint))
         {
             var value = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(offset, sizeof(uint)));
-            if (!seenValues.Add(value) || !ShouldEmitRelocation(pointerField: null, unchecked((int)value)))
+            if (!seenEntries.Add((offset, value)) ||
+                !ShouldEmitRelocation(pointerField: null, unchecked((int)value)))
             {
                 continue;
             }
@@ -486,31 +653,55 @@ internal static class RelocationGenerator
 
     private static bool PointerDataMatches(RelocationTableDocument preserved, RelocationTableDocument generated)
     {
-        var preservedBlocks = preserved.Blocks.OrderBy(b => b.Order).ToList();
-        var generatedBlocks = generated.Blocks.OrderBy(b => b.Order).ToList();
+        var preservedBlocks = preserved.Blocks.ToDictionary(b => (b.Module, b.Id));
+        var generatedBlocks = generated.Blocks.ToDictionary(b => (b.Module, b.Id));
         if (preservedBlocks.Count != generatedBlocks.Count)
         {
             return false;
         }
 
-        for (var i = 0; i < preservedBlocks.Count; i++)
+        foreach (var (key, preservedBlock) in preservedBlocks)
         {
-            var preservedBlock = preservedBlocks[i];
-            var generatedBlock = generatedBlocks[i];
-            if (preservedBlock.Module != generatedBlock.Module ||
-                preservedBlock.Id != generatedBlock.Id ||
+            if (!generatedBlocks.TryGetValue(key, out var generatedBlock) ||
                 preservedBlock.Pointers.Count != generatedBlock.Pointers.Count)
             {
                 return false;
             }
 
-            if (!BuildPointerData(preservedBlock).AsSpan().SequenceEqual(BuildPointerData(generatedBlock)))
+            if (!BuildOrderedPointerData(preservedBlock).AsSpan()
+                    .SequenceEqual(BuildOrderedPointerData(generatedBlock)))
             {
                 return false;
             }
         }
 
         return true;
+    }
+
+    private static byte[] BuildOrderedPointerData(RelocationPointerBlockManifest block)
+    {
+        var entrySize = block.EntrySize >= 8 ? 8 : 6;
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream);
+        foreach (var pointer in block.Pointers
+                     .OrderBy(p => p.OffsetInMemory)
+                     .ThenBy(p => p.TargetModule)
+                     .ThenBy(p => p.TargetId)
+                     .ThenBy(p => p.Byte6)
+                     .ThenBy(p => p.Byte7))
+        {
+            writer.Write(pointer.OffsetInMemory);
+            writer.Write(pointer.TargetModule);
+            writer.Write(pointer.TargetId);
+            if (entrySize >= 8)
+            {
+                writer.Write(pointer.Byte6);
+                writer.Write(pointer.Byte7);
+            }
+        }
+
+        writer.Flush();
+        return stream.ToArray();
     }
 
     private static string HashBytes(byte[] data)
@@ -575,8 +766,22 @@ internal static class RelocationGenerator
             {
                 foreach (var block in snaFile.Blocks.OrderBy(b => b.Order))
                 {
+                    if (block.BaseInMemory < 0)
+                    {
+                        continue;
+                    }
+
                     if (block.ContentPath == null)
                     {
+                        layout.Blocks.Add(new BlockLayout(
+                            block.Order,
+                            block.Module,
+                            block.Id,
+                            block.BaseInMemory,
+                            unchecked((int)block.Unk2),
+                            GetDecompressedSize(block),
+                            [],
+                            block.OriginalStorage));
                         continue;
                     }
 
@@ -608,22 +813,48 @@ internal static class RelocationGenerator
                         block.Module,
                         block.Id,
                         content.BaseInMemory,
-                        elements));
+                        unchecked((int)block.Unk2),
+                        GetDecompressedSize(block),
+                        elements,
+                        block.OriginalStorage));
                 }
             }
 
             return layout;
         }
 
+        private static int GetDecompressedSize(SnaBlockManifest block) =>
+            block.OriginalStorage?.DecompressedSize is { } size
+                ? unchecked((int)size)
+                : 0;
+
         public bool TryFindBlock(int address, out BlockLayout block)
         {
+            BlockLayout? best = null;
+            var bestRank = int.MaxValue;
+            var bestSpan = int.MaxValue;
+
             foreach (var candidate in Blocks)
             {
-                if (address >= candidate.BaseInMemory && address < candidate.EndInMemory)
+                if (!candidate.ContainsAddress(address))
                 {
-                    block = candidate;
-                    return true;
+                    continue;
                 }
+
+                var rank = candidate.GetMatchRank(address);
+                var span = candidate.GetMatchSpan(address);
+                if (rank < bestRank || (rank == bestRank && span < bestSpan))
+                {
+                    bestRank = rank;
+                    bestSpan = span;
+                    best = candidate;
+                }
+            }
+
+            if (best != null)
+            {
+                block = best;
+                return true;
             }
 
             block = null!;
@@ -631,6 +862,9 @@ internal static class RelocationGenerator
         }
 
         public bool ContainsAddress(int address) => TryFindBlock(address, out _);
+
+        public bool ContainsAllocatedAddress(int address) =>
+            TryFindBlock(address, out var block) && block.GetMatchRank(address) <= 1;
 
         public bool TryReadInt32(int virtualAddress, out int value)
         {
@@ -655,7 +889,111 @@ internal static class RelocationGenerator
                 return true;
             }
 
+            if (block.DecompressedSize > 0 &&
+                offsetInBlock >= 0 &&
+                offsetInBlock + sizeof(int) <= block.DecompressedSize &&
+                TryReadBlockBytes(block, out var blockBytes))
+            {
+                value = BinaryPrimitives.ReadInt32LittleEndian(
+                    blockBytes.AsSpan(offsetInBlock, sizeof(int)));
+                return true;
+            }
+
             return false;
+        }
+
+        private readonly Dictionary<(byte Module, byte Id), byte[]> _blockByteCache = new();
+
+        private bool TryReadBlockBytes(BlockLayout block, out byte[] bytes)
+        {
+            var key = (block.Module, block.Id);
+            if (_blockByteCache.TryGetValue(key, out bytes!))
+            {
+                return true;
+            }
+
+            if (TryLoadOriginalDecompressedBlock(block, out bytes) ||
+                TryReconstructBlockBytes(block, out bytes))
+            {
+                _blockByteCache[key] = bytes;
+                return true;
+            }
+
+            bytes = [];
+            return false;
+        }
+
+        private bool TryLoadOriginalDecompressedBlock(BlockLayout block, out byte[] bytes)
+        {
+            bytes = [];
+            var storage = block.OriginalStorage;
+            if (storage?.EncodedPath == null || block.DecompressedSize <= 0)
+            {
+                return false;
+            }
+
+            var encodedPath = ResolvePackagePath(PackageRoot, storage.EncodedPath);
+            if (!File.Exists(encodedPath))
+            {
+                return false;
+            }
+
+            var encoded = File.ReadAllBytes(encodedPath);
+            bytes = storage.IsCompressed
+                ? DecompressLzo(encoded, block.DecompressedSize)
+                : encoded;
+            return bytes.Length >= sizeof(int);
+        }
+
+        private bool TryReconstructBlockBytes(BlockLayout block, out byte[] bytes)
+        {
+            bytes = [];
+            if (block.DecompressedSize <= 0)
+            {
+                return false;
+            }
+
+            bytes = new byte[block.DecompressedSize];
+            foreach (var element in block.Elements)
+            {
+                if (element.OffsetInBlock < 0 ||
+                    element.OffsetInBlock + element.Length > bytes.Length)
+                {
+                    continue;
+                }
+
+                var elementBytes = ReadElementBytes(element);
+                var copyLength = Math.Min(elementBytes.Length, element.Length);
+                if (copyLength > 0)
+                {
+                    elementBytes.AsSpan(0, copyLength).CopyTo(
+                        bytes.AsSpan(element.OffsetInBlock, copyLength));
+                }
+            }
+
+            return true;
+        }
+
+        private static byte[] DecompressLzo(byte[] compressedData, int decompressedSize)
+        {
+            using var inputStream = new MemoryStream(compressedData);
+            using var lzoStream = new LzoStream(inputStream, CompressionMode.Decompress);
+            using var outputStream = new MemoryStream();
+
+            var buffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = lzoStream.Read(buffer, 0, buffer.Length)) > 0)
+            {
+                outputStream.Write(buffer, 0, bytesRead);
+            }
+
+            var data = outputStream.ToArray();
+            if (data.Length > decompressedSize)
+            {
+                Array.Resize(ref data, decompressedSize);
+            }
+
+            return data;
         }
 
         private byte[] ReadElementBytes(ElementLayout element) =>
@@ -698,13 +1036,59 @@ internal static class RelocationGenerator
         byte Module,
         byte Id,
         int BaseInMemory,
-        IReadOnlyList<ElementLayout> Elements)
+        int MaxVmAddress,
+        int DecompressedSize,
+        IReadOnlyList<ElementLayout> Elements,
+        SnaStorageManifest? OriginalStorage = null)
     {
         public int Length => Elements.Count == 0
             ? 0
             : Elements.Max(e => e.OffsetInBlock + e.Length);
 
         public int EndInMemory => checked(BaseInMemory + Length);
+
+        public bool ContainsAddress(int address)
+        {
+            if (address < BaseInMemory)
+            {
+                return false;
+            }
+
+            if (DecompressedSize > 0 && address < checked(BaseInMemory + DecompressedSize))
+            {
+                return true;
+            }
+
+            if (Length > 0 && address < EndInMemory)
+            {
+                return true;
+            }
+
+            return MaxVmAddress > BaseInMemory && address <= MaxVmAddress;
+        }
+
+        public int GetMatchRank(int address)
+        {
+            if (DecompressedSize > 0 && address < checked(BaseInMemory + DecompressedSize))
+            {
+                return 0;
+            }
+
+            if (Length > 0 && address < EndInMemory)
+            {
+                return 1;
+            }
+
+            return 2;
+        }
+
+        public int GetMatchSpan(int address) =>
+            GetMatchRank(address) switch
+            {
+                0 => DecompressedSize,
+                1 => Length,
+                _ => MaxVmAddress > BaseInMemory ? MaxVmAddress - BaseInMemory : 0
+            };
     }
 
     private sealed record ElementLayout(

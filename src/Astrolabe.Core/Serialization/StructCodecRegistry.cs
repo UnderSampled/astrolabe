@@ -9,9 +9,11 @@ public interface IStructCodecBinding
     IReadOnlyList<PointerField> PointerFields { get; }
     bool IsPointerArray { get; }
     string PointerArrayPropertyName { get; }
+    int PointerEntryStride { get; }
     IReadOnlyDictionary<string, string> PointerFieldAliases { get; }
 
     IReadOnlyList<PointerField> ResolvePointerFields(int serializedByteLength);
+    IReadOnlyList<PointerField> EnumeratePointerFields(ReadOnlySpan<byte> data);
     object ReadFromBytes(ReadOnlySpan<byte> data, int offset, int length);
     byte[] WriteFromObject(object value);
     byte[] WriteFromJsonElement(JsonElement json);
@@ -34,12 +36,18 @@ internal sealed class StructCodecBinding<T> : IStructCodecBinding
     public bool IsPointerArray => _codec is IPointerArrayCodec;
     public string PointerArrayPropertyName =>
         (_codec as IPointerArrayCodec)?.PointerArrayPropertyName ?? "values";
+    public int PointerEntryStride =>
+        (_codec as IPointerArrayCodec)?.PointerEntryStride ?? 4;
     public IReadOnlyDictionary<string, string> PointerFieldAliases =>
         (_codec as IPointerFieldAliases)?.PointerFieldAliases
         ?? StructCodecRegistry.EmptyPointerFieldAliases;
 
     public IReadOnlyList<PointerField> ResolvePointerFields(int serializedByteLength) =>
         (_codec as IPointerArrayCodec)?.GetPointerFieldsForLength(serializedByteLength)
+        ?? _codec.PointerFields;
+
+    public IReadOnlyList<PointerField> EnumeratePointerFields(ReadOnlySpan<byte> data) =>
+        (_codec as IPointerArrayCodec)?.EnumeratePointerFields(data)
         ?? _codec.PointerFields;
 
     public object ReadFromBytes(ReadOnlySpan<byte> data, int offset, int length) =>
@@ -123,6 +131,27 @@ public static class StructCodecRegistry
         Register(Codecs.AiModelCodec.Instance);
         Register(Codecs.PersoSectorInfoCodec.Instance);
         Register(Codecs.SectorCodec.Instance);
+        Register(Codecs.FixedBinaryStructCodec.ActionTable);
+        Register(Codecs.FixedBinaryStructCodec.ActionTree);
+        Register(Codecs.FixedBinaryStructCodec.DsgVar);
+        Register(Codecs.FixedBinaryStructCodec.Dynam);
+        Register(Codecs.FixedBinaryStructCodec.DsgMem);
+        Register(Codecs.FixedBinaryStructCodec.BehaviorListNormal);
+        Register(Codecs.FixedBinaryStructCodec.BehaviorListReflex);
+        Register(Codecs.BehaviorArrayCodec.BehaviorsNormal);
+        Register(Codecs.BehaviorArrayCodec.BehaviorsReflex);
+        Register(Codecs.AnimHierarchiesCodec.Instance);
+        Register(Codecs.ScriptBlobCodec.Instance);
+        Register(Codecs.AlwaysSuperObjectsCodec.Instance);
+        Register(Codecs.RawBlobCodec.Instance);
+        Register(Codecs.FixedBinaryStructCodec.ObjectTypeEntry);
+        Register(Codecs.FixedBinaryStructCodec.SectorCollideGeo);
+        Register(Codecs.FixedBinaryStructCodec.CollideZoneList("collidezdxlist"));
+        Register(Codecs.FixedBinaryStructCodec.CollideZoneList("collidezddlist"));
+        Register(Codecs.FixedBinaryStructCodec.CollideZoneList("collidezdelist"));
+        Register(Codecs.FixedBinaryStructCodec.CollideZone("collidezdxzone"));
+        Register(Codecs.FixedBinaryStructCodec.CollideZone("collidezddzone"));
+        Register(Codecs.FixedBinaryStructCodec.CollideZone("collidezdezone"));
     }
 
     public static void Register<T>(IStructCodec<T> codec)

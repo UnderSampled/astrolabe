@@ -12,4 +12,5 @@ public readonly record struct PointerField(
     string Name,
     PointerTarget Target,
     int[]? IgnoreValues = null,
-    bool RequiresVmRange = false);
+    bool RequiresVmRange = false,
+    bool RequiresDecompressedTarget = false);

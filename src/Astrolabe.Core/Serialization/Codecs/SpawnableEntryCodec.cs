@@ -14,7 +14,7 @@ public sealed class SpawnableEntryCodec : IStructCodec<SpawnableEntryRecord>
         new PointerField(0x00, "next", PointerTarget.BlockRelative),
         new PointerField(0x04, "prev", PointerTarget.BlockRelative),
         new PointerField(0x08, "hdr", PointerTarget.BlockRelative),
-        new PointerField(0x10, "perso", PointerTarget.BlockRelative)
+        new PointerField(0x10, "perso", PointerTarget.Any)
     ];
 
     public string Kind => "spawnableentry";

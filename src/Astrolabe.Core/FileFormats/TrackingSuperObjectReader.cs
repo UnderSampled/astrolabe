@@ -113,9 +113,16 @@ public class TrackingSuperObjectReader
             int offPerso = reader.ReadInt32();
 
             // Track the spawnable perso itself
-            if (offPerso != 0 && !_visitedAddresses.Contains(offPerso))
+            if (offPerso != 0)
             {
-                ReadSuperObject(offPerso);
+                if (!_visitedAddresses.Contains(offPerso))
+                {
+                    ReadSuperObject(offPerso);
+                }
+                else
+                {
+                    TrackSpawnablePersoDynam(offPerso);
+                }
             }
 
             current = next;
@@ -1213,6 +1220,27 @@ public class TrackingSuperObjectReader
         // PersoSectorInfo: ~0x10 bytes
         const int SectorInfoSize = 0x10;
         _tracker.RecordForNode(nodeAddr, address, SectorInfoSize, "PersoSectorInfo");
+    }
+
+    private void TrackSpawnablePersoDynam(int persoDataAddress)
+    {
+        var reader = _memory.GetReaderAt(persoDataAddress);
+        if (reader == null)
+        {
+            return;
+        }
+
+        try
+        {
+            reader.ReadInt32();
+            reader.ReadInt32();
+            var offDynam = reader.ReadInt32();
+            if (offDynam != 0)
+            {
+                ReadDynam(persoDataAddress, offDynam);
+            }
+        }
+        catch { }
     }
 
     private void ReadDynam(int nodeAddr, int address)
