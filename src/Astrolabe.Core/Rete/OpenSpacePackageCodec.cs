@@ -620,6 +620,10 @@ internal static class OpenSpacePackageCodec
         return ReferenceUri.ToUriPath(relative);
     }
 
+    /// <summary>
+    /// Loads preserved RT* from the original game directory for <c>debug-relocations</c> comparison only.
+    /// Export (<see cref="CompileRelocationTable"/>) must not call this.
+    /// </summary>
     private static bool TryLoadSourceRelocationTable(
         string packageDir,
         RetePackageManifest manifest,
@@ -1207,7 +1211,7 @@ internal static class OpenSpacePackageCodec
                     tracker,
                     sceneNodePaths);
 
-                var storage = new SnaStorageManifest
+                blockManifest.OriginalStorage = new SnaStorageManifest
                 {
                     IsCompressed = block.IsCompressed,
                     CompressedSize = block.CompressedSize,
@@ -1215,16 +1219,6 @@ internal static class OpenSpacePackageCodec
                     DecompressedSize = block.DecompressedSize,
                     DecompressedChecksum = block.DecompressedChecksum
                 };
-
-                if (block.CompressedData is { Length: > 0 })
-                {
-                    var encodedPath = $"{blockDir}/{blockStem}.encoded.bin";
-                    WriteBytes(outputDir, encodedPath, block.CompressedData);
-                    storage.EncodedPath = encodedPath;
-                    storage.EncodedSha256 = HashBytes(block.CompressedData);
-                }
-
-                blockManifest.OriginalStorage = storage;
             }
 
             manifest.Blocks.Add(blockManifest);
@@ -1750,8 +1744,48 @@ internal static class OpenSpacePackageCodec
             File.Delete(relocJson);
         }
 
+        foreach (var encodedBin in Directory.EnumerateFiles(packageDir, "*.encoded.bin", SearchOption.AllDirectories))
+        {
+            File.Delete(encodedBin);
+        }
+
         PruneLegacyRelocationManifestFields(packageDir);
+        PruneLegacySnaEncodedManifestFields(packageDir);
     }
+
+#pragma warning disable CS0618
+    private static void PruneLegacySnaEncodedManifestFields(string packageDir)
+    {
+        var manifestPath = Path.Combine(packageDir, ManifestFileName);
+        if (!File.Exists(manifestPath))
+        {
+            return;
+        }
+
+        var manifest = ReadJson<RetePackageManifest>(manifestPath);
+        var changed = false;
+        foreach (var snaFile in manifest.SnaFiles)
+        {
+            foreach (var block in snaFile.Blocks)
+            {
+                if (block.OriginalStorage?.EncodedPath == null &&
+                    block.OriginalStorage?.EncodedSha256 == null)
+                {
+                    continue;
+                }
+
+                block.OriginalStorage.EncodedPath = null;
+                block.OriginalStorage.EncodedSha256 = null;
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            WriteJson(manifestPath, manifest);
+        }
+    }
+#pragma warning restore CS0618
 
     private static void PruneLegacyRelocationManifestFields(string packageDir)
     {
@@ -1921,26 +1955,13 @@ internal static class OpenSpacePackageCodec
                 continue;
             }
 
-            if (CanReuseSnaStorage(intermediateDir, block, data, out var encodedData))
-            {
-                var storage = block.OriginalStorage!;
-                writer.Write(storage.IsCompressed ? 1u : 0u);
-                writer.Write(storage.CompressedSize);
-                writer.Write(storage.CompressedChecksum);
-                writer.Write(storage.DecompressedSize);
-                writer.Write(storage.DecompressedChecksum);
-                writer.Write(encodedData);
-            }
-            else
-            {
-                var checksum = OpenSpaceChecksum.Calculate(data);
-                writer.Write(0u);
-                writer.Write(size);
-                writer.Write(checksum);
-                writer.Write(size);
-                writer.Write(checksum);
-                writer.Write(data);
-            }
+            var checksum = OpenSpaceChecksum.Calculate(data);
+            writer.Write(0u);
+            writer.Write(size);
+            writer.Write(checksum);
+            writer.Write(size);
+            writer.Write(checksum);
+            writer.Write(data);
         }
     }
 
@@ -2115,8 +2136,6 @@ internal static class OpenSpacePackageCodec
             throw new InvalidDataException($"Relocation table {document.FileName} has too many pointer blocks.");
         }
 
-        var sourceBlocks = TryLoadSourceRelocationBlocks(intermediateDir, document.FileName);
-
         using var writer = new BinaryWriter(File.Create(outputPath));
         writer.Write((byte)document.Blocks.Count);
 
@@ -2131,101 +2150,8 @@ internal static class OpenSpacePackageCodec
                 continue;
             }
 
-            RelocationPointerBlock? sourceBlock = null;
-            sourceBlocks?.TryGetValue((block.Module, block.Id), out sourceBlock);
-            if (sourceBlock != null &&
-                TryEnrichGeneratedBlockFromSource(block, sourceBlock) &&
-                TryWriteSourceRelocationPointerBlock(writer, block, sourceBlock))
-            {
-                continue;
-            }
-
             WriteRelocationPointerBlock(writer, block);
         }
-    }
-
-    private static Dictionary<(byte Module, byte Id), RelocationPointerBlock>? TryLoadSourceRelocationBlocks(
-        string packageDir,
-        string fileName)
-    {
-        var manifestPath = Path.Combine(packageDir, ManifestFileName);
-        if (!File.Exists(manifestPath))
-        {
-            return null;
-        }
-
-        var manifest = ReadJson<RetePackageManifest>(manifestPath);
-        var (sourcePath, _) = TryResolveSourceRelocationPath(packageDir, manifest, fileName);
-        if (sourcePath == null || !File.Exists(sourcePath))
-        {
-            return null;
-        }
-
-        var reader = new RelocationTableReader(sourcePath);
-        return reader.PointerBlocks.ToDictionary(block => (block.Module, block.Id));
-    }
-
-    private static bool TryEnrichGeneratedBlockFromSource(
-        RelocationPointerBlockManifest generatedBlock,
-        RelocationPointerBlock sourceBlock)
-    {
-        if (sourceBlock.Count != generatedBlock.Pointers.Count)
-        {
-            return false;
-        }
-
-        var sourceByOffset = sourceBlock.Pointers.ToDictionary(p => p.OffsetInMemory);
-        foreach (var pointer in generatedBlock.Pointers)
-        {
-            if (!sourceByOffset.TryGetValue(pointer.OffsetInMemory, out var sourcePointer) ||
-                sourcePointer.TargetModule != pointer.TargetModule ||
-                sourcePointer.TargetId != pointer.TargetId)
-            {
-                return false;
-            }
-
-            pointer.Byte6 = sourcePointer.Byte6;
-            pointer.Byte7 = sourcePointer.Byte7;
-        }
-
-        if (sourceBlock.TrailingData.Length > 0)
-        {
-            generatedBlock.TrailingDataBase64 = Convert.ToBase64String(sourceBlock.TrailingData);
-        }
-
-        return BuildPointerData(generatedBlock).AsSpan().SequenceEqual(sourceBlock.PointerData);
-    }
-
-    private static bool TryWriteSourceRelocationPointerBlock(
-        BinaryWriter writer,
-        RelocationPointerBlockManifest generatedBlock,
-        RelocationPointerBlock sourceBlock)
-    {
-        if (sourceBlock.Count == 0 ||
-            sourceBlock.Count != generatedBlock.Pointers.Count ||
-            !BuildPointerData(generatedBlock).AsSpan().SequenceEqual(sourceBlock.PointerData))
-        {
-            return false;
-        }
-
-        if (sourceBlock.IsCompressed)
-        {
-            writer.Write(1u);
-            writer.Write(sourceBlock.CompressedSize);
-            writer.Write(sourceBlock.CompressedChecksum);
-            writer.Write(sourceBlock.DecompressedSize);
-            writer.Write(sourceBlock.DecompressedChecksum);
-            writer.Write(sourceBlock.CompressedData);
-            return true;
-        }
-
-        writer.Write(0u);
-        writer.Write(sourceBlock.DecompressedSize);
-        writer.Write(sourceBlock.DecompressedChecksum);
-        writer.Write(sourceBlock.DecompressedSize);
-        writer.Write(sourceBlock.DecompressedChecksum);
-        writer.Write(sourceBlock.CompressedData);
-        return true;
     }
 
     private static void WriteRelocationPointerBlock(BinaryWriter writer, RelocationPointerBlockManifest block)
@@ -2252,36 +2178,6 @@ internal static class OpenSpacePackageCodec
         writer.Write(decompressedSize);
         writer.Write(decompressedChecksum);
         writer.Write(pointerData);
-    }
-
-    private static bool CanReuseSnaStorage(string intermediateDir, SnaBlockManifest block, byte[] data, out byte[] encodedData)
-    {
-        encodedData = [];
-
-        var storage = block.OriginalStorage;
-        if (storage?.EncodedPath == null || storage.EncodedSha256 == null || block.DataSha256 == null)
-        {
-            return false;
-        }
-
-        if (!HashBytes(data).Equals(block.DataSha256, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (data.Length != storage.DecompressedSize || OpenSpaceChecksum.Calculate(data) != storage.DecompressedChecksum)
-        {
-            return false;
-        }
-
-        var encodedPath = ResolvePath(intermediateDir, storage.EncodedPath);
-        if (!File.Exists(encodedPath))
-        {
-            return false;
-        }
-
-        encodedData = File.ReadAllBytes(encodedPath);
-        return HashBytes(encodedData).Equals(storage.EncodedSha256, StringComparison.OrdinalIgnoreCase);
     }
 
     private static byte[] BuildPointerData(RelocationPointerBlockManifest block)
@@ -2537,20 +2433,6 @@ internal static class OpenSpacePackageCodec
         if (!block.HasPayload)
         {
             return false;
-        }
-
-        var storage = block.OriginalStorage;
-        if (storage?.EncodedPath != null && storage.DecompressedSize > 0)
-        {
-            var encodedPath = ResolvePath(packageDir, storage.EncodedPath);
-            if (File.Exists(encodedPath))
-            {
-                var encoded = File.ReadAllBytes(encodedPath);
-                bytes = storage.IsCompressed
-                    ? OpenSpaceLzo.Decompress(encoded, checked((int)storage.DecompressedSize))
-                    : encoded;
-                return bytes.Length >= sizeof(int);
-            }
         }
 
         if (block.ContentPath == null)

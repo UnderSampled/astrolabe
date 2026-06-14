@@ -84,7 +84,9 @@ public sealed class SnaStorageManifest
     public uint CompressedChecksum { get; set; }
     public uint DecompressedSize { get; set; }
     public uint DecompressedChecksum { get; set; }
+    [Obsolete("Legacy import cache; no longer written. Export always re-encodes from canonical content.")]
     public string? EncodedPath { get; set; }
+    [Obsolete("Legacy import cache; no longer written. Export always re-encodes from canonical content.")]
     public string? EncodedSha256 { get; set; }
 }
 

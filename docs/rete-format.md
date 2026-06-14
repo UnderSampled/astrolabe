@@ -227,9 +227,13 @@ Opaque preservation records also use a JSON descriptor plus sidecar `.bin`, even
 
 Promoted struct JSON descriptors may carry the same optional top-level `pointers` map (same shape as opaque LUT). Import merges transient disc `.rtb` rows into this overlay (including padding/gap sites inside the element `length` from SNA metadata); `null` marks disc sentinel `FF:FF` rows. Export emits RTB rows from the overlay after codec `PointerFields` gap-fill. LUT-authoritative sites emit sentinel rows even when the preserved value is not in the VM band heuristic.
 
-### Compile-time relocation payload reuse
+### Export must not read the source disc
 
-When `compile-intermediate` generates relocation tables, it may **reuse source-disc compressed pointer blocks** when generated logical rows (offset + target) match the original disc table and pointer data bytes align. This opportunistic bridge requires `sourceDirectoryName` / disc availability via `TryResolveSourceRelocationPath`; it is **not** stored in Rete packages (no encoding cache). It enabled `astrolabe.rtt` byte-identical cmp when row sets match; `astrolabe.rtp` may still differ when reuse preconditions fail.
+`export-openspace` / `compile-intermediate` derives every output byte from canonical Rete content only. It does **not** open the original level directory, walk `disc/`, or honor `ASTROLABE_SOURCE_DIR`. It does **not** reuse stored LZO blobs (`sna/**.encoded.bin`) or other encoded caches from import — SNA and RT* payloads are always re-encoded from `content.json` elements, struct JSON, and buffer `.bin` files (plus URI pointer resolution).
+
+`originalStorage` on SNA block manifests retains import-time **metadata** (decompressed size/checksum, original compression flags) for layout helpers such as `maxPosMinus9`; it is not an export input for wire bytes.
+
+Validation against original game files is a **test concern**: `debug-relocations` and byte `cmp` gates read source disc paths to compare generated output — that path is not part of export.
 
 ## Scene tree
 

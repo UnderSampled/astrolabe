@@ -1372,8 +1372,7 @@ internal static class RelocationGenerator
                 return true;
             }
 
-            if (TryLoadOriginalDecompressedBlock(block, out bytes) ||
-                TryReconstructBlockBytes(block, out bytes))
+            if (TryReconstructBlockBytes(block, out bytes))
             {
                 _blockByteCache[key] = bytes;
                 return true;
@@ -1381,28 +1380,6 @@ internal static class RelocationGenerator
 
             bytes = [];
             return false;
-        }
-
-        private bool TryLoadOriginalDecompressedBlock(BlockLayout block, out byte[] bytes)
-        {
-            bytes = [];
-            var storage = block.OriginalStorage;
-            if (storage?.EncodedPath == null || block.DecompressedSize <= 0)
-            {
-                return false;
-            }
-
-            var encodedPath = ResolvePackagePath(PackageRoot, storage.EncodedPath);
-            if (!File.Exists(encodedPath))
-            {
-                return false;
-            }
-
-            var encoded = File.ReadAllBytes(encodedPath);
-            bytes = storage.IsCompressed
-                ? DecompressLzo(encoded, block.DecompressedSize)
-                : encoded;
-            return bytes.Length >= sizeof(int);
         }
 
         private bool TryReconstructBlockBytes(BlockLayout block, out byte[] bytes)
@@ -1433,9 +1410,6 @@ internal static class RelocationGenerator
 
             return true;
         }
-
-        private static byte[] DecompressLzo(byte[] compressedData, int decompressedSize) =>
-            OpenSpaceLzo.Decompress(compressedData, decompressedSize);
 
         private byte[] ReadElementBytes(ElementLayout element) =>
             ReferenceJson.WriteElementBytesForExport(

@@ -342,6 +342,53 @@ public sealed class RelocationGeneratorTests
     }
 
     [Fact]
+    public void ExportLevel_DoesNotReuseSnaEncodedCache()
+    {
+        var packageDir = CreateTempDir();
+        try
+        {
+            CreateOpaquePackageFixture(
+                packageDir,
+                new Dictionary<string, string?> { ["0x0"] = "types/raw/target.json" },
+                module: 0x04,
+                id: 0x05);
+            var manifestPath = Path.Combine(packageDir, "manifest.json");
+            var manifest = JsonSerializer.Deserialize<RetePackageManifest>(
+                File.ReadAllText(manifestPath),
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })!;
+            var block = manifest.SnaFiles.Single().Blocks.Single();
+            var encodedBytes = new byte[] { 0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02, 0x03, 0x04 };
+            var encodedPath = "sna/test/blocks/0000/0000_04_05.encoded.bin";
+            Directory.CreateDirectory(Path.Combine(packageDir, Path.GetDirectoryName(encodedPath)!));
+            File.WriteAllBytes(Path.Combine(packageDir, encodedPath), encodedBytes);
+#pragma warning disable CS0618
+            block.OriginalStorage = new SnaStorageManifest
+            {
+                IsCompressed = true,
+                CompressedSize = (uint)encodedBytes.Length,
+                CompressedChecksum = 0x12345678,
+                DecompressedSize = 12,
+                DecompressedChecksum = 0x87654321,
+                EncodedPath = encodedPath,
+                EncodedSha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(encodedBytes))
+                    .ToLowerInvariant()
+            };
+#pragma warning restore CS0618
+            WriteJson(manifestPath, manifest, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+            var outputDir = Path.Combine(packageDir, "export");
+            OpenSpaceExporter.ExportLevel(packageDir, outputDir);
+
+            var exportedSna = File.ReadAllBytes(Path.Combine(outputDir, "test.sna"));
+            Assert.DoesNotContain(encodedBytes, exportedSna);
+        }
+        finally
+        {
+            Directory.Delete(packageDir, true);
+        }
+    }
+
+    [Fact]
     public void CompareGeneratedRelocations_UnsupportedTable_ValidatesLooseFileSha256()
     {
         var packageDir = CreateTempDir();
@@ -984,7 +1031,7 @@ public sealed class RelocationGeneratorTests
     }
 
     [Fact]
-    public void CompileRelocationTable_SourcePayloadReuse_WritesIdenticalPointerBlock()
+    public void CompileRelocationTable_DoesNotReadSourceDisc()
     {
         var workspaceDir = CreateTempDir();
         try
@@ -1032,7 +1079,17 @@ public sealed class RelocationGeneratorTests
                             Module = 0x04,
                             Id = 0x05,
                             EntrySize = 8,
-                            Pointers = [generatedPointer]
+                            Pointers =
+                            [
+                                new RelocationPointerManifest
+                                {
+                                    OffsetInMemory = generatedPointer.OffsetInMemory,
+                                    TargetModule = generatedPointer.TargetModule,
+                                    TargetId = generatedPointer.TargetId,
+                                    Byte6 = 0x99,
+                                    Byte7 = 0xAA
+                                }
+                            ]
                         }
                     ]
                 });
@@ -1040,7 +1097,10 @@ public sealed class RelocationGeneratorTests
             var outputPath = Path.Combine(packageDir, "compiled.rtb");
             InvokeCompileRelocationTable(packageDir, generated, outputPath);
 
-            Assert.Equal(File.ReadAllBytes(sourceRtbPath), File.ReadAllBytes(outputPath));
+            Assert.True(File.Exists(outputPath));
+            Assert.NotEqual(File.ReadAllBytes(sourceRtbPath), File.ReadAllBytes(outputPath));
+            Assert.Equal(0x12, generatedPointer.Byte6);
+            Assert.Equal(0x34, generatedPointer.Byte7);
         }
         finally
         {
