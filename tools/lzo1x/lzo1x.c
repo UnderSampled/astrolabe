@@ -1,7 +1,7 @@
 /* lzo1x -- stdin/stdout raw LZO1X-1 compressor for OpenSpace payloads
  *
- * This file is CC0 1.0 (see repository LICENSE). The built binary also links
- * minilzo from lib/lzo (GPL v2+); see tools/lzo1x/LICENSE and lib/lzo/COPYING.
+ * This file is CC0 1.0 (see repository LICENSE). Binaries built from it may be
+ * GPL-covered when linked with minilzo from lib/lzo; see tools/lzo1x/LICENSE.
  *
  * Uses the vendored LZO 1.08 minilzo sources in lib/lzo. Build with -O0 so
  * output matches the legacy non-optimized encoder used by the original toolchain.
