@@ -1,9 +1,6 @@
-lzo1x.c in this directory is part of the Astrolabe project and is released
-under CC0 1.0 Universal (see the repository LICENSE at the project root).
+lzo1x.c in this directory is released under CC0 1.0 Universal (see the
+repository LICENSE at the project root).
 
 Any binaries built from this file by linking minilzo from lib/lzo (LZO 1.08)
 may be subject to the GNU General Public License v2 or later. See
 lib/lzo/COPYING for the full GPL text and lib/lzo/minilzo/ for that source.
-
-The Astrolabe .NET libraries do not link such binaries; they invoke them as
-separate processes.
