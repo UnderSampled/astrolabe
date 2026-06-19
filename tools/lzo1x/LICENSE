@@ -1,6 +1,6 @@
-lzo1x.c in this directory is released under CC0 1.0 Universal (see the
-repository LICENSE at the project root).
+This code is released under CC0 1.0 Universal (see the repository LICENSE at
+the project root).
 
-Any binaries built from this file by linking minilzo from lib/lzo (LZO 1.08)
+Any binaries built from this code by linking minilzo from lib/lzo (LZO 1.08)
 may be subject to the GNU General Public License v2 or later. See
 lib/lzo/COPYING for the full GPL text and lib/lzo/minilzo/ for that source.
