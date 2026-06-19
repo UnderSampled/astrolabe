@@ -4,8 +4,8 @@ using lzo.net;
 namespace Astrolabe.Core.Rete.OpenSpace;
 
 /// <summary>
-/// LZO1X compression for OpenSpace RT*/SNA payloads. Decompression uses lzo.net; compression uses MiniLZO
-/// because lzo.net only supports <see cref="CompressionMode.Decompress"/>.
+/// LZO1X compression for OpenSpace RT*/SNA payloads. Decompression uses MIT-licensed lzo.net;
+/// compression invokes the vendored GPL LZO 1.08 <c>lzo1x</c> tool as an external process.
 /// </summary>
 internal static class OpenSpaceLzo
 {
@@ -16,7 +16,7 @@ internal static class OpenSpaceLzo
             return [];
         }
 
-        var compressed = MiniLZO.MiniLZO.Compress(data.ToArray());
+        var compressed = Lzo1xCompressor.Compress(data);
         if (!TryDecompress(compressed, data.Length, out var roundTrip) ||
             !roundTrip.AsSpan().SequenceEqual(data))
         {
@@ -34,15 +34,19 @@ internal static class OpenSpaceLzo
             return true;
         }
 
-        try
-        {
-            compressed = Compress(data);
-            return true;
-        }
-        catch (InvalidDataException)
+        if (!Lzo1xCompressor.TryCompress(data, out compressed))
         {
             return false;
         }
+
+        if (!TryDecompress(compressed, data.Length, out var roundTrip) ||
+            !roundTrip.AsSpan().SequenceEqual(data))
+        {
+            compressed = [];
+            return false;
+        }
+
+        return true;
     }
 
     public static byte[] Decompress(ReadOnlySpan<byte> compressedData, int decompressedSize)

@@ -31,3 +31,6 @@ packages/
 # OS
 .DS_Store
 Thumbs.db
+
+# Built GPL compressor helper (sources live in tools/lzo1x/)
+tools/lzo1x/lzo1x

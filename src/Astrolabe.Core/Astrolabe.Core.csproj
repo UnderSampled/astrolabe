@@ -8,11 +8,11 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Astrolabe.Core.Tests" />
+    <InternalsVisibleTo Include="LzoDiffProbe" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="lzo.net" Version="0.0.6" />
-    <PackageReference Include="MiniLZO" Version="1.0.1" />
     <PackageReference Include="NLayer" Version="1.16.0" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.0" />
