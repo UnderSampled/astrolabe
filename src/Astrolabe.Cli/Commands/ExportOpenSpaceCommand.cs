@@ -1,15 +1,15 @@
-using Astrolabe.Core.Rete;
+using Astrolabe.Core;
 
 namespace Astrolabe.Cli.Commands;
 
-public static class CompileIntermediateCommand
+public static class ExportOpenSpaceCommand
 {
     public static int Run(string[] args)
     {
         if (args.Length == 0)
         {
             Console.Error.WriteLine("Error: Rete package directory path required");
-            Console.Error.WriteLine("Usage: astrolabe compile-intermediate <rete-dir> [output-level-dir]");
+            Console.Error.WriteLine("Usage: astrolabe export-openspace <rete-dir> [level-dir]");
             return 1;
         }
 
@@ -20,7 +20,7 @@ public static class CompileIntermediateCommand
 
         try
         {
-            OpenSpaceExporter.ExportLevel(packageDir, outputDir);
+            Level.ExportToOpenSpace(packageDir, outputDir);
             Console.WriteLine($"Exported OpenSpace level from Rete package: {packageDir}");
             Console.WriteLine($"Output: {outputDir}");
             return 0;

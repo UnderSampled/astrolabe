@@ -31,6 +31,12 @@ internal static class ReferenceUri
             return false;
         }
 
+        if (pathPart.Contains("../", StringComparison.Ordinal) ||
+            pathPart.StartsWith("..", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
         string? baseRoot = null;
         string relativePath;
 
@@ -103,8 +109,8 @@ internal static class ReferenceUri
             return LevelPrefix + ToUriPath(Path.GetRelativePath(levelRoot, targetFullPath));
         }
 
-        // Legacy layout: sibling packages under a shared parent (../fix/, ../astrolabe/, …).
-        return ToUriPath(Path.GetRelativePath(referringRoot, targetFullPath));
+        throw new InvalidDataException(
+            $"Cannot build reference URI for target outside referring package, Fix, and level roots: {targetFullPath}");
     }
 
     public static string MakeRelative(string packageRoot, string targetPath) =>

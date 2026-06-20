@@ -17,39 +17,43 @@ public class LevelLoader
     private readonly Dictionary<ushort, SnaBlock> _blockMap = new();
 
     public LevelLoader(string levelDir, string levelName)
+        : this(
+            LoadSnaReader(levelDir, levelName),
+            LoadRelocationReader(levelDir, levelName, ".rtb"),
+            LoadRelocationReader(levelDir, levelName, ".rtp"),
+            LoadRelocationReader(levelDir, levelName, ".rtt"))
     {
-        string snaPath = Path.Combine(levelDir, $"{levelName}.sna");
-        string rtbPath = Path.Combine(levelDir, $"{levelName}.rtb");
-        string rtpPath = Path.Combine(levelDir, $"{levelName}.rtp");
-        string rttPath = Path.Combine(levelDir, $"{levelName}.rtt");
+    }
 
-        // Handle case-insensitive file extensions
+    public LevelLoader(
+        SnaReader sna,
+        RelocationTableReader? rtb = null,
+        RelocationTableReader? rtp = null,
+        RelocationTableReader? rtt = null)
+    {
+        Sna = sna;
+        Rtb = rtb;
+        Rtp = rtp;
+        Rtt = rtt;
+        BuildMemoryMap();
+    }
+
+    private static SnaReader LoadSnaReader(string levelDir, string levelName)
+    {
+        var snaPath = Path.Combine(levelDir, $"{levelName}.sna");
         if (!File.Exists(snaPath))
         {
             snaPath = FindFile(levelDir, $"{levelName}.sna") ?? snaPath;
         }
 
-        Sna = new SnaReader(snaPath);
+        return new SnaReader(snaPath);
+    }
 
-        var foundRtb = File.Exists(rtbPath) ? rtbPath : FindFile(levelDir, $"{levelName}.rtb");
-        if (foundRtb != null)
-        {
-            Rtb = new RelocationTableReader(foundRtb);
-        }
-
-        var foundRtp = File.Exists(rtpPath) ? rtpPath : FindFile(levelDir, $"{levelName}.rtp");
-        if (foundRtp != null)
-        {
-            Rtp = new RelocationTableReader(foundRtp);
-        }
-
-        var foundRtt = File.Exists(rttPath) ? rttPath : FindFile(levelDir, $"{levelName}.rtt");
-        if (foundRtt != null)
-        {
-            Rtt = new RelocationTableReader(foundRtt);
-        }
-
-        BuildMemoryMap();
+    private static RelocationTableReader? LoadRelocationReader(string levelDir, string levelName, string extension)
+    {
+        var path = Path.Combine(levelDir, $"{levelName}{extension}");
+        var found = File.Exists(path) ? path : FindFile(levelDir, $"{levelName}{extension}");
+        return found != null ? new RelocationTableReader(found) : null;
     }
 
     private static string? FindFile(string dir, string baseName)

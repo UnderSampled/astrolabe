@@ -34,7 +34,7 @@ public sealed class ReferenceUriTests
     }
 
     [Fact]
-    public void TryResolve_LegacyRelativeFix_StillWorks()
+    public void TryResolve_LegacyRelativeFix_IsRejected()
     {
         var workspace = CreateWorkspace();
         try
@@ -47,12 +47,11 @@ public sealed class ReferenceUriTests
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             File.WriteAllText(target, "{}");
 
-            Assert.True(ReferenceUri.TryResolve(
+            Assert.False(ReferenceUri.TryResolve(
                 levelDir,
                 "../fix/types/raw/target.json",
-                out var resolved,
+                out _,
                 out _));
-            Assert.Equal(target, resolved);
         }
         finally
         {
@@ -170,6 +169,29 @@ public sealed class ReferenceUriTests
             var uri = ReferenceUri.MakeReference(fixDir, target);
 
             Assert.Equal("level:/slots/0x0262C4C0.json", uri);
+        }
+        finally
+        {
+            Directory.Delete(workspace, true);
+        }
+    }
+
+    [Fact]
+    public void MakeReference_OutsideKnownRoots_Throws()
+    {
+        var workspace = CreateWorkspace();
+        try
+        {
+            var levelDir = Path.Combine(workspace, "astrolabe");
+            CreatePackage(levelDir, "level");
+            var outsideTarget = Path.Combine(workspace, "outside", "target.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(outsideTarget)!);
+            File.WriteAllText(outsideTarget, "{}");
+
+            var ex = Assert.Throws<InvalidDataException>(() =>
+                ReferenceUri.MakeReference(levelDir, outsideTarget));
+
+            Assert.Contains("Cannot build reference URI", ex.Message, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {

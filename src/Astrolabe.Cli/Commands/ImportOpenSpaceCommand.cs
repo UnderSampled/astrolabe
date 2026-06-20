@@ -1,15 +1,15 @@
-using Astrolabe.Core.Rete;
+using Astrolabe.Core;
 
 namespace Astrolabe.Cli.Commands;
 
-public static class ExtractIntermediateCommand
+public static class ImportOpenSpaceCommand
 {
     public static int Run(string[] args)
     {
         if (args.Length == 0)
         {
             Console.Error.WriteLine("Error: Level directory path required");
-            Console.Error.WriteLine("Usage: astrolabe extract-intermediate <level-dir> [output-dir]");
+            Console.Error.WriteLine("Usage: astrolabe import-openspace <level-dir> [rete-dir]");
             return 1;
         }
 
@@ -17,13 +17,13 @@ public static class ExtractIntermediateCommand
         var levelName = Path.GetFileName(levelDir.TrimEnd('/', '\\'));
         var outputDir = args.Length > 1
             ? args[1]
-            : Path.Combine("output", "intermediate", levelName);
+            : Path.Combine("output", levelName);
 
         try
         {
-            var manifest = OpenSpaceImporter.ImportLevel(levelDir, outputDir);
+            var manifest = Level.ImportFromOpenSpace(levelDir, outputDir);
 
-            Console.WriteLine($"Extracted Rete package: {manifest.LevelName}");
+            Console.WriteLine($"Imported Rete package: {manifest.LevelName}");
             Console.WriteLine($"Output: {outputDir}");
             Console.WriteLine($"SNA files: {manifest.SnaFiles.Count}");
             Console.WriteLine($"SNA blocks: {manifest.SnaFiles.Sum(f => f.Blocks.Count)}");

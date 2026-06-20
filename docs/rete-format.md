@@ -14,15 +14,16 @@ Rete is Astrolabe's canonical, editable representation of an OpenSpace level. A 
 
 ## Architecture
 
-Rete sits at the center of the pipeline. OpenSpace level directories and Godot projects are **export targets**, not the source of truth.
+**Level** and **Fix** are the in-memory hubs; **Rete** is how each is stored on disk. OpenSpace level directories and Godot projects are **export targets**, not the source of truth.
 
 ```text
-OpenSpace level dir ──import──► Rete package ──export──► OpenSpace level dir
-                                     │
-                                     └──export──► Godot project
+OpenSpace level dir ──import──► level Rete ──export──► OpenSpace level dir
+OpenSpace Fix.*     ──import──► fix Rete    ──export──► Fix.*
+                                     │ fix:/  level:/
+                                     └──export──► Godot project (from Level)
 ```
 
-Both exporters consume the same **canonical types** (`VisualMaterial`, `GameMaterial`, scene nodes, geometry headers, and so on). Those types can be loaded by deserializing Rete JSON or built directly during import.
+Exporters consume the same **canonical types** (`VisualMaterial`, `GameMaterial`, scene nodes, geometry headers, and so on). Those types hydrate into **Level** or **Fix** from Rete JSON or directly during import.
 
 ### Virtual memory and Fix data
 

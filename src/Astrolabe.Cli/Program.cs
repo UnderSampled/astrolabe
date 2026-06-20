@@ -17,8 +17,8 @@ class Program
         return command switch
         {
             "extract" => ExtractCommand.Run(args[1..]),
-            "extract-intermediate" => ExtractIntermediateCommand.Run(args[1..]),
-            "compile-intermediate" => CompileIntermediateCommand.Run(args[1..]),
+            "import-openspace" => ImportOpenSpaceCommand.Run(args[1..]),
+            "export-openspace" => ExportOpenSpaceCommand.Run(args[1..]),
             "list" => ListCommand.Run(args[1..]),
             "textures" => TexturesCommand.Run(args[1..]),
             "cnt" => CntCommand.Run(args[1..]),
@@ -64,8 +64,8 @@ class Program
 
             Commands:
                 extract <source> [output]          Extract and convert assets (PNG/WAV)
-                extract-intermediate <level> [out] Extract a reversible intermediate level package
-                compile-intermediate <dir> [out]   Compile an intermediate package back to level files
+                import-openspace <level> [rete]    Import OpenSpace level into Rete package
+                export-openspace <rete> [level]    Export Rete package to OpenSpace level files
                 list <source>                      List files in a directory
                 textures <cnt-path> [output-dir]   Extract textures from CNT container
                 cnt <cnt-path>                     List files in CNT container
@@ -73,7 +73,7 @@ class Program
                 audio <apm-path|bnm-path> [out]    Convert APM/BNM audio to WAV
                 tree <path> [options]              Display scene graph as tree
                 byte-tree <level-dir> [options]   Show tree with byte coverage analysis
-                export-godot <level-dir> [output]  Export level to a Godot project
+                export-godot <openspace|rete> [out] Export level to a Godot project
                 help                               Show this help message
 
             The <source> is an extracted or mounted directory containing game files.

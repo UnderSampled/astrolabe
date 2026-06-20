@@ -9,7 +9,7 @@ Cold-start entrypoint for the Rete refactor. Read in order:
 
 ## Goal
 
-Rete is the canonical level representation. OpenSpace level dirs and Godot projects are **export targets**. Canonical types + struct codecs are shared by import, both exporters, and JSON serialization.
+**Level** and **Fix** are the in-memory hubs; **Rete** is the on-disk encoding (separate level and fix packages). OpenSpace level dirs and Godot projects are **export targets**. Canonical types + struct codecs are shared by import, both exporters, and JSON serialization.
 
 **Acceptance test:** unedited Rete → OpenSpace export → `cmp` every file in the source level directory. No engine runtime.
 
@@ -24,7 +24,8 @@ Rete is the canonical level representation. OpenSpace level dirs and Godot proje
 | `src/Astrolabe.Core/Rete/RetePackageModels.cs` | Manifest/content models; content elements include offsets, lengths, virtual addresses, and imported Fix→level site metadata | Drop preserved relocation models after Step 5 |
 | `src/Astrolabe.Core/Rete/OpenSpace/RelocationGenerator.cs` | Generates diagnostic RTB/fixlvl subsets from promoted struct pointer metadata, imported `fixlvl` site metadata, and GPT/PTX pointer-file tables; compares generated data with preserved RT data | Expand RTB coverage to remaining opaque promoted types; then replace preserved relocation export |
 | `src/Astrolabe.Core/Serialization/Codecs/*` | 35 registered codecs (structs, pointer arrays, dense arrays) | Keep expanding per checklist; ~20k RTB pointers still opaque |
-| `extract-intermediate` / `compile-intermediate` CLI | Still the active transition commands | Aliases → `import-openspace` / `export-openspace` |
+| `import-openspace` / `export-openspace` CLI | Level Rete import/export via `Level` | Done (Step 6) |
+| `Fix` in-memory hub | Fix import/export still in `OpenSpacePackageCodec` | Add `Fix.cs` hub type (post–Step 6) |
 | `debug-relocations` CLI | Compares generated relocation diagnostics against preserved relocation tables | Remove once generated RT output is the normal exporter path |
 | `FileFormats/*Reader` | Read-only scanners/readers used for semantic discovery | Thin wrappers over struct codecs where practical |
 | `FileFormats/Godot/*` | Export from memory scan | Also consume canonical types / Rete URIs |
@@ -156,7 +157,7 @@ Sequential work units are defined in [`plan.md`](../plan.md#implementation-steps
 | 3 | Target layout (`Rete/`, `RetePackageModels.cs`); manifest schema transition |
 | 4 | `ReferenceUri.cs`; Fix output layout; pointer fields as URI strings |
 | 5 | `RelocationGenerator`; drop preserved RT* from packages |
-| 6 | CLI aliases; Godot export from Rete |
+| 6 | CLI rename; `Level` hub; Godot from Rete; **Fix** remains separate hub |
 | 7 | Checklist backlog — per-type codec + pointer metadata |
 
 Progress as of 2026-06-14 (commits `5ca7ef4`, `137265d`):

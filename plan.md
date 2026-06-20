@@ -1,40 +1,41 @@
 # Astrolabe Plan
 
-Astrolabe reads *Hype: The Time Quest* OpenSpace data into **Level** — the in-memory canonical model — and persists or exports it as **Rete** packages, OpenSpace level directories, or Godot projects. Rete is the on-disk encoding; `Level` is the hub everything loads into and exports from. The C# core stays independent of Unity; raymap and other reference code are research sources only.
+Astrolabe reads *Hype: The Time Quest* OpenSpace data into **Level** and **Fix** — the in-memory canonical models — and persists or exports them as **Rete** packages, OpenSpace level directories, or Godot projects. Rete is the on-disk encoding; **Level** and **Fix** are the hubs everything loads into and exports from (separate packages, linked by `fix:/` and `level:/` URIs). The C# core stays independent of Unity; raymap and other reference code are research sources only.
 
 Users provide their own legally obtained game copy. Local testing uses `disc/`, especially `disc/Gamedata/World/Levels/astrolabe`.
 
 ## Architecture
 
-**Level** is the in-memory hub: canonical types from `FileFormats/` (`SceneGraph`, geometry, materials, …). **Rete** is how `Level` is stored on disk (JSON structs, buffer descriptors, binary payloads, manifest). No exporter reads Rete JSON or OpenSpace bytes directly for its own logic — everything goes through `Level`.
+**Level** and **Fix** are the in-memory hubs: canonical types from `FileFormats/` (`SceneGraph`, geometry, materials, perso/family data, …). **Rete** is how each hub is stored on disk (JSON structs, buffer descriptors, binary payloads, manifest). No exporter reads Rete JSON or OpenSpace bytes directly for its own logic — everything goes through **Level** or **Fix**. Cross-package work joins the two via `fix:/` and `level:/` URI resolution (not by embedding Fix inside `Level`).
 
 ```text
-                    fix/ (Rete package, packageRole: fix)
-                         ▲ fix:/  level:/
-                         │
-   OpenSpace level dir ──┼──► Level ◄──┬── Rete package (astrolabe/)
-                         │              │
-                         └── export ────┼──► OpenSpace level dir
-                                        ├──► Rete package
-                                        └──► Godot project
+   OpenSpace Fix.* ──────► Fix ◄──── Rete package (fix/, packageRole: fix)
+                              ▲ fix:/  level:/
+   OpenSpace level dir ──► Level ◄──── Rete package (astrolabe/, packageRole: level)
+                              │
+                              └── export ──┬──► OpenSpace level dir
+                                           ├──► Rete package(s)
+                                           └──► Godot project
 ```
 
 ```text
-(OpenSpace | Rete) ──► Level.Load(...) ──► export to (OpenSpace | Rete | Godot)
+(OpenSpace level | level Rete) ──► Level.Load(...) ──► export
+(OpenSpace Fix | fix Rete)     ──► Fix.Load(...)   ──► export   (Fix type: target)
 ```
 
-`import-openspace` is OpenSpace → `Level` → Rete. `export-openspace` is Rete → `Level` → OpenSpace. `export-godot` is (OpenSpace | Rete) → `Level` → Godot. Same hub, three serializers.
+`import-openspace` is OpenSpace level → `Level` → level Rete (and extracts Fix → fix Rete when `Fix.*` is present). `export-openspace` is level Rete → `Level` → OpenSpace level files (fix Rete exported separately). `export-godot` is (OpenSpace level | level Rete) → `Level` → Godot. Level and Fix are separate hubs; serializers and URI resolution connect them where the game does.
 
-OpenSpace export additionally uses a **VM layout** view (`MemoryContext`) for virtual addresses, relocation generation, and LZO encoding. That is an OpenSpace-specific slice used while serializing `Level` to disc bytes — not a parallel pipeline and not the hub itself.
+OpenSpace export additionally uses a **VM layout** view (`MemoryContext`) for virtual addresses, relocation generation, and LZO encoding. That is an OpenSpace-specific slice used while serializing `Level` (and joined Fix layout for `fixlvl.rtb`) to disc bytes — not a parallel pipeline and not the hub itself.
 
-Fix is a **separate Rete package** (`packageRole: fix`). On import, the converter extracts the level and required Fix files together into one output parent (for example `output/astrolabe/` and `output/fix/`). Cross-package pointers use **`fix:/`** and **`level:/`** package-role URIs only (see [`docs/cross-package-uris.md`](docs/cross-package-uris.md)). Level export writes level files only; Fix export is independent.
+Fix is a **separate Rete package** (`packageRole: fix`) and a **separate in-memory hub**. On import, the converter extracts the level and required Fix files together into one output parent (for example `output/astrolabe/` and `output/fix/`). Cross-package pointers use **`fix:/`** and **`level:/`** package-role URIs only (see [`docs/cross-package-uris.md`](docs/cross-package-uris.md)). Level export writes level files only; Fix export is independent.
 
 | Layer | Location | Responsibility |
 |-------|----------|----------------|
-| **Level** | `FileFormats/` + loaders | In-memory canonical model (`SceneGraph`, materials, geometry, …) |
+| **Level** | `Level.cs` + `FileFormats/` | In-memory level model (`SceneGraph`, level geometry, materials, …) |
+| **Fix** | target: `Fix.cs` + `FileFormats/` | In-memory shared Fix model (perso, families, shared textures, …); today import/export via `OpenSpacePackageCodec` |
 | Struct codecs | `Serialization/` | Binary ↔ type ↔ JSON; pointer field metadata |
-| Rete package | `Rete/` | Serialize/deserialize `Level`; manifest; layout orchestration |
-| OpenSpace exporter | `Rete/OpenSpace/` | `Level` → SNA layout, pointer resolution, relocation generation, encoding |
+| Rete package | `Rete/` | Serialize/deserialize `Level` or `Fix`; manifest; layout orchestration |
+| OpenSpace exporter | `Rete/OpenSpace/` | `Level` / `Fix` → SNA layout, pointer resolution, relocation generation, encoding |
 | Godot exporter | `FileFormats/Godot/` | `Level` → TSCN, ArrayMesh, materials |
 
 Read [`docs/rete-format.md`](docs/rete-format.md) for the format specification. Implementation entrypoint: [`notes/rete-implementation.md`](notes/rete-implementation.md).
@@ -45,7 +46,7 @@ Read [`docs/rete-format.md`](docs/rete-format.md) for the format specification. 
 
 | Do | Don't |
 |----|--------|
-| `Level.Load` → export | Separate Godot/OpenSpace/Rete readers that bypass `Level` |
+| `Level` / `Fix` → export | Separate Godot/OpenSpace/Rete readers that bypass the hubs |
 | One CLI name per command (`import-openspace`, …) | Aliases (`extract-intermediate`, `compile-intermediate`, …) |
 | `fix:/` and `level:/` URIs only | Legacy `../fix/…` paths, numeric pointer fallbacks, old manifest schemas |
 | Remove relocation bridge once generation exists (Step 5 ✓) | Keep “preserved RT*” or encoding-cache shortcuts alongside generators |
@@ -99,7 +100,7 @@ The OpenSpace exporter is correct when an unedited level Rete package exports to
 
 ## Godot exporter
 
-Godot export reads **`Level`**, not Rete JSON and not a dedicated OpenSpace scan path. `Level.Load` accepts an OpenSpace level directory or a Rete package (plus sibling `fix/`). `GodotExporter` and `GodotMeshExporter` format TSCN and ArrayMesh from canonical scene and geometry types. Godot export has its own quality bar and does not require byte-identical output.
+Godot export reads **`Level`** (not Fix directly, not Rete JSON, and not a dedicated OpenSpace scan path). `Level.Load` accepts an OpenSpace level directory or a level Rete package; cross-package `fix:/` pointers resolve against sibling `fix/` when needed. `GodotExporter` and `GodotMeshExporter` format TSCN and ArrayMesh from canonical scene and geometry types. Godot export has its own quality bar and does not require byte-identical output.
 
 ## CLI surface (target)
 
@@ -115,7 +116,7 @@ Remove `extract-intermediate`, `compile-intermediate`, and any other transition 
 
 The refactor proceeds as **sequential steps** on one branch — not as separate pull requests. Code map and API contracts live in [`notes/rete-implementation.md`](notes/rete-implementation.md). The **byte-identical `cmp` gate** is Step 7 only — do not block Steps 6–8 on it unless noted.
 
-**Progress:** Steps **1–5 complete**. Step **6** is next (`Level`, Godot, CLI rename). Step 5 delivered: `RelocationGenerator` (RTB/RTP/RTT/fixlvl), export generates RT* from struct codecs and opaque LUTs with no relocation bridge in Rete, **67** struct codecs, **LZO done** (`OpenSpaceLzo` + `lzo1x` at `-O0`). Remaining export parity (RTB ~145 missing pointers, RTP/fixlvl plaintext, encoding gotchas) is **Step 7**. Steps 7–8 not started.
+**Progress:** Steps **1–6 complete**. Step **7** is next (OpenSpace export parity / `cmp` gate). Step 5 delivered: `RelocationGenerator` (RTB/RTP/RTT/fixlvl), export generates RT* from struct codecs and opaque LUTs with no relocation bridge in Rete, **67** struct codecs, **LZO done** (`OpenSpaceLzo` + `lzo1x` at `-O0`). Remaining export parity (RTB ~145 missing pointers, RTP/fixlvl plaintext, encoding gotchas) is **Step 7**. Steps 7–8 not started.
 
 ### Step 1 — Serialization scaffold (no behavior change)
 
@@ -158,22 +159,22 @@ Track per-type progress in [`notes/intermediate-type-checklist.md`](notes/interm
 
 **Not Step 5:** byte-identical full-level `cmp`, closing the last RTB pointer gaps, or encoding gotchas — those are Step 7 and can proceed in parallel with Step 6.
 
-### Step 6 — CLI, Level, and Godot ← current
+### Step 6 — CLI, Level, and Godot ✓
+
+**Complete.** `Level` is the level hub; Fix remains a separate package/hub (import/export via `OpenSpacePackageCodec` today; dedicated `Fix` type is a later target).
 
 **6a — CLI surface**
 
-- CLI commands are `import-openspace`, `export-openspace`, `export-godot` only.
-- **Delete** `extract-intermediate`, `compile-intermediate`, and all other transition names — no aliases, no compatibility shims.
-- **Delete** acceptance of `astrolabe.level-intermediate.v1`, `../fix/…` URIs, and any other legacy package/URI/command paths added during the refactor.
+- [x] CLI commands are `import-openspace`, `export-openspace`, `export-godot` only.
+- [x] **Delete** `extract-intermediate`, `compile-intermediate`, and all other transition names — no aliases, no compatibility shims.
+- [x] **Delete** acceptance of `astrolabe.level-intermediate.v1`, `../fix/…` URIs, and any other legacy package/URI/command paths added during the refactor.
 
 **6b — Level + Godot**
 
-Introduce `Level` and **delete** the overlapping paths it supersedes. Today import/export/Godot use separate loaders (`LevelLoader` + `MeshScanner` in Godot, direct Rete layout in export, etc.); Step 6 replaces them — not augments them.
-
-- Add `Level.Load(openspaceDir | retePackageDir)` — hydrate canonical types; resolve `fix:/` against sibling `fix/`.
-- Route `import-openspace`, `export-openspace`, and `export-godot` through `Level` only.
-- **Remove:** OpenSpace-only Godot pipeline (`ExportGodotCommand`’s direct `LevelLoader`/`MeshScanner` path), exporter-specific Rete JSON walkers, and any other dead code uncovered by the consolidation.
-- `export-godot` accepts **OpenSpace or Rete** input via `Level.Load`; Godot formatters read `Level` only.
+- [x] Add `Level.Load(openspaceDir | retePackageDir)` — hydrate level canonical types; resolve `fix:/` against sibling `fix/` for cross-package work.
+- [x] Route `import-openspace`, `export-openspace`, and `export-godot` through `Level` only.
+- [x] **Remove:** OpenSpace-only Godot pipeline (`ExportGodotCommand`’s direct `LevelLoader`/`MeshScanner` path), exporter-specific Rete JSON walkers, and other dead consolidation paths.
+- [x] `export-godot` accepts **OpenSpace or Rete** input via `Level.Load`; Godot formatters read `Level` only.
 
 ### Step 7 — OpenSpace export parity (completion gate)
 

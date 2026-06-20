@@ -12,7 +12,6 @@ internal static class OpenSpacePackageCodec
 {
     public const string ManifestFileName = "manifest.json";
     public const string ReteManifestSchema = "astrolabe.rete.v1";
-    public const string LegacyManifestSchema = "astrolabe.level-intermediate.v1";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -910,10 +909,7 @@ internal static class OpenSpacePackageCodec
         }
 
         var manifest = ReadJson<RetePackageManifest>(manifestPath);
-        if (manifest.Schema is not (ReteManifestSchema or LegacyManifestSchema))
-        {
-            throw new InvalidDataException($"Unsupported Rete manifest schema: {manifest.Schema}");
-        }
+        ValidateReteManifestSchema(manifest.Schema);
 
         Directory.CreateDirectory(outputDir);
         var targetPackageRoots = FindTargetPackageRoots(packageDir, manifest).ToList();
@@ -946,10 +942,7 @@ internal static class OpenSpacePackageCodec
         }
 
         var manifest = ReadJson<RetePackageManifest>(manifestPath);
-        if (manifest.Schema is not (ReteManifestSchema or LegacyManifestSchema))
-        {
-            throw new InvalidDataException($"Unsupported Rete manifest schema: {manifest.Schema}");
-        }
+        ValidateReteManifestSchema(manifest.Schema);
 
         var results = new List<RelocationComparisonResult>();
         var targetPackageRoots = FindTargetPackageRoots(packageDir, manifest).ToList();
@@ -1924,8 +1917,17 @@ internal static class OpenSpacePackageCodec
         ReferenceAddressResolver referenceResolver)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+        File.WriteAllBytes(outputPath, BuildSnaFileBytes(intermediateDir, manifest, referenceResolver));
+    }
 
-        using var writer = new BinaryWriter(File.Create(outputPath));
+    internal static byte[] BuildSnaFileBytes(
+        string packageDir,
+        SnaFileManifest manifest,
+        ReferenceAddressResolver referenceResolver)
+    {
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream);
+
         foreach (var block in manifest.Blocks.OrderBy(b => b.Order))
         {
             writer.Write(block.Module);
@@ -1940,7 +1942,7 @@ internal static class OpenSpacePackageCodec
             byte[] data = [];
             if (block.HasPayload)
             {
-                data = ReadSnaBlockData(intermediateDir, block, referenceResolver);
+                data = ReadSnaBlockData(packageDir, block, referenceResolver);
             }
 
             var size = block.HasPayload ? checked((uint)data.Length) : 0u;
@@ -1963,6 +1965,9 @@ internal static class OpenSpacePackageCodec
             writer.Write(checksum);
             writer.Write(data);
         }
+
+        writer.Flush();
+        return stream.ToArray();
     }
 
     private static byte[] ReadSnaBlockData(
@@ -2034,53 +2039,23 @@ internal static class OpenSpacePackageCodec
         string outputDir,
         IReadOnlyList<string> targetPackageRoots)
     {
-        var relocationContext = new RelocationGenerator.RelocationPackageContext();
-        relocationContext.EnsureLayout(packageDir);
-        foreach (var targetPackageRoot in targetPackageRoots)
-        {
-            relocationContext.EnsureLayout(targetPackageRoot);
-        }
+        var relocationContext = CreateRelocationPackageContext(packageDir, targetPackageRoots);
 
         foreach (var table in manifest.RelocationTables)
         {
-            var extension = Path.GetExtension(table.FileName);
-            RelocationTableDocument generated;
-            if (extension.Equals(".rtb", StringComparison.OrdinalIgnoreCase))
-            {
-                if (table.FileName.Equals("fixlvl.rtb", StringComparison.OrdinalIgnoreCase))
-                {
-                    var fixPackageDir = targetPackageRoots.FirstOrDefault()
-                        ?? throw new InvalidDataException("fixlvl.rtb requires a sibling Fix Rete package.");
-                    generated = RelocationGenerator.GenerateFixLevelRtb(
-                        fixPackageDir,
-                        packageDir,
-                        table.FileName,
-                        relocationContext);
-                }
-                else
-                {
-                    generated = RelocationGenerator.GenerateRtb(
-                        packageDir,
-                        table.FileName,
-                        targetPackageRoots,
-                        context: relocationContext);
-                }
-            }
-            else if (TryGetPointerFilePath(packageDir, manifest, table.FileName, out var pointerFilePath))
-            {
-                generated = RelocationGenerator.GeneratePointerFileTable(
+            if (!TryGenerateRelocationTableDocument(
                     packageDir,
-                    table.FileName,
-                    pointerFilePath,
+                    manifest,
+                    table,
                     targetPackageRoots,
-                    relocationContext);
-            }
-            else if (TryExportUnsupportedRelocationTable(packageDir, manifest, table, outputDir))
+                    relocationContext,
+                    out var generated))
             {
-                continue;
-            }
-            else
-            {
+                if (TryExportUnsupportedRelocationTable(packageDir, manifest, table, outputDir))
+                {
+                    continue;
+                }
+
                 throw new InvalidDataException(
                     $"Relocation generation is not implemented for table {table.FileName}.");
             }
@@ -2130,13 +2105,18 @@ internal static class OpenSpacePackageCodec
     private static void CompileRelocationTable(string intermediateDir, RelocationTableDocument document, string outputPath)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+        File.WriteAllBytes(outputPath, BuildRelocationTableBytes(document));
+    }
 
+    internal static byte[] BuildRelocationTableBytes(RelocationTableDocument document)
+    {
         if (document.Blocks.Count > byte.MaxValue)
         {
             throw new InvalidDataException($"Relocation table {document.FileName} has too many pointer blocks.");
         }
 
-        using var writer = new BinaryWriter(File.Create(outputPath));
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream);
         writer.Write((byte)document.Blocks.Count);
 
         foreach (var block in document.Blocks.OrderBy(b => b.Order))
@@ -2152,6 +2132,9 @@ internal static class OpenSpacePackageCodec
 
             WriteRelocationPointerBlock(writer, block);
         }
+
+        writer.Flush();
+        return stream.ToArray();
     }
 
     private static void WriteRelocationPointerBlock(BinaryWriter writer, RelocationPointerBlockManifest block)
@@ -2562,4 +2545,199 @@ internal static class OpenSpacePackageCodec
         return $"0x{value:X8}";
     }
 
+    internal static bool IsRetePackageDirectory(string path) =>
+        File.Exists(Path.Combine(path, ManifestFileName));
+
+    internal static RetePackageManifest ReadReteManifest(string packageDir)
+    {
+        var manifestPath = Path.Combine(packageDir, ManifestFileName);
+        if (!File.Exists(manifestPath))
+        {
+            throw new FileNotFoundException($"Rete manifest not found: {manifestPath}");
+        }
+
+        var manifest = ReadJson<RetePackageManifest>(manifestPath);
+        ValidateReteManifestSchema(manifest.Schema);
+        return manifest;
+    }
+
+    internal static void ValidateReteManifestSchema(string schema)
+    {
+        if (!string.Equals(schema, ReteManifestSchema, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException($"Unsupported Rete manifest schema: {schema}");
+        }
+    }
+
+    internal static ReteHydration HydrateFromRetePackage(string packageDir)
+    {
+        var manifest = ReadReteManifest(packageDir);
+        if (!manifest.PackageRole.Equals("level", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                $"Rete package at {packageDir} has packageRole '{manifest.PackageRole}'; expected 'level'.");
+        }
+
+        var primarySna = manifest.SnaFiles.FirstOrDefault(file =>
+            file.FileName.Equals($"{manifest.LevelName}.sna", StringComparison.OrdinalIgnoreCase))
+            ?? manifest.SnaFiles.FirstOrDefault()
+            ?? throw new InvalidDataException($"Rete package {packageDir} has no SNA files.");
+
+        var targetPackageRoots = FindTargetPackageRoots(packageDir, manifest).ToList();
+        GuardAgainstLegacyRelocationArtifacts(packageDir, targetPackageRoots);
+
+        var resolver = CreateExportResolver(packageDir);
+        var relocationContext = CreateRelocationPackageContext(packageDir, targetPackageRoots);
+
+        var sna = new SnaReader(BuildSnaFileBytes(packageDir, primarySna, resolver));
+        RelocationTableReader? rtb = null;
+        RelocationTableReader? rtp = null;
+        RelocationTableReader? rtt = null;
+
+        foreach (var table in manifest.RelocationTables)
+        {
+            if (!TryGenerateRelocationTableDocument(
+                    packageDir,
+                    manifest,
+                    table,
+                    targetPackageRoots,
+                    relocationContext,
+                    out var generated))
+            {
+                continue;
+            }
+
+            var bytes = BuildRelocationTableBytes(generated);
+            var reader = new RelocationTableReader(bytes);
+            AssignLevelRelocationReader(
+                table.FileName,
+                manifest.LevelName,
+                reader,
+                ref rtb,
+                ref rtp,
+                ref rtt);
+        }
+
+        return new ReteHydration(manifest, packageDir, sna, rtb, rtp, rtt);
+    }
+
+    private static RelocationGenerator.RelocationPackageContext CreateRelocationPackageContext(
+        string packageDir,
+        IReadOnlyList<string> targetPackageRoots)
+    {
+        var relocationContext = new RelocationGenerator.RelocationPackageContext();
+        relocationContext.EnsureLayout(packageDir);
+        foreach (var targetPackageRoot in targetPackageRoots)
+        {
+            relocationContext.EnsureLayout(targetPackageRoot);
+        }
+
+        return relocationContext;
+    }
+
+    private static bool TryGenerateRelocationTableDocument(
+        string packageDir,
+        RetePackageManifest manifest,
+        RelocationTableFileManifest table,
+        IReadOnlyList<string> targetPackageRoots,
+        RelocationGenerator.RelocationPackageContext relocationContext,
+        out RelocationTableDocument document)
+    {
+        var extension = Path.GetExtension(table.FileName);
+        if (extension.Equals(".rtb", StringComparison.OrdinalIgnoreCase))
+        {
+            if (table.FileName.Equals("fixlvl.rtb", StringComparison.OrdinalIgnoreCase))
+            {
+                var fixPackageDir = targetPackageRoots.FirstOrDefault()
+                    ?? throw new InvalidDataException("fixlvl.rtb requires a sibling Fix Rete package.");
+                document = RelocationGenerator.GenerateFixLevelRtb(
+                    fixPackageDir,
+                    packageDir,
+                    table.FileName,
+                    relocationContext);
+                return true;
+            }
+
+            document = RelocationGenerator.GenerateRtb(
+                packageDir,
+                table.FileName,
+                targetPackageRoots,
+                context: relocationContext);
+            return true;
+        }
+
+        if (TryGetPointerFilePath(packageDir, manifest, table.FileName, out var pointerFilePath))
+        {
+            document = RelocationGenerator.GeneratePointerFileTable(
+                packageDir,
+                table.FileName,
+                pointerFilePath,
+                targetPackageRoots,
+                relocationContext);
+            return true;
+        }
+
+        if (IsUnsupportedRelocationTable(table.FileName))
+        {
+            var looseFile = manifest.LooseFiles.FirstOrDefault(file =>
+                file.FileName.Equals(table.FileName, StringComparison.OrdinalIgnoreCase));
+            if (looseFile != null)
+            {
+                var sourcePath = ResolvePath(packageDir, looseFile.Path);
+                if (File.Exists(sourcePath))
+                {
+                    document = ReadRelocationTableFromDisc(sourcePath);
+                    return true;
+                }
+            }
+
+            document = null!;
+            return false;
+        }
+
+        throw new InvalidDataException(
+            $"Relocation generation is not implemented for table {table.FileName}.");
+    }
+
+    private static void AssignLevelRelocationReader(
+        string fileName,
+        string levelName,
+        RelocationTableReader reader,
+        ref RelocationTableReader? rtb,
+        ref RelocationTableReader? rtp,
+        ref RelocationTableReader? rtt)
+    {
+        if (fileName.Equals($"{levelName}.rtb", StringComparison.OrdinalIgnoreCase))
+        {
+            rtb = reader;
+            return;
+        }
+
+        if (fileName.Equals($"{levelName}.rtp", StringComparison.OrdinalIgnoreCase))
+        {
+            rtp = reader;
+            return;
+        }
+
+        if (fileName.Equals($"{levelName}.rtt", StringComparison.OrdinalIgnoreCase))
+        {
+            rtt = reader;
+        }
+    }
+
+    internal static string? FindLooseFilePath(RetePackageManifest manifest, string packageDir, string fileName)
+    {
+        var looseFile = manifest.LooseFiles.FirstOrDefault(file =>
+            file.FileName.Equals(fileName, StringComparison.OrdinalIgnoreCase));
+        return looseFile == null ? null : ResolvePath(packageDir, looseFile.Path);
+    }
+
 }
+
+internal sealed record ReteHydration(
+    RetePackageManifest Manifest,
+    string PackageDir,
+    SnaReader Sna,
+    RelocationTableReader? Rtb,
+    RelocationTableReader? Rtp,
+    RelocationTableReader? Rtt);

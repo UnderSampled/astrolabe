@@ -28,6 +28,8 @@ dotnet run --project src/Astrolabe.Cli -- byte-tree ./disc/Gamedata/World/Levels
 
 ## Architecture
 
+**Level** and **Fix** are the in-memory hubs (separate packages, linked by `fix:/` and `level:/` URIs). **Rete** is the on-disk encoding. See [`plan.md`](plan.md) for the full pipeline.
+
 ### Core Components
 
 - **Astrolabe.Cli** - Command-line interface with commands for extraction and export
@@ -50,10 +52,11 @@ disc files → import-openspace → Rete package (JSON + bin)
           → extract          → PNG/WAV assets
 ```
 
-CLI today: `extract-intermediate` / `compile-intermediate` (becoming `import-openspace` / `export-openspace`).
+CLI: `import-openspace` / `export-openspace` / `export-godot` (OpenSpace or Rete input).
 
 ### Key Classes
 
+- **Level** - In-memory level hub (`Level.Load`, import/export, Godot export); Fix is a separate hub/package
 - **LevelLoader** - Loads SNA blocks + relocation tables, provides virtual memory access
 - **MemoryContext** - Pointer resolution using RTB relocation data
 - **MeshScanner** - Finds GeometricObject structures in SNA blocks by pattern matching
@@ -84,7 +87,7 @@ OpenSpace uses virtual memory addresses resolved via relocation tables. The RTB 
 
 ### Fix Data
 
-Shared data (characters like Hype, common textures) lives in `Fix.sna`/`Fix.rtb` at `Gamedata/World/Levels/`. The `fixlvl.rtb` relocation table links level data to Fix data. On Rete import, Fix is extracted once to `output/fix/` alongside `output/{level}/`; level records reference Fix via relative URIs (`../fix/...`). OpenSpace export regenerates relocation tables (target); they are not stored in Rete packages.
+Shared data (characters like Hype, common textures) lives in `Fix.sna`/`Fix.rtb` at `Gamedata/World/Levels/`. The `fixlvl.rtb` relocation table links level data to Fix data. On Rete import, Fix is extracted once to `output/fix/` alongside `output/{level}/`; cross-package pointers use `fix:/` and `level:/` URIs. OpenSpace export regenerates relocation tables; they are not stored in Rete packages.
 
 ## Dependencies
 

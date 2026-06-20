@@ -69,21 +69,23 @@ astrolabe meshes ./disc/Gamedata/World/Levels/castle_village
 Import an OpenSpace level into a **Rete** package:
 
 ```bash
-astrolabe extract-intermediate ./disc/Gamedata/World/Levels/castle_village ./output/castle_village.rete
+astrolabe import-openspace ./disc/Gamedata/World/Levels/castle_village ./output/castle_village
 ```
 
 Export back to OpenSpace level files:
 
 ```bash
-astrolabe compile-intermediate ./output/castle_village.rete ./output/castle_village.rebuilt
+astrolabe export-openspace ./output/castle_village ./output/castle_village.rebuilt
 ```
 
-Rete is Astrolabe's canonical level representation — a JSON reference network over binary payloads, named for the rete plate on a historical astrolabe. OpenSpace level directories and Godot projects are export targets. The acceptance test for OpenSpace export is byte-identical `cmp` against the source on unedited packages. See [`docs/rete-format.md`](docs/rete-format.md) and [`plan.md`](plan.md).
+**Level** and **Fix** are the in-memory hubs; **Rete** is the on-disk encoding (separate level and fix packages), named for the rete plate on a historical astrolabe. OpenSpace level directories and Godot projects are export targets. The acceptance test for OpenSpace export is byte-identical `cmp` against the source on unedited packages. See [`docs/rete-format.md`](docs/rete-format.md) and [`plan.md`](plan.md).
 
 Generate a Godot project with native scene and mesh resources:
 
 ```bash
 astrolabe export-godot ./disc/Gamedata/World/Levels/castle_village ./output/castle_village
+# or from a Rete package:
+astrolabe export-godot ./output/castle_village ./output/castle_village-godot
 godot --editor --path ./output/castle_village
 ```
 
@@ -101,8 +103,8 @@ The Godot export writes:
 | `list <source>` | List files in a mounted or extracted directory. |
 | `extract <source> [output]` | Convert supported assets to PNG/WAV. |
 | `extract <source> [output] --raw` | Copy raw files from one directory source to another. |
-| `extract-intermediate <level-dir> [output-dir]` | Import OpenSpace level → Rete package (`import-openspace`). |
-| `compile-intermediate <rete-dir> [output-dir]` | Export Rete package → OpenSpace level (`export-openspace`). |
+| `import-openspace <level-dir> [rete-dir]` | Import OpenSpace level → Rete package. |
+| `export-openspace <rete-dir> [level-dir]` | Export Rete package → OpenSpace level. |
 | `textures <cnt-path> [output-dir]` | Extract textures from a CNT container. |
 | `cnt <cnt-path>` | Print CNT container metadata and sample entries. |
 | `audio <apm-path\|bnm-path\|directory> [output]` | Convert APM files or extract BNM sound banks to WAV. |
@@ -110,7 +112,7 @@ The Godot export writes:
 | `byte-tree <level-dir> [options]` | Display scene graph with byte coverage analysis. |
 | `scene <level-dir> [level-name]` | Print GPT and scene graph diagnostics. |
 | `meshes <level-dir> [level-name]` | Scan a level for mesh candidates and print statistics. |
-| `export-godot <level-dir> [output-dir]` | Export a Godot project with scene and `ArrayMesh` resources. |
+| `export-godot <openspace-dir \| rete-dir> [godot-dir]` | Export a Godot project with scene and `ArrayMesh` resources. |
 | `scripts <level-dir> [--limit N] [--raw] [-o output-dir]` | Inspect or save AI scripts from Perso data. |
 | `analyze <level-dir> [level-name]` | Print low-level SNA, RTB, and geometry diagnostics. |
 
