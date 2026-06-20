@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Astrolabe.Core.Serialization;
+using Astrolabe.Core.Serialization.Codecs;
 
 namespace Astrolabe.Core.Rete;
 
@@ -22,16 +23,59 @@ internal sealed class ReferenceAddressResolver
     internal static ReferenceAddressResolver CreateForExport(string packageRoot)
     {
         var resolver = new ReferenceAddressResolver(packageRoot);
-        var packageParent = Directory.GetParent(Path.GetFullPath(packageRoot))?.FullName;
+        var normalizedRoot = Path.GetFullPath(packageRoot);
+        var packageParent = Directory.GetParent(normalizedRoot)?.FullName;
         if (packageParent == null)
         {
             return resolver;
         }
 
-        var fixPackageDir = Path.Combine(packageParent, "fix");
-        if (File.Exists(Path.Combine(fixPackageDir, OpenSpacePackageCodec.ManifestFileName)))
+        var manifestPath = Path.Combine(normalizedRoot, OpenSpacePackageCodec.ManifestFileName);
+        if (!File.Exists(manifestPath))
         {
-            resolver.LoadPackage(fixPackageDir);
+            return resolver;
+        }
+
+        var manifest = JsonSerializer.Deserialize<RetePackageManifest>(
+            File.ReadAllText(manifestPath),
+            resolver._jsonOptions) ?? throw new InvalidDataException($"Could not read Rete manifest: {manifestPath}");
+
+        if (manifest.PackageRole.Equals("level", StringComparison.OrdinalIgnoreCase))
+        {
+            var fixPackageDir = Path.Combine(packageParent, "fix");
+            if (File.Exists(Path.Combine(fixPackageDir, OpenSpacePackageCodec.ManifestFileName)))
+            {
+                resolver.LoadPackage(fixPackageDir);
+            }
+
+            return resolver;
+        }
+
+        if (!manifest.PackageRole.Equals("fix", StringComparison.OrdinalIgnoreCase))
+        {
+            return resolver;
+        }
+
+        foreach (var siblingDir in Directory.EnumerateDirectories(packageParent))
+        {
+            if (siblingDir.Equals(normalizedRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var siblingManifestPath = Path.Combine(siblingDir, OpenSpacePackageCodec.ManifestFileName);
+            if (!File.Exists(siblingManifestPath))
+            {
+                continue;
+            }
+
+            var siblingManifest = JsonSerializer.Deserialize<RetePackageManifest>(
+                File.ReadAllText(siblingManifestPath),
+                resolver._jsonOptions);
+            if (siblingManifest?.PackageRole.Equals("level", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                resolver.LoadPackage(siblingDir);
+            }
         }
 
         return resolver;
@@ -82,6 +126,11 @@ internal sealed class ReferenceAddressResolver
 
         LoadPackage(packageRoot);
 
+        if (TryResolveLevelSlotAddress(packageRoot, uri, resolved.FilePath, out var slotAddress))
+        {
+            return slotAddress;
+        }
+
         if (!_indexes[packageRoot].TryGetAddress(resolved.FilePath, out var address))
         {
             throw new InvalidDataException($"Reference target is not part of package content: {uri}");
@@ -118,6 +167,46 @@ internal sealed class ReferenceAddressResolver
         }
 
         return null;
+    }
+
+    private bool TryResolveLevelSlotAddress(
+        string levelPackageRoot,
+        string uri,
+        string resolvedFilePath,
+        out int address)
+    {
+        address = 0;
+        if (!uri.StartsWith(ReferenceUri.LevelPrefix + "slots/", StringComparison.Ordinal) ||
+            !File.Exists(resolvedFilePath))
+        {
+            return false;
+        }
+
+        if (!StructCodecRegistry.TryGet(RawBlobCodec.Instance.Kind, out var codec) ||
+            !codec.UsesExternalBinaryPayload)
+        {
+            return false;
+        }
+
+        try
+        {
+            var record = (OpaqueBinaryRecord)codec.ReadFromJsonPath(levelPackageRoot, resolvedFilePath);
+            if (string.IsNullOrWhiteSpace(record.Path))
+            {
+                return false;
+            }
+
+            var innerResolved = ReferenceUri.Resolve(levelPackageRoot, record.Path);
+            return _indexes[levelPackageRoot].TryGetAddress(innerResolved.FilePath, out address);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+        catch (InvalidDataException)
+        {
+            return false;
+        }
     }
 
     private static bool TryReadByteOffsetFragment(string fragment, out int byteOffset)

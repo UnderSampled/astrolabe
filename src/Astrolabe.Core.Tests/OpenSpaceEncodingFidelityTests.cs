@@ -22,7 +22,7 @@ public sealed class OpenSpaceEncodingFidelityTests(AstrolabeDiscFixture fixture)
     [Fact]
     public void LayerA_SnaCompressedBlocks_RecompressMatchesOriginal()
     {
-        if (!OpenSpaceDiscTestHelper.TryGetAstrolabeLevelDir(out var levelDir))
+        if (!fixture.IsAvailable)
         {
             return;
         }
@@ -30,7 +30,7 @@ public sealed class OpenSpaceEncodingFidelityTests(AstrolabeDiscFixture fixture)
         var mismatches = new List<string>();
         var checkedCount = 0;
 
-        foreach (var sample in OpenSpaceDiscTestHelper.EnumerateCompressedSnaPayloads(levelDir, "astrolabe.sna"))
+        foreach (var sample in OpenSpaceDiscTestHelper.EnumerateCompressedSnaPayloads(fixture.LevelDir, "astrolabe.sna"))
         {
             checkedCount++;
             var recompressed = OpenSpaceLzo.Compress(sample.Plaintext);
@@ -50,14 +50,14 @@ public sealed class OpenSpaceEncodingFidelityTests(AstrolabeDiscFixture fixture)
     [MemberData(nameof(RelocationFileNames))]
     public void LayerA_RelocationCompressedBlocks_RecompressMatchesOriginal(string fileName)
     {
-        if (!OpenSpaceDiscTestHelper.TryGetAstrolabeLevelDir(out var levelDir))
+        if (!fixture.IsAvailable)
         {
             return;
         }
 
         var mismatches = new List<string>();
 
-        foreach (var sample in OpenSpaceDiscTestHelper.EnumerateCompressedRelocationPayloads(levelDir, fileName))
+        foreach (var sample in OpenSpaceDiscTestHelper.EnumerateCompressedRelocationPayloads(fixture.LevelDir, fileName))
         {
             var recompressed = OpenSpaceLzo.Compress(sample.Plaintext);
             if (!recompressed.AsSpan().SequenceEqual(sample.OriginalCompressed))

@@ -442,6 +442,509 @@ public sealed class RelocationGeneratorTests
     }
 
     [Fact]
+    public void AstrolabeRtp_GeneratedPointerData_MatchesDisc()
+    {
+        if (!OpenSpaceDiscTestHelper.TryGetAstrolabeLevelDir(out _))
+        {
+            return;
+        }
+
+        var packageDir = Path.Combine(
+            OpenSpaceDiscTestHelper.GetRepositoryRoot(),
+            "output",
+            "test-rete",
+            "astrolabe");
+        if (!Directory.Exists(packageDir))
+        {
+            return;
+        }
+
+        var results = OpenSpaceExporter.CompareGeneratedRelocations(packageDir);
+        var rtp = results.Single(result => result.FileName.Equals("astrolabe.rtp", StringComparison.OrdinalIgnoreCase));
+
+        Assert.Equal(86, rtp.MatchingPointerCount);
+        Assert.True(rtp.PointerDataMatches, DescribeRtpPointerDataMismatch(packageDir));
+    }
+
+    private static string DescribeRtpPointerDataMismatch(string packageDir)
+    {
+        var readDisc = typeof(OpenSpacePackageCodec).GetMethod(
+            "ReadRelocationTableFromDisc",
+            BindingFlags.Static | BindingFlags.NonPublic)!;
+        var generate = typeof(RelocationGenerator).GetMethod(
+            "GeneratePointerFileTable",
+            BindingFlags.Public | BindingFlags.Static)!;
+        var fixDir = Path.Combine(Path.GetDirectoryName(packageDir)!, "fix");
+        var pointerPath = Path.Combine(packageDir, "files", "astrolabe.gpt");
+        var preserved = (RelocationTableDocument)readDisc.Invoke(
+            null,
+            [Path.Combine(OpenSpaceDiscTestHelper.GetRepositoryRoot(), "disc", "Gamedata", "World", "Levels", "astrolabe", "astrolabe.rtp")])!;
+        var generated = (RelocationTableDocument)generate.Invoke(
+            null,
+            [packageDir, "astrolabe.rtp", pointerPath, new[] { fixDir }, null])!;
+        var preservedBlock = preserved.Blocks.Single();
+        var generatedBlock = generated.Blocks.Single();
+        if (preservedBlock.Module != generatedBlock.Module || preservedBlock.Id != generatedBlock.Id)
+        {
+            return
+                $"block mismatch preserved={preservedBlock.Key} generated={generatedBlock.Key}";
+        }
+
+        var preservedBytes = BuildOrderedRtpPointerBytes(preservedBlock);
+        var generatedBytes = BuildOrderedRtpPointerBytes(generatedBlock);
+        if (preservedBytes.AsSpan().SequenceEqual(generatedBytes))
+        {
+            return "ordered bytes match but PointerDataMatches was false";
+        }
+
+        var preservedOffsets = preservedBlock.Pointers.Select(p => p.OffsetInMemory).OrderBy(v => v).ToList();
+        var generatedOffsets = generatedBlock.Pointers.Select(p => p.OffsetInMemory).OrderBy(v => v).ToList();
+        var missingOffsets = preservedOffsets.Except(generatedOffsets).Take(5).Select(v => $"0x{v:X8}");
+        var extraOffsets = generatedOffsets.Except(preservedOffsets).Take(5).Select(v => $"0x{v:X8}");
+        if (missingOffsets.Any() || extraOffsets.Any())
+        {
+            return
+                $"offset set diff missing=[{string.Join(", ", missingOffsets)}] extra=[{string.Join(", ", extraOffsets)}]";
+        }
+
+        var length = Math.Min(preservedBytes.Length, generatedBytes.Length);
+        for (var index = 0; index < length; index++)
+        {
+            if (preservedBytes[index] == generatedBytes[index])
+            {
+                continue;
+            }
+
+            var entryIndex = index / 8;
+            var preservedPointer = preservedBlock.Pointers
+                .OrderBy(p => p.OffsetInMemory)
+                .ThenBy(p => p.TargetModule)
+                .ThenBy(p => p.TargetId)
+                .ElementAt(entryIndex);
+            var generatedPointer = generatedBlock.Pointers
+                .OrderBy(p => p.OffsetInMemory)
+                .ThenBy(p => p.TargetModule)
+                .ThenBy(p => p.TargetId)
+                .ElementAt(entryIndex);
+
+            return
+                $"entry {entryIndex} diff at byte 0x{index:X3}: " +
+                $"preserved=0x{preservedPointer.OffsetInMemory:X8}->{preservedPointer.TargetModule:X2}:{preservedPointer.TargetId:X2} " +
+                $"generated=0x{generatedPointer.OffsetInMemory:X8}->{generatedPointer.TargetModule:X2}:{generatedPointer.TargetId:X2}";
+        }
+
+        return $"length diff preserved={preservedBytes.Length} generated={generatedBytes.Length}";
+    }
+
+    private static byte[] BuildOrderedRtpPointerBytes(RelocationPointerBlockManifest block)
+    {
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream);
+        var entrySize = block.EntrySize >= 8 ? 8 : 6;
+        foreach (var pointer in block.Pointers
+                     .OrderBy(p => p.OffsetInMemory)
+                     .ThenBy(p => p.TargetModule)
+                     .ThenBy(p => p.TargetId)
+                     .ThenBy(p => p.Byte6)
+                     .ThenBy(p => p.Byte7))
+        {
+            writer.Write(pointer.OffsetInMemory);
+            writer.Write(pointer.TargetModule);
+            writer.Write(pointer.TargetId);
+            if (entrySize >= 8)
+            {
+                writer.Write(pointer.Byte6);
+                writer.Write(pointer.Byte7);
+            }
+        }
+
+        writer.Flush();
+        return stream.ToArray();
+    }
+
+    [Fact]
+    public void AstrolabeFixlvl_GeneratedPointerData_MatchesDisc()
+    {
+        if (!OpenSpaceDiscTestHelper.TryGetAstrolabeLevelDir(out _))
+        {
+            return;
+        }
+
+        var packageDir = Path.Combine(
+            OpenSpaceDiscTestHelper.GetRepositoryRoot(),
+            "output",
+            "test-rete",
+            "astrolabe");
+        if (!Directory.Exists(packageDir))
+        {
+            return;
+        }
+
+        var results = OpenSpaceExporter.CompareGeneratedRelocations(packageDir);
+        var fixlvl = results.Single(result => result.FileName.Equals("fixlvl.rtb", StringComparison.OrdinalIgnoreCase));
+
+        Assert.Equal(1117, fixlvl.MatchingPointerCount);
+        Assert.Equal(0, fixlvl.MissingPointerCount);
+        Assert.Equal(0, fixlvl.ExtraPointerCount);
+        Assert.True(fixlvl.PointerDataMatches, DescribeFixlvlPointerDataMismatch(packageDir));
+    }
+
+    private static string DescribeFixlvlPointerDataMismatch(string packageDir)
+    {
+        var readDisc = typeof(OpenSpacePackageCodec).GetMethod(
+            "ReadRelocationTableFromDisc",
+            BindingFlags.Static | BindingFlags.NonPublic)!;
+        var fixDir = Path.Combine(Path.GetDirectoryName(packageDir)!, "fix");
+        var preserved = (RelocationTableDocument)readDisc.Invoke(
+            null,
+            [Path.Combine(OpenSpaceDiscTestHelper.GetRepositoryRoot(), "disc", "Gamedata", "World", "Levels", "astrolabe", "fixlvl.rtb")])!;
+        var generated = OpenSpaceExporter.GenerateFixLevelRtb(fixDir, packageDir, "fixlvl.rtb");
+
+        if (preserved.Blocks.Count != generated.Blocks.Count)
+        {
+            var preservedKeys = preserved.Blocks.Select(b => $"{b.Key}({b.Pointers.Count})").OrderBy(v => v);
+            var generatedKeys = generated.Blocks.Select(b => $"{b.Key}({b.Pointers.Count})").OrderBy(v => v);
+            var missingBlocks = preservedKeys.Except(generatedKeys).Take(5);
+            var extraBlocks = generatedKeys.Except(preservedKeys).Take(5);
+            return
+                $"block count diff preserved={preserved.Blocks.Count} generated={generated.Blocks.Count} " +
+                $"missing=[{string.Join(", ", missingBlocks)}] extra=[{string.Join(", ", extraBlocks)}]";
+        }
+
+        foreach (var preservedBlock in preserved.Blocks.OrderBy(b => b.Module).ThenBy(b => b.Id))
+        {
+            var generatedBlock = generated.Blocks.SingleOrDefault(
+                b => b.Module == preservedBlock.Module && b.Id == preservedBlock.Id);
+            if (generatedBlock == null)
+            {
+                return $"missing block {preservedBlock.Key}";
+            }
+
+            if (preservedBlock.Pointers.Count != generatedBlock.Pointers.Count)
+            {
+                return
+                    $"block {preservedBlock.Key} pointer count diff preserved={preservedBlock.Pointers.Count} generated={generatedBlock.Pointers.Count}";
+            }
+
+            var preservedBytes = BuildOrderedRtpPointerBytes(preservedBlock);
+            var generatedBytes = BuildOrderedRtpPointerBytes(generatedBlock);
+            if (!preservedBytes.AsSpan().SequenceEqual(generatedBytes))
+            {
+                var preservedOrdered = preservedBlock.Pointers
+                    .OrderBy(p => p.OffsetInMemory)
+                    .ThenBy(p => p.TargetModule)
+                    .ThenBy(p => p.TargetId)
+                    .ThenBy(p => p.Byte6)
+                    .ThenBy(p => p.Byte7)
+                    .ToList();
+                var generatedOrdered = generatedBlock.Pointers
+                    .OrderBy(p => p.OffsetInMemory)
+                    .ThenBy(p => p.TargetModule)
+                    .ThenBy(p => p.TargetId)
+                    .ThenBy(p => p.Byte6)
+                    .ThenBy(p => p.Byte7)
+                    .ToList();
+                for (var index = 0; index < preservedOrdered.Count; index++)
+                {
+                    var preservedPointer = preservedOrdered[index];
+                    var generatedPointer = generatedOrdered[index];
+                    if (preservedPointer.OffsetInMemory == generatedPointer.OffsetInMemory &&
+                        preservedPointer.TargetModule == generatedPointer.TargetModule &&
+                        preservedPointer.TargetId == generatedPointer.TargetId &&
+                        preservedPointer.Byte6 == generatedPointer.Byte6 &&
+                        preservedPointer.Byte7 == generatedPointer.Byte7)
+                    {
+                        continue;
+                    }
+
+                    return
+                        $"block {preservedBlock.Key} entry {index}: " +
+                        $"preserved=0x{preservedPointer.OffsetInMemory:X8}->{preservedPointer.TargetModule:X2}:{preservedPointer.TargetId:X2} " +
+                        $"generated=0x{generatedPointer.OffsetInMemory:X8}->{generatedPointer.TargetModule:X2}:{generatedPointer.TargetId:X2}";
+                }
+
+                return $"block {preservedBlock.Key} ordered bytes differ with matching pointer tuples";
+            }
+        }
+
+        return "pointer tuples match but PointerDataMatches was false";
+    }
+
+    [Fact]
+    public void CompareGeneratedRelocations_FixPackage_ResolvesSharedLevelsSourceDirectory()
+    {
+        var workspaceDir = CreateTempDir();
+        try
+        {
+            var levelsDir = Path.Combine(workspaceDir, "disc", "Gamedata", "World", "Levels");
+            var packageDir = Path.Combine(workspaceDir, "output", "test-rete", "fix");
+            Directory.CreateDirectory(levelsDir);
+            Directory.CreateDirectory(packageDir);
+
+            CreateOpaquePackageFixture(
+                packageDir,
+                new Dictionary<string, string?> { ["0x0"] = "types/raw/target.json" },
+                packageRole: "fix",
+                levelName: "Fix",
+                module: 0x05,
+                id: 0x00,
+                baseInMemory: 0x0200_0000);
+            var manifestPath = Path.Combine(packageDir, "manifest.json");
+            var manifest = JsonSerializer.Deserialize<RetePackageManifest>(
+                File.ReadAllText(manifestPath),
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })!;
+            manifest.SourceDirectoryName = "Levels";
+            manifest.RelocationTables =
+            [
+                new RelocationTableFileManifest { FileName = "Fix.rtb" }
+            ];
+            WriteJson(manifestPath, manifest, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+            var generated = OpenSpaceExporter.GenerateRtb(packageDir, "Fix.rtb", []);
+            WriteSourceRtb(Path.Combine(levelsDir, "Fix.rtb"), generated);
+
+            var result = Assert.Single(OpenSpaceExporter.CompareGeneratedRelocations(packageDir));
+            Assert.True(result.Supported);
+            Assert.Equal(generated.Blocks.Sum(block => block.Pointers.Count), result.MatchingPointerCount);
+        }
+        finally
+        {
+            Directory.Delete(workspaceDir, true);
+        }
+    }
+
+    [Fact]
+    public void CompareGeneratedRelocations_FixPackage_RtvPassThroughMatchesLooseCopy()
+    {
+        var packageDir = CreateTempDir();
+        try
+        {
+            var looseData = new byte[] { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07 };
+            var loosePath = Path.Combine(packageDir, "files", "Fix.rtv");
+            Directory.CreateDirectory(Path.GetDirectoryName(loosePath)!);
+            File.WriteAllBytes(loosePath, looseData);
+            var jsonOptions = new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                PropertyNameCaseInsensitive = true
+            };
+            WriteJson(
+                Path.Combine(packageDir, "manifest.json"),
+                new RetePackageManifest
+                {
+                    PackageRole = "fix",
+                    LevelName = "Fix",
+                    SourceDirectoryName = "Levels",
+                    RelocationTables =
+                    [
+                        new RelocationTableFileManifest { FileName = "Fix.rtv" }
+                    ],
+                    LooseFiles =
+                    [
+                        new LooseFileManifest
+                        {
+                            FileName = "Fix.rtv",
+                            Path = "files/Fix.rtv",
+                            Size = looseData.Length,
+                            Sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(looseData))
+                                .ToLowerInvariant()
+                        }
+                    ]
+                },
+                jsonOptions);
+
+            var result = Assert.Single(OpenSpaceExporter.CompareGeneratedRelocations(packageDir));
+            Assert.True(result.Supported);
+            Assert.True(result.PointerDataMatches);
+            Assert.Contains("Pass-through", result.Note, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Directory.Delete(packageDir, true);
+        }
+    }
+
+    [Fact]
+    public void GenerateFixLevelRtb_NullUriInVmFixRange_EmitsSentinelInsteadOfFixTarget()
+    {
+        var workspaceDir = CreateTempDir();
+        try
+        {
+            var levelDir = Path.Combine(workspaceDir, "level");
+            var fixDir = Path.Combine(workspaceDir, "fix");
+            var fixSourceData = new byte[8];
+            BinaryPrimitives.WriteInt32LittleEndian(fixSourceData.AsSpan(0, 4), 0x0202_0604);
+            CreateOpaquePackageFixture(
+                levelDir,
+                [],
+                module: 0x06,
+                id: 0x01,
+                baseInMemory: 0x0900_0000);
+            CreateOpaquePackageFixture(
+                fixDir,
+                new Dictionary<string, string?> { ["0x0"] = null },
+                sourceData: fixSourceData,
+                packageRole: "fix",
+                levelName: "Fix",
+                module: 0x06,
+                id: 0x01,
+                baseInMemory: 0x0200_0000);
+
+            var table = OpenSpaceExporter.GenerateFixLevelRtb(fixDir, levelDir, "fixlvl.rtb");
+            var pointer = Assert.Single(table.Blocks.Single().Pointers);
+
+            Assert.Equal(0xFF, pointer.TargetModule);
+            Assert.Equal(0xFF, pointer.TargetId);
+        }
+        finally
+        {
+            Directory.Delete(workspaceDir, true);
+        }
+    }
+
+    [Fact]
+    public void GenerateFixLevelRtb_NullUriUnionFringeValue_DoesNotEmitRow()
+    {
+        var workspaceDir = CreateTempDir();
+        try
+        {
+            var levelDir = Path.Combine(workspaceDir, "level");
+            var fixDir = Path.Combine(workspaceDir, "fix");
+            var fixSourceData = new byte[8];
+            BinaryPrimitives.WriteInt32LittleEndian(fixSourceData.AsSpan(0, 4), 0x0607_0007);
+            CreateOpaquePackageFixture(
+                levelDir,
+                [],
+                module: 0x06,
+                id: 0x01,
+                baseInMemory: 0x0900_0000);
+            CreateOpaquePackageFixture(
+                fixDir,
+                new Dictionary<string, string?> { ["0x0"] = null },
+                sourceData: fixSourceData,
+                packageRole: "fix",
+                levelName: "Fix",
+                module: 0x06,
+                id: 0x01,
+                baseInMemory: 0x0200_0000);
+
+            var table = OpenSpaceExporter.GenerateFixLevelRtb(fixDir, levelDir, "fixlvl.rtb");
+            Assert.Empty(table.Blocks);
+        }
+        finally
+        {
+            Directory.Delete(workspaceDir, true);
+        }
+    }
+
+    [Fact]
+    public void GeneratePointerFileTable_DuplicateGptValues_EmitsSingleEntryPerValue()
+    {
+        var workspaceDir = CreateTempDir();
+        try
+        {
+            var packageDir = Path.Combine(workspaceDir, "level");
+            var gptPath = Path.Combine(packageDir, "files", "test.gpt");
+            Directory.CreateDirectory(Path.GetDirectoryName(gptPath)!);
+            var gptData = new byte[12];
+            BinaryPrimitives.WriteUInt32LittleEndian(gptData.AsSpan(0, 4), 0x0900_0004);
+            BinaryPrimitives.WriteUInt32LittleEndian(gptData.AsSpan(4, 4), 0x0900_0008);
+            BinaryPrimitives.WriteUInt32LittleEndian(gptData.AsSpan(8, 4), 0x0900_0004);
+            File.WriteAllBytes(gptPath, gptData);
+
+            CreateOpaquePackageFixture(
+                packageDir,
+                new Dictionary<string, string?> { ["0x0"] = "types/raw/target.json" },
+                module: 0x05,
+                id: 0x01,
+                baseInMemory: 0x0900_0000);
+            var manifestPath = Path.Combine(packageDir, "manifest.json");
+            var manifest = JsonSerializer.Deserialize<RetePackageManifest>(
+                File.ReadAllText(manifestPath),
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })!;
+            manifest.LooseFiles =
+            [
+                new LooseFileManifest
+                {
+                    FileName = "test.gpt",
+                    Path = "files/test.gpt",
+                    Size = gptData.Length,
+                    Sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(gptData))
+                        .ToLowerInvariant()
+                }
+            ];
+            manifest.RelocationTables =
+            [
+                new RelocationTableFileManifest { FileName = "test.rtp" }
+            ];
+            WriteJson(manifestPath, manifest, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+            var generate = typeof(RelocationGenerator).GetMethod(
+                "GeneratePointerFileTable",
+                BindingFlags.Public | BindingFlags.Static)!;
+            var table = (RelocationTableDocument)generate.Invoke(
+                null,
+                [packageDir, "test.rtp", gptPath, Array.Empty<string>(), null])!;
+
+            var pointers = Assert.Single(table.Blocks).Pointers;
+            Assert.Equal(2, pointers.Count);
+            Assert.Contains(pointers, pointer => pointer.OffsetInMemory == 0x0900_0004u);
+            Assert.Contains(pointers, pointer => pointer.OffsetInMemory == 0x0900_0008u);
+        }
+        finally
+        {
+            Directory.Delete(workspaceDir, true);
+        }
+    }
+
+    [Fact]
+    public void BuildSnaFileBytes_CompressesPayloadWhenSmallerThanPlaintext()
+    {
+        var packageDir = CreateTempDir();
+        try
+        {
+            var payload = new byte[4096];
+            for (var index = 0; index < payload.Length; index++)
+            {
+                payload[index] = (byte)(index % 17);
+            }
+
+            CreateOpaquePackageFixture(
+                packageDir,
+                new Dictionary<string, string?> { ["0x0"] = "types/raw/target.json" },
+                sourceData: payload,
+                module: 0x04,
+                id: 0x05);
+            var manifest = JsonSerializer.Deserialize<RetePackageManifest>(
+                File.ReadAllText(Path.Combine(packageDir, "manifest.json")),
+                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })!;
+            var snaFile = manifest.SnaFiles.Single();
+
+            var method = typeof(OpenSpacePackageCodec).GetMethod(
+                "BuildSnaFileBytes",
+                BindingFlags.Static | BindingFlags.NonPublic)!;
+            var resolver = typeof(OpenSpacePackageCodec).GetMethod(
+                "CreateExportResolver",
+                BindingFlags.Static | BindingFlags.NonPublic)!;
+            var bytes = (byte[])method.Invoke(
+                null,
+                [packageDir, snaFile, resolver!.Invoke(null, [packageDir])])!;
+
+            var reader = new SnaReader(bytes);
+            var exportedBlock = Assert.Single(reader.Blocks);
+            Assert.True(exportedBlock.IsCompressed);
+            Assert.True(exportedBlock.CompressedSize < exportedBlock.Size);
+            Assert.Equal((uint)(payload.Length + 4), exportedBlock.Size);
+            Assert.NotNull(exportedBlock.Data);
+            Assert.NotEmpty(exportedBlock.Data);
+        }
+        finally
+        {
+            Directory.Delete(packageDir, true);
+        }
+    }
+
+    [Fact]
     public void CompareGeneratedRelocations_MatchesSourceDiscRtb()
     {
         var workspaceDir = CreateTempDir();

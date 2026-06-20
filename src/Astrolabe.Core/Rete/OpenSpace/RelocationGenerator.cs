@@ -316,27 +316,33 @@ internal static class RelocationGenerator
         }
 
         var offsetInMemory = checked((uint)(sourceBlock.BaseInMemory + element.OffsetInBlock + offsetInElement));
-        if (!ShouldEmitFixLevelRow(fixLayout, levelLayout, value, levelUri, targetResolver))
+        if (!ShouldEmitFixLevelRow(
+                fixLayout,
+                levelLayout,
+                offsetInMemory,
+                value,
+                levelUri,
+                targetResolver))
         {
             return;
         }
 
+        byte targetModule;
+        byte targetId;
         var target = ResolveFixLevelTargetBlock(
             levelUri,
             value,
             levelLayout,
             targetResolver);
-        byte targetModule;
-        byte targetId;
-        if (target == null)
-        {
-            targetModule = UnmappedTargetModule;
-            targetId = UnmappedTargetId;
-        }
-        else
+        if (target != null && IsLevelOwnedTarget(target, levelLayout, value, levelUri))
         {
             targetModule = target.Module;
             targetId = target.Id;
+        }
+        else
+        {
+            targetModule = UnmappedTargetModule;
+            targetId = UnmappedTargetId;
         }
 
         var key = (sourceBlock.Module, sourceBlock.Id);
@@ -372,16 +378,24 @@ internal static class RelocationGenerator
         {
             var target = targetResolver.FindOpaqueTargetBlock(levelUri, value)
                 ?? targetResolver.FindTargetBlock(value, PointerTarget.Any);
-            return target != null && IsLevelOwnedBlock(target, levelLayout) ? target : null;
+            return target != null && IsLevelOwnedBlockKey(target, levelLayout) ? target : null;
+        }
+
+        if (IsInFixVmBand(value))
+        {
+            return null;
         }
 
         var valueTarget = targetResolver.FindTargetBlock(value, PointerTarget.Any);
-        return valueTarget != null && IsLevelOwnedBlock(valueTarget, levelLayout) ? valueTarget : null;
+        return valueTarget != null && IsLevelOwnedBlockForValue(valueTarget, levelLayout, value)
+            ? valueTarget
+            : null;
     }
 
     private static bool ShouldEmitFixLevelRow(
         PackageLayout fixLayout,
         PackageLayout levelLayout,
+        uint offsetInMemory,
         int value,
         string? levelUri,
         TargetBlockResolver targetResolver)
@@ -397,12 +411,17 @@ internal static class RelocationGenerator
             return true;
         }
 
-        if (ResolveFixLevelTargetBlock(levelUri, value, levelLayout, targetResolver) != null)
+        if (string.IsNullOrWhiteSpace(levelUri))
         {
+            if (IsFixLevelUnionFringeValue(value))
+            {
+                return false;
+            }
+
             return true;
         }
 
-        if (string.IsNullOrWhiteSpace(levelUri))
+        if (ResolveFixLevelTargetBlock(levelUri, value, levelLayout, targetResolver) != null)
         {
             return true;
         }
@@ -415,9 +434,38 @@ internal static class RelocationGenerator
         return false;
     }
 
-    private static bool IsLevelOwnedBlock(BlockLayout block, PackageLayout levelLayout) =>
+    private static bool IsLevelOwnedBlockKey(BlockLayout block, PackageLayout levelLayout) =>
         levelLayout.Blocks.Any(candidate =>
             candidate.Module == block.Module && candidate.Id == block.Id);
+
+    private static bool IsLevelOwnedBlockForValue(BlockLayout block, PackageLayout levelLayout, int value) =>
+        IsLevelOwnedBlockKey(block, levelLayout) &&
+        levelLayout.ContainsAddress(value);
+
+    private static bool IsLevelOwnedTarget(
+        BlockLayout block,
+        PackageLayout levelLayout,
+        int value,
+        string? levelUri) =>
+        !string.IsNullOrWhiteSpace(levelUri) &&
+        levelUri.StartsWith(ReferenceUri.LevelPrefix, StringComparison.Ordinal)
+            ? IsLevelOwnedBlockKey(block, levelLayout)
+            : IsLevelOwnedBlockForValue(block, levelLayout, value);
+
+    private static bool IsInFixVmBand(int value) =>
+        value >= 0x0200_0000 && value < 0x0300_0000;
+
+    private static bool IsFixLevelEscapingSentinel(int value) =>
+        value >= 0x0800_0000 && value < 0x2000_0000;
+
+    private static bool IsFixLevelUnionFringeValue(int value)
+    {
+        unchecked
+        {
+            var unsigned = (uint)value;
+            return unsigned >> 24 == 6u && (unsigned & 0xFFFFu) == 7u;
+        }
+    }
 
     public static RelocationComparisonResult Compare(RelocationTableDocument preserved, RelocationTableDocument generated)
     {
@@ -1009,12 +1057,12 @@ internal static class RelocationGenerator
     {
         var data = File.ReadAllBytes(pointerFilePath);
         var pointers = new List<RelocationPointerManifest>();
-        var seenEntries = new HashSet<(int FileOffset, uint Value)>();
+        var seenValues = new HashSet<uint>();
 
         for (var offset = 0; offset <= data.Length - sizeof(uint); offset += sizeof(uint))
         {
             var value = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(offset, sizeof(uint)));
-            if (!seenEntries.Add((offset, value)) ||
+            if (!seenValues.Add(value) ||
                 !ShouldEmitRelocation(pointerField: null, unchecked((int)value)))
             {
                 continue;

@@ -160,6 +160,10 @@ internal static class OpenSpaceDiscTestHelper
         File.Exists(Path.Combine(candidate, "astrolabe.sna")) &&
         File.Exists(Path.Combine(candidate, "astrolabe.rtb"));
 
+    internal static string GetRepositoryRoot() =>
+        FindRepositoryRoot()
+        ?? throw new InvalidOperationException("Repository root not found from test base directory.");
+
     private static string? FindRepositoryRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);

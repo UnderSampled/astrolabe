@@ -716,24 +716,35 @@ internal static class OpenSpacePackageCodec
         var current = packageFullPath;
         for (var depth = 0; depth < maxDepth && current != null; depth++)
         {
-            var candidate = Path.Combine(
-                current,
-                "disc",
-                "Gamedata",
-                "World",
-                "Levels",
-                manifest.SourceDirectoryName);
-            attemptedPaths.Add(candidate);
-            if (Directory.Exists(candidate) &&
-                !Path.GetFullPath(candidate).Equals(packageFullPath, StringComparison.OrdinalIgnoreCase))
+            foreach (var candidate in EnumerateSourceDirectoryCandidates(current, manifest))
             {
-                return (candidate, attemptedPaths);
+                attemptedPaths.Add(candidate);
+                if (Directory.Exists(candidate) &&
+                    !Path.GetFullPath(candidate).Equals(packageFullPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return (candidate, attemptedPaths);
+                }
             }
 
             current = Directory.GetParent(current)?.FullName;
         }
 
         return (null, attemptedPaths);
+    }
+
+    private static IEnumerable<string> EnumerateSourceDirectoryCandidates(
+        string walkRoot,
+        RetePackageManifest manifest)
+    {
+        var levelsRoot = Path.Combine(walkRoot, "disc", "Gamedata", "World", "Levels");
+        if (manifest.PackageRole.Equals("fix", StringComparison.OrdinalIgnoreCase) &&
+            manifest.SourceDirectoryName.Equals("Levels", StringComparison.OrdinalIgnoreCase))
+        {
+            yield return levelsRoot;
+            yield break;
+        }
+
+        yield return Path.Combine(levelsRoot, manifest.SourceDirectoryName);
     }
 
     private static int ResolveSourceWalkDepth()
@@ -1078,26 +1089,66 @@ internal static class OpenSpacePackageCodec
 
     private static IEnumerable<string> FindTargetPackageRoots(string packageDir, RetePackageManifest manifest)
     {
-        if (!manifest.PackageRole.Equals("level", StringComparison.OrdinalIgnoreCase))
-        {
-            yield break;
-        }
-
         var packageParent = Directory.GetParent(Path.GetFullPath(packageDir))?.FullName;
         if (packageParent == null)
         {
             yield break;
         }
 
-        var fixPackageDir = Path.Combine(packageParent, "fix");
-        if (File.Exists(Path.Combine(fixPackageDir, ManifestFileName)))
+        if (manifest.PackageRole.Equals("level", StringComparison.OrdinalIgnoreCase))
         {
-            yield return fixPackageDir;
+            var fixPackageDir = Path.Combine(packageParent, "fix");
+            if (File.Exists(Path.Combine(fixPackageDir, ManifestFileName)))
+            {
+                yield return fixPackageDir;
+            }
+
+            yield break;
+        }
+
+        if (!manifest.PackageRole.Equals("fix", StringComparison.OrdinalIgnoreCase))
+        {
+            yield break;
+        }
+
+        foreach (var siblingDir in Directory.EnumerateDirectories(packageParent))
+        {
+            if (siblingDir.Equals(packageDir, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var siblingManifestPath = Path.Combine(siblingDir, ManifestFileName);
+            if (!File.Exists(siblingManifestPath))
+            {
+                continue;
+            }
+
+            var siblingManifest = ReadJson<RetePackageManifest>(siblingManifestPath);
+            if (siblingManifest.PackageRole.Equals("level", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return siblingDir;
+            }
         }
     }
 
-    internal static ReferenceAddressResolver CreateExportResolver(string packageDir) =>
-        ReferenceAddressResolver.CreateForExport(packageDir);
+    internal static ReferenceAddressResolver CreateExportResolver(string packageDir)
+    {
+        var resolver = ReferenceAddressResolver.CreateForExport(packageDir);
+        var manifestPath = Path.Combine(packageDir, ManifestFileName);
+        if (!File.Exists(manifestPath))
+        {
+            return resolver;
+        }
+
+        var manifest = ReadJson<RetePackageManifest>(manifestPath);
+        foreach (var targetPackageRoot in FindTargetPackageRoots(packageDir, manifest))
+        {
+            resolver.LoadPackage(targetPackageRoot);
+        }
+
+        return resolver;
+    }
 
     private static RelocationComparisonResult ComparePassThroughRelocationTable(
         string packageDir,
@@ -1958,12 +2009,25 @@ internal static class OpenSpacePackageCodec
             }
 
             var checksum = OpenSpaceChecksum.Calculate(data);
-            writer.Write(0u);
-            writer.Write(size);
-            writer.Write(checksum);
-            writer.Write(size);
-            writer.Write(checksum);
-            writer.Write(data);
+            if (OpenSpaceLzo.TryCompress(data, out var compressed) &&
+                compressed.Length < data.Length)
+            {
+                writer.Write(1u);
+                writer.Write((uint)compressed.Length);
+                writer.Write(OpenSpaceChecksum.Calculate(compressed));
+                writer.Write(size);
+                writer.Write(checksum);
+                writer.Write(compressed);
+            }
+            else
+            {
+                writer.Write(0u);
+                writer.Write(size);
+                writer.Write(checksum);
+                writer.Write(size);
+                writer.Write(checksum);
+                writer.Write(data);
+            }
         }
 
         writer.Flush();

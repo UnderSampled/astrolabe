@@ -115,7 +115,18 @@ internal static class ReferenceJson
                 continue;
             }
 
-            var address = resolver.ResolveAddress(packageRoot, uri);
+            int address;
+            try
+            {
+                address = resolver.ResolveAddress(packageRoot, uri);
+            }
+            catch (InvalidDataException) when (uri.StartsWith(
+                ReferenceUri.LevelPrefix + "slots/",
+                StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(offset, sizeof(int)), address);
         }
 
