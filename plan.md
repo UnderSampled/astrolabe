@@ -1,33 +1,57 @@
 # Astrolabe Plan
 
-Astrolabe reads *Hype: The Time Quest* OpenSpace data into **Rete** — a canonical, editable level representation — and exports to OpenSpace level directories or Godot projects. The C# core stays independent of Unity; raymap and other reference code are research sources only.
+Astrolabe reads *Hype: The Time Quest* OpenSpace data into **Level** — the in-memory canonical model — and persists or exports it as **Rete** packages, OpenSpace level directories, or Godot projects. Rete is the on-disk encoding; `Level` is the hub everything loads into and exports from. The C# core stays independent of Unity; raymap and other reference code are research sources only.
 
 Users provide their own legally obtained game copy. Local testing uses `disc/`, especially `disc/Gamedata/World/Levels/astrolabe`.
 
 ## Architecture
 
+**Level** is the in-memory hub: canonical types from `FileFormats/` (`SceneGraph`, geometry, materials, …). **Rete** is how `Level` is stored on disk (JSON structs, buffer descriptors, binary payloads, manifest). No exporter reads Rete JSON or OpenSpace bytes directly for its own logic — everything goes through `Level`.
+
 ```text
-     fix/ ◄── relative URIs ── astrolabe/
-                               │
-              import    export │  export
-                 ┌─────────────┼──────────────┐
-                 ▼             ▼              ▼
-        OpenSpace level dir  OpenSpace Fix  Godot project
+                    fix/ (Rete package, packageRole: fix)
+                         ▲ fix:/  level:/
+                         │
+   OpenSpace level dir ──┼──► Level ◄──┬── Rete package (astrolabe/)
+                         │              │
+                         └── export ────┼──► OpenSpace level dir
+                                        ├──► Rete package
+                                        └──► Godot project
 ```
 
-**Rete** is the center. OpenSpace and Godot are parallel export targets consuming the same canonical types.
+```text
+(OpenSpace | Rete) ──► Level.Load(...) ──► export to (OpenSpace | Rete | Godot)
+```
 
-OpenSpace loads level and **Fix** into one virtual memory map. Fix is a **separate Rete package**. On import, the converter extracts the level and required Fix files together into one output parent (for example `output/astrolabe/` and `output/fix/`); emitted URIs such as `../fix/...` reflect that conversion-time layout, not a format constant. Level export writes level files only; Fix export is independent.
+`import-openspace` is OpenSpace → `Level` → Rete. `export-openspace` is Rete → `Level` → OpenSpace. `export-godot` is (OpenSpace | Rete) → `Level` → Godot. Same hub, three serializers.
+
+OpenSpace export additionally uses a **VM layout** view (`MemoryContext`) for virtual addresses, relocation generation, and LZO encoding. That is an OpenSpace-specific slice used while serializing `Level` to disc bytes — not a parallel pipeline and not the hub itself.
+
+Fix is a **separate Rete package** (`packageRole: fix`). On import, the converter extracts the level and required Fix files together into one output parent (for example `output/astrolabe/` and `output/fix/`). Cross-package pointers use **`fix:/`** and **`level:/`** package-role URIs only (see [`docs/cross-package-uris.md`](docs/cross-package-uris.md)). Level export writes level files only; Fix export is independent.
 
 | Layer | Location | Responsibility |
 |-------|----------|----------------|
-| Canonical types | `FileFormats/` (enriched) | Lossless domain structs (`VisualMaterial`, …) |
+| **Level** | `FileFormats/` + loaders | In-memory canonical model (`SceneGraph`, materials, geometry, …) |
 | Struct codecs | `Serialization/` | Binary ↔ type ↔ JSON; pointer field metadata |
-| Rete package | `Rete/` | Import/export orchestration, manifest, layout |
-| OpenSpace exporter | `Rete/OpenSpace/` | SNA layout, pointer resolution, relocation generation, encoding |
-| Godot exporter | `FileFormats/Godot/` | TSCN, ArrayMesh, materials from canonical types |
+| Rete package | `Rete/` | Serialize/deserialize `Level`; manifest; layout orchestration |
+| OpenSpace exporter | `Rete/OpenSpace/` | `Level` → SNA layout, pointer resolution, relocation generation, encoding |
+| Godot exporter | `FileFormats/Godot/` | `Level` → TSCN, ArrayMesh, materials |
 
 Read [`docs/rete-format.md`](docs/rete-format.md) for the format specification. Implementation entrypoint: [`notes/rete-implementation.md`](notes/rete-implementation.md).
+
+## Engineering rules
+
+**One path, no cruft, no backward compatibility.** Each concern gets exactly one implementation. When a step replaces an approach, **delete the old code** in the same step — do not leave fallbacks, feature flags, CLI aliases, “just in case” bridges, parallel pipelines, or readers for superseded formats. **Compatibility with old CLI names, manifest schemas, URI shapes, or package layouts is an anti-requirement** — remove it, do not preserve it.
+
+| Do | Don't |
+|----|--------|
+| `Level.Load` → export | Separate Godot/OpenSpace/Rete readers that bypass `Level` |
+| One CLI name per command (`import-openspace`, …) | Aliases (`extract-intermediate`, `compile-intermediate`, …) |
+| `fix:/` and `level:/` URIs only | Legacy `../fix/…` paths, numeric pointer fallbacks, old manifest schemas |
+| Remove relocation bridge once generation exists (Step 5 ✓) | Keep “preserved RT*” or encoding-cache shortcuts alongside generators |
+| Delete superseded types (`Intermediate*`, overlay models) when migrated | Keep dead types “for reference” in production code |
+
+Step 6 is a **consolidation step**: wiring `Level`, **and** deleting transition shims (old commands, dual loaders, legacy import paths). Step 8 **retires** the C# core after Rust passes the Step 7 gate — not an indefinite dual codebase.
 
 ## Canonical types and struct codecs
 
@@ -38,7 +62,7 @@ Every promoted OpenSpace struct has exactly one canonical type and one struct co
 - JSON serialization under a versioned schema
 - Declared pointer fields for relocation generation
 
-FileFormats readers become thin wrappers: memory or bytes → codec → canonical type, with an optional resolver pass for derived data (texture names from PTX, and so on).
+FileFormats readers become thin wrappers: bytes or `Level` slices → codec → canonical type, with an optional resolver pass for derived data (texture names from PTX, and so on).
 
 Eliminate parallel `Intermediate*` DTOs. The canonical type is the JSON serialization type.
 
@@ -46,57 +70,52 @@ Eliminate parallel `Intermediate*` DTOs. The canonical type is the JSON serializ
 
 A Rete package is a directory of JSON structs, buffer descriptors, binary payloads, scene files, and a manifest (`astrolabe.rete.v1`). See [`docs/rete-format.md`](docs/rete-format.md).
 
-Editorial cross-links use **reference URIs** (one line: relative path from the referring package, optional `#` JSON Pointer fragment). No parallel id layer. Virtual addresses are computed at OpenSpace export.
+Editorial cross-links use **reference URIs** (one line: package-relative path, `fix:/…`, or `level:/…`; optional `#` JSON Pointer fragment). No parallel id layer. Virtual addresses are computed at OpenSpace export.
 
 Dense arrays use **descriptor JSON + `.bin` buffer`**, not inline float arrays in JSON.
 
 ### Fix package
 
 - Level import extracts level + Fix into the same output parent in one pass; `fix/` is written once and reused on subsequent level imports into that output.
-- Level import merges Fix VM for resolution; emits relative URIs to Fix targets (typically `../fix/...` given default output layout).
-- Exporters resolve reference URIs by relative path from the referring package root.
+- New imports emit `fix:/…` for level→Fix pointers and `level:/…` for Fix→level pointers.
+- Exporters resolve reference URIs from the referring package root (and sibling `fix/` for `fix:/`).
 - `fixlvl.rtb` is generated during level export, not stored in either package.
 
 ## OpenSpace exporter
 
-OpenSpace export is a pipeline, not a byte copy:
+OpenSpace export serializes **`Level`** to disc bytes. It is a pipeline, not a byte copy:
 
-1. **Layout** — serialize elements in `content.json` order; assign virtual bases.
-2. **Pointer resolution** — resolve path references; write `int32` values into struct pointer fields.
-3. **Relocation generation** — walk pointer metadata; emit `.rtb`, `.rtp`, `.rtt`, and related files.
-4. **Encoding** — OpenSpace checksums; LZO compression; reuse original encoded blobs when decompressed content is unchanged.
+1. **Hydrate** — Rete package → `Level` (Step 6 adds the shared loader and **removes** today’s direct Rete-layout export walk).
+2. **Layout** — serialize canonical elements in `content.json` order; assign virtual bases.
+3. **Pointer resolution** — resolve reference URIs; write `int32` values into struct pointer fields.
+4. **Relocation generation** — walk pointer metadata; emit `.rtb`, `.rtp`, `.rtt`, and related files.
+5. **Encoding** — OpenSpace checksums; LZO compression from canonical decompressed blocks.
 
 Relocation tables are generated, not stored in Rete.
 
 ### Byte-identical validation
 
-The OpenSpace exporter is correct when an unedited level Rete package exports to a level directory that `cmp`s equal to the original import source, file by file. Fix Rete is validated separately. Cross-package pointer resolution must reproduce `fixlvl.rtb` and level pointer values byte-identically. No engine runtime.
-
-Phasing for relocation generation:
-
-1. Export with preserved relocations (bridge).
-2. Export with generated relocations; `cmp` against original RT files.
-3. Drop relocation storage from Rete once generation passes on test levels.
+The OpenSpace exporter is correct when an unedited level Rete package exports to a level directory that `cmp`s equal to the original import source, file by file. Fix Rete is validated separately. Cross-package pointer resolution must reproduce `fixlvl.rtb` and level pointer values byte-identically. No engine runtime. This gate is **Step 7** (after CLI and Godot land in Step 6).
 
 ## Godot exporter
 
-Godot export reads canonical types from a Rete package or memory. `GodotMaterialFormatter` takes `VisualMaterial`; mesh and scene exporters take geometry and scene canonical types. Godot export has its own quality bar and does not require byte-identical output.
+Godot export reads **`Level`**, not Rete JSON and not a dedicated OpenSpace scan path. `Level.Load` accepts an OpenSpace level directory or a Rete package (plus sibling `fix/`). `GodotExporter` and `GodotMeshExporter` format TSCN and ArrayMesh from canonical scene and geometry types. Godot export has its own quality bar and does not require byte-identical output.
 
 ## CLI surface (target)
 
 ```bash
 astrolabe import-openspace <level-dir> [rete-dir]
 astrolabe export-openspace <rete-dir> [level-dir]
-astrolabe export-godot <rete-dir> [godot-dir]
+astrolabe export-godot <openspace-dir | rete-dir> [godot-dir]
 ```
 
-Current commands `extract-intermediate` and `compile-intermediate` map to import/export-openspace during transition.
+Remove `extract-intermediate`, `compile-intermediate`, and any other transition command names in Step 6 — no aliases.
 
 ## Implementation steps
 
-The refactor proceeds as **sequential steps** on one branch — not as separate pull requests. Finish each step, pass the byte-identical verification gate (see [`notes/rete-implementation.md`](notes/rete-implementation.md)), then move on. Code map and API contracts live in that guide.
+The refactor proceeds as **sequential steps** on one branch — not as separate pull requests. Code map and API contracts live in [`notes/rete-implementation.md`](notes/rete-implementation.md). The **byte-identical `cmp` gate** is Step 7 only — do not block Steps 6–8 on it unless noted.
 
-**Progress:** Steps 1–4 are complete. Step 5 is still in progress, but `fixlvl.rtb` on `astrolabe` now has exact pointer parity: **1,117 / 1,117** matching with **0 missing**, **0 extra**, and `pointer data: match`. Fresh level imports also emit `semantic/fix-level-sites.json`, which records imported `fixlvl` source blocks plus per-site metadata (mapped `level:/...` URIs where resolvable, preserved sentinel rows otherwise) so `GenerateFixLevelRtb` no longer has to broad-scan Fix relocations. Remaining Step 5 gaps are in the main RT generators: `astrolabe.rtb` matches **68,932 / 69,922** preserved pointers with **0 extra** (~98.6% coverage), `astrolabe.rtp` has matching counts but `pointer data: diff`, `Fix.rtb` matches **492,180 / 493,305** with **1,125 missing** and **57 extra**, `Fix.rtp` has **1 extra**, `Fix.rtt` / `astrolabe.rtt` are exact, and `Fix.rtv` remains unsupported. Thirty-five struct codecs are registered (geometry arrays, pointer arrays, animation, perso, AI, sector/collision). URI-backed pointer fields resolve through `ReferenceJson.WriteElementBytesForExport`; byte-identical `cmp` on `astrolabe` passes. Preserved relocation files remain in Rete packages as the export bridge until generated RT files reach `cmp` parity. Steps 6–7 not started.
+**Progress:** Steps **1–5 complete**. Step **6** is next (`Level`, Godot, CLI rename). Step 5 delivered: `RelocationGenerator` (RTB/RTP/RTT/fixlvl), export generates RT* from struct codecs and opaque LUTs with no relocation bridge in Rete, **67** struct codecs, **LZO done** (`OpenSpaceLzo` + `lzo1x` at `-O0`). Remaining export parity (RTB ~145 missing pointers, RTP/fixlvl plaintext, encoding gotchas) is **Step 7**. Steps 7–8 not started.
 
 ### Step 1 — Serialization scaffold (no behavior change)
 
@@ -118,32 +137,78 @@ Track per-type progress in [`notes/intermediate-type-checklist.md`](notes/interm
 ### Step 3 — Split orchestrator + Rete rename
 
 - `Intermediate/` → `Rete/`; models → `RetePackageModels.cs`.
-- Accept manifest schemas `astrolabe.level-intermediate.v1` and `astrolabe.rete.v1`.
-- Emit `astrolabe.rete.v1` on new imports; add `packageRole`.
+- Emit `astrolabe.rete.v1` on new imports; add `packageRole`. (`astrolabe.level-intermediate.v1` was transitional — **removed in Step 6**, not kept for read compatibility.)
 
 ### Step 4 — Fix import layout + reference URIs
 
 - Import writes `output/fix/` + `output/{level}/` together in one pass.
-- Pointer JSON fields become URI strings; `../fix/...` for Fix targets.
-- OpenSpace export resolves all reference URIs by relative path → addresses.
+- Pointer JSON fields become reference URIs; new imports emit `fix:/…` and `level:/…`.
+- OpenSpace export resolves all reference URIs by package root → virtual addresses.
 - `ReferenceUri` resolver in export/import.
 
-### Step 5 — Relocation generator
+### Step 5 — Relocation generator ✓
 
-- Implement `RelocationGenerator` for RTB from struct pointer metadata and layout.
-- Add RTP/RTT generators for GPT and PTX.
-- Validate: generated RT files `cmp` equal to originals on unedited imports.
-- Remove relocation JSON and encoded RT leaves from Rete packages.
+**Complete.** Build the generator and export encode path; parity tuning is Step 7.
 
-### Step 6 — CLI + Godot
+- [x] `RelocationGenerator` for RTB from struct pointer metadata and layout.
+- [x] RTP/RTT generators for GPT and PTX; URI-driven `fixlvl.rtb` from Fix opaque LUT.
+- [x] Export generates RT* and re-encodes SNA/RT* via `OpenSpaceLzo` from Rete only (no disc or encoding-cache reuse).
+- [x] Rete packages store no relocation inventory (no `*.reloc.json`, `*-sites.json`, or encoding cache).
+- [x] LZO compression via vendored `lzo1x` (`-O0`); Layer A recompression matches disc on `astrolabe` `.rtp`, `.rtt`, and `fixlvl.rtb`.
 
-- Rename CLI to `import-openspace` / `export-openspace` (keep old names as aliases).
-- `export-godot` accepts Rete package input; resolves URIs including `../fix/`.
-- Godot formatters consume canonical types only.
+**Not Step 5:** byte-identical full-level `cmp`, closing the last RTB pointer gaps, or encoding gotchas — those are Step 7 and can proceed in parallel with Step 6.
 
-### Step 7 — Coverage expansion
+### Step 6 — CLI, Level, and Godot ← current
 
-Promote remaining documented leaves per checklist: `visualset`, element types, Perso/family, animation, AI/DSG, sectors/collision. Each promotion adds codec + pointer metadata; relocation generator coverage grows with it. This step continues alongside earlier steps as types are ready — it does not block Steps 1–6.
+**6a — CLI surface**
+
+- CLI commands are `import-openspace`, `export-openspace`, `export-godot` only.
+- **Delete** `extract-intermediate`, `compile-intermediate`, and all other transition names — no aliases, no compatibility shims.
+- **Delete** acceptance of `astrolabe.level-intermediate.v1`, `../fix/…` URIs, and any other legacy package/URI/command paths added during the refactor.
+
+**6b — Level + Godot**
+
+Introduce `Level` and **delete** the overlapping paths it supersedes. Today import/export/Godot use separate loaders (`LevelLoader` + `MeshScanner` in Godot, direct Rete layout in export, etc.); Step 6 replaces them — not augments them.
+
+- Add `Level.Load(openspaceDir | retePackageDir)` — hydrate canonical types; resolve `fix:/` against sibling `fix/`.
+- Route `import-openspace`, `export-openspace`, and `export-godot` through `Level` only.
+- **Remove:** OpenSpace-only Godot pipeline (`ExportGodotCommand`’s direct `LevelLoader`/`MeshScanner` path), exporter-specific Rete JSON walkers, and any other dead code uncovered by the consolidation.
+- `export-godot` accepts **OpenSpace or Rete** input via `Level.Load`; Godot formatters read `Level` only.
+
+### Step 7 — OpenSpace export parity (completion gate)
+
+Finish what was deferred from the end of Step 5. LZO plumbing and RT* recompression are largely done (`lzo1x`); remaining work is **generated content parity** plus a few encoding gotchas.
+
+**Primary work**
+
+- Generated RT pointer **plaintext** `cmp` equal to originals on unedited `astrolabe` (and Fix validated separately).
+- Close remaining RTB/RTP/fixlvl pointer gaps (~145 missing on `astrolabe.rtb`; RTP/fixlvl pointer-data diffs).
+- Decide `Fix.rtv` support.
+
+**Gotchas to look into**
+
+- **`astrolabe.rtb` `05:01` LZO tail** — recompressing **disc plaintext** through `lzo1x` matches for 159,645/159,649 bytes; **4 bytes** diverge at offset `0x1D1A5` (alternate valid LZO1X encoding, not a decompress failure). Investigate whether the original Montreal encoder used different minilzo state or whether this block needs a special-case match. See `tools/LzoDiffProbe` and `OpenSpaceEncodingFidelityTests` Layer A.
+- **SNA recompression** — some `astrolabe.sna` blocks (`05:01`, `06:02`, `11:01`) still differ from disc compressed blobs; separate from the `.rtb` tail above.
+
+**Exit criterion:** unedited Rete → `export-openspace` → `cmp` every file in the source level directory.
+
+### Step 8 — Rust + binrw port
+
+Port the C# core to Rust with **binrw** for struct codecs, after Step 7 passes on `astrolabe` in C# (C# remains the oracle until Rust matches the same `cmp` suite).
+
+Suggested order:
+
+1. **binrw codecs** — 1:1 with `StructCodecRegistry`; golden tests against C# fixtures.
+2. **Rete package I/O** — manifest, `content.json`, URI resolver (`fix:/`, `level:/`).
+3. **`Level` loaders** — OpenSpace and Rete hydrate into the same Rust `Level` type.
+4. **OpenSpace pipeline** — layout, relocation generation, LZO encode (port `OpenSpaceLzo` / `lzo1x` integration).
+5. **CLI** — Rust binary becomes the only implementation; **remove** C# CLI/Core once Rust passes Step 7.
+
+Godot export ports with Step 8 or immediately after — do not maintain two Godot exporters. No long-lived C#/Rust dual core.
+
+### Coverage expansion (parallel)
+
+Promote remaining documented leaves per checklist: `visualset`, element types, Perso/family, animation, AI/DSG, sectors/collision. Each promotion adds codec + pointer metadata; relocation generator coverage grows with it. Continues alongside Steps 5–8 as types are ready — does not block Step 6.
 
 ## Type promotion priorities
 
@@ -159,6 +224,7 @@ Promote remaining documented leaves per checklist: `visualset`, element types, P
 |----------|---------|
 | [`docs/rete-format.md`](docs/rete-format.md) | Rete format specification |
 | [`notes/intermediate-type-checklist.md`](notes/intermediate-type-checklist.md) | Per-type promotion checklist |
+| [`docs/cross-package-uris.md`](docs/cross-package-uris.md) | `fix:/` and `level:/` URI spec |
 | [`docs/geometry-format.md`](docs/geometry-format.md), [`docs/lighting.md`](docs/lighting.md) | OpenSpace struct reference |
 | [`docs/relocation-tables.md`](docs/relocation-tables.md) | RT binary layout for generator |
 
