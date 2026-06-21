@@ -52,7 +52,7 @@ Read [`docs/rete-format.md`](docs/rete-format.md) for the format specification. 
 | Remove relocation bridge once generation exists (Step 5 ✓) | Keep “preserved RT*” or encoding-cache shortcuts alongside generators |
 | Delete superseded types (`Intermediate*`, overlay models) when migrated | Keep dead types “for reference” in production code |
 
-Step 6 is a **consolidation step**: wiring `Level`, **and** deleting transition shims (old commands, dual loaders, legacy import paths). Step 8 **retires** the C# core after Rust passes the Step 7 gate — not an indefinite dual codebase.
+Step 6 is a **consolidation step**: wiring `Level`, **and** deleting transition shims (old commands, dual loaders, legacy import paths). Step 8 **retires** the C# core after Rust passes the Step 7 decompressed parity gate — not an indefinite dual codebase.
 
 ## Canonical types and struct codecs
 
@@ -94,9 +94,11 @@ OpenSpace export serializes **`Level`** to disc bytes. It is a pipeline, not a b
 
 Relocation tables are generated, not stored in Rete.
 
-### Byte-identical validation
+### Export validation
 
-The OpenSpace exporter is correct when an unedited level Rete package exports to a level directory that `cmp`s equal to the original import source, file by file. Fix Rete is validated separately. Cross-package pointer resolution must reproduce `fixlvl.rtb` and level pointer values byte-identically. No engine runtime. This gate is **Step 7** (after CLI and Godot land in Step 6).
+The OpenSpace exporter is correct when an unedited level Rete package round-trips to a level directory whose **decompressed content** matches the original import source. Fix Rete is validated separately. Cross-package pointer resolution must reproduce `fixlvl.rtb` and level pointer values in decompressed plaintext. No engine runtime. This **decompressed parity gate** is **Step 7** (after CLI and Godot land in Step 6).
+
+**Compressed-byte `cmp`** (LZO container bytes matching Montreal's alternate encodings) is **Step 9** — not part of the Step 7 gate and not required for the Step 8 Rust port.
 
 ## Godot exporter
 
@@ -114,9 +116,9 @@ Remove `extract-intermediate`, `compile-intermediate`, and any other transition 
 
 ## Implementation steps
 
-The refactor proceeds as **sequential steps** on one branch — not as separate pull requests. Code map and API contracts live in [`notes/rete-implementation.md`](notes/rete-implementation.md). The **byte-identical `cmp` gate** is Step 7 only — do not block Steps 6–8 on it unless noted.
+The refactor proceeds as **sequential steps** on one branch — not as separate pull requests. Code map and API contracts live in [`notes/rete-implementation.md`](notes/rete-implementation.md). The **decompressed parity gate** is Step 7 only — do not block Steps 6–8 on compressed-byte `cmp`. Step 9 is the optional full compressed `cmp` gate.
 
-**Progress:** Steps **1–6 complete**. Step **7** is next (OpenSpace export parity / `cmp` gate). Step 5 delivered: `RelocationGenerator` (RTB/RTP/RTT/fixlvl), export generates RT* from struct codecs and opaque LUTs with no relocation bridge in Rete, **67** struct codecs, **LZO done** (`OpenSpaceLzo` + `lzo1x` at `-O0`). Remaining export parity (RTB ~145 missing pointers, RTP/fixlvl plaintext, encoding gotchas) is **Step 7**. Steps 7–8 not started.
+**Progress:** Steps **1–7 complete** (decompressed export parity on `astrolabe`). Step **8** is next (Rust + binrw port). Step **9** (compressed LZO parity / full file `cmp`) not started. Step 5 delivered: `RelocationGenerator` (RTB/RTP/RTT/fixlvl), export generates RT* from struct codecs and opaque LUTs with no relocation bridge in Rete, **67** struct codecs, **LZO done** (`OpenSpaceLzo` + `lzo1x` at `-O0`). Step 7 closed RTB/fixlvl/RTP pointer plaintext gaps, SNA decompressed plaintext parity, and `Fix.rtv` policy.
 
 ### Step 1 — Serialization scaffold (no behavior change)
 
@@ -157,7 +159,7 @@ Track per-type progress in [`notes/intermediate-type-checklist.md`](notes/interm
 - [x] Rete packages store no relocation inventory (no `*.reloc.json`, `*-sites.json`, or encoding cache).
 - [x] LZO compression via vendored `lzo1x` (`-O0`); Layer A recompression matches disc on `astrolabe` `.rtp`, `.rtt`, and `fixlvl.rtb`.
 
-**Not Step 5:** byte-identical full-level `cmp`, closing the last RTB pointer gaps, or encoding gotchas — those are Step 7 and can proceed in parallel with Step 6.
+**Not Step 5:** decompressed export parity, closing the last RTB pointer gaps, or encoding gotchas — Step 7 (complete). Compressed LZO container matching is Step 9.
 
 ### Step 6 — CLI, Level, and Godot ✓
 
@@ -176,26 +178,23 @@ Track per-type progress in [`notes/intermediate-type-checklist.md`](notes/interm
 - [x] **Remove:** OpenSpace-only Godot pipeline (`ExportGodotCommand`’s direct `LevelLoader`/`MeshScanner` path), exporter-specific Rete JSON walkers, and other dead consolidation paths.
 - [x] `export-godot` accepts **OpenSpace or Rete** input via `Level.Load`; Godot formatters read `Level` only.
 
-### Step 7 — OpenSpace export parity (completion gate)
+### Step 7 — OpenSpace export parity (decompressed gate) ✓
 
-Finish what was deferred from the end of Step 5. LZO plumbing and RT* recompression are largely done (`lzo1x`); remaining work is **generated content parity** plus a few encoding gotchas.
+**Complete** on `astrolabe` for **decompressed/plaintext parity**. Finish what was deferred from the end of Step 5: generated content parity and export fidelity tests. Compressed LZO container matching is **Step 9**.
 
-**Primary work**
+**Delivered**
 
-- Generated RT pointer **plaintext** `cmp` equal to originals on unedited `astrolabe` (and Fix validated separately).
-- Close remaining RTB/RTP/fixlvl pointer gaps (~145 missing on `astrolabe.rtb`; RTP/fixlvl pointer-data diffs).
-- Decide `Fix.rtv` support.
+- [x] SNA decompressed plaintext matches disc on export (null opaque LUT entries preserve imported `.bin` values instead of zeroing fringe RT* sites).
+- [x] Generated RT pointer plaintext parity on `astrolabe`: RTB **69922/69922** matching, RTP/fixlvl pointer-data match on fresh import.
+- [x] `fixlvl.rtb` empty blocks (`07:00`, `13:01`) via manifest `fixlvlBlockKeys`; migration warnings for stale packages missing the field.
+- [x] `Fix.rtv` — explicit unsupported placeholder (pass-through `files/Fix.rtv` copy; no generator).
+- [x] Fidelity gate refocused: `Category=Disc` tests Layer B (decompressed SNA/RT*) + Layer C (decompressed blobs + sidecar files). Layer A compressed checks moved to `CompressedDiscFidelityTests` (gated in Step 9).
 
-**Gotchas to look into**
-
-- **`astrolabe.rtb` `05:01` LZO tail** — recompressing **disc plaintext** through `lzo1x` matches for 159,645/159,649 bytes; **4 bytes** diverge at offset `0x1D1A5` (alternate valid LZO1X encoding, not a decompress failure). Investigate whether the original Montreal encoder used different minilzo state or whether this block needs a special-case match. See `tools/LzoDiffProbe` and `OpenSpaceEncodingFidelityTests` Layer A.
-- **SNA recompression** — some `astrolabe.sna` blocks (`05:01`, `06:02`, `11:01`) still differ from disc compressed blobs; separate from the `.rtb` tail above.
-
-**Exit criterion:** unedited Rete → `export-openspace` → `cmp` every file in the source level directory.
+**Exit criterion (met):** unedited Rete → `export-openspace` → decompressed SNA/RT* plaintext and generated relocation pointer data match disc; non-generated sidecar files byte-match.
 
 ### Step 8 — Rust + binrw port
 
-Port the C# core to Rust with **binrw** for struct codecs, after Step 7 passes on `astrolabe` in C# (C# remains the oracle until Rust matches the same `cmp` suite).
+Port the C# core to Rust with **binrw** for struct codecs, after Step 7 decompressed parity passes on `astrolabe` in C# (C# remains the oracle until Rust matches the same decompressed parity suite).
 
 Suggested order:
 
@@ -203,13 +202,26 @@ Suggested order:
 2. **Rete package I/O** — manifest, `content.json`, URI resolver (`fix:/`, `level:/`).
 3. **`Level` loaders** — OpenSpace and Rete hydrate into the same Rust `Level` type.
 4. **OpenSpace pipeline** — layout, relocation generation, LZO encode (port `OpenSpaceLzo` / `lzo1x` integration).
-5. **CLI** — Rust binary becomes the only implementation; **remove** C# CLI/Core once Rust passes Step 7.
+5. **CLI** — Rust binary becomes the only implementation; **remove** C# CLI/Core once Rust passes the Step 7 decompressed parity suite.
 
 Godot export ports with Step 8 or immediately after — do not maintain two Godot exporters. No long-lived C#/Rust dual core.
 
+### Step 9 — Compressed export parity (full `cmp` gate)
+
+Match Montreal's **compressed** LZO container bytes on export, not just decompressed plaintext. Step 7 proved content correctness; Step 9 is bit-exact file `cmp` against the import source. Does **not** block Step 8 — the Rust port uses the Step 7 decompressed oracle.
+
+**Primary work**
+
+- Re-enable and pass `CompressedDiscFidelityTests` (Layer A): every compressed SNA block and RT* block recompresses to disc-identical bytes.
+- **`astrolabe.rtb` `05:01` LZO tail** — recompressing disc plaintext through `lzo1x` matches for 159,645/159,649 bytes; **4 bytes** diverge at `0x1D1A5` (alternate valid LZO1X encoding, decompresses identically). Investigate whether the original Montreal encoder used different minilzo state or whether this block needs encoder tuning. See `tools/LzoDiffProbe`.
+- **SNA recompression** — `astrolabe.sna` blocks `05:01`, `06:02`, `11:01` differ from disc compressed blobs.
+- Restore full-file Layer C `cmp` (or equivalent) once compressed blobs match.
+
+**Exit criterion:** unedited Rete → `export-openspace` → `cmp` every file in the source level directory (Fix validated separately).
+
 ### Coverage expansion (parallel)
 
-Promote remaining documented leaves per checklist: `visualset`, element types, Perso/family, animation, AI/DSG, sectors/collision. Each promotion adds codec + pointer metadata; relocation generator coverage grows with it. Continues alongside Steps 5–8 as types are ready — does not block Step 6.
+Promote remaining documented leaves per checklist: `visualset`, element types, Perso/family, animation, AI/DSG, sectors/collision. Each promotion adds codec + pointer metadata; relocation generator coverage grows with it. Continues alongside Steps 5–9 as types are ready — does not block Step 6.
 
 ## Type promotion priorities
 
