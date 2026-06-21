@@ -199,6 +199,7 @@ Next agent should continue Step 5 with the existing bridge intact:
   - decide whether `Fix.rtv` stays unsupported or needs an explicit generator/bridge rule.
 - Promote remaining opaque leaves (`actiontable`, `actiontree`, `animhierarchies`, `compressedmatrix`, behavior lists, `script`, `dsgvar`/`dsgmem`, `objecttype*`, `sectorcollide*`, `collidez*`) in the order that best attacks the outstanding RTB mismatches.
 - Re-run `extract-intermediate` before judging `fixlvl` on any package created before 2026-06-14; old imports may still carry legacy `semantic/fixlvl-sites.json` (pruned on re-import).
+- Re-run `import-openspace` on level packages that list `fixlvl.rtb` but omit `manifest.FixlvlBlockKeys` (e.g. stale `output/test-rete/astrolabe`). Without re-import, export/compare skips disc empty blocks such as `07:00` / `13:01`.
 - Re-run `extract-intermediate` on packages imported before 2026-06-14 if they still have inline `pointers`/`targets` on promoted JSON elements (for example scene `node.json`) without matching `*.reloc.json` sidecars. Export and relocation generation only read overlay data from sidecars now; pre-sidecar packages must be re-imported (or manually migrated) before Step 5 parity checks are meaningful.
 - Phase out relocation storage only after generated RT files `cmp` against preserved originals. Step 6 (CLI aliases, Godot-from-Rete) still waits on RT parity.
 

@@ -58,7 +58,12 @@ public sealed class AstrolabeDiscFixture : IDisposable
 
         IsAvailable = true;
         LevelDir = levelDir;
-        _workspaceDir = OpenSpaceDiscTestHelper.CreateTempDir();
+        _workspaceDir = Path.Combine(
+            OpenSpaceDiscTestHelper.GetRepositoryRoot(),
+            "output",
+            ".fixture-workspace",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(_workspaceDir);
         WorkspaceDir = _workspaceDir;
         PackageDir = Path.Combine(_workspaceDir, "rete");
         FixDir = Path.Combine(_workspaceDir, "fix");

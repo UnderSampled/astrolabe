@@ -12,6 +12,10 @@ public sealed class RetePackageManifest
     public List<RelocationTableFileManifest> RelocationTables { get; set; } = new();
     public List<LooseFileManifest> LooseFiles { get; set; } = new();
     public SemanticManifest? Semantic { get; set; }
+    /// <summary>
+    /// Block keys from transient disc <c>fixlvl.rtb</c> headers captured at import (includes empty blocks).
+    /// </summary>
+    public List<string> FixlvlBlockKeys { get; set; } = new();
 }
 
 public sealed class SnaFileManifest

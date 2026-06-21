@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats;
@@ -296,10 +297,9 @@ internal static class OpenSpacePackageCodec
                             pendingRecords[elementPath] = pending;
                         }
 
-                        if (!ReferenceJson.TryValidatePointerOffset(
-                                offset,
-                                pending.Record.Data.Length,
-                                out _))
+                        blockByteCache.TryGetValue((block.Module, block.Id), out var blockBytes);
+                        var spanLength = GetImportPointerSpanLength(element, blockBytes);
+                        if (!ReferenceJson.TryValidateRelocationPointerOffset(offset, spanLength, out _))
                         {
                             continue;
                         }
@@ -307,8 +307,16 @@ internal static class OpenSpacePackageCodec
                         string? uri = null;
                         if (!isDiscSentinel)
                         {
-                            var value = BinaryPrimitives.ReadInt32LittleEndian(
-                                pending.Record.Data.AsSpan(offset, sizeof(int)));
+                            if (!TryReadOpaqueImportPointerValue(
+                                    element,
+                                    offset,
+                                    blockBytes,
+                                    pending.Record.Data,
+                                    out var value))
+                            {
+                                continue;
+                            }
+
                             if (value != 0 &&
                                 resolver.TryGetReferenceUri(value, packageDir, out var resolvedUri))
                             {
@@ -323,12 +331,12 @@ internal static class OpenSpacePackageCodec
                     }
                     else
                     {
-                        if (!ReferenceJson.TryValidatePointerOffset(offset, element.Length, out _))
+                        blockByteCache.TryGetValue((block.Module, block.Id), out var blockBytes);
+                        var spanLength = GetImportPointerSpanLength(element, blockBytes);
+                        if (!ReferenceJson.TryValidateRelocationPointerOffset(offset, spanLength, out _))
                         {
                             continue;
                         }
-
-                        blockByteCache.TryGetValue((block.Module, block.Id), out var blockBytes);
 
                         string? uri = null;
                         if (!isDiscSentinel &&
@@ -529,7 +537,12 @@ internal static class OpenSpacePackageCodec
 
         var fixManifest = ReadJson<RetePackageManifest>(fixManifestPath);
         var fixElements = LoadElementIndex(fixPackageDir, fixManifest);
+        var blockByteCache = BuildImportBlockByteCache(fixPackageDir, fixManifest);
         var relocationTable = ReadRelocationTableFromDisc(fixLevelSourcePath);
+        levelManifest.FixlvlBlockKeys = relocationTable.Blocks
+            .Select(block => $"{block.Module:X2}:{block.Id:X2}")
+            .ToList();
+        WriteJson(levelManifestPath, levelManifest);
         var pendingRecords = new Dictionary<string, PendingOpaquePointerRecord>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var block in relocationTable.Blocks)
@@ -568,7 +581,9 @@ internal static class OpenSpacePackageCodec
                 var record = pending.Record;
                 var offset = sourceAddress - element.VirtualAddress;
                 var key = ReferenceJson.FormatPointerOffset(offset);
-                if (!ReferenceJson.TryValidatePointerOffset(offset, record.Data.Length, out _))
+                blockByteCache.TryGetValue((block.Module, block.Id), out var blockBytes);
+                var spanLength = GetImportPointerSpanLength(element, blockBytes);
+                if (!ReferenceJson.TryValidateRelocationPointerOffset(offset, spanLength, out _))
                 {
                     continue;
                 }
@@ -583,8 +598,15 @@ internal static class OpenSpacePackageCodec
                     continue;
                 }
 
-                var value = BinaryPrimitives.ReadInt32LittleEndian(
-                    record.Data.AsSpan(offset, sizeof(int)));
+                if (!TryReadOpaqueImportPointerValue(
+                        element,
+                        offset,
+                        blockBytes,
+                        record.Data,
+                        out var value))
+                {
+                    continue;
+                }
                 string? lutUri = null;
                 if (resolver.TryGetReferenceUri(value, levelPackageDir, out var resolvedUri) ||
                     resolver.TryGetReferenceUri(value, fixPackageDir, out resolvedUri))
@@ -958,6 +980,7 @@ internal static class OpenSpacePackageCodec
         var results = new List<RelocationComparisonResult>();
         var targetPackageRoots = FindTargetPackageRoots(packageDir, manifest).ToList();
         var legacyArtifactWarning = BuildLegacyRelocationArtifactWarning(packageDir, targetPackageRoots);
+        var staleFixlvlBlockKeysWarning = BuildStaleFixlvlBlockKeysWarning(manifest);
         var relocationContext = new RelocationGenerator.RelocationPackageContext();
         relocationContext.EnsureLayout(packageDir);
         foreach (var targetPackageRoot in targetPackageRoots)
@@ -972,7 +995,10 @@ internal static class OpenSpacePackageCodec
                 var passThrough = ComparePassThroughRelocationTable(packageDir, manifest, table);
                 results.Add(passThrough with
                 {
-                    Note = AppendLegacyArtifactWarning(passThrough.Note, legacyArtifactWarning)
+                    Note = AppendWarnings(
+                        passThrough.Note,
+                        legacyArtifactWarning,
+                        staleFixlvlBlockKeysWarning)
                 });
                 continue;
             }
@@ -982,7 +1008,7 @@ internal static class OpenSpacePackageCodec
                 results.Add(UnsupportedRelocationComparison(
                     table.FileName,
                     new RelocationTableDocument { FileName = table.FileName },
-                    AppendLegacyArtifactWarning(loadNote, legacyArtifactWarning) ?? loadNote));
+                    AppendWarnings(loadNote, legacyArtifactWarning, staleFixlvlBlockKeysWarning) ?? loadNote));
                 continue;
             }
 
@@ -997,9 +1023,10 @@ internal static class OpenSpacePackageCodec
                         results.Add(UnsupportedRelocationComparison(
                             table.FileName,
                             preserved,
-                            AppendLegacyArtifactWarning(
+                            AppendWarnings(
                                 "fixlvl.rtb requires a sibling Fix Rete package.",
-                                legacyArtifactWarning) ?? "fixlvl.rtb requires a sibling Fix Rete package."));
+                                legacyArtifactWarning,
+                                staleFixlvlBlockKeysWarning) ?? "fixlvl.rtb requires a sibling Fix Rete package."));
                         continue;
                     }
 
@@ -1008,10 +1035,13 @@ internal static class OpenSpacePackageCodec
                         packageDir,
                         table.FileName,
                         relocationContext);
-                    var fixLevelResult = RelocationGenerator.Compare(preserved, generatedFixLevel);
+                    var fixLevelResult = RelocationGenerator.Compare(
+                        preserved,
+                        generatedFixLevel,
+                        ParseFixlvlBlockKeys(manifest.FixlvlBlockKeys));
                     results.Add(fixLevelResult with
                     {
-                        Note = AppendLegacyArtifactWarning(fixLevelResult.Note, legacyArtifactWarning)
+                        Note = AppendWarnings(fixLevelResult.Note, legacyArtifactWarning, staleFixlvlBlockKeysWarning)
                     });
                     continue;
                 }
@@ -1024,7 +1054,7 @@ internal static class OpenSpacePackageCodec
                 var rtbResult = RelocationGenerator.Compare(preserved, generated);
                 results.Add(rtbResult with
                 {
-                    Note = AppendLegacyArtifactWarning(rtbResult.Note, legacyArtifactWarning)
+                    Note = AppendWarnings(rtbResult.Note, legacyArtifactWarning, staleFixlvlBlockKeysWarning)
                 });
                 continue;
             }
@@ -1040,7 +1070,7 @@ internal static class OpenSpacePackageCodec
                 var pointerFileResult = RelocationGenerator.Compare(preserved, generated);
                 results.Add(pointerFileResult with
                 {
-                    Note = AppendLegacyArtifactWarning(pointerFileResult.Note, legacyArtifactWarning)
+                    Note = AppendWarnings(pointerFileResult.Note, legacyArtifactWarning, staleFixlvlBlockKeysWarning)
                 });
                 continue;
             }
@@ -1048,9 +1078,10 @@ internal static class OpenSpacePackageCodec
             results.Add(UnsupportedRelocationComparison(
                 table.FileName,
                 preserved,
-                AppendLegacyArtifactWarning(
+                AppendWarnings(
                     "Relocation generation is not implemented for this table type.",
-                    legacyArtifactWarning) ?? "Relocation generation is not implemented for this table type."));
+                    legacyArtifactWarning,
+                    staleFixlvlBlockKeysWarning) ?? "Relocation generation is not implemented for this table type."));
         }
 
         return results;
@@ -1695,6 +1726,12 @@ internal static class OpenSpacePackageCodec
             _ = targetPackageRoots.FirstOrDefault()
                 ?? throw new InvalidDataException("fixlvl.rtb requires a sibling Fix Rete package.");
         }
+
+        var staleFixlvlBlockKeysWarning = BuildStaleFixlvlBlockKeysWarning(manifest);
+        if (!string.IsNullOrWhiteSpace(staleFixlvlBlockKeysWarning))
+        {
+            Trace.TraceWarning(staleFixlvlBlockKeysWarning);
+        }
     }
 
     private static void GuardAgainstLegacyRelocationArtifacts(
@@ -1750,16 +1787,64 @@ internal static class OpenSpacePackageCodec
             .ToList();
     }
 
-    private static string? AppendLegacyArtifactWarning(string? note, string? legacyArtifactWarning)
+    private static string? AppendLegacyArtifactWarning(string? note, string? warning)
     {
-        if (string.IsNullOrWhiteSpace(legacyArtifactWarning))
+        if (string.IsNullOrWhiteSpace(warning))
         {
             return note;
         }
 
         return string.IsNullOrWhiteSpace(note)
-            ? legacyArtifactWarning
-            : $"{note} {legacyArtifactWarning}";
+            ? warning
+            : $"{note} {warning}";
+    }
+
+    private static string? AppendWarnings(string? note, params string?[] warnings)
+    {
+        var appended = note;
+        foreach (var warning in warnings)
+        {
+            appended = AppendLegacyArtifactWarning(appended, warning);
+        }
+
+        return appended;
+    }
+
+    private static string? BuildStaleFixlvlBlockKeysWarning(RetePackageManifest manifest)
+    {
+        if (manifest.RelocationTables.All(table =>
+                !table.FileName.Equals("fixlvl.rtb", StringComparison.OrdinalIgnoreCase)))
+        {
+            return null;
+        }
+
+        if (manifest.FixlvlBlockKeys is { Count: > 0 })
+        {
+            return null;
+        }
+
+        return
+            "fixlvl.rtb is listed but FixlvlBlockKeys is empty; re-import required to emit disc empty blocks " +
+            "(e.g. 07:00, 13:01).";
+    }
+
+    private static HashSet<(byte Module, byte Id)> ParseFixlvlBlockKeys(IReadOnlyList<string> blockKeys)
+    {
+        var parsed = new HashSet<(byte Module, byte Id)>();
+        foreach (var blockKey in blockKeys)
+        {
+            var parts = blockKey.Split(':');
+            if (parts.Length != 2 ||
+                !byte.TryParse(parts[0], System.Globalization.NumberStyles.HexNumber, null, out var module) ||
+                !byte.TryParse(parts[1], System.Globalization.NumberStyles.HexNumber, null, out var id))
+            {
+                continue;
+            }
+
+            parsed.Add((module, id));
+        }
+
+        return parsed;
     }
 
     private static void PruneLegacyRelocationArtifacts(string packageDir)
@@ -2499,6 +2584,44 @@ internal static class OpenSpacePackageCodec
         }
     }
 
+    private static int GetImportPointerSpanLength(IndexedContentElement element, byte[]? blockBytes)
+    {
+        var spanLength = element.Length;
+        if (blockBytes != null &&
+            element.OffsetInBlock >= 0 &&
+            element.OffsetInBlock < blockBytes.Length)
+        {
+            spanLength = Math.Max(spanLength, blockBytes.Length - element.OffsetInBlock);
+        }
+
+        return spanLength;
+    }
+
+    private static bool TryReadOpaqueImportPointerValue(
+        IndexedContentElement element,
+        int offsetInElement,
+        byte[]? blockBytes,
+        ReadOnlySpan<byte> opaqueData,
+        out int value)
+    {
+        value = 0;
+        if (blockBytes != null &&
+            element.OffsetInBlock + offsetInElement + sizeof(int) <= blockBytes.Length)
+        {
+            value = BinaryPrimitives.ReadInt32LittleEndian(
+                blockBytes.AsSpan(element.OffsetInBlock + offsetInElement, sizeof(int)));
+            return true;
+        }
+
+        if (offsetInElement + sizeof(int) <= opaqueData.Length)
+        {
+            value = BinaryPrimitives.ReadInt32LittleEndian(opaqueData.Slice(offsetInElement, sizeof(int)));
+            return true;
+        }
+
+        return false;
+    }
+
     private static bool TryReadImportPointerValue(
         IndexedContentElement element,
         int offsetInElement,
@@ -2743,18 +2866,6 @@ internal static class OpenSpacePackageCodec
 
         if (IsUnsupportedRelocationTable(table.FileName))
         {
-            var looseFile = manifest.LooseFiles.FirstOrDefault(file =>
-                file.FileName.Equals(table.FileName, StringComparison.OrdinalIgnoreCase));
-            if (looseFile != null)
-            {
-                var sourcePath = ResolvePath(packageDir, looseFile.Path);
-                if (File.Exists(sourcePath))
-                {
-                    document = ReadRelocationTableFromDisc(sourcePath);
-                    return true;
-                }
-            }
-
             document = null!;
             return false;
         }

@@ -94,24 +94,17 @@ internal static class ReferenceJson
                 throw new InvalidDataException($"Invalid opaque pointer offset '{offsetKey}'.");
             }
 
-            if (offset < 0 || offset % sizeof(int) != 0)
+            if (!TryValidateRelocationPointerOffset(offset, bytes.Length, out _))
             {
-                throw new InvalidDataException($"Misaligned opaque pointer offset '{offsetKey}'.");
-            }
-
-            if (offset + sizeof(int) > bytes.Length)
-            {
-                throw new InvalidDataException(
-                    $"Opaque pointer offset '{offsetKey}' is out of range for element span.");
+                // Fringe RT* sites can span element tail bytes that are not representable after
+                // JSON promotion without reshaping the block segment. Leave bytes unchanged.
+                continue;
             }
 
             if (string.IsNullOrWhiteSpace(uri))
             {
-                if (explicitInlineOverlay)
-                {
-                    BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(offset, sizeof(int)), 0);
-                }
-
+                // Null LUT entries track relocation sites discovered from RT* tables. Preserve
+                // the imported .bin value so export stays byte-identical to the source disc.
                 continue;
             }
 
@@ -120,10 +113,9 @@ internal static class ReferenceJson
             {
                 address = resolver.ResolveAddress(packageRoot, uri);
             }
-            catch (InvalidDataException) when (uri.StartsWith(
-                ReferenceUri.LevelPrefix + "slots/",
-                StringComparison.Ordinal))
+            catch (InvalidDataException)
             {
+                // Unresolved LUT URIs preserve imported bytes (consistent with null/out-of-range entries).
                 continue;
             }
 
@@ -193,19 +185,19 @@ internal static class ReferenceJson
 
     internal static string FormatPointerOffset(int offset) => $"0x{offset:X}";
 
-    internal static void ValidatePointerOffset(int offset, int spanLength, string context)
+    internal static void ValidateRelocationPointerOffset(int offset, int spanLength, string context)
     {
-        if (!TryValidatePointerOffset(offset, spanLength, out var error))
+        if (!TryValidateRelocationPointerOffset(offset, spanLength, out var error))
         {
             throw new InvalidDataException($"{error} in {context}.");
         }
     }
 
-    internal static bool TryValidatePointerOffset(int offset, int spanLength, out string error)
+    internal static bool TryValidateRelocationPointerOffset(int offset, int spanLength, out string error)
     {
-        if (offset < 0 || offset % sizeof(int) != 0)
+        if (offset < 0)
         {
-            error = $"Misaligned pointer offset 0x{offset:X}";
+            error = $"Negative pointer offset 0x{offset:X}";
             return false;
         }
 

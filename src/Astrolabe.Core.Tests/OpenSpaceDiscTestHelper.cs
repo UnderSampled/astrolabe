@@ -130,6 +130,7 @@ internal static class OpenSpaceDiscTestHelper
         var reader = new RelocationTableReader(path);
         foreach (var block in reader.PointerBlocks)
         {
+            // Empty RTB pointer-data blocks (e.g. fixlvl 07:00) are validated via FixlvlBlockKeys/generator paths.
             if (block.Count == 0 || block.PointerData.Length == 0)
             {
                 continue;
@@ -147,6 +148,90 @@ internal static class OpenSpaceDiscTestHelper
         samples.ToDictionary(
             sample => (sample.SourceFile, sample.BlockKey),
             sample => sample.Plaintext);
+
+    internal static IEnumerable<(string FileName, string BlockKey, byte[] Plaintext)> EnumerateDecompressedDiscContent(
+        string levelDir)
+    {
+        foreach (var sample in EnumerateSnaPlaintextPayloads(levelDir, "astrolabe.sna"))
+        {
+            yield return (sample.SourceFile, sample.BlockKey, sample.Plaintext);
+        }
+
+        foreach (var fileName in new[] { "astrolabe.rtb", "astrolabe.rtp", "astrolabe.rtt", "fixlvl.rtb" })
+        {
+            foreach (var sample in EnumerateRelocationPlaintextPayloads(levelDir, fileName))
+            {
+                yield return (sample.SourceFile, sample.BlockKey, sample.Plaintext);
+            }
+        }
+    }
+
+    internal static bool TryGetExportDecompressedBlock(
+        string exportDir,
+        string fileName,
+        string blockKey,
+        out byte[] plaintext)
+    {
+        plaintext = [];
+        if (fileName.Equals("astrolabe.sna", StringComparison.OrdinalIgnoreCase))
+        {
+            var reader = new SnaReader(Path.Combine(exportDir, fileName));
+            var block = reader.Blocks.FirstOrDefault(b => $"{b.Module:X2}:{b.Id:X2}" == blockKey);
+            if (block?.Data is not { Length: > 0 } data)
+            {
+                return false;
+            }
+
+            plaintext = data;
+            return true;
+        }
+
+        if (!fileName.EndsWith(".rtb", StringComparison.OrdinalIgnoreCase) &&
+            !fileName.EndsWith(".rtp", StringComparison.OrdinalIgnoreCase) &&
+            !fileName.EndsWith(".rtt", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var path = Path.Combine(exportDir, fileName);
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        var relocationReader = new RelocationTableReader(path);
+        var relocationBlock = relocationReader.PointerBlocks
+            .FirstOrDefault(b => $"{b.Module:X2}:{b.Id:X2}" == blockKey);
+        if (relocationBlock == null || relocationBlock.PointerData.Length == 0)
+        {
+            return false;
+        }
+
+        plaintext = relocationBlock.PointerData;
+        return true;
+    }
+
+    internal static IEnumerable<string> EnumerateNonGeneratedSidecarFiles(string levelDir)
+    {
+        var generated = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "astrolabe.sna",
+            "astrolabe.rtb",
+            "astrolabe.rtp",
+            "astrolabe.rtt",
+            "fixlvl.rtb"
+        };
+
+        foreach (var fileName in Directory.EnumerateFiles(levelDir).Select(Path.GetFileName).OrderBy(name => name))
+        {
+            if (fileName == null || generated.Contains(fileName))
+            {
+                continue;
+            }
+
+            yield return fileName;
+        }
+    }
 
     internal static string CreateTempDir()
     {

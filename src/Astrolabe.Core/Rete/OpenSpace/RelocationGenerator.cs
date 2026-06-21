@@ -162,11 +162,17 @@ internal static class RelocationGenerator
             }
         }
 
+        var requiredEmptyBlocks = LoadFixlvlBlockKeys(levelPackageRoot)
+            .Select(ParseBlockKey)
+            .ToHashSet();
+
         var document = new RelocationTableDocument { FileName = fileName };
         foreach (var sourceBlock in fixLayout.Blocks.OrderBy(block => block.Order))
         {
-            if (!pointersByBlock.TryGetValue((sourceBlock.Module, sourceBlock.Id), out var pointers) ||
-                pointers.Count == 0)
+            pointersByBlock.TryGetValue((sourceBlock.Module, sourceBlock.Id), out var pointers);
+            pointers ??= [];
+            if (pointers.Count == 0 &&
+                !requiredEmptyBlocks.Contains((sourceBlock.Module, sourceBlock.Id)))
             {
                 continue;
             }
@@ -189,6 +195,37 @@ internal static class RelocationGenerator
         }
 
         return document;
+    }
+
+    private static IReadOnlyList<string> LoadFixlvlBlockKeys(string levelPackageRoot)
+    {
+        var manifestPath = Path.Combine(levelPackageRoot, OpenSpacePackageCodec.ManifestFileName);
+        if (!File.Exists(manifestPath))
+        {
+            return [];
+        }
+
+        var manifest = JsonSerializer.Deserialize<RetePackageManifest>(
+            File.ReadAllText(manifestPath),
+            new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+                PropertyNameCaseInsensitive = true
+            });
+        return manifest?.FixlvlBlockKeys ?? [];
+    }
+
+    private static (byte Module, byte Id) ParseBlockKey(string blockKey)
+    {
+        var parts = blockKey.Split(':');
+        if (parts.Length != 2 ||
+            !byte.TryParse(parts[0], System.Globalization.NumberStyles.HexNumber, null, out var module) ||
+            !byte.TryParse(parts[1], System.Globalization.NumberStyles.HexNumber, null, out var id))
+        {
+            throw new InvalidDataException($"Invalid fixlvl block key '{blockKey}'.");
+        }
+
+        return (module, id);
     }
 
     private static void CollectFixLevelPointerSites(
@@ -467,7 +504,10 @@ internal static class RelocationGenerator
         }
     }
 
-    public static RelocationComparisonResult Compare(RelocationTableDocument preserved, RelocationTableDocument generated)
+    public static RelocationComparisonResult Compare(
+        RelocationTableDocument preserved,
+        RelocationTableDocument generated,
+        IReadOnlySet<(byte Module, byte Id)>? allowedExtraEmptyBlocks = null)
     {
         var preservedPointers = Flatten(preserved).ToHashSet();
         var generatedPointers = Flatten(generated).ToHashSet();
@@ -483,7 +523,7 @@ internal static class RelocationGenerator
             MatchingPointerCount: matching,
             MissingPointerCount: missingPointers.Count,
             ExtraPointerCount: extraPointers.Count,
-            PointerDataMatches: PointerDataMatches(preserved, generated),
+            PointerDataMatches: PointerDataMatches(preserved, generated, allowedExtraEmptyBlocks),
             Note: null,
             MissingSamples: missingPointers.Take(10).Select(p => p.ToDisplayString()).ToList(),
             ExtraSamples: extraPointers.Take(10).Select(p => p.ToDisplayString()).ToList());
@@ -640,7 +680,6 @@ internal static class RelocationGenerator
         {
             var offset = ParsePointerOffset(offsetKey);
             lutOffsets.Add(offset);
-            ReferenceJson.ValidatePointerOffset(offset, record.Data.Length, elementPath);
 
             var offsetInMemory = checked((uint)(sourceBlock.BaseInMemory + element.OffsetInBlock + offset));
             if (!seenOffsets.Add(offsetInMemory))
@@ -648,7 +687,15 @@ internal static class RelocationGenerator
                 continue;
             }
 
-            var value = BinaryPrimitives.ReadInt32LittleEndian(record.Data.AsSpan(offset, sizeof(int)));
+            int value;
+            if (ReferenceJson.TryValidateRelocationPointerOffset(offset, record.Data.Length, out _))
+            {
+                value = BinaryPrimitives.ReadInt32LittleEndian(record.Data.AsSpan(offset, sizeof(int)));
+            }
+            else if (!sourceLayout.TryReadInt32((int)offsetInMemory, out value))
+            {
+                continue;
+            }
             if (!ShouldEmitRelocation(pointerField: null, value))
             {
                 continue;
@@ -711,8 +758,8 @@ internal static class RelocationGenerator
             return;
         }
 
-        if (!sourceLayout.TryReadElementBytes(sourceBlock, element, out var elementBytes) &&
-            !TryLoadElementData(sourcePackageRoot, element, resolver, out elementBytes))
+        if (!TryLoadElementData(sourcePackageRoot, element, resolver, out var elementBytes) &&
+            !sourceLayout.TryReadElementBytes(sourceBlock, element, out elementBytes))
         {
             if (pointerData.Length > 0)
             {
@@ -727,15 +774,22 @@ internal static class RelocationGenerator
         foreach (var (offsetKey, uri) in structPointers.OrderBy(pair => ParsePointerOffset(pair.Key)))
         {
             var offset = ParsePointerOffset(offsetKey);
-            ReferenceJson.ValidatePointerOffset(offset, element.Length, elementPath);
-
             var offsetInMemory = checked((uint)(sourceBlock.BaseInMemory + element.OffsetInBlock + offset));
             if (!seenOffsets.Add(offsetInMemory))
             {
                 continue;
             }
 
-            var value = BinaryPrimitives.ReadInt32LittleEndian(elementBytes.AsSpan(offset, sizeof(int)));
+            int value;
+            if (ReferenceJson.TryValidateRelocationPointerOffset(offset, elementBytes.Length, out _))
+            {
+                value = BinaryPrimitives.ReadInt32LittleEndian(elementBytes.AsSpan(offset, sizeof(int)));
+            }
+            else if (!sourceLayout.TryReadInt32((int)offsetInMemory, out value))
+            {
+                continue;
+            }
+
             if (!ShouldEmitRelocation(pointerField: null, value))
             {
                 continue;
@@ -777,12 +831,12 @@ internal static class RelocationGenerator
         ReferenceAddressResolver resolver,
         out byte[] data)
     {
-        if (sourceLayout.TryReadElementBytes(sourceBlock, element, out data))
+        if (TryLoadElementData(sourcePackageRoot, element, resolver, out data))
         {
             return true;
         }
 
-        return TryLoadElementData(sourcePackageRoot, element, resolver, out data);
+        return sourceLayout.TryReadElementBytes(sourceBlock, element, out data);
     }
 
     private static bool TryLoadElementData(
@@ -848,7 +902,7 @@ internal static class RelocationGenerator
             }
 
             var targetRank = target.GetMatchRank(value);
-            if (!ShouldEmitTargetMatch(pointerField, targetRank, sourceBlock, element))
+            if (!ShouldEmitTargetMatch(pointerField, targetRank))
             {
                 continue;
             }
@@ -862,6 +916,16 @@ internal static class RelocationGenerator
                 Byte7 = 0
             });
         }
+    }
+
+    private static bool ShouldEmitTargetMatch(PointerField pointerField, int targetRank)
+    {
+        if (pointerField.RequiresDecompressedTarget && targetRank > 0)
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private static RelocationPointerManifest CreateSentinelPointer(uint offsetInMemory) =>
@@ -934,20 +998,6 @@ internal static class RelocationGenerator
 
     private static bool IsIgnoredPointerValue(PointerField pointerField, int value) =>
         pointerField.IgnoreValues?.Contains(value) == true;
-
-    private static bool ShouldEmitTargetMatch(
-        PointerField pointerField,
-        int targetRank,
-        BlockLayout sourceBlock,
-        ElementLayout element)
-    {
-        if (pointerField.RequiresDecompressedTarget && targetRank > 0)
-        {
-            return false;
-        }
-
-        return true;
-    }
 
     private static bool IsPathWithinPackageRoot(string path, string packageRoot)
     {
@@ -1130,17 +1180,19 @@ internal static class RelocationGenerator
         return stream.ToArray();
     }
 
-    private static bool PointerDataMatches(RelocationTableDocument preserved, RelocationTableDocument generated)
+    private static bool PointerDataMatches(
+        RelocationTableDocument preserved,
+        RelocationTableDocument generated,
+        IReadOnlySet<(byte Module, byte Id)>? allowedExtraEmptyBlocks = null)
     {
-        var preservedBlocks = preserved.Blocks.ToDictionary(b => (b.Module, b.Id));
         var generatedBlocks = generated.Blocks.ToDictionary(b => (b.Module, b.Id));
-        if (preservedBlocks.Count != generatedBlocks.Count)
-        {
-            return false;
-        }
+        var preservedKeys = preserved.Blocks
+            .Select(block => (block.Module, block.Id))
+            .ToHashSet();
 
-        foreach (var (key, preservedBlock) in preservedBlocks)
+        foreach (var preservedBlock in preserved.Blocks)
         {
+            var key = (preservedBlock.Module, preservedBlock.Id);
             if (!generatedBlocks.TryGetValue(key, out var generatedBlock) ||
                 preservedBlock.Pointers.Count != generatedBlock.Pointers.Count)
             {
@@ -1149,6 +1201,25 @@ internal static class RelocationGenerator
 
             if (!BuildOrderedPointerData(preservedBlock).AsSpan()
                     .SequenceEqual(BuildOrderedPointerData(generatedBlock)))
+            {
+                return false;
+            }
+        }
+
+        foreach (var generatedBlock in generated.Blocks)
+        {
+            var key = (generatedBlock.Module, generatedBlock.Id);
+            if (preservedKeys.Contains(key))
+            {
+                continue;
+            }
+
+            if (generatedBlock.Pointers.Count > 0)
+            {
+                return false;
+            }
+
+            if (allowedExtraEmptyBlocks == null || !allowedExtraEmptyBlocks.Contains(key))
             {
                 return false;
             }
@@ -1403,6 +1474,11 @@ internal static class RelocationGenerator
 
                 var elementOffset = offsetInBlock - element.OffsetInBlock;
                 var bytes = ReadElementBytes(element);
+                if (elementOffset + sizeof(int) > bytes.Length)
+                {
+                    continue;
+                }
+
                 value = BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(elementOffset, sizeof(int)));
                 return true;
             }
