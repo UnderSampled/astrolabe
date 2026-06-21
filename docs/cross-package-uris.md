@@ -7,7 +7,7 @@ Astrolabe Rete packages are **shared Fix** plus **per-level** packages. Cross-pa
 - Do **not** embed VM block+offset (copyright-sensitive; discovered at import, not predetermined in the repo)
 - **Do** name a filesystem record path under the target package role
 
-This document specifies `fix:/` and `level:/` URIs and the import/export workflow. Resolver support exists in `ReferenceUri.cs`. **Transient import** annotates Fix opaque LUT entries from disc `fixlvl.rtb` (mapped rows → `level:/slots/0x{fixSite:X8}.json` plus per-level slot files; sentinel rows → `null` URI). Export generates `fixlvl.rtb` from Fix opaque LUT only (`level:/` mapped rows and `null`/escaping sentinel rows), not from walking Fix.rtb or any persisted site registry.
+This document specifies `fix:/` and `level:/` URIs for Rete packages, plus **`texture:/` and `sound:/`** roles for canonical PNG/WAV in the shared game-data asset tree (**Step 9**). Resolver support for `fix:/` and `level:/` exists in `ReferenceUri.cs`; `texture:/` and `sound:/` are specified here for Step 9. A residual **`game:/`** role covers unpromoted `Gamedata/` paths (dialog, language) until those sidecars are promoted. **Transient import** annotates Fix opaque LUT entries from disc `fixlvl.rtb` (mapped rows → `level:/slots/0x{fixSite:X8}.json` plus per-level slot files; sentinel rows → `null` URI). Export generates `fixlvl.rtb` from Fix opaque LUT only (`level:/` mapped rows and `null`/escaping sentinel rows), not from walking Fix.rtb or any persisted site registry.
 
 See also: [`rete-format.md`](rete-format.md) (overview), [`fixlvl-rtb.md`](fixlvl-rtb.md) (Fix→level relocation context), [`perso-mesh-animation.md`](perso-mesh-animation.md) (`ObjectList` semantics).
 
@@ -16,9 +16,12 @@ See also: [`rete-format.md`](rete-format.md) (overview), [`fixlvl-rtb.md`](fixlv
 ```text
 reference-uri := path [ "#" fragment ]
 
-path          := relative-path | fix-path | level-path
+path          := relative-path | fix-path | level-path | texture-path | sound-path | game-path
 fix-path      := "fix:/" package-relative-path
 level-path    := "level:/" package-relative-path
+texture-path  := "texture:/" png-relative-path
+sound-path    := "sound:/" wav-relative-path
+game-path     := "game:/" game-data-relative-path
 
 fragment      := json-pointer | byte-offset-fragment
 json-pointer  := RFC 6901 pointer (e.g. "#/perso")
@@ -32,9 +35,17 @@ byte-offset-fragment := "byteOffset=" int
 | `types/foo.json` | level or fix | Same package | `types/objectlist/default.json` |
 | `fix:/types/foo.json` | level | Shared Fix (`packageRole: fix`) | `fix:/types/perso/hype.json` |
 | `level:/slots/0x….json` | fix | Level (`packageRole: level`) | `level:/slots/0x0262C4C0.json` |
+| `texture:/Gamedata/Textures/foo.png` | level | Shared PNG from `Textures.cnt` GF | `texture:/Gamedata/Textures/torch.png` |
+
+| `sound:/Bnk_ambient/Play_Foo.wav` | level | Shared WAV from `Gamedata/World/Sound/` | `sound:/Bnk_ambient/0001_Play_Foo.wav` |
+| `game:/Gamedata/…` | any | Unpromoted path under mounted disc (dialog, lang) | `game:/Gamedata/LangData/EN/dialog.bin` |
 | `…#byteOffset=4` | any | Interior field in bin-backed record | `level:/slots/0x….json#byteOffset=0xC4` |
 
-`fix:/` and `level:/` are **package roles**, not folder names on disk. Output layout (`output/fix/` beside `output/astrolabe/`) is a conversion-time choice; URIs must not depend on it.
+`fix:/` and `level:/` are **Rete package roles**, not ad-hoc folder names. Conversion **output mirrors the game layout** from one output root; package roles map to fixed mirrored paths (below). URIs must not encode level directory names in Fix JSON (`../castle_village/…` remains invalid).
+
+**PNG and WAV** are the canonical texture and sound payloads. Textures are **not** stored inside level or Fix Rete packages — they live in game-wide **CNT archives** on disc (`Gamedata/Textures.cnt`, `Gamedata/Vignette.cnt`). A level's `{level}.ptx` (and `Fix.ptx`) points at `TextureInfo` in SNA; the **name** field identifies a GF member inside those archives. `Gamedata/World/Levels/fix.cnt` is **not** a texture archive — copy-protection disc catalog only; see [`file-format-catalogue.md`](file-format-catalogue.md). Import decodes referenced GF/APM/BNM into a **shared asset tree** at the conversion output root; sidecar pointer JSON uses `texture:/…` and `sound:/…` URIs resolved against that tree (not the source disc). OpenSpace export re-encodes PNG→GF (rebuilding CNT) and WAV→APM/BNM. Godot export reads the same PNG/WAV files directly.
+
+`game:/` is a **residual role** for unpromoted `Gamedata/` paths (dialog, language data, …).
 
 ### Legacy
 
@@ -100,17 +111,39 @@ From `fixlvl.rtb` analysis on Hype (37 levels):
 - **~1000 sentinel** (`FF:FF`) sites — no level target → **no** `level:/` URI; optional import metadata only.
 - **~50 sentinel** sites differ in presence per level → union policy (below).
 
-## Multi-level import
+## Conversion output layout (mirrors game)
 
-Import is modeled as a **batch of levels** (one, some, or all) into one output parent:
+One **output root** reproduces the mounted disc tree. Rete packages and decoded PNG/WAV assets live at the same relative paths as the original game files.
 
 ```text
-output/
-  fix/                 ← written once per output tree
-  astrolabe/           ← per level in batch
-  brigand/
-  …
+{output-root}/                    ← mirrors disc root (e.g. output/ or a staging mount)
+  Gamedata/
+    Textures/                     ← PNGs decoded from Textures.cnt (export rebuilds Textures.cnt here)
+    Vignette/                     ← PNGs from Vignette.cnt
+    World/
+      Levels/
+        manifest.json             ← Fix Rete (packageRole: fix); types/, sna/, …
+        types/…                   ←   co-located with where Fix.sna exports on disc
+        astrolabe/
+          manifest.json           ← Level Rete (packageRole: level)
+          types/…
+        brigand/
+          manifest.json
+      Sound/                      ← WAVs decoded from BNM/APM (export rebuilds banks)
 ```
+
+| Package role | Mirrored root | On-disc analogue |
+|--------------|---------------|------------------|
+| `fix` | `{output-root}/Gamedata/World/Levels/` | `Fix.sna`, `Fix.rtb`, … (uppercase `Fix.*`) |
+| `level` | `{output-root}/Gamedata/World/Levels/{level}/` | `{level}.sna`, `{level}.ptx`, … |
+
+`fix:/` resolves to the **Levels** directory (parent of level subdirs). From `astrolabe/`, Fix is the parent package — matching how the engine loads `Fix.*` from `Gamedata/World/Levels/` alongside `{level}/`.
+
+**Transitional:** today's import may still emit a flat `output/fix/` + `output/{level}/` tree. New work targets the mirrored layout above; `ReferenceUri` sibling-`fix/` lookup is legacy until migrated.
+
+## Multi-level import
+
+Import is modeled as a **batch of levels** (one, some, or all) into one mirrored output root:
 
 ### Pass outline (planned)
 
@@ -148,6 +181,60 @@ Empirical expectation on Hype: mapped rows are **identical** across all shipped 
 | Level layout at import | Record boundary → **filesystem path** + slot file |
 | **URI** | `level:/slots/{fixSite}.json` — **no block+offset** |
 
+## Canonical assets — PNG and WAV (Step 9 — specified, not all implemented)
+
+Texture and sound sidecar pointers (PTX, SDA, SND, …) target **decoded PNG/WAV in a shared asset tree**, not raw GF/CNT or BNM on disc and not files inside level/Fix Rete packages.
+
+### Where textures actually live
+
+On disc, GF payloads are archived — not per-level:
+
+| Disc file | Role |
+|-----------|------|
+| `Gamedata/Textures.cnt` | Main texture archive (thousands of GF members) |
+| `Gamedata/Vignette.cnt` | Full-screen / vignette images |
+
+`{level}.ptx` and `Fix.ptx` are pointer tables into SNA `TextureInfo` records. Each record carries a **GF filename string**; the engine resolves that name against `Textures.cnt` / `Vignette.cnt`. Levels do not ship their own `.cnt` for ordinary textures.
+
+`Gamedata/World/Levels/fix.cnt` is **not** a third texture archive — copy-protection catalog, outside uppercase `Fix.*` ([`file-format-catalogue.md`](file-format-catalogue.md)).
+
+Import decodes only textures/sounds **referenced** by the imported level(s), but storage is keyed globally at **mirrored disc paths** — not duplicated per level package.
+
+### CNT → folder rule
+
+The game does not record which CNT a texture came from; `TextureInfo` only has a GF **name**. Astrolabe recovers provenance at import by scanning CNT archives, then stores PNGs in a **folder named after the CNT stem** (drop `.cnt`), at the same path as the archive on disc — matching `extract`:
+
+| Disc archive | Decoded PNG root |
+|--------------|------------------|
+| `Gamedata/Textures.cnt` | `Gamedata/Textures/` |
+| `Gamedata/Vignette.cnt` | `Gamedata/Vignette/` |
+
+Internal CNT directory structure is preserved under that folder (`foo/bar.gf` → `foo/bar.png`). Export rebuilds each `.cnt` from its sibling folder. `texture:/Gamedata/Textures/…` URIs therefore encode both archive and member path.
+
+### URI forms for assets
+
+| Pointer target | URI in JSON | Resolved file |
+|----------------|-------------|---------------|
+| GF from `Textures.cnt` | `texture:/Gamedata/Textures/{path}.png` | `{outputRoot}/Gamedata/Textures/{path}.png` |
+| GF from `Vignette.cnt` | `texture:/Gamedata/Vignette/{path}.png` | `{outputRoot}/Gamedata/Vignette/{path}.png` |
+| Sound bank event | `sound:/Bnk_foo/{sample}.wav` | `{outputRoot}/Gamedata/World/Sound/…` |
+
+The invariant is **paths under the output root that mirror the game tree** (`.png` / `.wav` where disc has `.cnt` / `.bnm`), referenced by `texture:/` and `sound:/`.
+
+### Import vs export
+
+| Phase | Behavior |
+|-------|----------|
+| **Import** | PTX name → locate GF in CNT → decode PNG → write shared tree → rewrite pointer fields to `texture:/…` |
+| **Hub / Godot** | Resolve `texture:/…` → load PNG by GF name |
+| **OpenSpace export** | PNG→GF, rebuild CNT archives; WAV→APM/BNM; URIs → VM pointers; generate RTP/RTT/RTS from codec metadata |
+
+Optional **provenance** on asset manifest entries (source CNT, original GF path, BNM bank/event) aids debugging.
+
+### Residual `game:/` role
+
+Unpromoted sidecars (`.dlg`, `.lng`, `.rtd`, `.rtg`, …) may still use `game:/Gamedata/…` until promoted.
+
 ## Resolution (implemented)
 
 `ReferenceUri.TryResolve(referringPackageRoot, uri, out filePath, out fragment, levelPackageRoot?)`:
@@ -155,10 +242,13 @@ Empirical expectation on Hype: mapped rows are **identical** across all shipped 
 1. Split `#` fragment.
 2. `fix:/…` → Fix package root (self if `packageRole: fix`, else sibling `fix/` with manifest).
 3. `level:/…` → Level package root (self if `packageRole: level`, else `levelPackageRoot` argument, else sibling level directory containing the target file).
-4. Otherwise → relative path from referring root (legacy `../fix/…`).
-5. Apply `#byteOffset=` or JSON Pointer at read time.
+4. `texture:/…` → `{outputRoot}/` + path (mirrored `Gamedata/Textures/…`, `Gamedata/World/Levels/fix/…`, etc.) (**Step 9**).
+5. `sound:/…` → `{outputRoot}/Gamedata/World/Sound/` + path (**Step 9**).
+6. `game:/…` → `{gameRoot}/` + path (unpromoted sidecars only; **Step 9+**).
+7. Otherwise → relative path from referring root (legacy `../fix/…`).
+8. Apply `#byteOffset=` or JSON Pointer at read time.
 
-`ReferenceUri.MakeReference(referringPackageRoot, targetPath)` emits `fix:/`, `level:/`, or intra-package paths for import rewrite.
+`ReferenceUri.MakeReference(referringPackageRoot, targetPath)` emits `fix:/`, `level:/`, `texture:/`, `sound:/`, or intra-package paths for import rewrite.
 
 ## Export (planned behavior)
 
@@ -198,6 +288,12 @@ Same Fix bytes; different level SNA; per-level `fixlvl` (mostly identical sentin
 | Persisted fixlvl site registry on Fix package | **Removed** (URI-only opaque LUT; no `*-sites.json`) |
 | Export `fixlvl.rtb` via `GenerateFixLevelRtb` | **Done** (opaque LUT only; not Fix.rtb walk) |
 | Import rewrite → `fix:/` | **Partial** (legacy `../fix/…` still accepted) |
+| Mirrored output layout (`Gamedata/World/Levels/…`) | **Partial** (flat `output/fix/` today; migration Step 9) |
+| Shared PNG/WAV at mirrored paths | **Not started** (Step 9) |
+| `texture:/` and `sound:/` parse/resolve | **Not started** (Step 9) |
+| Sidecar pointers (PTX/SDA/SND) → `texture:/` / `sound:/` on import | **Not started** (Step 9) |
+| OpenSpace export PNG→GF (CNT rebuild), WAV→APM/BNM encode | **Not started** (Step 9) |
+| `game:/` parse/resolve (residual) | **Not started** (Step 9+) |
 | `level-slot-manifest.json` union manifest | **Not started** |
 
 ## Verification (when implemented)

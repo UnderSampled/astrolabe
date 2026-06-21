@@ -156,6 +156,30 @@ CNT File
 **Contains:**
 - `.gf` texture files (RLE-encoded images)
 
+**Hype texture archives:** `Gamedata/Textures.cnt`, `Gamedata/Vignette.cnt`.
+
+### Fix file naming (Hype PC)
+
+| Pattern | Example | Role |
+|---------|---------|------|
+| **`Fix.*`** (uppercase `Fix`) | `Fix.sna`, `Fix.rtb`, `Fix.ptx` | Shared Fix hub — Rete import/export |
+| **`fixlvl.rtb`** (lowercase) | `{level}/fixlvl.rtb` | Per-level Fix→level relocation |
+| **`fix.cnt`** (lowercase `fix`) | `Gamedata/World/Levels/fix.cnt` | Copy-protection — outside `Fix.*` by casing |
+
+There is no `Fix.cnt` on shipped Hype PC. Match disc casing exactly when globbing or comparing paths.
+
+### `fix.cnt` — not game content (Hype PC)
+
+`Gamedata/World/Levels/fix.cnt` (lowercase) sits beside `Fix.sna` (uppercase) but is **not** a Montreal `.cnt` texture archive and **not** part of editable game content. Do not decode it with `CntReader` or treat it as a source of GF/PNG textures.
+
+On Hype PC it is a **copy-protection / disc-catalog blob** (~5 MB):
+
+- Leading bytes are XOR-obfuscated (size dword `^ 0xAEEA0AE0`, payload `^ {E0,0A,EA,AE}` repeating) — see decompiled loader `FUN_0044f040` in [`reference/decompilation/functions/0044f040_FUN_0044f040.c`](../reference/decompilation/functions/0044f040_FUN_0044f040.c).
+- Decrypted catalog lists installer payloads (DirectX, 3dfx drivers, etc.) and cross-references other disc paths (`Textures.cnt`, `Fix.sna`, …). It contains **no `.gf` members**.
+- Fix and level textures resolve via `Fix.ptx` / `{level}.ptx` → `TextureInfo` **names** → `Textures.cnt` / `Vignette.cnt`, same as other levels.
+
+Fix import collects **`Fix.*` only** (uppercase); `fix.cnt` is never selected. It stays on the original game disc for copy-protection checks. Probe script: `tmp_probe/decrypt_fix_cnt.py`.
+
 ### `.gf` - Texture (inside CNT)
 **Format:** Binary (RLE compressed)
 **Purpose:** Individual texture with palette or direct color

@@ -87,7 +87,7 @@ OpenSpace uses virtual memory addresses resolved via relocation tables. The RTB 
 
 ### Fix Data
 
-Shared data (characters like Hype, common textures) lives in `Fix.sna`/`Fix.rtb` at `Gamedata/World/Levels/`. The `fixlvl.rtb` relocation table links level data to Fix data. On Rete import, Fix is extracted once to `output/fix/` alongside `output/{level}/`; cross-package pointers use `fix:/` and `level:/` URIs. OpenSpace export regenerates relocation tables; they are not stored in Rete packages.
+Shared data (characters like Hype, common textures) lives in **`Fix.*`** files (`Fix.sna`, `Fix.rtb`, … — uppercase `Fix`) at `Gamedata/World/Levels/`. Fix import matches that prefix case-sensitively. The `fixlvl.rtb` relocation table links level data to Fix data. Rete import targets a **game-mirrored output tree** (`Gamedata/World/Levels/` for Fix, `Gamedata/World/Levels/{level}/` per level, `Gamedata/Textures/` for PNGs, …); cross-package pointers use `fix:/` and `level:/` URIs. OpenSpace export regenerates relocation tables; they are not stored in Rete packages.
 
 ## Dependencies
 

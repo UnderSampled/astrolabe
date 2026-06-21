@@ -38,18 +38,24 @@ Rete models this as **separate packages**:
 
 Fix is a separate Rete package. Level packages reference Fix by URI rather than embedding duplicate copies of Fix elements.
 
-**Import layout** is a conversion-time decision, not a format rule. When a level is imported, the converter extracts the level and the Fix files it needs into the **same output parent** in one pass:
+**Target import layout mirrors the game tree** from one output root — the same relative paths as the mounted disc. Fix Rete lives at `Gamedata/World/Levels/` (where `Fix.*` sits on disc); each level Rete lives at `Gamedata/World/Levels/{level}/`. Decoded PNG/WAV assets land at mirrored paths (`Gamedata/Textures/`, `Gamedata/World/Sound/`, …). See [`cross-package-uris.md`](cross-package-uris.md).
 
 ```text
-output/
-  fix/                 ← Fix Rete (written once per output tree)
-  astrolabe/           ← level Rete for this import
-    types/...            (level-local)
+{output-root}/
+  Gamedata/
+    Textures/                         ← decoded textures (from Textures.cnt)
+    World/
+      Levels/
+        manifest.json, types/, sna/   ← Fix Rete (packageRole: fix)
+        astrolabe/
+          manifest.json, types/, …    ← level Rete (packageRole: level)
 ```
 
-Because the converter chooses that layout at emit time, level packages land beside `output/fix/`. Cross-package URIs use `fix:/` and `level:/` package roles (see [`cross-package-uris.md`](cross-package-uris.md)), not level directory names.
+Cross-package URIs use `fix:/` and `level:/` package roles mapped to those mirrored roots — not level names embedded in Fix JSON.
 
-Re-importing another level into the same `output/` reuses existing `fix/` when present.
+**Transitional:** some imports still write a flat `output/fix/` + `output/{level}/` tree. That layout is legacy; new import work targets the mirrored tree.
+
+Re-importing another level into the same output root reuses existing Fix Rete at `Gamedata/World/Levels/` when present.
 
 Import merges level and Fix into one virtual memory map for pointer resolution, but only **level-owned** elements are written into the level package. References into Fix memory are recorded as relative URIs pointing at the Fix paths the converter wrote (or will write).
 
@@ -244,9 +250,15 @@ When a scene file is referenced from SNA `content.json`, that scene file is auth
 
 Longer term, aggregate scene documents (for example `scene/actual_world.json`) may replace deep per-node folder trees where a single hierarchical JSON document is clearer.
 
+## Assets (PNG and WAV)
+
+Decoded texture and sound media are **canonical as PNG/WAV**, but they are **not** stored inside level or Fix Rete packages. On disc, GF payloads live in `Gamedata/Textures.cnt` and `Gamedata/Vignette.cnt`; `{level}.ptx` and `Fix.ptx` point at `TextureInfo` names in SNA that identify GF members inside those archives. Sounds live under `Gamedata/World/Sound/`. `Gamedata/World/Levels/fix.cnt` is copy-protection catalog only — not a texture archive ([`file-format-catalogue.md`](file-format-catalogue.md)).
+
+Import decodes referenced GF/APM/BNM at **mirrored game paths** under the output root (`Gamedata/Textures/`, `Gamedata/Vignette/`, `Gamedata/World/Sound/`, … — same layout as the `extract` command). Sidecar pointer fields use `texture:/…` and `sound:/…` URIs (see [`cross-package-uris.md`](cross-package-uris.md)). Godot export reads PNG/WAV directly; OpenSpace export re-encodes PNG→GF (rebuilding `.cnt` at mirrored locations) and WAV→APM/BNM.
+
 ## Loose files
 
-GPT, PTX, SDA, and other level sidecar files are copied under `files/` and listed in the manifest with size and SHA-256. The OpenSpace exporter copies them to the output directory. Pointer tables inside these files are relocated by the exporter using the appropriate RT generator.
+GPT, PTX, SDA, and other level sidecar files are copied under `files/` and listed in the manifest with size and SHA-256 **until Step 9 promotes them** to URI-backed types with generated RT*. Today the OpenSpace exporter copies pass-through sidecars to the output directory; after Step 9, sidecar bytes are regenerated from hub records and the shared PNG/WAV asset tree.
 
 ## Semantic inspection
 

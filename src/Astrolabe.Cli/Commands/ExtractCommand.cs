@@ -120,7 +120,7 @@ public static class ExtractCommand
             .Where(f =>
             {
                 var name = Path.GetFileName(f).ToLowerInvariant();
-                return name == "textures.cnt" || name == "vignette.cnt";
+                return name is "textures.cnt" or "vignette.cnt";
             })
             .ToArray();
 

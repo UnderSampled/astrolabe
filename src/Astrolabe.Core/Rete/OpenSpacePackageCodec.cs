@@ -13,6 +13,7 @@ internal static class OpenSpacePackageCodec
 {
     public const string ManifestFileName = "manifest.json";
     public const string ReteManifestSchema = "astrolabe.rete.v1";
+    private const string FixFamilyPrefix = "Fix.";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -155,12 +156,8 @@ internal static class OpenSpacePackageCodec
         return fixOutputDir;
     }
 
-    private static bool IsFixFile(string filePath)
-    {
-        var fileName = Path.GetFileName(filePath);
-        return fileName.StartsWith("Fix.", StringComparison.OrdinalIgnoreCase) ||
-            fileName.Equals("fix.cnt", StringComparison.OrdinalIgnoreCase);
-    }
+    private static bool IsFixFile(string filePath) =>
+        Path.GetFileName(filePath).StartsWith(FixFamilyPrefix, StringComparison.Ordinal);
 
     private static void RewritePointerReferences(string packageDir, string? extraPackageDir)
     {

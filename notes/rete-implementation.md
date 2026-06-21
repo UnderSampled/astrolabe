@@ -163,7 +163,7 @@ Sequential work units are defined in [`plan.md`](../plan.md#implementation-steps
 Progress as of 2026-06-14 (commits `5ca7ef4`, `137265d`):
 
 - Steps 1–4 are complete on `astrolabe`, preserving byte-identical OpenSpace export.
-- Level import creates/reuses sibling `fix/`; Fix export validates independently against `Fix.*` plus `fix.cnt`.
+- Level import creates/reuses sibling `fix/`; Fix export validates independently against `Fix.*` (uppercase prefix on disc — see `docs/file-format-catalogue.md`).
 - Promoted structured pointer fields are URI/null on import and resolved back to virtual addresses on export via `ReferenceJson.WriteElementBytesForExport`.
 - Relocation JSON and preserved encoded RT payloads remain in packages as the bridge for Step 5.
 - Fresh level imports annotate Fix opaque LUT entries from transient disc `fixlvl.rtb`: mapped rows get `level:/slots/0x{fixSite}.json` plus per-level slot files; sentinel rows get `null` URI. No fixlvl site inventory is persisted on the Fix package.

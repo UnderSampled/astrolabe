@@ -9,7 +9,7 @@ The game data is organized into several interconnected file types:
 | Extension | Purpose |
 |-----------|---------|
 | `.sna` | Compressed level/fix data blocks |
-| `.cnt` | Texture container archive |
+| `.cnt` | Texture container archive (`Textures.cnt`, `Vignette.cnt`; not `fix.cnt` on Hype PC — see [catalogue](file-format-catalogue.md)) |
 | `.gf` | Individual texture files (inside CNT) |
 | `.gpt` | Global pointer table |
 | `.ptx` | Texture pointer table |
@@ -18,6 +18,12 @@ The game data is organized into several interconnected file types:
 | `.rtt` | Relocation table for textures |
 | `.rtv` | Relocation table for video data |
 | `.sda` | Sound data |
+
+### Fix files (Hype PC)
+
+Shared Fix data under `Gamedata/World/Levels/` uses an uppercase **`Fix.`** prefix on disc: `Fix.sna`, `Fix.rtx`, `Fix.ptx`, `Fix.gpt`, etc. Astrolabe collects Fix sidecars by that prefix **case-sensitively** (`FixFamilyPrefix` / `Fix.*`) — no separate denylist. Lowercase **`fix.cnt`** (copy-protection catalog) is simply outside `Fix.*`; see [`file-format-catalogue.md`](file-format-catalogue.md).
+
+Per-level Fix→level relocation uses lowercase **`fixlvl.rtb`** inside each `{level}/` directory.
 
 ## Data Flow
 
