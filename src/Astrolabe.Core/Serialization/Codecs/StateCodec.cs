@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.AI;
 
@@ -33,18 +34,18 @@ public sealed class StateCodec : IStructCodec<StateRecord>
         var slice = StructBinaryIO.RequireExactSize(data.Slice(offset, length), Size, nameof(StateRecord));
         return new StateRecord
         {
-            Next = StructBinaryIO.ReadInt32(slice, 0x00),
-            Prev = StructBinaryIO.ReadInt32(slice, 0x04),
-            Hdr = StructBinaryIO.ReadInt32(slice, 0x08),
-            AnimRef = StructBinaryIO.ReadInt32(slice, 0x0C),
-            TransitionsHead = StructBinaryIO.ReadInt32(slice, 0x10),
-            TransitionsTail = StructBinaryIO.ReadInt32(slice, 0x14),
+            Next = HubReferenceIO.Read(slice, 0x00),
+            Prev = HubReferenceIO.Read(slice, 0x04),
+            Hdr = HubReferenceIO.Read(slice, 0x08),
+            AnimRef = HubReferenceIO.Read(slice, 0x0C),
+            TransitionsHead = HubReferenceIO.Read(slice, 0x10),
+            TransitionsTail = HubReferenceIO.Read(slice, 0x14),
             TransitionsCount = StructBinaryIO.ReadUInt32(slice, 0x18),
-            ProhibitsHead = StructBinaryIO.ReadInt32(slice, 0x1C),
-            ProhibitsTail = StructBinaryIO.ReadInt32(slice, 0x20),
+            ProhibitsHead = HubReferenceIO.Read(slice, 0x1C),
+            ProhibitsTail = HubReferenceIO.Read(slice, 0x20),
             ProhibitsCount = StructBinaryIO.ReadUInt32(slice, 0x24),
-            NextState = StructBinaryIO.ReadInt32(slice, 0x28),
-            MechanicsIdCard = StructBinaryIO.ReadInt32(slice, 0x2C),
+            NextState = HubReferenceIO.Read(slice, 0x28),
+            MechanicsIdCard = HubReferenceIO.Read(slice, 0x2C),
             Unknown30 = StructBinaryIO.ReadUInt32(slice, 0x30),
             Unknown34 = StructBinaryIO.ReadUInt32(slice, 0x34)
         };
@@ -53,18 +54,18 @@ public sealed class StateCodec : IStructCodec<StateRecord>
     public byte[] Write(StateRecord value)
     {
         var bytes = new byte[Size];
-        StructBinaryIO.WriteInt32(bytes, 0x00, value.Next);
-        StructBinaryIO.WriteInt32(bytes, 0x04, value.Prev);
-        StructBinaryIO.WriteInt32(bytes, 0x08, value.Hdr);
-        StructBinaryIO.WriteInt32(bytes, 0x0C, value.AnimRef);
-        StructBinaryIO.WriteInt32(bytes, 0x10, value.TransitionsHead);
-        StructBinaryIO.WriteInt32(bytes, 0x14, value.TransitionsTail);
+        HubReferenceIO.Write(bytes, 0x00, value.Next);
+        HubReferenceIO.Write(bytes, 0x04, value.Prev);
+        HubReferenceIO.Write(bytes, 0x08, value.Hdr);
+        HubReferenceIO.Write(bytes, 0x0C, value.AnimRef);
+        HubReferenceIO.Write(bytes, 0x10, value.TransitionsHead);
+        HubReferenceIO.Write(bytes, 0x14, value.TransitionsTail);
         StructBinaryIO.WriteUInt32(bytes, 0x18, value.TransitionsCount);
-        StructBinaryIO.WriteInt32(bytes, 0x1C, value.ProhibitsHead);
-        StructBinaryIO.WriteInt32(bytes, 0x20, value.ProhibitsTail);
+        HubReferenceIO.Write(bytes, 0x1C, value.ProhibitsHead);
+        HubReferenceIO.Write(bytes, 0x20, value.ProhibitsTail);
         StructBinaryIO.WriteUInt32(bytes, 0x24, value.ProhibitsCount);
-        StructBinaryIO.WriteInt32(bytes, 0x28, value.NextState);
-        StructBinaryIO.WriteInt32(bytes, 0x2C, value.MechanicsIdCard);
+        HubReferenceIO.Write(bytes, 0x28, value.NextState);
+        HubReferenceIO.Write(bytes, 0x2C, value.MechanicsIdCard);
         StructBinaryIO.WriteUInt32(bytes, 0x30, value.Unknown30);
         StructBinaryIO.WriteUInt32(bytes, 0x34, value.Unknown34);
         return JsonStructCodec.RequireExactSize(bytes, Size, nameof(StateRecord));

@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.Geometry;
 
@@ -39,13 +40,13 @@ public sealed class GeometricObjectCodec : IStructCodec<GeometricObjectRecord>
         return new GeometricObjectRecord
         {
             NumVertices = StructBinaryIO.ReadUInt32(slice, 0x00),
-            Vertices = StructBinaryIO.ReadInt32(slice, 0x04),
-            Normals = StructBinaryIO.ReadInt32(slice, 0x08),
-            Materials = StructBinaryIO.ReadInt32(slice, 0x0C),
+            Vertices = HubReferenceIO.Read(slice, 0x04),
+            Normals = HubReferenceIO.Read(slice, 0x08),
+            Materials = HubReferenceIO.Read(slice, 0x0C),
             Unknown0 = StructBinaryIO.ReadInt32(slice, 0x10),
             NumElements = StructBinaryIO.ReadUInt32(slice, 0x14),
-            ElementTypes = StructBinaryIO.ReadInt32(slice, 0x18),
-            Elements = StructBinaryIO.ReadInt32(slice, 0x1C),
+            ElementTypes = HubReferenceIO.Read(slice, 0x18),
+            Elements = HubReferenceIO.Read(slice, 0x1C),
             Unknowns = unknowns,
             SphereRadius = StructBinaryIO.ReadSingle(slice, 0x30),
             SphereCenterRaw = sphereCenter
@@ -56,13 +57,13 @@ public sealed class GeometricObjectCodec : IStructCodec<GeometricObjectRecord>
     {
         var bytes = new byte[Size];
         StructBinaryIO.WriteUInt32(bytes, 0x00, value.NumVertices);
-        StructBinaryIO.WriteInt32(bytes, 0x04, value.Vertices);
-        StructBinaryIO.WriteInt32(bytes, 0x08, value.Normals);
-        StructBinaryIO.WriteInt32(bytes, 0x0C, value.Materials);
+        HubReferenceIO.Write(bytes, 0x04, value.Vertices);
+        HubReferenceIO.Write(bytes, 0x08, value.Normals);
+        HubReferenceIO.Write(bytes, 0x0C, value.Materials);
         StructBinaryIO.WriteInt32(bytes, 0x10, value.Unknown0);
         StructBinaryIO.WriteUInt32(bytes, 0x14, value.NumElements);
-        StructBinaryIO.WriteInt32(bytes, 0x18, value.ElementTypes);
-        StructBinaryIO.WriteInt32(bytes, 0x1C, value.Elements);
+        HubReferenceIO.Write(bytes, 0x18, value.ElementTypes);
+        HubReferenceIO.Write(bytes, 0x1C, value.Elements);
         JsonStructCodec.WriteIntArray(bytes, 0x20, value.Unknowns, 4, nameof(value.Unknowns));
         StructBinaryIO.WriteSingle(bytes, 0x30, value.SphereRadius);
         JsonStructCodec.WriteFloat3(bytes, 0x34, value.SphereCenterRaw, nameof(value.SphereCenterRaw));

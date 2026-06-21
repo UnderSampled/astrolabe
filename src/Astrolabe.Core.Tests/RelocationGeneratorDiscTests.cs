@@ -10,6 +10,7 @@ namespace Astrolabe.Core.Tests;
 /// Astrolabe disc parity tests that require a fresh Rete import via <see cref="AstrolabeDiscFixture"/>.
 /// </summary>
 [Trait("Category", "Disc")]
+[Trait("Category", "Slow")]
 [Collection("AstrolabeDisc")]
 public sealed class RelocationGeneratorDiscTests(AstrolabeDiscFixture fixture)
 {

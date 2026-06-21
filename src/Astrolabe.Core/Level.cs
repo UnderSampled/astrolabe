@@ -1,6 +1,7 @@
 using Astrolabe.Core.FileFormats;
 using Astrolabe.Core.FileFormats.Geometry;
 using Astrolabe.Core.FileFormats.Godot;
+using Astrolabe.Core.Hub;
 using Astrolabe.Core.Rete;
 
 namespace Astrolabe.Core;
@@ -21,22 +22,31 @@ public sealed class Level
     public LevelSourceKind SourceKind { get; }
     public string SourcePath { get; }
     public SceneGraph SceneGraph { get; }
-    public LevelLoader Loader { get; }
+    public RetePackageManifest? Manifest { get; }
+    public HubCatalog? Catalog { get; }
+    public Fix? SiblingFix { get; }
+    public LevelLoader? Loader { get; }
     public TextureTable? TextureTable { get; }
 
     private Level(
         string name,
         LevelSourceKind sourceKind,
         string sourcePath,
-        LevelLoader loader,
         SceneGraph sceneGraph,
+        RetePackageManifest? manifest,
+        HubCatalog? catalog,
+        Fix? siblingFix,
+        LevelLoader? loader,
         TextureTable? textureTable)
     {
         Name = name;
         SourceKind = sourceKind;
         SourcePath = sourcePath;
-        Loader = loader;
         SceneGraph = sceneGraph;
+        Manifest = manifest;
+        Catalog = catalog;
+        SiblingFix = siblingFix;
+        Loader = loader;
         TextureTable = textureTable;
     }
 
@@ -56,11 +66,24 @@ public sealed class Level
     public static RetePackageManifest ImportFromOpenSpace(string levelDir, string reteDir) =>
         OpenSpacePackageCodec.ImportLevel(levelDir, reteDir);
 
+    public void ExportToOpenSpace(string levelDir) =>
+        OpenSpacePackageCodec.ExportLevelFromHub(this, levelDir);
+
     public static void ExportToOpenSpace(string reteDir, string levelDir) =>
-        OpenSpacePackageCodec.ExportLevel(reteDir, levelDir);
+        Load(reteDir).ExportToOpenSpace(levelDir);
 
     public IReadOnlyList<MeshData> ScanMeshes()
     {
+        if (Catalog != null)
+        {
+            return new HubMeshScanner(Catalog, TextureTable).ScanForMeshes();
+        }
+
+        if (Loader == null)
+        {
+            return [];
+        }
+
         var scanner = new MeshScanner(Loader, TextureTable);
         return scanner.ScanForMeshes();
     }
@@ -76,26 +99,93 @@ public sealed class Level
         var levelName = Path.GetFileName(levelDir);
         var loader = new LevelLoader(levelDir, levelName);
         var textureTable = TryLoadTextureTable(loader, levelDir, levelName, null);
-        var sceneGraph = ReadSceneGraph(loader, levelDir, levelName, null);
+        var sceneGraph = ReadSceneGraphFromOpenSpace(loader, levelDir, levelName);
 
-        return new Level(levelName, LevelSourceKind.OpenSpace, levelDir, loader, sceneGraph, textureTable);
+        return new Level(
+            levelName,
+            LevelSourceKind.OpenSpace,
+            levelDir,
+            sceneGraph,
+            manifest: null,
+            catalog: null,
+            siblingFix: null,
+            loader,
+            textureTable);
     }
 
     private static Level LoadFromRete(string packageDir)
     {
-        var hydration = OpenSpacePackageCodec.HydrateFromRetePackage(packageDir);
-        var manifest = hydration.Manifest;
-        var loader = new LevelLoader(hydration.Sna, hydration.Rtb, hydration.Rtp, hydration.Rtt);
-        var textureTable = TryLoadTextureTable(loader, packageDir, manifest.LevelName, manifest);
-        var sceneGraph = ReadSceneGraph(loader, packageDir, manifest.LevelName, manifest);
+        var manifest = OpenSpacePackageCodec.ReadReteManifest(packageDir);
+        if (!manifest.PackageRole.Equals("level", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                $"Rete package at {packageDir} has packageRole '{manifest.PackageRole}'; expected 'level'.");
+        }
+
+        ValidateSiblingFixPackage(packageDir, manifest);
+
+        var catalog = HubCatalog.Load(packageDir);
+        var sceneGraph = ReteSceneLoader.Load(packageDir, catalog);
+        var siblingFix = TryLoadSiblingFix(packageDir);
+        var textureTable = TryLoadReteTextureTable(packageDir, manifest, catalog);
 
         return new Level(
             manifest.LevelName,
             LevelSourceKind.Rete,
             packageDir,
-            loader,
             sceneGraph,
+            manifest,
+            catalog,
+            siblingFix,
+            loader: null,
             textureTable);
+    }
+
+    private static void ValidateSiblingFixPackage(string levelPackageDir, RetePackageManifest manifest)
+    {
+        if (!manifest.RelocationTables.Any(table =>
+                table.FileName.Equals("fixlvl.rtb", StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        var fixDir = Path.Combine(Path.GetDirectoryName(levelPackageDir)!, "fix");
+        if (!OpenSpacePackageCodec.IsRetePackageDirectory(fixDir))
+        {
+            throw new InvalidDataException("fixlvl.rtb requires a sibling Fix Rete package.");
+        }
+    }
+
+    private static Fix? TryLoadSiblingFix(string levelPackageDir)
+    {
+        var fixDir = Path.Combine(Path.GetDirectoryName(levelPackageDir)!, "fix");
+        if (!OpenSpacePackageCodec.IsRetePackageDirectory(fixDir))
+        {
+            return null;
+        }
+
+        try
+        {
+            return Fix.Load(fixDir);
+        }
+        catch (InvalidDataException)
+        {
+            return null;
+        }
+    }
+
+    private static TextureTable? TryLoadReteTextureTable(
+        string packageDir,
+        RetePackageManifest manifest,
+        HubCatalog catalog)
+    {
+        var ptxPath = OpenSpacePackageCodec.FindLooseFilePath(manifest, packageDir, $"{manifest.LevelName}.ptx");
+        if (ptxPath == null || !File.Exists(ptxPath))
+        {
+            return null;
+        }
+
+        return new TextureTable(catalog, ptxPath);
     }
 
     private static TextureTable? TryLoadTextureTable(
@@ -121,16 +211,9 @@ public sealed class Level
         return new TextureTable(loader, ptxPath);
     }
 
-    private static SceneGraph ReadSceneGraph(
-        LevelLoader loader,
-        string rootDir,
-        string levelName,
-        RetePackageManifest? manifest)
+    private static SceneGraph ReadSceneGraphFromOpenSpace(LevelLoader loader, string rootDir, string levelName)
     {
-        var gptPath = manifest == null
-            ? FindOpenSpaceFile(rootDir, $"{levelName}.gpt")
-            : OpenSpacePackageCodec.FindLooseFilePath(manifest, rootDir, $"{levelName}.gpt");
-
+        var gptPath = FindOpenSpaceFile(rootDir, $"{levelName}.gpt");
         if (gptPath == null || !File.Exists(gptPath))
         {
             throw new FileNotFoundException($"GPT file not found for level {levelName}.");

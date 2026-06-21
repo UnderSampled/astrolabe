@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.Geometry;
 
@@ -25,7 +26,7 @@ public sealed class RadiosityHeaderCodec : IStructCodec<RadiosityHeaderRecord>
         return new RadiosityHeaderRecord
         {
             NumLod = StructBinaryIO.ReadUInt32(slice, 0x00),
-            Lods = StructBinaryIO.ReadInt32(slice, 0x04),
+            Lods = HubReferenceIO.Read(slice, 0x04),
             Unknown08 = StructBinaryIO.ReadUInt32(slice, 0x08),
             Unknown0C = StructBinaryIO.ReadUInt32(slice, 0x0C)
         };
@@ -35,7 +36,7 @@ public sealed class RadiosityHeaderCodec : IStructCodec<RadiosityHeaderRecord>
     {
         var bytes = new byte[Size];
         StructBinaryIO.WriteUInt32(bytes, 0x00, value.NumLod);
-        StructBinaryIO.WriteInt32(bytes, 0x04, value.Lods);
+        HubReferenceIO.Write(bytes, 0x04, value.Lods);
         StructBinaryIO.WriteUInt32(bytes, 0x08, value.Unknown08);
         StructBinaryIO.WriteUInt32(bytes, 0x0C, value.Unknown0C);
         return JsonStructCodec.RequireExactSize(bytes, Size, nameof(RadiosityHeaderRecord));

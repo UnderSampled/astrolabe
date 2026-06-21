@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.Geometry;
 
@@ -26,10 +27,10 @@ public sealed class ElementSpritesCodec : IStructCodec<ElementSpritesRecord>
         return new ElementSpritesRecord
         {
             NumSprites = StructBinaryIO.ReadUInt32(slice, 0x00),
-            Sprites = StructBinaryIO.ReadInt32(slice, 0x04),
+            Sprites = HubReferenceIO.Read(slice, 0x04),
             Unknown08 = StructBinaryIO.ReadUInt32(slice, 0x08),
             Unknown0C = StructBinaryIO.ReadUInt32(slice, 0x0C),
-            Unknown10 = StructBinaryIO.ReadInt32(slice, 0x10),
+            Unknown10 = HubReferenceIO.Read(slice, 0x10),
             Unknown14 = StructBinaryIO.ReadSingle(slice, 0x14),
             Unknown18 = StructBinaryIO.ReadSingle(slice, 0x18),
             Unknown1C = StructBinaryIO.ReadSingle(slice, 0x1C)
@@ -40,10 +41,10 @@ public sealed class ElementSpritesCodec : IStructCodec<ElementSpritesRecord>
     {
         var bytes = new byte[Size];
         StructBinaryIO.WriteUInt32(bytes, 0x00, value.NumSprites);
-        StructBinaryIO.WriteInt32(bytes, 0x04, value.Sprites);
+        HubReferenceIO.Write(bytes, 0x04, value.Sprites);
         StructBinaryIO.WriteUInt32(bytes, 0x08, value.Unknown08);
         StructBinaryIO.WriteUInt32(bytes, 0x0C, value.Unknown0C);
-        StructBinaryIO.WriteInt32(bytes, 0x10, value.Unknown10);
+        HubReferenceIO.Write(bytes, 0x10, value.Unknown10);
         StructBinaryIO.WriteSingle(bytes, 0x14, value.Unknown14);
         StructBinaryIO.WriteSingle(bytes, 0x18, value.Unknown18);
         StructBinaryIO.WriteSingle(bytes, 0x1C, value.Unknown1C);

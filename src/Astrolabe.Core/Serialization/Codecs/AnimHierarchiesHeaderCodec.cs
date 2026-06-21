@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.Animation;
 
@@ -25,7 +26,7 @@ public sealed class AnimHierarchiesHeaderCodec : IStructCodec<AnimHierarchiesHea
         return new AnimHierarchiesHeaderRecord
         {
             Count = StructBinaryIO.ReadUInt32(slice, 0x00),
-            OffHierarchies = StructBinaryIO.ReadInt32(slice, 0x04)
+            OffHierarchies = HubReferenceIO.Read(slice, 0x04)
         };
     }
 
@@ -33,7 +34,7 @@ public sealed class AnimHierarchiesHeaderCodec : IStructCodec<AnimHierarchiesHea
     {
         var bytes = new byte[Size];
         StructBinaryIO.WriteUInt32(bytes, 0x00, value.Count);
-        StructBinaryIO.WriteInt32(bytes, 0x04, value.OffHierarchies);
+        HubReferenceIO.Write(bytes, 0x04, value.OffHierarchies);
         return JsonStructCodec.RequireExactSize(bytes, Size, nameof(AnimHierarchiesHeaderRecord));
     }
 

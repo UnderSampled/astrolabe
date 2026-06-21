@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.Perso;
 
@@ -27,10 +28,10 @@ public sealed class ObjectListCodec : IStructCodec<ObjectListRecord>
         var slice = StructBinaryIO.RequireExactSize(data.Slice(offset, length), Size, nameof(ObjectListRecord));
         return new ObjectListRecord
         {
-            Next = StructBinaryIO.ReadInt32(slice, 0x00),
-            Prev = StructBinaryIO.ReadInt32(slice, 0x04),
-            Hdr = StructBinaryIO.ReadInt32(slice, 0x08),
-            Entries = StructBinaryIO.ReadInt32(slice, 0x0C),
+            Next = HubReferenceIO.Read(slice, 0x00),
+            Prev = HubReferenceIO.Read(slice, 0x04),
+            Hdr = HubReferenceIO.Read(slice, 0x08),
+            Entries = HubReferenceIO.Read(slice, 0x0C),
             NumEntries = StructBinaryIO.ReadUInt32(slice, 0x10)
         };
     }
@@ -38,10 +39,10 @@ public sealed class ObjectListCodec : IStructCodec<ObjectListRecord>
     public byte[] Write(ObjectListRecord value)
     {
         var bytes = new byte[Size];
-        StructBinaryIO.WriteInt32(bytes, 0x00, value.Next);
-        StructBinaryIO.WriteInt32(bytes, 0x04, value.Prev);
-        StructBinaryIO.WriteInt32(bytes, 0x08, value.Hdr);
-        StructBinaryIO.WriteInt32(bytes, 0x0C, value.Entries);
+        HubReferenceIO.Write(bytes, 0x00, value.Next);
+        HubReferenceIO.Write(bytes, 0x04, value.Prev);
+        HubReferenceIO.Write(bytes, 0x08, value.Hdr);
+        HubReferenceIO.Write(bytes, 0x0C, value.Entries);
         StructBinaryIO.WriteUInt32(bytes, 0x10, value.NumEntries);
         return JsonStructCodec.RequireExactSize(bytes, Size, nameof(ObjectListRecord));
     }

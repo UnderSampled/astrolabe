@@ -10,6 +10,7 @@ namespace Astrolabe.Core.Tests;
 /// Run with: dotnet test --filter "Category=Disc"
 /// </summary>
 [Trait("Category", "Disc")]
+[Trait("Category", "Slow")]
 [Collection("AstrolabeDisc")]
 public sealed class OpenSpaceEncodingFidelityTests(AstrolabeDiscFixture fixture)
 {
@@ -146,6 +147,7 @@ public sealed class OpenSpaceEncodingFidelityTests(AstrolabeDiscFixture fixture)
 /// Compressed-byte fidelity probes. Out of scope for Step 7 decompressed parity gate.
 /// </summary>
 [Trait("Category", "CompressedDisc")]
+[Trait("Category", "Slow")]
 [Collection("AstrolabeDisc")]
 public sealed class CompressedDiscFidelityTests(AstrolabeDiscFixture fixture)
 {

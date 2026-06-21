@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.Materials;
 
@@ -42,15 +43,15 @@ public sealed class VisualMaterialCodec : IStructCodec<VisualMaterialRecord>
             SpecularCoef = specular,
             Color = color,
             Unknown44 = StructBinaryIO.ReadUInt32(slice, 0x44),
-            OffTexture = StructBinaryIO.ReadInt32(slice, 0x48),
+            OffTexture = HubReferenceIO.Read(slice, 0x48),
             CurrentScrollX = StructBinaryIO.ReadSingle(slice, 0x4C),
             CurrentScrollY = StructBinaryIO.ReadSingle(slice, 0x50),
             ScrollX = StructBinaryIO.ReadSingle(slice, 0x54),
             ScrollY = StructBinaryIO.ReadSingle(slice, 0x58),
             ScrollMode = StructBinaryIO.ReadUInt32(slice, 0x5C),
             RefreshNumber = StructBinaryIO.ReadInt32(slice, 0x60),
-            OffAnimTexturesFirst = StructBinaryIO.ReadInt32(slice, 0x64),
-            OffAnimTexturesCurrent = StructBinaryIO.ReadInt32(slice, 0x68),
+            OffAnimTexturesFirst = HubReferenceIO.Read(slice, 0x64),
+            OffAnimTexturesCurrent = HubReferenceIO.Read(slice, 0x68),
             NumAnimTextures = StructBinaryIO.ReadUInt16(slice, 0x6C),
             Padding6E = StructBinaryIO.ReadUInt16(slice, 0x6E),
             Unknown70 = StructBinaryIO.ReadUInt32(slice, 0x70),
@@ -77,15 +78,15 @@ public sealed class VisualMaterialCodec : IStructCodec<VisualMaterialRecord>
         StructBinaryIO.WriteFloat4(bytes, 0x24, value.SpecularCoef);
         StructBinaryIO.WriteFloat4(bytes, 0x34, value.Color);
         StructBinaryIO.WriteUInt32(bytes, 0x44, value.Unknown44);
-        StructBinaryIO.WriteInt32(bytes, 0x48, value.OffTexture);
+        HubReferenceIO.Write(bytes, 0x48, value.OffTexture);
         StructBinaryIO.WriteSingle(bytes, 0x4C, value.CurrentScrollX);
         StructBinaryIO.WriteSingle(bytes, 0x50, value.CurrentScrollY);
         StructBinaryIO.WriteSingle(bytes, 0x54, value.ScrollX);
         StructBinaryIO.WriteSingle(bytes, 0x58, value.ScrollY);
         StructBinaryIO.WriteUInt32(bytes, 0x5C, value.ScrollMode);
         StructBinaryIO.WriteInt32(bytes, 0x60, value.RefreshNumber);
-        StructBinaryIO.WriteInt32(bytes, 0x64, value.OffAnimTexturesFirst);
-        StructBinaryIO.WriteInt32(bytes, 0x68, value.OffAnimTexturesCurrent);
+        HubReferenceIO.Write(bytes, 0x64, value.OffAnimTexturesFirst);
+        HubReferenceIO.Write(bytes, 0x68, value.OffAnimTexturesCurrent);
         StructBinaryIO.WriteUInt16(bytes, 0x6C, value.NumAnimTextures);
         StructBinaryIO.WriteUInt16(bytes, 0x6E, value.Padding6E);
         StructBinaryIO.WriteUInt32(bytes, 0x70, value.Unknown70);

@@ -1,3 +1,5 @@
+using Astrolabe.Core.Hub;
+
 namespace Astrolabe.Core.FileFormats.Animation;
 
 public sealed class AnimChannelRecord
@@ -8,7 +10,7 @@ public sealed class AnimChannelRecord
     /// Montreal <c>AnimChannelMontreal</c> first <c>uint32</c>: sentinel <c>0</c> (none), <c>1</c> (identity),
     /// or a virtual address to compressed matrix data. JSON field name is <c>isIdentity</c>.
     /// </summary>
-    public int IsIdentity { get; set; }
+    public HubReference IsIdentity { get; set; } = HubReference.Null;
 
     public sbyte ObjectIndex { get; set; }
     public byte Unk1 { get; set; }
@@ -21,18 +23,18 @@ public sealed class AnimChannelRecord
     /// <summary>
     /// Bytes <c>0x10–0x13</c>: either a virtual-address pointer (URI on import) or a small inline integer.
     /// </summary>
-    public int Unknown10 { get; set; }
+    public HubReference Unknown10 { get; set; } = HubReference.Null;
 }
 
 public sealed class AnimationMontrealRecord
 {
     public string Schema { get; set; } = "astrolabe.animation-montreal.v1";
-    public int OffFrames { get; set; }
+    public HubReference OffFrames { get; set; } = HubReference.Null;
     public byte NumFrames { get; set; }
     public byte Speed { get; set; }
     public byte NumChannels { get; set; }
     public byte UnkByte { get; set; }
-    public int OffUnk { get; set; }
+    public HubReference OffUnk { get; set; } = HubReference.Null;
     public uint Unk0C { get; set; }
     public uint Unk10 { get; set; }
     public float[] SpeedMatrix { get; set; } = [];
@@ -41,10 +43,10 @@ public sealed class AnimationMontrealRecord
 
 public sealed class AnimFrameRecord
 {
-    public int Channels { get; set; }
-    public int Mat { get; set; }
-    public int Vec { get; set; }
-    public int Hierarchies { get; set; }
+    public HubReference Channels { get; set; } = HubReference.Null;
+    public HubReference Mat { get; set; } = HubReference.Null;
+    public HubReference Vec { get; set; } = HubReference.Null;
+    public HubReference Hierarchies { get; set; } = HubReference.Null;
 }
 
 public sealed class AnimFramesRecord
@@ -57,5 +59,5 @@ public sealed class AnimHierarchiesHeaderRecord
 {
     public string Schema { get; set; } = "astrolabe.anim-hierarchies-header.v1";
     public uint Count { get; set; }
-    public int OffHierarchies { get; set; }
+    public HubReference OffHierarchies { get; set; } = HubReference.Null;
 }

@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.Perso;
 
@@ -28,22 +29,22 @@ public sealed class TransitionCodec : IStructCodec<TransitionRecord>
         var slice = StructBinaryIO.RequireExactSize(data.Slice(offset, length), Size, nameof(TransitionRecord));
         return new TransitionRecord
         {
-            Next = StructBinaryIO.ReadInt32(slice, 0x00),
-            Prev = StructBinaryIO.ReadInt32(slice, 0x04),
-            Hdr = StructBinaryIO.ReadInt32(slice, 0x08),
-            TargetState = StructBinaryIO.ReadInt32(slice, 0x0C),
-            StateToGo = StructBinaryIO.ReadInt32(slice, 0x10)
+            Next = HubReferenceIO.Read(slice, 0x00),
+            Prev = HubReferenceIO.Read(slice, 0x04),
+            Hdr = HubReferenceIO.Read(slice, 0x08),
+            TargetState = HubReferenceIO.Read(slice, 0x0C),
+            StateToGo = HubReferenceIO.Read(slice, 0x10)
         };
     }
 
     public byte[] Write(TransitionRecord value)
     {
         var bytes = new byte[Size];
-        StructBinaryIO.WriteInt32(bytes, 0x00, value.Next);
-        StructBinaryIO.WriteInt32(bytes, 0x04, value.Prev);
-        StructBinaryIO.WriteInt32(bytes, 0x08, value.Hdr);
-        StructBinaryIO.WriteInt32(bytes, 0x0C, value.TargetState);
-        StructBinaryIO.WriteInt32(bytes, 0x10, value.StateToGo);
+        HubReferenceIO.Write(bytes, 0x00, value.Next);
+        HubReferenceIO.Write(bytes, 0x04, value.Prev);
+        HubReferenceIO.Write(bytes, 0x08, value.Hdr);
+        HubReferenceIO.Write(bytes, 0x0C, value.TargetState);
+        HubReferenceIO.Write(bytes, 0x10, value.StateToGo);
         return JsonStructCodec.RequireExactSize(bytes, Size, nameof(TransitionRecord));
     }
 

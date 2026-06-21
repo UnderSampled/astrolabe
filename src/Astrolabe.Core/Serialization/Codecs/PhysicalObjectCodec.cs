@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.Geometry;
 
@@ -26,9 +27,9 @@ public sealed class PhysicalObjectCodec : IStructCodec<PhysicalObjectRecord>
         var slice = data.Slice(offset, length);
         return new PhysicalObjectRecord
         {
-            VisualSet = StructBinaryIO.ReadInt32(slice, 0x00),
-            CollideSet = StructBinaryIO.ReadInt32(slice, 0x04),
-            VisualBoundingVolume = StructBinaryIO.ReadInt32(slice, 0x08),
+            VisualSet = HubReferenceIO.Read(slice, 0x00),
+            CollideSet = HubReferenceIO.Read(slice, 0x04),
+            VisualBoundingVolume = HubReferenceIO.Read(slice, 0x08),
             Unknown0 = StructBinaryIO.ReadInt32(slice, 0x0C)
         };
     }
@@ -36,9 +37,9 @@ public sealed class PhysicalObjectCodec : IStructCodec<PhysicalObjectRecord>
     public byte[] Write(PhysicalObjectRecord value)
     {
         var bytes = new byte[Size];
-        StructBinaryIO.WriteInt32(bytes, 0x00, value.VisualSet);
-        StructBinaryIO.WriteInt32(bytes, 0x04, value.CollideSet);
-        StructBinaryIO.WriteInt32(bytes, 0x08, value.VisualBoundingVolume);
+        HubReferenceIO.Write(bytes, 0x00, value.VisualSet);
+        HubReferenceIO.Write(bytes, 0x04, value.CollideSet);
+        HubReferenceIO.Write(bytes, 0x08, value.VisualBoundingVolume);
         StructBinaryIO.WriteInt32(bytes, 0x0C, value.Unknown0);
         return JsonStructCodec.RequireExactSize(bytes, Size, nameof(PhysicalObjectRecord));
     }

@@ -1,4 +1,5 @@
 using Astrolabe.Core;
+using Astrolabe.Core.Hub;
 using Astrolabe.Core.Rete;
 using Xunit;
 
@@ -9,42 +10,16 @@ namespace Astrolabe.Core.Tests;
 /// Import runs once via <see cref="AstrolabeDiscFixture"/>.
 /// </summary>
 [Trait("Category", "Disc")]
+[Trait("Category", "Slow")]
 [Collection("AstrolabeDisc")]
 public sealed class LevelDiscTests(AstrolabeDiscFixture fixture)
 {
-    [Fact]
-    public void Load_FromRetePackage_MatchesOpenSpaceRtbBlockCount()
-    {
-        if (!fixture.IsAvailable)
-        {
-            return;
-        }
-
-        var openSpaceLevel = Level.Load(fixture.LevelDir);
-        var reteLevel = Level.Load(fixture.PackageDir);
-
-        Assert.NotNull(openSpaceLevel.Loader.Rtb);
-        Assert.NotNull(reteLevel.Loader.Rtb);
-
-        var openSpaceBlocks = openSpaceLevel.Loader.Rtb.PointerBlocks
-            .Select(block => block.Key)
-            .OrderBy(key => key)
-            .ToList();
-        var reteBlocks = reteLevel.Loader.Rtb.PointerBlocks
-            .Select(block => block.Key)
-            .OrderBy(key => key)
-            .ToList();
-
-        Assert.Equal(openSpaceBlocks, reteBlocks);
-        Assert.Equal(openSpaceLevel.Loader.Rtb.PointerBlocks.Count, reteLevel.Loader.Rtb.PointerBlocks.Count);
-    }
-
     [Fact]
     public void Load_FromRetePackage_ReadsSceneGraph()
     {
         if (!fixture.IsAvailable)
         {
-            return;
+            Assert.Fail("Astrolabe disc fixture is required for Level disc tests.");
         }
 
         var openSpaceLevel = Level.Load(fixture.LevelDir);
@@ -55,11 +30,11 @@ public sealed class LevelDiscTests(AstrolabeDiscFixture fixture)
     }
 
     [Fact]
-    public void Load_FromRetePackage_ResolvesFixSibling()
+    public void Load_FromRetePackage_UsesHubWithoutLoader()
     {
         if (!fixture.IsAvailable)
         {
-            return;
+            Assert.Fail("Astrolabe disc fixture is required for Level disc tests.");
         }
 
         Assert.True(Directory.Exists(fixture.FixDir));
@@ -68,7 +43,22 @@ public sealed class LevelDiscTests(AstrolabeDiscFixture fixture)
         var reteLevel = Level.Load(fixture.PackageDir);
         Assert.Equal("astrolabe", reteLevel.Name);
         Assert.Equal(LevelSourceKind.Rete, reteLevel.SourceKind);
-        Assert.NotNull(reteLevel.Loader.Rtb);
+        Assert.Null(reteLevel.Loader);
+        Assert.NotNull(reteLevel.Catalog);
+        Assert.NotNull(reteLevel.SiblingFix);
+    }
+
+    [Fact]
+    public void Import_ProducesGeometricObjectEntries()
+    {
+        if (!fixture.IsAvailable)
+        {
+            Assert.Fail("Astrolabe disc fixture is required for Level disc tests.");
+        }
+
+        var catalog = HubCatalog.Load(fixture.PackageDir);
+        var geoCount = catalog.GetElementsOfKind("geometricobject").Count();
+        Assert.True(geoCount > 0, $"Expected geometricobject manifest entries, found {geoCount}.");
     }
 
     [Fact]
@@ -76,7 +66,7 @@ public sealed class LevelDiscTests(AstrolabeDiscFixture fixture)
     {
         if (!fixture.IsAvailable)
         {
-            return;
+            Assert.Fail("Astrolabe disc fixture is required for Level disc tests.");
         }
 
         var godotDir = Path.Combine(fixture.WorkspaceDir, "godot");

@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.AI;
 
@@ -24,7 +25,7 @@ public sealed class BrainCodec : IStructCodec<BrainRecord>
         var slice = StructBinaryIO.RequireExactSize(data.Slice(offset, length), Size, nameof(BrainRecord));
         return new BrainRecord
         {
-            Mind = StructBinaryIO.ReadInt32(slice, 0x00),
+            Mind = HubReferenceIO.Read(slice, 0x00),
             Unknown04 = StructBinaryIO.ReadInt32(slice, 0x04),
             Unknown08 = StructBinaryIO.ReadInt32(slice, 0x08)
         };
@@ -33,7 +34,7 @@ public sealed class BrainCodec : IStructCodec<BrainRecord>
     public byte[] Write(BrainRecord value)
     {
         var bytes = new byte[Size];
-        StructBinaryIO.WriteInt32(bytes, 0x00, value.Mind);
+        HubReferenceIO.Write(bytes, 0x00, value.Mind);
         StructBinaryIO.WriteInt32(bytes, 0x04, value.Unknown04);
         StructBinaryIO.WriteInt32(bytes, 0x08, value.Unknown08);
         return JsonStructCodec.RequireExactSize(bytes, Size, nameof(BrainRecord));

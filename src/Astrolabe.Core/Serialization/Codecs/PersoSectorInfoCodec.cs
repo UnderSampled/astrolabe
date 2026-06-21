@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.Perso;
 
@@ -24,7 +25,7 @@ public sealed class PersoSectorInfoCodec : IStructCodec<PersoSectorInfoRecord>
         var slice = StructBinaryIO.RequireExactSize(data.Slice(offset, length), Size, nameof(PersoSectorInfoRecord));
         return new PersoSectorInfoRecord
         {
-            Sector = StructBinaryIO.ReadInt32(slice, 0x00),
+            Sector = HubReferenceIO.Read(slice, 0x00),
             Unknown04 = slice.AsSpan(0x04, 0x0C).ToArray()
         };
     }
@@ -32,7 +33,7 @@ public sealed class PersoSectorInfoCodec : IStructCodec<PersoSectorInfoRecord>
     public byte[] Write(PersoSectorInfoRecord value)
     {
         var bytes = new byte[Size];
-        StructBinaryIO.WriteInt32(bytes, 0x00, value.Sector);
+        HubReferenceIO.Write(bytes, 0x00, value.Sector);
         if (value.Unknown04.Length != 0x0C)
         {
             throw new InvalidDataException("unknown04 must contain exactly 12 bytes.");

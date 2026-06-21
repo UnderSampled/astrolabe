@@ -8,6 +8,8 @@ Users provide their own legally obtained game copy. Local testing uses `disc/`, 
 
 **Level** and **Fix** are the in-memory hubs: canonical types from `FileFormats/` (`SceneGraph`, geometry, materials, perso/family data, …). **Rete** is how each hub is stored on disk (JSON structs, buffer descriptors, binary payloads, manifest). No exporter reads Rete JSON or OpenSpace bytes directly for its own logic — everything goes through **Level** or **Fix**. Cross-package work joins the two via `fix:/` and `level:/` URI resolution (not by embedding Fix inside `Level`).
 
+**Lazy hub, not a full preload.** `Level.Load` / `Fix.Load` build a **catalog index** (manifest + element metadata + `HubReference` URIs) and eagerly load only what the entry path needs immediately (e.g. scene graph roots). Promoted canonical records are **hydrated on demand** via `HubCatalog.TryHydrate` when a consumer follows a reference (mesh scan, Godot export, export-time codec walks). The hub is not “everything parsed into memory at load time”; do not reintroduce bulk preload of all `types/` elements as the default load path.
+
 ```text
    OpenSpace Fix.* ──────► Fix ◄──── Rete package (Gamedata/World/Levels/, packageRole: fix)
                               ▲ fix:/  level:/
@@ -33,8 +35,8 @@ Today's import still writes a transitional flat layout (`output/fix/`, `output/a
 
 | Layer | Location | Responsibility |
 |-------|----------|----------------|
-| **Level** | `Level.cs` + `FileFormats/` | In-memory level hub: live canonical types with **object references** (`SceneGraph`, geometry, materials, …) |
-| **Fix** | target: `Fix.cs` + `FileFormats/` | In-memory Fix hub (perso, families, shared textures, …); today import/export via `OpenSpacePackageCodec` |
+| **Level** | `Level.cs` + `Hub/` + `FileFormats/` | In-memory level hub: **lazy** catalog + `HubReference` links; canonical records hydrate on demand (`SceneGraph`, geometry, materials, …) |
+| **Fix** | `Fix.cs` + `Hub/` + `FileFormats/` | In-memory Fix hub (same lazy pattern: catalog index + on-demand hydration) |
 | Struct codecs | `Serialization/` | Wire layout (bytes ↔ export); pointer field metadata for relocation generation at export only |
 | Rete package | `Rete/` | Persist `Level` / `Fix` as JSON + buffers; cross-links as `fix:/` / `level:/` URIs |
 | OpenSpace exporter | `Rete/OpenSpace/` | `Level` / `Fix` → VM layout, `int32` pointer values, relocation generation, encoding (**Step 8** consolidates here) |
@@ -54,6 +56,10 @@ Read [`docs/rete-format.md`](docs/rete-format.md) for the format specification. 
 | VM layout + RT* generation at export only (Step 8) | Regenerating RT* in `Level.Load` / hydration |
 | Remove relocation bridge once generation exists (Step 5 ✓) | Keep “preserved RT*” or encoding-cache shortcuts alongside generators |
 | Delete superseded types (`Intermediate*`, overlay models) when migrated | Keep dead types “for reference” in production code |
+| Promote documented structs to canonical types + codecs when code must parse or traverse them | Use `raw` (`OpaqueBinaryRecord`) blobs for understood layout — `raw` is import/export preservation only |
+| Hub readers, Godot export, mesh scan, relocation walks on **promoted** kinds with `HubReference` fields | Heuristic scans of `types/raw/` pointer LUTs to recover geometry, materials, or other known structs |
+
+**`raw` is a placeholder, not a parser.** The `raw` codec kind exists for wire blobs whose layout is **not yet promoted** — byte-identical round-trip through import/export, optional inline pointer LUT for relocation. If any step needs to **understand** the data (field access, nested pointers, mesh/material resolution, scene semantics, Godot export, hub lazy-load), **promote the struct first** per [`notes/intermediate-type-checklist.md`](notes/intermediate-type-checklist.md). Do not leave known OpenSpace types in `types/raw/` and decode them with offset heuristics or fragment hacks; that duplicates the codec layer and blocks lazy `HubReference` resolution.
 
 Step 6 is a **consolidation step**: wiring `Level`, **and** deleting transition shims (old commands, dual loaders, legacy import paths). The C# core remains the sole implementation.
 
@@ -130,7 +136,7 @@ Remove `extract-intermediate`, `compile-intermediate`, and any other transition 
 
 The refactor proceeds as **sequential steps** on one branch — not as separate pull requests. Code map and API contracts live in [`notes/rete-implementation.md`](notes/rete-implementation.md). The **decompressed parity gate** is Step 7 only — do not block Steps 6–9 on compressed-byte `cmp`. Step 10 is the optional full compressed `cmp` gate (external dependency; always last).
 
-**Progress:** Steps **1–7 complete** (decompressed export parity on `astrolabe`). Step **8** (hub refactor — live references, export-only relocation) is next, then Step **9** (texture/sound sidecar promotion). Step **10** (compressed LZO parity) deferred until LZO encoder parity is resolved with the original authors. Step 5 delivered: `RelocationGenerator` (RTB/RTP/RTT/fixlvl), export generates RT* from struct codecs and opaque LUTs with no relocation bridge in Rete, **67** struct codecs, **LZO done** (`OpenSpaceLzo` + `lzo1x` at `-O0`). Step 7 closed RTB/fixlvl/RTP pointer plaintext gaps, SNA decompressed plaintext parity, and `Fix.rtv` policy.
+**Progress:** Steps **1–8 complete** (hub refactor — live references, export-only VM layout). Step **9** (texture/sound sidecar promotion) is next. Step **10** (compressed LZO parity) deferred until LZO encoder parity is resolved with the original authors. Step 5 delivered: `RelocationGenerator` (RTB/RTP/RTT/fixlvl), export generates RT* from struct codecs and opaque LUTs with no relocation bridge in Rete, **67** struct codecs, **LZO done** (`OpenSpaceLzo` + `lzo1x` at `-O0`). Step 7 closed RTB/fixlvl/RTP pointer plaintext gaps, SNA decompressed plaintext parity, and `Fix.rtv` policy.
 
 ### Step 1 — Serialization scaffold (no behavior change)
 
@@ -204,15 +210,15 @@ Track per-type progress in [`notes/intermediate-type-checklist.md`](notes/interm
 
 **Exit criterion (met):** unedited Rete → `export-openspace` → decompressed SNA/RT* plaintext and generated relocation pointer data match disc; non-generated sidecar files byte-match.
 
-### Step 8 — Hub refactor (live references, export-only VM layout)
+### Step 8 — Hub refactor (live references, export-only VM layout) ✓
 
-**Next.** Complete the architecture in [`Architecture`](#architecture): `Level` and `Fix` are real in-memory hubs with **object references**, not VM addresses. Rete stores URIs; OpenSpace export alone materializes `int32` pointers and generates RT*.
+**Complete.** `Level` and `Fix` are real in-memory hubs with **object references**, not VM addresses. Rete stores URIs; OpenSpace export alone materializes `int32` pointers and generates RT*.
 
 **8a — Hub canonical types**
 
 - Replace `int` pointer fields on promoted records (`SpawnableEntryRecord.Perso`, `SceneNode.OffData`, …) with typed references that resolve within `Level` / `Fix` (element id, package-relative path, or direct object link — same identity the URI model names).
 - `import-openspace`: OpenSpace bytes → hub types (resolve VM pointers to references during import; emit URIs when persisting to Rete).
-- `Level.Load` from Rete: URIs → references into the hub. **No** SNA/RT* rebuild, **no** `LevelLoader` VM map, **no** `HydrateFromRetePackage` relocation regeneration.
+- `Level.Load` from Rete: URIs → references into the hub catalog; **lazy hydration** of promoted records when followed (`HubCatalog.TryHydrate`), not a bulk preload of every element. **No** SNA/RT* rebuild, **no** `LevelLoader` VM map, **no** `HydrateFromRetePackage` relocation regeneration.
 
 **8b — Export-only OpenSpace pipeline**
 
@@ -230,7 +236,7 @@ Track per-type progress in [`notes/intermediate-type-checklist.md`](notes/interm
 - Step 7 decompressed parity must still pass after the refactor.
 - Add hub-round-trip tests: import → `Level` → export without relying on VM rehydration on load.
 
-**Exit criterion:** `Level.Load(reteDir)` returns a hub usable by Godot export without generating RTB; `export-openspace` is the only code path that assigns VM addresses and emits relocation tables.
+**Exit criterion:** `Level.Load(reteDir)` returns a lazy hub (catalog + references, hydrate on use) usable by Godot export without generating RTB; `export-openspace` is the only code path that assigns VM addresses and emits relocation tables.
 
 ### Step 9 — Texture and sound sidecars (PNG/WAV assets, URI pointers, generated RT*)
 

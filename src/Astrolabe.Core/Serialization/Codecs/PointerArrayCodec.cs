@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats;
 
@@ -54,10 +55,10 @@ public sealed class PointerArrayCodec : IStructCodec<PointerArrayRecord>, IPoint
         }
 
         var slice = data.Slice(offset, length);
-        var values = new int[length / 4];
+        var values = new HubReference[length / 4];
         for (var i = 0; i < values.Length; i++)
         {
-            values[i] = StructBinaryIO.ReadInt32(slice, i * 4);
+            values[i] = HubReferenceIO.Read(slice, i * 4);
         }
 
         return new PointerArrayRecord { Type = Kind, Values = values };
@@ -73,7 +74,7 @@ public sealed class PointerArrayCodec : IStructCodec<PointerArrayRecord>, IPoint
         var bytes = new byte[value.Values.Length * 4];
         for (var i = 0; i < value.Values.Length; i++)
         {
-            StructBinaryIO.WriteInt32(bytes, i * 4, value.Values[i]);
+            HubReferenceIO.Write(bytes, i * 4, value.Values[i]);
         }
 
         return bytes;

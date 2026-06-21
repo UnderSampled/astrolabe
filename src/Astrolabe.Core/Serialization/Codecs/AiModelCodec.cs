@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.AI;
 
@@ -27,10 +28,10 @@ public sealed class AiModelCodec : IStructCodec<AiModelRecord>
         var slice = StructBinaryIO.RequireExactSize(data.Slice(offset, length), Size, nameof(AiModelRecord));
         return new AiModelRecord
         {
-            BehaviorsNormal = StructBinaryIO.ReadInt32(slice, 0x00),
-            BehaviorsReflex = StructBinaryIO.ReadInt32(slice, 0x04),
-            DsgVar = StructBinaryIO.ReadInt32(slice, 0x08),
-            Macros = StructBinaryIO.ReadInt32(slice, 0x0C),
+            BehaviorsNormal = HubReferenceIO.Read(slice, 0x00),
+            BehaviorsReflex = HubReferenceIO.Read(slice, 0x04),
+            DsgVar = HubReferenceIO.Read(slice, 0x08),
+            Macros = HubReferenceIO.Read(slice, 0x0C),
             Unknown10 = StructBinaryIO.ReadUInt32(slice, 0x10)
         };
     }
@@ -38,10 +39,10 @@ public sealed class AiModelCodec : IStructCodec<AiModelRecord>
     public byte[] Write(AiModelRecord value)
     {
         var bytes = new byte[Size];
-        StructBinaryIO.WriteInt32(bytes, 0x00, value.BehaviorsNormal);
-        StructBinaryIO.WriteInt32(bytes, 0x04, value.BehaviorsReflex);
-        StructBinaryIO.WriteInt32(bytes, 0x08, value.DsgVar);
-        StructBinaryIO.WriteInt32(bytes, 0x0C, value.Macros);
+        HubReferenceIO.Write(bytes, 0x00, value.BehaviorsNormal);
+        HubReferenceIO.Write(bytes, 0x04, value.BehaviorsReflex);
+        HubReferenceIO.Write(bytes, 0x08, value.DsgVar);
+        HubReferenceIO.Write(bytes, 0x0C, value.Macros);
         StructBinaryIO.WriteUInt32(bytes, 0x10, value.Unknown10);
         return JsonStructCodec.RequireExactSize(bytes, Size, nameof(AiModelRecord));
     }

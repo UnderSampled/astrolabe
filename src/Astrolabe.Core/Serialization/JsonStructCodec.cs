@@ -1,14 +1,22 @@
 using System.Text.Json;
+using Astrolabe.Core.Hub;
 
 namespace Astrolabe.Core.Serialization;
 
 internal static class JsonStructCodec
 {
-    internal static readonly JsonSerializerOptions Options = new()
+    internal static readonly JsonSerializerOptions Options = CreateOptions();
+
+    private static JsonSerializerOptions CreateOptions()
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true
-    };
+        var options = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            PropertyNameCaseInsensitive = true
+        };
+        options.Converters.Add(new HubReferenceJsonConverter());
+        return options;
+    }
 
     public static T Deserialize<T>(JsonElement json, string schema) where T : class
     {

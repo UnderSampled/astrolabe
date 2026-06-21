@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.Perso;
 
@@ -33,19 +34,19 @@ public sealed class PersoCodec : IStructCodec<PersoRecord>
         var slice = StructBinaryIO.RequireExactSize(data.Slice(offset, length), Size, nameof(PersoRecord));
         return new PersoRecord
         {
-            Perso3dData = StructBinaryIO.ReadInt32(slice, 0x00),
-            StdGame = StructBinaryIO.ReadInt32(slice, 0x04),
-            Dynam = StructBinaryIO.ReadInt32(slice, 0x08),
+            Perso3dData = HubReferenceIO.Read(slice, 0x00),
+            StdGame = HubReferenceIO.Read(slice, 0x04),
+            Dynam = HubReferenceIO.Read(slice, 0x08),
             Unknown0C = StructBinaryIO.ReadUInt32(slice, 0x0C),
-            Brain = StructBinaryIO.ReadInt32(slice, 0x10),
-            Camera = StructBinaryIO.ReadInt32(slice, 0x14),
-            CollSet = StructBinaryIO.ReadInt32(slice, 0x18),
-            MsWay = StructBinaryIO.ReadInt32(slice, 0x1C),
-            MsLight = StructBinaryIO.ReadInt32(slice, 0x20),
+            Brain = HubReferenceIO.Read(slice, 0x10),
+            Camera = HubReferenceIO.Read(slice, 0x14),
+            CollSet = HubReferenceIO.Read(slice, 0x18),
+            MsWay = HubReferenceIO.Read(slice, 0x1C),
+            MsLight = HubReferenceIO.Read(slice, 0x20),
             Unknown24 = StructBinaryIO.ReadUInt32(slice, 0x24),
-            SectInfo = StructBinaryIO.ReadInt32(slice, 0x28),
+            SectInfo = HubReferenceIO.Read(slice, 0x28),
             Unknown2C = StructBinaryIO.ReadUInt32(slice, 0x2C),
-            Unknown30 = StructBinaryIO.ReadInt32(slice, 0x30),
+            Unknown30 = HubReferenceIO.Read(slice, 0x30),
             Unknown34 = StructBinaryIO.ReadUInt32(slice, 0x34),
             Unknown38 = StructBinaryIO.ReadUInt32(slice, 0x38),
             Unknown3C = StructBinaryIO.ReadUInt32(slice, 0x3C)
@@ -55,19 +56,19 @@ public sealed class PersoCodec : IStructCodec<PersoRecord>
     public byte[] Write(PersoRecord value)
     {
         var bytes = new byte[Size];
-        StructBinaryIO.WriteInt32(bytes, 0x00, value.Perso3dData);
-        StructBinaryIO.WriteInt32(bytes, 0x04, value.StdGame);
-        StructBinaryIO.WriteInt32(bytes, 0x08, value.Dynam);
+        HubReferenceIO.Write(bytes, 0x00, value.Perso3dData);
+        HubReferenceIO.Write(bytes, 0x04, value.StdGame);
+        HubReferenceIO.Write(bytes, 0x08, value.Dynam);
         StructBinaryIO.WriteUInt32(bytes, 0x0C, value.Unknown0C);
-        StructBinaryIO.WriteInt32(bytes, 0x10, value.Brain);
-        StructBinaryIO.WriteInt32(bytes, 0x14, value.Camera);
-        StructBinaryIO.WriteInt32(bytes, 0x18, value.CollSet);
-        StructBinaryIO.WriteInt32(bytes, 0x1C, value.MsWay);
-        StructBinaryIO.WriteInt32(bytes, 0x20, value.MsLight);
+        HubReferenceIO.Write(bytes, 0x10, value.Brain);
+        HubReferenceIO.Write(bytes, 0x14, value.Camera);
+        HubReferenceIO.Write(bytes, 0x18, value.CollSet);
+        HubReferenceIO.Write(bytes, 0x1C, value.MsWay);
+        HubReferenceIO.Write(bytes, 0x20, value.MsLight);
         StructBinaryIO.WriteUInt32(bytes, 0x24, value.Unknown24);
-        StructBinaryIO.WriteInt32(bytes, 0x28, value.SectInfo);
+        HubReferenceIO.Write(bytes, 0x28, value.SectInfo);
         StructBinaryIO.WriteUInt32(bytes, 0x2C, value.Unknown2C);
-        StructBinaryIO.WriteInt32(bytes, 0x30, value.Unknown30);
+        HubReferenceIO.Write(bytes, 0x30, value.Unknown30);
         StructBinaryIO.WriteUInt32(bytes, 0x34, value.Unknown34);
         StructBinaryIO.WriteUInt32(bytes, 0x38, value.Unknown38);
         StructBinaryIO.WriteUInt32(bytes, 0x3C, value.Unknown3C);

@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.Geometry;
 
@@ -29,15 +30,15 @@ public sealed class ElementTrianglesCodec : IStructCodec<ElementTrianglesRecord>
         var slice = data.Slice(offset, length);
         return new ElementTrianglesRecord
         {
-            Material = StructBinaryIO.ReadInt32(slice, 0x00),
+            Material = HubReferenceIO.Read(slice, 0x00),
             NumTriangles = StructBinaryIO.ReadUInt16(slice, 0x04),
             NumUvs = StructBinaryIO.ReadUInt16(slice, 0x06),
-            Triangles = StructBinaryIO.ReadInt32(slice, 0x08),
-            MappingUvs = StructBinaryIO.ReadInt32(slice, 0x0C),
-            Normals = StructBinaryIO.ReadInt32(slice, 0x10),
-            Uvs = StructBinaryIO.ReadInt32(slice, 0x14),
+            Triangles = HubReferenceIO.Read(slice, 0x08),
+            MappingUvs = HubReferenceIO.Read(slice, 0x0C),
+            Normals = HubReferenceIO.Read(slice, 0x10),
+            Uvs = HubReferenceIO.Read(slice, 0x14),
             Unknown18 = StructBinaryIO.ReadUInt32(slice, 0x18),
-            VertexIndices = StructBinaryIO.ReadInt32(slice, 0x1C),
+            VertexIndices = HubReferenceIO.Read(slice, 0x1C),
             NumVertexIndices = StructBinaryIO.ReadUInt16(slice, 0x20),
             ParallelBox = StructBinaryIO.ReadUInt16(slice, 0x22),
             Unknown24 = StructBinaryIO.ReadUInt32(slice, 0x24)
@@ -47,15 +48,15 @@ public sealed class ElementTrianglesCodec : IStructCodec<ElementTrianglesRecord>
     public byte[] Write(ElementTrianglesRecord value)
     {
         var bytes = new byte[Size];
-        StructBinaryIO.WriteInt32(bytes, 0x00, value.Material);
+        HubReferenceIO.Write(bytes, 0x00, value.Material);
         StructBinaryIO.WriteUInt16(bytes, 0x04, value.NumTriangles);
         StructBinaryIO.WriteUInt16(bytes, 0x06, value.NumUvs);
-        StructBinaryIO.WriteInt32(bytes, 0x08, value.Triangles);
-        StructBinaryIO.WriteInt32(bytes, 0x0C, value.MappingUvs);
-        StructBinaryIO.WriteInt32(bytes, 0x10, value.Normals);
-        StructBinaryIO.WriteInt32(bytes, 0x14, value.Uvs);
+        HubReferenceIO.Write(bytes, 0x08, value.Triangles);
+        HubReferenceIO.Write(bytes, 0x0C, value.MappingUvs);
+        HubReferenceIO.Write(bytes, 0x10, value.Normals);
+        HubReferenceIO.Write(bytes, 0x14, value.Uvs);
         StructBinaryIO.WriteUInt32(bytes, 0x18, value.Unknown18);
-        StructBinaryIO.WriteInt32(bytes, 0x1C, value.VertexIndices);
+        HubReferenceIO.Write(bytes, 0x1C, value.VertexIndices);
         StructBinaryIO.WriteUInt16(bytes, 0x20, value.NumVertexIndices);
         StructBinaryIO.WriteUInt16(bytes, 0x22, value.ParallelBox);
         StructBinaryIO.WriteUInt32(bytes, 0x24, value.Unknown24);

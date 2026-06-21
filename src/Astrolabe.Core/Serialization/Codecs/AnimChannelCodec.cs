@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.Animation;
 
@@ -29,7 +30,7 @@ public sealed class AnimChannelCodec : IStructCodec<AnimChannelRecord>, IPointer
         var slice = StructBinaryIO.RequireExactSize(data.Slice(offset, length), Size, nameof(AnimChannelRecord));
         return new AnimChannelRecord
         {
-            IsIdentity = StructBinaryIO.ReadInt32(slice, 0x00),
+            IsIdentity = HubReferenceIO.Read(slice, 0x00),
             ObjectIndex = unchecked((sbyte)StructBinaryIO.ReadByte(slice, 0x04)),
             Unk1 = StructBinaryIO.ReadByte(slice, 0x05),
             Unk2 = unchecked((short)StructBinaryIO.ReadUInt16(slice, 0x06)),
@@ -37,14 +38,14 @@ public sealed class AnimChannelCodec : IStructCodec<AnimChannelRecord>, IPointer
             UnkByte1 = StructBinaryIO.ReadByte(slice, 0x0A),
             UnkByte2 = StructBinaryIO.ReadByte(slice, 0x0B),
             UnkUint = StructBinaryIO.ReadUInt32(slice, 0x0C),
-            Unknown10 = StructBinaryIO.ReadInt32(slice, 0x10)
+            Unknown10 = HubReferenceIO.Read(slice, 0x10)
         };
     }
 
     public byte[] Write(AnimChannelRecord value)
     {
         var bytes = new byte[Size];
-        StructBinaryIO.WriteInt32(bytes, 0x00, value.IsIdentity);
+        HubReferenceIO.Write(bytes, 0x00, value.IsIdentity);
         StructBinaryIO.WriteByte(bytes, 0x04, unchecked((byte)value.ObjectIndex));
         StructBinaryIO.WriteByte(bytes, 0x05, value.Unk1);
         StructBinaryIO.WriteUInt16(bytes, 0x06, unchecked((ushort)value.Unk2));
@@ -52,7 +53,7 @@ public sealed class AnimChannelCodec : IStructCodec<AnimChannelRecord>, IPointer
         StructBinaryIO.WriteByte(bytes, 0x0A, value.UnkByte1);
         StructBinaryIO.WriteByte(bytes, 0x0B, value.UnkByte2);
         StructBinaryIO.WriteUInt32(bytes, 0x0C, value.UnkUint);
-        StructBinaryIO.WriteInt32(bytes, 0x10, value.Unknown10);
+        HubReferenceIO.Write(bytes, 0x10, value.Unknown10);
         return JsonStructCodec.RequireExactSize(bytes, Size, nameof(AnimChannelRecord));
     }
 
@@ -76,7 +77,7 @@ public sealed class AnimChannelCodec : IStructCodec<AnimChannelRecord>, IPointer
 
         if (legacy.ValueKind == JsonValueKind.Number && legacy.TryGetInt32(out var legacyValue))
         {
-            record.IsIdentity = legacyValue;
+            record.IsIdentity = HubReference.FromWire(legacyValue);
         }
     }
 

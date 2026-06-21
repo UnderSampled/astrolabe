@@ -1,12 +1,14 @@
+using Astrolabe.Core.Hub;
+
 namespace Astrolabe.Core.FileFormats.Materials;
 
 public sealed class GameMaterialRecord
 {
     public string Schema { get; set; } = "astrolabe.game-material.v1";
-    public int VisualMaterial { get; set; }
-    public int MechanicsMaterial { get; set; }
+    public HubReference VisualMaterial { get; set; } = HubReference.Null;
+    public HubReference MechanicsMaterial { get; set; } = HubReference.Null;
     public uint SoundMaterial { get; set; }
-    public int CollideMaterial { get; set; }
+    public HubReference CollideMaterial { get; set; } = HubReference.Null;
 }
 
 /// <summary>

@@ -8,6 +8,8 @@ Checked items are represented as Rete content elements and export through struct
 
 Flesh out every type that is documented in `docs/` but still emitted as a named opaque binary leaf. The target state is that documented structures compile from structured JSON, with dense buffers described by JSON and stored as binary payloads. Unknown fields should be preserved explicitly as named scalars or small byte arrays. Opaque binary leaves should remain only for genuinely undocumented or unclassified data.
 
+**Rule:** if implementation needs to parse or traverse a structure, it must be promoted — not left in `types/raw/`. See Engineering rules in [`plan.md`](../plan.md).
+
 Definition of done for each promoted type:
 
 - [ ] Add canonical type fields in `src/Astrolabe.Core/FileFormats/`.

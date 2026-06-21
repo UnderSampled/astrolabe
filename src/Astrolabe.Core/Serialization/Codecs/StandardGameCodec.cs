@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.Perso;
 
@@ -27,7 +28,7 @@ public sealed class StandardGameCodec : IStructCodec<StandardGameRecord>
             ObjectType0 = StructBinaryIO.ReadUInt32(slice, 0x00),
             ObjectType1 = StructBinaryIO.ReadUInt32(slice, 0x04),
             ObjectType2 = StructBinaryIO.ReadUInt32(slice, 0x08),
-            SuperObject = StructBinaryIO.ReadInt32(slice, 0x0C),
+            SuperObject = HubReferenceIO.Read(slice, 0x0C),
             Unknown10 = slice.AsSpan(0x10, 0x20).ToArray()
         };
     }
@@ -38,7 +39,7 @@ public sealed class StandardGameCodec : IStructCodec<StandardGameRecord>
         StructBinaryIO.WriteUInt32(bytes, 0x00, value.ObjectType0);
         StructBinaryIO.WriteUInt32(bytes, 0x04, value.ObjectType1);
         StructBinaryIO.WriteUInt32(bytes, 0x08, value.ObjectType2);
-        StructBinaryIO.WriteInt32(bytes, 0x0C, value.SuperObject);
+        HubReferenceIO.Write(bytes, 0x0C, value.SuperObject);
         if (value.Unknown10.Length != 0x20)
         {
             throw new InvalidDataException("unknown10 must contain exactly 32 bytes.");

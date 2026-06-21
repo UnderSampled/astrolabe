@@ -1,3 +1,5 @@
+using Astrolabe.Core.Hub;
+
 namespace Astrolabe.Core.FileFormats;
 
 public class SuperObjectRecord
@@ -5,19 +7,19 @@ public class SuperObjectRecord
     public string Schema { get; set; } = "astrolabe.super-object.v1";
     public uint TypeCode { get; set; }
     public string Type { get; set; } = "";
-    public int OffData { get; set; }
-    public int ChildrenHead { get; set; }
-    public int ChildrenTail { get; set; }
+    public HubReference OffData { get; set; } = HubReference.Null;
+    public HubReference ChildrenHead { get; set; } = HubReference.Null;
+    public HubReference ChildrenTail { get; set; } = HubReference.Null;
     public uint ChildrenCount { get; set; }
-    public int BrotherNext { get; set; }
-    public int BrotherPrev { get; set; }
-    public int Parent { get; set; }
-    public int Matrix { get; set; }
-    public int StaticMatrix { get; set; }
-    public int GlobalMatrix { get; set; }
+    public HubReference BrotherNext { get; set; } = HubReference.Null;
+    public HubReference BrotherPrev { get; set; } = HubReference.Null;
+    public HubReference Parent { get; set; } = HubReference.Null;
+    public HubReference Matrix { get; set; } = HubReference.Null;
+    public HubReference StaticMatrix { get; set; } = HubReference.Null;
+    public HubReference GlobalMatrix { get; set; } = HubReference.Null;
     public uint DrawFlags { get; set; }
     public uint Flags { get; set; }
-    public int BoundingVolume { get; set; }
+    public HubReference BoundingVolume { get; set; } = HubReference.Null;
 }
 
 public sealed class MatrixRecord
@@ -49,7 +51,7 @@ public sealed class PointerArrayRecord
 {
     public string Schema { get; set; } = "astrolabe.pointer-array.v1";
     public string Type { get; set; } = "";
-    public int[] Values { get; set; } = [];
+    public HubReference[] Values { get; set; } = [];
 }
 
 public sealed class UInt16ArrayRecord

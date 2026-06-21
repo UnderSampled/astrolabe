@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.Geometry;
 
@@ -28,8 +29,8 @@ public sealed class VisualSetCodec : IStructCodec<VisualSetRecord>
             Unknown0 = StructBinaryIO.ReadUInt32(slice, 0x00),
             NumberOfLod = StructBinaryIO.ReadUInt16(slice, 0x04),
             VisualSetType = StructBinaryIO.ReadUInt16(slice, 0x06),
-            LodDistances = StructBinaryIO.ReadInt32(slice, 0x08),
-            LodDataOffsets = StructBinaryIO.ReadInt32(slice, 0x0C)
+            LodDistances = HubReferenceIO.Read(slice, 0x08),
+            LodDataOffsets = HubReferenceIO.Read(slice, 0x0C)
         };
     }
 
@@ -39,8 +40,8 @@ public sealed class VisualSetCodec : IStructCodec<VisualSetRecord>
         StructBinaryIO.WriteUInt32(bytes, 0x00, value.Unknown0);
         StructBinaryIO.WriteUInt16(bytes, 0x04, value.NumberOfLod);
         StructBinaryIO.WriteUInt16(bytes, 0x06, value.VisualSetType);
-        StructBinaryIO.WriteInt32(bytes, 0x08, value.LodDistances);
-        StructBinaryIO.WriteInt32(bytes, 0x0C, value.LodDataOffsets);
+        HubReferenceIO.Write(bytes, 0x08, value.LodDistances);
+        HubReferenceIO.Write(bytes, 0x0C, value.LodDataOffsets);
         return JsonStructCodec.RequireExactSize(bytes, Size, nameof(VisualSetRecord));
     }
 

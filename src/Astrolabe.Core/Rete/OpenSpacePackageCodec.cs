@@ -2,7 +2,10 @@ using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Astrolabe.Core;
 using Astrolabe.Core.FileFormats;
+using Astrolabe.Core.FileFormats.Geometry;
+using Astrolabe.Core.Hub;
 using Astrolabe.Core.Rete.OpenSpace;
 using Astrolabe.Core.Serialization;
 using Astrolabe.Core.Serialization.Codecs;
@@ -206,6 +209,27 @@ internal static class OpenSpacePackageCodec
                         resolver);
                 }
             }
+        }
+
+        RewriteScenePointerReferences(packageDir, resolver);
+    }
+
+    private static void RewriteScenePointerReferences(string packageDir, ReferenceAddressResolver resolver)
+    {
+        var sceneDir = Path.Combine(packageDir, "scene");
+        if (!Directory.Exists(sceneDir))
+        {
+            return;
+        }
+
+        if (!StructCodecRegistry.TryGet("superObject", out var sceneCodec))
+        {
+            return;
+        }
+
+        foreach (var nodePath in Directory.EnumerateFiles(sceneDir, "node.json", SearchOption.AllDirectories))
+        {
+            ReferenceJson.RewritePointersToUris(nodePath, packageDir, sceneCodec, resolver);
         }
     }
 
@@ -932,15 +956,34 @@ internal static class OpenSpacePackageCodec
 
     public static void ExportLevel(string packageDir, string outputDir)
     {
-        var manifestPath = Path.Combine(packageDir, ManifestFileName);
-        if (!File.Exists(manifestPath))
+        var level = Level.Load(packageDir);
+        ExportLevelFromHub(level, outputDir);
+    }
+
+    public static void ExportLevelFromHub(Level level, string outputDir)
+    {
+        if (level.SourceKind != LevelSourceKind.Rete || level.Catalog == null || level.Manifest == null)
         {
-            throw new FileNotFoundException($"Rete manifest not found: {manifestPath}");
+            throw new InvalidOperationException("OpenSpace export requires a Rete-loaded Level hub.");
         }
 
-        var manifest = ReadJson<RetePackageManifest>(manifestPath);
-        ValidateReteManifestSchema(manifest.Schema);
+        ExportHubPackage(level.SourcePath, level.Manifest, level.Catalog, outputDir);
+    }
 
+    public static void ExportFixFromHub(
+        string packageDir,
+        RetePackageManifest manifest,
+        HubCatalog catalog,
+        string outputDir) =>
+        ExportHubPackage(packageDir, manifest, catalog, outputDir);
+
+    private static void ExportHubPackage(
+        string packageDir,
+        RetePackageManifest manifest,
+        HubCatalog catalog,
+        string outputDir)
+    {
+        ValidateReteManifestSchema(manifest.Schema);
         Directory.CreateDirectory(outputDir);
         var targetPackageRoots = FindTargetPackageRoots(packageDir, manifest).ToList();
         GuardAgainstLegacyRelocationArtifacts(packageDir, targetPackageRoots);
@@ -949,11 +992,20 @@ internal static class OpenSpacePackageCodec
 
         foreach (var snaFile in manifest.SnaFiles)
         {
-            CompileSnaFile(packageDir, snaFile, Path.Combine(outputDir, snaFile.FileName), referenceResolver);
+            CompileSnaFileFromHub(
+                packageDir,
+                catalog,
+                snaFile,
+                Path.Combine(outputDir, snaFile.FileName),
+                referenceResolver);
         }
 
         ExportGeneratedRelocationTables(packageDir, manifest, outputDir, targetPackageRoots);
+        CopyLooseFiles(packageDir, manifest, outputDir);
+    }
 
+    private static void CopyLooseFiles(string packageDir, RetePackageManifest manifest, string outputDir)
+    {
         foreach (var looseFile in manifest.LooseFiles)
         {
             var sourcePath = ResolvePath(packageDir, looseFile.Path);
@@ -1426,12 +1478,15 @@ internal static class OpenSpacePackageCodec
                 kvp.Key.End,
                 Kind: GetContentKind(kvp.Value),
                 Labels: kvp.Value.Order(StringComparer.Ordinal).ToList()))
-            .OrderBy(r => r.End - r.Start)
-            .ThenBy(r => r.Start)
             .ToList();
 
+        // Registered fixed-size struct ranges (e.g. geometricobject 0x40) must win over
+        // smaller overlapping interior/sub-field tracker ranges (elementtypes at +0x18, etc.).
         var selectedRanges = new List<(int Start, int End, string Kind, List<string> Labels)>();
-        foreach (var range in typedRanges)
+        foreach (var range in typedRanges
+                     .OrderByDescending(r => IsFixedSizeStructKind(r.Kind) ? 1 : 0)
+                     .ThenByDescending(r => r.End - r.Start)
+                     .ThenBy(r => r.Start))
         {
             if (selectedRanges.Any(r => r.Start < range.End && r.End > range.Start))
             {
@@ -1440,6 +1495,34 @@ internal static class OpenSpacePackageCodec
 
             selectedRanges.Add(range);
         }
+
+        // Carve promoted interior ranges (e.g. inline elementtypes inside a geo header) back out
+        // of the parent fixed-size span so they become first-class manifest entries.
+        foreach (var parent in selectedRanges.Where(r => IsFixedSizeStructKind(r.Kind)).ToList())
+        {
+            foreach (var interior in typedRanges)
+            {
+                if (selectedRanges.Any(r =>
+                        r.Start == interior.Start && r.End == interior.End && r.Kind == interior.Kind))
+                {
+                    continue;
+                }
+
+                if (IsFixedSizeStructKind(interior.Kind))
+                {
+                    continue;
+                }
+
+                if (interior.Start >= parent.Start &&
+                    interior.End <= parent.End &&
+                    StructCodecRegistry.TryGet(interior.Kind, out _))
+                {
+                    selectedRanges.Add(interior);
+                }
+            }
+        }
+
+        CarveInlineGeometricObjectFields(block, data, selectedRanges);
 
         if (selectedRanges.Count == 0)
         {
@@ -1458,6 +1541,16 @@ internal static class OpenSpacePackageCodec
         {
             if (range.Start < cursor)
             {
+                // Interior carve-outs (e.g. inline elementtypes inside a geo header) start before
+                // the cursor advanced past the parent span — still emit them once.
+                if (!plans.Any(plan =>
+                        plan.Start == range.Start &&
+                        plan.Length == range.End - range.Start &&
+                        plan.Kind == range.Kind))
+                {
+                    plans.Add(new SnaContentPlan(range.Start, range.End - range.Start, range.Kind, range.Labels));
+                }
+
                 continue;
             }
 
@@ -1476,6 +1569,77 @@ internal static class OpenSpacePackageCodec
         }
 
         return RefineDynamPlans(plans, data, block.Module, block.Id);
+    }
+
+    private static bool IsFixedSizeStructKind(string kind) =>
+        StructCodecRegistry.TryGet(kind, out var codec) && codec.FixedSize is > 0;
+
+    private static void CarveInlineGeometricObjectFields(
+        SnaBlock block,
+        byte[] data,
+        List<(int Start, int End, string Kind, List<string> Labels)> selectedRanges)
+    {
+        if (!StructCodecRegistry.TryGet("geometricobject", out var codec))
+        {
+            return;
+        }
+
+        foreach (var plan in selectedRanges.Where(r => r.Kind == "geometricobject").ToList())
+        {
+            var length = plan.End - plan.Start;
+            if (length <= 0)
+            {
+                continue;
+            }
+
+            var geo = (GeometricObjectRecord)codec.ReadFromBytes(data, plan.Start, length);
+            var geoAddress = block.BaseInMemory + plan.Start;
+            TryCarveInlineField(
+                selectedRanges,
+                plan,
+                geoAddress,
+                geo.ElementTypes,
+                checked((int)(geo.NumElements * 2)),
+                "elementtypes",
+                "InlineElementTypes");
+        }
+    }
+
+    private static void TryCarveInlineField(
+        List<(int Start, int End, string Kind, List<string> Labels)> selectedRanges,
+        (int Start, int End, string Kind, List<string> Labels) parent,
+        int parentAddress,
+        HubReference pointer,
+        int length,
+        string kind,
+        string label)
+    {
+        if (length <= 0 || pointer.IsNull)
+        {
+            return;
+        }
+
+        var targetAddress = HubReferenceIO.Materialize(pointer);
+        if (targetAddress == 0)
+        {
+            return;
+        }
+
+        var relativeStart = targetAddress - parentAddress;
+        var parentLength = parent.End - parent.Start;
+        if (relativeStart < 0 || relativeStart + length > parentLength)
+        {
+            return;
+        }
+
+        var start = parent.Start + relativeStart;
+        var end = start + length;
+        if (selectedRanges.Any(r => r.Kind == kind && r.Start == start && r.End == end))
+        {
+            return;
+        }
+
+        selectedRanges.Add((start, end, kind, [label]));
     }
 
     private static string GetContentKind(IReadOnlyList<string> labels)
@@ -1622,8 +1786,8 @@ internal static class OpenSpacePackageCodec
             sceneNode.Children.Add($"{nodeDir}/{GetSceneFolderName(child)}/node.json");
         }
 
-        sceneNode.MatrixPath = WriteSceneMatrix(outputDir, nodeDir, "matrix", superObject.Matrix, memory, paths);
-        sceneNode.StaticMatrixPath = WriteSceneMatrix(outputDir, nodeDir, "static_matrix", superObject.StaticMatrix, memory, paths);
+        sceneNode.MatrixPath = WriteSceneMatrix(outputDir, nodeDir, "matrix", HubReferenceIO.Materialize(superObject.Matrix), memory, paths);
+        sceneNode.StaticMatrixPath = WriteSceneMatrix(outputDir, nodeDir, "static_matrix", HubReferenceIO.Materialize(superObject.StaticMatrix), memory, paths);
 
         WriteJson(ResolvePath(outputDir, nodePath), sceneNode);
         paths.TryAdd(node.Address, nodePath);
@@ -2043,14 +2207,17 @@ internal static class OpenSpacePackageCodec
         };
     }
 
-    private static void CompileSnaFile(
-        string intermediateDir,
+    private static void CompileSnaFileFromHub(
+        string packageDir,
+        HubCatalog catalog,
         SnaFileManifest manifest,
         string outputPath,
         ReferenceAddressResolver referenceResolver)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
-        File.WriteAllBytes(outputPath, BuildSnaFileBytes(intermediateDir, manifest, referenceResolver));
+        File.WriteAllBytes(
+            outputPath,
+            BuildSnaFileBytesFromHub(packageDir, catalog, manifest, referenceResolver));
     }
 
     internal static byte[] BuildSnaFileBytes(
@@ -2165,6 +2332,124 @@ internal static class OpenSpacePackageCodec
             element.Kind,
             element.DataPath,
             referenceResolver);
+
+    private static byte[] BuildSnaFileBytesFromHub(
+        string packageDir,
+        HubCatalog catalog,
+        SnaFileManifest manifest,
+        ReferenceAddressResolver referenceResolver)
+    {
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream);
+
+        foreach (var block in manifest.Blocks.OrderBy(b => b.Order))
+        {
+            writer.Write(block.Module);
+            writer.Write(block.Id);
+            writer.Write(block.BaseInMemory);
+
+            if (block.BaseInMemory == -1)
+            {
+                continue;
+            }
+
+            byte[] data = [];
+            if (block.HasPayload)
+            {
+                data = ReadSnaBlockDataFromHub(packageDir, catalog, block, referenceResolver);
+            }
+
+            var size = block.HasPayload ? checked((uint)data.Length) : 0u;
+            var maxPosMinus9 = GetMaxPosMinus9(block, size);
+            writer.Write(block.Unk2);
+            writer.Write(block.Unk3);
+            writer.Write(maxPosMinus9);
+            writer.Write(size);
+
+            if (!block.HasPayload)
+            {
+                continue;
+            }
+
+            var checksum = OpenSpaceChecksum.Calculate(data);
+            if (OpenSpaceLzo.TryCompress(data, out var compressed) &&
+                compressed.Length < data.Length)
+            {
+                writer.Write(1u);
+                writer.Write((uint)compressed.Length);
+                writer.Write(OpenSpaceChecksum.Calculate(compressed));
+                writer.Write(size);
+                writer.Write(checksum);
+                writer.Write(compressed);
+            }
+            else
+            {
+                writer.Write(0u);
+                writer.Write(size);
+                writer.Write(checksum);
+                writer.Write(size);
+                writer.Write(checksum);
+                writer.Write(data);
+            }
+        }
+
+        writer.Flush();
+        return stream.ToArray();
+    }
+
+    private static byte[] ReadSnaBlockDataFromHub(
+        string packageDir,
+        HubCatalog catalog,
+        SnaBlockManifest block,
+        ReferenceAddressResolver referenceResolver)
+    {
+        if (block.ContentPath == null)
+        {
+            if (block.DataPath != null)
+            {
+                return File.ReadAllBytes(ResolvePath(packageDir, block.DataPath));
+            }
+
+            throw new InvalidDataException($"SNA block {block.Key} is missing content and data paths.");
+        }
+
+        var document = ReadJson<SnaBlockContentDocument>(ResolvePath(packageDir, block.ContentPath));
+        using var stream = new MemoryStream();
+        foreach (var element in document.Elements.OrderBy(s => s.Order))
+        {
+            var data = ReadHubElementBytes(catalog, element, referenceResolver, packageDir);
+            stream.Write(data);
+        }
+
+        return stream.ToArray();
+    }
+
+    private static byte[] ReadHubElementBytes(
+        HubCatalog catalog,
+        SnaBlockContentElement element,
+        ReferenceAddressResolver referenceResolver,
+        string packageDir)
+    {
+        var dataPath = NormalizeRetePath(element.DataPath);
+        if (catalog.TryGetByPath(dataPath, out var hubElement) &&
+            catalog.TryHydrate(hubElement) &&
+            hubElement.Value != null &&
+            StructCodecRegistry.TryGet(element.Kind, out var codec))
+        {
+            HubReferenceMaterializer.Materialize(hubElement.Value, referenceResolver, packageDir);
+            return codec.WriteFromObject(hubElement.Value);
+        }
+
+        if (StructCodecRegistry.TryGet(element.Kind, out _))
+        {
+            return ReadStructuredElementBytes(packageDir, element, referenceResolver);
+        }
+
+        return File.ReadAllBytes(ResolvePath(packageDir, element.DataPath));
+    }
+
+    private static string NormalizeRetePath(string path) =>
+        path.Replace('\\', '/').TrimStart('/');
 
     private static uint GetMaxPosMinus9(SnaBlockManifest block, uint size)
     {
@@ -2753,58 +3038,6 @@ internal static class OpenSpacePackageCodec
         }
     }
 
-    internal static ReteHydration HydrateFromRetePackage(string packageDir)
-    {
-        var manifest = ReadReteManifest(packageDir);
-        if (!manifest.PackageRole.Equals("level", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidDataException(
-                $"Rete package at {packageDir} has packageRole '{manifest.PackageRole}'; expected 'level'.");
-        }
-
-        var primarySna = manifest.SnaFiles.FirstOrDefault(file =>
-            file.FileName.Equals($"{manifest.LevelName}.sna", StringComparison.OrdinalIgnoreCase))
-            ?? manifest.SnaFiles.FirstOrDefault()
-            ?? throw new InvalidDataException($"Rete package {packageDir} has no SNA files.");
-
-        var targetPackageRoots = FindTargetPackageRoots(packageDir, manifest).ToList();
-        GuardAgainstLegacyRelocationArtifacts(packageDir, targetPackageRoots);
-
-        var resolver = CreateExportResolver(packageDir);
-        var relocationContext = CreateRelocationPackageContext(packageDir, targetPackageRoots);
-
-        var sna = new SnaReader(BuildSnaFileBytes(packageDir, primarySna, resolver));
-        RelocationTableReader? rtb = null;
-        RelocationTableReader? rtp = null;
-        RelocationTableReader? rtt = null;
-
-        foreach (var table in manifest.RelocationTables)
-        {
-            if (!TryGenerateRelocationTableDocument(
-                    packageDir,
-                    manifest,
-                    table,
-                    targetPackageRoots,
-                    relocationContext,
-                    out var generated))
-            {
-                continue;
-            }
-
-            var bytes = BuildRelocationTableBytes(generated);
-            var reader = new RelocationTableReader(bytes);
-            AssignLevelRelocationReader(
-                table.FileName,
-                manifest.LevelName,
-                reader,
-                ref rtb,
-                ref rtp,
-                ref rtt);
-        }
-
-        return new ReteHydration(manifest, packageDir, sna, rtb, rtp, rtt);
-    }
-
     private static RelocationGenerator.RelocationPackageContext CreateRelocationPackageContext(
         string packageDir,
         IReadOnlyList<string> targetPackageRoots)
@@ -2905,11 +3138,3 @@ internal static class OpenSpacePackageCodec
     }
 
 }
-
-internal sealed record ReteHydration(
-    RetePackageManifest Manifest,
-    string PackageDir,
-    SnaReader Sna,
-    RelocationTableReader? Rtb,
-    RelocationTableReader? Rtp,
-    RelocationTableReader? Rtt);

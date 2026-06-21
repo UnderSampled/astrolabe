@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.Animation;
 
@@ -55,10 +56,10 @@ public sealed class AnimFramesCodec : IStructCodec<AnimFramesRecord>, IPointerAr
             var frameOffset = i * FrameSize;
             frames[i] = new AnimFrameRecord
             {
-                Channels = StructBinaryIO.ReadInt32(slice, frameOffset + 0x00),
-                Mat = StructBinaryIO.ReadInt32(slice, frameOffset + 0x04),
-                Vec = StructBinaryIO.ReadInt32(slice, frameOffset + 0x08),
-                Hierarchies = StructBinaryIO.ReadInt32(slice, frameOffset + 0x0C)
+                Channels = HubReferenceIO.Read(slice, frameOffset + 0x00),
+                Mat = HubReferenceIO.Read(slice, frameOffset + 0x04),
+                Vec = HubReferenceIO.Read(slice, frameOffset + 0x08),
+                Hierarchies = HubReferenceIO.Read(slice, frameOffset + 0x0C)
             };
         }
 
@@ -77,10 +78,10 @@ public sealed class AnimFramesCodec : IStructCodec<AnimFramesRecord>, IPointerAr
         {
             var frame = value.Frames[i];
             var frameOffset = i * FrameSize;
-            StructBinaryIO.WriteInt32(bytes, frameOffset + 0x00, frame.Channels);
-            StructBinaryIO.WriteInt32(bytes, frameOffset + 0x04, frame.Mat);
-            StructBinaryIO.WriteInt32(bytes, frameOffset + 0x08, frame.Vec);
-            StructBinaryIO.WriteInt32(bytes, frameOffset + 0x0C, frame.Hierarchies);
+            HubReferenceIO.Write(bytes, frameOffset + 0x00, frame.Channels);
+            HubReferenceIO.Write(bytes, frameOffset + 0x04, frame.Mat);
+            HubReferenceIO.Write(bytes, frameOffset + 0x08, frame.Vec);
+            HubReferenceIO.Write(bytes, frameOffset + 0x0C, frame.Hierarchies);
         }
 
         return bytes;

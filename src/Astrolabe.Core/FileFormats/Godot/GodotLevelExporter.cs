@@ -46,10 +46,15 @@ public static class GodotLevelExporter
         var geoAddrToMesh = new Dictionary<int, MeshData>();
         foreach (var mesh in validMeshes)
         {
-            if (mesh.SourceBlock != null)
+            int? geoAddr = mesh.SourceBlock != null
+                ? mesh.SourceBlock.BaseInMemory + mesh.SourceOffset
+                : mesh.VirtualAddress != 0
+                    ? mesh.VirtualAddress
+                    : null;
+
+            if (geoAddr.HasValue)
             {
-                int geoAddr = mesh.SourceBlock.BaseInMemory + mesh.SourceOffset;
-                geoAddrToMesh[geoAddr] = mesh;
+                geoAddrToMesh[geoAddr.Value] = mesh;
             }
         }
 

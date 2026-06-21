@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.Perso;
 
@@ -27,22 +28,22 @@ public sealed class SpawnableEntryCodec : IStructCodec<SpawnableEntryRecord>
         var slice = StructBinaryIO.RequireExactSize(data.Slice(offset, length), Size, nameof(SpawnableEntryRecord));
         return new SpawnableEntryRecord
         {
-            Next = StructBinaryIO.ReadInt32(slice, 0x00),
-            Prev = StructBinaryIO.ReadInt32(slice, 0x04),
-            Hdr = StructBinaryIO.ReadInt32(slice, 0x08),
+            Next = HubReferenceIO.Read(slice, 0x00),
+            Prev = HubReferenceIO.Read(slice, 0x04),
+            Hdr = HubReferenceIO.Read(slice, 0x08),
             Index = StructBinaryIO.ReadUInt32(slice, 0x0C),
-            Perso = StructBinaryIO.ReadInt32(slice, 0x10)
+            Perso = HubReferenceIO.Read(slice, 0x10)
         };
     }
 
     public byte[] Write(SpawnableEntryRecord value)
     {
         var bytes = new byte[Size];
-        StructBinaryIO.WriteInt32(bytes, 0x00, value.Next);
-        StructBinaryIO.WriteInt32(bytes, 0x04, value.Prev);
-        StructBinaryIO.WriteInt32(bytes, 0x08, value.Hdr);
+        HubReferenceIO.Write(bytes, 0x00, value.Next);
+        HubReferenceIO.Write(bytes, 0x04, value.Prev);
+        HubReferenceIO.Write(bytes, 0x08, value.Hdr);
         StructBinaryIO.WriteUInt32(bytes, 0x0C, value.Index);
-        StructBinaryIO.WriteInt32(bytes, 0x10, value.Perso);
+        HubReferenceIO.Write(bytes, 0x10, value.Perso);
         return JsonStructCodec.RequireExactSize(bytes, Size, nameof(SpawnableEntryRecord));
     }
 

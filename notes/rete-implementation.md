@@ -91,6 +91,12 @@ Variable-length kinds (`uint32-record`, `float3-array`, opaque blobs) use `Fixed
 
 Registry drives import element extract and export element serialize — **no growing switch** in the orchestrator.
 
+## `raw` is preservation only
+
+The `raw` codec kind (`OpaqueBinaryRecord`, `types/raw/…`) is a **placeholder** for wire blobs not yet promoted to a struct codec. Use it for byte-identical import/export and optional inline pointer LUTs during relocation generation.
+
+**Do not use `raw` when code must understand the data.** Hub load, mesh scan, Godot export, scene semantics, and any logic that reads fields or follows nested pointers must go through **promoted** canonical types with `HubReference` fields — promote per [`intermediate-type-checklist.md`](intermediate-type-checklist.md) first. Heuristic scans of `raw` blobs (LUT key matching, `#byteOffset` slicing) for documented structs are out of scope; they duplicate codecs and fight lazy hub resolution.
+
 ## Reference URIs
 
 - One string per pointer field on canonical types.

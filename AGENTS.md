@@ -8,6 +8,8 @@ Astrolabe reads and converts game data from **Hype: The Time Quest** (1999) into
 
 **Rete refactor:** read [`plan.md`](plan.md), [`docs/rete-format.md`](docs/rete-format.md), [`notes/rete-implementation.md`](notes/rete-implementation.md) before changing import/export architecture.
 
+**Type promotion rule:** `raw` (`OpaqueBinaryRecord`) is a **placeholder** for unpromoted wire blobs — preservation and relocation LUT only. If code must **parse or understand** the data (hub load, mesh scan, Godot export, scene semantics), **promote the struct** to a canonical type + codec; never scrape `types/raw/` with heuristics for layouts we already document. See Engineering rules in [`plan.md`](plan.md).
+
 ## Build Commands
 
 ```bash

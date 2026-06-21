@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.AI;
 
@@ -29,24 +30,24 @@ public sealed class IntelligenceCodec : IStructCodec<IntelligenceRecord>
         var slice = StructBinaryIO.RequireExactSize(data.Slice(offset, length), Size, nameof(IntelligenceRecord));
         return new IntelligenceRecord
         {
-            AiModel = StructBinaryIO.ReadInt32(slice, 0x00),
-            ActionTree = StructBinaryIO.ReadInt32(slice, 0x04),
-            Comport = StructBinaryIO.ReadInt32(slice, 0x08),
-            LastComport = StructBinaryIO.ReadInt32(slice, 0x0C),
-            ActionTable = StructBinaryIO.ReadInt32(slice, 0x10),
-            DefaultComport = StructBinaryIO.ReadInt32(slice, 0x14)
+            AiModel = HubReferenceIO.Read(slice, 0x00),
+            ActionTree = HubReferenceIO.Read(slice, 0x04),
+            Comport = HubReferenceIO.Read(slice, 0x08),
+            LastComport = HubReferenceIO.Read(slice, 0x0C),
+            ActionTable = HubReferenceIO.Read(slice, 0x10),
+            DefaultComport = HubReferenceIO.Read(slice, 0x14)
         };
     }
 
     public byte[] Write(IntelligenceRecord value)
     {
         var bytes = new byte[Size];
-        StructBinaryIO.WriteInt32(bytes, 0x00, value.AiModel);
-        StructBinaryIO.WriteInt32(bytes, 0x04, value.ActionTree);
-        StructBinaryIO.WriteInt32(bytes, 0x08, value.Comport);
-        StructBinaryIO.WriteInt32(bytes, 0x0C, value.LastComport);
-        StructBinaryIO.WriteInt32(bytes, 0x10, value.ActionTable);
-        StructBinaryIO.WriteInt32(bytes, 0x14, value.DefaultComport);
+        HubReferenceIO.Write(bytes, 0x00, value.AiModel);
+        HubReferenceIO.Write(bytes, 0x04, value.ActionTree);
+        HubReferenceIO.Write(bytes, 0x08, value.Comport);
+        HubReferenceIO.Write(bytes, 0x0C, value.LastComport);
+        HubReferenceIO.Write(bytes, 0x10, value.ActionTable);
+        HubReferenceIO.Write(bytes, 0x14, value.DefaultComport);
         return JsonStructCodec.RequireExactSize(bytes, Size, nameof(IntelligenceRecord));
     }
 

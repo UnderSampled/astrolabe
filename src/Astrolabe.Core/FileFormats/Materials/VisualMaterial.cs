@@ -1,4 +1,5 @@
 using System.Numerics;
+using Astrolabe.Core.Hub;
 
 namespace Astrolabe.Core.FileFormats.Materials;
 
@@ -14,15 +15,15 @@ public sealed class VisualMaterialRecord
     public float[] SpecularCoef { get; set; } = [];
     public float[] Color { get; set; } = [];
     public uint Unknown44 { get; set; }
-    public int OffTexture { get; set; }
+    public HubReference OffTexture { get; set; } = HubReference.Null;
     public float CurrentScrollX { get; set; }
     public float CurrentScrollY { get; set; }
     public float ScrollX { get; set; }
     public float ScrollY { get; set; }
     public uint ScrollMode { get; set; }
     public int RefreshNumber { get; set; }
-    public int OffAnimTexturesFirst { get; set; }
-    public int OffAnimTexturesCurrent { get; set; }
+    public HubReference OffAnimTexturesFirst { get; set; } = HubReference.Null;
+    public HubReference OffAnimTexturesCurrent { get; set; } = HubReference.Null;
     public ushort NumAnimTextures { get; set; }
     public ushort Padding6E { get; set; }
     public uint Unknown70 { get; set; }

@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.Geometry;
 
@@ -26,9 +27,9 @@ public sealed class CollideSetCodec : IStructCodec<CollideSetRecord>
         var slice = StructBinaryIO.RequireExactSize(data.Slice(offset, length), Size, nameof(CollideSetRecord));
         return new CollideSetRecord
         {
-            ZdxList = StructBinaryIO.ReadInt32(slice, 0x00),
-            ZddList = StructBinaryIO.ReadInt32(slice, 0x04),
-            ZdeList = StructBinaryIO.ReadInt32(slice, 0x08),
+            ZdxList = HubReferenceIO.Read(slice, 0x00),
+            ZddList = HubReferenceIO.Read(slice, 0x04),
+            ZdeList = HubReferenceIO.Read(slice, 0x08),
             Unknown0C = slice.AsSpan(0x0C, 8).ToArray()
         };
     }
@@ -36,9 +37,9 @@ public sealed class CollideSetCodec : IStructCodec<CollideSetRecord>
     public byte[] Write(CollideSetRecord value)
     {
         var bytes = new byte[Size];
-        StructBinaryIO.WriteInt32(bytes, 0x00, value.ZdxList);
-        StructBinaryIO.WriteInt32(bytes, 0x04, value.ZddList);
-        StructBinaryIO.WriteInt32(bytes, 0x08, value.ZdeList);
+        HubReferenceIO.Write(bytes, 0x00, value.ZdxList);
+        HubReferenceIO.Write(bytes, 0x04, value.ZddList);
+        HubReferenceIO.Write(bytes, 0x08, value.ZdeList);
         WriteBytes(bytes, 0x0C, value.Unknown0C, 8);
         return JsonStructCodec.RequireExactSize(bytes, Size, nameof(CollideSetRecord));
     }

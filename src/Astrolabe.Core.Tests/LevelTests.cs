@@ -68,6 +68,7 @@ public sealed class LevelTests
     }
 
     [Fact]
+    [Trait("Category", "Slow")]
     public void ImportFromOpenSpace_DelegatesToReteImporter()
     {
         if (!OpenSpaceDiscTestHelper.TryGetAstrolabeLevelDir(out var levelDir))

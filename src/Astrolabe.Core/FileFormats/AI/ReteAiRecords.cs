@@ -1,9 +1,11 @@
+using Astrolabe.Core.Hub;
+
 namespace Astrolabe.Core.FileFormats.AI;
 
 public sealed class BrainRecord
 {
     public string Schema { get; set; } = "astrolabe.brain.v1";
-    public int Mind { get; set; }
+    public HubReference Mind { get; set; } = HubReference.Null;
     public int Unknown04 { get; set; }
     public int Unknown08 { get; set; }
 }
@@ -11,18 +13,18 @@ public sealed class BrainRecord
 public sealed class StateRecord
 {
     public string Schema { get; set; } = "astrolabe.state.v1";
-    public int Next { get; set; }
-    public int Prev { get; set; }
-    public int Hdr { get; set; }
-    public int AnimRef { get; set; }
-    public int TransitionsHead { get; set; }
-    public int TransitionsTail { get; set; }
+    public HubReference Next { get; set; } = HubReference.Null;
+    public HubReference Prev { get; set; } = HubReference.Null;
+    public HubReference Hdr { get; set; } = HubReference.Null;
+    public HubReference AnimRef { get; set; } = HubReference.Null;
+    public HubReference TransitionsHead { get; set; } = HubReference.Null;
+    public HubReference TransitionsTail { get; set; } = HubReference.Null;
     public uint TransitionsCount { get; set; }
-    public int ProhibitsHead { get; set; }
-    public int ProhibitsTail { get; set; }
+    public HubReference ProhibitsHead { get; set; } = HubReference.Null;
+    public HubReference ProhibitsTail { get; set; } = HubReference.Null;
     public uint ProhibitsCount { get; set; }
-    public int NextState { get; set; }
-    public int MechanicsIdCard { get; set; }
+    public HubReference NextState { get; set; } = HubReference.Null;
+    public HubReference MechanicsIdCard { get; set; } = HubReference.Null;
     public uint Unknown30 { get; set; }
     public uint Unknown34 { get; set; }
 }
@@ -30,10 +32,10 @@ public sealed class StateRecord
 public sealed class MindRecord
 {
     public string Schema { get; set; } = "astrolabe.mind.v1";
-    public int AiModel { get; set; }
-    public int IntelligenceNormal { get; set; }
-    public int IntelligenceReflex { get; set; }
-    public int DsgMem { get; set; }
+    public HubReference AiModel { get; set; } = HubReference.Null;
+    public HubReference IntelligenceNormal { get; set; } = HubReference.Null;
+    public HubReference IntelligenceReflex { get; set; } = HubReference.Null;
+    public HubReference DsgMem { get; set; } = HubReference.Null;
     public uint Unknown10 { get; set; }
     public uint Unknown14 { get; set; }
 }
@@ -41,20 +43,20 @@ public sealed class MindRecord
 public sealed class IntelligenceRecord
 {
     public string Schema { get; set; } = "astrolabe.intelligence.v1";
-    public int AiModel { get; set; }
-    public int ActionTree { get; set; }
-    public int Comport { get; set; }
-    public int LastComport { get; set; }
-    public int ActionTable { get; set; }
-    public int DefaultComport { get; set; }
+    public HubReference AiModel { get; set; } = HubReference.Null;
+    public HubReference ActionTree { get; set; } = HubReference.Null;
+    public HubReference Comport { get; set; } = HubReference.Null;
+    public HubReference LastComport { get; set; } = HubReference.Null;
+    public HubReference ActionTable { get; set; } = HubReference.Null;
+    public HubReference DefaultComport { get; set; } = HubReference.Null;
 }
 
 public sealed class AiModelRecord
 {
     public string Schema { get; set; } = "astrolabe.ai-model.v1";
-    public int BehaviorsNormal { get; set; }
-    public int BehaviorsReflex { get; set; }
-    public int DsgVar { get; set; }
-    public int Macros { get; set; }
+    public HubReference BehaviorsNormal { get; set; } = HubReference.Null;
+    public HubReference BehaviorsReflex { get; set; } = HubReference.Null;
+    public HubReference DsgVar { get; set; } = HubReference.Null;
+    public HubReference Macros { get; set; } = HubReference.Null;
     public uint Unknown10 { get; set; }
 }

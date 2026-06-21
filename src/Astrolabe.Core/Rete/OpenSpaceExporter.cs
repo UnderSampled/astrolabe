@@ -1,3 +1,4 @@
+using Astrolabe.Core;
 using Astrolabe.Core.Serialization;
 
 namespace Astrolabe.Core.Rete;
@@ -5,7 +6,7 @@ namespace Astrolabe.Core.Rete;
 public static class OpenSpaceExporter
 {
     public static void ExportLevel(string packageDir, string outputDir) =>
-        OpenSpacePackageCodec.ExportLevel(packageDir, outputDir);
+        Level.ExportToOpenSpace(packageDir, outputDir);
 
     public static IReadOnlyList<OpenSpace.RelocationComparisonResult> CompareGeneratedRelocations(string packageDir) =>
         OpenSpacePackageCodec.CompareGeneratedRelocations(packageDir);

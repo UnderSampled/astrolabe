@@ -421,6 +421,7 @@ public class MeshScanner
 public class MeshData
 {
     public string Name { get; set; } = "";
+    public int VirtualAddress { get; set; }
     public Vector3[] Vertices { get; set; } = [];
     public Vector3[]? Normals { get; set; }
 

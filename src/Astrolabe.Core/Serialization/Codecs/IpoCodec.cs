@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.Geometry;
 
@@ -25,16 +26,16 @@ public sealed class IpoCodec : IStructCodec<IpoRecord>
         var slice = data.Slice(offset, length);
         return new IpoRecord
         {
-            PhysicalObject = StructBinaryIO.ReadInt32(slice, 0x00),
-            Radiosity = StructBinaryIO.ReadInt32(slice, 0x04)
+            PhysicalObject = HubReferenceIO.Read(slice, 0x00),
+            Radiosity = HubReferenceIO.Read(slice, 0x04)
         };
     }
 
     public byte[] Write(IpoRecord value)
     {
         var bytes = new byte[Size];
-        StructBinaryIO.WriteInt32(bytes, 0x00, value.PhysicalObject);
-        StructBinaryIO.WriteInt32(bytes, 0x04, value.Radiosity);
+        HubReferenceIO.Write(bytes, 0x00, value.PhysicalObject);
+        HubReferenceIO.Write(bytes, 0x04, value.Radiosity);
         return JsonStructCodec.RequireExactSize(bytes, Size, nameof(IpoRecord));
     }
 

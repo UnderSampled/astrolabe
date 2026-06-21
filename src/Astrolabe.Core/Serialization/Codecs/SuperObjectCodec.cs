@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats;
 
@@ -39,19 +40,19 @@ public sealed class SuperObjectCodec : IStructCodec<SuperObjectRecord>
         {
             TypeCode = typeCode,
             Type = TrackingSuperObjectReader.GetSuperObjectType(typeCode).ToString(),
-            OffData = StructBinaryIO.ReadInt32(slice, 0x04),
-            ChildrenHead = StructBinaryIO.ReadInt32(slice, 0x08),
-            ChildrenTail = StructBinaryIO.ReadInt32(slice, 0x0C),
+            OffData = HubReferenceIO.Read(slice, 0x04),
+            ChildrenHead = HubReferenceIO.Read(slice, 0x08),
+            ChildrenTail = HubReferenceIO.Read(slice, 0x0C),
             ChildrenCount = StructBinaryIO.ReadUInt32(slice, 0x10),
-            BrotherNext = StructBinaryIO.ReadInt32(slice, 0x14),
-            BrotherPrev = StructBinaryIO.ReadInt32(slice, 0x18),
-            Parent = StructBinaryIO.ReadInt32(slice, 0x1C),
-            Matrix = StructBinaryIO.ReadInt32(slice, 0x20),
-            StaticMatrix = StructBinaryIO.ReadInt32(slice, 0x24),
-            GlobalMatrix = StructBinaryIO.ReadInt32(slice, 0x28),
+            BrotherNext = HubReferenceIO.Read(slice, 0x14),
+            BrotherPrev = HubReferenceIO.Read(slice, 0x18),
+            Parent = HubReferenceIO.Read(slice, 0x1C),
+            Matrix = HubReferenceIO.Read(slice, 0x20),
+            StaticMatrix = HubReferenceIO.Read(slice, 0x24),
+            GlobalMatrix = HubReferenceIO.Read(slice, 0x28),
             DrawFlags = StructBinaryIO.ReadUInt32(slice, 0x2C),
             Flags = StructBinaryIO.ReadUInt32(slice, 0x30),
-            BoundingVolume = StructBinaryIO.ReadInt32(slice, 0x34)
+            BoundingVolume = HubReferenceIO.Read(slice, 0x34)
         };
     }
 
@@ -59,33 +60,92 @@ public sealed class SuperObjectCodec : IStructCodec<SuperObjectRecord>
     {
         var bytes = new byte[Size];
         StructBinaryIO.WriteUInt32(bytes, 0x00, value.TypeCode);
-        StructBinaryIO.WriteInt32(bytes, 0x04, value.OffData);
-        StructBinaryIO.WriteInt32(bytes, 0x08, value.ChildrenHead);
-        StructBinaryIO.WriteInt32(bytes, 0x0C, value.ChildrenTail);
+        HubReferenceIO.Write(bytes, 0x04, value.OffData);
+        HubReferenceIO.Write(bytes, 0x08, value.ChildrenHead);
+        HubReferenceIO.Write(bytes, 0x0C, value.ChildrenTail);
         StructBinaryIO.WriteUInt32(bytes, 0x10, value.ChildrenCount);
-        StructBinaryIO.WriteInt32(bytes, 0x14, value.BrotherNext);
-        StructBinaryIO.WriteInt32(bytes, 0x18, value.BrotherPrev);
-        StructBinaryIO.WriteInt32(bytes, 0x1C, value.Parent);
-        StructBinaryIO.WriteInt32(bytes, 0x20, value.Matrix);
-        StructBinaryIO.WriteInt32(bytes, 0x24, value.StaticMatrix);
-        StructBinaryIO.WriteInt32(bytes, 0x28, value.GlobalMatrix);
+        HubReferenceIO.Write(bytes, 0x14, value.BrotherNext);
+        HubReferenceIO.Write(bytes, 0x18, value.BrotherPrev);
+        HubReferenceIO.Write(bytes, 0x1C, value.Parent);
+        HubReferenceIO.Write(bytes, 0x20, value.Matrix);
+        HubReferenceIO.Write(bytes, 0x24, value.StaticMatrix);
+        HubReferenceIO.Write(bytes, 0x28, value.GlobalMatrix);
         StructBinaryIO.WriteUInt32(bytes, 0x2C, value.DrawFlags);
         StructBinaryIO.WriteUInt32(bytes, 0x30, value.Flags);
-        StructBinaryIO.WriteInt32(bytes, 0x34, value.BoundingVolume);
+        HubReferenceIO.Write(bytes, 0x34, value.BoundingVolume);
         return bytes;
     }
 
     public SuperObjectRecord FromJson(JsonElement json)
     {
-        var value = json.Deserialize<SuperObjectRecord>(JsonStructCodec.Options)
-            ?? throw new InvalidDataException($"Could not deserialize {Schema} JSON.");
-
-        if (value.Schema != Schema && value.Schema != "astrolabe.scene-node.v1")
+        var schema = json.TryGetProperty("schema", out var schemaElement)
+            ? schemaElement.GetString() ?? Schema
+            : Schema;
+        if (schema != Schema && schema != "astrolabe.scene-node.v1")
         {
-            throw new InvalidDataException($"Unsupported super object schema: {value.Schema}");
+            throw new InvalidDataException($"Unsupported super object schema: {schema}");
         }
 
-        return value;
+        return new SuperObjectRecord
+        {
+            Schema = schema,
+            TypeCode = ReadUInt32Field(json, "typeCode"),
+            Type = json.TryGetProperty("type", out var typeElement) ? typeElement.GetString() ?? "" : "",
+            OffData = ReadHubReference(json, "offData"),
+            ChildrenHead = ReadHubReference(json, "childrenHead"),
+            ChildrenTail = ReadHubReference(json, "childrenTail"),
+            ChildrenCount = ReadUInt32Field(json, "childrenCount"),
+            BrotherNext = ReadHubReference(json, "brotherNext"),
+            BrotherPrev = ReadHubReference(json, "brotherPrev"),
+            Parent = ReadHubReference(json, "parent"),
+            Matrix = ReadHubReference(json, "matrix"),
+            StaticMatrix = ReadHubReference(json, "staticMatrix"),
+            GlobalMatrix = ReadHubReference(json, "globalMatrix"),
+            DrawFlags = ReadUInt32Field(json, "drawFlags"),
+            Flags = ReadUInt32Field(json, "flags"),
+            BoundingVolume = ReadHubReference(json, "boundingVolume")
+        };
+    }
+
+    private static HubReference ReadHubReference(JsonElement json, string name)
+    {
+        if (!json.TryGetProperty(name, out var element))
+        {
+            return HubReference.Null;
+        }
+
+        return element.ValueKind switch
+        {
+            JsonValueKind.Null => HubReference.Null,
+            JsonValueKind.String => HubReference.FromUri(element.GetString()),
+            JsonValueKind.Number when element.TryGetInt32(out var value) => HubReference.FromWire(value),
+            JsonValueKind.Number when element.TryGetUInt32(out var unsigned) && unsigned <= int.MaxValue =>
+                HubReference.FromWire((int)unsigned),
+            _ => HubReference.Null
+        };
+    }
+
+    private static uint ReadUInt32Field(JsonElement json, string name)
+    {
+        if (!json.TryGetProperty(name, out var element) || element.ValueKind == JsonValueKind.Null)
+        {
+            return 0;
+        }
+
+        if (element.ValueKind == JsonValueKind.Number)
+        {
+            if (element.TryGetUInt32(out var unsigned))
+            {
+                return unsigned;
+            }
+
+            if (element.TryGetInt32(out var signed) && signed >= 0)
+            {
+                return (uint)signed;
+            }
+        }
+
+        return 0;
     }
 
     public void ToJson(SuperObjectRecord value, Utf8JsonWriter writer) =>

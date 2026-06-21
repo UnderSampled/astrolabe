@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.Perso;
 
@@ -29,12 +30,12 @@ public sealed class Perso3dDataCodec : IStructCodec<Perso3dDataRecord>
         var slice = StructBinaryIO.RequireExactSize(data.Slice(offset, length), Size, nameof(Perso3dDataRecord));
         return new Perso3dDataRecord
         {
-            StateInitial = StructBinaryIO.ReadInt32(slice, 0x00),
-            StateCurrent = StructBinaryIO.ReadInt32(slice, 0x04),
-            State2 = StructBinaryIO.ReadInt32(slice, 0x08),
-            ObjectList = StructBinaryIO.ReadInt32(slice, 0x0C),
-            ObjectListInitial = StructBinaryIO.ReadInt32(slice, 0x10),
-            Family = StructBinaryIO.ReadInt32(slice, 0x14),
+            StateInitial = HubReferenceIO.Read(slice, 0x00),
+            StateCurrent = HubReferenceIO.Read(slice, 0x04),
+            State2 = HubReferenceIO.Read(slice, 0x08),
+            ObjectList = HubReferenceIO.Read(slice, 0x0C),
+            ObjectListInitial = HubReferenceIO.Read(slice, 0x10),
+            Family = HubReferenceIO.Read(slice, 0x14),
             Unknown18 = StructBinaryIO.ReadInt32(slice, 0x18),
             Unknown1C = StructBinaryIO.ReadInt32(slice, 0x1C)
         };
@@ -43,12 +44,12 @@ public sealed class Perso3dDataCodec : IStructCodec<Perso3dDataRecord>
     public byte[] Write(Perso3dDataRecord value)
     {
         var bytes = new byte[Size];
-        StructBinaryIO.WriteInt32(bytes, 0x00, value.StateInitial);
-        StructBinaryIO.WriteInt32(bytes, 0x04, value.StateCurrent);
-        StructBinaryIO.WriteInt32(bytes, 0x08, value.State2);
-        StructBinaryIO.WriteInt32(bytes, 0x0C, value.ObjectList);
-        StructBinaryIO.WriteInt32(bytes, 0x10, value.ObjectListInitial);
-        StructBinaryIO.WriteInt32(bytes, 0x14, value.Family);
+        HubReferenceIO.Write(bytes, 0x00, value.StateInitial);
+        HubReferenceIO.Write(bytes, 0x04, value.StateCurrent);
+        HubReferenceIO.Write(bytes, 0x08, value.State2);
+        HubReferenceIO.Write(bytes, 0x0C, value.ObjectList);
+        HubReferenceIO.Write(bytes, 0x10, value.ObjectListInitial);
+        HubReferenceIO.Write(bytes, 0x14, value.Family);
         StructBinaryIO.WriteInt32(bytes, 0x18, value.Unknown18);
         StructBinaryIO.WriteInt32(bytes, 0x1C, value.Unknown1C);
         return JsonStructCodec.RequireExactSize(bytes, Size, nameof(Perso3dDataRecord));

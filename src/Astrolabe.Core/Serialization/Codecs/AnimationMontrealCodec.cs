@@ -1,3 +1,4 @@
+using Astrolabe.Core.Hub;
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.Animation;
 
@@ -29,12 +30,12 @@ public sealed class AnimationMontrealCodec : IStructCodec<AnimationMontrealRecor
         var slice = StructBinaryIO.RequireExactSize(data.Slice(offset, length), Size, nameof(AnimationMontrealRecord));
         var record = new AnimationMontrealRecord
         {
-            OffFrames = StructBinaryIO.ReadInt32(slice, 0x00),
+            OffFrames = HubReferenceIO.Read(slice, 0x00),
             NumFrames = StructBinaryIO.ReadByte(slice, 0x04),
             Speed = StructBinaryIO.ReadByte(slice, 0x05),
             NumChannels = StructBinaryIO.ReadByte(slice, 0x06),
             UnkByte = StructBinaryIO.ReadByte(slice, 0x07),
-            OffUnk = StructBinaryIO.ReadInt32(slice, 0x08),
+            OffUnk = HubReferenceIO.Read(slice, 0x08),
             Unk0C = StructBinaryIO.ReadUInt32(slice, 0x0C),
             Unk10 = StructBinaryIO.ReadUInt32(slice, 0x10),
             SpeedMatrix = ReadFloats(slice, SpeedMatrixOffset, SpeedMatrixFloatCount),
@@ -46,12 +47,12 @@ public sealed class AnimationMontrealCodec : IStructCodec<AnimationMontrealRecor
     public byte[] Write(AnimationMontrealRecord value)
     {
         var bytes = new byte[Size];
-        StructBinaryIO.WriteInt32(bytes, 0x00, value.OffFrames);
+        HubReferenceIO.Write(bytes, 0x00, value.OffFrames);
         StructBinaryIO.WriteByte(bytes, 0x04, value.NumFrames);
         StructBinaryIO.WriteByte(bytes, 0x05, value.Speed);
         StructBinaryIO.WriteByte(bytes, 0x06, value.NumChannels);
         StructBinaryIO.WriteByte(bytes, 0x07, value.UnkByte);
-        StructBinaryIO.WriteInt32(bytes, 0x08, value.OffUnk);
+        HubReferenceIO.Write(bytes, 0x08, value.OffUnk);
         StructBinaryIO.WriteUInt32(bytes, 0x0C, value.Unk0C);
         StructBinaryIO.WriteUInt32(bytes, 0x10, value.Unk10);
         WriteFloats(bytes, SpeedMatrixOffset, value.SpeedMatrix, SpeedMatrixFloatCount);

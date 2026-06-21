@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Reflection;
 using System.Text.Json;
+using Astrolabe.Core;
 using Astrolabe.Core.FileFormats;
 using Astrolabe.Core.Rete;
 using Astrolabe.Core.Rete.OpenSpace;
@@ -588,7 +589,7 @@ public sealed class RelocationGeneratorTests
             Assert.True(result.PointerDataMatches);
             Assert.Contains("Pass-through", result.Note, StringComparison.OrdinalIgnoreCase);
 
-            OpenSpaceExporter.ExportLevel(packageDir, exportDir);
+            Fix.Load(packageDir).ExportToOpenSpace(exportDir);
             Assert.Equal(looseData, File.ReadAllBytes(Path.Combine(exportDir, "Fix.rtv")));
         }
         finally
