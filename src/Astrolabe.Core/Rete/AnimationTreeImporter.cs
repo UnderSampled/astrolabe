@@ -169,26 +169,29 @@ internal static class AnimationTreeImporter
     {
         var contentPath = ResolvePath(packageDir, block.ContentPath!);
         var document = ReadJson<SnaBlockContentDocument>(contentPath);
-        // Elements are already stream order from import (Order == index). Avoid full sort.
-        var ordered = document.Elements;
-        var needsSort = false;
-        for (var i = 0; i < ordered.Count; i++)
-        {
-            if (ordered[i].Order != i && ordered[i].Order != 0)
+        // Import always writes v2 leaf segments; linearize for expand-aware blocks.
+        var ordered = SnaBlockContentLinearizer.Linearize(packageDir, document)
+            .Select((leaf, index) => new SnaBlockContentElement
             {
-                needsSort = true;
-                break;
-            }
-        }
+                Order = index,
+                Kind = leaf.Kind,
+                DataPath = leaf.DataPath
+            })
+            .ToList();
 
-        if (needsSort)
+        // Prefer provenance VA from original leaf segments when not yet expanded.
+        if (!document.Segments.Any(s =>
+                s.Kind.Equals(SnaBlockContentSegment.ExpandKind, StringComparison.OrdinalIgnoreCase)))
         {
-            ordered = ordered
-                .Select((element, index) => (element, index))
-                .OrderBy(pair => pair.element.Order != 0 ? pair.element.Order : pair.index)
-                .ThenBy(pair => pair.index)
-                .Select(pair => pair.element)
-                .ToList();
+            for (var i = 0; i < ordered.Count && i < document.Segments.Count; i++)
+            {
+                var seg = document.Segments[i];
+                if (seg.ProvenanceVirtualAddress is { } va)
+                {
+                    ordered[i].VirtualAddress = va;
+                    ordered[i].Length = seg.Length ?? 0;
+                }
+            }
         }
 
         return new BlockContext
@@ -923,9 +926,8 @@ internal static class AnimationTreeImporter
             i++;
         }
 
-        context.Document.Schema = SnaBlockContentDocument.SchemaV2;
+        context.Document.Schema = SnaBlockContentDocument.SchemaValue;
         context.Document.Segments = segments;
-        context.Document.Elements = [];
         // content.json stays compact
         WriteJson(ResolvePath(packageDir, context.ContentPath), context.Document, compact: true);
     }

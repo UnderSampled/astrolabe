@@ -90,31 +90,38 @@ JSON is the reference layer. Binary files are the ground it sits on. This follow
 ```text
 manifest.json
 scene/
-  <root-name>/
-    <node-id>/
-      node.json
-      matrix.json
-      static_matrix.json
-      <child-node-id>/
+  tree.json                         ← nested scene (dual-layer; not a folder forest)
+animation/
+  families.json
+  transforms.json
+geometry/
+  meshes.json
+  buffers/*.bin                     ← dense vertices/normals/indices/…
+ai/
+  models.json
+  scripts/*.sexpr
+characters/
+  persos.json
+  payloads/*.bin                    ← opaque character leaves when needed
+sectors/
+  sectors.json
+sidecars/
+  level.json                        ← GPT/PTX/SDA/SND (not files/ SoT)
 sna/
   <sna-stem>/
     blocks/
       <block-key>/
-        content.json
-        elements/
-          <order>_<kind>.bin
-      <block-key>.encoded.bin
+        content.json                ← v2 segments only
 types/
-  <kind>/
-    <block-key>_<order>.<json|bin>
+  <kind>/…                          ← residual unpromoted / not yet pooled
 files/
-  <loose-level-file>
+  <non-promoted sidecars only>
 semantic/
-  scene-tree.json
+  scene-tree.json                   ← optional inspection
   coverage.json
 ```
 
-Paths in JSON are relative to the package root and use `/` separators.
+Paths in JSON are relative to the package root and use `/` separators. Dual-layer contract: [`notes/semantic-dual-layer-framework.md`](../notes/semantic-dual-layer-framework.md).
 
 ## Vocabulary
 
@@ -126,7 +133,7 @@ Paths in JSON are relative to the package root and use `/` separators.
 | **Struct** | Fixed-size engine record stored as a JSON document |
 | **Descriptor** | JSON metadata for a binary buffer |
 | **Buffer** | Dense binary payload file |
-| **Element** | One ordered piece in a block's `content.json`; serializes to a byte span |
+| **Segment** | One ordered unit in block `content.json` (`leaf` or `expand`) |
 | **Reference** | One-line URI string identifying a record (file path, optional fragment, optional package prefix) |
 | **Fix package** | Shared Rete package holding cross-level OpenSpace data |
 
@@ -151,21 +158,11 @@ Relocation tables (`.rtb`, `.rtp`, `.rtt`, and related files) are **not** stored
 
 Each payload-bearing block has `content.json` describing the **whole block** stream.
 
-### v1 (legacy flat list)
+### Ordered segments + expand (only supported form)
 
-Schema `astrolabe.sna-block-content.v1` uses an ordered `elements` array. Each element:
+Schema **`astrolabe.sna-block-content.v2`** is the only supported SNA block content model. There is **no v1 fallback** (`elements[]` inventory is not read or written).
 
-| Field | Role |
-|-------|------|
-| `order` | Concatenation position (legacy rank; array order is preferred) |
-| `kind` | Struct codec kind (for example `visualmaterial`) |
-| `dataPath` | Path to JSON struct, descriptor, or binary leaf |
-| `sha256` | Hash of serialized element bytes at import time |
-| `labels` | Parser coverage labels from import |
-
-### v2 (ordered segments + expand)
-
-Schema `astrolabe.sna-block-content.v2` uses an ordered **`segments`** array. Array position **is** stream order — do not rely on numeric ranks.
+Uses an ordered **`segments`** array. Array position **is** stream order.
 
 | Segment | Behavior |
 |---------|----------|
@@ -175,10 +172,11 @@ Schema `astrolabe.sna-block-content.v2` uses an ordered **`segments`** array. Ar
 
 Export linearizes segments left-to-right (expanding trees/lists), then concatenates leaf bytes. **Virtual addresses are assigned only during this export layout pass**, never stored as the reconstruction plan.
 
-Animation packages use expand targets such as:
+Expand targets include domain pool runs, for example:
 
-- `animation/transforms.json#/runs/{runId}` — ordered transform ids (dense `06:02` spans)
-- `animation/families.json#/runs/{runId}` — ordered animation leaf ids (stream order without listing every leaf at the top level)
+- `animation/transforms.json#/runs/{runId}` — ordered transform ids
+- `animation/families.json#/runs/{runId}` — ordered animation leaf ids
+- `geometry/meshes.json#/runs/{runId}`, `scene/tree.json#/byId/{id}`, `ai/models.json#/byId/{id}`, …
 
 ### Anti-cheat (honest reconstruction)
 
@@ -292,7 +290,7 @@ Import decodes referenced GF/APM/BNM at **mirrored game paths** under the output
 
 ## Loose files
 
-GPT, PTX, SDA, and other level sidecar files are copied under `files/` and listed in the manifest with size and SHA-256 **until Step 9 promotes them** to URI-backed types with generated RT*. Today the OpenSpace exporter copies pass-through sidecars to the output directory; after Step 9, sidecar bytes are regenerated from hub records and the shared PNG/WAV asset tree.
+GPT, PTX, SDA, and SND are promoted on import into `sidecars/level.json` (`astrolabe.level-sidecars.v1`) with wire-lossless Base64 plus `textureUris` / `soundUris` inventories (**Step 9**). Opaque `files/*.{gpt,ptx,sda,snd}` are removed after aggregate and are no longer the source of truth. OpenSpace export regenerates those loose files from WireBase64 via `EmitSemanticSidecars`. RTP/RTT may still use heuristic pointer scans until sidecar codec `PointerFields` metadata is complete; full PNG corpus still needs disc `Textures.cnt` / `Vignette.cnt` (or a prior `extract`). Other sidecars (`.dlg`, `.lng`, …) remain `files/` pass-through.
 
 ## Semantic inspection
 

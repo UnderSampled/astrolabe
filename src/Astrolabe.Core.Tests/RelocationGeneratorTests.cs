@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text.Json;
 using Astrolabe.Core;
 using Astrolabe.Core.FileFormats;
@@ -104,8 +105,7 @@ public sealed class RelocationGeneratorTests
                 [
                     new RelocationPointerBlockManifest
                     {
-                        Order = 0,
-                        Key = "05:01",
+Key = "05:01",
                         Module = 0x05,
                         Id = 0x01,
                         EntrySize = 8,
@@ -479,8 +479,7 @@ public sealed class RelocationGeneratorTests
                             FileName = "test.rtv",
                             Path = "files/test.rtv",
                             Size = looseData.Length,
-                            Sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(looseData))
-                                .ToLowerInvariant()
+                            Sha256 = Convert.ToHexString(SHA256.HashData(looseData)).ToLowerInvariant()
                         }
                     ]
                 },
@@ -577,8 +576,7 @@ public sealed class RelocationGeneratorTests
                             FileName = "Fix.rtv",
                             Path = "files/Fix.rtv",
                             Size = looseData.Length,
-                            Sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(looseData))
-                                .ToLowerInvariant()
+                            Sha256 = Convert.ToHexString(SHA256.HashData(looseData)).ToLowerInvariant()
                         }
                     ]
                 },
@@ -703,8 +701,7 @@ public sealed class RelocationGeneratorTests
                     FileName = "test.gpt",
                     Path = "files/test.gpt",
                     Size = gptData.Length,
-                    Sha256 = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(gptData))
-                        .ToLowerInvariant()
+                            Sha256 = Convert.ToHexString(SHA256.HashData(gptData)).ToLowerInvariant()
                 }
             ];
             manifest.RelocationTables =
@@ -931,8 +928,7 @@ public sealed class RelocationGeneratorTests
                 [
                     new RelocationPointerBlockManifest
                     {
-                        Order = 0,
-                        Key = "02:03",
+Key = "02:03",
                         Module = 0x02,
                         Id = 0x03,
                         EntrySize = 8,
@@ -1293,8 +1289,7 @@ public sealed class RelocationGeneratorTests
                     [
                         new RelocationPointerBlockManifest
                         {
-                            Order = 0,
-                            Key = "05:00",
+Key = "05:00",
                             Module = 0x05,
                             Id = 0x00,
                             EntrySize = 8,
@@ -1411,8 +1406,7 @@ public sealed class RelocationGeneratorTests
                     [
                         new RelocationPointerBlockManifest
                         {
-                            Order = 0,
-                            Key = "04:05",
+Key = "04:05",
                             Module = 0x04,
                             Id = 0x05,
                             EntrySize = 8,
@@ -1480,8 +1474,7 @@ public sealed class RelocationGeneratorTests
                     [
                         new RelocationPointerBlockManifest
                         {
-                            Order = 0,
-                            Key = "04:05",
+Key = "04:05",
                             Module = 0x04,
                             Id = 0x05,
                             EntrySize = 8,
@@ -1602,8 +1595,7 @@ public sealed class RelocationGeneratorTests
             [
                 new RelocationPointerBlockManifest
                 {
-                    Order = 0,
-                    Key = "99:99",
+Key = "99:99",
                     Module = 0x99,
                     Id = 0x99,
                     EntrySize = 8,
@@ -1694,8 +1686,7 @@ public sealed class RelocationGeneratorTests
                     [
                         new RelocationPointerBlockManifest
                         {
-                            Order = 0,
-                            Key = "04:05",
+Key = "04:05",
                             Module = 0x04,
                             Id = 0x05,
                             EntrySize = 8,
@@ -2040,8 +2031,7 @@ public sealed class RelocationGeneratorTests
                     [
                         new SnaBlockManifest
                         {
-                            Order = 0,
-                            Key = $"{module:X2}:{id:X2}",
+Key = $"{module:X2}:{id:X2}",
                             Module = module,
                             Id = id,
                             BaseInMemory = baseInMemory,
@@ -2063,29 +2053,23 @@ public sealed class RelocationGeneratorTests
             BaseInMemory = baseInMemory,
             BaseInMemoryHex = $"0x{baseInMemory:X8}",
             OriginalDataSha256 = "test",
-            Elements =
+            Segments =
             [
-                new SnaBlockContentElement
+                new SnaBlockContentSegment
                 {
-                    Order = 0,
                     Kind = codec.Kind,
                     DataPath = "types/teststruct_extra_ptr/target.json",
-                    OffsetInBlock = 0,
+
                     Length = targetData.Length,
-                    VirtualAddress = baseInMemory,
-                    VirtualAddressHex = $"0x{baseInMemory:X8}",
-                    Sha256 = "target"
+
                 },
-                new SnaBlockContentElement
+                new SnaBlockContentSegment
                 {
-                    Order = 1,
                     Kind = codec.Kind,
                     DataPath = "types/teststruct_extra_ptr/source.json",
-                    OffsetInBlock = sourceOffset,
+
                     Length = sourceData.Length,
-                    VirtualAddress = baseInMemory + sourceOffset,
-                    VirtualAddressHex = $"0x{baseInMemory + sourceOffset:X8}",
-                    Sha256 = "source"
+
                 }
             ]
         };
@@ -2139,8 +2123,7 @@ public sealed class RelocationGeneratorTests
                     [
                         new SnaBlockManifest
                         {
-                            Order = 0,
-                            Key = $"{module:X2}:{id:X2}",
+Key = $"{module:X2}:{id:X2}",
                             Module = module,
                             Id = id,
                             BaseInMemory = baseInMemory,
@@ -2162,29 +2145,23 @@ public sealed class RelocationGeneratorTests
             BaseInMemory = baseInMemory,
             BaseInMemoryHex = $"0x{baseInMemory:X8}",
             OriginalDataSha256 = "test",
-            Elements =
+            Segments =
             [
-                new SnaBlockContentElement
+                new SnaBlockContentSegment
                 {
-                    Order = 0,
                     Kind = kind,
                     DataPath = "types/raw/target.json",
-                    OffsetInBlock = 0,
+
                     Length = targetData.Length,
-                    VirtualAddress = baseInMemory,
-                    VirtualAddressHex = $"0x{baseInMemory:X8}",
-                    Sha256 = "target"
+
                 },
-                new SnaBlockContentElement
+                new SnaBlockContentSegment
                 {
-                    Order = 1,
                     Kind = kind,
                     DataPath = "types/raw/source.json",
-                    OffsetInBlock = sourceOffset,
+
                     Length = sourceData.Length,
-                    VirtualAddress = baseInMemory + sourceOffset,
-                    VirtualAddressHex = $"0x{baseInMemory + sourceOffset:X8}",
-                    Sha256 = "source"
+
                 }
             ]
         };
@@ -2278,16 +2255,13 @@ public sealed class RelocationGeneratorTests
         var baseInMemory = content.BaseInMemory;
         var paddingPath = "types/raw/padding.bin";
         File.WriteAllBytes(Path.Combine(packageDir, paddingPath), padding);
-        content.Elements.Add(new SnaBlockContentElement
+        content.Segments.Add(new SnaBlockContentSegment
         {
-            Order = content.Elements.Count,
-            Kind = "padding_blob",
+                        Kind = "padding_blob",
             DataPath = paddingPath,
-            OffsetInBlock = offsetInBlock,
+
             Length = padding.Length,
-            VirtualAddress = baseInMemory + offsetInBlock,
-            VirtualAddressHex = $"0x{baseInMemory + offsetInBlock:X8}",
-            Sha256 = "padding"
+
         });
         WriteJson(contentPath, content, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
     }

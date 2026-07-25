@@ -50,6 +50,14 @@ internal static class OpenSpacePackageCodec
         var manifest = ImportPackage(levelDir, levelName, outputDir, "level", _ => true);
         RewritePointerReferences(outputDir, fixPackageDir);
         AnimationTreeImporter.AggregateLevelPackage(outputDir, manifest);
+        SemanticDomainAggregator.AggregateAll(outputDir, manifest);
+        // Sidecar aggregation rewrites manifest loose files — reload from disk.
+        var manifestPath = Path.Combine(outputDir, ManifestFileName);
+        if (File.Exists(manifestPath))
+        {
+            manifest = ReadJson<RetePackageManifest>(manifestPath);
+        }
+
         AnnotateOpaquePointersFromSourceRelocations(outputDir, fixPackageDir, levelDir);
         if (!string.IsNullOrWhiteSpace(fixPackageDir))
         {
@@ -301,6 +309,14 @@ internal static class OpenSpacePackageCodec
                         continue;
                     }
 
+                    // Dual-layer pool URIs (…/persos.json#/byId/…) share one package file — do not
+                    // treat the pool document as a single opaque/struct JSON leaf.
+                    if (element.DataPath.Contains('#', StringComparison.Ordinal) ||
+                        IsSemanticPoolDocumentPath(element.DataPath))
+                    {
+                        continue;
+                    }
+
                     var elementPath = ReferenceUri.Resolve(packageDir, element.DataPath).FilePath;
                     if (!elementPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ||
                         !File.Exists(elementPath))
@@ -477,6 +493,12 @@ internal static class OpenSpacePackageCodec
                 continue;
             }
 
+            if (element.DataPath.Contains('#', StringComparison.Ordinal) ||
+                IsSemanticPoolDocumentPath(element.DataPath))
+            {
+                continue;
+            }
+
             var elementPath = ReferenceUri.Resolve(packageDir, element.DataPath).FilePath;
             if (!elementPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ||
                 !File.Exists(elementPath))
@@ -593,6 +615,12 @@ internal static class OpenSpacePackageCodec
                 if (element == null ||
                     !StructCodecRegistry.TryGet(element.Kind, out var codec) ||
                     !codec.UsesExternalBinaryPayload)
+                {
+                    continue;
+                }
+
+                if (element.DataPath.Contains('#', StringComparison.Ordinal) ||
+                    IsSemanticPoolDocumentPath(element.DataPath))
                 {
                     continue;
                 }
@@ -930,17 +958,21 @@ internal static class OpenSpacePackageCodec
                 var elements = new List<IndexedContentElement>();
                 foreach (var leaf in SnaBlockContentLinearizer.Linearize(packageDir, content))
                 {
-                    var length = 0;
-                    try
+                    var length = leaf.Length ?? 0;
+                    if (length <= 0)
                     {
-                        if (StructCodecRegistry.TryGet(leaf.Kind, out var codec) && codec.FixedSize is { } fixedSize)
+                        try
                         {
-                            length = fixedSize;
+                            if (StructCodecRegistry.TryGet(leaf.Kind, out var codec) &&
+                                codec.FixedSize is { } fixedSize)
+                            {
+                                length = fixedSize;
+                            }
                         }
-                    }
-                    catch
-                    {
-                        // ignore
+                        catch
+                        {
+                            // ignore
+                        }
                     }
 
                     var va = content.BaseInMemory != 0 && content.BaseInMemory != -1
@@ -1056,6 +1088,26 @@ internal static class OpenSpacePackageCodec
             var outputPath = Path.Combine(outputDir, looseFile.FileName);
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
             File.Copy(sourcePath, outputPath, overwrite: true);
+        }
+
+        // Semantic sidecars (GPT/PTX/SDA/SND) live in sidecars/level.json after Step 9 aggregation.
+        EmitSemanticSidecars(packageDir, manifest, outputDir);
+    }
+
+    private static void EmitSemanticSidecars(
+        string packageDir,
+        RetePackageManifest manifest,
+        string outputDir)
+    {
+        var levelName = manifest.LevelName;
+        foreach (var ext in new[] { ".gpt", ".ptx", ".sda", ".snd" })
+        {
+            var fileName = levelName + ext;
+            if (SidecarAggregator.TryWriteLooseFile(packageDir, fileName, out var bytes))
+            {
+                var outputPath = Path.Combine(outputDir, fileName);
+                File.WriteAllBytes(outputPath, bytes);
+            }
         }
     }
 
@@ -1410,6 +1462,7 @@ internal static class OpenSpacePackageCodec
         var contentPath = $"{blockRoot}/content.json";
         var document = new SnaBlockContentDocument
         {
+            Schema = SnaBlockContentDocument.SchemaValue,
             FileName = fileName,
             BlockOrder = blockOrder,
             BlockKey = ToKey(block.Module, block.Id),
@@ -1447,6 +1500,13 @@ internal static class OpenSpacePackageCodec
                         codec.WriteJson(outputDir, ResolvePath(outputDir, dataPath), value);
                     }
                 }
+                else if (SemanticDomainKinds.IsDenseBufferKind(plan.Kind))
+                {
+                    // Dense arrays: store codec.Write bytes as .bin only (no multi-MB float JSON).
+                    // Aggregation copies these into geometry/buffers/; export reads the bin.
+                    dataPath = GetTypedDataPath(plan.Kind, blockStem, i, "bin");
+                    WriteBytes(outputDir, dataPath, emittedBytes);
+                }
                 else
                 {
                     dataPath = GetTypedDataPath(plan.Kind, blockStem, i, "json");
@@ -1462,16 +1522,12 @@ internal static class OpenSpacePackageCodec
                 WriteBytes(outputDir, dataPath, emittedBytes);
             }
 
-            document.Elements.Add(new SnaBlockContentElement
+            document.Segments.Add(new SnaBlockContentSegment
             {
-                Order = document.Elements.Count,
                 Kind = plan.Kind,
                 DataPath = dataPath,
-                OffsetInBlock = plan.Start,
+                ProvenanceVirtualAddress = block.BaseInMemory + plan.Start,
                 Length = plan.Length,
-                VirtualAddress = block.BaseInMemory + plan.Start,
-                VirtualAddressHex = ToHex(block.BaseInMemory + plan.Start),
-                Sha256 = HashBytes(emittedBytes),
                 Labels = plan.Labels
             });
         }
@@ -1526,28 +1582,40 @@ internal static class OpenSpacePackageCodec
 
         // Registered fixed-size struct ranges (e.g. geometricobject 0x40) must win over
         // smaller overlapping interior/sub-field tracker ranges (elementtypes at +0x18, etc.).
+        // Occupied bitmap: O(span) per candidate. Naive selectedRanges.Any() was O(n²) and
+        // hung multi-minute on astrolabe 05:01 (~25k typed spans).
         var selectedRanges = new List<(int Start, int End, string Kind, List<string> Labels)>();
+        var occupied = new System.Collections.BitArray(length);
         foreach (var range in typedRanges
                      .OrderByDescending(r => IsFixedSizeStructKind(r.Kind) ? 1 : 0)
                      .ThenByDescending(r => r.End - r.Start)
                      .ThenBy(r => r.Start))
         {
-            if (selectedRanges.Any(r => r.Start < range.End && r.End > range.Start))
+            if (SpanIsOccupied(occupied, range.Start, range.End))
             {
                 continue;
             }
 
             selectedRanges.Add(range);
+            MarkSpanOccupied(occupied, range.Start, range.End);
         }
 
         // Carve promoted interior ranges (e.g. inline elementtypes inside a geo header) back out
         // of the parent fixed-size span so they become first-class manifest entries.
+        var selectedKeys = new HashSet<(int Start, int End, string Kind)>();
+        foreach (var r in selectedRanges)
+        {
+            selectedKeys.Add((r.Start, r.End, r.Kind));
+        }
+
+        // Index parents' interiors by scanning typed ranges once per parent would be
+        // O(parents * typed). Group interiors by containing parent via linear scan of
+        // fixed-size parents only (usually few hundred geos).
         foreach (var parent in selectedRanges.Where(r => IsFixedSizeStructKind(r.Kind)).ToList())
         {
             foreach (var interior in typedRanges)
             {
-                if (selectedRanges.Any(r =>
-                        r.Start == interior.Start && r.End == interior.End && r.Kind == interior.Kind))
+                if (selectedKeys.Contains((interior.Start, interior.End, interior.Kind)))
                 {
                     continue;
                 }
@@ -1562,6 +1630,7 @@ internal static class OpenSpacePackageCodec
                     StructCodecRegistry.TryGet(interior.Kind, out _))
                 {
                     selectedRanges.Add(interior);
+                    selectedKeys.Add((interior.Start, interior.End, interior.Kind));
                 }
             }
         }
@@ -1617,6 +1686,31 @@ internal static class OpenSpacePackageCodec
 
     private static bool IsFixedSizeStructKind(string kind) =>
         StructCodecRegistry.TryGet(kind, out var codec) && codec.FixedSize is > 0;
+
+    private static bool SpanIsOccupied(System.Collections.BitArray occupied, int start, int end)
+    {
+        start = Math.Clamp(start, 0, occupied.Length);
+        end = Math.Clamp(end, 0, occupied.Length);
+        for (var i = start; i < end; i++)
+        {
+            if (occupied[i])
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void MarkSpanOccupied(System.Collections.BitArray occupied, int start, int end)
+    {
+        start = Math.Clamp(start, 0, occupied.Length);
+        end = Math.Clamp(end, 0, occupied.Length);
+        for (var i = start; i < end; i++)
+        {
+            occupied[i] = true;
+        }
+    }
 
     private static void CarveInlineGeometricObjectFields(
         SnaBlock block,
@@ -1678,9 +1772,13 @@ internal static class OpenSpacePackageCodec
 
         var start = parent.Start + relativeStart;
         var end = start + length;
-        if (selectedRanges.Any(r => r.Kind == kind && r.Start == start && r.End == end))
+        for (var i = 0; i < selectedRanges.Count; i++)
         {
-            return;
+            var r = selectedRanges[i];
+            if (r.Kind == kind && r.Start == start && r.End == end)
+            {
+                return;
+            }
         }
 
         selectedRanges.Add((start, end, kind, [label]));
@@ -1883,8 +1981,11 @@ internal static class OpenSpacePackageCodec
     private static string SanitizePathPart(string value)
     {
         var invalid = Path.GetInvalidFileNameChars();
-        var chars = value.Select(c => invalid.Contains(c) || c is '/' or '\\' or ':' ? '_' : c).ToArray();
-        var sanitized = new string(chars).Trim();
+        var chars = value.Select(c =>
+            char.IsControl(c) || invalid.Contains(c) || c is '/' or '\\' or ':' or '*' or '?' or '"' or '<' or '>' or '|'
+                ? '_'
+                : c).ToArray();
+        var sanitized = new string(chars).Trim().Trim('_');
         return string.IsNullOrWhiteSpace(sanitized) ? "node" : sanitized;
     }
 
@@ -2335,11 +2436,11 @@ internal static class OpenSpacePackageCodec
         if (block.ContentPath != null)
         {
             var document = ReadJson<SnaBlockContentDocument>(ResolvePath(intermediateDir, block.ContentPath));
-            if (document.Schema is not (
-                SnaBlockContentDocument.SchemaV1 or
-                SnaBlockContentDocument.SchemaV2))
+            if (!string.Equals(document.Schema, SnaBlockContentDocument.SchemaValue, StringComparison.Ordinal))
             {
-                throw new InvalidDataException($"Unsupported SNA block content schema: {document.Schema}");
+                throw new InvalidDataException(
+                    $"Unsupported SNA block content schema: {document.Schema}. " +
+                    $"Only {SnaBlockContentDocument.SchemaValue} is supported.");
             }
 
             if (document.BlockKey != block.Key)
@@ -2351,13 +2452,20 @@ internal static class OpenSpacePackageCodec
 
             foreach (var leaf in SnaBlockContentLinearizer.Linearize(intermediateDir, document))
             {
-                var data = StructCodecRegistry.TryGet(leaf.Kind, out _)
-                    ? ReferenceJson.WriteElementBytesForExport(
+                byte[] data;
+                if (leaf.DataPath.Contains('#', StringComparison.Ordinal) ||
+                    StructCodecRegistry.TryGet(leaf.Kind, out _))
+                {
+                    data = ReferenceJson.WriteElementBytesForExport(
                         intermediateDir,
                         leaf.Kind,
                         leaf.DataPath,
-                        referenceResolver)
-                    : File.ReadAllBytes(ResolvePath(intermediateDir, leaf.DataPath));
+                        referenceResolver);
+                }
+                else
+                {
+                    data = File.ReadAllBytes(ResolvePath(intermediateDir, leaf.DataPath));
+                }
 
                 stream.Write(data);
             }
@@ -2471,6 +2579,12 @@ internal static class OpenSpacePackageCodec
             return animBytes;
         }
 
+        if (SemanticPoolExport.TryWriteElementBytes(
+                packageDir, element.DataPath, referenceResolver, out var poolBytes))
+        {
+            return poolBytes;
+        }
+
         var dataPath = NormalizeRetePath(element.DataPath);
         if (catalog.TryGetByPath(dataPath, out var hubElement) &&
             catalog.TryHydrate(hubElement) &&
@@ -2484,6 +2598,12 @@ internal static class OpenSpacePackageCodec
         if (StructCodecRegistry.TryGet(element.Kind, out _))
         {
             return ReadStructuredElementBytes(packageDir, element, referenceResolver);
+        }
+
+        if (element.DataPath.Contains('#', StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                $"Cannot read binary payload for fragment URI without codec: {element.DataPath}");
         }
 
         return File.ReadAllBytes(ResolvePath(packageDir, element.DataPath));
@@ -2534,6 +2654,19 @@ internal static class OpenSpacePackageCodec
 
             CompileRelocationTable(packageDir, generated, Path.Combine(outputDir, table.FileName));
         }
+    }
+
+    private static bool IsSemanticPoolDocumentPath(string dataPath)
+    {
+        var path = dataPath.Split('#', 2)[0].Replace('\\', '/');
+        return path.Equals("scene/tree.json", StringComparison.OrdinalIgnoreCase) ||
+               path.Equals("geometry/meshes.json", StringComparison.OrdinalIgnoreCase) ||
+               path.Equals("ai/models.json", StringComparison.OrdinalIgnoreCase) ||
+               path.Equals("characters/persos.json", StringComparison.OrdinalIgnoreCase) ||
+               path.Equals("sectors/sectors.json", StringComparison.OrdinalIgnoreCase) ||
+               path.Equals("sidecars/level.json", StringComparison.OrdinalIgnoreCase) ||
+               path.Equals("animation/families.json", StringComparison.OrdinalIgnoreCase) ||
+               path.Equals("animation/transforms.json", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsUnsupportedRelocationTable(string fileName)

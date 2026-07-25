@@ -23,14 +23,21 @@ public class SExpressionConverter
 
     /// <summary>
     /// Converts a script to S-expression string.
+    /// Empty / end-marker-only scripts yield an empty document (no form).
     /// </summary>
     public string Convert(Script script)
     {
         if (script.Nodes.Count == 0)
             return "()";
 
+        // Sole end marker → empty body.
+        if (script.Nodes.Count == 1 && script.Nodes[0].Indent == 0)
+            return "()";
+
         // Build tree from flat node list
         var root = BuildTree(script.Nodes);
+        if (root.Children.Count == 0)
+            return "()";
 
         // Convert tree to S-expression
         var sb = new StringBuilder();
@@ -47,25 +54,38 @@ public class SExpressionConverter
         var root = new TreeNode(null, -1);
         var nodeWrappers = nodes.Select((n, i) => new TreeNode(n, i)).ToList();
 
-        // Build tree using indent levels
+        // Build tree using indent levels. Indent gaps attach to the nearest shallower ancestor.
         for (int i = 0; i < nodeWrappers.Count; i++)
         {
             var current = nodeWrappers[i];
             if (current.Node == null || current.Node.Indent == 0)
                 continue; // Skip end marker
 
-            // Find parent: look backwards for first node with indent = current.indent - 1
+            // Find parent: look backwards for first node with indent < current.indent
+            // Prefer exact indent-1; otherwise nearest shallower (handles corrupt gaps).
             TreeNode parent = root;
+            byte targetParentIndent = (byte)(current.Node.Indent - 1);
+            TreeNode? exact = null;
+            TreeNode? nearestShallower = null;
             for (int j = i - 1; j >= 0; j--)
             {
                 var candidate = nodeWrappers[j];
-                if (candidate.Node != null && candidate.Node.Indent == current.Node.Indent - 1)
+                if (candidate.Node == null || candidate.Node.Indent == 0)
+                    continue;
+
+                if (candidate.Node.Indent == targetParentIndent)
                 {
-                    parent = candidate;
+                    exact = candidate;
                     break;
+                }
+
+                if (candidate.Node.Indent < current.Node.Indent && nearestShallower == null)
+                {
+                    nearestShallower = candidate;
                 }
             }
 
+            parent = exact ?? nearestShallower ?? root;
             parent.Children.Add(current);
         }
 

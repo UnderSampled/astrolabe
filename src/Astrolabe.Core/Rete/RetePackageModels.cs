@@ -43,10 +43,10 @@ public sealed class SnaBlockManifest
 
 public sealed class SnaBlockContentDocument
 {
-    public const string SchemaV1 = "astrolabe.sna-block-content.v1";
-    public const string SchemaV2 = "astrolabe.sna-block-content.v2";
+    public const string SchemaValue = "astrolabe.sna-block-content.v2";
 
-    public string Schema { get; set; } = SchemaV1;
+    /// <summary>Only supported content schema (segments + expand). No v1 fallback.</summary>
+    public string Schema { get; set; } = SchemaValue;
     public string FileName { get; set; } = "";
     public int BlockOrder { get; set; }
     public string BlockKey { get; set; } = "";
@@ -57,19 +57,16 @@ public sealed class SnaBlockContentDocument
     public string OriginalDataSha256 { get; set; } = "";
 
     /// <summary>
-    /// v1 flat leaf list. Array order is preferred; <see cref="SnaBlockContentElement.Order"/>
-    /// is legacy rank. Prefer <see cref="Segments"/> for new packages.
-    /// </summary>
-    public List<SnaBlockContentElement> Elements { get; set; } = new();
-
-    /// <summary>
-    /// v2 ordered segments for the whole block. Array position is stream order.
+    /// Ordered segments for the whole block. Array position is stream order.
     /// A segment is either a leaf or an <c>expand</c> of a tree/list (not every leaf).
-    /// When non-empty, export linearizes this instead of <see cref="Elements"/>.
     /// </summary>
     public List<SnaBlockContentSegment> Segments { get; set; } = new();
 }
 
+/// <summary>
+/// Transient import/aggregation worklist entry (not a content.json schema).
+/// Built by linearizing segments or carrying import provenance into domain pools.
+/// </summary>
 public sealed class SnaBlockContentElement
 {
     public int Order { get; set; }

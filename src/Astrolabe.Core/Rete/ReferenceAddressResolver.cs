@@ -108,7 +108,11 @@ internal sealed class ReferenceAddressResolver
                 uri = ReferenceUri.MakeRelative(referringPackageRoot, targetPath);
                 if (byteOffset != 0)
                 {
-                    uri = $"{uri}#byteOffset={byteOffset}";
+                    // Pool leaves already use JSON Pointer fragments (#/byId/…). Use a
+                    // semicolon form so we do not produce path#/byId/x#byteOffset=n.
+                    uri = uri.Contains('#', StringComparison.Ordinal)
+                        ? $"{uri};byteOffset={byteOffset}"
+                        : $"{uri}#byteOffset={byteOffset}";
                 }
 
                 return true;
@@ -500,6 +504,82 @@ internal sealed class RetePackageAddressIndex
             {
                 return nodeCodec.WriteFromJsonElement(record).Length;
             }
+        }
+
+        if (SemanticPoolExport.TryGetNode(packageRoot, leaf.DataPath, out var poolNode))
+        {
+            if (!string.IsNullOrEmpty(poolNode.BufferPath))
+            {
+                var bin = Path.Combine(
+                    packageRoot,
+                    poolNode.BufferPath.Replace('/', Path.DirectorySeparatorChar));
+                if (File.Exists(bin))
+                {
+                    return checked((int)new FileInfo(bin).Length);
+                }
+            }
+
+            if (poolNode.Record is { } poolRecord)
+            {
+                if (poolRecord.ValueKind == JsonValueKind.Object &&
+                    poolRecord.TryGetProperty("path", out var poolPath) &&
+                    poolPath.ValueKind == JsonValueKind.String)
+                {
+                    var rel = poolPath.GetString();
+                    if (!string.IsNullOrWhiteSpace(rel))
+                    {
+                        var full = Path.Combine(
+                            packageRoot,
+                            rel.Replace('/', Path.DirectorySeparatorChar));
+                        if (File.Exists(full))
+                        {
+                            return checked((int)new FileInfo(full).Length);
+                        }
+                    }
+                }
+
+                if (poolRecord.ValueKind == JsonValueKind.Object &&
+                    poolRecord.TryGetProperty("byteLength", out var bl) &&
+                    bl.TryGetInt32(out var byteLength))
+                {
+                    return byteLength;
+                }
+
+                if (StructCodecRegistry.TryGet(poolNode.Kind, out var poolCodec) &&
+                    poolCodec.FixedSize is { } poolFixed)
+                {
+                    return poolFixed;
+                }
+
+                if (StructCodecRegistry.TryGet(poolNode.Kind, out poolCodec) &&
+                    !poolCodec.UsesExternalBinaryPayload)
+                {
+                    return poolCodec.WriteFromJsonElement(poolRecord).Length;
+                }
+
+                if (poolRecord.ValueKind == JsonValueKind.Object &&
+                    poolRecord.TryGetProperty("data", out var dataB64) &&
+                    dataB64.ValueKind == JsonValueKind.String)
+                {
+                    return Convert.FromBase64String(dataB64.GetString()!).Length;
+                }
+            }
+
+            // Matrix field fragment
+            var ptr = ReferenceUri.Resolve(packageRoot, leaf.DataPath).JsonPointer ?? "";
+            if (ptr.Contains("/matrix", StringComparison.OrdinalIgnoreCase) &&
+                StructCodecRegistry.TryGet("matrix", out var matrixCodec) &&
+                matrixCodec.FixedSize is { } matrixSize)
+            {
+                return matrixSize;
+            }
+        }
+
+        // Fragment / dual-layer pool URIs must not be read as whole-document codec JSON.
+        // Length for pool leaves is handled above via SemanticPoolExport / animation store.
+        if (leaf.DataPath.Contains('#', StringComparison.Ordinal))
+        {
+            return 0;
         }
 
         var dataPath = ReferenceUri.Resolve(packageRoot, leaf.DataPath).FilePath;

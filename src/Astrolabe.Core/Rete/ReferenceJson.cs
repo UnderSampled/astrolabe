@@ -54,6 +54,11 @@ internal static class ReferenceJson
             return treeBytes;
         }
 
+        if (SemanticPoolExport.TryWriteElementBytes(packageRoot, dataPath, resolver, out var poolBytes))
+        {
+            return poolBytes;
+        }
+
         if (!StructCodecRegistry.TryGet(kind, out var codec))
         {
             return File.ReadAllBytes(ReferenceUri.Resolve(packageRoot, dataPath).FilePath);

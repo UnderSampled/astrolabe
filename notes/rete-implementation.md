@@ -30,9 +30,9 @@ Cold-start entrypoint for the Rete refactor. Read in order:
 | `FileFormats/*Reader` | Read-only scanners/readers used for semantic discovery | Thin wrappers over struct codecs where practical |
 | `FileFormats/Godot/*` | Export from memory scan | Also consume canonical types / Rete URIs |
 
-New imports emit manifest schema `astrolabe.rete.v1` and accept both `astrolabe.rete.v1` and legacy `astrolabe.level-intermediate.v1` during transition. Struct schemas (`astrolabe.visual-material.v1`, etc.) stay unchanged.
+New imports emit manifest schema `astrolabe.rete.v1` only (no intermediate.v1). SNA block `content.json` is **only** `astrolabe.sna-block-content.v2` (segments + expand) — no v1 `elements[]` reader. Semantic dual-layer: [`semantic-dual-layer-framework.md`](semantic-dual-layer-framework.md).
 
-Relocation tables are still preserved on import/export today. Target: generated at OpenSpace export only; not stored in Rete.
+Relocation tables are generated at OpenSpace export only; not stored in Rete.
 
 ## Target layout
 

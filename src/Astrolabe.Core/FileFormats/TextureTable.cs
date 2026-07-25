@@ -83,9 +83,40 @@ public class TextureTable
         }
 
         using var reader = new BinaryReader(File.OpenRead(ptxPath));
-        reader.BaseStream.Position = 4;
+        if (reader.BaseStream.Length < 8)
+        {
+            return pointers;
+        }
 
-        while (reader.BaseStream.Position < reader.BaseStream.Length - 4)
+        // Hype / Montreal PTX: [capacity:u32][count:u32][pointers count]
+        // Older scanners started at offset 4 and treated count as a pointer — skip that.
+        _ = reader.ReadInt32(); // capacity / max slots
+        int countOrPtr = reader.ReadInt32();
+
+        if (countOrPtr > 0 && countOrPtr < 0x01000000)
+        {
+            // count field: read up to count entries (zeros allowed; keep non-zero only)
+            var remaining = (reader.BaseStream.Length - reader.BaseStream.Position) / 4;
+            var toRead = (int)Math.Min(countOrPtr, remaining);
+            for (var i = 0; i < toRead; i++)
+            {
+                int ptr = reader.ReadInt32();
+                if (ptr != 0 && ptr >= 0x01000000)
+                {
+                    pointers.Add(ptr);
+                }
+            }
+
+            return pointers;
+        }
+
+        // Fallback: countOrPtr looked like an address — include it and scan until zero.
+        if (countOrPtr != 0)
+        {
+            pointers.Add(countOrPtr);
+        }
+
+        while (reader.BaseStream.Position + 4 <= reader.BaseStream.Length)
         {
             int ptr = reader.ReadInt32();
             if (ptr == 0)
@@ -93,7 +124,10 @@ public class TextureTable
                 break;
             }
 
-            pointers.Add(ptr);
+            if (ptr >= 0x01000000)
+            {
+                pointers.Add(ptr);
+            }
         }
 
         return pointers;

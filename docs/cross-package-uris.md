@@ -288,11 +288,12 @@ Same Fix bytes; different level SNA; per-level `fixlvl` (mostly identical sentin
 | Persisted fixlvl site registry on Fix package | **Removed** (URI-only opaque LUT; no `*-sites.json`) |
 | Export `fixlvl.rtb` via `GenerateFixLevelRtb` | **Done** (opaque LUT only; not Fix.rtb walk) |
 | Import rewrite → `fix:/` | **Partial** (legacy `../fix/…` still accepted) |
-| Mirrored output layout (`Gamedata/World/Levels/…`) | **Partial** (flat `output/fix/` today; migration Step 9) |
-| Shared PNG/WAV at mirrored paths | **Not started** (Step 9) |
-| `texture:/` and `sound:/` parse/resolve | **Not started** (Step 9) |
-| Sidecar pointers (PTX/SDA/SND) → `texture:/` / `sound:/` on import | **Not started** (Step 9) |
-| OpenSpace export PNG→GF (CNT rebuild), WAV→APM/BNM encode | **Not started** (Step 9) |
+| Mirrored output layout (`Gamedata/World/Levels/…`) | **Partial** (flat `output/fix/` + `output/{level}/` still common; mirrored preferred) |
+| Shared PNG/WAV at mirrored paths | **Partial** (Step 9: import aggregate decodes referenced GF→PNG when CNT discoverable; APM→WAV best-effort; full BNM corpus still via `extract`) |
+| `texture:/` and `sound:/` parse/resolve | **Partial** (Step 9: `ReferenceUri` resolves both against output root; MakeReference emits schemes for asset paths) |
+| Sidecar pointers (PTX/SDA/SND) → `texture:/` / `sound:/` on import | **Partial** (Step 9: `SidecarAggregator` promotes GPT/PTX/SDA/SND to `sidecars/level.json` with WireBase64 + URI inventory; files/ no longer SoT) |
+| OpenSpace export PNG→GF (CNT rebuild), WAV→APM/BNM encode | **Not started** (export still emits WireBase64 sidecar bytes; CNT/BNM rebuild pending) |
+| RTP/RTT/RTS from sidecar codec metadata | **Residual** (still heuristic scans of wire until PointerFields on promoted sidecars) |
 | `game:/` parse/resolve (residual) | **Not started** (Step 9+) |
 | `level-slot-manifest.json` union manifest | **Not started** |
 

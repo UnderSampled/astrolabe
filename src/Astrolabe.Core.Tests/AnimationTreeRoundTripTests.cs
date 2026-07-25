@@ -53,7 +53,7 @@ public sealed class AnimationTreeRoundTripTests
     {
         var document = new SnaBlockContentDocument
         {
-            Schema = SnaBlockContentDocument.SchemaV2,
+            Schema = SnaBlockContentDocument.SchemaValue,
             Segments =
             [
                 new SnaBlockContentSegment { Kind = "raw", DataPath = "types/raw/a.bin" },
@@ -80,22 +80,34 @@ public sealed class AnimationTreeRoundTripTests
     }
 
     [Fact]
-    public void Linearizer_LegacyElements_UsesArrayOrder()
+    public void Linearizer_RejectsMissingSegments()
     {
         var document = new SnaBlockContentDocument
         {
-            Schema = SnaBlockContentDocument.SchemaV1,
-            Elements =
+            Schema = SnaBlockContentDocument.SchemaValue,
+            BlockKey = "05:01",
+            Segments = []
+        };
+
+        Assert.Throws<InvalidDataException>(() =>
+            SnaBlockContentLinearizer.Linearize("/tmp/unused", document));
+    }
+
+    [Fact]
+    public void Linearizer_RejectsLegacyV1Schema()
+    {
+        var document = new SnaBlockContentDocument
+        {
+            Schema = "astrolabe.sna-block-content.v1",
+            BlockKey = "05:01",
+            Segments =
             [
-                new SnaBlockContentElement { Order = 0, Kind = "raw", DataPath = "a.bin" },
-                new SnaBlockContentElement { Order = 1, Kind = "raw", DataPath = "b.bin" }
+                new SnaBlockContentSegment { Kind = "raw", DataPath = "a.bin" }
             ]
         };
 
-        var leaves = SnaBlockContentLinearizer.Linearize("/tmp/unused", document);
-        Assert.Equal(2, leaves.Count);
-        Assert.Equal("a.bin", leaves[0].DataPath);
-        Assert.Equal("b.bin", leaves[1].DataPath);
+        Assert.Throws<InvalidDataException>(() =>
+            SnaBlockContentLinearizer.Linearize("/tmp/unused", document));
     }
 
     [Fact]
@@ -122,7 +134,7 @@ public sealed class AnimationTreeRoundTripTests
 
             var document = new SnaBlockContentDocument
             {
-                Schema = SnaBlockContentDocument.SchemaV2,
+                Schema = SnaBlockContentDocument.SchemaValue,
                 Segments =
                 [
                     new SnaBlockContentSegment

@@ -1,0 +1,31 @@
+# Residual opaque / not fully semantic (intentional)
+
+## AI domain
+- script, scriptptrs, behaviorlist_*, behaviors_*, dsgvar, dsgmem, dsgvarptrindirect:
+  pooled for stream fidelity; wire in ai/payloads or Record; sexpr optional for real node streams.
+  Not full structured codecs.
+- actiontable / actiontree: outside AI pool (intelligence may ref); still types/ or raw until promoted.
+
+## Sector / collision
+Not pooled (left opaque stream leaves):
+- sectorcollideelemtypes, sectorcollideelemptrs
+- collideobject, collidevertices, collideelementtypes, collideelement, collidetriangles
+- Sector linked-list entry blobs (Env/Surf/Persos/Lights/Streams/*Sectors*)
+Out of sector domain by design: collidematerial (geometry), persosectorinfo (character).
+
+## Geometry
+- Undocumented mesh islands remain raw
+- Fixed-struct small float fields (sphere center, material coeffs) still JSON scalars
+
+## Character
+- objecttypename: opaque binary in pool
+- objectlistentries: may remain types/raw if not in Character kinds
+
+## Sidecars
+- RTP/RTT/RTS still heuristic uint32 scans until sidecar codec PointerFields complete
+- Full PNG corpus needs disc Textures.cnt; export still WireBase64 (no PNG→GF rebuild yet)
+- Sound BNM event map incomplete (bank-level placeholders)
+- Fix.ptx shared textures need Fix-package promotion pass
+
+## Animation
+Done (families + transforms dual-layer).
