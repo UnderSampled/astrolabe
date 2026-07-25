@@ -1,9 +1,9 @@
 using System.Text.Json;
 using Astrolabe.Core.FileFormats.Animation;
-using Astrolabe.Core.Serialization;
 
 namespace Astrolabe.Core.Rete;
 
+/// <summary>Loads animation families + transform pool for a package.</summary>
 internal sealed class AnimationTreeStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -13,68 +13,67 @@ internal sealed class AnimationTreeStore
         PropertyNameCaseInsensitive = true
     };
 
-    private AnimationTreeDocument? _document;
+    public AnimationFamiliesDocument? Families { get; private set; }
+    public AnimationTransformsDocument? Transforms { get; private set; }
 
-    public bool IsLoaded => _document != null;
-
-    public AnimationTreeDocument Document =>
-        _document ?? throw new InvalidOperationException("Animation tree is not loaded.");
+    public bool IsLoaded => Families != null || Transforms != null;
 
     public void Load(string packageDir)
     {
-        var path = Path.Combine(packageDir, AnimationTreeDocument.RelativePath);
-        if (!File.Exists(path))
+        Families = null;
+        Transforms = null;
+
+        var familiesPath = Path.Combine(packageDir, AnimationFamiliesDocument.RelativePath);
+        if (File.Exists(familiesPath))
         {
-            _document = null;
-            return;
+            Families = JsonSerializer.Deserialize<AnimationFamiliesDocument>(
+                           File.ReadAllText(familiesPath), JsonOptions)
+                       ?? throw new InvalidDataException($"Could not read {familiesPath}");
         }
 
-        _document = JsonSerializer.Deserialize<AnimationTreeDocument>(File.ReadAllText(path), JsonOptions)
-            ?? throw new InvalidDataException($"Could not read {path}");
-    }
-
-    public static void Write(string packageDir, AnimationTreeDocument document)
-    {
-        var path = Path.Combine(packageDir, AnimationTreeDocument.RelativePath);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, JsonSerializer.Serialize(document, JsonOptions));
-    }
-
-    public bool TryResolveTransformAddress(string? jsonPointer, out int virtualAddress)
-    {
-        virtualAddress = 0;
-        if (_document == null ||
-            !AnimationTreePaths.TryParseTransformFragment(jsonPointer, out var transformIndex) ||
-            transformIndex >= _document.Transforms.Count)
+        var transformsPath = Path.Combine(packageDir, AnimationTransformsDocument.RelativePath);
+        if (File.Exists(transformsPath))
         {
-            return false;
+            Transforms = JsonSerializer.Deserialize<AnimationTransformsDocument>(
+                             File.ReadAllText(transformsPath), JsonOptions)
+                         ?? throw new InvalidDataException($"Could not read {transformsPath}");
+        }
+    }
+
+    public static void Write(
+        string packageDir,
+        AnimationFamiliesDocument? families,
+        AnimationTransformsDocument? transforms)
+    {
+        if (families != null)
+        {
+            var path = Path.Combine(packageDir, AnimationFamiliesDocument.RelativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, JsonSerializer.Serialize(families, JsonOptions));
         }
 
-        virtualAddress = _document.Transforms[transformIndex].VirtualAddress;
-        return virtualAddress != 0;
-    }
-
-    public bool TryGetElementRecord(string? jsonPointer, out AnimationTreeElementEntry entry)
-    {
-        entry = null!;
-        if (_document == null ||
-            !AnimationTreePaths.TryParseElementFragment(jsonPointer, out var virtualAddress))
+        if (transforms != null)
         {
-            return false;
+            var path = Path.Combine(packageDir, AnimationTransformsDocument.RelativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, JsonSerializer.Serialize(transforms, JsonOptions));
         }
-
-        return _document.Elements.TryGetValue(virtualAddress.ToString("X8"), out entry!);
     }
 
-    public bool TryGetTransform(int transformIndex, out TransformRecord transform)
+    public bool TryGetTransform(string id, out TransformRecord transform)
     {
         transform = null!;
-        if (_document == null || transformIndex < 0 || transformIndex >= _document.Transforms.Count)
+        return Transforms != null && Transforms.ById.TryGetValue(id, out transform!);
+    }
+
+    public bool TryGetNode(string id, out AnimationNode node)
+    {
+        node = null!;
+        if (Families == null)
         {
             return false;
         }
 
-        transform = _document.Transforms[transformIndex];
-        return true;
+        return Families.ById.TryGetValue(id, out node!);
     }
 }

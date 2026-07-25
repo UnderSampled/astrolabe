@@ -126,33 +126,93 @@ internal sealed class ReferenceAddressResolver
             ?? throw new InvalidDataException($"Reference target is not inside a Rete package: {uri}");
 
         LoadPackage(packageRoot);
+        var index = _indexes[packageRoot];
 
         if (TryResolveLevelSlotAddress(packageRoot, uri, resolved.FilePath, out var slotAddress))
         {
             return slotAddress;
         }
 
-        if (!_indexes[packageRoot].TryGetAddress(resolved.FilePath, out var address))
+        // Prefer full URI keys (path + JSON Pointer). Many animation leaves share one
+        // families.json / transforms.json file; fragment is the identity, not the path alone.
+        var normalizedUri = uri.Replace('\\', '/');
+        var byteOffsetSuffix = 0;
+        var lookupUri = normalizedUri;
+        var semi = lookupUri.IndexOf(";byteOffset=", StringComparison.OrdinalIgnoreCase);
+        if (semi >= 0 &&
+            int.TryParse(lookupUri[(semi + ";byteOffset=".Length)..], out byteOffsetSuffix))
+        {
+            lookupUri = lookupUri[..semi];
+        }
+
+        if (index.TryGetAddress(lookupUri, out var address))
+        {
+            return checked(address + byteOffsetSuffix);
+        }
+
+        // Relative form as stored on content segments (no scheme).
+        var packageRelative = NormalizeToPackageRelativeUri(packageRoot, lookupUri, resolved);
+        if (index.TryGetAddress(packageRelative, out address))
+        {
+            return checked(address + byteOffsetSuffix);
+        }
+
+        if (!index.TryGetAddress(resolved.FilePath, out address))
         {
             throw new InvalidDataException($"Reference target is not part of package content: {uri}");
         }
 
         if (string.IsNullOrWhiteSpace(resolved.JsonPointer))
         {
-            return address;
+            return checked(address + byteOffsetSuffix);
         }
 
         if (TryReadByteOffsetFragment(resolved.JsonPointer, out var byteOffset))
         {
-            return checked(address + byteOffset);
+            return checked(address + byteOffset + byteOffsetSuffix);
         }
 
-        if (TryResolveAnimationTreeFragment(packageRoot, resolved.JsonPointer, out var animationAddress))
+        // JSON Pointer fragment without index hit (e.g. #/byId/x) — already tried lookupUri.
+        if (byteOffsetSuffix != 0)
         {
-            return animationAddress;
+            return checked(address + byteOffsetSuffix);
         }
 
         throw new InvalidDataException($"Unsupported reference fragment in URI: {uri}");
+    }
+
+    private static string NormalizeToPackageRelativeUri(
+        string packageRoot,
+        string uri,
+        ResolvedReferenceUri resolved)
+    {
+        // Strip package schemes if present; keep fragment.
+        var working = uri;
+        foreach (var prefix in new[] { "level:/", "fix:/" })
+        {
+            if (working.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                working = working[prefix.Length..];
+                break;
+            }
+        }
+
+        var hash = working.IndexOf('#');
+        var pathPart = hash >= 0 ? working[..hash] : working;
+        var fragment = hash >= 0 ? working[hash..] : "";
+
+        if (Path.IsPathRooted(pathPart))
+        {
+            var root = Path.GetFullPath(packageRoot)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var full = Path.GetFullPath(pathPart);
+            if (full.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            {
+                pathPart = full[(root.Length + 1)..].Replace('\\', '/');
+            }
+        }
+
+        return pathPart.Replace('\\', '/') + fragment;
     }
 
     private static string? FindPackageRoot(string filePath)
@@ -233,26 +293,11 @@ internal sealed class ReferenceAddressResolver
         string? jsonPointer,
         out int virtualAddress)
     {
+        // Addresses for animation fragments come from the package address index built by
+        // linearizing content.json (export layout). Provenance VAs are never required.
         virtualAddress = 0;
-        var store = new AnimationTreeStore();
-        store.Load(packageRoot);
-        if (!store.IsLoaded)
-        {
-            return false;
-        }
-
-        if (AnimationTreePaths.TryParseTransformFragment(jsonPointer, out _))
-        {
-            return store.TryResolveTransformAddress(jsonPointer, out virtualAddress);
-        }
-
-        if (AnimationTreePaths.TryParseElementFragment(jsonPointer, out var elementAddress) &&
-            store.TryGetElementRecord(jsonPointer, out var entry))
-        {
-            virtualAddress = entry.VirtualAddress != 0 ? entry.VirtualAddress : elementAddress;
-            return virtualAddress != 0;
-        }
-
+        _ = packageRoot;
+        _ = jsonPointer;
         return false;
     }
 }
@@ -290,19 +335,36 @@ internal sealed class RetePackageAddressIndex
                     jsonOptions) ?? throw new InvalidDataException($"Could not read SNA block content: {contentPath}");
 
                 var cursor = 0;
-                foreach (var element in content.Elements.OrderBy(e => e.Order))
+                AnimationTreeStore? animStore = null;
+                AnimationTreeStore GetAnimStore()
                 {
-                    var offset = element.Length > 0 ? element.OffsetInBlock : cursor;
-                    var length = element.Length > 0
-                        ? element.Length
-                        : DetermineElementLength(packageRoot, element);
-                    var virtualAddress = element.Length > 0
-                        ? element.VirtualAddress
-                        : checked(content.BaseInMemory + offset);
-                    var dataPath = ReferenceUri.Resolve(packageRoot, element.DataPath).FilePath;
+                    if (animStore == null)
+                    {
+                        animStore = new AnimationTreeStore();
+                        animStore.Load(packageRoot);
+                    }
 
-                    index.Add(virtualAddress, length, dataPath);
-                    cursor = checked(offset + length);
+                    return animStore;
+                }
+
+                foreach (var leaf in SnaBlockContentLinearizer.Linearize(packageRoot, content))
+                {
+                    var length = DetermineLeafLength(packageRoot, leaf, GetAnimStore);
+                    var virtualAddress = checked(content.BaseInMemory + cursor);
+                    var resolved = ReferenceUri.Resolve(packageRoot, leaf.DataPath);
+                    var hasFragment = !string.IsNullOrEmpty(resolved.JsonPointer);
+
+                    // Fragment URIs (animation pool leaves) share one file — index by full URI only.
+                    if (hasFragment)
+                    {
+                        index.AddUriKey(virtualAddress, length, leaf.DataPath.Replace('\\', '/'));
+                    }
+                    else
+                    {
+                        index.Add(virtualAddress, length, resolved.FilePath);
+                    }
+
+                    cursor = checked(cursor + length);
                 }
             }
         }
@@ -344,8 +406,18 @@ internal sealed class RetePackageAddressIndex
         return false;
     }
 
-    public bool TryGetAddress(string path, out int virtualAddress) =>
-        _addressByPath.TryGetValue(Path.GetFullPath(path), out virtualAddress);
+    public bool TryGetAddress(string path, out int virtualAddress)
+    {
+        if (_addressByPath.TryGetValue(Path.GetFullPath(path), out virtualAddress))
+        {
+            return true;
+        }
+
+        // URI keys (package-relative with fragment)
+        return _addressByUri.TryGetValue(path.Replace('\\', '/'), out virtualAddress);
+    }
+
+    private readonly Dictionary<string, int> _addressByUri = new(StringComparer.OrdinalIgnoreCase);
 
     private void Add(int virtualAddress, int length, string dataPath)
     {
@@ -358,33 +430,99 @@ internal sealed class RetePackageAddressIndex
         }
     }
 
-    private static int DetermineElementLength(string packageRoot, SnaBlockContentElement element)
+    public void AddUriKey(int virtualAddress, int length, string uri)
     {
-        if (element.DataPath.StartsWith(AnimationTreeDocument.RelativePath, StringComparison.OrdinalIgnoreCase) &&
-            AnimationTreeExport.TryWriteElementBytes(
-                packageRoot,
-                element.DataPath,
-                new ReferenceAddressResolver(packageRoot),
-                out var treeBytes))
+        var key = uri.Replace('\\', '/');
+        _addressByUri.TryAdd(key, virtualAddress);
+        _pathByAddress.TryAdd(virtualAddress, key);
+        if (length > 0)
         {
-            return treeBytes.Length;
+            _ranges.Add(new AddressRange(virtualAddress, length, key));
+        }
+    }
+
+    private static int DetermineLeafLength(
+        string packageRoot,
+        SnaBlockContentLinearizer.Leaf leaf,
+        Func<AnimationTreeStore>? getAnimStore = null)
+    {
+        // Prefer fixed-size codecs (no disk/JSON work).
+        if (StructCodecRegistry.TryGet(leaf.Kind, out var codec) && codec.FixedSize is { } fixedSize)
+        {
+            return fixedSize;
         }
 
-        var dataPath = ReferenceUri.Resolve(packageRoot, element.DataPath).FilePath;
-        if (StructCodecRegistry.TryGet(element.Kind, out var codec))
+        AnimationTreeStore? store = null;
+        AnimationTreeStore Store()
         {
-            if (codec.FixedSize is { } fixedSize)
+            store ??= getAnimStore?.Invoke() ?? LoadAnimStore(packageRoot);
+            return store;
+        }
+
+        if (leaf.Kind.Equals("transform", StringComparison.OrdinalIgnoreCase) &&
+            AnimationPaths.TryParseTransformById(
+                ReferenceUri.Resolve(packageRoot, leaf.DataPath).JsonPointer,
+                out var transformId) &&
+            Store().TryGetTransform(transformId, out var transform))
+        {
+            return transform.WireBytes.Length + transform.TrailingGap.Length;
+        }
+
+        if (AnimationPaths.TryParseFamilyById(
+                ReferenceUri.Resolve(packageRoot, leaf.DataPath).JsonPointer,
+                out var nodeId) &&
+            Store().TryGetNode(nodeId, out var node) &&
+            node.Record is { } record)
+        {
+            if (record.ValueKind == JsonValueKind.Object &&
+                record.TryGetProperty("path", out var pathProp) &&
+                pathProp.ValueKind == JsonValueKind.String)
             {
-                return fixedSize;
+                var rel = pathProp.GetString();
+                if (!string.IsNullOrWhiteSpace(rel))
+                {
+                    var full = Path.Combine(rel.Split('/').Prepend(packageRoot).ToArray());
+                    if (File.Exists(full))
+                    {
+                        return checked((int)new FileInfo(full).Length);
+                    }
+                }
             }
 
-            if (dataPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            if (StructCodecRegistry.TryGet(node.Kind, out var nodeCodec) &&
+                nodeCodec.FixedSize is { } nodeFixed)
             {
-                return codec.WriteFromJsonPath(packageRoot, dataPath).Length;
+                return nodeFixed;
+            }
+
+            if (StructCodecRegistry.TryGet(node.Kind, out nodeCodec) &&
+                !nodeCodec.UsesExternalBinaryPayload)
+            {
+                return nodeCodec.WriteFromJsonElement(record).Length;
             }
         }
 
-        return checked((int)new FileInfo(dataPath).Length);
+        var dataPath = ReferenceUri.Resolve(packageRoot, leaf.DataPath).FilePath;
+        if (StructCodecRegistry.TryGet(leaf.Kind, out codec) &&
+            dataPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) &&
+            File.Exists(dataPath))
+        {
+            return codec.WriteFromJsonPath(packageRoot, dataPath).Length;
+        }
+
+        if (File.Exists(dataPath))
+        {
+            return checked((int)new FileInfo(dataPath).Length);
+        }
+
+        return 0;
+    }
+
+    private static AnimationTreeStore LoadAnimStore(string packageRoot)
+    {
+        var store = new AnimationTreeStore();
+        store.Load(packageRoot);
+        return store;
     }
 
     private static string ResolvePackagePath(string packageRoot, string relativePath) =>

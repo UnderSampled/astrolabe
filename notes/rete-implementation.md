@@ -193,6 +193,12 @@ Progress as of 2026-06-14 (commits `5ca7ef4`, `137265d`):
 - `isIdentity` (bytes `0x00–0x03`): sentinel `0` / `1` or a compressed-matrix virtual address. Import/export accept legacy JSON key `matrixPointer` (numeric sentinels and URI strings via `IPointerFieldAliases`).
 - `unknown10` (bytes `0x10–0x13`): polymorphic — small inline integers (e.g. `3`, `17`) or a virtual-address pointer rewritten to a URI. Relocation generation skips non-VM-range values via `IsLikelyVirtualAddress` (`0x08000000–0x0FFFFFFF`).
 
+**Animation dual-layer (post Step 8):**
+
+- Authoring: `animation/families.json` nests Family → State; streamable codec records live in `byId`; channels point at `animation/transforms.json#/byId/{id}`.
+- Layout: whole-block `content.json` v2 `segments` + `expand` of ordered `runs` (not preserved VM integers). Export linearizes, assigns VAs, materializes pointer fields.
+- Aggregate: `AnimationTreeImporter.AggregateLevelPackage` after level import; O(n) over leaves (run expand, no per-leaf segment lists).
+
 `PointerTarget` is honored in `RelocationGenerator.FindTargetBlock`: `BlockRelative` searches only the source package, `Fix` only Fix packages, `Any` searches all loaded layouts.
 
 Next agent should continue Step 5 with the existing bridge intact:

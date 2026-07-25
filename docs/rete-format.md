@@ -149,21 +149,55 @@ Relocation tables (`.rtb`, `.rtp`, `.rtt`, and related files) are **not** stored
 
 ## SNA block content
 
-Each payload-bearing block has `content.json` with schema `astrolabe.sna-block-content.v1`.
+Each payload-bearing block has `content.json` describing the **whole block** stream.
 
-The document records the source SNA file, block identity, virtual base address, original decompressed hash (for validation), and an ordered `elements` array.
+### v1 (legacy flat list)
 
-Each element:
+Schema `astrolabe.sna-block-content.v1` uses an ordered `elements` array. Each element:
 
 | Field | Role |
 |-------|------|
-| `order` | Concatenation position in the decompressed block |
+| `order` | Concatenation position (legacy rank; array order is preferred) |
 | `kind` | Struct codec kind (for example `visualmaterial`) |
 | `dataPath` | Path to JSON struct, descriptor, or binary leaf |
 | `sha256` | Hash of serialized element bytes at import time |
 | `labels` | Parser coverage labels from import |
 
-OpenSpace export rebuilds the decompressed block by serializing elements in `order` and concatenating the results. Element boundaries are defined by this list, not by original file offsets.
+### v2 (ordered segments + expand)
+
+Schema `astrolabe.sna-block-content.v2` uses an ordered **`segments`** array. Array position **is** stream order — do not rely on numeric ranks.
+
+| Segment | Behavior |
+|---------|----------|
+| Leaf (`kind` + `dataPath`) | Emit one codec/binary payload |
+| `kind: "expand"` | Resolve `dataPath` to a tree or ordered id list; linearize by walking it |
+| Inline `children[]` | Nested ordered list of segments |
+
+Export linearizes segments left-to-right (expanding trees/lists), then concatenates leaf bytes. **Virtual addresses are assigned only during this export layout pass**, never stored as the reconstruction plan.
+
+Animation packages use expand targets such as:
+
+- `animation/transforms.json#/runs/{runId}` — ordered transform ids (dense `06:02` spans)
+- `animation/families.json#/runs/{runId}` — ordered animation leaf ids (stream order without listing every leaf at the top level)
+
+### Anti-cheat (honest reconstruction)
+
+| Allowed | Forbidden |
+|---------|-----------|
+| Ordered lists of **path/id refs** into semantic documents | Using original `int32` VM addresses as pointer field values in Rete |
+| Expand of trees / run lists | Requiring original file offsets to rebuild |
+| Payload content (transform wire bytes, trailing gap bytes) | Stashing RTB / pointer integer tables to patch back on export |
+
+Reference URIs (`animation/families.json#/byId/…`, `animation/transforms.json#/byId/…`) identify records. Export materializes pointer integers from the laid-out address map.
+
+## Animation package documents (dual-layer model)
+
+| Path | Role |
+|------|------|
+| `animation/families.json` | **Authoring tree**: nested `families` → `states` → animation ownership; `byId` holds streamable codec records; `runs` hold stream-order id lists for expand |
+| `animation/transforms.json` | Shared transform pool (`byId` + `stream` + `runs`); channels link here by URI |
+
+**Dual-layer:** semantic nesting is where animations matter for editing; stream order lives in whole-block `content.json` segments/expand run lists. Links are reference URIs (not preserved VM pointer integers). Virtual addresses are export-only (layout pass).
 
 ## Structs
 

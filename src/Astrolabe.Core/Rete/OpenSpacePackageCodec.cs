@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Astrolabe.Core;
 using Astrolabe.Core.FileFormats;
+using Astrolabe.Core.FileFormats.Animation;
 using Astrolabe.Core.FileFormats.Geometry;
 using Astrolabe.Core.Hub;
 using Astrolabe.Core.Rete.OpenSpace;
@@ -188,15 +189,22 @@ internal static class OpenSpacePackageCodec
                 }
 
                 var content = ReadJson<SnaBlockContentDocument>(ResolvePath(packageDir, block.ContentPath));
-                foreach (var element in content.Elements)
+                foreach (var leaf in SnaBlockContentLinearizer.Linearize(packageDir, content))
                 {
-                    if (!StructCodecRegistry.TryGet(element.Kind, out var codec) ||
+                    if (!StructCodecRegistry.TryGet(leaf.Kind, out var codec) ||
                         (codec.PointerFields.Count == 0 && !codec.IsPointerArray))
                     {
                         continue;
                     }
 
-                    var elementPath = ReferenceUri.Resolve(packageDir, element.DataPath).FilePath;
+                    // Animation nodes store records inside families.json — not standalone files.
+                    if (leaf.DataPath.Contains(AnimationFamiliesDocument.RelativePath, StringComparison.OrdinalIgnoreCase) ||
+                        leaf.DataPath.Contains(AnimationTransformsDocument.RelativePath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var elementPath = ReferenceUri.Resolve(packageDir, leaf.DataPath).FilePath;
                     if (!elementPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ||
                         !File.Exists(elementPath))
                     {
@@ -515,9 +523,13 @@ internal static class OpenSpacePackageCodec
                 }
 
                 var content = ReadJson<SnaBlockContentDocument>(contentPath);
-                foreach (var element in content.Elements)
+                foreach (var leaf in SnaBlockContentLinearizer.Linearize(packageDir, content))
                 {
-                    yield return element;
+                    yield return new SnaBlockContentElement
+                    {
+                        Kind = leaf.Kind,
+                        DataPath = leaf.DataPath
+                    };
                 }
             }
         }
@@ -914,15 +926,38 @@ internal static class OpenSpacePackageCodec
                 }
 
                 var content = ReadJson<SnaBlockContentDocument>(ResolvePath(packageDir, block.ContentPath));
-                var elements = content.Elements
-                    .Select(e => new IndexedContentElement(
-                        e.Kind,
-                        e.DataPath,
-                        e.VirtualAddress,
-                        e.Length,
-                        e.OffsetInBlock))
-                    .OrderBy(e => e.VirtualAddress)
-                    .ToList();
+                var cursor = 0;
+                var elements = new List<IndexedContentElement>();
+                foreach (var leaf in SnaBlockContentLinearizer.Linearize(packageDir, content))
+                {
+                    var length = 0;
+                    try
+                    {
+                        if (StructCodecRegistry.TryGet(leaf.Kind, out var codec) && codec.FixedSize is { } fixedSize)
+                        {
+                            length = fixedSize;
+                        }
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
+
+                    var va = content.BaseInMemory != 0 && content.BaseInMemory != -1
+                        ? checked(content.BaseInMemory + cursor)
+                        : 0;
+                    elements.Add(new IndexedContentElement(
+                        leaf.Kind,
+                        leaf.DataPath,
+                        va,
+                        length,
+                        cursor));
+                    if (length > 0)
+                    {
+                        cursor = checked(cursor + length);
+                    }
+                }
+
                 result[(block.Module, block.Id)] = elements;
             }
         }
@@ -1001,7 +1036,15 @@ internal static class OpenSpacePackageCodec
                 referenceResolver);
         }
 
-        ExportGeneratedRelocationTables(packageDir, manifest, outputDir, targetPackageRoots);
+        // RTB generation over tens of thousands of animation leaves is still expensive;
+        // allow SNA-only export for parity iteration (ASTROLABE_EXPORT_SNA_ONLY=1).
+        if (!string.Equals(
+                Environment.GetEnvironmentVariable("ASTROLABE_EXPORT_SNA_ONLY"),
+                "1",
+                StringComparison.Ordinal))
+        {
+            ExportGeneratedRelocationTables(packageDir, manifest, outputDir, targetPackageRoots);
+        }
         CopyLooseFiles(packageDir, manifest, outputDir);
     }
 
@@ -2292,7 +2335,9 @@ internal static class OpenSpacePackageCodec
         if (block.ContentPath != null)
         {
             var document = ReadJson<SnaBlockContentDocument>(ResolvePath(intermediateDir, block.ContentPath));
-            if (document.Schema != "astrolabe.sna-block-content.v1")
+            if (document.Schema is not (
+                SnaBlockContentDocument.SchemaV1 or
+                SnaBlockContentDocument.SchemaV2))
             {
                 throw new InvalidDataException($"Unsupported SNA block content schema: {document.Schema}");
             }
@@ -2304,11 +2349,15 @@ internal static class OpenSpacePackageCodec
 
             using var stream = new MemoryStream();
 
-            foreach (var element in document.Elements.OrderBy(s => s.Order))
+            foreach (var leaf in SnaBlockContentLinearizer.Linearize(intermediateDir, document))
             {
-                var data = StructCodecRegistry.TryGet(element.Kind, out _)
-                    ? ReadStructuredElementBytes(intermediateDir, element, referenceResolver)
-                    : File.ReadAllBytes(ResolvePath(intermediateDir, element.DataPath));
+                var data = StructCodecRegistry.TryGet(leaf.Kind, out _)
+                    ? ReferenceJson.WriteElementBytesForExport(
+                        intermediateDir,
+                        leaf.Kind,
+                        leaf.DataPath,
+                        referenceResolver)
+                    : File.ReadAllBytes(ResolvePath(intermediateDir, leaf.DataPath));
 
                 stream.Write(data);
             }
@@ -2404,25 +2453,10 @@ internal static class OpenSpacePackageCodec
         SnaBlockManifest block,
         ReferenceAddressResolver referenceResolver)
     {
-        if (block.ContentPath == null)
-        {
-            if (block.DataPath != null)
-            {
-                return File.ReadAllBytes(ResolvePath(packageDir, block.DataPath));
-            }
-
-            throw new InvalidDataException($"SNA block {block.Key} is missing content and data paths.");
-        }
-
-        var document = ReadJson<SnaBlockContentDocument>(ResolvePath(packageDir, block.ContentPath));
-        using var stream = new MemoryStream();
-        foreach (var element in document.Elements.OrderBy(s => s.Order))
-        {
-            var data = ReadHubElementBytes(catalog, element, referenceResolver, packageDir);
-            stream.Write(data);
-        }
-
-        return stream.ToArray();
+        // Prefer the same linearize + codec path as non-hub export: segment leaves already
+        // carry URIs; hub hydration per leaf is too slow for 10k+ animation segments.
+        _ = catalog;
+        return ReadSnaBlockData(packageDir, block, referenceResolver);
     }
 
     private static byte[] ReadHubElementBytes(
@@ -2431,6 +2465,12 @@ internal static class OpenSpacePackageCodec
         ReferenceAddressResolver referenceResolver,
         string packageDir)
     {
+        if (AnimationTreeExport.TryWriteElementBytes(
+                packageDir, element.DataPath, referenceResolver, out var animBytes))
+        {
+            return animBytes;
+        }
+
         var dataPath = NormalizeRetePath(element.DataPath);
         if (catalog.TryGetByPath(dataPath, out var hubElement) &&
             catalog.TryHydrate(hubElement) &&

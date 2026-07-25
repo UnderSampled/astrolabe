@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Text.Json;
+using Astrolabe.Core.FileFormats.Animation;
 using Astrolabe.Core.Serialization;
 using Astrolabe.Core.Serialization.Codecs;
 
@@ -662,13 +663,12 @@ internal static class RelocationGenerator
         IStructCodecBinding codec,
         ReadOnlySpan<byte> pointerData)
     {
-        var elementPath = ReferenceUri.Resolve(sourcePackageRoot, element.DataPath).FilePath;
-        if (!elementPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) || !File.Exists(elementPath))
+        OpaqueBinaryRecord record;
+        if (!TryLoadOpaqueRecordForElement(sourcePackageRoot, element, codec, out record!))
         {
             return null;
         }
 
-        var record = (OpaqueBinaryRecord)codec.ReadFromJsonPath(sourcePackageRoot, elementPath);
         if (record.Pointers.Count == 0)
         {
             return null;
@@ -733,7 +733,7 @@ internal static class RelocationGenerator
         {
             Trace.TraceWarning(
                 "Opaque element {0} has inline pointer LUT entries but emitted zero relocations.",
-                elementPath);
+                element.DataPath);
         }
 
         return lutOffsets;
@@ -846,6 +846,12 @@ internal static class RelocationGenerator
         out byte[] data)
     {
         data = [];
+        if (AnimationTreeExport.TryWriteElementBytes(
+                sourcePackageRoot, element.DataPath, resolver, out data))
+        {
+            return true;
+        }
+
         var elementPath = ReferenceUri.Resolve(sourcePackageRoot, element.DataPath).FilePath;
         if (!File.Exists(elementPath))
         {
@@ -863,6 +869,43 @@ internal static class RelocationGenerator
         }
 
         data = File.ReadAllBytes(elementPath);
+        return true;
+    }
+
+    private static bool TryLoadOpaqueRecordForElement(
+        string packageRoot,
+        ElementLayout element,
+        IStructCodecBinding codec,
+        out OpaqueBinaryRecord? record)
+    {
+        record = null;
+        var dataPath = element.DataPath.Replace('\\', '/');
+
+        // Animation fragment leaves: record JSON lives inside families.json byId.
+        if (dataPath.Contains(AnimationFamiliesDocument.RelativePath, StringComparison.OrdinalIgnoreCase) ||
+            dataPath.Contains(AnimationTransformsDocument.RelativePath, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!AnimationTreeExport.TryGetNodeRecordJson(packageRoot, dataPath, out var json))
+            {
+                return false;
+            }
+
+            var schema = json.TryGetProperty("schema", out var schemaProp) &&
+                         schemaProp.ValueKind == JsonValueKind.String
+                ? schemaProp.GetString()!
+                : "astrolabe.opaque-binary.v1";
+            record = OpaqueBinaryStorage.Read(
+                json, schema, packageRoot, AnimationFamiliesDocument.RelativePath);
+            return true;
+        }
+
+        var elementPath = ReferenceUri.Resolve(packageRoot, element.DataPath).FilePath;
+        if (!elementPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) || !File.Exists(elementPath))
+        {
+            return false;
+        }
+
+        record = (OpaqueBinaryRecord)codec.ReadFromJsonPath(packageRoot, elementPath);
         return true;
     }
 
@@ -1342,20 +1385,23 @@ internal static class RelocationGenerator
 
                     var elements = new List<ElementLayout>();
                     var cursor = 0;
-                    foreach (var element in content.Elements.OrderBy(e => e.Order))
+                    var order = 0;
+                    foreach (var leaf in SnaBlockContentLinearizer.Linearize(packageRoot, content))
                     {
-                        var offset = element.Length > 0 ? element.OffsetInBlock : cursor;
-                        var length = element.Length > 0
-                            ? element.Length
-                            : DetermineElementLength(packageRoot, element, layout.Resolver);
-
+                        var proxy = new SnaBlockContentElement
+                        {
+                            Kind = leaf.Kind,
+                            DataPath = leaf.DataPath
+                        };
+                        var length = DetermineElementLength(packageRoot, proxy, layout.Resolver);
                         elements.Add(new ElementLayout(
-                            element.Order,
-                            element.Kind,
-                            element.DataPath,
-                            offset,
+                            order,
+                            leaf.Kind,
+                            leaf.DataPath,
+                            cursor,
                             length));
-                        cursor = checked(offset + length);
+                        cursor = checked(cursor + length);
+                        order++;
                     }
 
                     layout.Blocks.Add(new BlockLayout(

@@ -170,13 +170,25 @@ public sealed class HubCatalog
 
     private void IndexAnimationTree()
     {
-        var treePath = Path.Combine(PackageDir, AnimationTreeDocument.RelativePath);
-        if (!File.Exists(treePath))
+        IndexAnimationDoc(
+            AnimationFamiliesDocument.RelativePath,
+            AnimationFamiliesDocument.SchemaValue,
+            "animationfamilies");
+        IndexAnimationDoc(
+            AnimationTransformsDocument.RelativePath,
+            AnimationTransformsDocument.SchemaValue,
+            "animationtransforms");
+    }
+
+    private void IndexAnimationDoc(string relativePath, string schema, string kind)
+    {
+        var fullPath = Path.Combine(PackageDir, relativePath);
+        if (!File.Exists(fullPath))
         {
             return;
         }
 
-        var relative = NormalizePath(AnimationTreeDocument.RelativePath);
+        var relative = NormalizePath(relativePath);
         if (_byPath.ContainsKey(relative))
         {
             return;
@@ -184,9 +196,9 @@ public sealed class HubCatalog
 
         _byPath[relative] = new HubElement
         {
-            Kind = "animationtree",
+            Kind = kind,
             DataPath = relative,
-            Schema = AnimationTreeDocument.SchemaValue,
+            Schema = schema,
             Value = null,
             VirtualAddress = 0,
             OffsetInBlock = 0,
@@ -208,38 +220,43 @@ public sealed class HubCatalog
 
                 var contentPath = ResolvePath(PackageDir, block.ContentPath);
                 var content = ReadJson<SnaBlockContentDocument>(contentPath);
-                foreach (var entry in content.Elements.OrderBy(e => e.Order))
+                var offset = 0;
+                foreach (var leaf in SnaBlockContentLinearizer.Linearize(PackageDir, content))
                 {
-                    var dataPath = NormalizePath(entry.DataPath);
+                    var dataPath = NormalizePath(leaf.DataPath);
                     if (dataPath.StartsWith("scene/", StringComparison.OrdinalIgnoreCase))
                     {
                         continue;
                     }
 
-                    if (!StructCodecRegistry.TryGet(entry.Kind, out var codec))
+                    if (!StructCodecRegistry.TryGet(leaf.Kind, out _))
                     {
                         continue;
                     }
 
+                    // Fragment URIs (animation pool) are valid without a whole-file path.
+                    var isFragment = dataPath.Contains('#', StringComparison.Ordinal);
                     var filePath = ReferenceUri.Resolve(PackageDir, dataPath).FilePath;
-                    if (!File.Exists(filePath))
+                    if (!isFragment && !File.Exists(filePath))
                     {
                         continue;
                     }
 
+                    // Length/VA filled during export layout; index only needs paths + kinds.
                     yield return new HubElement
                     {
-                        Kind = entry.Kind,
+                        Kind = leaf.Kind,
                         DataPath = dataPath,
-                        Schema = entry.Kind,
+                        Schema = leaf.Kind,
                         Value = null,
-                        VirtualAddress = entry.VirtualAddress,
-                        OffsetInBlock = entry.OffsetInBlock,
-                        Length = entry.Length,
+                        VirtualAddress = 0,
+                        OffsetInBlock = offset,
+                        Length = 0,
                         BlockModule = block.Module,
                         BlockId = block.Id,
                         BlockKey = block.Key
                     };
+                    offset++;
                 }
             }
         }

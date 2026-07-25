@@ -43,7 +43,10 @@ public sealed class SnaBlockManifest
 
 public sealed class SnaBlockContentDocument
 {
-    public string Schema { get; set; } = "astrolabe.sna-block-content.v1";
+    public const string SchemaV1 = "astrolabe.sna-block-content.v1";
+    public const string SchemaV2 = "astrolabe.sna-block-content.v2";
+
+    public string Schema { get; set; } = SchemaV1;
     public string FileName { get; set; } = "";
     public int BlockOrder { get; set; }
     public string BlockKey { get; set; } = "";
@@ -52,7 +55,19 @@ public sealed class SnaBlockContentDocument
     public int BaseInMemory { get; set; }
     public string BaseInMemoryHex { get; set; } = "";
     public string OriginalDataSha256 { get; set; } = "";
+
+    /// <summary>
+    /// v1 flat leaf list. Array order is preferred; <see cref="SnaBlockContentElement.Order"/>
+    /// is legacy rank. Prefer <see cref="Segments"/> for new packages.
+    /// </summary>
     public List<SnaBlockContentElement> Elements { get; set; } = new();
+
+    /// <summary>
+    /// v2 ordered segments for the whole block. Array position is stream order.
+    /// A segment is either a leaf or an <c>expand</c> of a tree/list (not every leaf).
+    /// When non-empty, export linearizes this instead of <see cref="Elements"/>.
+    /// </summary>
+    public List<SnaBlockContentSegment> Segments { get; set; } = new();
 }
 
 public sealed class SnaBlockContentElement
@@ -65,6 +80,30 @@ public sealed class SnaBlockContentElement
     public int VirtualAddress { get; set; }
     public string VirtualAddressHex { get; set; } = "";
     public string Sha256 { get; set; } = "";
+    public List<string> Labels { get; set; } = new();
+}
+
+/// <summary>
+/// One ordered unit in a block stream. Use <c>kind=expand</c> to DFS a semantic
+/// tree or ordered id list so content.json need not name every leaf.
+/// </summary>
+public sealed class SnaBlockContentSegment
+{
+    public const string ExpandKind = "expand";
+
+    /// <summary>Codec kind, <c>raw</c>, or <see cref="ExpandKind"/>.</summary>
+    public string Kind { get; set; } = "";
+
+    /// <summary>URI to payload, or expand target (families layoutRoots, transform stream, group, byId).</summary>
+    public string DataPath { get; set; } = "";
+
+    /// <summary>Optional inline ordered children (group without a separate document node).</summary>
+    public List<SnaBlockContentSegment>? Children { get; set; }
+
+    /// <summary>Import provenance only; not required for export linearization.</summary>
+    public int? ProvenanceVirtualAddress { get; set; }
+
+    public int? Length { get; set; }
     public List<string> Labels { get; set; } = new();
 }
 

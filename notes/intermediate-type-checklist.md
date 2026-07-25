@@ -217,7 +217,9 @@ References: `docs/perso-mesh-animation.md`, `docs/file-format-catalogue.md`, `sr
 - [x] `animchannelptrs`: channel pointer table (`PointerArrayCodec`).
 - [ ] `animhierarchies`: hierarchy records.
 - [x] `animhierarchiesheader`: hierarchy header/counts.
-- [ ] `compressedmatrix`: compressed transform fields as documented in `docs/perso-mesh-animation.md`.
+- [x] `transform` (was `compressedmatrix`): Montreal compressed matrix wire + trailing stream gaps via `TransformCodec`; pooled in `animation/transforms.json` with channel URIs.
+
+**Animation package shape:** nested `animation/families.json` (Family → State ownership) + transform pool; block `content.json` v2 segments/expand carry stream order. See dual-layer rules in [`docs/rete-format.md`](../docs/rete-format.md).
 
 ### AI, Scripts, DSG, and Behavior
 
