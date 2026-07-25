@@ -49,6 +49,11 @@ internal static class ReferenceJson
         string dataPath,
         ReferenceAddressResolver resolver)
     {
+        if (AnimationTreeExport.TryWriteElementBytes(packageRoot, dataPath, resolver, out var treeBytes))
+        {
+            return treeBytes;
+        }
+
         if (!StructCodecRegistry.TryGet(kind, out var codec))
         {
             return File.ReadAllBytes(ReferenceUri.Resolve(packageRoot, dataPath).FilePath);

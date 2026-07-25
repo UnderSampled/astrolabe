@@ -952,15 +952,15 @@ public class TrackingSuperObjectReader
             // If isIdentity is a pointer (not 0 or 1), it points to compressed matrix data
             if (isIdentity != 0 && isIdentity != 1 && isIdentity > 0x08000000 && isIdentity < 0x10000000)
             {
-                ReadCompressedMatrix(nodeAddr, (int)isIdentity);
+                ReadTransform(nodeAddr, (int)isIdentity);
             }
         }
         catch { }
     }
 
-    private void ReadCompressedMatrix(int nodeAddr, int address)
+    private void ReadTransform(int nodeAddr, int address)
     {
-        // Compressed matrix size depends on type field:
+        // Transform wire size depends on type field (raymap Matrix.ReadCompressed):
         // Type 1: translation only = 2 + 6 = 8 bytes
         // Type 2: rotation only = 2 + 8 = 10 bytes
         // Type 3: translation + rotation = 2 + 6 + 8 = 16 bytes
@@ -989,12 +989,12 @@ public class TrackingSuperObjectReader
                 size += 12; // Matrix scale (6 shorts)
 
             if (size < 8) size = 8; // Minimum size
-            _tracker.RecordForNode(nodeAddr, address, size, "CompressedMatrix");
+            _tracker.RecordForNode(nodeAddr, address, size, "Transform");
         }
         catch
         {
             // Fallback to safe estimate
-            _tracker.RecordForNode(nodeAddr, address, 28, "CompressedMatrix");
+            _tracker.RecordForNode(nodeAddr, address, 28, "Transform");
         }
     }
 

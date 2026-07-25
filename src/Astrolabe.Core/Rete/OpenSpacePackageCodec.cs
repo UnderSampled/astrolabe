@@ -48,6 +48,7 @@ internal static class OpenSpacePackageCodec
         var fixPackageDir = ImportSiblingFixPackageIfAvailable(levelDir, outputDir);
         var manifest = ImportPackage(levelDir, levelName, outputDir, "level", _ => true);
         RewritePointerReferences(outputDir, fixPackageDir);
+        AnimationTreeImporter.AggregateLevelPackage(outputDir, manifest);
         AnnotateOpaquePointersFromSourceRelocations(outputDir, fixPackageDir, levelDir);
         if (!string.IsNullOrWhiteSpace(fixPackageDir))
         {

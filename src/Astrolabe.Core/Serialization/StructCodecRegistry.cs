@@ -143,6 +143,7 @@ public static class StructCodecRegistry
         Register(Codecs.FloatArrayCodec.LodDistances);
         Register(Codecs.Float2ArrayCodec.Uvs);
         Register(Codecs.AnimChannelCodec.Instance);
+        Register(Codecs.TransformCodec.Instance);
         Register(Codecs.ElementSpritesCodec.Instance);
         Register(Codecs.PersoCodec.Instance);
         Register(Codecs.Perso3dDataCodec.Instance);

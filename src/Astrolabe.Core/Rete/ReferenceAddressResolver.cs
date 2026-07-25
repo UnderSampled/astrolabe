@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Astrolabe.Core.FileFormats.Animation;
 using Astrolabe.Core.Serialization;
 using Astrolabe.Core.Serialization.Codecs;
 
@@ -146,6 +147,11 @@ internal sealed class ReferenceAddressResolver
             return checked(address + byteOffset);
         }
 
+        if (TryResolveAnimationTreeFragment(packageRoot, resolved.JsonPointer, out var animationAddress))
+        {
+            return animationAddress;
+        }
+
         throw new InvalidDataException($"Unsupported reference fragment in URI: {uri}");
     }
 
@@ -220,6 +226,34 @@ internal sealed class ReferenceAddressResolver
         }
 
         return int.TryParse(fragment[Prefix.Length..], out byteOffset);
+    }
+
+    private static bool TryResolveAnimationTreeFragment(
+        string packageRoot,
+        string? jsonPointer,
+        out int virtualAddress)
+    {
+        virtualAddress = 0;
+        var store = new AnimationTreeStore();
+        store.Load(packageRoot);
+        if (!store.IsLoaded)
+        {
+            return false;
+        }
+
+        if (AnimationTreePaths.TryParseTransformFragment(jsonPointer, out _))
+        {
+            return store.TryResolveTransformAddress(jsonPointer, out virtualAddress);
+        }
+
+        if (AnimationTreePaths.TryParseElementFragment(jsonPointer, out var elementAddress) &&
+            store.TryGetElementRecord(jsonPointer, out var entry))
+        {
+            virtualAddress = entry.VirtualAddress != 0 ? entry.VirtualAddress : elementAddress;
+            return virtualAddress != 0;
+        }
+
+        return false;
     }
 }
 
@@ -326,6 +360,16 @@ internal sealed class RetePackageAddressIndex
 
     private static int DetermineElementLength(string packageRoot, SnaBlockContentElement element)
     {
+        if (element.DataPath.StartsWith(AnimationTreeDocument.RelativePath, StringComparison.OrdinalIgnoreCase) &&
+            AnimationTreeExport.TryWriteElementBytes(
+                packageRoot,
+                element.DataPath,
+                new ReferenceAddressResolver(packageRoot),
+                out var treeBytes))
+        {
+            return treeBytes.Length;
+        }
+
         var dataPath = ReferenceUri.Resolve(packageRoot, element.DataPath).FilePath;
         if (StructCodecRegistry.TryGet(element.Kind, out var codec))
         {

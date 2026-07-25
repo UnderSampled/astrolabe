@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Astrolabe.Core.FileFormats.Animation;
 using Astrolabe.Core.Rete;
 using Astrolabe.Core.Serialization;
 using Astrolabe.Core.Serialization.Codecs;
@@ -164,6 +165,34 @@ public sealed class HubCatalog
         }
 
         IndexSlotElements();
+        IndexAnimationTree();
+    }
+
+    private void IndexAnimationTree()
+    {
+        var treePath = Path.Combine(PackageDir, AnimationTreeDocument.RelativePath);
+        if (!File.Exists(treePath))
+        {
+            return;
+        }
+
+        var relative = NormalizePath(AnimationTreeDocument.RelativePath);
+        if (_byPath.ContainsKey(relative))
+        {
+            return;
+        }
+
+        _byPath[relative] = new HubElement
+        {
+            Kind = "animationtree",
+            DataPath = relative,
+            Schema = AnimationTreeDocument.SchemaValue,
+            Value = null,
+            VirtualAddress = 0,
+            OffsetInBlock = 0,
+            Length = 0,
+            BlockKey = "animation"
+        };
     }
 
     private IEnumerable<HubElement> EnumerateManifestIndexEntries()
