@@ -6,7 +6,7 @@ Checked items are represented as Rete content elements and export through struct
 
 ## Next Agent Goal
 
-Flesh out every type that is documented in `docs/` but still emitted as a named opaque binary leaf. The target state is that documented structures compile from structured JSON, with dense buffers described by JSON and stored as binary payloads. Unknown fields should be preserved explicitly as named scalars or small byte arrays. Opaque binary leaves should remain only for genuinely undocumented or unclassified data.
+Documented Type Promotion Backlog field-level codecs are registered (see below). Residual work is genuinely undocumented/unclassified islands and package-shape cleanup (dense buffers as JSON descriptors + binary payloads, hierarchical JSON, optional S-expression authoring for scripts). Opaque binary leaves should remain only for data listed in [`notes/residual-opaque.txt`](residual-opaque.txt).
 
 **Rule:** if implementation needs to parse or traverse a structure, it must be promoted — not left in `types/raw/`. See Engineering rules in [`plan.md`](../plan.md).
 
@@ -105,7 +105,7 @@ Note: `vertices`, `normals`, and `trianglenormals` are currently structured JSON
 
 ## Named Binary Leaves
 
-These are promoted into `types/<kind>/` and compile through the content stream, but still need full field-level JSON schemas.
+These are promoted into `types/<kind>/` and compile through the content stream. Documented kinds below have field-level codecs in `StructCodecRegistry` (see Documented Type Promotion Backlog). Dense array kinds use descriptor+buffer codecs; pointer-table kinds use `PointerArrayCodec`.
 
 - [x] `actiontable`
 - [x] `actiontree`
@@ -198,10 +198,10 @@ References: `docs/perso-mesh-animation.md`, `docs/file-format-catalogue.md`, `sr
 - [x] `perso3ddata`: family/object-list/state links and graphics state.
 - [x] `standardgame`: family/model/instance indices and object type references.
 - [x] `objectlist`: object-list header and entries.
-- [ ] `objecttypeentry`: object type table entries.
-- [ ] `objecttypename`: decoded names as text JSON, preserving original bytes when needed.
+- [x] `objecttypeentry`: object type table entries (`ObjectTypeEntryCodec`).
+- [x] `objecttypename`: decoded names as text JSON, preserving original bytes when needed (`TextNameCodec`).
 - [x] `spawnableentry`: spawnable perso list entries.
-- [ ] `alwayssuperobjects`: always-loaded SuperObject list entries.
+- [x] `alwayssuperobjects`: always-loaded SuperObject list entries (`AlwaysSuperObjectsCodec`).
 
 ### Animation and State Machines
 
@@ -209,13 +209,13 @@ References: `docs/perso-mesh-animation.md`, `docs/file-format-catalogue.md`, `sr
 
 - [x] `state`: state name buffer, animation reference, transition list, mechanics/flags.
 - [x] `transition`: transition target, condition/action references, unknown fields.
-- [ ] `actiontable`: action table header and pointers.
-- [ ] `actiontree`: action tree nodes or encoded action graph data.
+- [x] `actiontable`: action table header and pointers (`ActionTableCodec`).
+- [x] `actiontree`: action tree nodes or encoded action graph data (`ActionTreeCodec`).
 - [x] `animationmontreal`: animation header, frame/channel counts, speed/timing data.
 - [x] `animframes`: frame records.
 - [x] `animchannel`: channel records, object index switching, hierarchy/compressed matrix links.
 - [x] `animchannelptrs`: channel pointer table (`PointerArrayCodec`).
-- [ ] `animhierarchies`: hierarchy records.
+- [x] `animhierarchies`: hierarchy records (`AnimHierarchiesCodec`).
 - [x] `animhierarchiesheader`: hierarchy header/counts.
 - [x] `transform` (was `compressedmatrix`): Montreal compressed matrix wire + trailing stream gaps via `TransformCodec`; pooled in `animation/transforms.json` with channel URIs.
 
@@ -229,14 +229,14 @@ References: `docs/ai-script-format.md`, `src/Astrolabe.Core/FileFormats/AI/`, `s
 - [x] `mind`: current AI state and AI model references.
 - [x] `intelligence`: current behavior state and active behavior references.
 - [x] `aimodel`: behavior lists, macro lists, DSG variable definitions.
-- [ ] `behaviorlist_normal`: normal behavior list header and entries.
-- [ ] `behaviorlist_reflex`: reflex behavior list header and entries.
-- [ ] `behaviors_normal`: normal behavior records.
-- [ ] `behaviors_reflex`: reflex behavior records.
+- [x] `behaviorlist_normal`: normal behavior list header and entries (`BehaviorListCodec.Normal`).
+- [x] `behaviorlist_reflex`: reflex behavior list header and entries (`BehaviorListCodec.Reflex`).
+- [x] `behaviors_normal`: normal behavior records (`BehaviorArrayCodec`).
+- [x] `behaviors_reflex`: reflex behavior records (`BehaviorArrayCodec`).
 - [x] `scriptptrs`: script pointer arrays (`PointerArrayCodec`).
-- [ ] `script`: S-expression AST source, plus raw ScriptNode preservation only as needed for byte-perfect compilation.
-- [ ] `dsgvar`: designer variable definitions with documented type ids.
-- [ ] `dsgmem`: per-instance DSG variable values.
+- [x] `script`: field-level `ScriptBlobCodec` (shell / nodes / raw forms); S-expression authoring remains optional; node params stay numeric.
+- [x] `dsgvar`: designer variable definitions with documented type ids (`DsgVarCodec`).
+- [x] `dsgmem`: per-instance DSG variable values (`DsgMemCodec`).
 - [x] `dsgvarptrindirect`: indirect pointer/value table for DSG data (`PointerArrayCodec`).
 
 ### Sectors and Collision
@@ -244,23 +244,23 @@ References: `docs/ai-script-format.md`, `src/Astrolabe.Core/FileFormats/AI/`, `s
 References: `docs/file-format-catalogue.md`, `docs/lighting.md`, `src/Astrolabe.Core/FileFormats/SuperObjectReader.cs`, `src/Astrolabe.Core/FileFormats/TrackingSuperObjectReader.cs`, `reference/raymap/Assets/Scripts/OpenSpace/`.
 
 - [x] `sector`: sector structure, linked lists, neighbor entries, activity/sound/graphics/collision sector references.
-- [ ] `sectorname`: decoded sector names as text JSON, preserving original bytes when needed.
+- [x] `sectorname`: decoded sector names as text JSON, preserving original bytes when needed (`TextNameCodec`).
 - [x] `persosectorinfo`: perso sector membership links.
-- [ ] `sectorcollidegeo`: sector collision geometry header and references.
-- [ ] `sectorcollideverts`: sector collision vertex arrays.
+- [x] `sectorcollidegeo`: sector collision geometry header and references (`SectorCollideGeoCodec`).
+- [x] `sectorcollideverts`: sector collision vertex arrays (`Float3ArrayCodec.SectorCollideVerts`).
 - [x] `collideset`: collide set header and pointers.
 - [x] `collideelementptrs`: collide element pointer arrays (`PointerArrayCodec`).
-- [ ] `collidezdxlist`: ZDX collision zone list entries and target zone references.
-- [ ] `collidezddlist`: ZDD collision zone list entries and target zone references.
-- [ ] `collidezdelist`: ZDE collision zone list entries and target zone references.
-- [ ] `collidezddzone`: ZDD zone fields.
-- [ ] `collidezdezone`: ZDE zone fields.
+- [x] `collidezdxlist`: ZDX collision zone list entries and target zone references (`CollideZoneListCodec`).
+- [x] `collidezddlist`: ZDD collision zone list entries and target zone references (`CollideZoneListCodec`).
+- [x] `collidezdelist`: ZDE collision zone list entries and target zone references (`CollideZoneListCodec`).
+- [x] `collidezddzone`: ZDD zone fields (`CollideZoneCodec`; also `collidezdxzone` / `collidezdezone`).
+- [x] `collidezdezone`: ZDE zone fields (`CollideZoneCodec`).
 
 ### Miscellaneous Documented or Partially Documented Leaves
 
 References: `docs/file-format-catalogue.md`, `src/Astrolabe.Core/FileFormats/TrackingSuperObjectReader.cs`, `reference/raymap/`.
 
-- [ ] `dynam`: dynamic object/physics state fields.
+- [x] `dynam`: dynamic object/physics state fields (`DynamCodec`; trailing unknown bytes named explicitly).
 - [x] `elementptrs`: generic element pointer arrays where not covered by geometry-specific serializers (`PointerArrayCodec`).
 
 ## Current Verification
@@ -279,19 +279,19 @@ Use these commands after each promotion pass:
 
 ```bash
 dotnet build
-dotnet run --project src/Astrolabe.Cli -- extract-intermediate disc/Gamedata/World/Levels/astrolabe output/test-intermediate-astrolabe
-dotnet run --project src/Astrolabe.Cli -- compile-intermediate output/test-intermediate-astrolabe output/test-compiled-astrolabe
+dotnet run --project src/Astrolabe.Cli -- import-openspace disc/Gamedata/World/Levels/astrolabe output/test-rete-astrolabe
+dotnet run --project src/Astrolabe.Cli -- export-openspace output/test-rete-astrolabe/Gamedata/World/Levels/astrolabe output/test-compiled-astrolabe
 for src in disc/Gamedata/World/Levels/astrolabe/*; do name=${src##*/}; cmp -s "$src" "output/test-compiled-astrolabe/$name" || printf 'DIFF %s\n' "$name"; done
 ```
 
-The compare command should print nothing for an unedited package.
+The compare command should print nothing for an unedited package. Adjust the Rete level path if `import-openspace` writes under a different mirrored tree root.
 
 After testing, remove temporary output directories:
 
 ```bash
-rm -rf output/test-intermediate-astrolabe output/test-compiled-astrolabe output/test-edited-astrolabe output/test-edited-compiled-astrolabe
+rm -rf output/test-rete-astrolabe output/test-compiled-astrolabe output/test-edited-astrolabe output/test-edited-compiled-astrolabe
 ```
 
 ## Godot Handoff Note
 
-Do not wire the intermediate package into `export-godot` until the documented type promotion pass is stronger. The intermediate should become the source layer for Godot export after the core scene, geometry/material, Perso, animation, AI, and sector/collision structures are represented as meaningful JSON.
+`export-godot` already accepts OpenSpace or Rete input. Prefer Rete once residual opaque islands and package-shape cleanup are stable enough for the assets you care about.

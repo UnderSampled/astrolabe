@@ -7,7 +7,8 @@
     <IsPackable>false</IsPackable>
     <VSTestBlame>true</VSTestBlame>
     <VSTestBlameHang>true</VSTestBlameHang>
-    <VSTestBlameHangTimeout>10s</VSTestBlameHangTimeout>
+    <!-- Disc fixture import/export is multi-minute; 10s falsely aborts the host as "hung". -->
+    <VSTestBlameHangTimeout>30m</VSTestBlameHangTimeout>
     <VSTestBlameHangDumpType>none</VSTestBlameHangDumpType>
     <!-- Exclude import/disc integration tests by default. Run slow tests with filter Category=Slow -->
     <VSTestTestCaseFilter>Category!=Slow</VSTestTestCaseFilter>

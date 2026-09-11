@@ -1254,13 +1254,27 @@ internal static class OpenSpacePackageCodec
         var expectedName = Path.ChangeExtension(relocationFileName, pointerExtension);
         var looseFile = manifest.LooseFiles.FirstOrDefault(f =>
             f.FileName.Equals(expectedName, StringComparison.OrdinalIgnoreCase));
-        if (looseFile == null)
+        if (looseFile != null)
         {
-            return false;
+            pointerFilePath = ResolvePath(packageDir, looseFile.Path);
+            if (File.Exists(pointerFilePath))
+            {
+                return true;
+            }
         }
 
-        pointerFilePath = ResolvePath(packageDir, looseFile.Path);
-        return File.Exists(pointerFilePath);
+        // Step 9: GPT/PTX live in sidecars/level.json (WireBase64), not opaque files/*.gpt.
+        // Materialize a temp file so RTP/RTT generation can scan pointer tables.
+        if (SidecarAggregator.TryWriteLooseFile(packageDir, expectedName, out var bytes))
+        {
+            var tempDir = Path.Combine(packageDir, ".export-tmp");
+            Directory.CreateDirectory(tempDir);
+            pointerFilePath = Path.Combine(tempDir, expectedName);
+            File.WriteAllBytes(pointerFilePath, bytes);
+            return true;
+        }
+
+        return false;
     }
 
     private static IEnumerable<string> FindTargetPackageRoots(string packageDir, RetePackageManifest manifest)

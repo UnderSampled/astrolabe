@@ -92,6 +92,39 @@ public sealed class CollideSetRecord
     public byte[] Unknown0C { get; set; } = [];
 }
 
+public sealed class SectorCollideGeoRecord
+{
+    public string Schema { get; set; } = "astrolabe.sector-collide-geo.v1";
+    public uint Unknown00 { get; set; }
+    public HubReference Vertices { get; set; } = HubReference.Null;
+    public HubReference Normals { get; set; } = HubReference.Null;
+    public uint Unknown0C { get; set; }
+    public uint Unknown10 { get; set; }
+    public uint NumElements { get; set; }
+    public HubReference ElementTypes { get; set; } = HubReference.Null;
+    public HubReference Elements { get; set; } = HubReference.Null;
+    public byte[] Unknown20 { get; set; } = [];
+}
+
+public sealed class CollideZoneListRecord
+{
+    public string Schema { get; set; } = "astrolabe.collide-zone-list.v1";
+    public string Type { get; set; } = "";
+    public HubReference Head { get; set; } = HubReference.Null;
+    public HubReference Tail { get; set; } = HubReference.Null;
+    public uint Count { get; set; }
+}
+
+public sealed class CollideZoneRecord
+{
+    public string Schema { get; set; } = "astrolabe.collide-zone.v1";
+    public string Type { get; set; } = "";
+    public HubReference Next { get; set; } = HubReference.Null;
+    public HubReference Prev { get; set; } = HubReference.Null;
+    public HubReference CollideObj { get; set; } = HubReference.Null;
+    public byte[] Unknown0C { get; set; } = [];
+}
+
 public sealed class SectorRecord
 {
     public string Schema { get; set; } = "astrolabe.sector.v1";

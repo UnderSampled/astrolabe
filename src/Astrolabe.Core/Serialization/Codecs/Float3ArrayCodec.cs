@@ -18,6 +18,7 @@ public sealed class Float3ArrayCodec : IStructCodec<Float3ArrayRecord>
     public static Float3ArrayCodec Vertices { get; } = new("vertices");
     public static Float3ArrayCodec Normals { get; } = new("normals");
     public static Float3ArrayCodec TriangleNormals { get; } = new("trianglenormals");
+    public static Float3ArrayCodec SectorCollideVerts { get; } = new("sectorcollideverts");
 
     public Float3ArrayRecord Read(ReadOnlySpan<byte> data, int offset, int length)
     {

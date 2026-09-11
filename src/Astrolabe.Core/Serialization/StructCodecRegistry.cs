@@ -8,9 +8,12 @@ public interface IStructCodecBinding
     int? FixedSize { get; }
     IReadOnlyList<PointerField> PointerFields { get; }
     bool IsPointerArray { get; }
+    bool IsStructuredArray { get; }
     bool UsesExternalBinaryPayload { get; }
     string PointerArrayPropertyName { get; }
     int PointerEntryStride { get; }
+    string StructuredEntriesPropertyName { get; }
+    IReadOnlyList<PointerField> StructuredEntryPointerFields { get; }
     IReadOnlyDictionary<string, string> PointerFieldAliases { get; }
 
     IReadOnlyList<PointerField> ResolvePointerFields(int serializedByteLength);
@@ -37,11 +40,16 @@ internal sealed class StructCodecBinding<T> : IStructCodecBinding
     public int? FixedSize => _codec.FixedSize;
     public IReadOnlyList<PointerField> PointerFields => _codec.PointerFields;
     public bool IsPointerArray => _codec is IPointerArrayCodec;
+    public bool IsStructuredArray => _codec is IStructuredArrayCodec;
     public bool UsesExternalBinaryPayload => typeof(T) == typeof(Codecs.OpaqueBinaryRecord);
     public string PointerArrayPropertyName =>
         (_codec as IPointerArrayCodec)?.PointerArrayPropertyName ?? "values";
     public int PointerEntryStride =>
         (_codec as IPointerArrayCodec)?.PointerEntryStride ?? 4;
+    public string StructuredEntriesPropertyName =>
+        (_codec as IStructuredArrayCodec)?.EntriesPropertyName ?? "entries";
+    public IReadOnlyList<PointerField> StructuredEntryPointerFields =>
+        (_codec as IStructuredArrayCodec)?.EntryPointerFields ?? [];
     public IReadOnlyDictionary<string, string> PointerFieldAliases =>
         (_codec as IPointerFieldAliases)?.PointerFieldAliases
         ?? StructCodecRegistry.EmptyPointerFieldAliases;
@@ -162,27 +170,30 @@ public static class StructCodecRegistry
         Register(Codecs.AiModelCodec.Instance);
         Register(Codecs.PersoSectorInfoCodec.Instance);
         Register(Codecs.SectorCodec.Instance);
-        Register(Codecs.FixedBinaryStructCodec.ActionTable);
-        Register(Codecs.FixedBinaryStructCodec.ActionTree);
-        Register(Codecs.FixedBinaryStructCodec.DsgVar);
-        Register(Codecs.FixedBinaryStructCodec.Dynam);
-        Register(Codecs.FixedBinaryStructCodec.DsgMem);
-        Register(Codecs.FixedBinaryStructCodec.BehaviorListNormal);
-        Register(Codecs.FixedBinaryStructCodec.BehaviorListReflex);
+        Register(Codecs.ActionTableCodec.Instance);
+        Register(Codecs.ActionTreeCodec.Instance);
+        Register(Codecs.DsgVarCodec.Instance);
+        Register(Codecs.DynamCodec.Instance);
+        Register(Codecs.DsgMemCodec.Instance);
+        Register(Codecs.BehaviorListCodec.Normal);
+        Register(Codecs.BehaviorListCodec.Reflex);
         Register(Codecs.BehaviorArrayCodec.BehaviorsNormal);
         Register(Codecs.BehaviorArrayCodec.BehaviorsReflex);
         Register(Codecs.AnimHierarchiesCodec.Instance);
         Register(Codecs.ScriptBlobCodec.Instance);
         Register(Codecs.AlwaysSuperObjectsCodec.Instance);
         Register(Codecs.RawBlobCodec.Instance);
-        Register(Codecs.FixedBinaryStructCodec.ObjectTypeEntry);
-        Register(Codecs.FixedBinaryStructCodec.SectorCollideGeo);
-        Register(Codecs.FixedBinaryStructCodec.CollideZoneList("collidezdxlist"));
-        Register(Codecs.FixedBinaryStructCodec.CollideZoneList("collidezddlist"));
-        Register(Codecs.FixedBinaryStructCodec.CollideZoneList("collidezdelist"));
-        Register(Codecs.FixedBinaryStructCodec.CollideZone("collidezdxzone"));
-        Register(Codecs.FixedBinaryStructCodec.CollideZone("collidezddzone"));
-        Register(Codecs.FixedBinaryStructCodec.CollideZone("collidezdezone"));
+        Register(Codecs.ObjectTypeEntryCodec.Instance);
+        Register(Codecs.TextNameCodec.ObjectTypeName);
+        Register(Codecs.TextNameCodec.SectorName);
+        Register(Codecs.SectorCollideGeoCodec.Instance);
+        Register(Codecs.Float3ArrayCodec.SectorCollideVerts);
+        Register(Codecs.CollideZoneListCodec.Zdx);
+        Register(Codecs.CollideZoneListCodec.Zdd);
+        Register(Codecs.CollideZoneListCodec.Zde);
+        Register(Codecs.CollideZoneCodec.Zdx);
+        Register(Codecs.CollideZoneCodec.Zdd);
+        Register(Codecs.CollideZoneCodec.Zde);
     }
 
     public static void Register<T>(IStructCodec<T> codec)

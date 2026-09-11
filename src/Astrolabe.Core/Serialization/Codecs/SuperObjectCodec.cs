@@ -10,6 +10,12 @@ public sealed class SuperObjectCodec : IStructCodec<SuperObjectRecord>
 
     public static SuperObjectCodec Instance { get; } = new();
 
+    // Layout (Montreal): +0x00 typeCode (uint), +0x04 offData, +0x08 children head/tail,
+    // +0x10 childrenCount (uint), +0x14..+0x28 link/matrix pointers, +0x2C drawFlags/flags,
+    // +0x34 boundingVolume.
+    // typeCode/childrenCount are hub scalars but residual Always-SO wire can hold relocated ints;
+    // RequiresVmRange keeps RTB coverage. AlwaysSuperObjectsCodec.EntryPointerFields omits them
+    // so nested URI rewrite does not convert those scalars into hub URIs.
     private static readonly PointerField[] PointerFieldsList =
     [
         new PointerField(0x00, "typeCode", PointerTarget.BlockRelative, RequiresVmRange: true),

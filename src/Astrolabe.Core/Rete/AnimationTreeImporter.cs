@@ -125,6 +125,7 @@ internal static class AnimationTreeImporter
         // Prefer distinctive kind tokens; avoid bare "state" (too many false positives).
         return ContainsAscii(bytes, "animchannel") ||
                ContainsAscii(bytes, "compressedmatrix") ||
+               ContainsAscii(bytes, "transform") ||
                ContainsAscii(bytes, "animationmontreal") ||
                ContainsAscii(bytes, "animframes") ||
                ContainsAscii(bytes, "animhierarchies");
@@ -175,7 +176,8 @@ internal static class AnimationTreeImporter
             {
                 Order = index,
                 Kind = leaf.Kind,
-                DataPath = leaf.DataPath
+                DataPath = leaf.DataPath,
+                Length = leaf.Length ?? 0
             })
             .ToList();
 
@@ -189,7 +191,11 @@ internal static class AnimationTreeImporter
                 if (seg.ProvenanceVirtualAddress is { } va)
                 {
                     ordered[i].VirtualAddress = va;
-                    ordered[i].Length = seg.Length ?? 0;
+                }
+
+                if (seg.Length is > 0)
+                {
+                    ordered[i].Length = seg.Length.Value;
                 }
             }
         }
@@ -234,13 +240,15 @@ internal static class AnimationTreeImporter
                 }
 
                 var trailingGap = Array.Empty<byte>();
+                string? absorbedRawPath = null;
                 if (i + 1 < ordered.Count)
                 {
                     var next = ordered[i + 1];
                     if (next.Kind.Equals("raw", StringComparison.OrdinalIgnoreCase) &&
-                        next.Length is 4 or 6)
+                        IsAbsorbedTrailingGap(packageDir, next))
                     {
                         trailingGap = ReadBinaryPayloadFast(packageDir, next);
+                        absorbedRawPath = next.DataPath;
                     }
                 }
 
@@ -261,6 +269,13 @@ internal static class AnimationTreeImporter
 
                 var uri = AnimationPaths.TransformUri(id);
                 RegisterPathKeys(pathToTransformUri, packageDir, element.DataPath, uri);
+                // Trailing 4/6-byte raw gaps are dropped from content when transforms expand.
+                // Pointer URIs rewritten to those raws (e.g. animchannel matrix at mid-gap)
+                // must still resolve — map the absorbed path onto the transform payload.
+                if (!string.IsNullOrWhiteSpace(absorbedRawPath))
+                {
+                    RegisterPathKeys(pathToTransformUri, packageDir, absorbedRawPath, uri);
+                }
             }
         }
 
@@ -838,7 +853,7 @@ internal static class AnimationTreeImporter
                     // Absorb adjacent 4/6-byte raw gaps into transform records already.
                     if (i < ordered.Count &&
                         ordered[i].Kind.Equals("raw", StringComparison.OrdinalIgnoreCase) &&
-                        ordered[i].Length is 4 or 6)
+                        IsAbsorbedTrailingGap(packageDir, ordered[i]))
                     {
                         i++;
                     }
@@ -952,6 +967,25 @@ internal static class AnimationTreeImporter
     /// Fast payload read: prefer .bin; only lightly parse JSON descriptors for path.
     /// Avoids full struct codec re-encode for binary leaves.
     /// </summary>
+    private static bool IsAbsorbedTrailingGap(string packageDir, SnaBlockContentElement element)
+    {
+        if (element.Length is 4 or 6)
+        {
+            return true;
+        }
+
+        // Length may be unset on linearized leaves; fall back to on-disk payload size.
+        try
+        {
+            var bytes = ReadBinaryPayloadFast(packageDir, element);
+            return bytes.Length is 4 or 6;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private static byte[] ReadBinaryPayloadFast(string packageDir, SnaBlockContentElement element)
     {
         var path = ResolvePath(packageDir, element.DataPath);
@@ -1159,7 +1193,7 @@ internal static class AnimationTreeImporter
         Dictionary<string, string> pathToTransformUri,
         Dictionary<string, string> pathToAnimUri)
     {
-        foreach (var sub in new[] { "types", "scene", "slots" })
+        foreach (var sub in new[] { "types", "scene", "slots", "characters", "geometry", "ai", "sectors" })
         {
             var root = Path.Combine(packageDir, sub);
             if (!Directory.Exists(root))
@@ -1175,7 +1209,9 @@ internal static class AnimationTreeImporter
                     !text.Contains("types/state", StringComparison.Ordinal) &&
                     !text.Contains("types/transition", StringComparison.Ordinal) &&
                     !text.Contains("compressedmatrix", StringComparison.Ordinal) &&
-                    !text.Contains("types/animchannel", StringComparison.Ordinal))
+                    !text.Contains("types/transform", StringComparison.Ordinal) &&
+                    !text.Contains("types/animchannel", StringComparison.Ordinal) &&
+                    !text.Contains("types/raw", StringComparison.Ordinal))
                 {
                     continue;
                 }

@@ -4,6 +4,7 @@ using System.Text.Json;
 using Astrolabe.Core.FileFormats.AI;
 using Astrolabe.Core.FileFormats.Semantic;
 using Astrolabe.Core.Serialization;
+using Astrolabe.Core.Serialization.Codecs;
 
 namespace Astrolabe.Core.Rete;
 
@@ -542,6 +543,22 @@ internal static class SemanticDomainAggregator
             if (File.Exists(bin))
             {
                 return File.ReadAllBytes(bin);
+            }
+        }
+
+        // Field-promoted ScriptRecord (shell / nodes / raw wireBytes).
+        if (record.TryGetProperty("form", out _) ||
+            record.TryGetProperty("nodes", out _) ||
+            record.TryGetProperty("wireBytes", out _) ||
+            record.TryGetProperty("offScript", out _))
+        {
+            try
+            {
+                return ScriptBlobCodec.Instance.Write(ScriptBlobCodec.Instance.FromJson(record));
+            }
+            catch
+            {
+                return null;
             }
         }
 

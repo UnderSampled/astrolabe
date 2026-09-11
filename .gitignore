@@ -34,3 +34,8 @@ Thumbs.db
 
 # Built GPL compressor helper (sources live in tools/lzo1x/)
 tools/lzo1x/lzo1x
+
+# Generated test output and Python caches
+TestResults/
+__pycache__/
+*.py[cod]

@@ -404,6 +404,11 @@ internal static class ReferenceJson
             .Select(f => f.Name)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var aliases = codec.PointerFieldAliases;
+        var structuredEntryPointerNames = codec.IsStructuredArray
+            ? codec.StructuredEntryPointerFields
+                .Select(f => f.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : null;
 
         writer.WriteStartObject();
         foreach (var property in root.EnumerateObject())
@@ -416,7 +421,21 @@ internal static class ReferenceJson
             var outputName = ResolvePointerPropertyName(property.Name, aliases);
             writer.WritePropertyName(outputName);
 
+            if (codec.IsStructuredArray &&
+                structuredEntryPointerNames != null &&
+                outputName.Equals(codec.StructuredEntriesPropertyName, StringComparison.OrdinalIgnoreCase) &&
+                property.Value.ValueKind == JsonValueKind.Array)
+            {
+                if (WriteStructuredEntryArray(property.Value, writer, structuredEntryPointerNames, replacementFactory))
+                {
+                    changed = true;
+                }
+
+                continue;
+            }
+
             if (codec.IsPointerArray &&
+                !codec.IsStructuredArray &&
                 outputName.Equals(codec.PointerArrayPropertyName, StringComparison.OrdinalIgnoreCase) &&
                 property.Value.ValueKind == JsonValueKind.Array)
             {
@@ -443,6 +462,47 @@ internal static class ReferenceJson
         }
 
         writer.WriteEndObject();
+        return changed;
+    }
+
+    private static bool WriteStructuredEntryArray(
+        JsonElement array,
+        Utf8JsonWriter writer,
+        HashSet<string> entryPointerNames,
+        Func<JsonElement, WriteReplacement> replacementFactory)
+    {
+        var changed = false;
+        writer.WriteStartArray();
+        foreach (var item in array.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object)
+            {
+                item.WriteTo(writer);
+                continue;
+            }
+
+            writer.WriteStartObject();
+            foreach (var property in item.EnumerateObject())
+            {
+                writer.WritePropertyName(property.Name);
+                if (entryPointerNames.Contains(property.Name))
+                {
+                    var replacement = replacementFactory(property.Value);
+                    if (replacement.Kind != ReplacementKind.Unchanged)
+                    {
+                        replacement.WriteTo(writer);
+                        changed = true;
+                        continue;
+                    }
+                }
+
+                property.Value.WriteTo(writer);
+            }
+
+            writer.WriteEndObject();
+        }
+
+        writer.WriteEndArray();
         return changed;
     }
 

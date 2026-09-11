@@ -26,7 +26,10 @@ public sealed class RelocationGeneratorDiscTests(AstrolabeDiscFixture fixture)
         var rtp = results.Single(result => result.FileName.Equals("astrolabe.rtp", StringComparison.OrdinalIgnoreCase));
 
         Assert.Equal(86, rtp.MatchingPointerCount);
-        Assert.True(rtp.PointerDataMatches, DescribeRtpPointerDataMismatch(fixture.PackageDir));
+        if (!rtp.PointerDataMatches)
+        {
+            Assert.Fail(DescribeRtpPointerDataMismatch(fixture.PackageDir));
+        }
     }
 
     [Fact]
@@ -62,7 +65,7 @@ public sealed class RelocationGeneratorDiscTests(AstrolabeDiscFixture fixture)
             "GeneratePointerFileTable",
             BindingFlags.Public | BindingFlags.Static)!;
         var fixDir = Path.Combine(Path.GetDirectoryName(packageDir)!, "fix");
-        var pointerPath = Path.Combine(packageDir, "files", "astrolabe.gpt");
+        var pointerPath = ResolvePointerFileForDiagnostics(packageDir, "astrolabe.gpt");
         var preserved = (RelocationTableDocument)readDisc.Invoke(
             null,
             [Path.Combine(OpenSpaceDiscTestHelper.GetRepositoryRoot(), "disc", "Gamedata", "World", "Levels", "astrolabe", "astrolabe.rtp")])!;
@@ -217,5 +220,37 @@ public sealed class RelocationGeneratorDiscTests(AstrolabeDiscFixture fixture)
 
         writer.Flush();
         return stream.ToArray();
+    }
+
+    /// <summary>
+    /// GPT/PTX may live under <c>files/</c> (legacy) or <c>sidecars/level.json</c> (Step 9).
+    /// Materialize a temp path when only the semantic sidecar exists.
+    /// </summary>
+    private static string ResolvePointerFileForDiagnostics(string packageDir, string fileName)
+    {
+        var looseCandidates = new[]
+        {
+            Path.Combine(packageDir, "files", fileName),
+            Path.Combine(packageDir, fileName)
+        };
+        foreach (var candidate in looseCandidates)
+        {
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        if (!SidecarAggregator.TryWriteLooseFile(packageDir, fileName, out var bytes))
+        {
+            throw new FileNotFoundException(
+                $"Pointer file '{fileName}' not found as loose file or sidecars/level.json in {packageDir}");
+        }
+
+        var tempDir = Path.Combine(packageDir, ".export-tmp");
+        Directory.CreateDirectory(tempDir);
+        var path = Path.Combine(tempDir, fileName);
+        File.WriteAllBytes(path, bytes);
+        return path;
     }
 }
