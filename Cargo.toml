@@ -1,0 +1,25 @@
+[package]
+name = "astrolabe"
+version = "0.1.0"
+edition = "2024"
+license = "CC0-1.0"
+description = "Repeatable conversion of OpenSpace game content through a useful model"
+
+[dependencies]
+anyhow = "1.0"
+binrw = "0.15.2"
+clap = { version = "4.6", features = ["derive"] }
+hound = "3.5"
+lzokay = "2.0.1"
+png = "0.18"
+rmp-serde = "1.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_bytes = "0.11"
+serde_json = "1.0"
+sha2 = "0.10"
+symphonia = { version = "0.5.5", default-features = false, features = ["mp2"] }
+
+tempfile = "3.27"
+
+[profile.release]
+lto = "thin"

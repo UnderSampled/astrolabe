@@ -1,0 +1,215 @@
+//! Per-content MessagePack files. The filesystem is the persistent lookup mechanism.
+use crate::model::{
+    AssetPath, AssetRef, Selection,
+    io::{Content, Diagnostic, Load, Save},
+};
+use anyhow::{Context, Result, ensure};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use std::{
+    any::Any,
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
+
+const SCHEMA: u32 = 1;
+const MAGIC: &str = "astrolabe-rete";
+const MAX_ASSET_BYTES: u64 = 256 * 1024 * 1024;
+
+#[derive(Serialize, Deserialize)]
+struct Envelope<T> {
+    format: String,
+    schema: u32,
+    kind: String,
+    value: T,
+}
+
+/// This is a root list, not an index of engine allocations or a second asset database.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Package {
+    pub selection: Selection,
+    pub roots: Vec<Root>,
+    /// Semantic source coverage survives save/reload independently of transient addresses.
+    #[serde(default)]
+    pub diagnostics: Vec<Diagnostic>,
+}
+pub use crate::model::io::ContentRoot as Root;
+impl Content for Package {
+    const KIND: &'static str = "package";
+    fn validate(&self) -> Result<()> {
+        ensure!(
+            self.selection.profile == "hype-pc-montreal",
+            "unsupported source profile"
+        );
+        let valid = Selection::hype(self.selection.level.clone(), self.selection.locale.clone())?;
+        ensure!(valid == self.selection, "invalid package selection");
+        for diagnostic in &self.diagnostics {
+            diagnostic.validate()?;
+        }
+        let mut roots = std::collections::BTreeSet::new();
+        for root in &self.roots {
+            ensure!(!root.kind.trim().is_empty(), "empty content kind");
+            ensure!(
+                root.reference.member().is_none(),
+                "package roots must identify whole assets"
+            );
+            ensure!(
+                roots.insert(&root.reference),
+                "duplicate/conflicting package root {}",
+                root.reference
+            );
+        }
+        Ok(())
+    }
+}
+
+pub fn encode<T: Content + Serialize>(value: &T) -> Result<Vec<u8>> {
+    value.validate()?;
+    let envelope = Envelope {
+        format: MAGIC.into(),
+        schema: SCHEMA,
+        kind: T::KIND.into(),
+        value,
+    };
+    let bytes = rmp_serde::to_vec_named(&envelope).context("serialize Rete content")?;
+    ensure!(
+        bytes.len() as u64 <= MAX_ASSET_BYTES,
+        "Rete asset exceeds size limit"
+    );
+    Ok(bytes)
+}
+
+pub fn decode<T: Content + DeserializeOwned>(bytes: &[u8]) -> Result<T> {
+    ensure!(
+        bytes.len() as u64 <= MAX_ASSET_BYTES,
+        "Rete asset exceeds size limit"
+    );
+    let mut cursor = std::io::Cursor::new(bytes);
+    let envelope: Envelope<T> = rmp_serde::from_read(&mut cursor).context("decode Rete content")?;
+    ensure!(
+        cursor.position() == bytes.len() as u64,
+        "trailing data after Rete asset"
+    );
+    ensure!(envelope.format == MAGIC, "not an Astrolabe Rete asset");
+    ensure!(
+        envelope.schema == SCHEMA,
+        "unsupported Rete schema {}",
+        envelope.schema
+    );
+    ensure!(
+        envelope.kind == T::KIND,
+        "Rete kind {} cannot load as {}",
+        envelope.kind,
+        T::KIND
+    );
+    envelope.value.validate()?;
+    Ok(envelope.value)
+}
+
+pub struct Store {
+    root: PathBuf,
+    selection: Selection,
+    // Session-local whole-asset cache; it is never serialized.
+    cache: HashMap<AssetPath, Arc<dyn Any + Send + Sync>>,
+}
+impl Store {
+    pub fn new(root: impl Into<PathBuf>, selection: Selection) -> Result<Self> {
+        Selection::hype(selection.level.clone(), selection.locale.clone())?;
+        ensure!(
+            selection.profile == "hype-pc-montreal",
+            "unsupported source profile"
+        );
+        Ok(Self {
+            root: root.into(),
+            selection,
+            cache: HashMap::new(),
+        })
+    }
+    pub fn selection(&self) -> &Selection {
+        &self.selection
+    }
+    pub fn select(&mut self, selection: Selection) -> Result<()> {
+        Selection::hype(selection.level.clone(), selection.locale.clone())?;
+        ensure!(
+            selection.profile == "hype-pc-montreal",
+            "unsupported source profile"
+        );
+        self.selection = selection;
+        // Fix links can depend on the selected level. Never retain bound objects across sessions.
+        self.cache.clear();
+        Ok(())
+    }
+    pub fn path(&self, reference: &AssetPath) -> PathBuf {
+        let role = match reference.role() {
+            crate::model::PackageRole::Fix => PathBuf::from("fix"),
+            crate::model::PackageRole::Level => PathBuf::from("levels").join(&self.selection.level),
+            crate::model::PackageRole::Texture => PathBuf::from("textures"),
+            crate::model::PackageRole::Sound => PathBuf::from("sounds"),
+        };
+        self.root
+            .join(role)
+            .join(format!("{}.rete", reference.file()))
+    }
+    pub fn save_package(&self, package: &Package) -> Result<()> {
+        ensure!(
+            package.selection == self.selection,
+            "package selection differs from store"
+        );
+        write_file(&self.root.join("package.rete"), &encode(package)?)
+    }
+    pub fn open(root: impl Into<PathBuf>) -> Result<(Self, Package)> {
+        let root = root.into();
+        let package: Package = decode(&read_file(&root.join("package.rete"))?)?;
+        let store = Self::new(root, package.selection.clone())?;
+        Ok((store, package))
+    }
+}
+
+impl<T: Content + DeserializeOwned> Load<T> for Store {
+    fn load(&mut self, reference: &AssetRef<T>) -> Result<Arc<T>> {
+        ensure!(
+            reference.path.member().is_none(),
+            "load the owning asset before resolving member {}",
+            reference.path
+        );
+        if let Some(value) = self.cache.get(&reference.path) {
+            return Arc::clone(value)
+                .downcast::<T>()
+                .map_err(|_| anyhow::anyhow!("cached asset kind mismatch at {}", reference.path));
+        }
+        let value = Arc::new(
+            decode::<T>(&read_file(&self.path(&reference.path))?)
+                .with_context(|| format!("load {}", reference.path))?,
+        );
+        value.validate_reference(&reference.path)?;
+        self.cache.insert(reference.path.clone(), value.clone());
+        Ok(value)
+    }
+}
+impl<T: Content + Serialize> Save<T> for Store {
+    fn save(&mut self, reference: &AssetRef<T>, value: &T) -> Result<()> {
+        ensure!(
+            reference.path.member().is_none(),
+            "save a whole owning asset, not member {}",
+            reference.path
+        );
+        value.validate_reference(&reference.path)?;
+        write_file(&self.path(&reference.path), &encode(value)?)?;
+        self.cache.remove(&reference.path);
+        Ok(())
+    }
+}
+
+fn read_file(path: &Path) -> Result<Vec<u8>> {
+    ensure!(
+        path.metadata()
+            .with_context(|| format!("stat {}", path.display()))?
+            .len()
+            <= MAX_ASSET_BYTES,
+        "asset too large"
+    );
+    fs::read(path).with_context(|| format!("read {}", path.display()))
+}
+
+pub(crate) use crate::files::write_atomic as write_file;
