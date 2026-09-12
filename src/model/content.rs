@@ -5,95 +5,11 @@ use super::{
 };
 use super::{
     audio::{Sound, SoundBank, SoundDefinitions},
-    geometry::{Material, Model},
-    texture::Texture,
+    geometry::{Material, Model, ModelInstance},
+    texture::{Texture, TextureSet},
 };
 use anyhow::{Context, Result, ensure};
-use serde::{Deserialize, Serialize};
-use std::{
-    any::Any,
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
-
-impl Content for Texture {
-    const KIND: &'static str = "texture";
-    fn validate(&self) -> Result<()> {
-        Texture::validate(self)
-    }
-}
-impl Content for Sound {
-    const KIND: &'static str = "sound";
-    fn validate(&self) -> Result<()> {
-        Sound::validate(self)
-    }
-}
-impl Content for SoundBank {
-    const KIND: &'static str = "sound-bank";
-    fn validate(&self) -> Result<()> {
-        SoundBank::validate(self)
-    }
-}
-impl Content for SoundDefinitions {
-    const KIND: &'static str = "sound-definitions";
-    fn validate(&self) -> Result<()> {
-        SoundDefinitions::validate(self)
-    }
-}
-impl Content for Model {
-    const KIND: &'static str = "model";
-    fn validate(&self) -> Result<()> {
-        Model::validate(self)
-    }
-    fn identity(&self) -> Option<&AssetPath> {
-        Some(&self.path)
-    }
-}
-impl Content for Material {
-    const KIND: &'static str = "material";
-    fn validate(&self) -> Result<()> {
-        Material::validate(self)
-    }
-    fn identity(&self) -> Option<&AssetPath> {
-        Some(&self.path)
-    }
-}
-
-/// Ordered archive membership. Shared entries point at the same independently stored texture.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct TextureSet {
-    pub name: String,
-    pub directories: Vec<String>,
-    pub entries: Vec<TextureEntry>,
-}
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct TextureEntry {
-    pub name: String,
-    pub texture: AssetRef<Texture>,
-}
-impl Content for TextureSet {
-    const KIND: &'static str = "texture-set";
-    fn validate(&self) -> Result<()> {
-        ensure!(
-            self.name == "Textures.cnt" || self.name == "Vignette.cnt",
-            "unsupported texture archive name"
-        );
-        let mut names = BTreeSet::new();
-        for entry in &self.entries {
-            AssetPath::new(format!("texture:/{}", entry.name))?;
-            ensure!(
-                names.insert(entry.name.to_lowercase()),
-                "duplicate texture member {}",
-                entry.name
-            );
-            ensure!(
-                entry.texture.path.role() == super::PackageRole::Texture,
-                "texture has wrong package role"
-            );
-        }
-        Ok(())
-    }
-}
+use std::{any::Any, collections::BTreeMap, sync::Arc};
 
 /// A conversion session can retain its useful content in memory instead of writing Rete.
 #[derive(Default)]
@@ -124,5 +40,64 @@ impl<T: Content> Load<T> for Collection {
         )
         .downcast::<T>()
         .map_err(|_| anyhow::anyhow!("wrong content kind at {}", reference.path))
+    }
+}
+
+/// Resolver for the built-in content graph. Individual codecs/consumers can keep
+/// narrower Load<T> bounds; package exporters handle every built-in root kind.
+pub trait ContentSource:
+    Load<Texture>
+    + Load<TextureSet>
+    + Load<Sound>
+    + Load<SoundBank>
+    + Load<SoundDefinitions>
+    + Load<Model>
+    + Load<ModelInstance>
+    + Load<Material>
+{
+}
+impl<T> ContentSource for T where
+    T: Load<Texture>
+        + Load<TextureSet>
+        + Load<Sound>
+        + Load<SoundBank>
+        + Load<SoundDefinitions>
+        + Load<Model>
+        + Load<ModelInstance>
+        + Load<Material>
+{
+}
+
+/// Loaded built-in content. Exhaustive adapter matches make new domains visible
+/// at each target boundary. Custom Content types still use Load/Save directly.
+pub enum Asset {
+    Texture(Arc<Texture>),
+    TextureSet(Arc<TextureSet>),
+    Sound(Arc<Sound>),
+    SoundBank(Arc<SoundBank>),
+    SoundDefinitions(Arc<SoundDefinitions>),
+    Model(Arc<Model>),
+    ModelInstance(Arc<ModelInstance>),
+    Material(Arc<Material>),
+}
+impl Asset {
+    pub fn load(source: &mut impl ContentSource, root: &super::io::ContentRoot) -> Result<Self> {
+        fn load<T: Content>(source: &mut impl Load<T>, path: &AssetPath) -> Result<Arc<T>> {
+            let value = source.load(&AssetRef::from_path(path.clone()))?;
+            value.validate()?;
+            value.validate_reference(path)?;
+            Ok(value)
+        }
+        Ok(match root.kind.as_str() {
+            Texture::KIND => Self::Texture(load(source, &root.reference)?),
+            TextureSet::KIND => Self::TextureSet(load(source, &root.reference)?),
+            Sound::KIND => Self::Sound(load(source, &root.reference)?),
+            SoundBank::KIND => Self::SoundBank(load(source, &root.reference)?),
+            SoundDefinitions::KIND => Self::SoundDefinitions(load(source, &root.reference)?),
+            Model::KIND => Self::Model(load(source, &root.reference)?),
+            ModelInstance::KIND => Self::ModelInstance(load(source, &root.reference)?),
+            Material::KIND => Self::Material(load(source, &root.reference)?),
+            other => anyhow::bail!("unsupported useful content kind {other}"),
+        })
     }
 }

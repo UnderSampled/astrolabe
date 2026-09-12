@@ -1,6 +1,8 @@
 //! Useful image values, independent of archive and image-file encodings.
+use super::{AssetPath, AssetRef, io::Content};
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 
 /// A material image uses bottom-left source rows; screen images use top-left rows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -47,24 +49,6 @@ pub struct Texture {
     /// Largest image first, followed by supplied mip levels. Missing mips stay missing.
     pub levels: Vec<TextureLevel>,
     pub openspace_color_key: OpenSpaceColorKey,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NamedTexture {
-    /// Relative content path with `/` separators, including the original member name.
-    pub path: String,
-    pub texture: Texture,
-    /// Another member owning the same content. Clear this link to detach an edit.
-    /// Only the logical identity is retained, never a source location.
-    pub shared_with: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TextureArchive {
-    /// Directory identity/order includes empty directories; member offsets are derived.
-    pub directories: Vec<String>,
-    /// Preserves original member order while owning useful texture values.
-    pub textures: Vec<NamedTexture>,
 }
 
 impl Texture {
@@ -189,17 +173,45 @@ impl Texture {
     }
 }
 
-impl TextureArchive {
-    /// Resolve a source TextureInfo path (.tga) against its GF archive member.
-    /// Match complete paths with Windows case/separator rules, never basenames.
-    pub fn find_by_source_name(&self, name: &str) -> Option<&NamedTexture> {
-        let mut path = name.replace('\\', "/").to_lowercase();
-        if path.ends_with(".tga") {
-            path.truncate(path.len() - 4);
-            path.push_str(".gf");
+/// Ordered archive membership. Shared entries point at the same independently stored texture.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TextureSet {
+    pub name: String,
+    pub directories: Vec<String>,
+    pub entries: Vec<TextureEntry>,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TextureEntry {
+    pub name: String,
+    pub texture: AssetRef<Texture>,
+}
+impl Content for TextureSet {
+    const KIND: &'static str = "texture-set";
+    fn validate(&self) -> Result<()> {
+        ensure!(
+            self.name == "Textures.cnt" || self.name == "Vignette.cnt",
+            "unsupported texture archive name"
+        );
+        let mut names = BTreeSet::new();
+        for entry in &self.entries {
+            AssetPath::new(format!("texture:/{}", entry.name))?;
+            ensure!(
+                names.insert(entry.name.to_lowercase()),
+                "duplicate texture member {}",
+                entry.name
+            );
+            ensure!(
+                entry.texture.path.role() == super::PackageRole::Texture,
+                "texture has wrong package role"
+            );
         }
-        self.textures
-            .iter()
-            .find(|entry| entry.path.to_lowercase() == path)
+        Ok(())
+    }
+}
+
+impl Content for Texture {
+    const KIND: &'static str = "texture";
+    fn validate(&self) -> Result<()> {
+        Texture::validate(self)
     }
 }

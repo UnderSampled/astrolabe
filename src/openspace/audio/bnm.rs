@@ -1,7 +1,8 @@
 //! BNM v0/v0x200 resource tables. Field positions corroborated by vgmstream
 //! ubi_sb.c's PC configuration and local Hype banks. Non-audio events remain
 //! explicitly unsupported; the reader does not claim a complete bank model.
-use crate::model::audio::{AudioSamples, ExternalSound, Sound, SoundBank};
+use crate::model::audio::{AudioReconstructionGap, AudioSamples, ExternalSound, Sound, SoundBank};
+use crate::{model::io::FormatSupport, openspace::codec::FormatCodec};
 use anyhow::{Context, Result, bail, ensure};
 use binrw::{BinRead, BinWrite, binrw};
 use std::io::{Cursor, Seek, SeekFrom};
@@ -113,8 +114,13 @@ fn read_bnm_with_limit(data: &[u8], name: impl Into<String>, limit: usize) -> Re
         external_sounds: vec![],
         events: vec![],
         fidelity_notes: vec![],
+        reconstruction_gaps: vec![],
     };
     if header.events_count > 0 {
+        bank.reconstruction_gaps
+            .push(AudioReconstructionGap::BinaryEvents {
+                count: header.events_count,
+            });
         bank.fidelity_notes.push(format!("{} binary event records require semantic interpretation; full-bank reconstruction is unsupported", header.events_count));
     }
     for index in 0..header.sounds_count {
@@ -123,6 +129,11 @@ fn read_bnm_with_limit(data: &[u8], name: impl Into<String>, limit: usize) -> Re
         )))?;
         let descriptor = AudioDescriptor::read(&mut cursor)?;
         if descriptor.resource_type != 1 {
+            bank.reconstruction_gaps
+                .push(AudioReconstructionGap::ResourceType {
+                    resource_id: descriptor.resource_id,
+                    kind: descriptor.resource_type,
+                });
             bank.fidelity_notes.push(format!(
                 "resource {} type {} has no semantic codec yet",
                 descriptor.resource_id, descriptor.resource_type
@@ -326,8 +337,11 @@ fn read_bnm_with_limit(data: &[u8], name: impl Into<String>, limit: usize) -> Re
 /// it does not claim to regenerate the original compressed bank or event graph.
 pub fn write_bnm(bank: &SoundBank) -> Result<Vec<u8>> {
     ensure!(
-        bank.external_sounds.is_empty() && bank.events.is_empty() && bank.fidelity_notes.is_empty(),
-        "BNM reconstruction currently supports standalone PCM resource banks without unresolved events or external references"
+        bank.external_sounds.is_empty()
+            && bank.events.is_empty()
+            && bank.reconstruction_gaps.is_empty(),
+        "BNM reconstruction currently supports standalone PCM resource banks without unresolved events \
+            or external references"
     );
     let count = u32::try_from(bank.sounds.len())?;
     let data_start = 44u32
@@ -407,6 +421,28 @@ pub fn write_bnm(bank: &SoundBank) -> Result<Vec<u8>> {
     Ok(output)
 }
 
+pub struct Bnm {
+    pub name: String,
+}
+impl FormatCodec for Bnm {
+    type Value = SoundBank;
+    fn support(&self) -> FormatSupport {
+        FormatSupport {
+            format: "BNM",
+            reads: true,
+            writes: true,
+            notes: "PCM/APM/Ubi-MPEG import; writer supports PCM-only banks without events/external references; \
+            unsupported values fail explicitly",
+        }
+    }
+    fn read(&self, bytes: &[u8]) -> Result<SoundBank> {
+        read_bnm(bytes, self.name.clone())
+    }
+    fn write(&self, value: &SoundBank) -> Result<Vec<u8>> {
+        write_bnm(value)
+    }
+}
+
 #[cfg(test)]
 mod allocation_tests {
     use super::*;
@@ -429,6 +465,7 @@ mod allocation_tests {
             external_sounds: vec![],
             events: vec![],
             fidelity_notes: vec![],
+            reconstruction_gaps: vec![],
         })
         .unwrap();
         for stream_type in [1u32, 4] {

@@ -1,4 +1,5 @@
 use astrolabe::model::texture::*;
+use astrolabe::model::{AssetPath, AssetRef};
 use astrolabe::openspace::texture::*;
 
 fn rgba_texture() -> Texture {
@@ -19,6 +20,93 @@ fn rgba_texture() -> Texture {
             rgb: [0, 0, 0],
             palette_index: -1,
         },
+    }
+}
+
+#[test]
+fn openspace_export_rejects_colliding_texture_names_and_deduplicates_shared_roots()
+-> anyhow::Result<()> {
+    use astrolabe::{
+        model::{
+            content::Collection,
+            io::{Content, ContentRoot},
+        },
+        openspace,
+    };
+    let first = rgba_texture();
+    let mut second = first.clone();
+    second.levels[0].pixels = TexturePixels::Components(vec![[0, 63, 0, 0]; 4]);
+    let mut source = Collection::default();
+    let mut roots = Vec::new();
+    for (name, image) in [("texture:/a", &first), ("texture:/a.gf", &second)] {
+        let reference = AssetRef::new(name)?;
+        source.insert(&reference, image.clone())?;
+        roots.push(ContentRoot {
+            kind: Texture::KIND.into(),
+            reference: reference.path,
+        });
+    }
+    // Both selection orders must reject the collision before replacing the first image.
+    for reversed in [false, true] {
+        let output = tempfile::tempdir()?;
+        let selected = if reversed {
+            [roots[1].clone(), roots[0].clone()]
+        } else {
+            [roots[0].clone(), roots[1].clone()]
+        };
+        let error = openspace::export(&mut source, &selected, output.path()).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("output collision at textures/a.gf"),
+            "{error:#}"
+        );
+        let bytes = std::fs::read(output.path().join("textures/a.gf"))?;
+        assert_eq!(
+            decode_gf(&bytes, TextureUsage::Material)?,
+            if reversed {
+                second.clone()
+            } else {
+                first.clone()
+            }
+        );
+    }
+    let output = tempfile::tempdir()?;
+    let repeated = [roots[0].clone(), roots[0].clone()];
+    let report = openspace::export(&mut source, &repeated, output.path())?;
+    assert_eq!(report.files, ["textures/a.gf"]);
+    assert_eq!(
+        decode_gf(
+            &std::fs::read(output.path().join("textures/a.gf"))?,
+            TextureUsage::Material
+        )?,
+        first
+    );
+    Ok(())
+}
+
+fn archive(directories: Vec<String>, images: &[(&str, Texture)]) -> TextureArchive {
+    TextureArchive {
+        set: TextureSet {
+            name: "Textures.cnt".into(),
+            directories,
+            entries: images
+                .iter()
+                .map(|(name, _)| TextureEntry {
+                    name: (*name).into(),
+                    texture: AssetRef::new(format!("texture:/{name}")).unwrap(),
+                })
+                .collect(),
+        },
+        images: images
+            .iter()
+            .map(|(name, texture)| {
+                (
+                    AssetPath::new(format!("texture:/{name}")).unwrap(),
+                    texture.clone(),
+                )
+            })
+            .collect(),
     }
 }
 
@@ -97,42 +185,39 @@ fn direct_components_orientation_precision_and_rete_values() {
 
 #[test]
 fn cnt_regenerates_member_locations_checksums_and_directory_membership() {
-    let archive = TextureArchive {
-        directories: vec!["Empty".into(), "Textures/Étage".into()],
-        textures: vec![
-            NamedTexture {
-                path: "Textures/Étage/First.gf".into(),
-                texture: rgba_texture(),
-                shared_with: None,
-            },
-            NamedTexture {
-                path: "Second.gf".into(),
-                texture: rgba_texture(),
-                shared_with: None,
-            },
+    let archive = archive(
+        vec!["Empty".into(), "Textures/Étage".into()],
+        &[
+            ("Textures/Étage/First.gf", rgba_texture()),
+            ("Second.gf", rgba_texture()),
         ],
-    };
+    );
     assert_eq!(
         archive
-            .find_by_source_name("textures\\étage\\FIRST.tga")
+            .find_entry("textures\\étage\\FIRST.tga")
             .unwrap()
-            .path,
+            .name,
         "Textures/Étage/First.gf"
     );
     let bytes = encode_cnt(&archive).unwrap();
     assert_eq!(decode_cnt(&bytes, TextureUsage::Material).unwrap(), archive);
     let mut edited = archive.clone();
-    edited.textures[0].texture.levels[0] = TextureLevel {
+    edited
+        .images
+        .get_mut(&edited.set.entries[0].texture.path)
+        .unwrap()
+        .levels[0] = TextureLevel {
         width: 1,
         height: 1,
         pixels: TexturePixels::Components(vec![[1, 2, 3, 0]]),
     };
-    edited.textures.push(NamedTexture {
-        path: "New/Third.gf".into(),
-        texture: rgba_texture(),
-        shared_with: None,
+    let third = AssetRef::new("texture:/New/Third.gf").unwrap();
+    edited.images.insert(third.path.clone(), rgba_texture());
+    edited.set.entries.push(TextureEntry {
+        name: "New/Third.gf".into(),
+        texture: third,
     });
-    edited.directories.push("New".into());
+    edited.set.directories.push("New".into());
     let rebuilt = encode_cnt(&edited).unwrap();
     assert_eq!(
         decode_cnt(&rebuilt, TextureUsage::Material).unwrap(),
@@ -141,7 +226,10 @@ fn cnt_regenerates_member_locations_checksums_and_directory_membership() {
     let mut corrupted = bytes.clone();
     // Last two bytes are outside a complete CNT checksum word; corrupt header
     // data instead to independently exercise the regenerated word checksum.
-    let pos = bytes.len() - encode_gf(&archive.textures[1].texture).unwrap().len();
+    let pos = bytes.len()
+        - encode_gf(archive.image(&archive.set.entries[1]).unwrap())
+            .unwrap()
+            .len();
     // Keep the preflight header structurally valid so this exercises checksum
     // verification specifically, rather than the earlier GF version check.
     corrupted[pos + 14] ^= 1;
@@ -174,14 +262,8 @@ fn malformed_gf_and_cnt_are_diagnosed() {
     let mut bad = bytes.clone();
     bad.push(0);
     assert!(decode_gf(&bad, TextureUsage::Material).is_err());
-    let archive = TextureArchive {
-        directories: vec![],
-        textures: vec![NamedTexture {
-            path: "../escape.gf".into(),
-            texture: rgba_texture(),
-            shared_with: None,
-        }],
-    };
+    let mut archive = archive(vec![], &[("valid.gf", rgba_texture())]);
+    archive.set.entries[0].name = "../escape.gf".into();
     assert!(encode_cnt(&archive).is_err());
     assert!(decode_cnt(&[255; 64], TextureUsage::Material).is_err());
 }
@@ -304,20 +386,10 @@ fn supplied_texture_corpus_decodes_and_reconstructs_every_gf() {
         );
         let original = original_members(&source);
         let archive = decode_cnt(&source, usage).unwrap();
-        assert_eq!(archive.textures.len(), count);
+        assert_eq!(archive.set.entries.len(), count);
         if file == "Textures.cnt" {
-            assert_eq!(
-                archive
-                    .textures
-                    .iter()
-                    .filter(|t| t.shared_with.is_some())
-                    .count(),
-                214
-            );
-            let argb = &archive
-                .find_by_source_name("astrolabe/2fentxynz.tga")
-                .unwrap()
-                .texture;
+            assert_eq!(archive.set.entries.len() - archive.images.len(), 214);
+            let argb = archive.find_image("astrolabe/2fentxynz.tga").unwrap();
             assert_eq!(
                 (argb.width(), argb.height(), argb.levels.len()),
                 (256, 256, 9)
@@ -332,10 +404,7 @@ fn supplied_texture_corpus_decodes_and_reconstructs_every_gf() {
             } else {
                 panic!("expected direct color");
             }
-            let indexed = &archive
-                .find_by_source_name("Monast1/2mon1txy.tga")
-                .unwrap()
-                .texture;
+            let indexed = archive.find_image("Monast1/2mon1txy.tga").unwrap();
             assert_eq!(
                 (indexed.width(), indexed.height(), indexed.levels.len()),
                 (64, 128, 8)
@@ -350,38 +419,35 @@ fn supplied_texture_corpus_decodes_and_reconstructs_every_gf() {
             } else {
                 panic!("expected RGB palette");
             }
-            let argb4 = &archive
-                .find_by_source_name("FixTex/MOTORTXT/menus/567.tga")
-                .unwrap()
-                .texture;
+            let argb4 = archive.find_image("FixTex/MOTORTXT/menus/567.tga").unwrap();
             if let TexturePixels::Components(p) = &argb4.levels[0].pixels {
                 assert_eq!(p[0], [15, 7, 2, 0]);
             } else {
                 panic!("expected direct color");
             }
         } else {
-            let screen = &archive
-                .find_by_source_name("INVENTOR/Background.tga")
-                .unwrap()
-                .texture;
+            let screen = archive.find_image("INVENTOR/Background.tga").unwrap();
             assert_eq!(
                 (screen.width(), screen.height(), screen.levels.len()),
                 (640, 480, 1)
             );
             assert_eq!(&screen.rgba8(0).unwrap()[..4], &[49, 16, 0, 255]);
         }
-        for (named, (path, bytes)) in archive.textures.iter().zip(original.iter()) {
-            assert_eq!(&named.path, path);
-            let encoded = encode_gf(&named.texture).unwrap();
+        for (named, (path, bytes)) in archive.set.entries.iter().zip(original.iter()) {
+            assert_eq!(&named.name, path);
+            let encoded = encode_gf(archive.image(named).unwrap()).unwrap();
             assert!(
                 encoded == *bytes,
                 "GF bytes differ for {} at {:?} ({} vs {} bytes)",
-                named.path,
+                named.name,
                 encoded.iter().zip(bytes).position(|(a, b)| a != b),
                 encoded.len(),
                 bytes.len()
             );
-            assert_eq!(decode_gf(bytes, usage).unwrap(), named.texture);
+            assert_eq!(
+                decode_gf(bytes, usage).unwrap(),
+                *archive.image(named).unwrap()
+            );
         }
         let reconstructed = encode_cnt(&archive).unwrap();
         assert!(
@@ -401,30 +467,36 @@ fn supplied_texture_corpus_decodes_and_reconstructs_every_gf() {
 
 #[test]
 fn archive_sharing_is_explicit_and_detachable() {
-    let texture = rgba_texture();
-    let mut archive = TextureArchive {
-        directories: vec![],
-        textures: vec![
-            NamedTexture {
-                path: "first.gf".into(),
-                texture: texture.clone(),
-                shared_with: None,
-            },
-            NamedTexture {
-                path: "second.gf".into(),
-                texture,
-                shared_with: Some("first.gf".into()),
-            },
-        ],
-    };
+    let mut archive = archive(vec![], &[("first.gf", rgba_texture())]);
+    let owner = archive.set.entries[0].texture.clone();
+    archive.set.entries.push(TextureEntry {
+        name: "second.gf".into(),
+        texture: owner.clone(),
+    });
     let shared = encode_cnt(&archive).unwrap();
     assert_eq!(
         decode_cnt(&shared, TextureUsage::Material).unwrap(),
         archive
     );
-    archive.textures[1].texture.openspace_color_key.rgb = [1, 2, 3];
-    assert!(encode_cnt(&archive).is_err());
-    archive.textures[1].shared_with = None;
+    archive
+        .images
+        .get_mut(&owner.path)
+        .unwrap()
+        .openspace_color_key
+        .rgb = [1, 2, 3];
+    let edited = decode_cnt(&encode_cnt(&archive).unwrap(), TextureUsage::Material).unwrap();
+    assert_eq!(
+        edited.image(&edited.set.entries[0]).unwrap(),
+        edited.image(&edited.set.entries[1]).unwrap()
+    );
+    assert_eq!(edited.images.len(), 1);
+    let detached_id = AssetRef::new("texture:/second.gf").unwrap();
+    let mut detached_image = archive.images[&owner.path].clone();
+    detached_image.openspace_color_key.rgb = [4, 5, 6];
+    archive
+        .images
+        .insert(detached_id.path.clone(), detached_image);
+    archive.set.entries[1].texture = detached_id;
     let detached = encode_cnt(&archive).unwrap();
     assert!(detached.len() > shared.len());
     assert_eq!(

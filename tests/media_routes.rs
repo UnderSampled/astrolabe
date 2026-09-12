@@ -3,8 +3,8 @@ use anyhow::{Context, Result, ensure};
 use astrolabe::{
     model::{
         AssetPath, AssetRef, Selection,
-        content::TextureSet,
         io::{Content, ContentRoot, Load, Save},
+        texture::TextureSet,
         texture::{Texture, TextureColors, TexturePixels, TextureUsage},
     },
     openspace::{
@@ -174,7 +174,7 @@ fn complete_texture_packages_survive_per_asset_rete_and_shared_resize() -> Resul
         );
         println!(
             "{name}: {} members survive per-asset Rete, complete reconstructed bytes match without XOR",
-            recovered.textures.len()
+            recovered.set.entries.len()
         );
     }
     let changed_ref;
@@ -244,17 +244,17 @@ fn complete_texture_packages_survive_per_asset_rete_and_shared_resize() -> Resul
     );
     let original = decode_cnt(&rebuilt["Textures.cnt"], TextureUsage::Material)?;
     let after = decode_cnt(&changed["Textures.cnt"], TextureUsage::Material)?;
-    assert_eq!(original.directories, after.directories);
-    for (before, current) in original.textures.iter().zip(&after.textures) {
-        assert_eq!(before.path, current.path);
-        assert_eq!(before.shared_with, current.shared_with);
-        if affected_names.contains(&current.path) {
-            assert_eq!(current.texture, edited);
+    assert_eq!(original.set.directories, after.set.directories);
+    for (before, current) in original.set.entries.iter().zip(&after.set.entries) {
+        assert_eq!(before.name, current.name);
+        assert_eq!(before.texture, current.texture);
+        if affected_names.contains(&current.name) {
+            assert_eq!(*after.image(current)?, edited);
         } else {
             assert!(
-                before.texture == current.texture,
+                original.image(before)? == after.image(current)?,
                 "unrelated texture changed: {}",
-                current.path
+                current.name
             );
         }
     }

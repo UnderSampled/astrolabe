@@ -2,7 +2,7 @@ use anyhow::Result;
 use astrolabe::{
     model::{
         Selection,
-        geometry::{Material, Model},
+        geometry::{Material, Model, ModelInstance},
     },
     openspace::level::{
         MaterialTarget, import_first_model, write_geometry, write_model_fragment, write_sna_block,
@@ -74,16 +74,17 @@ fn real_rooted_model_survives_rete_edit_and_source_free_reconstruction() -> Resu
         hash(&positions),
         "2547f1d553a966352bfad4e91ad1204375c5797fbbdc509689e231bc67753874"
     );
-    assert_eq!(original.radiosity.len(), 26);
-    assert_eq!(original.radiosity[0], [133, 41, 0, 0]);
-    assert_eq!(original.radiosity[2], [143, 52, -57, 0]);
-    assert_eq!(original.radiosity[11], [396, 48, -238, 0]);
+    assert_eq!(import.instance.radiosity.len(), 26);
+    assert_eq!(import.instance.radiosity[0], [133, 41, 0, 0]);
+    assert_eq!(import.instance.radiosity[2], [143, 52, -57, 0]);
+    assert_eq!(import.instance.radiosity[11], [396, 48, -238, 0]);
     assert_eq!(
-        original.radiosity_rgba(11),
+        import.instance.radiosity_rgba(11),
         Some([396. / 256., 48. / 256., -238. / 256., 0.])
     );
-    assert!(original.radiosity_rgba(26).is_none());
-    let colors: Vec<u8> = original
+    assert!(import.instance.radiosity_rgba(26).is_none());
+    let colors: Vec<u8> = import
+        .instance
         .radiosity
         .iter()
         .flatten()
@@ -106,6 +107,8 @@ fn real_rooted_model_survives_rete_edit_and_source_free_reconstruction() -> Resu
     let bytes = rete::encode(original)?;
     let mut reloaded: Model = rete::decode(&bytes)?;
     assert_eq!(&reloaded, original);
+    let mut instance: ModelInstance = rete::decode(&rete::encode(&import.instance)?)?;
+    assert_eq!(instance, import.instance);
     let materials: Vec<Material> = import
         .materials
         .iter()
@@ -134,7 +137,7 @@ fn real_rooted_model_survives_rete_edit_and_source_free_reconstruction() -> Resu
         &rebuilt.bytes[range.offset..range.offset + range.length],
         &positions
     );
-    let first = write_model_fragment(&reloaded, &materials, 0x1000)?;
+    let first = write_model_fragment(&reloaded, &instance, &materials, 0x1000)?;
     assert_eq!(first.ptx.len(), 8208);
     let word = |b: &[u8], at: usize| u32::from_le_bytes(b[at..at + 4].try_into().unwrap());
     assert_eq!(
@@ -204,15 +207,15 @@ fn real_rooted_model_survives_rete_edit_and_source_free_reconstruction() -> Resu
     assert_eq!(at(isi_offset), 1);
     assert_eq!(at(lod_offset), 26);
     assert_eq!(at(lod_offset + 4), 0x1000 + color_range.offset as u32);
-    let mut invalid = reloaded.clone();
+    let mut invalid = instance.clone();
     invalid.radiosity.pop();
-    assert!(invalid.validate().is_err());
-    assert!(write_model_fragment(&invalid, &materials, 0x1000).is_err());
-    reloaded.radiosity[2][2] = -128;
+    assert!(invalid.validate_model(&reloaded).is_err());
+    assert!(write_model_fragment(&reloaded, &invalid, &materials, 0x1000).is_err());
+    instance.radiosity[2][2] = -128;
     reloaded.positions[0][0] += 1.;
     let mut edited_materials = materials.clone();
     edited_materials[0].color[0] = 0.25;
-    let changed = write_model_fragment(&reloaded, &edited_materials, 0x8000)?;
+    let changed = write_model_fragment(&reloaded, &instance, &edited_materials, 0x8000)?;
     assert_ne!(first.bytes, changed.bytes);
     let edited_colors = changed
         .ranges
@@ -233,7 +236,7 @@ fn real_rooted_model_survives_rete_edit_and_source_free_reconstruction() -> Resu
         &0.25f32.to_le_bytes()
     );
     assert_eq!(
-        write_model_fragment(&reloaded, &edited_materials, 0x8000)?.bytes,
+        write_model_fragment(&reloaded, &instance, &edited_materials, 0x8000)?.bytes,
         changed.bytes
     );
     // Resolving a .tga dependency to its actual shared .gf content must preserve the authored name.
@@ -248,7 +251,7 @@ fn real_rooted_model_survives_rete_edit_and_source_free_reconstruction() -> Resu
     resolved_materials[0].texture = Some(astrolabe::model::AssetPath::new(
         "texture:/astrolabe/shared-alias.gf",
     )?);
-    let resolved = write_model_fragment(&reloaded, &resolved_materials, 0x4000)?;
+    let resolved = write_model_fragment(&reloaded, &instance, &resolved_materials, 0x4000)?;
     let texture = resolved
         .ranges
         .iter()

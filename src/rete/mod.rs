@@ -13,7 +13,7 @@ use std::{
     sync::Arc,
 };
 
-const SCHEMA: u32 = 1;
+pub const SCHEMA: u32 = 2;
 const MAGIC: &str = "astrolabe-rete";
 const MAX_ASSET_BYTES: u64 = 256 * 1024 * 1024;
 
@@ -213,3 +213,59 @@ fn read_file(path: &Path) -> Result<Vec<u8>> {
 }
 
 pub(crate) use crate::files::write_atomic as write_file;
+
+/// Persist the selected dependency closure, with no dependency on the importer.
+pub fn save_package(
+    source: &mut impl crate::model::content::ContentSource,
+    inventory: &[Root],
+    package: &Package,
+    output: &Path,
+) -> Result<()> {
+    let mut store = Store::new(output, package.selection.clone())?;
+    for entry in inventory {
+        let asset = crate::model::content::Asset::load(source, entry)?;
+        store.save_asset(&entry.reference, &asset)?;
+    }
+    store.save_package(package)
+}
+impl Store {
+    pub fn save_asset(
+        &mut self,
+        path: &AssetPath,
+        asset: &crate::model::content::Asset,
+    ) -> Result<()> {
+        use crate::model::content::Asset;
+        match asset {
+            Asset::Texture(value) => self.save(&AssetRef::from_path(path.clone()), value.as_ref()),
+            Asset::TextureSet(value) => {
+                self.save(&AssetRef::from_path(path.clone()), value.as_ref())
+            }
+            Asset::Sound(value) => self.save(&AssetRef::from_path(path.clone()), value.as_ref()),
+            Asset::SoundBank(value) => {
+                self.save(&AssetRef::from_path(path.clone()), value.as_ref())
+            }
+            Asset::SoundDefinitions(value) => {
+                self.save(&AssetRef::from_path(path.clone()), value.as_ref())
+            }
+            Asset::Model(value) => self.save(&AssetRef::from_path(path.clone()), value.as_ref()),
+            Asset::ModelInstance(value) => {
+                self.save(&AssetRef::from_path(path.clone()), value.as_ref())
+            }
+            Asset::Material(value) => self.save(&AssetRef::from_path(path.clone()), value.as_ref()),
+        }
+    }
+    pub fn inspect(&mut self, entry: &Root) -> Result<String> {
+        use crate::model::content::Asset;
+        let asset = Asset::load(self, entry)?;
+        Ok(match asset {
+            Asset::Texture(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::TextureSet(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::Sound(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::SoundBank(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::SoundDefinitions(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::Model(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::ModelInstance(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::Material(value) => serde_json::to_string_pretty(value.as_ref())?,
+        })
+    }
+}

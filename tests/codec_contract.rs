@@ -1,10 +1,12 @@
 //! The same typed codec consumer inspects and edits useful values across formats.
 use astrolabe::{
+    model::AssetRef,
     model::{
         io::Content,
-        texture::{NamedTexture, Texture, TextureArchive, TextureColors, TextureUsage},
+        texture::{Texture, TextureColors, TextureEntry, TextureSet, TextureUsage},
     },
     openspace::codec::{Cnt, FormatCodec, Gf, SoundScript},
+    openspace::texture::TextureArchive,
 };
 use std::fmt::Debug;
 
@@ -134,13 +136,17 @@ fn codec_usage_mismatch_does_not_silently_reinterpret_texture_content() {
         .write(&material)
         .is_err()
     );
+    let reference = AssetRef::new("texture:/Red.gf").unwrap();
     let archive = TextureArchive {
-        directories: vec![],
-        textures: vec![NamedTexture {
-            path: "Red.gf".into(),
-            texture: material,
-            shared_with: None,
-        }],
+        set: TextureSet {
+            name: "Textures.cnt".into(),
+            directories: vec![],
+            entries: vec![TextureEntry {
+                name: "Red.gf".into(),
+                texture: reference.clone(),
+            }],
+        },
+        images: std::collections::BTreeMap::from([(reference.path, material)]),
     };
     assert!(
         Cnt {

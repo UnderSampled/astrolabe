@@ -94,10 +94,13 @@ pub struct AssetRef<T> {
 }
 impl<T> AssetRef<T> {
     pub fn new(path: impl Into<String>) -> Result<Self> {
-        Ok(Self {
-            path: AssetPath::new(path)?,
+        Ok(Self::from_path(AssetPath::new(path)?))
+    }
+    pub fn from_path(path: AssetPath) -> Self {
+        Self {
+            path,
             marker: PhantomData,
-        })
+        }
     }
 }
 

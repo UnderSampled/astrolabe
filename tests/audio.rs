@@ -1,5 +1,5 @@
 use astrolabe::{
-    model::audio::{AudioSamples, Sound, SoundBank},
+    model::audio::{AudioReconstructionGap, AudioSamples, Sound, SoundBank},
     openspace::audio::{read_apm, read_bnm, write_apm, write_bnm},
 };
 fn fixture() -> Sound {
@@ -49,6 +49,7 @@ fn pcm_bank_roundtrip_rete_and_size_change() {
         external_sounds: vec![],
         events: vec![],
         fidelity_notes: vec![],
+        reconstruction_gaps: vec![],
     };
     let bytes = write_bnm(&bank).unwrap();
     let decoded = read_bnm(&bytes, "test").unwrap();
@@ -64,7 +65,14 @@ fn pcm_bank_roundtrip_rete_and_size_change() {
     });
     let edited = write_bnm(&loaded).unwrap();
     assert_eq!(read_bnm(&edited, "test").unwrap(), loaded);
-    bank.fidelity_notes.push("unimplemented event".into());
+    bank.fidelity_notes
+        .push("an informational observation".into());
+    assert_eq!(write_bnm(&bank).unwrap(), bytes);
+    bank.reconstruction_gaps
+        .push(AudioReconstructionGap::BinaryEvents { count: 1 });
+    bank.fidelity_notes.clear();
+    let bank: SoundBank =
+        astrolabe::rete::decode(&astrolabe::rete::encode(&bank).unwrap()).unwrap();
     assert!(write_bnm(&bank).is_err());
 }
 #[test]
@@ -82,6 +90,7 @@ fn audio_rejects_truncated_and_out_of_bounds_payloads() {
         external_sounds: vec![],
         events: vec![],
         fidelity_notes: vec![],
+        reconstruction_gaps: vec![],
     };
     let mut bytes = write_bnm(&bank).unwrap();
     bytes[0x0c..0x10].copy_from_slice(&u32::MAX.to_le_bytes());

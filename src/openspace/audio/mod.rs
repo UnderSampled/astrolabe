@@ -19,3 +19,7 @@ pub fn validate_sound(sound: &Sound) -> Result<()> {
     );
     Ok(())
 }
+
+pub use apm::Apm;
+pub use bnm::Bnm;
+pub use definitions::SoundScript;

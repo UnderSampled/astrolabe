@@ -2,17 +2,17 @@
 use super::{
     codec::{self, FormatCodec},
     level,
+    texture::TextureArchive,
 };
 use crate::model::{
-    AssetPath, AssetRef, Selection,
+    AssetRef, Selection,
     audio::{Sound, SoundBank, SoundDefinitions},
-    content::{Collection, TextureEntry, TextureSet},
+    content::Collection,
     io::{Content, ContentRoot, Diagnostic, Load, Severity},
-    texture::{Texture, TextureArchive, TextureUsage},
+    texture::{Texture, TextureUsage},
 };
 use anyhow::{Context, Result, ensure};
 use std::{
-    collections::BTreeMap,
     fs,
     path::{Path, PathBuf},
     sync::Arc,
@@ -68,9 +68,6 @@ fn read(path: &Path) -> Result<Vec<u8>> {
     );
     fs::read(path).with_context(|| format!("read {}", path.display()))
 }
-fn texture_id(path: &str) -> Result<AssetRef<Texture>> {
-    AssetRef::new(format!("texture:/{}", path.replace('\\', "/")))
-}
 
 pub fn import_model(game: &Path, selection: Selection) -> Result<Imported> {
     let mut imported = Imported::new(selection.clone());
@@ -82,12 +79,11 @@ pub fn import_model(game: &Path, selection: Selection) -> Result<Imported> {
     for material in &mut model.materials {
         if let Some(original) = &material.texture {
             let found = archive
-                .find_by_source_name(original.file())
+                .find_entry(original.file())
                 .with_context(|| format!("texture {} absent from CNT", original))?;
-            let canonical = found.shared_with.as_deref().unwrap_or(&found.path);
-            let reference = texture_id(canonical)?;
+            let reference = found.texture.clone();
             if !imported.assets.contains(&reference.path) {
-                imported.put(&reference, found.texture.clone(), false)?;
+                imported.put(&reference, archive.image(found)?.clone(), false)?;
             }
             material.texture = Some(reference.path);
         }
@@ -112,38 +108,29 @@ pub fn import_model(game: &Path, selection: Selection) -> Result<Imported> {
             message,
         }));
     let reference = AssetRef::new(model.model.path.to_string())?;
-    imported.put(&reference, model.model, true)?;
+    imported.put(&reference, model.model, false)?;
+    let reference = AssetRef::from_path(model.instance.path.clone());
+    imported.put(&reference, model.instance, true)?;
     Ok(imported)
 }
 
 fn add_archive(imported: &mut Imported, name: &str, archive: TextureArchive) -> Result<()> {
-    let mut entries = Vec::new();
-    for member in &archive.textures {
-        let canonical = member.shared_with.as_deref().unwrap_or(&member.path);
-        let reference = texture_id(canonical)?;
+    for (path, image) in archive.images {
+        let reference = AssetRef::from_path(path);
         if imported.assets.contains(&reference.path) {
             let old: Arc<Texture> = imported.load(&reference)?;
             ensure!(
-                *old == member.texture,
+                *old == image,
                 "distinct textures collide at {}",
                 reference.path
             );
         } else {
-            imported.put(&reference, member.texture.clone(), false)?;
+            imported.put(&reference, image, false)?;
         }
-        entries.push(TextureEntry {
-            name: member.path.clone(),
-            texture: reference,
-        });
     }
-    let set = TextureSet {
-        name: name.into(),
-        directories: archive.directories,
-        entries,
-    };
     imported.put(
         &AssetRef::new(format!("texture:/archives/{name}"))?,
-        set,
+        archive.set,
         true,
     )
 }
@@ -251,31 +238,4 @@ fn collect_audio(dir: &Path, game: &Path, out: &mut Vec<PathBuf>) -> Result<()> 
     }
     Ok(())
 }
-pub fn rebuild_texture_set<R: Load<Texture>>(
-    set: &TextureSet,
-    resolver: &mut R,
-) -> Result<Vec<u8>> {
-    set.validate()?;
-    let mut first = BTreeMap::<AssetPath, String>::new();
-    let mut textures = Vec::new();
-    for entry in &set.entries {
-        let shared_with = first.get(&entry.texture.path).cloned();
-        first
-            .entry(entry.texture.path.clone())
-            .or_insert_with(|| entry.name.clone());
-        textures.push(crate::model::texture::NamedTexture {
-            path: entry.name.clone(),
-            texture: (*resolver.load(&entry.texture)?).clone(),
-            shared_with,
-        });
-    }
-    let usage = match set.name.as_str() {
-        "Textures.cnt" => TextureUsage::Material,
-        "Vignette.cnt" => TextureUsage::Screen,
-        _ => anyhow::bail!("unsupported texture archive {}", set.name),
-    };
-    codec::Cnt { usage }.write(&TextureArchive {
-        directories: set.directories.clone(),
-        textures,
-    })
-}
+pub use super::texture::write_cnt as rebuild_texture_set;

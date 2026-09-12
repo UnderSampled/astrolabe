@@ -1,6 +1,7 @@
 //! APM WAVEFORMAT/ADPCM header: corroborated by vgmstream ubi_apm.c and
 //! ray2get's format description. Hype's decoder rounding remains an engine check.
 use crate::model::audio::{AudioSamples, SampleLoop, Sound};
+use crate::{model::io::FormatSupport, openspace::codec::FormatCodec};
 use anyhow::{Result, ensure};
 use binrw::{BinRead, BinWrite, binrw};
 use std::io::Cursor;
@@ -250,4 +251,25 @@ pub fn write_apm(sound: &Sound) -> Result<Vec<u8>> {
     let mut output = output.into_inner();
     output.extend(payload);
     Ok(output)
+}
+
+pub struct Apm {
+    pub name: String,
+}
+impl FormatCodec for Apm {
+    type Value = Sound;
+    fn support(&self) -> FormatSupport {
+        FormatSupport {
+            format: "APM",
+            reads: true,
+            writes: true,
+            notes: "PCM model; derived IMA ADPCM export is lossy, historical encoded bytes are unverified",
+        }
+    }
+    fn read(&self, bytes: &[u8]) -> Result<Sound> {
+        read_apm(bytes, self.name.clone())
+    }
+    fn write(&self, value: &Sound) -> Result<Vec<u8>> {
+        write_apm(value)
+    }
 }

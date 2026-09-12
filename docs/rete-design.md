@@ -27,6 +27,12 @@ Choose file boundaries around useful assets: 3D models, materials, animations, A
 
 Direct text editing and Git diffs of asset data are not requirements. Use Serde for Rete persistence. Each useful asset is one MessagePack file with named fields and embedded dense numeric data/byte buffers. Use MessagePack binary fields for raw bytes. Do not create a separate generic binary-content file or `.bin` sidecars; the filesystem still locates independently shared semantic assets. Keep inspection available through useful named keys and values. Validate schema/version conventions, file extensions, and performance with representative assets. PNG/WAV are primarily Godot outputs, not required Rete storage. Keep OpenSpace encoding choices and alignment in codec/profile rules; do not persist them as a shortcut for unresolved reconstruction behavior.
 
+### Current geometry and instance boundary
+
+Schema 2 stores reusable `Model` geometry separately from `ModelInstance` placement, selected LOD distance, and radiosity. Instances hold typed references to a shared model; their edits do not duplicate or mutate geometry. Dependency validation checks lighting length against that model. The current import still selects one rooted instance; broader scene traversal remains milestone 6. Synthetic shared instances exercise this boundary through Rete, source fragments, and Godot.
+
+Plain Godot instances share one mesh resource. Per-instance radiosity currently produces derived target mesh variants, while the canonical geometry stays shared. That temporary target mapping does not dictate Rete asset ownership. See [the contributor guide](contributing-rust.md) and `tests/model_instances.rs`.
+
 ### Media representation
 
 Choose the model/Rete representation for the information it must retain, before choosing a convenient playback or display format. Texture data may need palette entries and index identity, mip levels, or values beyond a flattened image; audio may need exact sample precision, channel relationships, timing/loop information, and meaningful codec-domain data beyond a playable waveform. Establish the actual requirements from the supported formats and evidence, rather than adding speculative fields.

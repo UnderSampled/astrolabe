@@ -69,6 +69,8 @@ The supplied [Lutris installer reference](reference/hype-the-time-quest-lutris.j
 
 ## Project layout
 
+The [Rust contributor guide](docs/contributing-rust.md) gives a reading order, module map, and worked extension paths for formats, content types, and targets.
+
 ```text
 src/model/     Useful values and shared typed references/load/save contracts
 src/openspace/ Declarative binrw codecs, source resolution and reconstruction

@@ -105,7 +105,8 @@ its useful behavior without freezing a durable remaster asset interface.
 
 `tests/real_routes.rs` now exercises the real first rooted astrolabe model with
 `ASTROLABE_GAME_DIR` (default `disc`) and `ASTROLABE_GODOT` (default `godot`). It
-imports nine content assets, saves each through the application's Rete path,
+imports ten content assets (geometry, instance, four materials, four textures),
+saves each through the Rete adapter,
 drops the source import session, and opens a fresh Store. Every generated Godot
 file hash agrees between direct import and this reopened Rete route. Repeated
 material loads share the cached useful object, and the original model values
@@ -165,3 +166,8 @@ diagnostics appear in both CLI output and the written reconstruction report.
   on rooted child ordinals survive scene insertion or model-sharing changes.
   Settle instance ownership and exercise topology changes before committing a
   durable downstream asset interface.
+
+
+## Shared geometry and instance state
+
+`tests/model_instances.rs` complements the original contract probe with four instances of one reusable model. It persists independent transforms and lighting, edits one instance and then shared geometry, and checks source fragments without disc access. The Godot probe inspects two plain instances sharing one native mesh and two differently lit variants retaining their own colors and transforms. Instance scenes and lighting variants derive paths from instance identity; plain meshes derive paths from model identity. These paths remain provisional.

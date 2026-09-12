@@ -9,9 +9,9 @@ The public APIs are in `model::texture` and `openspace::texture`:
 - `decode_gf(bytes, TextureUsage)` and `encode_gf(&Texture)` load/save one useful image.
 - `decode_cnt(bytes, TextureUsage)` and `encode_cnt(&TextureArchive)` load/rebuild a texture archive.
 - `Texture::{validate,width,height,rgba8}` serve inspection and target adapters.
-- `TextureArchive::find_by_source_name` resolves a complete TextureInfo `.tga` path to the `.gf` member using Windows separator/case rules. It never guesses using a basename.
+- `TextureArchive::find_entry` resolves a complete TextureInfo `.tga` path to the `.gf` member using Windows separator/case rules. It never guesses using a basename.
 
-Rete can serialize these same Serde values. It must retain the archive root when complete CNT membership/directory order/sharing is needed; individual texture files alone do not describe an archive. An index byte vector uses MessagePack binary values. Exact component arrays and palettes remain structured values inside their owning asset.
+Rete serializes the canonical `TextureSet` root and its independently shared `Texture` values. `TextureArchive` is the OpenSpace import result containing that root and image dependency map. It must retain the archive root when complete CNT membership/directory order/sharing is needed; individual texture files alone do not describe an archive. An index byte vector uses MessagePack binary values. Exact component arrays and palettes remain structured values inside their owning asset.
 
 ## Evidence and supported data
 
@@ -28,7 +28,7 @@ The supplied archive inventory is:
 
 Their SHA-256 hashes are `bde3b7951b0809b18f556fc09eaa58d22f9cdbd1ae066c8684d72fb1674121da` and `8a221aca15583ca94763f5f03047951909309a4c7cdd114acb37f0eb541b30f4`, respectively. No game-derived fixture is added to Git.
 
-The decoder also supports three- and four-component palettes with 1–256 entries, exercised by synthetic known-byte fixtures. It rejects unsupported GF versions/types, invalid precision, truncated/oversized channels, zero or overflowing RLE runs, incomplete mips, invalid palette indices, trailing GF bytes, invalid archive ranges/checksums, unsafe member paths, and duplicate case-insensitive member paths. Names use reversible CP1252 rather than replacement decoding. The parser applies bounded allocation limits, including 16M pixels per image level and 512 MiB of cumulative decoded pixel/palette storage per CNT. It preflights every decrypted GF header before allocating image arrays and counts every owned logical alias toward the archive budget. The supplied archives require 137,846,168 bytes (Textures, 131.46 MiB) and 27,279,360 bytes (Vignette, 26.02 MiB) of this storage, leaving room below that bound.
+The decoder also supports three- and four-component palettes with 1–256 entries, exercised by synthetic known-byte fixtures. It rejects unsupported GF versions/types, invalid precision, truncated/oversized channels, zero or overflowing RLE runs, incomplete mips, invalid palette indices, trailing GF bytes, invalid archive ranges/checksums, unsafe member paths, and duplicate case-insensitive member paths. Names use reversible CP1252 rather than replacement decoding. The parser applies bounded allocation limits, including 16M pixels per image level and 512 MiB of cumulative decoded pixel/palette storage per CNT. It preflights every decrypted GF header before allocating image arrays and counts every logical alias conservatively toward the archive budget. The supplied archives require 137,846,168 bytes (Textures, 131.46 MiB) and 27,279,360 bytes (Vignette, 26.02 MiB) against this conservative budget, leaving room below that bound.
 
 ## Reconstruction and sharing
 
@@ -36,7 +36,7 @@ The GF encoder derives the color type from exact component precision/palette val
 
 CNT locations are regenerated from current member data, with complete-word checksums recomputed. The writer produces valid unencrypted archives, so original archive bytes are not claimed: historical obfuscation keys are not meaningful image data and are deliberately absent from Rete. Header/directory/member declarations use binrw; variable strings, XOR, checksums and RLE are bounded helpers owned by the OpenSpace adapter.
 
-The supplied texture archive contains 214 additional logical members that share an existing member's physical image data. `NamedTexture.shared_with` retains this as a logical path to the first owning member, without a pointer. The writer emits one regenerated payload for those aliases. Aliased values must still agree; an inconsistent edit is diagnosed and can be detached by clearing `shared_with`. Equal image values without a sharing link remain distinct. Partial/otherwise incompatible source overlaps are rejected.
+The supplied texture archive contains 214 additional logical members that share an existing member's physical image data. Each `TextureEntry` references the owning `Texture` by asset path, with one image value regardless of alias count. The writer emits one regenerated payload for each distinct reference. Editing that image updates all aliases; detach an entry by assigning a new image path and value. Equal images with distinct references remain distinct. Partial overlaps and incompatible declarations for a shared source range are rejected. The same sharing semantics apply before and after Rete persistence.
 
 ## Validation
 

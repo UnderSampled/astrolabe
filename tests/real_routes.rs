@@ -5,7 +5,7 @@ use astrolabe::{
     godot::run_godot,
     model::{
         AssetRef, Selection,
-        geometry::{Material, Model},
+        geometry::{Material, Model, ModelInstance},
         io::{Load, Save},
     },
     openspace::{self, compression::decode_envelope},
@@ -46,7 +46,9 @@ fn pointer(bytes: &[u8], offset: usize) -> Result<usize> {
     Ok(target)
 }
 fn check_fragment(output: &Path, model: &Model, names: &BTreeSet<String>) -> Result<Vec<u8>> {
-    let stem = output.join("fragments").join(model.path.file());
+    let stem = output
+        .join("fragments")
+        .join(format!("{}/instance", model.path.file()));
     let bytes = fs::read(stem.with_extension("bin"))?;
     // Independently follow the known Montreal PO -> visual set -> LOD -> geometry chain.
     let visual = pointer(&bytes, 0)?;
@@ -143,7 +145,7 @@ func require(ok: bool, reason: String):
         return false
     return true
 func _initialize():
-    var mesh = load("res://generated/hype/levels/astrolabe/models/world/1/0/0.mesh.tres") as ArrayMesh
+    var mesh = load("res://generated/hype/levels/astrolabe/models/world/1/0/0/instance.mesh.tres") as ArrayMesh
     if not require(mesh != null and mesh.get_surface_count() == 4, "real mesh closure"): return
     var arrays = mesh.surface_get_arrays(0)
     var vertex = arrays[Mesh.ARRAY_VERTEX][0]
@@ -177,7 +179,7 @@ fn worker() -> Result<()> {
     let selection = Selection::hype("astrolabe", "EN")?;
     let mut imported = openspace::content::import_model(&game(), selection.clone())?;
     ensure!(
-        imported.inventory.len() == 9 && imported.roots.len() == 1,
+        imported.inventory.len() == 10 && imported.roots.len() == 1,
         "first-model content closure"
     );
     let roots = imported.roots.clone();
@@ -194,14 +196,17 @@ fn worker() -> Result<()> {
         .context("source debug summary")?
         .actual_world
         .clone();
-    let model_ref = AssetRef::<Model>::new(roots[0].reference.to_string())?;
+    let instance = imported.load(&AssetRef::<ModelInstance>::from_path(
+        roots[0].reference.clone(),
+    ))?;
+    let model_ref = instance.model.clone();
     let original = (*imported.load(&model_ref)?).clone();
     ensure!(
         original.name == "world/1/0/0" && original.submeshes[0].triangles[0] == [3, 0, 14],
         "unexpected rooted source model"
     );
     app::save_rete(&mut imported, &persisted)?;
-    let first = app::export_godot(&mut imported, &roots, selection, &direct, &engine())?;
+    let first = astrolabe::godot::export(&mut imported, &roots, selection, &direct, &engine())?;
     // Both import session and writer are now gone. Every subsequent asset load goes
     // through newly opened MessagePack files; no source context is passed to export.
     drop(imported);
@@ -238,7 +243,7 @@ fn worker() -> Result<()> {
                 .context("original texture-info name")?,
         );
     }
-    let second = app::export_godot(
+    let second = astrolabe::godot::export(
         &mut store,
         &package.roots,
         package.selection.clone(),
@@ -254,16 +259,12 @@ fn worker() -> Result<()> {
         "routes disagree about target coverage"
     );
     let baseline_dir = temp.path().join("reconstruction-before");
-    let report = app::export_openspace(&mut store, &package.roots, &baseline_dir)?;
+    let report = astrolabe::openspace::export(&mut store, &package.roots, &baseline_dir)?;
     ensure!(
-        report["files"]
-            .as_array()
-            .context("export report files")?
-            .len()
-            == 9,
+        report.files.len() == 9,
         "model fragment, SNA framing and four dependent textures"
     );
-    let framed = fs::read(baseline_dir.join("fragments/models/world/1/0/0.sna"))?;
+    let framed = fs::read(baseline_dir.join("fragments/models/world/1/0/0/instance.sna"))?;
     ensure!(
         framed.starts_with(&[6, 2]),
         "wrong generated fragment block"
@@ -272,7 +273,7 @@ fn worker() -> Result<()> {
         astrolabe::openspace::compression::decode_envelope(&framed[22..], 64 * 1024 * 1024)?;
     ensure!(
         used + 22 == framed.len()
-            && decoded == fs::read(baseline_dir.join("fragments/models/world/1/0/0.bin"))?,
+            && decoded == fs::read(baseline_dir.join("fragments/models/world/1/0/0/instance.bin"))?,
         "framed model differs from generated content"
     );
     let baseline = check_fragment(&baseline_dir, &original, &names)?;
@@ -288,14 +289,14 @@ fn worker() -> Result<()> {
         *store.load(&model_ref)? == edited,
         "edit was not persisted to disk"
     );
-    let changed = app::export_godot(
+    let changed = astrolabe::godot::export(
         &mut store,
         &package.roots,
         package.selection.clone(),
         &through,
         &engine(),
     )?;
-    let mesh = "generated/hype/levels/astrolabe/models/world/1/0/0.mesh.tres";
+    let mesh = "generated/hype/levels/astrolabe/models/world/1/0/0/instance.mesh.tres";
     ensure!(
         second.files.get(mesh) != changed.files.get(mesh),
         "persisted geometry edit did not change mesh bytes"
@@ -310,7 +311,7 @@ fn worker() -> Result<()> {
     }
     inspect_edited_mesh(&through, &edited)?;
     let changed_dir = temp.path().join("reconstruction-after");
-    app::export_openspace(&mut store, &package.roots, &changed_dir)?;
+    astrolabe::openspace::export(&mut store, &package.roots, &changed_dir)?;
     let rebuilt = check_fragment(&changed_dir, &edited, &names)?;
     ensure!(
         baseline != rebuilt,

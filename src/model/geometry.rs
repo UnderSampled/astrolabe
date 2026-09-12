@@ -1,5 +1,5 @@
 //! Useful source geometry. Source axis order and separate corner indices survive persistence.
-use super::{AssetPath, AssetRef};
+use super::{AssetPath, AssetRef, io::Content};
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 
@@ -19,29 +19,18 @@ impl Default for SourceTransform {
         }
     }
 }
+/// Reusable local geometry, independent of placement and instance lighting.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Model {
     pub path: AssetPath,
     pub name: String,
-    pub lod_distance: f32,
     pub positions: Vec<[f32; 3]>,
     pub normals: Vec<[f32; 3]>,
-    /// Selected instance/LOD per-position lighting, signed fixed point with scale 1/256.
-    /// Empty if absent. Components are unclamped lighting contributions, not albedo/opacity.
-    pub radiosity: Vec<[i16; 4]>,
     pub submeshes: Vec<Submesh>,
     /// Optional source per-point gameplay material assignments, independent of face groups.
     pub vertex_materials: Vec<AssetRef<Material>>,
-    /// Root-to-instance transforms. Model coordinates themselves remain local.
-    pub instance_transforms: Vec<SourceTransform>,
 }
 impl Model {
-    /// Present exact source lighting as floats without losing negative or HDR components.
-    pub fn radiosity_rgba(&self, index: usize) -> Option<[f32; 4]> {
-        self.radiosity
-            .get(index)
-            .map(|v| v.map(|c| f32::from(c) / 256.))
-    }
     pub fn bounds(&self) -> Option<([f32; 3], [f32; 3])> {
         let mut lo = *self.positions.first()?;
         let mut hi = lo;
@@ -54,18 +43,6 @@ impl Model {
         Some((lo, hi))
     }
     pub fn validate(&self) -> Result<()> {
-        ensure!(self.lod_distance.is_finite(), "nonfinite LOD distance");
-        for t in &self.instance_transforms {
-            ensure!(
-                t.translation
-                    .iter()
-                    .chain(t.rotation.iter().flatten())
-                    .chain(t.basis.iter().flatten())
-                    .all(|n| n.is_finite()),
-                "nonfinite instance transform"
-            );
-        }
-
         ensure!(
             !self.positions.is_empty() && self.positions.len() <= i16::MAX as usize,
             "unsupported vertex count"
@@ -73,10 +50,6 @@ impl Model {
         ensure!(
             self.normals.is_empty() || self.normals.len() == self.positions.len(),
             "normal count differs from vertex count"
-        );
-        ensure!(
-            self.radiosity.is_empty() || self.radiosity.len() == self.positions.len(),
-            "radiosity count differs from vertex count"
         );
         ensure!(
             self.vertex_materials.is_empty() || self.vertex_materials.len() == self.positions.len(),
@@ -215,5 +188,96 @@ impl Material {
             );
         }
         Ok(())
+    }
+}
+
+/// One placed, selected LOD of a reusable model. Lighting belongs to this instance.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ModelInstance {
+    pub path: AssetPath,
+    pub name: String,
+    pub model: AssetRef<Model>,
+    pub lod_distance: f32,
+    /// Root-to-instance transforms, composed in this order; geometry remains local.
+    pub transforms: Vec<SourceTransform>,
+    /// Per-position signed lighting at scale 1/256. Empty means absent.
+    /// The fourth component is retained source lighting, not opacity.
+    pub radiosity: Vec<[i16; 4]>,
+}
+impl ModelInstance {
+    pub fn new(path: AssetPath, model: &Model) -> Self {
+        Self {
+            path,
+            name: model.name.clone(),
+            model: AssetRef::from_path(model.path.clone()),
+            lod_distance: 0.,
+            transforms: Vec::new(),
+            radiosity: Vec::new(),
+        }
+    }
+    /// Present exact source lighting as floats without losing negative or HDR components.
+    pub fn radiosity_rgba(&self, index: usize) -> Option<[f32; 4]> {
+        self.radiosity
+            .get(index)
+            .map(|v| v.map(|c| f32::from(c) / 256.))
+    }
+    pub fn validate(&self) -> Result<()> {
+        ensure!(self.lod_distance.is_finite(), "nonfinite LOD distance");
+        for t in &self.transforms {
+            ensure!(
+                t.translation
+                    .iter()
+                    .chain(t.rotation.iter().flatten())
+                    .chain(t.basis.iter().flatten())
+                    .all(|n| n.is_finite()),
+                "nonfinite instance transform"
+            );
+        }
+
+        Ok(())
+    }
+    /// Dependency validation is separate so persistence never needs source/VM access.
+    pub fn validate_model(&self, model: &Model) -> Result<()> {
+        self.validate()?;
+        model.validate()?;
+        ensure!(
+            self.model.path == model.path,
+            "instance model identity mismatch"
+        );
+        ensure!(
+            self.radiosity.is_empty() || self.radiosity.len() == model.positions.len(),
+            "radiosity count differs from vertex count"
+        );
+        Ok(())
+    }
+}
+
+impl Content for Model {
+    const KIND: &'static str = "model";
+    fn validate(&self) -> Result<()> {
+        Model::validate(self)
+    }
+    fn identity(&self) -> Option<&AssetPath> {
+        Some(&self.path)
+    }
+}
+
+impl Content for ModelInstance {
+    const KIND: &'static str = "model-instance";
+    fn validate(&self) -> Result<()> {
+        ModelInstance::validate(self)
+    }
+    fn identity(&self) -> Option<&AssetPath> {
+        Some(&self.path)
+    }
+}
+
+impl Content for Material {
+    const KIND: &'static str = "material";
+    fn validate(&self) -> Result<()> {
+        Material::validate(self)
+    }
+    fn identity(&self) -> Option<&AssetPath> {
+        Some(&self.path)
     }
 }

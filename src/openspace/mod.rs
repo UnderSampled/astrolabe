@@ -6,3 +6,6 @@ pub mod level;
 pub mod texture;
 
 pub mod codec;
+
+mod export;
+pub use export::{ReconstructionReport, export};

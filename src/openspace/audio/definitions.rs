@@ -2,6 +2,7 @@
 //! events, sample resources, library selections and material/environment enums.
 //! No engine/editor runtime behavior is inferred from an unrecognized command.
 use crate::model::audio::*;
+use crate::{model::io::FormatSupport, openspace::codec::FormatCodec};
 use anyhow::{Context, Result, bail, ensure};
 
 #[derive(Default)]
@@ -126,6 +127,7 @@ pub fn read_sound_definitions(text: &str, name: impl Into<String>) -> Result<Sou
         resources: vec![],
         selectors: vec![],
         fidelity_notes: vec![],
+        reconstruction_gaps: vec![],
     };
     for block in &tree.children {
         match label(&block.header) {
@@ -315,13 +317,24 @@ pub fn read_sound_definitions(text: &str, name: impl Into<String>) -> Result<Sou
                 });
             }
             "CsbHeader" | "SndEventE" | "SndResourceE" => {}
-            unknown => result.fidelity_notes.push(format!(
-                "sound-script block {unknown} has no semantic interpretation"
-            )),
+            unknown => {
+                result
+                    .reconstruction_gaps
+                    .push(AudioReconstructionGap::SoundScriptBlock {
+                        name: unknown.into(),
+                    });
+                result.fidelity_notes.push(format!(
+                    "sound-script block {unknown} has no semantic interpretation"
+                ));
+            }
         }
     }
     if matches!(result.kind, SoundDefinitionKind::Events) {
-        result.fidelity_notes.push("Named events/resources imported; detailed theme transitions, flags and binary-bank event compilation remain unsupported".into());
+        result
+            .reconstruction_gaps
+            .push(AudioReconstructionGap::EventBehavior);
+        result.fidelity_notes.push("Named events/resources imported; detailed theme transitions, flags and binary-bank event \
+            compilation remain unsupported".into());
     }
     Ok(result)
 }
@@ -330,7 +343,7 @@ pub fn read_sound_definitions(text: &str, name: impl Into<String>) -> Result<Sou
 /// CSB export is rejected until its full behavioral semantics are implemented.
 pub fn write_sound_definitions(value: &SoundDefinitions) -> Result<String> {
     ensure!(
-        value.fidelity_notes.is_empty(),
+        value.reconstruction_gaps.is_empty(),
         "cannot reconstruct unresolved sound definitions"
     );
     let mut out = String::new();
@@ -437,4 +450,35 @@ pub fn write_sound_definitions(value: &SoundDefinitions) -> Result<String> {
         SoundDefinitionKind::Events => bail!("CSB behavioral reconstruction is not implemented"),
     }
     Ok(out)
+}
+
+pub struct SoundScript {
+    pub name: String,
+}
+impl FormatCodec for SoundScript {
+    type Value = SoundDefinitions;
+    fn support(&self) -> FormatSupport {
+        FormatSupport {
+            format: "CSB/LCB/SIF",
+            reads: true,
+            writes: true,
+            notes: "Latin-1 text import; semantic LCB/SIF output, CSB event behavior export remains unsupported",
+        }
+    }
+    fn read(&self, bytes: &[u8]) -> Result<SoundDefinitions> {
+        let text = bytes.iter().map(|&b| char::from(b)).collect::<String>();
+        read_sound_definitions(&text, self.name.clone())
+    }
+    fn write(&self, value: &SoundDefinitions) -> Result<Vec<u8>> {
+        let text = write_sound_definitions(value)?;
+        text.chars()
+            .map(|c| {
+                ensure!(
+                    (c as u32) <= 255,
+                    "sound script character {c:?} is outside source Latin-1 encoding"
+                );
+                Ok(c as u8)
+            })
+            .collect()
+    }
 }

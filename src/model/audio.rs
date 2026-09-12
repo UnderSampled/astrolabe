@@ -1,4 +1,6 @@
 //! Useful audio values, independent of source containers and playback targets.
+use super::io::Content;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -30,6 +32,7 @@ impl AudioSamples {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SampleLoop {
     pub start_frame: u64,
+    /// Exclusive end, measured in sample frames rather than interleaved samples.
     pub end_frame: u64,
 }
 
@@ -85,6 +88,8 @@ pub struct SoundBank {
     pub external_sounds: Vec<ExternalSound>,
     pub events: Vec<SoundEvent>,
     pub fidelity_notes: Vec<String>,
+    /// Source features whose content is not yet represented by this asset.
+    pub reconstruction_gaps: Vec<AudioReconstructionGap>,
 }
 
 /// Named sound-library relationships from the editor's CSB/LCB/SIF sidecars.
@@ -101,6 +106,8 @@ pub struct SoundDefinitions {
     pub resources: Vec<SoundResourceDefinition>,
     pub selectors: Vec<SoundSelector>,
     pub fidelity_notes: Vec<String>,
+    /// Source features whose content is not yet represented by this asset.
+    pub reconstruction_gaps: Vec<AudioReconstructionGap>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum SoundDefinitionKind {
@@ -245,4 +252,34 @@ pub struct SoundDefinitionBinding {
     pub bank: u32,
     pub member: u32,
     pub is_event: bool,
+}
+
+/// Explicit reconstruction blockers. Informational notes never control export support.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum AudioReconstructionGap {
+    BinaryEvents { count: u32 },
+    ResourceType { resource_id: u32, kind: u32 },
+    SoundScriptBlock { name: String },
+    EventBehavior,
+}
+
+impl Content for Sound {
+    const KIND: &'static str = "sound";
+    fn validate(&self) -> Result<()> {
+        Sound::validate(self)
+    }
+}
+
+impl Content for SoundBank {
+    const KIND: &'static str = "sound-bank";
+    fn validate(&self) -> Result<()> {
+        SoundBank::validate(self)
+    }
+}
+
+impl Content for SoundDefinitions {
+    const KIND: &'static str = "sound-definitions";
+    fn validate(&self) -> Result<()> {
+        SoundDefinitions::validate(self)
+    }
 }

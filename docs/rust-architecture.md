@@ -25,6 +25,8 @@ OpenSpace import and reconstruction are both planned. Rete loads and saves the m
 
 ## Module boundaries
 
+See [Working on the Rust code](contributing-rust.md) for the current file map and extension steps. `Model` now holds reusable geometry; `ModelInstance` holds placement, selected LOD distance, and radiosity. The adapters expose their own root-export entry points through shared typed resolution.
+
 Preserve the following logical components whether they live in one library crate or several workspace crates. The earlier `astrolabe-model`, `astrolabe-openspace`, `astrolabe-rete`, and `astrolabe-godot` names are possible crate names, not a requirement to split immediately. Use ordinary modules for individual formats and domains.
 
 | Component | Owns | Boundary |

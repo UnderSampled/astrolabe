@@ -1,11 +1,11 @@
 //! Opt-in real-engine contract probe with synthetic shared content and no OpenSpace dependency.
 use anyhow::{Context, Result, anyhow, ensure};
 use astrolabe::{
-    app::export_godot,
+    godot::export as export_godot,
     godot::{Manifest, run_godot},
     model::{
         AssetPath, AssetRef, Selection,
-        geometry::{Material, Model, SourceTransform, Submesh, TextureInfo},
+        geometry::{Material, Model, ModelInstance, SourceTransform, Submesh, TextureInfo},
         io::{Content, Load},
         texture::{
             OpenSpaceColorKey, Texture, TextureColors, TextureLevel, TexturePixels, TextureUsage,
@@ -101,30 +101,38 @@ fn fixture() -> Result<(Model, Material, Texture)> {
     let model = Model {
         path: model_id,
         name: "quad".into(),
-        lod_distance: 2.,
         positions: vec![[0., 0., 0.], [2., 0., 0.], [2., 3., 0.], [0., 3., 0.]],
         normals: vec![[0., 0., 1.]; 4],
-        radiosity: vec![],
         submeshes: vec![part([0, 1, 2], [3, 0, 1])?, part([0, 2, 3], [2, 1, 0])?],
         vertex_materials: vec![],
-        instance_transforms: vec![
-            SourceTransform {
-                translation: [5., 7., 11.],
-                rotation: [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]],
-                basis: [[0., 2., 0.], [-3., 0., 0.], [0., 0., 4.]],
-            },
-            SourceTransform {
-                translation: [1., 2., 3.],
-                rotation: [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]],
-                basis: [[1., 0., 0.], [0.5, 1., 0.], [0., 0., 1.]],
-            },
-        ],
     };
     Ok((model, material, texture))
+}
+fn instance(model: &Model) -> ModelInstance {
+    let mut instance = ModelInstance::new(
+        AssetPath::new(format!("{}/instance", model.path)).unwrap(),
+        model,
+    );
+    instance.lod_distance = 2.;
+    instance.transforms = vec![
+        SourceTransform {
+            translation: [5., 7., 11.],
+            rotation: [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]],
+            basis: [[0., 2., 0.], [-3., 0., 0.], [0., 0., 4.]],
+        },
+        SourceTransform {
+            translation: [1., 2., 3.],
+            rotation: [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]],
+            basis: [[1., 0., 0.], [0.5, 1., 0.], [0., 0., 1.]],
+        },
+    ];
+    instance
 }
 fn source(model: &Model, material: &Material, texture: &Texture) -> Memory {
     let mut memory = Memory::default();
     memory.insert(model.path.clone(), model.clone());
+    let placed = instance(model);
+    memory.insert(placed.path.clone(), placed);
     memory.insert(material.path.clone(), material.clone());
     memory.insert(material.texture.clone().unwrap(), texture.clone());
     memory
@@ -135,8 +143,8 @@ fn engine() -> String {
 fn export(path: &Path, model: &Model, material: &Material, texture: &Texture) -> Result<Manifest> {
     let mut memory = source(model, material, texture);
     let roots = [Root {
-        kind: "model".into(),
-        reference: model.path.clone(),
+        kind: "model-instance".into(),
+        reference: instance(model).path,
     }];
     let manifest = export_godot(
         &mut memory,
@@ -172,7 +180,7 @@ func require(ok: bool, reason: String):
 func _initialize():
     call_deferred("check_contract")
 func check_contract():
-    var scene = load("res://generated/hype/levels/synthetic/models/quad.tscn") as PackedScene
+    var scene = load("res://generated/hype/levels/synthetic/models/quad/instance.tscn") as PackedScene
     if not require(scene != null, "missing generated scene"): return
     var node = scene.instantiate() as MeshInstance3D
     var mesh = load("res://generated/hype/levels/synthetic/models/quad.mesh.tres") as ArrayMesh
@@ -244,7 +252,7 @@ fn worker() -> Result<()> {
         }
         anyhow::bail!("two clean outputs differ:{differences}");
     }
-    let wrapper=b"[gd_scene load_steps=2 format=3]\n[ext_resource type=\"PackedScene\" path=\"res://generated/hype/levels/synthetic/models/quad.tscn\" id=\"1\"]\n[node name=\"AuthoredWrapper\" type=\"Node3D\"]\n[node name=\"GameModel\" parent=\".\" instance=ExtResource(\"1\")]\n";
+    let wrapper=b"[gd_scene load_steps=2 format=3]\n[ext_resource type=\"PackedScene\" path=\"res://generated/hype/levels/synthetic/models/quad/instance.tscn\" id=\"1\"]\n[node name=\"AuthoredWrapper\" type=\"Node3D\"]\n[node name=\"GameModel\" parent=\".\" instance=ExtResource(\"1\")]\n";
     fs::write(a.join("authored/wrapper.tscn"), wrapper)?;
     inspect(&a, 2., 0.25)?;
     let mut edited = model.clone();

@@ -72,8 +72,8 @@ fn messagepack_binary_and_version_validation() -> Result<()> {
     assert!(bytes.windows(3).any(|x| x == [0xc5, 0x01, 0x00]));
     assert_eq!(rete::decode::<Node>(&bytes)?, n);
     let mut bad = bytes.clone();
-    let offset = bad.windows(7).position(|x| x == b"schema\x01").unwrap();
-    bad[offset + 6] = 2;
+    let offset = bad.windows(7).position(|x| x == b"schema\x02").unwrap();
+    bad[offset + 6] = 1;
     assert!(rete::decode::<Node>(&bad).is_err());
     let mut trailing = bytes;
     trailing.push(0);
@@ -112,10 +112,10 @@ struct TestEnvelope<'a> {
 fn envelope_kind_magic_schema_values_and_exact_floats_are_checked() -> Result<()> {
     let valid = node("valid");
     for (format, schema, kind) in [
-        ("not-rete", 1, Node::KIND),
+        ("not-rete", 2, Node::KIND),
         ("astrolabe-rete", 0, Node::KIND),
-        ("astrolabe-rete", 2, Node::KIND),
-        ("astrolabe-rete", 1, AlternateNode::KIND),
+        ("astrolabe-rete", 1, Node::KIND),
+        ("astrolabe-rete", 2, AlternateNode::KIND),
     ] {
         let bytes = rmp_serde::to_vec_named(&TestEnvelope {
             format,
@@ -129,7 +129,7 @@ fn envelope_kind_magic_schema_values_and_exact_floats_are_checked() -> Result<()
     assert!(rete::encode(&invalid).is_err());
     let bytes = rmp_serde::to_vec_named(&TestEnvelope {
         format: "astrolabe-rete",
-        schema: 1,
+        schema: astrolabe::rete::SCHEMA,
         kind: Node::KIND,
         value: &invalid,
     })?;
