@@ -1,6 +1,6 @@
 # Rete design for the Rust rewrite
 
-Design decisions from the project discussion, updated 2026-09-12. No Rust implementation, fixed schema, or runtime test harness exists yet. This document defines the asset model; [rust-architecture.md](rust-architecture.md) defines module boundaries and the eventual deterministic Godot contract, and [../plan.md](../plan.md) defines the implementation order. These documents supersede the historical C# Rete JSON specification and semantic pool framework.
+Design decisions from the project discussion, updated 2026-09-12. The initial Rust implementation uses a versioned MessagePack envelope and a disposable Godot validation harness. The schema is provisional; see [implementation-progress.md](implementation-progress.md) for actual coverage. This document defines the asset model; [rust-architecture.md](rust-architecture.md) defines module boundaries and the eventual deterministic Godot contract, and [../plan.md](../plan.md) defines the implementation order. These documents supersede the historical C# Rete JSON specification and semantic pool framework.
 
 ## Purpose and scope
 

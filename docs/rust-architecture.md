@@ -6,13 +6,13 @@
 
 The first supported game is Hype: The Time Quest, PC/OpenSpace Montreal. Godot is the primary product target: generated content should support a modern fan-remaster and provide a useful foundation for separately authored Godot work. OpenSpace reconstruction is both a strong validation tool and a modding capability. Importing arbitrary Godot edits back into Rete/OpenSpace is an optional later feature, not a prerequisite for the port.
 
-This is the architecture for the Rust restart, agreed in direction on 2026-09-12. The module responsibilities and interfaces below are the implementation plan; they have not been implemented. Cargo crate packaging is a scaffolding decision. Read [rete-design.md](rete-design.md) for asset ownership and reconstruction rules, and [../plan.md](../plan.md) for ordered milestones and the format coverage matrix.
+This is the architecture for the Rust restart, agreed in direction on 2026-09-12. The initial implementation uses one Cargo library/CLI with these explicit module boundaries. Coverage and provisional choices are recorded in [implementation-progress.md](implementation-progress.md); later domain descriptions remain the plan. Read [rete-design.md](rete-design.md) for asset ownership and reconstruction rules, and [../plan.md](../plan.md) for ordered milestones and the format coverage matrix.
 
 ## Three modular I/O targets, one useful model
 
 **The main architectural boundary is between the OpenSpace, Rete, and Godot import/export adapters.** Each owns its target's formats, I/O, configuration, and conversion rules. All three operate on one useful intermediate model, and application code composes their operations. This is the organizing principle for implementation and review.
 
-The planned data flow is:
+The data flow is:
 
 ```mermaid
 flowchart LR
@@ -51,7 +51,7 @@ Keep adapter development focused on conversion and disposable test/development p
 
 After minimal workspace/interfaces, restore LZO compression/decompression, textures, and standalone audio before SNA level semantics. The user reports complete working texture/audio import in C#; preserving that capability is the reason for this order. These formats are outside the level package and provide regression baselines, but cannot alone establish the shared content interface. Keep compression/envelope primitives reusable without a scene graph; CNT/GF and APM/BNM import must not require relocation state. Independent sound definitions can accompany audio, with scene/perso bindings integrated later.
 
-Prefer suitable existing crates for standard codecs. The initial evaluation shortlist is below; no dependency has been added or proven against the Hype corpus yet. Pin selected versions during implementation and compare real fixtures before adopting them.
+Prefer suitable existing crates for standard codecs. The selected dependencies are pinned in Cargo.lock: binrw 0.15.2, lzokay 2.0.1, png 0.18.1, hound 3.5.1 and Symphonia 0.5.5 for MP2. They have been checked against the local corpus; see the media and compression evidence. The table records their responsibilities.
 
 | Concern | Candidate and boundary |
 | --- | --- |
@@ -78,7 +78,7 @@ Assess the interface with both standalone media and a small level-style dependen
 
 ## Binary codecs with binrw
 
-**Declarative format definitions describe how OpenSpace bytes encode the useful intermediate model.** Document and implement independent formats through a unified interface to that model. binrw is the planned binary codec foundation, not yet installed. Its [`BinRead`](https://docs.rs/binrw/latest/binrw/trait.BinRead.html) and [`BinWrite`](https://docs.rs/binrw/latest/binrw/trait.BinWrite.html) traits support the underlying read/write operations. Use shared declarations, value mappings, and composable helpers to make both encoding rules and their useful interpretation explicit.
+**Declarative format definitions describe how OpenSpace bytes encode the useful intermediate model.** Document and implement independent formats through a unified interface to that model. binrw is the binary codec foundation. Its [`BinRead`](https://docs.rs/binrw/latest/binrw/trait.BinRead.html) and [`BinWrite`](https://docs.rs/binrw/latest/binrw/trait.BinWrite.html) traits support the underlying read/write operations. Use shared declarations, value mappings, and composable helpers to make both encoding rules and their useful interpretation explicit.
 
 Keep semantic field definitions in the model, with encoding rules, source evidence, and unresolved questions documented alongside their codec declarations. Express endianness, variants, conditional fields, counts, assertions, and derived write fields declaratively where practical. binrw supports [value mappings and custom field parsers/writers](https://docs.rs/binrw/latest/binrw/docs/attribute/index.html#map); use these to compose useful values and references. Reading a material should yield a meaningful texture link such as `texture:/path/stone` (an illustrative asset reference, with extension conventions still to be chosen), with pointer resolution handled inside the codec context. Writing that material derives the engine representation from its current values and minimal source metadata.
 
@@ -97,7 +97,7 @@ The common interface organizes **content files from packages, loaded into the us
 | Convert and save | Useful values plus dependency resolution, destination, and target options produce target files/packages or explicit unsupported-feature diagnostics. Application code selects and composes adapters. |
 | Validate | Check useful values, reference resolution, target constraints, and reconstruction coverage using common diagnostic conventions. |
 
-This is a shared behavioral contract, not a requirement to force all I/O into one trait or identical Rust signatures. Use small typed APIs and explicit context. A private OpenSpace `FormatCodec` can pair reads/writes of a useful type, component, or asset group over bounded binary views. Rete owns MessagePack loading/saving, and Godot owns its resource conversion; neither inherits relocation or binary-layout parameters.
+This is a shared behavioral contract, not a requirement to force all I/O into one trait or identical Rust signatures. Use small typed APIs and explicit context. The OpenSpace `codec::FormatCodec` pairs reads/writes of a useful type, component, or asset group over bounded binary views. Rete owns MessagePack loading/saving, and Godot owns its resource conversion; neither inherits relocation or binary-layout parameters.
 
 For example, GF decoding yields a `Texture`, BNM decoding yields a `SoundBank`, and level decoding yields models/scenes with shared materials and family references. Rete persists these same values and Godot consumes them. A source archive member may hold one asset; a useful level asset may span discontiguous records or several source files. Content-file identity is therefore not a promise of one physical source file per asset. Export may assemble many assets into an OpenSpace package.
 
@@ -170,9 +170,9 @@ A later Godot importer can define an explicit supported subset of editable conte
 
 ## Application surface
 
-The primary planned command is `astrolabe port <game-directory> <godot-project>`, with explicit level/locale selection as needed. It validates the source, imports the selected dependency closure, emits Godot content, invokes import validation, and writes a report. A clean repeat uses the same operation and reproduces the arrangement for that converter/schema version; a durable downstream contract is deferred as described above.
+The primary command is `astrolabe port <game-directory> <godot-project>`, with explicit level/locale selection as needed. It validates the source, imports the selected dependency closure, emits Godot content, invokes import validation, and writes a report. A clean repeat uses the same operation and reproduces the arrangement for that converter/schema version; a durable downstream contract is deferred as described above.
 
-Supporting commands expose the same library operations: `import-openspace` saves Rete; `export-godot` consumes Rete; `export-openspace` rebuilds selected original-game files; `inspect` displays semantic assets; `validate` runs targeted comparisons. These are planned commands, not currently executable. Full asset decoding and Godot inspection should not wait for the whole package writer.
+Supporting commands expose the same library operations: `import-openspace` saves Rete; `export-godot` consumes Rete; `export-openspace` rebuilds selected original-game files; `inspect` displays semantic assets; `formats` reports supported operations, and `tools/test.py` runs the checks under a shared deadline. These commands are implemented for the initial supported slice. Full asset decoding and Godot inspection should not wait for the whole package writer.
 
 ## Validation and local toolchain
 

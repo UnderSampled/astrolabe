@@ -2,7 +2,7 @@
 
 ## Current state
 
-Astrolabe is being rewritten from scratch in **Rust**. The production C# source, tests, solution, and project files have been removed from the main working tree. No Rust implementation or Cargo workspace has been created yet.
+Astrolabe is being rewritten from scratch in **Rust**. The production C# source, tests, solution, and project files have been removed from the main working tree. A Rust library/CLI now implements the initial media and rooted-model slice. Read [docs/implementation-progress.md](docs/implementation-progress.md) for demonstrated coverage, commands, and remaining limits; do not infer whole-level/game support from these milestones.
 
 The previous implementations are preserved as pinned, development-only reference submodules:
 
@@ -44,7 +44,9 @@ The original OpenSpace engine and its decompilation are the source of truth, fol
 
 ## Validation and local data
 
-There are no current Rust build or test commands. Add them when the Rust workspace is introduced. The old .NET commands apply only inside the archived C# references.
+Build with `cargo build --release --locked`. Run `python3 tools/test.py --offline` for synthetic checks or `python3 tools/test.py --local --offline` for the complete local corpus/Godot suite. The supervisor owns the single end-to-end deadline, captures logs in ignored `TestResults/`, and cleans child processes. See [docs/testing.md](docs/testing.md). `cargo fmt --check` and `cargo clippy --locked --all-targets -- -D warnings` check style/lints. The old .NET commands apply only inside the archived C# references.
+
+The first model currently combines geometry with a selected instance's transforms and radiosity. Before milestone 6 expands scene traversal, separate instance state from shared geometry and test two instances sharing a model. Rete schema and generated Godot paths remain provisional; explicit rename/identity checks prevent silently mismatched references. Preserve structured source coverage diagnostics through Rete and keep source VM observations in transient debug reports.
 
 **Every automated test suite must finish in under 10 minutes of wall-clock time; substantially faster is preferred.** This applies to the complete suite invocation, including setup, teardown, and child tools/engine runs, and to optional integration or corpus suites as well as routine checks. Measure end-to-end duration on the documented development/CI environment and enforce an overall deadline with time reserved for cleanup and failure reporting before 600 seconds. A timeout is a failed run. Keep focused checks fast and preserve meaningful coverage; do not evade the budget by splitting one suite into sequential stages.
 
@@ -58,6 +60,6 @@ The user supplied [`reference/hype-the-time-quest-lutris.json`](reference/hype-t
 
 **The game has a very slow intro.** The user supplied `reference/Savefile_EN.zip` to bypass it; use this as the first-choice runtime fixture. Preserve its `SaveGame0/` structure, verify the installed edition/language and actual save root, and load it in a test copy before recording the reached scene/state. Archive integrity is verified; engine loading is not. Use other chosen saves or targeted process-memory editing only when needed to reach a particular test state. Record the executable/build, fixture hash, save state or memory intervention, and the behavior being checked. Use interventions to reach the test state, not to repair exported asset data in memory and mask a reconstruction bug. Preserve original game data and saves; exercise generated data in a test installation/copy.
 
-Raymap is an independent parser and visual reference. The user has found its web version useful and expects it may be able to load local OpenSpace level files; verify that workflow before relying on it for generated levels. Prefer the web viewer or local WebGL snapshot described in the reference README. **The user does not use the Unity Editor; do not make Unity installation a prerequisite.** Raymap is the practical backup when original-engine tests cannot run, within its supported features. Supplement it with engine/decompilation-informed expectations and report unverified gameplay behavior; do not block all progress on original-engine availability. No runtime harness has been implemented or validated yet.
+Raymap is an independent parser and visual reference. The user has found its web version useful and expects it may be able to load local OpenSpace level files; verify that workflow before relying on it for generated levels. Prefer the web viewer or local WebGL snapshot described in the reference README. **The user does not use the Unity Editor; do not make Unity installation a prerequisite.** Raymap is the practical backup when original-engine tests cannot run, within its supported features. Supplement it with engine/decompilation-informed expectations and report unverified gameplay behavior; do not block all progress on original-engine availability. A disposable Godot orbit/contact-sheet/audio-mixer harness is implemented. Original-engine save loading remains unverified; consult the current [runtime evidence](docs/implementation-progress.md#runtime-reference-status).
 
 See [`reference/README.md`](reference/README.md) for reference provenance and the local snapshot availability notes.

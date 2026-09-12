@@ -4,11 +4,42 @@
 
 Astrolabe converts **Hype: The Time Quest** (1999), built on Ubisoft's OpenSpace Montreal engine, into useful, deterministic Godot content. Downstream fan-remaster and game-parity projects can depend on assets generated locally from the user's game copy. Those projects own their durable game assets and depend on Astrolabe, even if packaged together.
 
-The project is restarting with an implementation written from scratch in **Rust**. The previous C# implementation and the `gltf` branch are preserved as pinned reference submodules. There is currently no production implementation, Cargo workspace, or runnable CLI in the main working tree.
+The first Rust library and CLI restore LZO, textures, and standalone audio, and convert a rooted textured model from the supplied Astrolabe level into a runnable Godot development project. Rete persists the same useful values. The previous C# implementation and the `gltf` branch remain pinned reference submodules. This is an initial asset converter, not a complete game port; see the [coverage and evidence](docs/implementation-progress.md).
 
 Astrolabe has **one useful intermediate model**: textures, models, animations, scenes, sounds, and behaviors with meaningful fields and relationships. **Rete is the serialized form of that model**, using Serde/MessagePack. The planned binrw codecs declaratively map OpenSpace encodings to and from these same useful types, through a unified interface so independent formats can be documented and implemented alongside one another. See the [binary codec boundary](docs/rust-architecture.md#binary-codecs-with-binrw).
 
 **Three modular I/O adapters organize the tool:** OpenSpace reads and reconstructs game data, Rete loads and saves the shared model, and Godot exports it into the target engine. Application code composes them through the model. These module boundaries matter independently of how many Rust crates are used; Godot import remains optional future work. See the [architectural overview](docs/rust-architecture.md#three-modular-io-targets-one-useful-model).
+
+## Run the first model
+
+Requires Rust/Cargo, Godot 4 (verified with `4.7.2.stable.arch_linux.ed1daf0bf`), and the local game files under `disc/`:
+
+```sh
+cargo run --release --locked -- port disc output/godot --level astrolabe
+godot --path output/godot
+```
+
+The disposable viewer supports mouse drag to orbit and wheel to zoom. The default scope selects the first rooted model and its material/texture dependencies. It does not export the whole level.
+
+To save and inspect Rete, then reconstruct supported source content:
+
+```sh
+cargo run --release --locked -- import-openspace disc output/rete --level astrolabe
+cargo run --release --locked -- inspect output/rete --asset level:/models/world/1/0/0 --kind model
+cargo run --release --locked -- export-godot output/rete output/godot-from-rete
+cargo run --release --locked -- export-openspace output/rete output/reconstructed
+cargo run --release --locked -- formats
+```
+
+Use `--content textures` or `--content audio` on `port`/`import-openspace` for standalone media; `--audio-file Gamedata/World/Sound/Achat.apm` selects a focused audio input. Full model reconstruction currently emits a controlled fragment with generated relocations, not a complete loadable level. `formats` and conversion reports describe writer restrictions.
+
+Run the complete local corpus and engine suite with one enforced deadline:
+
+```sh
+python3 tools/test.py --local --offline
+```
+
+The entire invocation, including compilation and cleanup, must finish under ten minutes. Use `python3 tools/test.py --offline` for synthetic checks. See [testing](docs/testing.md) for dependencies, logs, and deadline enforcement.
 
 ## Goals
 
@@ -23,7 +54,7 @@ Astrolabe has **one useful intermediate model**: textures, models, animations, s
 
 During adapter development, use temporary test/development assets and provisional output contracts. Defer long-lived converter-owned assets and durable downstream dependencies until OpenSpace import/export, Rete load/save, and Godot export work for the supported game content. Godot reverse import stays optional. The unified interface organizes package content loaded into memory, converted, and saved through these targets.
 
-Read the [Rust architecture](docs/rust-architecture.md), [Rete asset design](docs/rete-design.md), and [ordered implementation plan and format matrix](plan.md). The historical C# plan is preserved in [`reference/astrolabe-csharp/plan.md`](reference/astrolabe-csharp/plan.md); the old Rete JSON specification and implementation checklists are research material. Rust implementation progress starts from zero.
+Read the [Rust architecture](docs/rust-architecture.md), [Rete asset design](docs/rete-design.md), and [ordered implementation plan and format matrix](plan.md). The historical C# plan is preserved in [`reference/astrolabe-csharp/plan.md`](reference/astrolabe-csharp/plan.md); the old Rete JSON specification and implementation checklists are research material. Current evidence and remaining limitations are in the [implementation report](docs/implementation-progress.md).
 
 ## References
 
@@ -39,6 +70,12 @@ The supplied [Lutris installer reference](reference/hype-the-time-quest-lutris.j
 ## Project layout
 
 ```text
+src/model/     Useful values and shared typed references/load/save contracts
+src/openspace/ Declarative binrw codecs, source resolution and reconstruction
+src/rete/      Per-asset MessagePack persistence
+src/godot/     Native target resources and disposable development viewer
+src/app.rs     CLI and adapter composition
+tests/         Synthetic, corpus and actual Godot checks
 docs/          OpenSpace, Hype, and Rete format documentation
 notes/         Research and historical C# implementation notes
 reference/     Archived Astrolabe versions and third-party submodules

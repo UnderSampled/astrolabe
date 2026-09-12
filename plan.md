@@ -2,7 +2,7 @@
 
 **Make a tool to repeatably port this OpenSpace game to Godot.**
 
-This is the current Rust plan, 2026-09-12. No phase below has been implemented. The former C# plan and completion claims remain in [the archived snapshot](reference/astrolabe-csharp/plan.md); they are research evidence, not Rust progress. Read [the architecture](docs/rust-architecture.md) and [Rete design](docs/rete-design.md) before implementation.
+This is the current Rust plan, 2026-09-12. The initial Rust implementation targets milestones 0–5; see [the implementation report](docs/implementation-progress.md) for evidence, measured checks, and explicit remaining limitations. The milestone requirements below remain the acceptance criteria. The former C# plan and completion claims remain in [the archived snapshot](reference/astrolabe-csharp/plan.md); they are research evidence, not Rust progress. Read [the architecture](docs/rust-architecture.md) and [Rete design](docs/rete-design.md) before implementation.
 
 ## Priorities and completion
 
@@ -196,4 +196,4 @@ Shared text-token parsing for CSB/LCB/SIF and later configuration files can be f
 
 ## First implementation task
 
-Keep milestone 0 narrow, then restore **1: LZO -> 2: textures -> 3: audio** before **4: level access -> 5: the first textured model port**. Reuse the working C# format knowledge and evaluate existing codec crates against local fixtures. Indeo AVI conversion waits until milestone 11; exact historical LZO bytes wait until 13. This update changes the plan and reference guidance only; no Rust code, runtime installation, save installation, or media conversion is part of it.
+Keep milestone 0 narrow, then restore **1: LZO -> 2: textures -> 3: audio** before **4: level access -> 5: the first textured model port**. Reuse the working C# format knowledge and evaluate existing codec crates against local fixtures. Indeo AVI conversion waits until milestone 11; exact historical LZO bytes wait until 13. The first Rust implementation follows that sequence. Further scene, animation, and behavior work starts after reviewing the initial slice and its remaining interface decisions.
