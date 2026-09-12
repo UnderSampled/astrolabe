@@ -2,10 +2,10 @@
 	path = reference/raymap
 	url = https://github.com/byvar/raymap.git
 [submodule "lib/BinarySerializer.OpenSpace"]
-	path = lib/BinarySerializer.OpenSpace
+	path = reference/BinarySerializer.OpenSpace
 	url = https://github.com/BinarySerializer/BinarySerializer.OpenSpace.git
 [submodule "lib/BinarySerializer"]
-	path = lib/BinarySerializer
+	path = reference/BinarySerializer
 	url = https://github.com/BinarySerializer/BinarySerializer.git
 [submodule "reference/ray2get"]
 	path = reference/ray2get
@@ -22,3 +22,10 @@
 [submodule "reference/OpenSpaceToolbox"]
 	path = reference/OpenSpaceToolbox
 	url = https://github.com/raytools/OpenSpaceToolbox.git
+[submodule "reference/astrolabe-csharp"]
+	path = reference/astrolabe-csharp
+	url = git@github.com:UnderSampled/astrolabe.git
+[submodule "reference/astrolabe-gltf"]
+	path = reference/astrolabe-gltf
+	url = git@github.com:UnderSampled/astrolabe.git
+	branch = gltf

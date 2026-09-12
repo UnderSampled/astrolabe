@@ -1,110 +1,63 @@
-# CLAUDE.md
+# Astrolabe contributor guidance
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Current state
 
-## Project Overview
+Astrolabe is being rewritten from scratch in **Rust**. The production C# source, tests, solution, and project files have been removed from the main working tree. No Rust implementation or Cargo workspace has been created yet.
 
-Astrolabe reads and converts game data from **Hype: The Time Quest** (1999) into **Rete** (canonical level representation), OpenSpace level files, and Godot project assets. The game uses the OpenSpace Montreal engine (shared with Rayman 2 and Tonic Trouble).
+The previous implementations are preserved as pinned, development-only reference submodules:
 
-**Rete refactor:** read [`plan.md`](plan.md), [`docs/rete-format.md`](docs/rete-format.md), [`notes/rete-implementation.md`](notes/rete-implementation.md) before changing import/export architecture.
+- `reference/astrolabe-csharp/`: the C# worktree snapshot before the restart, including previously uncommitted work.
+- `reference/astrolabe-gltf/`: the local `gltf` branch snapshot.
+- `reference/BinarySerializer/` and `reference/BinarySerializer.OpenSpace/`: former C# dependencies, now research references.
 
-**Type promotion rule:** `raw` (`OpaqueBinaryRecord`) is a **placeholder** for unpromoted wire blobs — preservation and relocation LUT only. If code must **parse or understand** the data (hub load, mesh scan, Godot export, scene semantics), **promote the struct** to a canonical type + codec; never scrape `types/raw/` with heuristics for layouts we already document. See Engineering rules in [`plan.md`](plan.md).
+Keep reference submodules unchanged unless the user requests a reference update. Their source and nested contributor instructions apply to those archived repositories, not to the Rust implementation. The archived README documents the old .NET build and CLI.
 
-## Build Commands
+## Goals and architecture
 
-```bash
-# Build solution
-dotnet build
+The mission is **"Make a tool to repeatably port this OpenSpace game to Godot."** Read [`docs/rust-architecture.md`](docs/rust-architecture.md), [`docs/rete-design.md`](docs/rete-design.md), and [`plan.md`](plan.md) before architecture or implementation work. They define current module boundaries, asset semantics, and ordered milestones. [`docs/rete-format.md`](docs/rete-format.md), [`docs/cross-package-uris.md`](docs/cross-package-uris.md), [`notes/semantic-dual-layer-framework.md`](notes/semantic-dual-layer-framework.md), and [`notes/rete-implementation.md`](notes/rete-implementation.md) contain historical C# requirements where they differ; the archived JSON layouts, record catalogs, build commands, and completion claims are not Rust requirements or implementation status.
 
-# Run CLI
-dotnet run --project src/Astrolabe.Cli -- <command> [args]
+Astrolabe reads **Hype: The Time Quest** OpenSpace Montreal data into one useful intermediate model with distinct **Level** and **Fix** roots. The meaningful content and relationships are the model. **Rete is its serialized form**: files representing models, materials, animations, AI scripts, scene graphs, perso families, and other real content. Direct text editing is not required. **Godot is the primary target**, including a fan-remaster and separately authored Godot content depending on locally generated original-game assets. OpenSpace reconstruction supports validation and mods to the original game; developing a new OpenSpace game is outside the scope. A full Godot-to-OpenSpace editing round trip is optional future work.
 
-# Common commands
-dotnet run --project src/Astrolabe.Cli -- list ./disc
-dotnet run --project src/Astrolabe.Cli -- extract ./disc ./output                 # Convert to PNG/WAV
-dotnet run --project src/Astrolabe.Cli -- extract /mnt/hype ./disc --raw          # Copy raw game files
-dotnet run --project src/Astrolabe.Cli -- export-godot ./disc/Gamedata/World/Levels/LEVELNAME
-dotnet run --project src/Astrolabe.Cli -- tree ./disc/Gamedata/World/Levels/LEVELNAME
-dotnet run --project src/Astrolabe.Cli -- byte-tree ./disc/Gamedata/World/Levels/LEVELNAME
-```
+- The main architectural requirement is three separate modular I/O adapters: `openspace`, `rete`, and `godot`, composed by application code around one useful intermediate model. Keep target I/O and conversion rules in their owning module; adapters communicate through shared model/resolution contracts. Preserve these boundaries whether using one crate or several. Generic Serde derives on shared types are compatible with this design; Rete owns actual persistence. Godot export is required, while Godot import is optional future work.
+- Use one canonical model and one implementation per concern. OpenSpace content codecs produce and consume its useful types; inspection, Rete persistence, and Godot export use those same types. Rete persistence changes the representation on disk, not the meaning or asset model. Do not require callers to load a separate OpenSpace document model before obtaining useful content.
+- Assess asset boundaries, package/reference context, retained information, and the three adapters before implementing a new domain. Use both standalone media and a small level-style dependency graph to probe interfaces; record provisional decisions and their evidence before dependent features accumulate.
+- The unified interface loads meaningful content files from packages into memory, then converts/saves them through supported target adapters. Keep typed context and diagnostics shared while target I/O rules stay private. A narrower OpenSpace binary-codec contract must not define the whole interface around textures/audio.
+- Make binary formats **declarative by default with binrw** in the `openspace` module. Declarations document and implement how source encodings map to useful model fields in both directions. Use one typed content-codec interface for reading, writing, validation, and diagnostics so independent formats can advance together. Compose value mappings, reference resolution, and specialized algorithms through reusable helpers. Temporary headers or wire records are permitted where encoding requires them; a duplicate struct hierarchy or separate semantic conversion stage is not mandatory. Keep field meaning and source evidence connected to the declarations, and test decoded meaning plus reconstructed bytes. See [the binrw boundary and unified interface](docs/rust-architecture.md#binary-codecs-with-binrw).
+- Let asset ownership and sharing determine file boundaries. Use the filesystem and file/member references for lookup; load and cache whole assets on demand when useful. Do not prescribe an indexed binary container, a database, one file per engine struct, or a global file per struct kind.
+- Design useful asset APIs first, then persist them with Serde and implement OpenSpace codecs. Each Rete asset is one MessagePack file, including dense arrays and raw byte buffers encoded as appropriate MessagePack values. Do not create generic binary-content sidecars. Independently shared content has its own asset file; richer texture/audio values stay inside their MessagePack assets when needed. Keep OpenSpace, Rete, and Godot adapters modular around the shared model.
+- Complete useful asset slices through Godot early. A model that only reconstructs OpenSpace bytes or a script that only prints readable text is not a completed port. Check actual Godot output and behavior against source-informed expectations and Raymap, adding original-engine comparisons when feasible; engine availability is not a universal gate.
+- Treat minimal OpenSpace source identity/sharing/order metadata as first-class data attached to relevant assets/components. An imported transform may retain its original pool-scoped index. Derive encoding, alignment, placement, sizes, actual pointers, checksums, and relocations during export from current values and verified format rules. Do not cache those decisions or original offsets in Rete to force a match. Preserve unknown data explicitly while investigating its meaning.
+- Defer all long-lived converter-owned assets and durable downstream dependencies until OpenSpace import/export, Rete load/save, and Godot export work for the supported game content. Godot reverse import remains optional. Temporary development/test assets and runtime harnesses are allowed; keep their mappings provisional. Game-parity, full-working-game, and remaster projects own their durable assets and depend on Astrolabe, even when packaged together. Establish the final deterministic public arrangement with those consumers after the gate. Regeneration always preserves unrelated/authored files, and extracted game assets remain local.
+- Keep virtual addresses, memory layout, and relocation generation at the OpenSpace import/export boundaries. Loading Rete or exporting Godot must not reconstruct SNA/relocation tables.
+- Preserve unknown bytes explicitly. Opaque records are preservation placeholders; promote documented structures before reading their fields or traversing their pointers.
+- OpenSpace loads one level at a time, with shared Fix/media packages. Bind Fix-to-level references within the active session; batch conversion may select levels sequentially. Do not cache level bindings globally on shared Fix assets.
+- Store cross-package links as role URIs (`fix:/`, `level:/`, `texture:/`, `sound:/`) and mirror the game tree under one output root.
+- PNG/WAV are mainly Godot output formats, not mandatory Rete storage. Choose information-preserving useful texture/audio representations and minimal necessary metadata; retain richer structured values in MessagePack when PNG/WAV are insufficient. OpenSpace export must rebuild without source-disc access, encoded-blob replay, or cached encoding/layout decisions. See [media representation](docs/rete-design.md#media-representation).
+- Remove superseded production paths when replacing them. Backward compatibility with old CLI names, package layouts, and intermediate schemas is not a requirement.
+- Restore working LZO compression/decompression, textures (CNT/GF), and standalone audio (APM/BNM) before the main level parser. Textures/audio come first to preserve their user-reported complete C# import capability, not because they represent level-file architecture. Use C# and local fixtures as regression references, corroborate interpretation through the reference hierarchy below, and prefer suitable existing crates for standard codecs. Defer level-dependent sound bindings until scene import. Exact historical LZO byte matching is a late fidelity task, distinct from early working compression.
+- Defer the original Indeo AVI cutscenes until late in the port; plan FFmpeg conversion and actual playback validation on the pinned Godot version.
+- Keep the Rust implementation independent of Unity and the reference projects.
 
-## Architecture
+## Reference authority
 
-**Level** and **Fix** are the in-memory hubs (separate packages, linked by `fix:/` and `level:/` URIs). **Rete** is the on-disk encoding. See [`plan.md`](plan.md) for the full pipeline.
+The original OpenSpace engine and its decompilation are the source of truth, followed by Raymap. **Raymap is usually the first practical reference to consult**, before investigating the engine directly. Keep the C# implementations and historical research notes as valuable regression/research evidence, but do not trust their interpretation fully or copy it without corroboration. Resolve conflicts against the engine/decompilation for the relevant build and record the evidence. See [reference authority and research workflow](reference/README.md#reference-authority-and-research-workflow).
 
-### Core Components
+## Validation and local data
 
-- **Astrolabe.Cli** - Command-line interface with commands for extraction and export
-- **Astrolabe.Core** - Core library (no Unity dependencies)
-  - `Extraction/` - Directory-backed game sources
-  - `FileFormats/` - OpenSpace format readers
-  - `FileFormats/Animation/` - Family/character reading and animation types
-  - `FileFormats/Geometry/` - Mesh scanning
-  - `FileFormats/Godot/` - TSCN scene and ArrayMesh resource generation
-  - `FileFormats/Materials/` - Visual/game material parsing
-  - `FileFormats/AI/` - AI script parsing and S-expression conversion
-  - `Intermediate/` (→ `Rete/`) - Rete package import/export; becoming `Serialization/` + `Rete/`
+There are no current Rust build or test commands. Add them when the Rust workspace is introduced. The old .NET commands apply only inside the archived C# references.
 
-### Data Pipeline
+**Every automated test suite must finish in under 10 minutes of wall-clock time; substantially faster is preferred.** This applies to the complete suite invocation, including setup, teardown, and child tools/engine runs, and to optional integration or corpus suites as well as routine checks. Measure end-to-end duration on the documented development/CI environment and enforce an overall deadline with time reserved for cleanup and failure reporting before 600 seconds. A timeout is a failed run. Keep focused checks fast and preserve meaningful coverage; do not evade the budget by splitting one suite into sequential stages.
 
-```
-disc files → import-openspace → Rete package (JSON + bin)
-          → export-openspace → OpenSpace level dir (cmp-validated)
-          → export-godot     → Godot project
-          → extract          → PNG/WAV assets
-```
+Use `disc/` for user-provided game files and `output/` for generated assets; both are ignored. Local format validation historically used `disc/Gamedata/World/Levels/astrolabe`. Preserve local game data and generated assets during repository maintenance.
 
-CLI: `import-openspace` / `export-openspace` / `export-godot` (OpenSpace or Rete input).
+Build validation from useful asset inspection and deliberate edits, through Rete save/load, asset/record reconstruction, and individual source-file parity, toward whole-package decompressed content and generated relocation parity. Exact pre-compression package parity remains a long-term requirement. The historical LZO encoder discrepancy is a separate final byte-fidelity gate and must not block Godot progress. Do not require complete package parity before implementing a useful asset. Runtime behavior and semantic checks complement byte comparison; Godot output has its own scene and asset quality checks. Original-engine tests are opportunistic, never a universal feature/milestone prerequisite. Use Raymap as a backup and source-informed checks where runtime/viewer coverage is unavailable; report those gaps explicitly. Pixel-perfect Godot output is a useful parity target, not an expected or universal requirement.
 
-### Key Classes
+## Running the original engine and Raymap
 
-- **Level** - In-memory level hub (`Level.Load`, import/export, Godot export); Fix is a separate hub/package
-- **LevelLoader** - Loads SNA blocks + relocation tables, provides virtual memory access
-- **MemoryContext** - Pointer resolution using RTB relocation data
-- **MeshScanner** - Finds GeometricObject structures in SNA blocks by pattern matching
-- **SuperObjectReader** - Parses scene graph hierarchy from GPT
-- **GptReader** - Parses GPT header fields (scene roots, spawnable persos, families, object type tables)
-- **FamilyReader** - Discovers character Families and their mesh/animation data
-- **ByteRangeTracker** - Tracks which byte ranges the parser accounts for in SNA data
-- **TrackingSuperObjectReader** - SuperObjectReader wrapper that records byte coverage
-- **GodotExporter** - Generates Godot TSCN scene files
-- **GodotMeshExporter** - Writes Godot-native ArrayMesh `.tres` resources
+The user supplied [`reference/hype-the-time-quest-lutris.json`](reference/hype-the-time-quest-lutris.json) as the setup reference for running Hype under Lutris/Wine. It is a Lutris installer API export, not evidence of an already configured local installation. See [`reference/README.md`](reference/README.md#runtime-validation) for its structure and launch configuration.
 
-### OpenSpace File Formats
+**The game has a very slow intro.** The user supplied `reference/Savefile_EN.zip` to bypass it; use this as the first-choice runtime fixture. Preserve its `SaveGame0/` structure, verify the installed edition/language and actual save root, and load it in a test copy before recording the reached scene/state. Archive integrity is verified; engine loading is not. Use other chosen saves or targeted process-memory editing only when needed to reach a particular test state. Record the executable/build, fixture hash, save state or memory intervention, and the behavior being checked. Use interventions to reach the test state, not to repair exported asset data in memory and mask a reconstruction bug. Preserve original game data and saves; exercise generated data in a test installation/copy.
 
-| File | Purpose |
-|------|---------|
-| `.sna` | LZO-compressed level data blocks |
-| `.gpt` | Global pointer table (scene graph roots) |
-| `.ptx` | Texture pointer table |
-| `.rtb` | Relocation table (pointer fixups between SNA blocks) |
-| `.cnt` | Texture archive container |
-| `.gf` | Individual texture (RLE-encoded, inside CNT) |
+Raymap is an independent parser and visual reference. The user has found its web version useful and expects it may be able to load local OpenSpace level files; verify that workflow before relying on it for generated levels. Prefer the web viewer or local WebGL snapshot described in the reference README. **The user does not use the Unity Editor; do not make Unity installation a prerequisite.** Raymap is the practical backup when original-engine tests cannot run, within its supported features. Supplement it with engine/decompilation-informed expectations and report unverified gameplay behavior; do not block all progress on original-engine availability. No runtime harness has been implemented or validated yet.
 
-See `docs/` for detailed format specifications.
-
-### Pointer System
-
-OpenSpace uses virtual memory addresses resolved via relocation tables. The RTB file maps (module, block_id) pairs to pointer targets. `MemoryContext.GetPointerAt()` resolves these at runtime.
-
-### Fix Data
-
-Shared data (characters like Hype, common textures) lives in **`Fix.*`** files (`Fix.sna`, `Fix.rtb`, … — uppercase `Fix`) at `Gamedata/World/Levels/`. Fix import matches that prefix case-sensitively. The `fixlvl.rtb` relocation table links level data to Fix data. Rete import targets a **game-mirrored output tree** (`Gamedata/World/Levels/` for Fix, `Gamedata/World/Levels/{level}/` per level, `Gamedata/Textures/` for PNGs, …); cross-package pointers use `fix:/` and `level:/` URIs. OpenSpace export regenerates relocation tables; they are not stored in Rete packages.
-
-## Dependencies
-
-- **lib/BinarySerializer.OpenSpace** - Submodule for OpenSpace type definitions
-- **reference/raymap** - Reference Unity implementation (read-only, for documentation)
-- **reference/OpenSpaceToolbox** - OpenSpace reverse-engineering toolbox (read-only, for reference)
-
-## Testing Exports
-
-```bash
-# Export full Godot scene and native mesh resources
-dotnet run --project src/Astrolabe.Cli -- export-godot ./disc/Gamedata/World/Levels/castle_village output/castle_village
-godot --editor --path output/castle_village
-```
-
-- Mount or pre-extract the original game disc before running Astrolabe
-- Raw game files (for level loading) go in ./disc
-- Converted assets (PNG/WAV) go in ./output
+See [`reference/README.md`](reference/README.md) for reference provenance and the local snapshot availability notes.

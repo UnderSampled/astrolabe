@@ -2,3 +2,6 @@
 /hype_patch/
 /decompilation/
 /raymap-webgl/
+
+# User-provided game save; retain locally as a runtime fixture.
+/Savefile_EN.zip

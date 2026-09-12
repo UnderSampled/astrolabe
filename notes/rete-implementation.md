@@ -1,5 +1,7 @@
 # Rete Implementation Guide
 
+> **Historical C# implementation:** This guide describes the implementation archived in [`reference/astrolabe-csharp/`](../reference/astrolabe-csharp/). Its code paths, APIs, commands, and completion claims do not describe the new Rust working tree. See [`README.md`](../README.md) and [`AGENTS.md`](../AGENTS.md) for current project status and guidance.
+
 Cold-start entrypoint for the Rete refactor. Read in order:
 
 1. [`plan.md`](../plan.md) — architecture and implementation steps

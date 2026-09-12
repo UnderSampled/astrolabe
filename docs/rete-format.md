@@ -1,5 +1,7 @@
 # Rete Format
 
+> **Historical C# format:** The Rust rewrite follows [rete-design.md](rete-design.md), [rust-architecture.md](rust-architecture.md), and [../plan.md](../plan.md), updated 2026-09-12. The JSON schemas, one-struct/one-codec model, global domain pools, and stream reconstruction layout below document the archived implementation; they are not requirements for Rust Rete.
+
 Rete is Astrolabe's canonical, editable representation of an OpenSpace level. A **Rete package** is a directory of JSON documents and binary payloads that describes level structure, relationships, and data with enough fidelity to drive multiple exporters.
 
 ## Name

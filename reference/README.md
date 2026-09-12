@@ -1,8 +1,12 @@
 # References
 
-This directory contains reference material used while building Astrolabe. A clean checkout only includes this README, `reference/.gitignore`, and the tracked Git submodule entries. Large downloads, proprietary/game-derived files, and generated decompilation output are intentionally ignored.
+This directory contains reference material used while building Astrolabe. Repository references include this README, `reference/.gitignore`, the supplied Lutris installer JSON, and the Git submodule entries. Large downloads, proprietary/game-derived files, and generated decompilation output are intentionally ignored.
 
-After cloning, initialize the tracked references with:
+The Astrolabe snapshots and edited serializer commits were created locally and have not been pushed. They are available in this checkout, including each archived implementation's exact `lib/` dependencies. A fresh clone from the hosted repositories cannot fetch unpublished commits until they are published to repositories that contain them and the relevant submodule URLs are updated as needed. No push was performed as part of this archive operation.
+
+The submodule gitlinks pin the exact snapshots. The `gltf` branch setting records its provenance; ordinary `git submodule update` uses the pinned commit. Avoid `--remote` when restoring these historical snapshots.
+
+After the pinned commits are available from their configured remotes, initialize the tracked references with:
 
 ```bash
 git submodule update --init --recursive
@@ -14,12 +18,69 @@ These paths are expected to exist once submodules are initialized.
 
 | Path | Source | Use |
 | --- | --- | --- |
+| `astrolabe-csharp/` | This repository, `b1fba2ec614ffa79983fa0f54755b35f3de6269b` | Complete C# source snapshot before the Rust restart, including previously uncommitted source and notes. Exact edited dependencies are initialized under its `lib/`. |
+| `astrolabe-gltf/` | This repository's local `gltf`, `aa688f478ea967df15cc72b5ed8191f0cea494ef` | Historical glTF implementation. This preserves the local branch tip, which differs from `origin/gltf`. |
+| `BinarySerializer/` | <https://github.com/BinarySerializer/BinarySerializer>, local snapshot `bdec9d1f79c50803b672e9e8192427e76b2a9254` | Former C# dependency, moved from `lib/` and preserved with its local edits. Research only. |
+| `BinarySerializer.OpenSpace/` | <https://github.com/BinarySerializer/BinarySerializer.OpenSpace>, local snapshot `ab4b9cc869e1ebe94e2a456e1dac6749ca2d24f3` | Former C# dependency, moved from `lib/` and preserved with its local edits. Research only. |
 | `raymap/` | <https://github.com/byvar/raymap> | Unity map viewer/editor for OpenSpace games, including Hype: The Time Quest. Useful for comparing parser behavior, game/version constants, and data model assumptions. |
 | `OpenSpaceToolbox/` | <https://github.com/raytools/OpenSpaceToolbox> | Toolbox for OpenSpace PC games. Useful for level/runtime behavior, supported game conventions, and reverse-engineering cross-checks. |
 | `Rayman2Lib/` | <https://github.com/szymski/Rayman2Lib> | Rayman 2 reverse-engineering library and tools. Useful as an older independent reference for OpenSpace/Rayman 2 data structures. |
 | `ray2get/` | <https://github.com/Synthesis/ray2get> | Rayman 2 APM audio conversion notes and tooling. Useful for audio format behavior shared with the OpenSpace family. |
 | `OpenRayman/` | <https://github.com/imaginaryPineapple/OpenRayman> | Open source Rayman 2 engine reimplementation. Useful for runtime behavior and file-format decoding patterns. |
 | `vgmstream/` | <https://github.com/vgmstream/vgmstream> | Video game audio decoder library. Useful as a broad audio codec/container reference. |
+
+Generated C# `bin/`, `obj/`, test results (including hang dumps), and Python caches from the pre-rewrite working tree were moved to matching paths inside `astrolabe-csharp/`. They remain local and ignored; the commits preserve source, not generated artifacts. Nested community references inside the two Astrolabe snapshots remain uninitialized; their shared top-level copies are available alongside these archives.
+
+## Reference authority and research workflow
+
+Use this order of authority when interpreting Hype data and behavior:
+
+1. The original OpenSpace engine and its decompilation are the source of truth. Match evidence to the relevant executable/build; investigate decompiler ambiguities against the executable when needed.
+2. Raymap is the next authority and **usually the first reference to consult in practice**, before investigating the engine directly. Its parser, domain types, and web viewer are useful starting points; resolve disagreements against the original engine/decompilation.
+3. The archived C# implementations and historical research notes remain valuable evidence and regression baselines. Preserve and consult them, but corroborate their interpretation rather than treating old code, layout notes, or completion claims as definitive.
+
+Record source/build, code location or observed fixture, uncertainty, and any conflicting interpretation alongside format declarations and tests. A C# import comparison protects working behavior; it does not independently prove that every source field was understood or retained. Other community references can help resolve individual formats without changing this hierarchy.
+
+Authority does not imply a required runtime harness: original-engine tests are opportunistic and already carry setup/coverage risk. Use Raymap as the practical backup within its capabilities, then source-informed structural/behavioral expectations and fixture checks. Keep unperformed runtime comparisons explicit. Godot pixel equality is a useful parity measurement, not an expected or universally required result.
+
+## Runtime validation
+
+The user supplied [`hype-the-time-quest-lutris.json`](hype-the-time-quest-lutris.json) for setting up **Hype: The Time Quest** under Lutris/Wine. The file is a Lutris API response: `results[0].script` contains the installer object and `results[0].content` contains its YAML form. Treat it as an installer reference, not as a shell script or a confirmed local installation. Inspect the actual installed prefix and runner before constructing launch commands.
+
+The supplied configuration describes:
+
+- A 32-bit Wine prefix at Lutris's `$GAMEDIR`.
+- Game executable `drive_c/Games/Hype/MaiDFXvr_bleu.exe`, with working directory `$GAMEDIR/drive_c/Games/Hype`.
+- User-provided disc data, the Zeus Hype patch, and nGlide; the installer also installs `mfc42` and `icodecs`, selects language data, configures nGlide's Vulkan backend, and disables DXVK.
+- Creation of `$GAMEDIR/drive_c/Games/Hype/GameData/SaveGame`. This installer step does not establish the active save search path or where the supplied `SaveGame0/` belongs; verify those in the test installation.
+
+**The intro is very slow. Use the supplied English save first.** The user added [`Savefile_EN.zip`](Savefile_EN.zip) as a local post-intro fixture. Archive inspection on 2026-09-12 found 16,912 bytes and a valid ZIP CRC check, with these members:
+
+```text
+SaveGame0/
+  General.sav       (8 bytes)
+  General000.sav    (46 bytes)
+  Level000.sav      (13,420 bytes)
+  manoir.sav        (2,847 bytes)
+```
+
+SHA-256: `877576b5867b5ad44b41dc4b72f6b70bc89dbe5e202c86817f2858948a1d634c`.
+
+For the first runtime setup, preserve the archive and existing saves, confirm the installed English edition and actual save root, then install a copy retaining `SaveGame0/` and load it in the test installation. Record the executable/build, archive hash, selected save, and observed scene/state. Do not infer the reached level from the filenames. The archive has not been installed or loaded as part of this planning update; integrity checking is not a successful engine test. Keep the game-derived fixture local.
+
+Use another carefully chosen save or a targeted process-memory harness only when a test needs an additional state; playing the intro is not a prerequisite. Record interventions and expected behavior so another agent can reproduce the test. Memory interventions should navigate to the test, not repair exported content and hide defects. Test generated assets in a separate installation/copy. No launcher, memory-editing harness, or successful engine test has been established in the Rust restart yet.
+
+**Raymap** provides another parser and visual reference. Its [web version](https://raym.app/) has been useful to the user, who expects local OpenSpace level loading may also be possible. Verify support for loading the particular generated files before relying on it as an export test. The ignored `raymap-webgl/` snapshot described below is a possible local workflow. The user does not use the Unity Editor: use the web viewer or existing source references without making a Unity installation necessary. Raymap is the practical backup when original-engine tests cannot run. Use engine/decompilation-informed expectations for gameplay beyond viewer coverage and report the remaining verification gaps; do not make an engine run a prerequisite for every feature.
+
+## Early format regression references
+
+The user reports working LZO support and complete working texture/audio import in C#. Preserve those capabilities first in Rust; this priority protects existing functionality, not a choice to design all interfaces around media outside the level package. Use archived source and local fixtures as regression references, corroborating meaning through the hierarchy above:
+
+- LZO and checksums: [`OpenSpaceLzo.cs`](astrolabe-csharp/src/Astrolabe.Core/Rete/OpenSpace/OpenSpaceLzo.cs), [`OpenSpaceChecksum.cs`](astrolabe-csharp/src/Astrolabe.Core/Rete/OpenSpace/OpenSpaceChecksum.cs), and the archived LZO 1.08 compressor integration. Working compression/decompression is an early milestone; the remaining difference from original compressed bytes is late research.
+- Textures: [`CntReader.cs`](astrolabe-csharp/src/Astrolabe.Core/FileFormats/CntReader.cs) and [`GfReader.cs`](astrolabe-csharp/src/Astrolabe.Core/FileFormats/GfReader.cs). Compare decoded pixels, palette/alpha behavior, member order, and reconstruction.
+- Audio: [`FileFormats/Audio/`](astrolabe-csharp/src/Astrolabe.Core/FileFormats/Audio/) contains BNM/APM readers, PCM/APM/Ubi-MPEG decoders, and WAV writing. Cross-check sample/channel/timing behavior with these and `vgmstream/`. The Ubisoft MPEG adaptation is needed in addition to any standard decoder.
+
+The user identifies the game AVIs as Indeo-encoded. `disc/Gamedata/Videos/` contains `LOGO.AVI`, `HypeIntro.avi`, and `HypeConclusion.avi`; probing, FFmpeg conversion, and Godot playback checks are deferred to the late video milestone in [the plan](../plan.md).
 
 ## Ignored Local References
 

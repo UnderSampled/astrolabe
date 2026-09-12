@@ -1,5 +1,7 @@
 # Cross-Package Reference URIs
 
+> **Historical C# URI specification:** Current Rust references follow useful asset files and stable members as described in [rete-design.md](rete-design.md) and [rust-architecture.md](rust-architecture.md). The package roles remain useful; address-named slots, byte-offset fragments, JSON layouts, legacy fallbacks, and preserved-layout instructions below are historical, not requirements for the rewrite.
+
 Astrolabe Rete packages are **shared Fix** plus **per-level** packages. Cross-package pointers must serialize as reference URIs that:
 
 - Are **not empty**

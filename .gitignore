@@ -39,3 +39,6 @@ tools/lzo1x/lzo1x
 TestResults/
 __pycache__/
 *.py[cod]
+
+# Rust build artifacts
+/target/
