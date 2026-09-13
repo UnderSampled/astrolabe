@@ -1,9 +1,11 @@
-# Stopping point and remaining work
+# Remaining work after the visual pass
 
-This pass is closed at the user's request on 2026-09-12. Milestones 6 and 7
-have useful, tested coverage and remain partially complete. The current
-visual result is accepted for this pass; further fidelity work is follow-up,
-not a reason to keep this pass running.
+The visual pass closed at the user's request on 2026-09-12. Milestones 6 and 7
+have useful, tested coverage and remain partially complete. The 2026-09-13
+plan review makes native Godot project conversion the next priority: the
+accepted runtime image does not establish that the saved level contains its
+clutter/persos or that exported animations use Godot's animation pipeline.
+This document updates the handoff; no exporter change is claimed by that review.
 
 The reported helmet-eye, ladder-wall and star-ceiling transparency defects are
 fixed. The opening scene is compared with the original Hype MCP screenshot at
@@ -16,7 +18,39 @@ coverage counts are in [implementation progress](implementation-progress.md).
 
 ## Suggested next pass
 
-1. **Finish the supported scene/character reconstruction path.** Complete
+Develop the [committed/rehydrated project structure](godot-project.md) with the
+first native scene/character slice below. Establish one maintained support
+package for any required shader/component, explicit authored/generated ownership,
+and a source-free bootstrap with synthetic examples. Needed support assets may
+be production code now. Review the scene/resource extension workflow and update
+location-based ignore rules when introducing the committed project; broad
+OpenSpace reconstruction need not precede this work.
+
+1. **Make the saved Godot level complete for the supported slice.** Keep the
+   meaningful OpenSpace tree as the level's root scene, with reusable prop/perso
+   subscenes and shared geometry/resources. Convert initial configuration and
+   pose into persisted part nodes, transforms, and visibility. Opening the level
+   in the editor must show supported clutter and persos without `_ready()` or
+   preview construction; explain any unsupported or initially hidden content.
+   Verify node ownership, source identity, hierarchy, and independent instance
+   placement. Make the level root the normal level-port result and retain the
+   model selection as an explicit development mode. The camera/inspection
+   wrapper should instance that root without supplying its contents.
+2. **Replace interpreted Godot assets with native resources.** Convert the
+   currently exported animation JSON into Animation/AnimationLibrary resources
+   and AnimationPlayer nodes. Resolve transform pools, channel parenting, and
+   object tables during conversion; assess derived transform tracks and
+   pre-instanced part alternatives with discrete property/visibility tracks.
+   Preserve timing, state speed, loops and cues. Test editor scrubbing, backward
+   seeking, initial/reset poses, and actual playback through the same resources.
+   Audit family/configuration, bounds, mechanics, and sound JSON consumers too;
+   use native nodes/resources and converted behavior, with typed custom
+   Resources only for useful target semantics lacking a built-in representation.
+   Wrapping interpreted source-shaped tables in `.tres` is insufficient. Remove
+   superseded production players as replacements land; retain useful semantic
+   fixtures and optional diagnostic/report JSON. See the
+   [native Godot contract](rust-architecture.md#godot-adapter-native-project-conversion).
+3. **Finish the supported scene/character reconstruction path.** Complete
    useful Perso, Perso3dData and StandardGame fields against this Hype build
    (76, 444 and 56 bytes respectively). Preserve unpromoted fields explicitly;
    derive runtime caches rather than replaying pointers. Compose the existing
@@ -24,16 +58,17 @@ coverage counts are in [implementation progress](implementation-progress.md).
    explicit layouts. The SO writer already checks all 150 records and all 108
    embedded character-matrix aliases, but the CLI still emits leaf fragments
    instead of an assembled scene.
-2. **Close remaining animation semantics.** Investigate related/morph data
+4. **Close remaining animation semantics.** Investigate related/morph data
    and the actual Hype interpolation path. Raymap's Montreal sampled player
    alone is not evidence that generic interpolation is correct. Extend
-   source reconstruction and Godot playback together, then compare bounded
-   idle, movement and action sequences with MCP observations. Runtime channel
-   visibility overrides remain a provisional comparison aid; automatic
-   gameplay-driven visibility, lip sync and root motion are incomplete.
-3. **Finish scene audio coverage.** Resolve remaining ambient emitters,
+   source reconstruction and native Godot animation export together, then
+   compare bounded idle, movement and action sequences with MCP observations.
+   Runtime channel visibility overrides remain a provisional comparison aid;
+   automatic gameplay-driven visibility, lip sync and root motion are incomplete.
+5. **Finish scene audio coverage.** Resolve remaining ambient emitters,
    propagation/routing and source context beyond the tested animation sound
-   programs. Add loop/stop and actual-mixer checks for representative cases.
+   programs. Use native audio resources and scene players with converted event
+   behavior; add loop/stop and actual-mixer checks for representative cases.
    Keep AI/dialogue-triggered behavior completion with milestone 8. SDA was
    verified as static globals, not an ambient-sound table.
 
@@ -61,11 +96,37 @@ coverage counts are in [implementation progress](implementation-progress.md).
   and pre-compression parity with milestone 12; exact historical LZO encoding
   remains a separate late gate.
 - Finish unsupported audio writing/mixing, localization/sidecars, AI and
-  interactions in their ordered milestones. Convert and play the Indeo AVI
+  interactions in their ordered milestones. Milestone 8 compiles the typed AI
+  AST into GDScript and adds the needed Godot engine-side functions to the
+  maintained support package; an AST interpreter is excluded. Convert and play the Indeo AVI
   cutscenes late in the port.
-- Establish durable downstream game/remaster asset contracts after the agreed
-  adapter-coverage gate. Current Rete schema 9 and Godot runtime/paths remain
-  provisional; regenerate older local Rete packages from source.
+- Broaden support/consumer contracts as slices become usable. Test authored
+  variations, support updates and regeneration in both project states; full-game
+  coverage remains a later claim, not a gate for needed assets or supported
+  consumers. Current Rete schema 9 and Godot paths remain provisional; regenerate
+  older local Rete packages from source and document target-interface changes.
+
+## Suggested initial goal
+
+For a bounded first implementation goal in a new conversation:
+
+> Implement the native Godot scene/character migration for the currently
+> supported Astrolabe fixture, following AGENTS.md, plan.md and
+> docs/godot-project.md. Establish the committed/rehydrated project structure
+> and maintain any needed support assets. Persist supported clutter, persos,
+> parts and initial poses in the level scene; replace the corresponding
+> interpreted asset paths with native resources and animations that can be
+> inspected, scrubbed and played in Godot. Validate direct and reopened-Rete
+> conversion, preserve existing reconstruction coverage, and demonstrate an
+> authored Godot variation surviving regeneration. Use the available source-game
+> comparison harness where relevant, keep the complete suite under ten minutes,
+> and record any remaining semantic gaps. AI conversion remains the later
+> milestone; do not introduce an interpreter as an interim target.
+
+The project layout is a proposed baseline to test against that slice, not an
+already implemented scaffold. Current coverage and baseline evidence are in
+[implementation progress](implementation-progress.md). This suggested boundary
+can be widened when setting the goal; it does not replace the full port plan.
 
 ## Resume without repeating setup
 

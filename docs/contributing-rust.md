@@ -38,6 +38,22 @@ Follow a model conversion in this order:
 
 Keep related record declarations together. A new file should own a recognizable responsibility, rather than one struct or one forwarding function. Public `mod.rs` files expose the useful entry points; internal helpers stay private to their adapter.
 
+## Godot support and project work
+
+The native exporter can introduce maintained Godot shaders, components and
+engine-side functions as supported slices require them. Read
+[Godot project structure and ownership](godot-project.md) before adding those
+assets. Its proposed `godot/` project separates reusable support, authored game
+work and local generated content, and must be usable in committed/dehydrated and
+rehydrated forms. This is the intended migration; the module map above still
+describes the current implementation.
+
+Keep static support source in ordinary Godot files with one authoritative copy.
+Rust owns conversion rules and generated parameter/code values. Converter-only
+build scripts and synthetic inspection harnesses remain distinct from support
+used by exported projects. Test the same support package through direct export
+and reopened Rete, and verify an authored extension survives regeneration.
+
 ## Add another source format
 
 If an encoding represents an existing domain, reuse that domain type. Add its codec beside the related formats, with a `FormatCodec` implementation in the same module. [`texture/gf.rs`](../src/openspace/texture/gf.rs) is a compact example. Register its support description in `codec::catalogue` and connect source selection in `openspace/content.rs` when needed. Rete and Godot should need no changes for another encoding of an existing useful type.
