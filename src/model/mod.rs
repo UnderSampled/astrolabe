@@ -10,6 +10,7 @@ pub mod scene;
 pub mod sprite;
 pub mod texture;
 
+pub mod ai;
 pub mod animation;
 pub mod character;
 

@@ -122,6 +122,27 @@ impl Project {
             names.insert(node.id.clone(), name);
         }
         self.native_environment(&scene_id)?;
+        if let Some(actor) = &scene.main_actor {
+            let actor_node = scene
+                .nodes
+                .iter()
+                .find(|n| n.perso.as_ref() == Some(actor))
+                .unwrap();
+            let main = format!("{}_character", names[&actor_node.id]);
+            for node in &scene.nodes {
+                let Some(reference) = &node.perso else {
+                    continue;
+                };
+                if source.load(reference)?.brain.is_none() {
+                    continue;
+                }
+                let character = format!("{}_character", names[&node.id]);
+                writeln!(
+                    self.builder,
+                    "    {scene_id}.set_editable_instance({character}, true)\n    {character}.get_node(\"Brain\").main_actor_path = {character}.get_node(\"Brain\").get_path_to({main})"
+                )?;
+            }
+        }
         writeln!(
             self.builder,
             "    var {scene_id}_packed = PackedScene.new()\n    if {scene_id}_packed.pack({scene_id}) != OK or ResourceSaver.save({scene_id}_packed, {}) != OK:\n        push_error(\"cannot save scene\")\n        quit(1)\n        return\n    {scene_id}.free()",

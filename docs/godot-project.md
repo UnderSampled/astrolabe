@@ -63,6 +63,7 @@ godot/
       level.tscn
       persos/
       characters/          # family/configuration-specialized native libraries
+      ai/models/           # generated GDScript for supported behavior assets
     shared/                # Fix-owned families, reusable scenes and resources
     textures/
     sounds/

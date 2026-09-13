@@ -1,4 +1,5 @@
 //! OpenSpace source interpretation and reconstruction; binrw codecs belong here.
+pub mod ai;
 pub mod audio;
 pub mod compression;
 pub mod content;

@@ -49,9 +49,9 @@ impl SoundSites {
                 let key = *rts
                     .get(&entry.site)
                     .context("SND site lacks RTS relocation")?;
-                // Only promoted animation descriptors are consumed here. AI and localized
-                // dialogue sites are not traversed until their owning domains are implemented.
-                if key.0 != 5 {
+                // Promoted animation descriptors and AI node operands consume these
+                // bindings; unrelated domains are not traversed here.
+                if !matches!(key.0, 5 | 17) {
                     continue;
                 }
                 let site = session.resolve(owner, key, entry.site)?;

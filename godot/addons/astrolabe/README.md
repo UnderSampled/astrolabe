@@ -1,4 +1,4 @@
-# Astrolabe support, interface 1
+# Astrolabe support, interface 2
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -48,3 +48,20 @@ random pitch and event-targeted stopping. Compiled event Resources provide
 trace for testing/game integrations. A stopped nonabortable voice continues at
 its captured position until it finishes or its owning scene is destroyed.
 No source-shaped sound program or opcode interpreter is loaded at runtime.
+
+`behavior/behavior.gd` provides timing and bindings for generated GDScript normal
+schedules. Each saved `Brain` node has typed `dsg_N` instance properties;
+`main_actor_path` is a level-owned NodePath and `sound_emitter_path` resolves the
+perso's native emitter. A standalone perso must bind `main_actor` before calling
+`start()`. `automatic` uses native physics ticks; disable it and call
+`advance(seconds)` for deterministic stepping. `stop()` cancels suspended work,
+and `start()` resets the clock while preserving designer values. A wait captures
+an integer millisecond duration; completion restarts the schedule on the next
+tick. Generated code calls these functions directly. `sound_requested(identity)`
+reports the executed native event. No source script data is loaded at runtime.
+
+Interface 2 adds this behavior component. Only the Astrolabe torch normal
+schedule and documented scalar variations are validated. Rule/reflex scheduling,
+behavior transitions, physics/input, player control and original frame cadence
+remain unsupported; the compiler rejects unvalidated rule/reflex schedules.
+See `docs/ai-gdscript-slice.md` in the Astrolabe repository for evidence and limits.

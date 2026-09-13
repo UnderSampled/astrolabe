@@ -1,4 +1,5 @@
 //! Content kinds and in-memory session loading shared by all adapters.
+use super::ai::AiModel;
 use super::environment::{Environment, Fog, VisualEnvironment};
 use super::mechanics::Mechanics;
 use super::{
@@ -70,6 +71,7 @@ pub trait ContentSource:
     + Load<Family>
     + Load<ObjectList>
     + Load<Perso>
+    + Load<AiModel>
     + Load<Collision>
     + Load<Environment>
     + Load<VisualEnvironment>
@@ -95,6 +97,7 @@ impl<T> ContentSource for T where
         + Load<Family>
         + Load<ObjectList>
         + Load<Perso>
+        + Load<AiModel>
         + Load<Collision>
         + Load<Environment>
         + Load<VisualEnvironment>
@@ -108,6 +111,7 @@ impl<T> ContentSource for T where
 /// Loaded built-in content. Exhaustive adapter matches make new domains visible
 /// at each target boundary. Custom Content types still use Load/Save directly.
 pub enum Asset {
+    AiModel(Arc<AiModel>),
     Environment(Arc<Environment>),
     VisualEnvironment(Arc<VisualEnvironment>),
     Fog(Arc<Fog>),
@@ -140,6 +144,7 @@ impl Asset {
             Ok(value)
         }
         Ok(match root.kind.as_str() {
+            AiModel::KIND => Self::AiModel(load(source, &root.reference)?),
             Environment::KIND => Self::Environment(load(source, &root.reference)?),
             VisualEnvironment::KIND => Self::VisualEnvironment(load(source, &root.reference)?),
             Fog::KIND => Self::Fog(load(source, &root.reference)?),

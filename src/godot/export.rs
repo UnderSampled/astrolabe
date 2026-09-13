@@ -31,6 +31,9 @@ pub fn export<R: ContentSource>(
                 )
             }
             Asset::Sprite(_) => anyhow::bail!("sprite export requires its owning model"),
+            Asset::AiModel(model) => {
+                super::ai::export_program(&mut project, source, &model, &mut written)?;
+            }
             Asset::AnimationAction(_)
             | Asset::Animation(_)
             | Asset::TransformPool(_)

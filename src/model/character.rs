@@ -79,6 +79,7 @@ pub struct Perso {
     pub configuration: Option<AssetRef<ObjectList>>,
     pub initial_configuration: Option<AssetRef<ObjectList>>,
     pub object_types: [u32; 3],
+    pub brain: Option<super::ai::Brain>,
 }
 impl Content for Family {
     const KIND: &'static str = "family";

@@ -15,6 +15,7 @@ use anyhow::{Context, Result};
 use std::{collections::BTreeMap, path::Path};
 
 pub struct SceneImport {
+    pub ai_models: Vec<crate::model::ai::AiModel>,
     pub environments: Vec<crate::model::environment::Environment>,
     pub visual_environments: Vec<crate::model::environment::VisualEnvironment>,
     pub fogs: Vec<crate::model::environment::Fog>,
@@ -42,6 +43,7 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
     let tree = session.tree()?;
     let source = summary(&session, selection, &tree)?;
     let mut result = SceneImport {
+        ai_models: Vec::new(),
         environments: Vec::new(),
         visual_environments: Vec::new(),
         fogs: Vec::new(),
@@ -58,6 +60,7 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
         scene: Scene {
             path: AssetPath::new("level:/scene")?,
             name: selection.level.clone(),
+            main_actor: None,
             nodes: Vec::new(),
         },
         collisions: Vec::new(),
@@ -241,6 +244,7 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
         result.scene.nodes[i].perso = Some(reference);
     }
     super::lighting::import(&session, &tree, &mut result)?;
+    super::ai::import(&session, game, selection, &mut result)?;
     result.scene.validate()?;
     Ok(result)
 }

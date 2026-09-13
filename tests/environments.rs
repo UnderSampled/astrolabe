@@ -36,6 +36,7 @@ fn fixture() -> Result<(Environment, VisualEnvironment, Fog, Scene)> {
         unresolved_sound: false,
     };
     let mut scene = Scene {
+        main_actor: None,
         path: AssetPath::new("level:/scene")?,
         name: "Fog".into(),
         nodes: Vec::new(),

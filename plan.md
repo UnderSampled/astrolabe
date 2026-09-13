@@ -10,8 +10,10 @@ The supported native Godot scene/character migration is complete: saved parts
 and initial poses, native animation libraries, compiled sound behavior, committed
 support/project ownership and authored regeneration pass the complete local suite.
 See [migration evidence](docs/native-godot-migration.md). Milestones 6–7 still
-have explicit semantic/reconstruction gaps. The next behavior slice targets
-phase 8's typed AI-to-GDScript path, alongside the remaining source work.
+have explicit semantic/reconstruction gaps. Phase 8 now has a first
+[typed AI-to-GDScript slice](docs/ai-gdscript-slice.md): the two real torch sound
+controllers, with a source-game comparison and a tested Rete parameter edit.
+Broader gameplay and AI reconstruction remain open.
 
 Godot is the primary deliverable. Work toward useful, repeatable conversion of Hype content and behavior, suitable for a modern fan-remaster and separately authored Godot extensions. OpenSpace reconstruction provides byte-level evidence and supports modifications of the original game. A full Godot-to-OpenSpace edit round trip is optional and deferred.
 

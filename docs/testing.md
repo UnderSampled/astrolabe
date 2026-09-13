@@ -1,13 +1,17 @@
 # Testing Astrolabe
 
-Latest checkpoint: the native Godot migration passed **83 tests in 364.727 seconds**,
-including compilation (warm build), all local corpus/Godot checks, actual editor
-scrubbing, authored regeneration, support update/cache rebuild and cleanup.
-Report: `TestResults/20260913T081826.069430Z-4061873.log.json`. Child CPU time
-was 361.435 seconds, peak RSS 1,238,060 KiB, and no children leaked. The scene
-route's three conversions and native/editor checks took 238.10 seconds.
-See [migration evidence](native-godot-migration.md) for the supported semantics,
-original-game comparison, earlier failed attempts and remaining limits.
+Latest checkpoint: native Godot migration plus the first AI-to-GDScript slice
+passed **86 tests in 467.576 seconds**, including 97 seconds of release
+compilation, all local corpus/Godot checks, actual editor scrubbing, authored
+regeneration, support update/cache rebuild, compiled AI behavior and cleanup.
+Report: `TestResults/20260913T092504.324983Z-4253.log.json`. Child CPU time
+was 1,636.253 seconds, peak RSS 1,710,720 KiB, and no children leaked. The scene
+route's three conversions and native/editor checks took 231.71 seconds.
+See [migration evidence](native-godot-migration.md) and [AI evidence](ai-gdscript-slice.md)
+for supported semantics, original-game comparisons and remaining limits.
+
+The earlier native-only checkpoint passed 83 tests in 364.727 seconds, recorded
+in `TestResults/20260913T081826.069430Z-4061873.log.json`.
 
 Run the suite through one supervisor from any working directory:
 

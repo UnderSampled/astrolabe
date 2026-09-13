@@ -4,11 +4,7 @@ use super::{
     apm::read_apm,
     bnm::{read_bnm, resource_id_at},
 };
-use crate::model::{
-    AssetPath, AssetRef, Selection,
-    animation::{AnimationAction, AnimationOperation},
-    audio::*,
-};
+use crate::model::{AssetPath, AssetRef, Selection, audio::*};
 use crate::openspace::codec::FormatCodec;
 use anyhow::{Context, Result, ensure};
 use std::{
@@ -136,11 +132,11 @@ impl SourceFiles {
     }
 }
 impl SoundGraph {
-    pub(crate) fn import(
+    pub(crate) fn import<'a>(
         game: &Path,
         selection: &Selection,
         libraries: &[(AssetPath, SoundDefinitions)],
-        actions: &[AnimationAction],
+        events: impl IntoIterator<Item = &'a SoundEventLink>,
     ) -> Result<Self> {
         ensure!(
             selection.locale == "en",
@@ -161,10 +157,8 @@ impl SoundGraph {
             graph.files.normalize(&mut library)?;
             graph.definitions.insert(path.clone(), library);
         }
-        for action in actions {
-            if let AnimationOperation::Sound { event: Some(event) } = &action.operation {
-                graph.event(event)?;
-            }
+        for event in events {
+            graph.event(event)?;
         }
         graph.bank_sources.clear();
         for value in graph.definitions.values() {

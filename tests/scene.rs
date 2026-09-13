@@ -41,6 +41,7 @@ fn fixture() -> Result<(Scene, Collision, Material)> {
         }),
     };
     let mut scene = Scene {
+        main_actor: None,
         path: AssetPath::new("level:/scene")?,
         name: "SyntheticScene".into(),
         nodes: vec![SceneNode {
@@ -213,7 +214,7 @@ fn source_scene_rete_routes_preserve_hierarchy_collision_and_model_sharing() -> 
         project.join("native_scene_check.gd"),
         include_bytes!("native_scene_check.gd"),
     )?;
-    let check_native = |state: &str| -> Result<()> {
+    let check_native = |state: &str, radius: &str| -> Result<()> {
         let evidence = godot::run_godot(
             &engine,
             &project,
@@ -223,6 +224,7 @@ fn source_scene_rete_routes_preserve_hierarchy_collision_and_model_sharing() -> 
                 "res://native_scene_check.gd",
                 "--",
                 state,
+                radius,
             ],
             Duration::from_secs(60),
         )?;
@@ -230,7 +232,7 @@ fn source_scene_rete_routes_preserve_hierarchy_collision_and_model_sharing() -> 
         println!("{evidence}");
         Ok(())
     };
-    check_native("47")?;
+    check_native("47", "9")?;
     let source = openspace::export(&mut store, &package.roots, &temp.path().join("source"))?;
     assert!(
         source
@@ -261,6 +263,22 @@ fn source_scene_rete_routes_preserve_hierarchy_collision_and_model_sharing() -> 
     let mut hero = (*store.load(&hero_ref)?).clone();
     hero.current_state = Some(32);
     store.save(&hero_ref, &hero)?;
+    let ai_ref = AssetRef::<astrolabe::model::ai::AiModel>::new("level:/ai/models/824")?;
+    let mut ai = (*store.load(&ai_ref)?).clone();
+    use astrolabe::model::ai::{Expression, Statement};
+    let script = ai.normal.as_mut().unwrap().behaviors[0]
+        .schedule
+        .as_mut()
+        .unwrap();
+    let Statement::If {
+        condition: Expression::Compare { right, .. },
+        ..
+    } = &mut script.statements[1]
+    else {
+        panic!("source torch branch")
+    };
+    **right = Expression::Real(3.0);
+    store.save(&ai_ref, &ai)?;
     let authored = project.join("game/characters/luminous_hype.tscn");
     let authored_bytes = fs::read(&authored)?;
     let settings = fs::read_to_string(project.join("project.godot"))?
@@ -304,7 +322,7 @@ fn source_scene_rete_routes_preserve_hierarchy_collision_and_model_sharing() -> 
         &["--headless", "--import"],
         Duration::from_secs(60),
     )?;
-    check_native("32")?;
+    check_native("32", "3")?;
     // Exercise the actual animation editor on these same saved native resources.
     let plugin = project.join("addons/native_editor_probe");
     fs::create_dir_all(&plugin)?;

@@ -65,6 +65,7 @@ pub struct Manifest {
 mod export;
 pub use export::export;
 
+pub mod ai;
 mod animation;
 mod character;
 mod sprite;

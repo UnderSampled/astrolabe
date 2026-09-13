@@ -11,7 +11,9 @@ reconstruction. The supported local fixture remains English PC Hype/Astrolabe.
 `update-godot-support` preflights a separate installed-file receipt and refuses
 edited support. The source checkout uses Git to update support. Regeneration
 validates the installed interface and actual support code without replacing it.
-Support interface 1 targets Godot 4.7.2; script `.uid` files stay with their owners.
+This checkpoint established support interface 1 for Godot 4.7.2; script `.uid`
+files stay with their owners. The subsequent [AI slice](ai-gdscript-slice.md)
+advances support to interface 2 and Rete to schema 10.
 
 Generated manifest schema 2 tracks selected-level dependency closures. Shared
 assets can have multiple owners. Regenerating A preserves B and its dependencies;

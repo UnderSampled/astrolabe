@@ -5,7 +5,7 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, path::Path};
 
-pub const INTERFACE: u32 = 1;
+pub const INTERFACE: u32 = 2;
 const PACKAGE: &str = "addons/astrolabe";
 const RECEIPT: &str = "addons/astrolabe/installed.json";
 
@@ -13,6 +13,8 @@ macro_rules! assets {
     ($($path:literal),* $(,)?) => { &[$(($path, include_bytes!(concat!("../../godot/", $path)).as_slice())),*] };
 }
 const SUPPORT: &[(&str, &[u8])] = assets![
+    "addons/astrolabe/behavior/behavior.gd",
+    "addons/astrolabe/behavior/behavior.gd.uid",
     "addons/astrolabe/character/mechanics.gd.uid",
     "addons/astrolabe/character/cue.gd.uid",
     "addons/astrolabe/character/character.gd.uid",

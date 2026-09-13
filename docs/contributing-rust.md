@@ -24,6 +24,8 @@ Follow a model conversion in this order:
 | `model/io.rs`, `model/reference.rs` | Typed loading/saving, identity validation, role URIs, selection, shared diagnostics |
 | `model/content.rs` | In-memory collection and the built-in asset catalogue used for exhaustive target dispatch |
 | `model/texture.rs`, `model/audio.rs`, `model/geometry.rs` | Domain values, semantic validation, Serde derives, and `Content` implementations |
+| `model/ai.rs`, `openspace/ai.rs`, `openspace/level/ai.rs` | Typed behavior/memory values, script codec and session-bound source AI import |
+| `godot/ai.rs`, repository `godot/addons/astrolabe/behavior/` | GDScript compilation and maintained timing/actor/audio functions |
 | `openspace/codec.rs` | Narrow typed binary/text codec interface and supported-format catalogue |
 | `openspace/texture/gf.rs`, `cnt.rs` | Image encoding versus archive membership, sharing, and placement |
 | `openspace/audio/` | APM, BNM, MPEG adaptation, and sound-definition parsing/writing |
@@ -83,6 +85,6 @@ Start with a synthetic asset and a small dependency graph. Exercise shared refer
 
 Prefer names that explain source roles and operations over single-letter traversal variables. Keep diagnostic strings and generated code readable across multiple lines. Comments should explain evidence, units, ownership, or a non-obvious constraint. Avoid narrating an assignment or repeating a type name. Static GDScript lives in `.gd` files; generated expressions use readable multiline templates next to their value mapping.
 
-Rete currently uses **schema 2**. Schema 1 combined model geometry with instance state and used prose as some audio writer restrictions. Regenerate old local packages from source; there is no compatibility reader. Generated instance scenes and lighting variants are provisional, and full scene import remains future work.
+Rete currently uses **schema 10**, including typed AI models, Brain memory and the explicit scene main-actor role. Regenerate older local packages from source; there is no compatibility reader. Generated paths and support interfaces remain provisional. The supported native scene/character and torch behavior slices are implemented; full scene/game semantics and package reconstruction remain partial. See [implementation progress](implementation-progress.md) for current evidence.
 
 Run `cargo fmt --check`, `cargo clippy --locked --all-targets -- -D warnings`, and `cargo build --release --locked`. Use `python3 tools/test.py --offline` for routine synthetic checks, or `python3 tools/test.py --local --offline` for the complete game-corpus/Godot suite. The supervisor includes compilation, children, and cleanup in one deadline below ten minutes. See [testing.md](testing.md) for prerequisites and logs.

@@ -129,10 +129,15 @@ pub(super) fn export_perso(
         .map_or(-1, i64::from);
     writeln!(
         project.builder,
-        "    var {name} = {rig_id}()\n    {name}.name = {}\n    {name}.set_meta(\"source_perso_name\", {})\n    {name}.set_meta(\"source_perso\", {})\n    {name}.initial_state = {state}\n    {name}.current_state = {state}\n    if {state} >= 0:\n        apply_initial_pose({name}, {name}.get_node(\"AnimationPlayer\").get_animation(\"state_{state}\"))\n    save_scene({name}, {})\n    {name}.free()",
+        "    var {name} = {rig_id}()\n    {name}.name = {}\n    {name}.set_meta(\"source_perso_name\", {})\n    {name}.set_meta(\"source_perso\", {})\n    {name}.initial_state = {state}\n    {name}.current_state = {state}\n    if {state} >= 0:\n        apply_initial_pose({name}, {name}.get_node(\"AnimationPlayer\").get_animation(\"state_{state}\"))",
         quoted(&label(&perso.name)),
         quoted(&perso.name),
-        quoted(perso.path.as_str()),
+        quoted(perso.path.as_str())
+    )?;
+    super::ai::component(project, source, perso, &name, written)?;
+    writeln!(
+        project.builder,
+        "    save_scene({name}, {})\n    {name}.free()",
         quoted(&format!("res://{path}"))
     )?;
     if state < 0 {

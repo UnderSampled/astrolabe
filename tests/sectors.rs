@@ -15,6 +15,7 @@ use astrolabe::{
 use std::{collections::BTreeMap, fs, time::Duration};
 fn fixture() -> Result<Scene> {
     let mut scene = Scene {
+        main_actor: None,
         path: AssetPath::new("level:/scene")?,
         name: "Sectors".into(),
         nodes: Vec::new(),

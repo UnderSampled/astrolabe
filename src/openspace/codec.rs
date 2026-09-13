@@ -1,5 +1,6 @@
 //! Typed bounded content codec contract, private to OpenSpace's encoding concerns.
 pub use super::{
+    ai::AiScriptCodec,
     audio::{Apm, Bnm, SoundScript},
     texture::{Cnt, Gf},
 };
@@ -35,6 +36,7 @@ pub fn catalogue() -> Vec<FormatSupport> {
             name: String::new(),
         }
         .support(),
+        AiScriptCodec::default().support(),
         FormatSupport {
             format: "SNA/RT/GPT/PTX",
             reads: true,

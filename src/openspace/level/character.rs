@@ -173,6 +173,7 @@ impl<'a> Importer<'a> {
             configuration: config,
             initial_configuration: initial,
             object_types: types,
+            brain: None,
         };
         value.validate()?;
         self.result.persos.push(value);

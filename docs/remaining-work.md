@@ -3,7 +3,8 @@
 The native Godot scene/character migration passed on 2026-09-13. The saved
 fixture contains supported parts and initial poses, native clips can be scrubbed
 in the actual editor, and authored content survives Rete edits/regeneration.
-The complete local suite passed 83 tests in 364.727 seconds. See
+The latest complete local suite, including the first AI slice, passed 86 tests
+in 467.576 seconds. See
 [native migration evidence](native-godot-migration.md). Milestones 6–7 remain
 partial because the source reconstruction and semantic gaps below are still open.
 
@@ -19,13 +20,13 @@ coverage counts are in [implementation progress](implementation-progress.md).
 ## Next pass and completed migration
 
 The [committed/rehydrated project structure](godot-project.md) and native
-scene/character slice are implemented. Continue with typed AI-to-GDScript
-behavior work and the remaining reconstruction/semantics below. Establish one maintained support
-package for any required shader/component, explicit authored/generated ownership,
-and a source-free bootstrap with synthetic examples. Needed support assets may
-be production code now. Review the scene/resource extension workflow and update
-location-based ignore rules when introducing the committed project; broad
-OpenSpace reconstruction need not precede this work.
+scene/character slice are implemented. The first
+[typed AI-to-GDScript slice](ai-gdscript-slice.md) runs the two torch sound
+controllers. Expand behavior support and the remaining reconstruction and
+semantics below. The maintained support package, explicit authored/generated
+ownership and source-free bootstrap with synthetic examples are established.
+Extend these interfaces as new slices need them; broad OpenSpace reconstruction
+is not a prerequisite.
 
 1. **Completed for the supported fixture: saved native level.** Keep the
    meaningful OpenSpace tree as the level's root scene, with reusable prop/perso
@@ -104,12 +105,12 @@ OpenSpace reconstruction need not precede this work.
 - Broaden support/consumer contracts as slices become usable. Test authored
   variations, support updates and regeneration in both project states; full-game
   coverage remains a later claim, not a gate for needed assets or supported
-  consumers. Current Rete schema 9 and Godot paths remain provisional; regenerate
+  consumers. Current Rete schema 10 and Godot paths remain provisional; regenerate
   older local Rete packages from source and document target-interface changes.
 
 ## Completed migration goal
 
-For a bounded first implementation goal in a new conversation:
+The completed request was:
 
 > Implement the native Godot scene/character migration for the currently
 > supported Astrolabe fixture, following AGENTS.md, plan.md and
@@ -135,14 +136,16 @@ Current local handoff artifacts:
 
 - Rehydrated project: `godot/project.godot`; saved level:
   `godot/generated/hype/levels/astrolabe/level.tscn`.
+- Compiled torch behavior: `godot/generated/hype/levels/astrolabe/ai/models/824.gd`;
+  [AI source/runtime evidence](ai-gdscript-slice.md), Rete schema 10, support interface 2.
 - Authored inherited variation: `godot/game/characters/luminous_hype.tscn`.
 - Native opening capture: `output/native-opening.png`; comparison report:
   `output/native-opening-comparison/report.json`. The previous accepted preview
   remains in `output/scene-graph-compare/` as historical comparison evidence.
 - Camera values: `output/fog-camera-evidence.json`.
-- Complete validation: **83 tests in 364.727 seconds**,
-  `TestResults/20260913T081826.069430Z-4061873.log.json`, including the actual
-  editor, direct/Rete routes, regeneration and cleanup. Strict Clippy and
+- Complete validation: **86 tests in 467.576 seconds**,
+  `TestResults/20260913T092504.324983Z-4253.log.json`, including the actual
+  editor, direct/Rete routes, regeneration, compiled AI and cleanup. Strict Clippy and
   formatting pass. The private source-game session is stopped.
 
 No reference-submodule update was made during this pass. Generated projects,

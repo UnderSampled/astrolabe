@@ -104,6 +104,7 @@ pub fn export<R: ContentSource>(
             }
             Asset::Sprite(_) => anyhow::bail!("sprite export requires its owning model"),
             Asset::AnimationAction(_)
+            | Asset::AiModel(_)
             | Asset::Animation(_)
             | Asset::TransformPool(_)
             | Asset::Family(_)
@@ -116,6 +117,7 @@ pub fn export<R: ContentSource>(
             }
             Asset::Scene(scene) => {
                 export_characters(source, &scene, &mut files, &mut gaps)?;
+                gaps.push("AI script codec reconstruction is available separately; AI models, Brain/designer memory, sound operand placement and the GPT main-actor binding are not yet assembled by scene CLI export.".into());
                 for reference in scene
                     .nodes
                     .iter()

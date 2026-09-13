@@ -460,8 +460,10 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
         configuration: Some(AssetRef::from_path(configuration.path.clone())),
         initial_configuration: None,
         object_types: [0; 3],
+        brain: None,
     };
     let scene = Scene {
+        main_actor: None,
         path: AssetPath::new("level:/scene")?,
         name: "AnimationTest".into(),
         nodes: vec![SceneNode {

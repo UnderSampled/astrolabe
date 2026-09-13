@@ -76,7 +76,16 @@ pub fn import_scene(game: &Path, selection: Selection) -> Result<Imported> {
         game,
         &selection,
         &scene.sound_definitions,
-        &scene.actions,
+        scene
+            .actions
+            .iter()
+            .filter_map(|a| match &a.operation {
+                crate::model::animation::AnimationOperation::Sound { event: Some(event) } => {
+                    Some(event)
+                }
+                _ => None,
+            })
+            .chain(scene.ai_models.iter().flat_map(|m| m.sound_events())),
     )?;
     scene.sound_definitions = sound_graph.definitions.into_iter().collect();
     for (path, bank) in sound_graph.banks {
@@ -152,6 +161,9 @@ pub fn import_scene(game: &Path, selection: Selection) -> Result<Imported> {
         imported.put(&AssetRef::from_path(asset.path.clone()), asset, false)?;
     }
     for asset in scene.persos {
+        imported.put(&AssetRef::from_path(asset.path.clone()), asset, false)?;
+    }
+    for asset in scene.ai_models {
         imported.put(&AssetRef::from_path(asset.path.clone()), asset, false)?;
     }
     for asset in scene.configurations {

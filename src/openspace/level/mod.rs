@@ -76,5 +76,6 @@ pub use environment::{read_fog, write_fog};
 mod environment_export;
 pub use environment_export::{EnvironmentDependencies, write_environments};
 
+mod ai;
 mod scene_export;
 pub use scene_export::{SceneDependencies, SceneGraphExport, write_scene_graph};

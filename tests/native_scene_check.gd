@@ -10,6 +10,7 @@ func _initialize(): call_deferred("check")
 
 func check():
     var expected_state = int(OS.get_cmdline_user_args()[0])
+    var expected_radius = float(OS.get_cmdline_user_args()[1])
     var packed = load("res://generated/hype/levels/astrolabe/level.tscn") as PackedScene
     var uid = ResourceLoader.get_resource_uid(packed.resource_path)
     if not require(uid >= 0 and ResourceUID.get_id_path(uid) == packed.resource_path, "native resource identity is not registered"): return
@@ -39,6 +40,12 @@ func check():
                     if not require(node.has_node(NodePath(path.get_concatenated_names())), "unresolved native animation target " + str(path)): return
     if not require(source_nodes == 150 and actors.size() == 108 and native_parts > 400, "saved scene coverage: " + str([source_nodes,actors.size(),native_parts])): return
     var hero = scene.get_node("world/0/0/Hype")
+    var torch = scene.get_node("world/0/103/i_Dummy_Son_Torche_Astro_001/Brain")
+    var other_torch = scene.get_node("world/0/102/i_Dummy_Son_Torche_Astro_002/Brain")
+    for brain in [torch,other_torch]:
+        brain.automatic = false
+        if not require(not brain.main_actor_path.is_empty() and brain.get_node(brain.main_actor_path) == hero, "saved AI main actor reference missing"): return
+        if not require(brain.dsg_0 == false, "saved AI instance value differs"): return
     if not require(hero.initial_state == expected_state and hero.current_state == expected_state, "saved initial state differs before ready"): return
     var visible = hero.get_node("Channels").find_children("*", "MeshInstance3D", true, false).filter(func(n):return n.visible)
     if not require(not visible.is_empty(), "saved hero pose is empty"): return
@@ -48,6 +55,33 @@ func check():
     for node in hero.get_node("Channels").find_children("*", "Node3D", true, false): initial_visibility[hero.get_path_to(node)] = node.visible
     root.add_child(scene)
     if not require(persisted_count == scene.find_children("*", "", true, false).size(), "ready constructed scene assets"): return
+    if not require(torch.main_actor == hero and torch.sound_emitter == torch.get_parent().get_node("SoundEmitter"), "native AI binding failed"): return
+    var hero_position = hero.global_position
+    var sound_events: Array[String] = []
+    torch.sound_requested.connect(func(identity: String):sound_events.append(identity))
+    # World-space float quantization can turn an added radius into a slightly
+    # smaller measured distance. The synthetic origin fixture tests exact equality.
+    hero.global_position = torch.global_position + Vector3(expected_radius+0.1,0,0)
+    if not require(torch.start(), "source torch program did not start"): return
+    torch.advance(0.249)
+    if not require(sound_events.is_empty() and not torch.dsg_0, "source 250ms wait completed early"): return
+    torch.advance(0.001)
+    if not require(sound_events.is_empty() and not torch.dsg_0, "source outside-radius comparison failed"): return
+    torch.advance(0.0)
+    hero.global_position = torch.global_position + Vector3(expected_radius-0.1,0,0)
+    torch.advance(0.25)
+    if not require(torch.dsg_0 and not other_torch.dsg_0 and sound_events.size()==2, "source torch near transition or instance isolation failed"): return
+    if not require(torch.sound_emitter.voices.size()==1 and torch.sound_emitter.voices[0].player.stream is AudioStreamWAV, "compiled source sound did not play a native stream"): return
+    torch.advance(0.0)
+    torch.advance(0.25)
+    if not require(sound_events.size()==2, "source torch repeated sound while near"): return
+    torch.advance(0.0)
+    hero.global_position = torch.global_position + Vector3(expected_radius+1,0,0)
+    torch.advance(0.25)
+    if not require(not torch.dsg_0 and sound_events.size()==3 and sound_events[0]==sound_events[2] and torch.sound_emitter.voices.is_empty(), "source torch far/stop transition failed"): return
+    torch.stop()
+    hero.global_position = hero_position
+    print("NATIVE_AI_OK ", JSON.stringify({"radius":expected_radius,"wait_ms":250,"events":sound_events,"independent_instances":2}))
     var player = hero.get_node("AnimationPlayer") as AnimationPlayer
     player.play("state_%d" % expected_state)
     player.seek(0.0, true, true)

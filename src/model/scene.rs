@@ -12,6 +12,8 @@ use std::collections::BTreeSet;
 pub struct Scene {
     pub path: AssetPath,
     pub name: String,
+    /// Explicit actor role, independent of a perso's display name or tree order.
+    pub main_actor: Option<AssetRef<super::character::Perso>>,
     /// Parents precede their children. IDs are stable within this asset.
     pub nodes: Vec<SceneNode>,
 }
@@ -119,6 +121,16 @@ impl Content for Scene {
         Some(&self.path)
     }
     fn validate(&self) -> Result<()> {
+        if let Some(actor) = &self.main_actor {
+            ensure!(
+                self.nodes
+                    .iter()
+                    .filter(|n| n.perso.as_ref() == Some(actor))
+                    .count()
+                    == 1,
+                "main actor must resolve to one scene perso"
+            );
+        }
         ensure!(
             !self.nodes.is_empty() && self.nodes.len() <= 100_000,
             "invalid scene node count"
