@@ -136,6 +136,13 @@ preloads and autoloads. Authored scenes referencing converted resources require
 rehydration to open fully; identify those dependencies rather than supplying
 fake converted content or claiming the whole game runs dehydrated.
 
+Generated scenes expose their nested scene instances in the Scene dock by
+default, including the level inside `preview.tscn`. Conversion writes Godot's
+`editable` instance metadata at every nesting boundary; it preserves native
+PackedScene references and sharing. Expand `Model0` in the preview to browse the
+level tree, or open the neighboring `level.tscn` directly. Durable authored edits
+still belong in `game/` compositions or inherited scenes.
+
 In the rehydrated project, developers open generated level/perso scenes directly,
 inspect native animation libraries, and build authored scenes by instancing,
 composition or suitable scene inheritance. Offer useful exported properties,

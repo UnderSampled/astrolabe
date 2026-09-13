@@ -1,6 +1,6 @@
 # Rust implementation evidence
 
-The Rust implementation covers milestones 0–5, the native scene/character slice of 6–7, and a first executable AI slice of 8. The complete local suite passed on 2026-09-13: **86 tests in 467.576 seconds**, including 97 seconds of release compilation, every corpus/Godot check, actual editor scrubbing, authored regeneration, AI execution and cleanup. Report: `TestResults/20260913T092504.324983Z-4253.log.json`. No processes leaked. This is a converter for supported useful assets and native Godot project files; full level/game behavior remains incomplete. Game data, generated content and reference binaries remain local.
+The Rust implementation covers milestones 0–5, the native scene/character slice of 6–7, and a first executable AI slice of 8. The complete local suite passed on 2026-09-13: **86 tests in 497.572 seconds**, including 104 seconds of release compilation, every corpus/Godot check, actual Scene dock inspection and editor scrubbing, authored regeneration, AI execution and cleanup. Report: `TestResults/20260913T185841.641467Z-25665.log.json`. No processes leaked. This is a converter for supported useful assets and native Godot project files; full level/game behavior remains incomplete. Game data, generated content and reference binaries remain local.
 
 See [the Rust contributor guide](contributing-rust.md) for the current module map and extension workflow. The readability refactor moved root traversal/export rules into their adapters, split level and texture responsibilities, unified texture sharing, and separated geometry from instance state. Audio reconstruction gaps are typed data; explanatory notes no longer control writer support.
 
@@ -15,7 +15,7 @@ sound controllers, with independent state, native audio and source-game evidence
 
 The supported fixture now exports saved level/perso scenes with initial parts,
 poses, visibility and native Animation/AnimationLibrary/AnimationPlayer tracks.
-The former character and sound JSON interpreters have been removed. Conversion
+The Scene dock exposes nested instances in both the preview and level; actual sidebar rows are checked alongside native animation seeking. The former character and sound JSON interpreters have been removed. Conversion
 resolves transform pools, changing hierarchies and object configurations;
 maintained Godot support controls native playback and compiled sound behavior.
 The committed `godot/` starter separates authored content, support and ignored

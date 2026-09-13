@@ -346,12 +346,16 @@ fn source_scene_rete_routes_preserve_hierarchy_collision_and_model_sharing() -> 
         Duration::from_secs(60),
     )?;
     assert!(editor.contains("NATIVE_EDITOR_OK"));
+    assert_eq!(editor.matches("NATIVE_SCENE_DOCK_OK").count(), 2);
     println!(
         "{}",
         editor
             .lines()
-            .find(|line| line.contains("NATIVE_EDITOR_OK"))
-            .unwrap()
+            .filter(
+                |line| line.contains("NATIVE_EDITOR_OK") || line.contains("NATIVE_SCENE_DOCK_OK")
+            )
+            .collect::<Vec<_>>()
+            .join("\n")
     );
     fs::write(project.join("project.godot"), settings)?;
     Ok(())

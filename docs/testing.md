@@ -1,12 +1,14 @@
 # Testing Astrolabe
 
-Latest checkpoint: native Godot migration plus the first AI-to-GDScript slice
-passed **86 tests in 467.576 seconds**, including 97 seconds of release
-compilation, all local corpus/Godot checks, actual editor scrubbing, authored
-regeneration, support update/cache rebuild, compiled AI behavior and cleanup.
-Report: `TestResults/20260913T092504.324983Z-4253.log.json`. Child CPU time
-was 1,636.253 seconds, peak RSS 1,710,720 KiB, and no children leaked. The scene
-route's three conversions and native/editor checks took 231.71 seconds.
+Latest checkpoint: native Godot migration, first AI-to-GDScript slice and
+Scene dock visibility passed **86 tests in 497.572 seconds**, including 104
+seconds of release compilation, all local corpus/Godot checks, actual sidebar
+inspection and editor scrubbing, authored regeneration, support update/cache
+rebuild, compiled AI behavior and cleanup. Report: `TestResults/20260913T185841.641467Z-25665.log.json`.
+Child CPU time was 1,891.186 seconds, peak RSS 1,335,948 KiB, and no children
+leaked. The scene route's three conversions and native/editor checks took
+251.29 seconds. The sidebar exposes 2,632 rows in the preview and 2,631 in the
+level, including all 150 source nodes, 108 persos and 899 parts.
 See [migration evidence](native-godot-migration.md) and [AI evidence](ai-gdscript-slice.md)
 for supported semantics, original-game comparisons and remaining limits.
 

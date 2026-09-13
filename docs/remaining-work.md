@@ -3,8 +3,8 @@
 The native Godot scene/character migration passed on 2026-09-13. The saved
 fixture contains supported parts and initial poses, native clips can be scrubbed
 in the actual editor, and authored content survives Rete edits/regeneration.
-The latest complete local suite, including the first AI slice, passed 86 tests
-in 467.576 seconds. See
+The latest complete local suite, including the first AI slice and actual Scene dock checks, passed 86 tests
+in 497.572 seconds. See
 [native migration evidence](native-godot-migration.md). Milestones 6–7 remain
 partial because the source reconstruction and semantic gaps below are still open.
 
@@ -143,8 +143,8 @@ Current local handoff artifacts:
   `output/native-opening-comparison/report.json`. The previous accepted preview
   remains in `output/scene-graph-compare/` as historical comparison evidence.
 - Camera values: `output/fog-camera-evidence.json`.
-- Complete validation: **86 tests in 467.576 seconds**,
-  `TestResults/20260913T092504.324983Z-4253.log.json`, including the actual
+- Complete validation: **86 tests in 497.572 seconds**,
+  `TestResults/20260913T185841.641467Z-25665.log.json`, including the actual
   editor, direct/Rete routes, regeneration, compiled AI and cleanup. Strict Clippy and
   formatting pass. The private source-game session is stopped.
 

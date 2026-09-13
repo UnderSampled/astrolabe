@@ -192,6 +192,19 @@ environment = SubResource("environment")
                 quoted(&format!("res://{path}"))
             )?;
         }
+        for path in self
+            .generated
+            .iter()
+            .filter(|p| p.ends_with(".tscn"))
+            .cloned()
+            .chain(std::iter::once(self.level_path("preview.tscn")))
+        {
+            writeln!(
+                self.builder,
+                "    expose_scene_tree({})",
+                quoted(&format!("res://{path}"))
+            )?;
+        }
         self.builder.push_str(&format!(
             r#"    var file = FileAccess.open({}, FileAccess.WRITE)
     file.store_string(JSON.stringify(evidence, "  "))
@@ -221,13 +234,15 @@ environment = SubResource("environment")
             &["--headless", "--import"],
             Duration::from_secs(60),
         )?;
+        // The first import needs the placeholder; the builder can inspect the
+        // real preview once it has saved all referenced native scenes.
+        self.write(self.level_path("preview.tscn"), preview.as_bytes())?;
         run_godot(
             godot,
             self.stage.path(),
             &["--headless", "--script", "res://build.gd"],
             Duration::from_secs(60),
         )?;
-        self.write(self.level_path("preview.tscn"), preview.as_bytes())?;
         self.reserve(&self.level_path("validation.json"))?;
         // Preserve path-derived resource/node identities across edits and cache rebuilds.
         for path in &self.generated {

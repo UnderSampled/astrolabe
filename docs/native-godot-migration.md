@@ -200,3 +200,54 @@ must retire before removing the temporary mixer bus. A later attempt exposed a
 stale preview-wrapper path in the fog test. Both were fixed and are covered by
 the accepted full run. An intermediate run was intentionally interrupted after
 acceptance-test source changed; it is not counted as a passing suite.
+
+
+## Scene dock visibility correction
+
+The 2026-09-13 editor follow-up found that `preview.tscn` displayed the level
+in the viewport while the Scene dock contained only `AstrolabePreview` and
+`Model0`. Godot hides the descendants of scene instances unless the opened
+scene exposes their owners. Earlier acceptance inspected persisted Nodes and
+animation seeking; it did not inspect the sidebar's actual TreeItems.
+
+The converter now appends Godot's `[editable path=...]` metadata for every nested
+scene instance, relative to each generated scene root. This covers the preview,
+level, characters and model instances while retaining their PackedScene links,
+node identities, resource sharing and values. It runs only during conversion.
+The existing strong resource cache prevents repeated parsing of shared character
+libraries during this pass. Source codecs, the canonical model, Rete schema and
+runtime support interfaces are unchanged.
+
+`tests/native_editor_check.gd` now opens both preview and level, reads the actual
+SceneTreeEditor/Tree rows, and verifies every persisted descendant is available
+there. It also selects a channel through EditorInterface and retains the native
+animation scrub checks. An isolated copy of the current project passed with
+**2,632 preview rows and 2,631 level rows**, including all **150 source nodes,
+108 persos and 899 parts**. The character still has 634 persisted descendants,
+778 normal/reset clips and 22 channels that move during the walking seek.
+Local evidence: `output/scene-dock/report.json` and `editor.log`; the original
+two-row observation is in `output/scene-dock-before.log`.
+
+Normal local regeneration correctly refused mesh/import files rewritten since
+the previous manifest. The live project therefore received a guarded metadata
+update after validation in a copied project: 36 scene files gained only editable
+entries, their manifest hashes were updated, and all 3,416 non-scene generated
+files stayed byte-identical. The 20 changed meshes and 222 changed import files
+remain preserved and protected by the existing regeneration conflict checks.
+The user's `project.godot` settings and authored luminous Hype variation also
+remained byte-identical. All 3,815 hydrated files remain ignored by Git.
+
+The first isolated metadata probe timed out because it did not retain shared
+resources between scenes; using the converter's existing cache fixed it. A
+subsequent editor probe began before the requested scene finished opening; it
+now waits for the opened root with a bounded deadline. Neither failed probe
+published changes to the live project. The successful isolated check completed
+in 64.749 seconds including setup and editor execution, then removed its copy.
+
+The complete suite with the Scene dock regression passed **86 tests in 497.572
+seconds**, including 104 seconds of release compilation, direct/reopened-Rete
+conversion, authored regeneration, native behavior/editor checks and cleanup.
+Report: `TestResults/20260913T185841.641467Z-25665.log.json`. The full scene test took
+251.29 seconds. Child CPU was 1,891.186 seconds and peak RSS was 1,335,948 KiB;
+no timeout, leaked process or incomplete cleanup occurred. Locked release build,
+strict Clippy, formatting and diff whitespace checks also passed.
