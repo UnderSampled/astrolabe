@@ -69,6 +69,116 @@ fn read(path: &Path) -> Result<Vec<u8>> {
     fs::read(path).with_context(|| format!("read {}", path.display()))
 }
 
+pub fn import_scene(game: &Path, selection: Selection) -> Result<Imported> {
+    let mut imported = Imported::new(selection.clone());
+    let mut scene = level::import_scene(game, &selection)?;
+    let sound_graph = super::audio::graph::SoundGraph::import(
+        game,
+        &selection,
+        &scene.sound_definitions,
+        &scene.actions,
+    )?;
+    scene.sound_definitions = sound_graph.definitions.into_iter().collect();
+    for (path, bank) in sound_graph.banks {
+        imported.put(&AssetRef::from_path(path), bank, false)?;
+    }
+    for (path, sound) in sound_graph.sounds {
+        imported.put(&AssetRef::from_path(path), sound, false)?;
+    }
+    scene.diagnostics.extend(
+        sound_graph
+            .diagnostics
+            .into_iter()
+            .map(|message| Diagnostic {
+                code: "openspace.sound.program_coverage".into(),
+                asset: Some(scene.scene.path.clone()),
+                severity: Severity::Warning,
+                message,
+            }),
+    );
+    for action in std::mem::take(&mut scene.actions) {
+        imported.put(&AssetRef::from_path(action.path.clone()), action, false)?;
+    }
+    for (path, definitions) in std::mem::take(&mut scene.sound_definitions) {
+        imported.put(&AssetRef::from_path(path), definitions, false)?;
+    }
+    for value in std::mem::take(&mut scene.environments) {
+        imported.put(&AssetRef::from_path(value.path.clone()), value, false)?;
+    }
+    for value in std::mem::take(&mut scene.visual_environments) {
+        imported.put(&AssetRef::from_path(value.path.clone()), value, false)?;
+    }
+    for value in std::mem::take(&mut scene.fogs) {
+        imported.put(&AssetRef::from_path(value.path.clone()), value, false)?;
+    }
+    for light in std::mem::take(&mut scene.lights) {
+        imported.put(&AssetRef::from_path(light.path.clone()), light, false)?;
+    }
+    for sprite in std::mem::take(&mut scene.sprites) {
+        imported.put(&AssetRef::from_path(sprite.path.clone()), sprite, false)?;
+    }
+    let archive = codec::Cnt {
+        usage: TextureUsage::Material,
+    }
+    .read(&read(&game.join("Gamedata/Textures.cnt"))?)?;
+    for material in &mut scene.materials {
+        if let Some(original) = material.texture() {
+            let found = archive
+                .find_entry(original.file())
+                .with_context(|| format!("texture {original} absent from CNT"))?;
+            let reference = found.texture.clone();
+            if !imported.assets.contains(&reference.path) {
+                imported.put(&reference, archive.image(found)?.clone(), false)?;
+            }
+            material.visual.as_mut().unwrap().texture = Some(reference.path);
+        }
+        imported.put(
+            &AssetRef::from_path(material.path.clone()),
+            material.clone(),
+            false,
+        )?;
+    }
+    for collision in scene.collisions {
+        imported.put(
+            &AssetRef::from_path(collision.path.clone()),
+            collision,
+            false,
+        )?;
+    }
+    for asset in scene.mechanics {
+        imported.put(&AssetRef::from_path(asset.path.clone()), asset, false)?;
+    }
+    for asset in scene.families {
+        imported.put(&AssetRef::from_path(asset.path.clone()), asset, false)?;
+    }
+    for asset in scene.persos {
+        imported.put(&AssetRef::from_path(asset.path.clone()), asset, false)?;
+    }
+    for asset in scene.configurations {
+        imported.put(&AssetRef::from_path(asset.path.clone()), asset, false)?;
+    }
+    for asset in scene.animations {
+        imported.put(&AssetRef::from_path(asset.path.clone()), asset, false)?;
+    }
+    for asset in scene.transform_pools {
+        imported.put(&AssetRef::from_path(asset.path.clone()), asset, false)?;
+    }
+    for model in scene.models {
+        imported.put(&AssetRef::from_path(model.path.clone()), model, false)?;
+    }
+    for instance in scene.instances {
+        imported.put(&AssetRef::from_path(instance.path.clone()), instance, false)?;
+    }
+    imported.put(
+        &AssetRef::from_path(scene.scene.path.clone()),
+        scene.scene,
+        true,
+    )?;
+    imported.source_summary = Some(scene.source);
+    imported.diagnostics = scene.diagnostics;
+    Ok(imported)
+}
+
 pub fn import_model(game: &Path, selection: Selection) -> Result<Imported> {
     let mut imported = Imported::new(selection.clone());
     let mut model = level::import_first_model(game, &selection)?;
@@ -77,7 +187,7 @@ pub fn import_model(game: &Path, selection: Selection) -> Result<Imported> {
     }
     .read(&read(&game.join("Gamedata/Textures.cnt"))?)?;
     for material in &mut model.materials {
-        if let Some(original) = &material.texture {
+        if let Some(original) = material.texture() {
             let found = archive
                 .find_entry(original.file())
                 .with_context(|| format!("texture {} absent from CNT", original))?;
@@ -85,10 +195,13 @@ pub fn import_model(game: &Path, selection: Selection) -> Result<Imported> {
             if !imported.assets.contains(&reference.path) {
                 imported.put(&reference, archive.image(found)?.clone(), false)?;
             }
-            material.texture = Some(reference.path);
+            material.visual.as_mut().unwrap().texture = Some(reference.path);
         }
         let reference = AssetRef::new(material.path.to_string())?;
         imported.put(&reference, material.clone(), false)?;
+    }
+    for sprite in model.sprites {
+        imported.put(&AssetRef::from_path(sprite.path.clone()), sprite, false)?;
     }
     imported.source_summary = Some(model.source);
     imported.diagnostics.push(Diagnostic {

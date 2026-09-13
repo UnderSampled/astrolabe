@@ -7,7 +7,7 @@ use serde::Serialize;
 use std::collections::BTreeMap;
 /// Explicit layout inputs for references owned by other reconstructed assets.
 #[derive(Debug, Clone, Copy)]
-pub struct MaterialTarget {
+pub struct ReferenceTarget {
     pub address: u32,
     pub block: (u8, u8),
 }
@@ -31,8 +31,32 @@ pub(super) struct Layout {
     pub(super) ranges: Vec<EmittedRange>,
     pub(super) rows: Vec<RelocRow>,
     pub(super) base: u32,
+    pub(super) block: BlockKey,
 }
 impl Layout {
+    pub(super) fn linked_list(
+        &mut self,
+        header: usize,
+        entries: &[usize],
+        next: usize,
+    ) -> Result<()> {
+        self.bytes[header + 8..header + 12]
+            .copy_from_slice(&u32::try_from(entries.len())?.to_le_bytes());
+        if let (Some(&first), Some(&last)) = (entries.first(), entries.last()) {
+            self.pointer(header, first)?;
+            self.pointer(header + 4, last)?;
+        }
+        for (i, &p) in entries.iter().enumerate() {
+            if let Some(&n) = entries.get(i + 1) {
+                self.pointer(p + next, n)?;
+            }
+            if i > 0 {
+                self.pointer(p + next + 4, entries[i - 1])?;
+            }
+            self.pointer(p + next + 8, header)?;
+        }
+        Ok(())
+    }
     pub(super) fn allocate(&mut self, name: impl Into<String>, bytes: &[u8]) -> Result<usize> {
         let aligned = self
             .bytes
@@ -60,13 +84,13 @@ impl Layout {
             .ok_or_else(|| anyhow!("pointer overflow"))?;
         self.external_pointer(
             site,
-            MaterialTarget {
+            ReferenceTarget {
                 address,
-                block: (6, 2),
+                block: (self.block.0, self.block.1),
             },
         )
     }
-    pub(super) fn external_pointer(&mut self, site: usize, target: MaterialTarget) -> Result<()> {
+    pub(super) fn external_pointer(&mut self, site: usize, target: ReferenceTarget) -> Result<()> {
         ensure!(target.address != 0, "non-null asset resolved to zero");
         self.bytes
             .get_mut(site..site + 4)
@@ -103,7 +127,7 @@ pub(super) fn short_data<const N: usize>(values: &[[u16; N]]) -> Vec<u8> {
 /// records are explicitly outside this fragment; it is never presented as whole-package parity.
 pub fn write_geometry(
     model: &Model,
-    materials: &BTreeMap<AssetPath, MaterialTarget>,
+    materials: &BTreeMap<AssetPath, ReferenceTarget>,
     base: u32,
 ) -> Result<GeometryExport> {
     model.validate()?;
@@ -116,8 +140,9 @@ pub fn write_geometry(
         ranges: Vec::new(),
         rows: Vec::new(),
         base,
+        block: BlockKey(6, 2),
     };
-    emit_geometry(&mut out, model, materials)?;
+    emit_geometry(&mut out, model, materials, &BTreeMap::new())?;
     out.rows.sort_by_key(|r| r.value);
     let rtb = emit_relocations(BlockKey(6, 2), &out.rows)?;
     let coverage = vec![
@@ -139,8 +164,10 @@ pub fn write_geometry(
 pub(super) fn emit_geometry(
     out: &mut Layout,
     model: &Model,
-    materials: &BTreeMap<AssetPath, MaterialTarget>,
+    materials: &BTreeMap<AssetPath, ReferenceTarget>,
+    sprites: &BTreeMap<AssetPath, ReferenceTarget>,
 ) -> Result<usize> {
+    let order = model.element_order();
     let header = GeometryWire {
         point_count: model.positions.len().try_into()?,
         point_reserved: 0,
@@ -148,7 +175,7 @@ pub(super) fn emit_geometry(
         normals: 0,
         point_materials: 0,
         unknown_10: 0,
-        element_count: model.submeshes.len().try_into()?,
+        element_count: order.len().try_into()?,
         element_reserved: 0,
         element_types: 0,
         elements: 0,
@@ -162,13 +189,22 @@ pub(super) fn emit_geometry(
         let p = out.allocate("normals", &float_data(&model.normals))?;
         out.pointer(geometry + GeometryWire::NORMALS, p)?;
     }
-    if !model.submeshes.is_empty() {
-        let types = vec![[1u16]; model.submeshes.len()];
+    if !order.is_empty() {
+        let types = order
+            .iter()
+            .map(|&(sprite, _)| [if sprite { 3u16 } else { 1 }])
+            .collect::<Vec<_>>();
         let p = out.allocate("element_types", &short_data(&types))?;
         out.pointer(geometry + GeometryWire::ELEMENT_TYPES, p)?;
-        let table = out.allocate("elements", &vec![0; model.submeshes.len() * 4])?;
+        let table = out.allocate("elements", &vec![0; order.len() * 4])?;
         out.pointer(geometry + GeometryWire::ELEMENTS, table)?;
-        for (i, sm) in model.submeshes.iter().enumerate() {
+        for (element, &(sprite, i)) in order.iter().enumerate() {
+            if sprite {
+                let h = super::sprite::emit_element(out, &model.sprite_elements[i], i, sprites)?;
+                out.pointer(table + element * 4, h)?;
+                continue;
+            }
+            let sm = &model.submeshes[i];
             let wire = TrianglesWire {
                 material: 0,
                 triangle_count: sm.triangles.len().try_into()?,
@@ -182,7 +218,7 @@ pub(super) fn emit_geometry(
                 points: 0,
             };
             let h = out.allocate(format!("submeshes/{i}"), &encoded(&wire)?)?;
-            out.pointer(table + i * 4, h)?;
+            out.pointer(table + element * 4, h)?;
             let target = *materials
                 .get(&sm.material.path)
                 .ok_or_else(|| anyhow!("material has no export layout: {}", sm.material.path))?;
@@ -227,6 +263,9 @@ pub(super) fn emit_geometry(
         )?;
         out.pointer(geometry + GeometryWire::POINT_MATERIALS, p)?;
         for (i, m) in model.vertex_materials.iter().enumerate() {
+            let Some(m) = m else {
+                continue;
+            };
             out.external_pointer(
                 p + i * 4,
                 *materials

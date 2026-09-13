@@ -4,7 +4,7 @@ fn generated_sna_block_preserves_values_and_resolves_generated_relocations() -> 
     let m = super::tests::model();
     let targets = BTreeMap::from([(
         m.submeshes[0].material.path.clone(),
-        MaterialTarget {
+        ReferenceTarget {
             address: 0x2000,
             block: (6, 1),
         },
@@ -24,6 +24,8 @@ fn generated_sna_block_preserves_values_and_resolves_generated_relocations() -> 
     let mut pointers = PointerMap::new();
     merge_relocations(&mut pointers, Owner::Level, reloc(&fragment.rtb)?)?;
     let ctx = SourceSession {
+        fix_bindings: Default::default(),
+        allocation_cache: Default::default(),
         actual: blocks.keys().map(|&k| (k, Owner::Level)).collect(),
         blocks: BTreeMap::from([(Owner::Level, blocks)]),
         pointers,
@@ -88,6 +90,8 @@ fn fix_to_level_binding_sentinels_conflicts_and_missing_sites_are_explicit() -> 
     assert!(merge_relocations(&mut pointers, Owner::Fix, group(0x2000, fk)).is_err());
     merge_relocations(&mut pointers, Owner::Fix, group(0x200c, lk))?;
     let mut c = SourceSession {
+        fix_bindings: Default::default(),
+        allocation_cache: Default::default(),
         blocks: BTreeMap::from([
             (
                 Owner::Fix,
@@ -171,6 +175,8 @@ fn ptx_validates_real_pointer_slots_and_not_header_or_channel_words() -> Result<
     };
     let key = BlockKey(6, 2);
     let mut c = SourceSession {
+        fix_bindings: Default::default(),
+        allocation_cache: Default::default(),
         blocks: BTreeMap::from([(
             Owner::Level,
             BTreeMap::from([(
@@ -317,6 +323,8 @@ fn radiosity_uses_signed_values_and_checks_selected_lod_and_buffer_bounds() -> R
         components: [396, -238, i16::MIN, i16::MAX],
     })?);
     let mut c = SourceSession {
+        fix_bindings: Default::default(),
+        allocation_cache: Default::default(),
         blocks: BTreeMap::from([(
             Owner::Level,
             BTreeMap::from([(
@@ -390,6 +398,8 @@ fn source_local_bases_resolve_shared_blocks_and_invalid_references_fail() -> Res
         },
     );
     let c = SourceSession {
+        fix_bindings: Default::default(),
+        allocation_cache: Default::default(),
         blocks: BTreeMap::from([(Owner::Fix, fix), (Owner::Level, lvl)]),
         actual: BTreeMap::from([(BlockKey(6, 1), Owner::Fix), (BlockKey(6, 2), Owner::Level)]),
         pointers: BTreeMap::from([

@@ -63,6 +63,83 @@ pub(super) struct SuperObjectWire {
     pub(super) parent: u32,
     pub(super) local_transform: u32,
     pub(super) global_transform: u32,
+    pub(super) last_compute_frame: u32,
+    pub(super) draw_mask: u32,
+    pub(super) light: u32,
+    pub(super) bounding_volume: u32,
+    pub(super) initial_global_transform: u32,
+    pub(super) opacity: f32,
+}
+/// FUN_00437270 allocates 0x38 bytes. Raymap's later-engine properties byte at
+/// +56 is outside Hype's record and would read the following MMG allocation header.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct FamilyWire {
+    pub(super) next: u32,
+    pub(super) previous: u32,
+    pub(super) header: u32,
+    pub(super) index: u32,
+    pub(super) states: ListWire,
+    pub(super) default_configuration: u32,
+    pub(super) configurations: ListWire,
+    pub(super) bounding_volume: u32,
+    #[br(assert(extra_data == 0, "family extra-data dependency is unsupported"))]
+    pub(super) extra_data: u32,
+    pub(super) animation_bank: u8,
+    pub(super) unknown: [u8; 3],
+}
+/// FUN_004617c0 allocates 24 bytes. FUN_00461a60 copies count*20 bytes into
+/// reset_parts; FUN_00461ac0 restores that table during actor reinitialization.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct ObjectListWire {
+    pub(super) next: u32,
+    pub(super) previous: u32,
+    pub(super) header: u32,
+    pub(super) parts: u32,
+    pub(super) reset_parts: u32,
+    pub(super) count: u16,
+    pub(super) unknown: [u8; 2],
+}
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+/// Hype allocates 64 bytes (0044a720/0044a730). Mechanics is +48
+/// (0044a910/0044a920), not Raymap's later-engine +44; speed is byte 59.
+pub(super) struct CharacterStateWire {
+    pub(super) next: u32,
+    pub(super) previous: u32,
+    pub(super) header: u32,
+    pub(super) animation: u32,
+    pub(super) transitions: ListWire,
+    pub(super) prohibited: ListWire,
+    pub(super) next_state: u32,
+    #[br(assert(unknown_reference == 0, "state dependency at +44 is unsupported"))]
+    pub(super) unknown_reference: u32,
+    pub(super) mechanics: u32,
+    #[br(assert(environment_samples == 0, "state environment samples are unsupported"))]
+    pub(super) environment_samples: u32,
+    pub(super) unknown: [u8; 3],
+    pub(super) speed: u8,
+    pub(super) unknown_tail: [u8; 4],
+}
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct StateTransitionWire {
+    pub(super) next: u32,
+    pub(super) previous: u32,
+    pub(super) header: u32,
+    pub(super) target: u32,
+    pub(super) via: u32,
+    pub(super) linking_type: u8,
+    pub(super) unknown: [u8; 3],
+}
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct ProhibitedStateWire {
+    pub(super) next: u32,
+    pub(super) previous: u32,
+    pub(super) header: u32,
+    pub(super) state: u32,
 }
 /// Hype engine allocates 0x30, not Raymap/C#'s 0x40 with spurious sphere fields.
 #[derive(Debug, Clone, BinRead, BinWrite)]
@@ -275,4 +352,194 @@ impl PhysicalObjectWire {
 
 impl GameMaterialWire {
     pub(super) const VISUAL: usize = 0;
+}
+
+/// GEO_vCreateElement{Spheres,AlignedBoxes}: 8-byte header, signed short count.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct CollisionArrayWire {
+    #[br(assert(count >= 0))]
+    pub(super) count: i16,
+    #[br(assert(reserved == 0))]
+    pub(super) reserved: u16,
+    pub(super) data: u32,
+}
+/// GEO_xGetCenterPointOfIndexedSphere / GEO_xGetRadiusOfIndexedSphere.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct CollisionSphereWire {
+    pub(super) center: u16,
+    #[br(assert(reserved == 0))]
+    pub(super) reserved: u16,
+    pub(super) radius: f32,
+    pub(super) material: u32,
+}
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct CollisionBoxWire {
+    pub(super) min: u16,
+    pub(super) max: u16,
+    pub(super) material: u32,
+}
+/// GMT_fn_vCopyCollideMaterial copies two shorts; Raymap's extra u32 is not Hype data.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct CollisionMaterialWire {
+    pub(super) kind: u16,
+    pub(super) identifier: u16,
+}
+
+/// Montreal sampled animation header (Raymap AnimationMontreal, observed Hype allocation 116).
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct AnimationWire {
+    pub frames: u32,
+    pub frame_count: u8,
+    pub speed: u8,
+    pub channel_count: u8,
+    pub unknown: u8,
+    pub events: u32,
+    pub unknown_12: u32,
+    pub event_count: u8,
+    pub unknown_17: u8,
+    pub morph_count: u16,
+    pub speed_matrix: TransformWire,
+    pub unknown_108: u32,
+    pub related: u32,
+}
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct AnimationFrameWire {
+    pub channels: u32,
+    pub rotation: u32,
+    pub translation: u32,
+    pub hierarchy: u32,
+}
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct AnimationChannelWire {
+    pub transform: u32,
+    pub object: u16,
+    pub visibility: u8,
+    pub unknown: [u8; 3],
+    pub channel: u8,
+    pub opacity: u8,
+    pub kind: u8,
+    pub tail: [u8; 3],
+}
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct ListWire {
+    pub first: u32,
+    pub last: u32,
+    pub count: u32,
+}
+/// GEO_vCreateElementSprite (00467580): eight-byte group, 44-byte indexed entries.
+#[binrw::binrw]
+#[brw(little)]
+#[derive(Debug, Clone)]
+pub(super) struct SpriteElementWire {
+    pub count: u16,
+    pub unknown: u16,
+    pub entries: u32,
+}
+#[binrw::binrw]
+#[brw(little)]
+#[derive(Debug, Clone)]
+pub(super) struct IndexedSpriteWire {
+    pub center: u16,
+    pub unknown: u16,
+    pub sprite: u32,
+    pub size: [f32; 2],
+    pub constraint: [f32; 3],
+    pub uv_origin_extent: [[f32; 2]; 2],
+}
+/// GEO_vCreateRotativSprite (005be090): parallel view-property arrays, shared by placements.
+#[binrw::binrw]
+#[brw(little)]
+#[derive(Debug, Clone)]
+pub(super) struct SpriteWire {
+    pub count: u16,
+    pub unknown: u16,
+    pub modes: u32,
+    pub thresholds: u32,
+    pub sizes: u32,
+    pub displacements: u32,
+    pub materials: u32,
+}
+
+/// Hype SECT_fn_vSetLevelElementLSTGraphicInt / SetSectorPointed, 20-byte entry.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct GraphicLinkWire {
+    pub level: u16,
+    pub unknown: u16,
+    pub sector: u32,
+    pub next: u32,
+    pub previous: u32,
+    pub header: u32,
+}
+/// Hype SCT_fn_lGetVolumeInSoundList, 20-byte propagation entry.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct SoundLinkWire {
+    pub sector: u32,
+    pub volume: i32,
+    pub next: u32,
+    pub previous: u32,
+    pub header: u32,
+}
+/// Hype collision/activity/perso entries are target plus three list links (16 bytes).
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct NodeLinkWire {
+    pub target: u32,
+    pub next: u32,
+    pub previous: u32,
+    pub header: u32,
+}
+
+/// SECT_fn_hCreateSector allocates 160 bytes with twelve list headers.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct SectorWire {
+    pub border: u32,
+    pub lists: [ListWire; 12],
+    pub virtual_sector: u8,
+    pub unknown: [u8; 3],
+    pub activation: u32,
+    pub name: u32,
+}
+
+/// FUN_0043b910 / FUN_0043bcd0: ordered cue array and independently shared action.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct AnimationCueWire {
+    pub action: u32,
+    pub configuration_slot: u16,
+    pub frame: u8,
+    pub channel: u8,
+}
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct AnimationActionWire {
+    pub payload: u32,
+    pub kind: u8,
+    pub unknown: [u8; 7],
+}
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct ObjectPartWire {
+    pub scale: u32,
+    pub content: u32,
+    pub unknown: [u8; 4],
+    pub kind: i16,
+    pub tail: [u8; 6],
+}
+/// SND relocates the receiving site through RTS, then resolves a packed event identity.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct SoundSiteWire {
+    pub event: u32,
+    pub site: u32,
 }

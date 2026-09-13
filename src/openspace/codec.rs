@@ -39,8 +39,7 @@ pub fn catalogue() -> Vec<FormatSupport> {
             format: "SNA/RT/GPT/PTX",
             reads: true,
             writes: true,
-            notes: "Rooted first-model import; controlled model fragment and framing primitives only, not complete \
-            level reconstruction",
+            notes: "Rooted model/scene/character import; controlled model, collision, light, matrix and animation fragments. Sector writer requires caller-resolved SO/light targets; complete level reconstruction is pending",
         },
     ]
 }

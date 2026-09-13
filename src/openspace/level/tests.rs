@@ -5,7 +5,9 @@ pub(super) fn model() -> Model {
         name: "triangle".into(),
         positions: vec![[0., 0., 0.], [1., 0., 0.], [0., 1., 0.]],
         normals: vec![[0., 0., 1.]; 3],
+        sprite_elements: Vec::new(),
         submeshes: vec![Submesh {
+            source_index: None,
             material: AssetRef::new("level:/materials/red").unwrap(),
             triangles: vec![[0, 1, 2]],
             texcoords: vec![[0., 0.], [1., 0.], [0., 1.]],
@@ -21,7 +23,7 @@ fn controlled_layout_derives_pointers_and_preserves_distinct_uv_indices() -> Res
     let mut m = model();
     let targets = BTreeMap::from([(
         m.submeshes[0].material.path.clone(),
-        MaterialTarget {
+        ReferenceTarget {
             address: 0x2000,
             block: (6, 1),
         },

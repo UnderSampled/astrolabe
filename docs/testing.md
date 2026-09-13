@@ -1,5 +1,14 @@
 # Testing Astrolabe
 
+Latest checkpoint: the environment/fog slice passed **78 tests in 239.345 seconds**,
+including compilation, all local corpus/Godot checks and cleanup. Report:
+`TestResults/20260913T014933.418118Z-2136654.log.json`. Child CPU time was
+1,387.26 seconds, peak RSS 1,139,680 KiB, and no children leaked. The focused
+environment checks also passed in 48.40 seconds including compilation. See
+[environment/fog evidence](environment-fog.md) for the original MCP readings,
+matched-FoV pixel comparison, successful distance rendering probe and separately
+failed desktop capture attempt.
+
 Run the suite through one supervisor from any working directory:
 
 ```sh
@@ -48,3 +57,107 @@ Codec contract tests run the same typed consumer over GF image edits and Latin-1
 The supervisor itself was checked with real short-lived process trees: a TERM-ignoring parent and separate-group worker timed out and were reaped in 2.48 seconds; an orphan worker after a successful parent was detected, terminated and marked failed; an ordinary exit code 7 was preserved. A full CLI trial with a controlled stand-in command confirmed argument/environment forwarding, timeout reporting and owned temporary cleanup in 0.28 seconds. These are supervisor checks, not claims that the complete Astrolabe suite or project milestones have passed. Current full-suite results live in `TestResults/` and the integration report.
 
 The complete local-inclusive reviewed-refactor run on 2026-09-12 passed all **55 tests in 128.933 seconds**, including 50.36 seconds of release compilation and cleanup. It reported no leaked processes. Full report: `TestResults/20260912T162320.929180Z-235583.log.json`. Release build, strict Clippy, formatting, and diff whitespace checks passed. Godot checks ran outside the restricted sandbox to allow local sockets and editor settings.
+
+The scene/sprite/animation/light checkpoint passed all **65 tests in 195.277 seconds**
+on 2026-09-12, including release compilation and every local test. Report:
+`TestResults/20260912T220040.714895Z-851647.log.json`. Cleanup completed without
+leaked children; the single build/test deadline remained 570 seconds.
+
+The sector checkpoint passed **67 tests in 225.55 seconds**, including release
+compilation, all corpus/Godot checks, and cleanup. Report:
+`TestResults/20260912T222959.258375Z-970703.log.json`. The earlier 226.958-second
+run passed structural checks, but visual QA found that ImmediateMesh wireframes
+did not persist. The accepted ArrayMesh implementation is checked after native
+scene reload; direct/reopened-Rete routes also pass. The original-engine portal
+comparison is separate manual MCP evidence in the scene/animation research note.
+
+The shared animation-action checkpoint passed **68 tests in 225.69 seconds**,
+including release compilation, every local corpus/Godot check and cleanup.
+Report: `TestResults/20260912T225824.151502Z-1154481.log.json`. There were no
+leaked children or timeouts. The native player checks cue ordering across state
+entry, skipped frames and loops, pose visibility to listeners, and cancellation
+of the old tick when a cue listener selects a new state. Source checks cover all
+147 descriptors plus regenerated SND/RTS and edited cue/reference round trips.
+Strict Clippy, formatting and diff whitespace checks passed. The earlier
+233.113-second pass predates the callback/pose regression check.
+
+The sound-program checkpoint passed **70 tests in 227.753 seconds**, including
+release compilation, all local fixtures, both scene conversion routes, source
+reconstruction and native Godot playback. Report:
+`TestResults/20260912T234041.099463Z-1408481.log.json`. Child CPU time was
+1,289.219 seconds, peak child RSS 1,323,036 KiB, and cleanup completed with no
+leaked processes or timeout. The new audio model covers event-targeted stop,
+quoted legacy source arguments, shared bank samples, Rete loop/volume edits,
+material/default selection, no-repeat random choices, random pitch, stoppable
+and nonabortable voices, and actual mixer output. The full scene route catches
+localized CSB-owner/LCB-filename differences. New projects disable threaded
+resource import after the separately reproduced Godot 4.7.2 WAV importer crash;
+fixtures and coverage remain intact. Original walking events and SDA scalar
+observations are separate MCP evidence in the scene/animation research note.
+
+The configuration reconstruction checkpoint passed **71 tests in 224.780
+seconds**, including 88 seconds of release compilation, all local/Godot
+checks and cleanup. Report:
+`TestResults/20260913T000049.705527Z-1554795.log.json`. Child CPU time was
+1,223.686 seconds and peak child RSS 1,216,864 KiB; no timeout or leaked children,
+and temporary cleanup completed. The source checks cover all 17 configurations
+and 2,380 active/reset entries, reference targets, scales, unknown fields and RTB
+receiving sites. Rete edit tests change a snapshot and table size. Native Godot
+checks verify the displayed reset scale, frame/cue stability and snapshot
+isolation. The full scene route exercises the CLI writer's nonoverlapping PO
+fragment addresses and active/reset dependency traversal. Strict Clippy,
+formatting and diff whitespace checks passed. Read-only original-engine MCP
+observations independently confirm Hype's 56-byte family and 507-entry snapshot;
+these are baselines rather than acceptance of generated game packages.
+
+
+The family/state and mechanics checkpoint passed **73 tests in 259.117 seconds**,
+including 120 seconds of release compilation, all local corpus/Godot tests and
+cleanup. Report: `TestResults/20260913T003629.182307Z-1774655.log.json`.
+Child CPU time was 1,539.672 seconds and peak child RSS 1,379,608 KiB; no timeout,
+leaked children or cleanup failure occurred. The corpus verifies 21 family
+records, 585 corrected 64-byte states, 19 transitions, 18 shared bounds and ten
+mechanics cards. All ten cards reconstruct their original bytes; five are typed
+and five explicitly retain unpromoted fields. Synthetic Rete edits exercise
+family identity, shared configuration ownership, growing transition lists and
+mechanics parameter changes. Native Godot checks verify state-selected mechanics,
+bounds geometry/axis conversion and unchanged physics-body count. Both complete
+scene routes and CLI family-group reconstruction pass. Formatting, strict Clippy
+and diff whitespace checks pass. Original-engine MCP comparisons remain separate
+from acceptance of rebuilt game packages.
+
+The GPT Fix binding correction passed **74 tests in 259.578 seconds** in
+`TestResults/20260913T010033.002086Z-1868962.log.json`, with complete cleanup and
+no timeout or leaked children. It adds A→B→A active-level binding coverage and
+checks all 108 corpus actor aliases. Strict Clippy passed. A fresh native Godot
+probe also verified Hype's GPT placement and the existing MCP family/mechanics
+expectations in 0.709 seconds; original read-only evidence is recorded in the
+scene research document.
+
+The final transparency checkpoint passed **76 tests in 238.725 seconds**,
+including release compilation, all local/Godot tests and complete cleanup.
+Report: `TestResults/20260913T012705.474229Z-2036182.log.json`. Child CPU was
+1,427.693 seconds and peak child RSS 1,463,832 KiB, with no timeout or leaked
+children. The material regression checks Rete key edits, opaque/keyed sharing,
+duplicate black palette entries, source alpha-test/blend gates and derived PNG
+filename collisions in both traversal orders. Formatting, strict Clippy and
+diff whitespace checks passed. The existing 3,578 GF byte reconstruction checks
+remain green. The separately measured original-engine screenshots and
+ImageMagick comparison workflow are documented in
+[material-transparency.md](material-transparency.md).
+
+The scene hierarchy regression is documented in [scene-hierarchy.md](scene-hierarchy.md):
+all 150 full SO records, source-order links, 145 picking-bound references and
+embedded character matrices are checked under a derived layout. Synthetic and
+native Godot cases cover parent edits, world placement and empty bounds.
+The native material regression also checks source bilinear filtering; matched
+original-engine pixel measurements are in [material-transparency.md](material-transparency.md#bilinear-filtering-follow-up).
+
+The final scene-hierarchy/filtering checkpoint passed **81 tests in 216.322
+seconds**, including release compilation, every local/Godot test and cleanup.
+Report: `TestResults/scene-graph-full-retry-20260913.log.json`; no timeout, leaked
+children or incomplete cleanup. Release build, formatting, strict Clippy and
+diff whitespace checks passed. The preceding attempt received SIGTERM during
+compilation after 116.842 seconds and is recorded as failed in
+`TestResults/scene-graph-full-20260913.log.json`; it did not reach tests and left
+no child processes. The successful retry used the same 570-second deadline.

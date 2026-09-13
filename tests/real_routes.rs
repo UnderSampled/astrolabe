@@ -47,7 +47,7 @@ fn pointer(bytes: &[u8], offset: usize) -> Result<usize> {
 }
 fn check_fragment(output: &Path, model: &Model, names: &BTreeSet<String>) -> Result<Vec<u8>> {
     let stem = output
-        .join("fragments")
+        .join("fragments/level")
         .join(format!("{}/instance", model.path.file()));
     let bytes = fs::read(stem.with_extension("bin"))?;
     // Independently follow the known Montreal PO -> visual set -> LOD -> geometry chain.
@@ -235,7 +235,10 @@ fn worker() -> Result<()> {
     for part in &reloaded.submeshes {
         let m: Arc<Material> = store.load(&part.material)?;
         names.insert(
-            m.texture_info
+            m.visual
+                .as_ref()
+                .unwrap()
+                .texture_info
                 .as_ref()
                 .context("real material sampling")?
                 .source_name
@@ -264,7 +267,7 @@ fn worker() -> Result<()> {
         report.files.len() == 9,
         "model fragment, SNA framing and four dependent textures"
     );
-    let framed = fs::read(baseline_dir.join("fragments/models/world/1/0/0/instance.sna"))?;
+    let framed = fs::read(baseline_dir.join("fragments/level/models/world/1/0/0/instance.sna"))?;
     ensure!(
         framed.starts_with(&[6, 2]),
         "wrong generated fragment block"
@@ -273,7 +276,8 @@ fn worker() -> Result<()> {
         astrolabe::openspace::compression::decode_envelope(&framed[22..], 64 * 1024 * 1024)?;
     ensure!(
         used + 22 == framed.len()
-            && decoded == fs::read(baseline_dir.join("fragments/models/world/1/0/0/instance.bin"))?,
+            && decoded
+                == fs::read(baseline_dir.join("fragments/level/models/world/1/0/0/instance.bin"))?,
         "framed model differs from generated content"
     );
     let baseline = check_fragment(&baseline_dir, &original, &names)?;

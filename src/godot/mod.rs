@@ -5,10 +5,13 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
+mod collision;
 mod engine;
+mod material;
 mod project;
 mod publication;
 mod resources;
+mod scene;
 pub use engine::run_godot;
 pub use project::Project;
 
@@ -55,3 +58,13 @@ pub struct Manifest {
 
 mod export;
 pub use export::export;
+
+mod character;
+mod sprite;
+
+mod light;
+
+mod sector;
+mod sound;
+
+mod environment;

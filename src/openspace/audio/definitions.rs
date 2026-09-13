@@ -95,6 +95,207 @@ fn unquote(s: &str) -> String {
         .to_owned()
 }
 
+fn member_reference(text: &str, kind: &str) -> Result<SoundMemberRef> {
+    let text = reference_argument(text)?;
+    let (file, member) = text
+        .trim()
+        .split_once('^')
+        .context("sound reference lacks owner")?;
+    ensure!(
+        !file.contains(['/', '\\', ':']),
+        "sound definition reference must name a file"
+    );
+    let id = member
+        .strip_prefix(kind)
+        .context("sound member kind mismatch")?
+        .parse()?;
+    Ok(SoundMemberRef {
+        definitions: crate::model::AssetRef::new(format!("sound:/Sound/{file}"))?,
+        id,
+    })
+}
+// SCR 552 allows either an unquoted reference or an [ar]("reference",n)
+// argument. Keep this source syntax at the text codec boundary.
+fn reference_argument(text: &str) -> Result<&str> {
+    let text = text.trim();
+    if let Some(rest) = text.strip_prefix('"') {
+        let end = rest.find('"').context("unterminated sound reference")?;
+        ensure!(
+            matches!(rest[end + 1..].trim(), "" | ",n" | ", n"),
+            "unsupported sound reference suffix"
+        );
+        Ok(&rest[..end])
+    } else {
+        Ok(text)
+    }
+}
+fn selector_reference(text: &str) -> Result<SoundSelectorRef> {
+    let text = reference_argument(text)?;
+    let (file, name) = text
+        .split_once("^SIF_Type:")
+        .context("invalid sound selector reference")?;
+    ensure!(
+        !file.contains(['/', '\\', ':']),
+        "sound selector must name a file"
+    );
+    Ok(SoundSelectorRef {
+        definitions: crate::model::AssetRef::new(format!("sound:/Sound/{file}"))?,
+        name: name.into(),
+    })
+}
+fn selector_value(text: &str) -> Result<String> {
+    Ok(reference_argument(text)?
+        .rsplit_once("^SIF_Value:")
+        .context("invalid sound selector value")?
+        .1
+        .into())
+}
+fn boolean(block: &Block, key: &str) -> Result<bool> {
+    match value(block, key) {
+        None => Ok(false),
+        Some(v) if v.eq_ignore_ascii_case("FALSE") => Ok(false),
+        Some(v) if v.eq_ignore_ascii_case("TRUE") => Ok(true),
+        Some(other) => bail!("invalid {key} boolean {other}"),
+    }
+}
+fn number(block: &Block, key: &str, default: f32) -> Result<f32> {
+    value(block, key)
+        .map(|v| unquote(v).parse())
+        .transpose()
+        .map(|v| v.unwrap_or(default))
+        .map_err(Into::into)
+}
+fn operation(block: &Block) -> Result<SoundOperation> {
+    let name = argument(&block.header).unwrap_or("");
+    let target = || {
+        value(block, "SetParam1")
+            .map(|r| member_reference(r, "SndResourceM:"))
+            .transpose()
+    };
+    Ok(match name {
+        "EVT_SON_PLAY" => SoundOperation::Play {
+            resource: target()?,
+            pitch_variation: number(block, "SetParam2", 0.)?,
+            stoppable: boolean(block, "SetStopable")?,
+            dynamic: boolean(block, "SetDynamic")?,
+        },
+        "EVT_SON_STOP" => SoundOperation::Stop {
+            event: value(block, "SetParam1")
+                .map(|r| member_reference(r, "SndEventM:"))
+                .transpose()?,
+        },
+        _ => SoundOperation::Other { name: name.into() },
+    })
+}
+fn resource_data(block: &Block, disk: Option<&Block>) -> Result<SoundResourceData> {
+    let kind = disk
+        .and_then(|b| argument(&b.header))
+        .unwrap_or("unresolved");
+    let child = |name: &str| {
+        block
+            .children
+            .iter()
+            .find(|c| label(&c.header) == name)
+            .with_context(|| format!("missing {name}"))
+    };
+    Ok(match kind {
+        "TYPE_SAMPLE" => {
+            let disk = disk.unwrap();
+            SoundResourceData::Sample {
+                sample: None,
+                controls: SoundSampleControls {
+                    pitchable: boolean(disk, "SetPitchable")?,
+                    volumeable: boolean(disk, "SetVolable")?,
+                    pannable: boolean(disk, "SetPanable")?,
+                    spatial: boolean(disk, "SetSpacable")?,
+                    reverb: boolean(disk, "SetReverbable")?,
+                },
+            }
+        }
+        "TYPE_RANDOM" => {
+            let disk = disk.unwrap();
+            let list = child("SndRandomListM")?;
+            let mut choices = Vec::new();
+            for element in &list.children {
+                ensure!(
+                    label(&element.header) == "SndRandomElementM",
+                    "unknown random sound element"
+                );
+                choices.push(RandomSoundChoice {
+                    resource: member_reference(
+                        value(element, "LoadResource").context("random choice lacks resource")?,
+                        "SndResourceM:",
+                    )?,
+                    probability: number(element, "SetProbability", 0.)?,
+                    repeat: boolean(element, "SetElementCanBeChoosenTwice")?,
+                });
+            }
+            SoundResourceData::Random {
+                silence_probability: number(disk, "SetProbNothing", 0.)?,
+                repeat_silence: boolean(disk, "SetNothingCanBeChoosenTwice")?,
+                choices,
+            }
+        }
+        "TYPE_SWITCH" => {
+            let list = child("SndSwitchListM")?;
+            let mut choices = Vec::new();
+            for element in &list.children {
+                ensure!(
+                    label(&element.header) == "SndSwitchElementM",
+                    "unknown switch sound element"
+                );
+                choices.push(SwitchSoundChoice {
+                    resource: member_reference(
+                        value(element, "LoadResource").context("switch choice lacks resource")?,
+                        "SndResourceM:",
+                    )?,
+                    value: selector_value(
+                        value(element, "SetInfoValue")
+                            .context("switch choice lacks selector value")?,
+                    )?,
+                });
+            }
+            SoundResourceData::Switch {
+                selector: selector_reference(
+                    value(list, "SetInfoType").context("switch lacks selector")?,
+                )?,
+                default: selector_value(
+                    value(list, "SetDefaultValue").context("switch lacks default")?,
+                )?,
+                dynamic: boolean(list, "SetDynamic")?,
+                maintain: boolean(list, "SetMaintainIfSwitched")?,
+                choices,
+            }
+        }
+        _ => {
+            let mut members = Vec::new();
+            all_commands(block, "LoadResource", &mut members);
+            SoundResourceData::Other {
+                kind: kind.into(),
+                members: members
+                    .into_iter()
+                    .map(|r| member_reference(r, "SndResourceM:"))
+                    .collect::<Result<_>>()?,
+            }
+        }
+    })
+}
+fn emit_member(reference: &SoundMemberRef, kind: &str) -> Result<String> {
+    let file = reference
+        .definitions
+        .path
+        .file()
+        .strip_prefix("Sound/")
+        .context("unsupported source sound definitions directory")?;
+    // The English session resolves localized owners beneath Sound/English.
+    // Source LCB syntax still names only the CSB file; language chooses its folder.
+    let file = file.strip_prefix("English/").unwrap_or(file);
+    ensure!(
+        !file.contains(['/', '\\', ':', '\n', '\r', '(', ')', ',']),
+        "invalid source sound reference filename"
+    );
+    Ok(format!("{file}^{kind}{}", reference.id))
+}
 pub fn read_sound_definitions(text: &str, name: impl Into<String>) -> Result<SoundDefinitions> {
     let name = name.into();
     let tree = parse(text)?;
@@ -191,11 +392,18 @@ pub fn read_sound_definitions(text: &str, name: impl Into<String>) -> Result<Sou
                         .context("binding reference missing")?
                         .trim()
                         .to_owned();
+                    let target = if is_event {
+                        SoundDefinitionTarget::Event(member_reference(&reference, "SndEventM:")?)
+                    } else {
+                        SoundDefinitionTarget::Resource(member_reference(
+                            &reference,
+                            "SndResourceM:",
+                        )?)
+                    };
                     result.bindings.push(SoundDefinitionBinding {
-                        reference,
+                        target,
                         bank,
                         member,
-                        is_event,
                     });
                 }
             }
@@ -208,24 +416,26 @@ pub fn read_sound_definitions(text: &str, name: impl Into<String>) -> Result<Sou
                     .and_then(|b| value(b, "SetName"))
                     .unwrap_or("")
                     .to_owned();
-                let mut attributes = vec![(
-                    "action".into(),
-                    argument(&block.header).unwrap_or("").to_owned(),
-                )];
+                let operation = operation(block)?;
+                let mut attributes = Vec::new();
                 for (k, v) in &block.commands {
-                    let key = match k.as_str() {
-                        "SetParam1" => "target",
-                        "SetParam2" => "parameter2",
-                        "SetParam3" => "parameter3",
-                        "SetParam4" => "parameter4",
-                        _ => k.as_str(),
+                    let represented = match &operation {
+                        SoundOperation::Play { .. } => matches!(
+                            k.as_str(),
+                            "SetParam1" | "SetParam2" | "SetStopable" | "SetDynamic"
+                        ),
+                        SoundOperation::Stop { .. } => k == "SetParam1",
+                        SoundOperation::Other { .. } => false,
                     };
-                    attributes.push((key.to_owned(), v.clone()));
+                    if !represented {
+                        attributes.push((k.clone(), v.clone()));
+                    }
                 }
                 result.events.push(SoundEvent {
                     name: event_name,
                     resource_id: Some(event_id),
                     attributes,
+                    operation,
                 });
             }
             "SndResourceM" => {
@@ -237,24 +447,22 @@ pub fn read_sound_definitions(text: &str, name: impl Into<String>) -> Result<Sou
                     .children
                     .iter()
                     .find(|c| label(&c.header) == "SndResourceDisk");
-                let mut members = Vec::new();
-                all_commands(block, "LoadResource", &mut members);
                 result.resources.push(SoundResourceDefinition {
                     id: resource_id,
                     name: editor
                         .and_then(|b| value(b, "SetName"))
                         .unwrap_or("")
                         .to_owned(),
-                    kind: disk
-                        .and_then(|b| argument(&b.header))
-                        .unwrap_or("unresolved")
-                        .to_owned(),
+                    data: resource_data(block, disk)?,
                     file: first_recursive(block, "SetFileName").map(unquote),
                     volume: first_recursive(block, "SetVolume")
                         .map(str::parse)
                         .transpose()?,
-                    looped: first_recursive(block, "SetLoop") == Some("TRUE"),
-                    loop_region: if first_recursive(block, "SetLoop") == Some("TRUE") {
+                    looped: first_recursive(block, "SetLoop")
+                        .is_some_and(|v| v.eq_ignore_ascii_case("TRUE")),
+                    loop_region: if first_recursive(block, "SetLoop")
+                        .is_some_and(|v| v.eq_ignore_ascii_case("TRUE"))
+                    {
                         first_recursive(block, "SetLoopData")
                             .map(|value| -> Result<Option<SampleLoop>> {
                                 let (start, length) =
@@ -283,7 +491,6 @@ pub fn read_sound_definitions(text: &str, name: impl Into<String>) -> Result<Sou
                     channels: first_recursive(block, "SetSampleChannelNumber")
                         .map(str::parse)
                         .transpose()?,
-                    members: members.into_iter().map(str::to_owned).collect(),
                 });
             }
             "SIF_Type" => {
@@ -431,15 +638,23 @@ pub fn write_sound_definitions(value: &SoundDefinitions) -> Result<String> {
                 } else {
                     "{SndResIdList:\n"
                 });
-                for binding in value.bindings.iter().filter(|b| b.is_event == is_event) {
-                    ensure!(
-                        !binding.reference.contains(['\n', '\r', '(', ')', ',']),
-                        "invalid binding reference"
-                    );
+                for binding in value
+                    .bindings
+                    .iter()
+                    .filter(|b| matches!(b.target, SoundDefinitionTarget::Event(_)) == is_event)
+                {
+                    let reference = emit_member(
+                        binding.target.member(),
+                        if is_event {
+                            "SndEventM:"
+                        } else {
+                            "SndResourceM:"
+                        },
+                    )?;
                     out.push_str(&format!(
                         "    {}({},{},{})\n",
                         if is_event { "SetEvent" } else { "SetResource" },
-                        binding.reference,
+                        reference,
                         binding.bank,
                         binding.member
                     ));

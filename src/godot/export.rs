@@ -21,6 +21,49 @@ pub fn export<R: ContentSource>(
     let mut written = BTreeSet::<AssetPath>::new();
     for root in roots {
         match Asset::load(source, root)? {
+            Asset::Environment(_)
+            | Asset::VisualEnvironment(_)
+            | Asset::Fog(_)
+            | Asset::Light(_)
+            | Asset::Mechanics(_) => {
+                anyhow::bail!(
+                    "environment/light/mechanics export requires a scene for placement or state context"
+                )
+            }
+            Asset::Sprite(_) => anyhow::bail!("sprite export requires its owning model"),
+            Asset::AnimationAction(_)
+            | Asset::Animation(_)
+            | Asset::TransformPool(_)
+            | Asset::Family(_)
+            | Asset::ObjectList(_)
+            | Asset::Perso(_) => {
+                anyhow::bail!("character content export requires its owning scene")
+            }
+            Asset::Collision(_) => {
+                anyhow::bail!("collision export requires its owning scene")
+            }
+            Asset::Scene(scene) => {
+                let preview_start = project.preview_instances.len();
+                for node in &scene.nodes {
+                    if let Some(reference) = &node.perso {
+                        let perso = source.load(reference)?;
+                        perso.validate_reference(&reference.path)?;
+                        super::character::export_perso(&mut project, source, &perso, &mut written)?;
+                    }
+                    if let Some(reference) = &node.instance {
+                        let instance = source.load(reference)?;
+                        instance.validate_reference(&reference.path)?;
+                        anyhow::ensure!(
+                            instance.transforms.is_empty(),
+                            "scene-owned instance must use node placement"
+                        );
+                        let model = source.load(&instance.model)?;
+                        export_instance(&mut project, source, &model, &instance, &mut written)?;
+                    }
+                }
+                project.preview_instances.truncate(preview_start);
+                project.write_scene(&scene, source)?;
+            }
             Asset::Model(model) => {
                 let instance = ModelInstance::new(model.path.clone(), &model);
                 export_instance(&mut project, source, &model, &instance, &mut written)?;
@@ -32,7 +75,7 @@ pub fn export<R: ContentSource>(
             Asset::Material(material) => {
                 material.validate_reference(&root.reference)?;
                 if written.insert(material.path.clone()) {
-                    if let Some(id) = &material.texture {
+                    if let Some(id) = material.texture() {
                         texture(&mut project, source, id, &mut written)?;
                     }
                     project.write_material(&material)?;
@@ -97,7 +140,7 @@ fn texture<R: Load<Texture>>(
     Ok(())
 }
 
-fn export_instance(
+pub(super) fn export_instance(
     project: &mut super::Project,
     source: &mut impl ContentSource,
     model: &Model,
@@ -105,11 +148,29 @@ fn export_instance(
     written: &mut BTreeSet<AssetPath>,
 ) -> Result<()> {
     instance.validate_model(model)?;
+    for element in &model.sprite_elements {
+        for placement in &element.sprites {
+            let sprite = source.load(&placement.sprite)?;
+            sprite.validate_reference(&placement.sprite.path)?;
+            for view in &sprite.views {
+                if let Some(reference) = &view.material {
+                    let material = source.load(reference)?;
+                    material.validate_reference(&reference.path)?;
+                    if written.insert(material.path.clone()) {
+                        if let Some(id) = material.texture() {
+                            texture(project, source, id, written)?;
+                        }
+                        project.write_material(&material)?;
+                    }
+                }
+            }
+        }
+    }
     for part in &model.submeshes {
         let material = source.load(&part.material)?;
         material.validate_reference(&part.material.path)?;
         if written.insert(material.path.clone()) {
-            if let Some(id) = &material.texture {
+            if let Some(id) = material.texture() {
                 texture(project, source, id, written)?;
             }
             project.write_material(&material)?;

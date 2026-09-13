@@ -2,13 +2,13 @@
 use super::records::*;
 use super::{
     container::{emit_relocations, encoded},
-    geometry::{EmittedRange, Layout, MaterialTarget, emit_geometry},
+    geometry::{EmittedRange, Layout, ReferenceTarget, emit_geometry},
 };
 use crate::model::{
     AssetPath,
     geometry::{Material, Model, ModelInstance, TextureInfo},
 };
-use anyhow::{Result, anyhow, ensure};
+use anyhow::{Context, Result, anyhow, ensure};
 use std::collections::BTreeMap;
 #[derive(Debug, Clone)]
 pub struct ModelFragment {
@@ -30,6 +30,7 @@ pub fn write_model_fragment(
     model: &Model,
     instance: &ModelInstance,
     materials: &[Material],
+    sprites: &[crate::model::sprite::Sprite],
     base: u32,
 ) -> Result<ModelFragment> {
     instance.validate_model(model)?;
@@ -42,6 +43,7 @@ pub fn write_model_fragment(
         ranges: Vec::new(),
         rows: Vec::new(),
         base,
+        block: BlockKey(6, 2),
     };
     let physical_object = layout.allocate(
         "physical_object",
@@ -124,76 +126,91 @@ pub fn write_model_fragment(
                 visual: 0,
                 mechanics: 0,
                 sound: m.sound_material,
-                collision: 0,
+                collision: if m.collision == crate::model::collision::CollisionProperties::Default {
+                    u32::MAX
+                } else {
+                    0
+                },
             })?,
         )?;
-        let visual_material = layout.allocate(
-            format!("materials/{}/visual", m.path.file()),
-            &encoded(&VisualMaterialWire {
-                flags: m.flags,
-                ambient: m.ambient,
-                diffuse: m.diffuse,
-                specular: m.specular,
-                color: m.color,
-                unknown_44: 0,
-                texture: 0,
-                scroll_position: m.scroll_position,
-                scroll_speed: m.scroll_speed,
-                scroll_mode: m.scroll_mode,
-                refresh: 0,
-                animation_first: 0,
-                animation_current: 0,
-                animation_count: 0,
-                reserved: 0,
-                animation_time: 0,
-                properties: [0; 4],
-                runtime_tail: [0; 3],
-            })?,
-        )?;
-        layout.pointer(game_material + GameMaterialWire::VISUAL, visual_material)?;
-        if let (Some(reference), Some(info)) = (&m.texture, &m.texture_info) {
-            let name = info
-                .source_name
-                .clone()
-                .unwrap_or_else(|| reference.file().replace('/', "\\"));
-            let texture_key = (reference.clone(), name.clone());
-            let t = if let Some((offset, previous)) = textures.get(&texture_key) {
-                ensure!(
-                    previous == info,
-                    "shared texture has conflicting sampling metadata"
-                );
-                *offset
-            } else {
-                ensure!(name.len() < 80, "Hype TextureInfo name exceeds 79 bytes");
-                let mut raw_name = [0; 80];
-                raw_name[..name.len()].copy_from_slice(name.as_bytes());
-                let t = layout.allocate(
-                    format!("textures/{}", reference.file()),
-                    &encoded(&TextureInfoWire {
-                        runtime_head: [0; 2],
-                        flags: info.flags,
-                        stored_height: info.stored_size[1],
-                        stored_width: info.stored_size[0],
-                        unknown_14: 0,
-                        runtime_state: [0; 6],
-                        logical_height: info.logical_size[1],
-                        logical_width: info.logical_size[0],
-                        remaining_state: [0; 11],
-                        name: raw_name,
-                        sample_flags: 0,
-                        addressing: info.addressing,
-                        reserved: 0,
-                        runtime_tail: 0,
-                    })?,
-                )?;
-                textures.insert(texture_key, (t, info.clone()));
-                t
-            };
-            layout.pointer(visual_material + VisualMaterialWire::TEXTURE, t)?;
+        if let crate::model::collision::CollisionProperties::Surface { kind, identifier } =
+            m.collision
+        {
+            let p = layout.allocate(
+                format!("materials/{}/collision", m.path.file()),
+                &encoded(&CollisionMaterialWire { kind, identifier })?,
+            )?;
+            layout.pointer(game_material + 12, p)?;
+        }
+        if let Some(v) = &m.visual {
+            let visual_material = layout.allocate(
+                format!("materials/{}/visual", m.path.file()),
+                &encoded(&VisualMaterialWire {
+                    flags: v.flags,
+                    ambient: v.ambient,
+                    diffuse: v.diffuse,
+                    specular: v.specular,
+                    color: v.color,
+                    unknown_44: 0,
+                    texture: 0,
+                    scroll_position: v.scroll_position,
+                    scroll_speed: v.scroll_speed,
+                    scroll_mode: v.scroll_mode,
+                    refresh: 0,
+                    animation_first: 0,
+                    animation_current: 0,
+                    animation_count: 0,
+                    reserved: 0,
+                    animation_time: 0,
+                    properties: [0; 4],
+                    runtime_tail: [0; 3],
+                })?,
+            )?;
+            layout.pointer(game_material + GameMaterialWire::VISUAL, visual_material)?;
+            if let (Some(reference), Some(info)) = (&v.texture, &v.texture_info) {
+                let name = info
+                    .source_name
+                    .clone()
+                    .unwrap_or_else(|| reference.file().replace('/', "\\"));
+                let texture_key = (reference.clone(), name.clone());
+                let t = if let Some((offset, previous)) = textures.get(&texture_key) {
+                    ensure!(
+                        previous == info,
+                        "shared texture has conflicting sampling metadata"
+                    );
+                    *offset
+                } else {
+                    ensure!(name.len() < 80, "Hype TextureInfo name exceeds 79 bytes");
+                    let mut raw_name = [0; 80];
+                    raw_name[..name.len()].copy_from_slice(name.as_bytes());
+                    let t = layout.allocate(
+                        format!("textures/{}", reference.file()),
+                        &encoded(&TextureInfoWire {
+                            runtime_head: [0; 2],
+                            flags: info.flags,
+                            stored_height: info.stored_size[1],
+                            stored_width: info.stored_size[0],
+                            unknown_14: 0,
+                            runtime_state: [0; 6],
+                            logical_height: info.logical_size[1],
+                            logical_width: info.logical_size[0],
+                            remaining_state: [0; 11],
+                            name: raw_name,
+                            sample_flags: 0,
+                            addressing: info.addressing,
+                            reserved: 0,
+                            runtime_tail: 0,
+                        })?,
+                    )?;
+                    textures.insert(texture_key, (t, info.clone()));
+                    t
+                };
+                layout.pointer(visual_material + VisualMaterialWire::TEXTURE, t)?;
+            }
         }
         targets.insert(
             m.path.clone(),
-            MaterialTarget {
+            ReferenceTarget {
                 address: base
                     .checked_add(game_material.try_into()?)
                     .ok_or_else(|| anyhow!("fragment base overflow"))?,
@@ -201,7 +218,24 @@ pub fn write_model_fragment(
             },
         );
     }
-    let geometry = emit_geometry(&mut layout, model, &targets)?;
+    let mut sprite_targets = BTreeMap::new();
+    for sprite in sprites {
+        ensure!(
+            !sprite_targets.contains_key(&sprite.path),
+            "duplicate sprite definition"
+        );
+        let offset = super::sprite::emit_definition(&mut layout, sprite, &targets)?;
+        sprite_targets.insert(
+            sprite.path.clone(),
+            ReferenceTarget {
+                address: base
+                    .checked_add(u32::try_from(offset)?)
+                    .context("sprite address overflow")?,
+                block: (6, 2),
+            },
+        );
+    }
+    let geometry = emit_geometry(&mut layout, model, &targets, &sprite_targets)?;
     layout.pointer(object, geometry)?;
     layout.rows.sort_by_key(|r| r.value);
     let rtb = emit_relocations(BlockKey(6, 2), &layout.rows)?;

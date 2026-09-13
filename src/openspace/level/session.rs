@@ -14,7 +14,10 @@ pub(super) struct RootedNode {
     pub(super) address: Address,
     pub(super) transforms: Vec<SourceTransform>,
 }
+type AllocationIndices = BTreeMap<(Owner, BlockKey), BTreeMap<usize, u32>>;
 pub(super) struct SourceSession {
+    pub(super) fix_bindings: super::fix_bindings::FixBindings,
+    pub(super) allocation_cache: std::cell::RefCell<AllocationIndices>,
     pub(super) blocks: BTreeMap<Owner, BTreeMap<BlockKey, Block>>,
     pub(super) actual: BTreeMap<BlockKey, Owner>,
     pub(super) pointers: PointerMap,
@@ -51,7 +54,9 @@ impl SourceSession {
         }
         let rtp = pointer_file(&file(&level.join(format!("{}.rtp", selection.level)))?)?;
         let rtt = pointer_file(&file(&level.join(format!("{}.rtt", selection.level)))?)?;
-        Ok(Self {
+        let mut session = Self {
+            fix_bindings: Default::default(),
+            allocation_cache: Default::default(),
             blocks: BTreeMap::from([(Owner::Fix, fix), (Owner::Level, lvl)]),
             actual,
             pointers,
@@ -59,13 +64,27 @@ impl SourceSession {
             rtp,
             ptx: file(&level.join(format!("{}.ptx", selection.level)))?,
             rtt,
-        })
+        };
+        session.bind_fix_persos()?;
+        Ok(session)
     }
     pub(super) fn block(&self, a: Address) -> Result<&Block> {
         self.blocks
             .get(&a.owner)
             .and_then(|b| b.get(&a.key))
             .ok_or_else(|| anyhow!("missing block {a:?}"))
+    }
+    pub(super) fn allocation_index(&self, a: Address) -> Result<u32> {
+        let key = (a.owner, a.key);
+        if !self.allocation_cache.borrow().contains_key(&key) {
+            self.allocation_cache
+                .borrow_mut()
+                .insert(key, self.allocation_indices(a.owner, a.key)?);
+        }
+        self.allocation_cache.borrow()[&key]
+            .get(&a.offset)
+            .copied()
+            .ok_or_else(|| anyhow!("reference is not an allocation start: {a:?}"))
     }
     pub(super) fn bytes(&self, a: Address, n: usize) -> Result<&[u8]> {
         self.block(a)?
@@ -101,6 +120,9 @@ impl SourceSession {
                 .ok_or_else(|| anyhow!("offset overflow"))?,
             ..a
         };
+        if let Some(&target) = self.fix_bindings.pointers.get(&site) {
+            return Ok(Some(target));
+        }
         let value = u32_at(self.bytes(site, 4)?, 0)?;
         if value == 0 {
             return Ok(None);
@@ -239,12 +261,37 @@ impl SourceSession {
             .collect()
     }
     pub(super) fn transform(&self, address: Address) -> Result<SourceTransform> {
-        let transform: TransformWire = wire(self.bytes(address, 88)?)?;
-        Ok(SourceTransform {
-            translation: transform.translation,
-            rotation: transform.rotation,
-            basis: transform.basis,
-        })
+        if let Some(value) = self.fix_bindings.transforms.get(&address) {
+            return Ok(value.clone());
+        }
+        let bytes = &self.block(address)?.data[address.offset..];
+        Ok(super::transform::read_transform(bytes)?.affine())
+    }
+    /// Engine FUN_004aeb10 prefixes pool allocations with their size in u32 words,
+    /// including the header. The saved used prefix ends in a trimmed free-block header.
+    pub(super) fn allocation_indices(
+        &self,
+        owner: Owner,
+        key: BlockKey,
+    ) -> Result<BTreeMap<usize, u32>> {
+        let data = &self.blocks[&owner][&key].data;
+        let mut out = BTreeMap::new();
+        let mut cursor = 0;
+        let mut index = 0;
+        while cursor + 4 <= data.len() {
+            let size = (u32_at(data, cursor)? as usize)
+                .checked_mul(4)
+                .ok_or_else(|| anyhow!("allocation size overflow"))?;
+            if size > data.len() - cursor {
+                ensure!(data.len() - cursor <= 9, "invalid trimmed allocation pool");
+                break;
+            }
+            ensure!(size >= 4, "zero-size allocation");
+            out.insert(cursor + 4, index);
+            cursor += size;
+            index += 1;
+        }
+        Ok(out)
     }
     pub(super) fn tree(&self) -> Result<Vec<RootedNode>> {
         fn visit(
@@ -258,10 +305,20 @@ impl SourceSession {
         ) -> Result<()> {
             ensure!(depth < 256 && seen.len() < 100_000, "scene traversal limit");
             ensure!(seen.insert(a), "cycle or repeated child in rooted scene");
-            let h: SuperObjectWire = wire(ctx.bytes(a, 40)?)?;
+            let h: SuperObjectWire = wire(ctx.bytes(a, 64)?)?;
             ensure!(h.child_count <= 100_000, "excessive child count");
             let mut chain = chain.to_vec();
-            if let Some(t) = ctx.pointer(a, SuperObjectWire::LOCAL_TRANSFORM)? {
+            if h.last_compute_frame == u32::MAX {
+                chain.clear();
+            }
+            if let Some(t) = ctx.pointer(
+                a,
+                if h.last_compute_frame == u32::MAX {
+                    36
+                } else {
+                    SuperObjectWire::LOCAL_TRANSFORM
+                },
+            )? {
                 chain.push(ctx.transform(t)?);
             }
             out.push(RootedNode {

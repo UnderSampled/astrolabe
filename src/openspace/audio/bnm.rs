@@ -443,6 +443,27 @@ impl FormatCodec for Bnm {
     }
 }
 
+/// Transient bank-table identity lookup for LCB member bindings. The returned
+/// resource identity is useful data; the table index/address remains source I/O.
+pub(super) fn resource_id_at(data: &[u8], member: u32) -> Result<u32> {
+    let header = BankHeader::read(&mut Cursor::new(data))?;
+    ensure!(
+        member < header.sounds_count,
+        "sound library resource member exceeds bank table"
+    );
+    let stride = if header.version == 0x200 { 96 } else { 92 };
+    let offset = header
+        .sounds_offset
+        .checked_add(
+            member
+                .checked_mul(stride)
+                .context("resource index overflow")?,
+        )
+        .context("resource offset overflow")?;
+    let descriptor = AudioDescriptor::read(&mut Cursor::new(bounded(data, offset, 92)?))?;
+    Ok(descriptor.resource_id)
+}
+
 #[cfg(test)]
 mod allocation_tests {
     use super::*;

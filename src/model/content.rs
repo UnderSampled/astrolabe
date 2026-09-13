@@ -1,13 +1,22 @@
 //! Content kinds and in-memory session loading shared by all adapters.
+use super::environment::{Environment, Fog, VisualEnvironment};
+use super::mechanics::Mechanics;
 use super::{
     AssetPath, AssetRef,
     io::{Content, Load},
 };
 use super::{
+    animation::{AnimationAction, AnimationClip, TransformPool},
+    character::{Family, ObjectList, Perso},
+};
+use super::{
     audio::{Sound, SoundBank, SoundDefinitions},
+    collision::Collision,
     geometry::{Material, Model, ModelInstance},
+    scene::Scene,
     texture::{Texture, TextureSet},
 };
+use super::{light::Light, sprite::Sprite};
 use anyhow::{Context, Result, ensure};
 use std::{any::Any, collections::BTreeMap, sync::Arc};
 
@@ -54,6 +63,20 @@ pub trait ContentSource:
     + Load<Model>
     + Load<ModelInstance>
     + Load<Material>
+    + Load<Scene>
+    + Load<AnimationAction>
+    + Load<AnimationClip>
+    + Load<TransformPool>
+    + Load<Family>
+    + Load<ObjectList>
+    + Load<Perso>
+    + Load<Collision>
+    + Load<Environment>
+    + Load<VisualEnvironment>
+    + Load<Fog>
+    + Load<Light>
+    + Load<Mechanics>
+    + Load<Sprite>
 {
 }
 impl<T> ContentSource for T where
@@ -65,12 +88,32 @@ impl<T> ContentSource for T where
         + Load<Model>
         + Load<ModelInstance>
         + Load<Material>
+        + Load<Scene>
+        + Load<AnimationAction>
+        + Load<AnimationClip>
+        + Load<TransformPool>
+        + Load<Family>
+        + Load<ObjectList>
+        + Load<Perso>
+        + Load<Collision>
+        + Load<Environment>
+        + Load<VisualEnvironment>
+        + Load<Fog>
+        + Load<Light>
+        + Load<Mechanics>
+        + Load<Sprite>
 {
 }
 
 /// Loaded built-in content. Exhaustive adapter matches make new domains visible
 /// at each target boundary. Custom Content types still use Load/Save directly.
 pub enum Asset {
+    Environment(Arc<Environment>),
+    VisualEnvironment(Arc<VisualEnvironment>),
+    Fog(Arc<Fog>),
+    Light(Arc<Light>),
+    Mechanics(Arc<Mechanics>),
+    Sprite(Arc<Sprite>),
     Texture(Arc<Texture>),
     TextureSet(Arc<TextureSet>),
     Sound(Arc<Sound>),
@@ -79,6 +122,14 @@ pub enum Asset {
     Model(Arc<Model>),
     ModelInstance(Arc<ModelInstance>),
     Material(Arc<Material>),
+    Scene(Arc<Scene>),
+    Animation(Arc<AnimationClip>),
+    AnimationAction(Arc<AnimationAction>),
+    TransformPool(Arc<TransformPool>),
+    Family(Arc<Family>),
+    ObjectList(Arc<ObjectList>),
+    Perso(Arc<Perso>),
+    Collision(Arc<Collision>),
 }
 impl Asset {
     pub fn load(source: &mut impl ContentSource, root: &super::io::ContentRoot) -> Result<Self> {
@@ -89,6 +140,12 @@ impl Asset {
             Ok(value)
         }
         Ok(match root.kind.as_str() {
+            Environment::KIND => Self::Environment(load(source, &root.reference)?),
+            VisualEnvironment::KIND => Self::VisualEnvironment(load(source, &root.reference)?),
+            Fog::KIND => Self::Fog(load(source, &root.reference)?),
+            Light::KIND => Self::Light(load(source, &root.reference)?),
+            Mechanics::KIND => Self::Mechanics(load(source, &root.reference)?),
+            Sprite::KIND => Self::Sprite(load(source, &root.reference)?),
             Texture::KIND => Self::Texture(load(source, &root.reference)?),
             TextureSet::KIND => Self::TextureSet(load(source, &root.reference)?),
             Sound::KIND => Self::Sound(load(source, &root.reference)?),
@@ -96,6 +153,14 @@ impl Asset {
             SoundDefinitions::KIND => Self::SoundDefinitions(load(source, &root.reference)?),
             Model::KIND => Self::Model(load(source, &root.reference)?),
             ModelInstance::KIND => Self::ModelInstance(load(source, &root.reference)?),
+            AnimationAction::KIND => Self::AnimationAction(load(source, &root.reference)?),
+            AnimationClip::KIND => Self::Animation(load(source, &root.reference)?),
+            TransformPool::KIND => Self::TransformPool(load(source, &root.reference)?),
+            Family::KIND => Self::Family(load(source, &root.reference)?),
+            ObjectList::KIND => Self::ObjectList(load(source, &root.reference)?),
+            Perso::KIND => Self::Perso(load(source, &root.reference)?),
+            Collision::KIND => Self::Collision(load(source, &root.reference)?),
+            Scene::KIND => Self::Scene(load(source, &root.reference)?),
             Material::KIND => Self::Material(load(source, &root.reference)?),
             other => anyhow::bail!("unsupported useful content kind {other}"),
         })

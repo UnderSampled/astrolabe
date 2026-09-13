@@ -27,10 +27,29 @@ pub struct Model {
     pub positions: Vec<[f32; 3]>,
     pub normals: Vec<[f32; 3]>,
     pub submeshes: Vec<Submesh>,
+    pub sprite_elements: Vec<super::sprite::SpriteElement>,
     /// Optional source per-point gameplay material assignments, independent of face groups.
-    pub vertex_materials: Vec<AssetRef<Material>>,
+    pub vertex_materials: Vec<Option<AssetRef<Material>>>,
 }
 impl Model {
+    /// Ordered source elements, or deterministic authored order for new elements.
+    /// The bool selects a sprite element; the index addresses its owning vector.
+    pub fn element_order(&self) -> Vec<(bool, usize)> {
+        let mut entries = self
+            .submeshes
+            .iter()
+            .enumerate()
+            .map(|(i, e)| (e.source_index, false, i))
+            .chain(
+                self.sprite_elements
+                    .iter()
+                    .enumerate()
+                    .map(|(i, e)| (e.source_index, true, i)),
+            )
+            .collect::<Vec<_>>();
+        entries.sort_by_key(|&(source, sprite, i)| (source.unwrap_or(u16::MAX), sprite, i));
+        entries.into_iter().map(|(_, s, i)| (s, i)).collect()
+    }
     pub fn bounds(&self) -> Option<([f32; 3], [f32; 3])> {
         let mut lo = *self.positions.first()?;
         let mut hi = lo;
@@ -43,6 +62,43 @@ impl Model {
         Some((lo, hi))
     }
     pub fn validate(&self) -> Result<()> {
+        let mut indices = std::collections::BTreeSet::new();
+        for index in self
+            .submeshes
+            .iter()
+            .filter_map(|e| e.source_index)
+            .chain(self.sprite_elements.iter().filter_map(|e| e.source_index))
+        {
+            ensure!(
+                indices.insert(index),
+                "duplicate geometry element source index"
+            );
+        }
+        ensure!(
+            self.submeshes.len() + self.sprite_elements.len() <= i16::MAX as usize,
+            "too many geometry elements"
+        );
+        for element in &self.sprite_elements {
+            ensure!(
+                element.sprites.len() <= i16::MAX as usize,
+                "too many indexed sprites"
+            );
+            for sprite in &element.sprites {
+                ensure!(
+                    (sprite.center as usize) < self.positions.len(),
+                    "sprite center out of range"
+                );
+                ensure!(
+                    sprite
+                        .size
+                        .iter()
+                        .chain(&sprite.constraint)
+                        .chain(sprite.uv_origin_extent.iter().flatten())
+                        .all(|v| v.is_finite()),
+                    "nonfinite indexed sprite"
+                );
+            }
+        }
         ensure!(
             !self.positions.is_empty() && self.positions.len() <= i16::MAX as usize,
             "unsupported vertex count"
@@ -114,6 +170,7 @@ impl Model {
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Submesh {
+    pub source_index: Option<u16>,
     pub material: AssetRef<Material>,
     pub triangles: Vec<[u16; 3]>,
     pub texcoords: Vec<[f32; 2]>,
@@ -125,6 +182,12 @@ pub struct Submesh {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Material {
     pub path: AssetPath,
+    pub visual: Option<VisualMaterial>,
+    pub sound_material: u32,
+    pub collision: super::collision::CollisionProperties,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct VisualMaterial {
     pub texture: Option<AssetPath>,
     pub texture_info: Option<TextureInfo>,
     pub ambient: [f32; 4],
@@ -135,7 +198,6 @@ pub struct Material {
     pub scroll_speed: [f32; 2],
     pub scroll_position: [f32; 2],
     pub scroll_mode: u32,
-    pub sound_material: u32,
 }
 
 /// Texture reference properties useful to sampling and source export; pixel content stays in its asset.
@@ -150,6 +212,17 @@ pub struct TextureInfo {
     pub addressing: u8,
 }
 impl Material {
+    pub fn validate(&self) -> Result<()> {
+        if let Some(visual) = &self.visual {
+            visual.validate()?;
+        }
+        Ok(())
+    }
+    pub fn texture(&self) -> Option<&AssetPath> {
+        self.visual.as_ref().and_then(|v| v.texture.as_ref())
+    }
+}
+impl VisualMaterial {
     pub fn validate(&self) -> Result<()> {
         ensure!(
             self.texture

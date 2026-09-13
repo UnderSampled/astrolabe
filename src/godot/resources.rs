@@ -3,49 +3,14 @@ use super::{Project, disk_path, quoted, vec2, vec3, vector, whole_asset};
 use crate::model::{
     AssetRef,
     audio::{AudioSamples, Sound},
-    geometry::{Material, Model, ModelInstance},
-    io::{Content, Load, Save},
+    geometry::{Model, ModelInstance},
+    io::{Content, Save},
     texture::Texture,
 };
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use std::fmt::Write as _;
 impl Project {
-    pub fn write_material(&mut self, material: &Material) -> Result<()> {
-        material.validate()?;
-        whole_asset(&material.path)?;
-        if let Some(texture) = &material.texture {
-            whole_asset(texture)?;
-        }
-        let path = disk_path(&self.selection, &material.path, "tres");
-        let mut resource =
-            String::from("[gd_resource type=\"StandardMaterial3D\" load_steps=2 format=3]\n\n");
-        if let Some(texture) = &material.texture {
-            writeln!(
-                resource,
-                "[ext_resource type=\"Texture2D\" path={} id=\"texture\"]\n",
-                quoted(&format!(
-                    "res://{}",
-                    disk_path(&self.selection, texture, "png")
-                ))
-            )?;
-        }
-        resource.push_str("[resource]\n");
-        // Static prelit preview; complete context flags and dynamic lighting are milestone 6.
-        resource
-            .push_str("shading_mode = 0\ntexture_filter = 0\nvertex_color_use_as_albedo = true\n");
-        if material.texture.is_some() {
-            resource.push_str("albedo_texture = ExtResource(\"texture\")\n");
-        }
-        // The canonical fields are all retained; Godot's first material projection is explicit.
-        writeln!(
-            resource,
-            "albedo_color = Color({}, {}, {}, {})",
-            material.color[0], material.color[1], material.color[2], material.color[3]
-        )?;
-        self.diagnostics.push(format!("{}: static texture/radiosity preview; full context flags, dynamic lighting and blending remain unmapped",material.path));
-        self.write(path, resource.as_bytes())
-    }
-    pub fn write_instance<R: Load<Material>>(
+    pub fn write_instance<R: crate::model::content::ContentSource>(
         &mut self,
         model: &Model,
         instance: &ModelInstance,
@@ -74,6 +39,10 @@ impl Project {
                 let material = resolver.load(&part.material)?;
                 material.validate_reference(&part.material.path)?;
                 let material_path = disk_path(&self.selection, &material.path, "tres");
+                let material = material
+                    .visual
+                    .as_ref()
+                    .context("mesh material has no visual component")?;
                 let mut vertices = Vec::new();
                 let mut normals = Vec::new();
                 let mut uvs = Vec::new();
@@ -116,12 +85,13 @@ impl Project {
     arrays_{n}_{i}[Mesh.ARRAY_COLOR] = PackedColorArray([{}])
     mesh_{n}.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays_{n}_{i})
     mesh_{n}.surface_set_name({i}, "surface_{i}")
-    mesh_{n}.surface_set_material({i}, load({}))"#,
+    mesh_{n}.surface_set_material({i}, lighting_material({}, {}))"#,
                     vertices.join(","),
                     normals.join(","),
                     uvs.join(","),
                     colors.join(","),
-                    quoted(&format!("res://{material_path}"))
+                    quoted(&format!("res://{material_path}")),
+                    if instance.radiosity.is_empty() { 2 } else { 0 }
                 )?;
             }
             if !instance.radiosity.is_empty() {
@@ -181,13 +151,17 @@ impl Project {
             transform = format!("({transform} * {converted})");
         }
         // Godot expressions cannot appear in .tscn values; engine saves the composed transform.
+        let sprites = self.sprite_nodes(model, resolver, &format!("instance_{n}"))?;
+        let light_layer = if instance.radiosity.is_empty() { 2 } else { 1 };
         writeln!(
             self.builder,
             r#"    var instance_{n} = MeshInstance3D.new()
     instance_{n}.name = "Model"
     mesh_{n}.take_over_path({})
     instance_{n}.mesh = load({})
+    instance_{n}.layers = {light_layer}
     instance_{n}.transform = {transform}
+{sprites}
     var packed_{n} = PackedScene.new()
     if packed_{n}.pack(instance_{n}) != OK or ResourceSaver.save(packed_{n}, {}) != OK:
         push_error("cannot save model scene")
@@ -203,6 +177,7 @@ impl Project {
             "[ext_resource type=\"PackedScene\" path={} id=\"model_{n}\"]",
             quoted(&format!("res://{scene_path}"))
         )?;
+        self.preview_instances.push(format!("model_{n}"));
         Ok(())
     }
 }
@@ -211,14 +186,8 @@ impl Save<Texture> for Project {
         texture.validate()?;
         whole_asset(&reference.path)?;
         let rgba = texture.rgba8(0)?;
-        let mut png_bytes = Vec::new();
-        {
-            let mut encoder = png::Encoder::new(&mut png_bytes, texture.width(), texture.height());
-            encoder.set_color(png::ColorType::Rgba);
-            encoder.set_depth(png::BitDepth::Eight);
-            let mut writer = encoder.write_header()?;
-            writer.write_image_data(&rgba)?;
-        }
+        self.prepare_color_key(reference, texture, &rgba)?;
+        let png_bytes = super::material::png(texture.width(), texture.height(), &rgba)?;
         let path = disk_path(&self.selection, &reference.path, "png");
         self.write(path.clone(), &png_bytes)?;
         let n = self.texture_count;

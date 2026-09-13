@@ -5,7 +5,9 @@ use astrolabe::{
     godot::{Manifest, run_godot},
     model::{
         AssetPath, AssetRef, Selection,
-        geometry::{Material, Model, ModelInstance, SourceTransform, Submesh, TextureInfo},
+        geometry::{
+            Material, Model, ModelInstance, SourceTransform, Submesh, TextureInfo, VisualMaterial,
+        },
         io::{Content, Load},
         texture::{
             OpenSpaceColorKey, Texture, TextureColors, TextureLevel, TexturePixels, TextureUsage,
@@ -70,26 +72,30 @@ fn fixture() -> Result<(Model, Material, Texture)> {
     };
     let material = Material {
         path: material_id.clone(),
-        texture: Some(texture_id),
-        texture_info: Some(TextureInfo {
-            source_name: None,
-            stored_size: [2, 2],
-            logical_size: [2, 2],
+        visual: Some(VisualMaterial {
+            texture: Some(texture_id),
+            texture_info: Some(TextureInfo {
+                source_name: None,
+                stored_size: [2, 2],
+                logical_size: [2, 2],
+                flags: 0,
+                addressing: 0,
+            }),
+            ambient: [0., 0., 0., 1.],
+            diffuse: [0.8, 0.8, 0.8, 1.],
+            specular: [0.; 4],
+            color: [0.25, 0.5, 0.75, 1.],
             flags: 0,
-            addressing: 0,
+            scroll_speed: [0.; 2],
+            scroll_position: [0.; 2],
+            scroll_mode: 0,
         }),
-        ambient: [0., 0., 0., 1.],
-        diffuse: [0.8, 0.8, 0.8, 1.],
-        specular: [0.; 4],
-        color: [0.25, 0.5, 0.75, 1.],
-        flags: 0,
-        scroll_speed: [0.; 2],
-        scroll_position: [0.; 2],
-        scroll_mode: 0,
         sound_material: 0,
+        collision: astrolabe::model::collision::CollisionProperties::Absent,
     };
     let part = |tri, uv| -> Result<Submesh> {
         Ok(Submesh {
+            source_index: None,
             material: AssetRef::new(material_id.to_string())?,
             triangles: vec![tri],
             texcoords: vec![[0., 0.], [1., 0.], [1., 1.], [0.25, 0.75]],
@@ -103,6 +109,7 @@ fn fixture() -> Result<(Model, Material, Texture)> {
         name: "quad".into(),
         positions: vec![[0., 0., 0.], [2., 0., 0.], [2., 3., 0.], [0., 3., 0.]],
         normals: vec![[0., 0., 1.]; 4],
+        sprite_elements: Vec::new(),
         submeshes: vec![part([0, 1, 2], [3, 0, 1])?, part([0, 2, 3], [2, 1, 0])?],
         vertex_materials: vec![],
     };
@@ -134,7 +141,7 @@ fn source(model: &Model, material: &Material, texture: &Texture) -> Memory {
     let placed = instance(model);
     memory.insert(placed.path.clone(), placed);
     memory.insert(material.path.clone(), material.clone());
-    memory.insert(material.texture.clone().unwrap(), texture.clone());
+    memory.insert(material.texture().cloned().unwrap(), texture.clone());
     memory
 }
 fn engine() -> String {
@@ -154,7 +161,7 @@ fn export(path: &Path, model: &Model, material: &Material, texture: &Texture) ->
         &engine(),
     )?;
     ensure!(
-        memory.reads.get(material.texture.as_ref().unwrap()) == Some(&1),
+        memory.reads.get(material.texture().unwrap()) == Some(&1),
         "shared texture loaded more than once"
     );
     ensure!(
@@ -259,7 +266,7 @@ fn worker() -> Result<()> {
     edited.positions[1][0] = 4.;
     edited.positions[2][0] = 4.;
     let mut edited_material = material.clone();
-    edited_material.color[0] = 0.75;
+    edited_material.visual.as_mut().unwrap().color[0] = 0.75;
     let changed = export(&a, &edited, &edited_material, &texture)?;
     ensure!(
         first.files != changed.files,

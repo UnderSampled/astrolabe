@@ -6,7 +6,7 @@ use super::{
 };
 use crate::model::{
     AssetPath, AssetRef, Selection,
-    geometry::{Material, Model, ModelInstance, Submesh, TextureInfo},
+    geometry::{Material, Model, ModelInstance, Submesh, TextureInfo, VisualMaterial},
 };
 use anyhow::{Context, Result, anyhow, ensure};
 use serde::{Deserialize, Serialize};
@@ -24,13 +24,14 @@ pub struct LevelSummary {
 }
 #[derive(Debug, Clone)]
 pub struct ModelImport {
+    pub sprites: Vec<crate::model::sprite::Sprite>,
     pub model: Model,
     pub instance: ModelInstance,
     pub materials: Vec<Material>,
     pub source: LevelSummary,
     pub diagnostics: Vec<String>,
 }
-fn summary(
+pub(super) fn summary(
     ctx: &SourceSession,
     selection: &Selection,
     tree: &[RootedNode],
@@ -79,11 +80,45 @@ pub fn import_first_model(game: &Path, selection: &Selection) -> Result<ModelImp
                 .is_ok_and(|b| matches!(u32_at(b, 0), Ok(0xd | 0x15)))
         })
         .ok_or_else(|| anyhow!("rooted world has no IPO model"))?;
-    let path = &selected.path;
-    let transforms = &selected.transforms;
-    let instance_object = session.required(selected.address, SuperObjectWire::DATA)?;
-    let physical_object =
-        session.required(instance_object, InstantiatedObjectWire::PHYSICAL_OBJECT)?;
+    let mut materials = Vec::new();
+    let mut ids = BTreeMap::new();
+    let mut imported = import_node_model(&session, selected, source, &mut materials, &mut ids)?;
+    imported.materials = materials;
+    Ok(imported)
+}
+
+pub(super) fn import_node_model(
+    session: &SourceSession,
+    selected: &RootedNode,
+    source: LevelSummary,
+    materials: &mut Vec<Material>,
+    material_ids: &mut BTreeMap<Address, AssetPath>,
+) -> Result<ModelImport> {
+    let ipo = session.required(selected.address, SuperObjectWire::DATA)?;
+    let po = session.required(ipo, InstantiatedObjectWire::PHYSICAL_OBJECT)?;
+    let mut imported = import_physical_model(
+        session,
+        po,
+        Some(ipo),
+        &AssetPath::new(format!("level:/models/{}", selected.path))?,
+        source,
+        materials,
+        material_ids,
+    )?;
+    imported.model.name = selected.path.clone();
+    imported.instance.name = selected.path.clone();
+    imported.instance.transforms = selected.transforms.clone();
+    Ok(imported)
+}
+pub(super) fn import_physical_model(
+    session: &SourceSession,
+    physical_object: Address,
+    instance_object: Option<Address>,
+    path: &AssetPath,
+    source: LevelSummary,
+    materials: &mut Vec<Material>,
+    material_ids: &mut BTreeMap<Address, AssetPath>,
+) -> Result<ModelImport> {
     let visual = session.required(physical_object, PhysicalObjectWire::VISUAL_SET)?;
     let visual_header: VisualSetWire = wire(session.bytes(visual, 16)?)?;
     let lods = visual_header.lods;
@@ -100,31 +135,19 @@ pub fn import_first_model(game: &Path, selection: &Selection) -> Result<ModelImp
     );
     let lod_distance =
         session.floats::<1>(session.required(visual, VisualSetWire::DISTANCES)?, 1)?[0][0];
-    let model_path = format!("level:/models/{path}");
-    let mut materials = Vec::new();
-    let mut material_ids = BTreeMap::new();
-    let mut diagnostics = vec![
-        "First LOD of one rooted model only; collision, scene lighting, animated materials, and spatial \
-            acceleration are not yet reconstructed.".into(),
-    ];
+    let model_path = path.to_string();
+    let mut diagnostics = Vec::new();
     diagnostics.push(format!(
         "Visual set has {lods} LOD(s), kind {kind}; selected LOD 0 at distance {lod_distance}."
     ));
     if header.spatial_data != 0 {
         diagnostics.push("Geometry has source spatial acceleration data; this subset does not decode/reconstruct it.".into());
     }
-    if session
-        .pointer(physical_object, PhysicalObjectWire::COLLISION_SET)?
-        .is_some()
-    {
-        diagnostics.push("PhysicalObject has collision data; collision import is outside this first-model slice.".into());
-    }
-    let radiosity = session.radiosity(
-        instance_object,
-        0,
-        usize::from(lods),
-        usize::from(header.point_count),
-    )?;
+    let radiosity = if let Some(ipo) = instance_object {
+        session.radiosity(ipo, 0, usize::from(lods), usize::from(header.point_count))?
+    } else {
+        Vec::new()
+    };
     if !radiosity.is_empty() {
         diagnostics.push(format!("Retained {} exact signed per-position radiosity colors for IPO LOD 0; full scene/dynamic \
             lighting is outside this slice.", radiosity.len()));
@@ -140,7 +163,22 @@ pub fn import_first_model(game: &Path, selection: &Selection) -> Result<ModelImp
     )?;
     let table = session.required(geometry, GeometryWire::ELEMENTS)?;
     let mut submeshes = Vec::new();
+    let mut sprite_elements = Vec::new();
+    let mut sprites = Vec::new();
     for (i, [kind]) in types.iter().enumerate() {
+        if *kind == 3 {
+            let (element, definitions) = super::sprite::read_element(
+                session,
+                session.required(table, i * 4)?,
+                i,
+                materials,
+                material_ids,
+                &mut diagnostics,
+            )?;
+            sprite_elements.push(element);
+            sprites.extend(definitions);
+            continue;
+        }
         ensure!(
             *kind == 1,
             "unsupported geometric element {kind} in first model"
@@ -149,11 +187,11 @@ pub fn import_first_model(game: &Path, selection: &Selection) -> Result<ModelImp
         let triangle_header: TrianglesWire = wire(session.bytes(element, 32)?)?;
         let game_material = session.required(element, TrianglesWire::MATERIAL)?;
         let m = load_material(
-            &session,
+            session,
             game_material,
             &model_path,
-            &mut materials,
-            &mut material_ids,
+            materials,
+            material_ids,
             &mut diagnostics,
         )?;
         let normals = if let Some(a) = session.pointer(element, TrianglesWire::NORMALS)? {
@@ -174,6 +212,7 @@ pub fn import_first_model(game: &Path, selection: &Selection) -> Result<ModelImp
             Vec::new()
         };
         submeshes.push(Submesh {
+            source_index: Some(i.try_into()?),
             material: m,
             triangles: session.short_arrays::<3>(
                 session.required(element, TrianglesWire::TRIANGLES)?,
@@ -194,20 +233,26 @@ pub fn import_first_model(game: &Path, selection: &Selection) -> Result<ModelImp
     let mut vertex_materials = Vec::new();
     if let Some(table) = session.pointer(geometry, GeometryWire::POINT_MATERIALS)? {
         for i in 0..header.point_count as usize {
-            let game_material = session.required(table, i * 4)?;
-            vertex_materials.push(load_material(
-                &session,
-                game_material,
-                &model_path,
-                &mut materials,
-                &mut material_ids,
-                &mut diagnostics,
-            )?);
+            let game_material = session.pointer(table, i * 4)?;
+            vertex_materials.push(
+                game_material
+                    .map(|game_material| {
+                        load_material(
+                            session,
+                            game_material,
+                            &model_path,
+                            materials,
+                            material_ids,
+                            &mut diagnostics,
+                        )
+                    })
+                    .transpose()?,
+            );
         }
     }
     let model = Model {
         path: AssetPath::new(model_path)?,
-        name: path.clone(),
+        name: path.file().to_owned(),
         positions: session.floats::<3>(
             session.required(geometry, GeometryWire::POINTS)?,
             header.point_count as usize,
@@ -218,6 +263,7 @@ pub fn import_first_model(game: &Path, selection: &Selection) -> Result<ModelImp
             Vec::new()
         },
         submeshes,
+        sprite_elements,
         vertex_materials,
     };
     let instance = ModelInstance {
@@ -226,19 +272,20 @@ pub fn import_first_model(game: &Path, selection: &Selection) -> Result<ModelImp
         model: AssetRef::from_path(model.path.clone()),
         lod_distance,
         radiosity,
-        transforms: transforms.clone(),
+        transforms: Vec::new(),
     };
     instance.validate_model(&model)?;
     Ok(ModelImport {
+        sprites,
         instance,
         model,
-        materials,
+        materials: Vec::new(),
         source,
         diagnostics,
     })
 }
 
-fn load_material(
+pub(super) fn load_material(
     session: &SourceSession,
     game_material: Address,
     base: &str,
@@ -249,46 +296,68 @@ fn load_material(
     if let Some(p) = ids.get(&game_material) {
         return Ok(AssetRef::from_path(p.clone()));
     }
-    let visual_material = session.required(game_material, GameMaterialWire::VISUAL)?;
-    let header: VisualMaterialWire = wire(session.bytes(visual_material, 132)?)?;
     let path = AssetPath::new(format!("{base}/materials/{}", materials.len()))?;
-    let mut texture_info = None;
-    let texture = if let Some(t) = session.pointer(visual_material, VisualMaterialWire::TEXTURE)? {
-        let texture: TextureInfoWire = wire(session.bytes(t, 188)?)?;
-        let name = texture.name.split(|&byte| byte == 0).next().unwrap();
-        let name = std::str::from_utf8(name).context("texture name is not UTF-8/ASCII")?;
-        texture_info = Some(TextureInfo {
-            source_name: Some(name.to_owned()),
-            stored_size: [texture.stored_width, texture.stored_height],
-            logical_size: [texture.logical_width, texture.logical_height],
-            flags: texture.flags,
-            addressing: texture.addressing,
-        });
-        let name = name.replace('\\', "/");
-        Some(AssetPath::new(format!("texture:/{name}"))?)
+    let game: GameMaterialWire = wire(session.bytes(game_material, 16)?)?;
+    let collision = match game.collision {
+        0 => crate::model::collision::CollisionProperties::Absent,
+        u32::MAX => crate::model::collision::CollisionProperties::Default,
+        _ => {
+            let h: CollisionMaterialWire =
+                wire(session.bytes(session.required(game_material, 12)?, 4)?)?;
+            crate::model::collision::CollisionProperties::Surface {
+                kind: h.kind,
+                identifier: h.identifier,
+            }
+        }
+    };
+    let visual = if let Some(visual_material) =
+        session.pointer(game_material, GameMaterialWire::VISUAL)?
+    {
+        let header: VisualMaterialWire = wire(session.bytes(visual_material, 132)?)?;
+        let mut texture_info = None;
+        let texture =
+            if let Some(t) = session.pointer(visual_material, VisualMaterialWire::TEXTURE)? {
+                let texture: TextureInfoWire = wire(session.bytes(t, 188)?)?;
+                let name = texture.name.split(|&byte| byte == 0).next().unwrap();
+                let name = std::str::from_utf8(name).context("texture name is not UTF-8/ASCII")?;
+                texture_info = Some(TextureInfo {
+                    source_name: Some(name.to_owned()),
+                    stored_size: [texture.stored_width, texture.stored_height],
+                    logical_size: [texture.logical_width, texture.logical_height],
+                    flags: texture.flags,
+                    addressing: texture.addressing,
+                });
+                let name = name.replace('\\', "/");
+                Some(AssetPath::new(format!("texture:/{name}"))?)
+            } else {
+                None
+            };
+        let count = header.animation_count;
+        if count > 0 {
+            diagnostics.push(format!(
+                "{path}: {count} animated texture frames remain unsupported"
+            ));
+        }
+        Some(VisualMaterial {
+            texture,
+            texture_info,
+            ambient: header.ambient,
+            diffuse: header.diffuse,
+            specular: header.specular,
+            color: header.color,
+            flags: header.flags,
+            scroll_position: header.scroll_position,
+            scroll_speed: header.scroll_speed,
+            scroll_mode: header.scroll_mode,
+        })
     } else {
         None
     };
-    let count = header.animation_count;
-    if count > 0 {
-        diagnostics.push(format!(
-            "{path}: {count} animated texture frames remain unsupported"
-        ));
-    }
-    let sound_material = wire::<GameMaterialWire>(session.bytes(game_material, 16)?)?.sound;
     materials.push(Material {
         path: path.clone(),
-        texture,
-        texture_info,
-        ambient: header.ambient,
-        diffuse: header.diffuse,
-        specular: header.specular,
-        color: header.color,
-        flags: header.flags,
-        scroll_position: header.scroll_position,
-        scroll_speed: header.scroll_speed,
-        scroll_mode: header.scroll_mode,
-        sound_material,
+        visual,
+        sound_material: game.sound,
+        collision,
     });
     ids.insert(game_material, path.clone());
     Ok(AssetRef::from_path(path))

@@ -181,6 +181,97 @@ fn named_sound_definitions_are_useful_and_editable() {
         definitions
     );
     assert!(read_sound_definitions("{LcbHeader:\n", "invalid.lcb").is_err());
+    let mut library = read_sound_definitions("{LcbHeader:\nSetDefaultLanguage(English)\n}\n{SndEventIdList:\nSetEvent(voice.csb^SndEventM:7,0,2)\n}\n", "library.lcb").unwrap();
+    library.bindings[0].target.member_mut().definitions =
+        astrolabe::model::AssetRef::new("sound:/Sound/English/voice.csb").unwrap();
+    let written = write_sound_definitions(&library).unwrap();
+    let decoded = read_sound_definitions(&written, "library.lcb").unwrap();
+    assert_eq!(
+        decoded.bindings[0]
+            .target
+            .member()
+            .definitions
+            .path
+            .as_str(),
+        "sound:/Sound/voice.csb"
+    );
+    assert_eq!(decoded.bindings[0].member, 2);
+}
+
+#[test]
+fn sound_operations_preserve_event_targets_and_quoted_source_arguments() {
+    use astrolabe::model::audio::*;
+    use astrolabe::openspace::audio::read_sound_definitions;
+    let text = r#"{CsbHeader:
+}
+{SndEventM:0(EVT_SON_PLAY)
+SetParam1[ar]("test.csb^SndResourceM:9",n)
+SetParam2[%lf]("0.125")
+SetStopable[ab](True)
+SetDynamic[ab](False)
+}
+{SndEventM:1(EVT_SON_STOP)
+SetParam1(test.csb^SndEventM:0)
+}
+{SndResourceM:9
+{SndResourceDisk:9(TYPE_RANDOM)
+SetProbNothing[%lf]("0.1")
+SetNothingCanBeChoosenTwice[ab](False)
+}
+{SndRandomListM:
+{SndRandomElementM:0
+LoadResource("test.csb^SndResourceM:10")
+SetProbability[%lf]("0.9")
+SetElementCanBeChoosenTwice[ab](True)
+}
+}
+}
+"#;
+    let value = read_sound_definitions(text, "test.csb").unwrap();
+    value.validate().unwrap();
+    let SoundOperation::Play {
+        resource: Some(target),
+        pitch_variation,
+        stoppable,
+        dynamic,
+    } = &value.events[0].operation
+    else {
+        panic!()
+    };
+    assert_eq!(target.id, 9);
+    assert_eq!(*pitch_variation, 0.125);
+    assert!(*stoppable && !dynamic);
+    let SoundOperation::Stop {
+        event: Some(target),
+    } = &value.events[1].operation
+    else {
+        panic!()
+    };
+    assert_eq!(
+        target.id, 0,
+        "stop identifies the playing event, not its resource"
+    );
+    let SoundResourceData::Random {
+        choices,
+        silence_probability,
+        ..
+    } = &value.resources[0].data
+    else {
+        panic!()
+    };
+    assert_eq!(choices[0].resource.id, 10);
+    assert_eq!(*silence_probability, 0.1);
+    assert!(choices[0].repeat);
+    let restored: SoundDefinitions =
+        astrolabe::rete::decode(&astrolabe::rete::encode(&value).unwrap()).unwrap();
+    assert_eq!(restored, value);
+    assert!(
+        read_sound_definitions(
+            &text.replace("SndEventM:0)", "SndResourceM:0)"),
+            "wrong.csb"
+        )
+        .is_err()
+    );
 }
 #[test]
 #[ignore = "requires local disc; run under the overall suite deadline"]

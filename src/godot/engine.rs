@@ -68,7 +68,11 @@ pub fn run_godot(godot: &str, project: &Path, args: &[&str], timeout: Duration) 
         if started.elapsed() >= timeout {
             child.kill()?;
             child.wait()?;
-            anyhow::bail!("Godot exceeded {}s deadline", timeout.as_secs());
+            let mut log = log;
+            std::io::Seek::rewind(&mut log)?;
+            let mut output = String::new();
+            log.read_to_string(&mut output)?;
+            anyhow::bail!("Godot exceeded {}s deadline: {output}", timeout.as_secs());
         }
         thread::sleep(Duration::from_millis(50));
     };

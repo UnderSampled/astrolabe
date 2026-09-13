@@ -6,18 +6,30 @@ use crate::{
     model::{AssetPath, Selection},
 };
 use anyhow::{Result, ensure};
-use std::{collections::BTreeSet, fmt::Write as _, fs, path::PathBuf, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::Write as _,
+    fs,
+    path::PathBuf,
+    time::Duration,
+};
 /// A fresh staging project keeps failed conversion from damaging an existing project.
 pub struct Project {
+    pub(super) scene_fog: Option<Option<crate::model::environment::Fog>>,
+    pub(super) scene_fog_conflict: bool,
+    pub(super) scene_ambient: Option<[f32; 3]>,
     pub(super) output: PathBuf,
     pub(super) stage: tempfile::TempDir,
     pub(super) selection: Selection,
     pub(super) builder: String,
     pub(super) scene: String,
+    pub(super) preview_instances: Vec<String>,
     pub(super) instance_count: usize,
     pub(super) meshes: BTreeSet<AssetPath>,
     pub(super) sound_count: usize,
     pub(super) texture_count: usize,
+    /// Derived PNGs, emitted only when a material enables the source color key.
+    pub(super) texture_color_keys: BTreeMap<AssetPath, Option<Vec<u8>>>,
     pub(super) generated: BTreeSet<String>,
     pub(super) diagnostics: Vec<String>,
 }
@@ -25,9 +37,13 @@ impl Project {
     pub fn new(output: impl Into<PathBuf>, selection: Selection) -> Result<Self> {
         let output = output.into();
         let stage = tempfile::tempdir()?;
+        // Godot 4.7.2 can crash on concurrent WAV imports. The sound-program
+        // regression retains two identical waveforms and exercises serial import.
         let settings = r#"[application]
 config/name="Astrolabe Development"
 run/main_scene="res://generated/hype/preview.tscn"
+[editor]
+import/use_multiple_threads=false
 [display]
 window/size/viewport_width=960
 window/size/viewport_height=720
@@ -37,15 +53,20 @@ renderer/rendering_method.mobile="gl_compatibility"
 "#;
         write_atomic(&stage.path().join("project.godot"), settings.as_bytes())?;
         Ok(Self {
+            scene_ambient: None,
+            scene_fog: None,
+            scene_fog_conflict: false,
             output,
             stage,
             selection,
             builder: include_str!("scripts/build.gd").into(),
             scene: String::new(),
+            preview_instances: Vec::new(),
             instance_count: 0,
             meshes: BTreeSet::new(),
             sound_count: 0,
             texture_count: 0,
+            texture_color_keys: BTreeMap::new(),
             generated: BTreeSet::new(),
             diagnostics: Vec::new(),
         })
@@ -84,7 +105,7 @@ renderer/rendering_method.mobile="gl_compatibility"
         );
         let mut preview = format!(
             "[gd_scene load_steps={} format=3]\n\n{}\n",
-            self.instance_count + 3,
+            self.scene.lines().count() + 3,
             self.scene
         );
         preview.push_str("[ext_resource type=\"Script\" path=\"res://generated/hype/preview.gd\" id=\"preview\"]\n\n");
@@ -103,10 +124,34 @@ PREVIEW_ASSETS
 environment = SubResource("environment")
 "#,
         );
-        for n in 0..self.instance_count {
+        if let Some(color) = self.scene_ambient {
+            preview = preview
+                .replace(
+                    "ambient_light_color = Color(1, 1, 1, 1)",
+                    &format!(
+                        "ambient_light_color = Color({}, {}, {}, 1)",
+                        color[0].clamp(0., 1.),
+                        color[1].clamp(0., 1.),
+                        color[2].clamp(0., 1.)
+                    ),
+                )
+                .replace("ambient_light_energy = 0.7", "ambient_light_energy = 1.0");
+        }
+        if !self.scene_fog_conflict
+            && let Some(Some(fog)) = &self.scene_fog
+        {
+            preview = preview.replace(
+                "ambient_light_source = 3",
+                &format!(
+                    "{}ambient_light_source = 3",
+                    super::environment::preview_properties(fog)
+                ),
+            );
+        }
+        for (n, id) in self.preview_instances.iter().enumerate() {
             writeln!(
                 preview,
-                "\n[node name=\"Model{n}\" parent=\".\" instance=ExtResource(\"model_{n}\")]"
+                "\n[node name=\"Model{n}\" parent=\".\" instance=ExtResource(\"{id}\")]"
             )?;
         }
         let texture_paths = self

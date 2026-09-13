@@ -2,7 +2,18 @@
 pub mod reference;
 pub use reference::{AssetPath, AssetRef, PackageRole, Selection};
 pub mod audio;
+pub mod collision;
 pub mod content;
 pub mod geometry;
 pub mod io;
+pub mod scene;
+pub mod sprite;
 pub mod texture;
+
+pub mod animation;
+pub mod character;
+
+pub mod light;
+pub mod mechanics;
+
+pub mod environment;

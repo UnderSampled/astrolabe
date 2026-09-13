@@ -72,7 +72,8 @@ fn messagepack_binary_and_version_validation() -> Result<()> {
     assert!(bytes.windows(3).any(|x| x == [0xc5, 0x01, 0x00]));
     assert_eq!(rete::decode::<Node>(&bytes)?, n);
     let mut bad = bytes.clone();
-    let offset = bad.windows(7).position(|x| x == b"schema\x02").unwrap();
+    let marker = [b"schema".as_slice(), &[rete::SCHEMA as u8]].concat();
+    let offset = bad.windows(marker.len()).position(|x| x == marker).unwrap();
     bad[offset + 6] = 1;
     assert!(rete::decode::<Node>(&bad).is_err());
     let mut trailing = bytes;

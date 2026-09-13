@@ -17,7 +17,7 @@ use std::{
 #[derive(Parser)]
 #[command(
     version,
-    about = "Repeatable Hype/OpenSpace content conversion (first-model development scope)"
+    about = "Repeatable Hype/OpenSpace media, scene and sampled-character conversion"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -25,6 +25,7 @@ struct Cli {
 }
 #[derive(Clone, Copy, ValueEnum)]
 enum Scope {
+    Scene,
     Model,
     Textures,
     Audio,
@@ -67,7 +68,7 @@ enum Command {
         #[arg(long, default_value = "godot")]
         godot: String,
     },
-    /// Reconstruct supported source assets; level output is an explicit model fragment.
+    /// Reconstruct supported source assets; level output consists of supported asset fragments.
     ExportOpenspace { input: PathBuf, output: PathBuf },
     /// Inspect package roots, useful assets, or rooted source-level summaries.
     Inspect {
@@ -99,6 +100,7 @@ fn import(
     files: &[PathBuf],
 ) -> Result<openspace::content::Imported> {
     match scope {
+        Scope::Scene => openspace::content::import_scene(game, selection),
         Scope::Model => openspace::content::import_model(game, selection),
         Scope::Textures => openspace::content::import_textures(game, selection),
         Scope::Audio => openspace::content::import_audio(game, selection, files),
@@ -116,7 +118,7 @@ pub fn run() -> Result<()> {
                     "read": false,
                     "write": true,
                     "version": "4.7.2",
-                    "scope": "textures, sounds, materials, model instances; development outputs"
+                    "scope": "textures, sounds, materials, models, scenes, collision, approximate lights, sector inspection and sampled characters; development outputs"
                 }
             }))?
         ),

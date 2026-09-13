@@ -23,3 +23,5 @@ pub fn validate_sound(sound: &Sound) -> Result<()> {
 pub use apm::Apm;
 pub use bnm::Bnm;
 pub use definitions::SoundScript;
+
+pub(crate) mod graph;

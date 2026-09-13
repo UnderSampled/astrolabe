@@ -5,7 +5,7 @@ use astrolabe::{
         geometry::{Material, Model, ModelInstance},
     },
     openspace::level::{
-        MaterialTarget, import_first_model, write_geometry, write_model_fragment, write_sna_block,
+        ReferenceTarget, import_first_model, write_geometry, write_model_fragment, write_sna_block,
     },
     rete,
 };
@@ -61,7 +61,7 @@ fn real_rooted_model_survives_rete_edit_and_source_free_reconstruction() -> Resu
     assert_eq!(original.submeshes[0].uv_indices[0], [6, 7, 8]);
     assert_eq!(original.vertex_materials.len(), 26);
     assert_eq!(
-        import.materials[0].texture.as_ref().unwrap().as_str(),
+        import.materials[0].texture().unwrap().as_str(),
         "texture:/astrolabe/2ze01txy.tga"
     );
     let positions: Vec<u8> = original
@@ -120,7 +120,7 @@ fn real_rooted_model_survives_rete_edit_and_source_free_reconstruction() -> Resu
         .map(|(i, m)| {
             (
                 m.path.clone(),
-                MaterialTarget {
+                ReferenceTarget {
                     address: 0x10000 + i as u32 * 0x100,
                     block: (6, 1),
                 },
@@ -137,7 +137,7 @@ fn real_rooted_model_survives_rete_edit_and_source_free_reconstruction() -> Resu
         &rebuilt.bytes[range.offset..range.offset + range.length],
         &positions
     );
-    let first = write_model_fragment(&reloaded, &instance, &materials, 0x1000)?;
+    let first = write_model_fragment(&reloaded, &instance, &materials, &[], 0x1000)?;
     assert_eq!(first.ptx.len(), 8208);
     let word = |b: &[u8], at: usize| u32::from_le_bytes(b[at..at + 4].try_into().unwrap());
     assert_eq!(
@@ -210,12 +210,12 @@ fn real_rooted_model_survives_rete_edit_and_source_free_reconstruction() -> Resu
     let mut invalid = instance.clone();
     invalid.radiosity.pop();
     assert!(invalid.validate_model(&reloaded).is_err());
-    assert!(write_model_fragment(&reloaded, &invalid, &materials, 0x1000).is_err());
+    assert!(write_model_fragment(&reloaded, &invalid, &materials, &[], 0x1000).is_err());
     instance.radiosity[2][2] = -128;
     reloaded.positions[0][0] += 1.;
     let mut edited_materials = materials.clone();
-    edited_materials[0].color[0] = 0.25;
-    let changed = write_model_fragment(&reloaded, &instance, &edited_materials, 0x8000)?;
+    edited_materials[0].visual.as_mut().unwrap().color[0] = 0.25;
+    let changed = write_model_fragment(&reloaded, &instance, &edited_materials, &[], 0x8000)?;
     assert_ne!(first.bytes, changed.bytes);
     let edited_colors = changed
         .ranges
@@ -236,22 +236,25 @@ fn real_rooted_model_survives_rete_edit_and_source_free_reconstruction() -> Resu
         &0.25f32.to_le_bytes()
     );
     assert_eq!(
-        write_model_fragment(&reloaded, &instance, &edited_materials, 0x8000)?.bytes,
+        write_model_fragment(&reloaded, &instance, &edited_materials, &[], 0x8000)?.bytes,
         changed.bytes
     );
     // Resolving a .tga dependency to its actual shared .gf content must preserve the authored name.
     let mut resolved_materials = materials.clone();
     let original_name = resolved_materials[0]
+        .visual
+        .as_ref()
+        .unwrap()
         .texture_info
         .as_ref()
         .unwrap()
         .source_name
         .clone()
         .unwrap();
-    resolved_materials[0].texture = Some(astrolabe::model::AssetPath::new(
-        "texture:/astrolabe/shared-alias.gf",
-    )?);
-    let resolved = write_model_fragment(&reloaded, &instance, &resolved_materials, 0x4000)?;
+    resolved_materials[0].visual.as_mut().unwrap().texture = Some(
+        astrolabe::model::AssetPath::new("texture:/astrolabe/shared-alias.gf")?,
+    );
+    let resolved = write_model_fragment(&reloaded, &instance, &resolved_materials, &[], 0x4000)?;
     let texture = resolved
         .ranges
         .iter()

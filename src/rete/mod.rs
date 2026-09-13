@@ -13,7 +13,7 @@ use std::{
     sync::Arc,
 };
 
-pub const SCHEMA: u32 = 2;
+pub const SCHEMA: u32 = 9;
 const MAGIC: &str = "astrolabe-rete";
 const MAX_ASSET_BYTES: u64 = 256 * 1024 * 1024;
 
@@ -247,10 +247,40 @@ impl Store {
             Asset::SoundDefinitions(value) => {
                 self.save(&AssetRef::from_path(path.clone()), value.as_ref())
             }
+            Asset::Environment(value) => {
+                self.save(&AssetRef::from_path(path.clone()), value.as_ref())
+            }
+            Asset::VisualEnvironment(value) => {
+                self.save(&AssetRef::from_path(path.clone()), value.as_ref())
+            }
+            Asset::Fog(value) => self.save(&AssetRef::from_path(path.clone()), value.as_ref()),
+            Asset::Light(value) => self.save(&AssetRef::from_path(path.clone()), value.as_ref()),
+            Asset::Mechanics(value) => {
+                self.save(&AssetRef::from_path(path.clone()), value.as_ref())
+            }
+            Asset::Sprite(value) => self.save(&AssetRef::from_path(path.clone()), value.as_ref()),
             Asset::Model(value) => self.save(&AssetRef::from_path(path.clone()), value.as_ref()),
             Asset::ModelInstance(value) => {
                 self.save(&AssetRef::from_path(path.clone()), value.as_ref())
             }
+            Asset::AnimationAction(value) => {
+                self.save(&AssetRef::from_path(path.clone()), value.as_ref())
+            }
+            Asset::Animation(value) => {
+                self.save(&AssetRef::from_path(path.clone()), value.as_ref())
+            }
+            Asset::TransformPool(value) => {
+                self.save(&AssetRef::from_path(path.clone()), value.as_ref())
+            }
+            Asset::Family(value) => self.save(&AssetRef::from_path(path.clone()), value.as_ref()),
+            Asset::ObjectList(value) => {
+                self.save(&AssetRef::from_path(path.clone()), value.as_ref())
+            }
+            Asset::Perso(value) => self.save(&AssetRef::from_path(path.clone()), value.as_ref()),
+            Asset::Collision(value) => {
+                self.save(&AssetRef::from_path(path.clone()), value.as_ref())
+            }
+            Asset::Scene(value) => self.save(&AssetRef::from_path(path.clone()), value.as_ref()),
             Asset::Material(value) => self.save(&AssetRef::from_path(path.clone()), value.as_ref()),
         }
     }
@@ -263,8 +293,22 @@ impl Store {
             Asset::Sound(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::SoundBank(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::SoundDefinitions(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::Environment(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::VisualEnvironment(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::Fog(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::Light(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::Mechanics(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::Sprite(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::Model(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::ModelInstance(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::AnimationAction(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::Animation(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::TransformPool(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::Family(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::ObjectList(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::Perso(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::Collision(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::Scene(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::Material(value) => serde_json::to_string_pretty(value.as_ref())?,
         })
     }
