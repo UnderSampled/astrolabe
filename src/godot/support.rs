@@ -13,6 +13,16 @@ macro_rules! assets {
     ($($path:literal),* $(,)?) => { &[$(($path, include_bytes!(concat!("../../godot/", $path)).as_slice())),*] };
 }
 const SUPPORT: &[(&str, &[u8])] = assets![
+    "addons/astrolabe/character/mechanics.gd.uid",
+    "addons/astrolabe/character/cue.gd.uid",
+    "addons/astrolabe/character/character.gd.uid",
+    "addons/astrolabe/audio/voice.gd.uid",
+    "addons/astrolabe/audio/emitter.gd.uid",
+    "addons/astrolabe/character/character.gd",
+    "addons/astrolabe/character/cue.gd",
+    "addons/astrolabe/character/mechanics.gd",
+    "addons/astrolabe/audio/emitter.gd",
+    "addons/astrolabe/audio/voice.gd",
     "addons/astrolabe/version.json",
     "addons/astrolabe/README.md",
     "addons/astrolabe/rendering/sprite.gd",
@@ -27,6 +37,7 @@ const STARTER: &[(&str, &[u8])] = assets![
     "game/bootstrap.gd",
     "game/bootstrap.gd.uid",
     "game/bootstrap.tscn",
+    "game/characters/luminous_hype.tscn",
     "tests/example.tscn",
 ];
 

@@ -34,7 +34,9 @@ Follow a model conversion in this order:
 | `openspace/level/geometry.rs`, `fragment.rs` | Derived geometry layout and parent model/material/instance reconstruction |
 | `godot/resources.rs`, `export.rs` | Target value mapping and dependency traversal |
 | `godot/project.rs`, `engine.rs`, `publication.rs` | Staging, bounded engine execution, deterministic normalization, safe publication |
+| `godot/animation.rs`, `godot/character.rs`, `godot/sound.rs` | Native pose/resource projection and compiled sound behavior |
 | `godot/scripts/build.gd`, `godot/preview.gd` | Disposable build and preview harnesses |
+| repository `godot/addons/astrolabe/`, `src/godot/support.rs` | Authoritative support source, versioned installation/update rules |
 
 Keep related record declarations together. A new file should own a recognizable responsibility, rather than one struct or one forwarding function. Public `mod.rs` files expose the useful entry points; internal helpers stay private to their adapter.
 
@@ -43,10 +45,9 @@ Keep related record declarations together. A new file should own a recognizable 
 The native exporter can introduce maintained Godot shaders, components and
 engine-side functions as supported slices require them. Read
 [Godot project structure and ownership](godot-project.md) before adding those
-assets. Its proposed `godot/` project separates reusable support, authored game
-work and local generated content, and must be usable in committed/dehydrated and
-rehydrated forms. This is the intended migration; the module map above still
-describes the current implementation.
+assets. The committed `godot/` project separates reusable support, authored game
+work and ignored generated content. Its bootstrap and synthetic example work
+dehydrated; the supported scene slice supplies native resources after conversion.
 
 Keep static support source in ordinary Godot files with one authoritative copy.
 Rust owns conversion rules and generated parameter/code values. Converter-only

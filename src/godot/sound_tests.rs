@@ -182,7 +182,15 @@ fn sound_program_rete_edit_native_choice_loop_stop_and_mixer() -> Result<()> {
             &mut written,
         )?);
     }
-    assert_eq!(project.sound_count, 2, "events must share bank waveforms");
+    assert_eq!(
+        project
+            .generated
+            .iter()
+            .filter(|p| p.ends_with(".wav"))
+            .count(),
+        2,
+        "events must share bank waveforms"
+    );
     project.write(
         "generated/hype/sound-test/events.json".into(),
         &serde_json::to_vec(&events)?,
@@ -196,7 +204,12 @@ fn sound_program_rete_edit_native_choice_loop_stop_and_mixer() -> Result<()> {
     let log = super::super::run_godot(
         &engine,
         &output,
-        &["--headless", "--script", "res://sound_check.gd"],
+        &[
+            "--headless",
+            "--verbose",
+            "--script",
+            "res://sound_check.gd",
+        ],
         std::time::Duration::from_secs(15),
     )?;
     assert!(log.contains("SOUND_PROGRAM_OK"));

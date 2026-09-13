@@ -228,7 +228,7 @@ fn godot_environment_fog_sharing_and_mixed_sector_guard() -> Result<()> {
         );
         let check=r#"extends SceneTree
 func _initialize():
-    var scene = load("res://generated/hype/levels/fog-test/preview.tscn").instantiate()
+    var scene = load("res://generated/hype/levels/fog-test/level.tscn").instantiate()
     var env = scene.get_node("Environment").environment
     var expected = EXPECTED
     if env.fog_enabled != expected:
@@ -240,8 +240,7 @@ func _initialize():
             push_error("source fog settings lost")
             quit(1)
             return
-    var model = scene.get_node("Model0")
-    var metadata = JSON.parse_string(model.get_meta("source_environments"))
+    var metadata = JSON.parse_string(scene.get_meta("source_environments"))
     if metadata[0].size() != 1 or metadata[1].size() != 1 or metadata[2].size() != 1:
         push_error("shared environment duplicated")
         quit(1)

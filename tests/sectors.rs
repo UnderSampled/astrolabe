@@ -194,7 +194,7 @@ func require(ok, reason):
 func _initialize():
     call_deferred("check")
 func check():
-    var scene = load("res://generated/hype/levels/sectors/scene.tscn").instantiate()
+    var scene = load("res://generated/hype/levels/sectors/level.tscn").instantiate()
     root.add_child(scene)
     await physics_frame
     await physics_frame

@@ -1,14 +1,67 @@
-//! Godot-specific sampled character projection and temporary runtime support.
-use super::{Project, disk_path, quoted, vector};
+//! Persisted native characters and family/configuration-specialized animation libraries.
+use super::{
+    Project,
+    animation::{self, NativeAnimation, Pose},
+    disk_path, quoted, vec3, vector,
+};
 use crate::model::{
     AssetPath, AssetRef, animation::*, character::*, content::ContentSource, io::Content,
+    mechanics::*,
 };
-use anyhow::{Context, Result, ensure};
-use serde_json::{Value, json};
-use std::{collections::BTreeSet, fmt::Write as _};
-const PLAYER: &str = "generated/hype/runtime/character.gd";
-fn resource(project: &Project, path: &AssetPath) -> String {
-    format!("res://{}", disk_path(&project.selection, path, "json"))
+use anyhow::{Result, ensure};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::Write as _,
+    sync::Arc,
+};
+
+const PLAYER: &str = "res://addons/astrolabe/character/character.gd";
+fn label(name: &str) -> String {
+    let text: String = name
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    if text.is_empty() {
+        "unnamed".into()
+    } else {
+        text
+    }
+}
+pub(super) fn perso_path(project: &Project, perso: &Perso) -> String {
+    project.level_path(&format!(
+        "persos/{}__{}.tscn",
+        label(&perso.name),
+        &super::digest(perso.path.as_str().as_bytes())[..10]
+    ))
+}
+struct Part {
+    channel: u16,
+    slot: u16,
+    restored: bool,
+    instance: String,
+    scale: Option<[f32; 3]>,
+    geometries: Vec<String>,
+}
+impl Part {
+    fn node(&self) -> String {
+        format!(
+            "Channels/channel_{}/{}part_{}",
+            self.channel,
+            if self.restored { "reset_" } else { "" },
+            self.slot
+        )
+    }
+}
+struct State {
+    state: CharacterState,
+    clip: Option<Arc<AnimationClip>>,
+    frames: Vec<BTreeMap<u16, Pose>>,
 }
 
 pub(super) fn export_perso(
@@ -20,10 +73,6 @@ pub(super) fn export_perso(
     if !written.insert(perso.path.clone()) {
         return Ok(());
     }
-    if !project.generated.contains(PLAYER) {
-        project.write(PLAYER.into(), include_bytes!("scripts/character.gd"))?;
-    }
-    project.diagnostic(format!("{}: sampled animation defaults exported; gameplay channel-visibility overrides, lip sync, root motion and AI state transitions require runtime support", perso.path));
     let family = source.load(&perso.family)?;
     family.validate_reference(&perso.family.path)?;
     family.validate()?;
@@ -40,207 +89,368 @@ pub(super) fn export_perso(
             "perso state missing from family"
         );
     }
-    for reference in family
-        .configurations
-        .iter()
-        .chain(family.default_configuration.iter())
-        .chain(perso.configuration.iter())
-        .chain(perso.initial_configuration.iter())
-    {
-        if !written.insert(reference.path.clone()) {
-            continue;
-        }
-        let config = source.load(reference)?;
+    let configuration = perso
+        .configuration
+        .as_ref()
+        .or(family.default_configuration.as_ref())
+        .or(perso.initial_configuration.as_ref());
+    let config = configuration.map(|r| source.load(r)).transpose()?;
+    if let (Some(reference), Some(config)) = (configuration, &config) {
         config.validate_reference(&reference.path)?;
         config.validate()?;
-        let mut tables = serde_json::Map::new();
-        for (name, values) in [
-            ("parts", Some(&config.parts)),
-            ("reset_parts", config.reset_parts.as_ref()),
+    }
+    // The target library is specialized in this active level; no Fix binding is cached globally.
+    let key = format!(
+        "{}|{}",
+        family.path,
+        configuration.map_or("none", |r| r.path.as_str())
+    );
+    let rig_id = format!("rig_{}", &super::digest(key.as_bytes())[..12]);
+    if !project.character_rigs.contains(&rig_id) {
+        export_rig(
+            project,
+            source,
+            &family,
+            config.as_deref(),
+            &rig_id,
+            written,
+        )?;
+        project.character_rigs.insert(rig_id.clone());
+    }
+    let path = perso_path(project, perso);
+    project.reserve(&path)?;
+    let name = format!(
+        "perso_{}",
+        &super::digest(perso.path.as_str().as_bytes())[..12]
+    );
+    let state = perso
+        .current_state
+        .or(perso.initial_state)
+        .map_or(-1, i64::from);
+    writeln!(
+        project.builder,
+        "    var {name} = {rig_id}()\n    {name}.name = {}\n    {name}.set_meta(\"source_perso_name\", {})\n    {name}.set_meta(\"source_perso\", {})\n    {name}.initial_state = {state}\n    {name}.current_state = {state}\n    if {state} >= 0:\n        apply_initial_pose({name}, {name}.get_node(\"AnimationPlayer\").get_animation(\"state_{state}\"))\n    save_scene({name}, {})\n    {name}.free()",
+        quoted(&label(&perso.name)),
+        quoted(&perso.name),
+        quoted(perso.path.as_str()),
+        quoted(&format!("res://{path}"))
+    )?;
+    if state < 0 {
+        project.diagnostic(format!(
+            "{}: no initial state; persisted alternatives remain hidden",
+            perso.path
+        ));
+    }
+    project.diagnostic(format!("{}: native sampled poses; gameplay visibility overrides, root motion, lip sync and AI transitions remain unsupported",perso.path));
+    Ok(())
+}
+
+fn export_rig(
+    project: &mut Project,
+    source: &mut impl ContentSource,
+    family: &Family,
+    config: Option<&ObjectList>,
+    rig_id: &str,
+    written: &mut BTreeSet<AssetPath>,
+) -> Result<()> {
+    let directory = project.level_path(&format!(
+        "characters/{}__{}/{}",
+        label(&family.name),
+        &super::digest(family.path.as_str().as_bytes())[..8],
+        &rig_id[4..]
+    ));
+    let mut states = Vec::new();
+    let mut channels = BTreeSet::new();
+    let mut slots: BTreeMap<u16, BTreeSet<u16>> = BTreeMap::new();
+    for state in &family.states {
+        let clip = state
+            .animation
+            .as_ref()
+            .map(|r| {
+                let value = source.load(r)?;
+                value.validate_reference(&r.path)?;
+                Ok::<_, anyhow::Error>(value)
+            })
+            .transpose()?;
+        let frames = if let Some(clip) = &clip {
+            if clip.morph_count > 0 {
+                project.diagnostic(format!(
+                    "{}: {} morph payloads remain unprojected",
+                    clip.path, clip.morph_count
+                ));
+            }
+            if clip
+                .samples
+                .iter()
+                .any(|s| matches!(s.kind, ChannelKind::Light | ChannelKind::Unknown(_)))
+            {
+                project.diagnostic(format!(
+                    "{}: light/reserved channel transforms retained; payloads not rendered",
+                    clip.path
+                ));
+            }
+            animation::bake(clip, source)?
+        } else {
+            vec![BTreeMap::new()]
+        };
+        for pose in &frames {
+            for (&channel, sample) in pose {
+                channels.insert(channel);
+                if let Some(slot) = sample.object {
+                    slots.entry(channel).or_default().insert(slot);
+                }
+            }
+        }
+        if let Some(reference) = &state.mechanics {
+            export_mechanics(project, source, reference, written)?;
+        }
+        states.push(State {
+            state: state.clone(),
+            clip,
+            frames,
+        });
+    }
+    let mut parts = Vec::new();
+    if let Some(config) = config {
+        for (restored, table) in [
+            (false, Some(&config.parts)),
+            (true, config.reset_parts.as_ref()),
         ] {
-            let Some(values) = values else {
-                tables.insert(name.into(), Value::Null);
+            let Some(table) = table else {
                 continue;
             };
-            let mut parts = Vec::new();
-            for part in values {
-                let scene = if let Some(reference) = &part.instance {
+            for (&channel, slots) in &slots {
+                for &slot in slots {
+                    let Some(part) = table.get(usize::from(slot)) else {
+                        continue;
+                    };
+                    let Some(reference) = &part.instance else {
+                        continue;
+                    };
                     let instance = source.load(reference)?;
                     instance.validate_reference(&reference.path)?;
+                    let model = source.load(&instance.model)?;
                     if written.insert(instance.path.clone()) {
-                        let model = source.load(&instance.model)?;
                         super::export::export_instance(
                             project, source, &model, &instance, written,
                         )?;
                     }
-                    Some(format!(
-                        "res://{}",
-                        disk_path(&project.selection, &instance.path, "tscn")
-                    ))
-                } else {
-                    None
-                };
-                if let Some(reference) = &part.action {
-                    export_action(project, source, reference, written)?;
-                }
-                parts.push(json!({"scene":scene,"scale":part.scale.map(|[x,y,z]|[x,z,y]),"action":part.action.as_ref().map(|r|resource(project,&r.path))}));
-            }
-            tables.insert(name.into(), json!(parts));
-        }
-        write_json(project, &config.path, &Value::Object(tables))?;
-    }
-    if written.insert(family.path.clone()) {
-        let bounds = if let Some(reference) = &family.bounding_geometry {
-            if written.insert(reference.path.clone()) {
-                let geometry = source.load(reference)?;
-                geometry.validate_reference(&reference.path)?;
-                let geometry = geometry.resolve(source)?;
-                let mut shapes = Vec::new();
-                for element in &geometry.elements {
-                    match element {
-                        crate::model::collision::CollisionElement::Spheres(spheres) => {
-                            for sphere in spheres {
-                                if sphere.radius == 0. {
-                                    continue;
+                    let mut geometries = vec![String::new()];
+                    for (e, element) in model.sprite_elements.iter().enumerate() {
+                        for (i, placement) in element.sprites.iter().enumerate() {
+                            let sprite = source.load(&placement.sprite)?;
+                            for (v, view) in sprite.views.iter().enumerate() {
+                                if view.material.is_some() {
+                                    geometries.push(format!("/Sprite_{e}_{i}/View_{v}"));
                                 }
-                                shapes.push(json!({"kind":"sphere","center":vector(geometry.positions[sphere.center as usize]),"radius":sphere.radius}));
                             }
                         }
-                        crate::model::collision::CollisionElement::Boxes(boxes) => {
-                            for bounds in boxes {
-                                let a = vector(geometry.positions[bounds.min as usize]);
-                                let b = vector(geometry.positions[bounds.max as usize]);
-                                let center =
-                                    std::array::from_fn::<_, 3, _>(|i| (a[i] + b[i]) * 0.5);
-                                let size = std::array::from_fn::<_, 3, _>(|i| (b[i] - a[i]).abs());
-                                shapes.push(json!({"kind":"box","center":center,"size":size}));
-                            }
-                        }
-                        _ => project.diagnostic(format!(
-                            "{}: triangle bounding geometry has no debug primitive projection",
-                            reference.path
-                        )),
                     }
+                    parts.push(Part {
+                        channel,
+                        slot,
+                        restored,
+                        instance: format!(
+                            "res://{}",
+                            disk_path(&project.selection, &instance.path, "tscn")
+                        ),
+                        scale: part.scale,
+                        geometries,
+                    });
                 }
-                write_json(project, &reference.path, &json!({"shapes":shapes}))?;
             }
-            Some(resource(project, &reference.path))
-        } else {
-            None
-        };
-        let mut states = Vec::new();
-        for state in &family.states {
-            let mechanics = if let Some(reference) = &state.mechanics {
-                if written.insert(reference.path.clone()) {
-                    let profile = source.load(reference)?;
-                    profile.validate_reference(&reference.path)?;
-                    write_json(
-                        project,
-                        &reference.path,
-                        &serde_json::to_value(profile.as_ref())?,
-                    )?;
-                    project.diagnostic(format!("{}: mechanics parameters retained for state inspection; original dynamics simulation is not implemented",reference.path));
-                }
-                Some(resource(project, &reference.path))
-            } else {
-                None
-            };
-            let animation = if let Some(reference) = &state.animation {
-                if written.insert(reference.path.clone()) {
-                    let clip = source.load(reference)?;
-                    clip.validate_reference(&reference.path)?;
-                    export_clip(project, source, &clip, written)?;
-                }
-                Some(resource(project, &reference.path))
-            } else {
-                None
-            };
-            states.push(json!({"id":state.id,"animation":animation,"mechanics":mechanics,"speed":state.speed,"next":state.next,"transitions":state.transitions,"prohibited":state.prohibited}));
         }
-        write_json(
-            project,
-            &family.path,
-            &json!({"name":family.name,"object_type":family.object_type,"bounds":bounds,"states":states}),
+    }
+    let mut libraries = Vec::new();
+    for restored in [false, true] {
+        if restored && config.is_none_or(|c| c.reset_parts.is_none()) {
+            continue;
+        }
+        let mut links = String::new();
+        let mut entries = Vec::new();
+        for state in &states {
+            let name = format!("state_{}", state.state.id);
+            let path = format!(
+                "{directory}/{}{name}.tres",
+                if restored { "restored/" } else { "" }
+            );
+            export_animation(
+                project, source, state, &channels, &parts, restored, &path, written,
+            )?;
+            let ext = format!("s_{}", state.state.id);
+            writeln!(
+                links,
+                "[ext_resource type=\"Animation\" path={} id=\"{ext}\"]",
+                quoted(&format!("res://{path}"))
+            )?;
+            entries.push(format!("&{}: ExtResource(\"{ext}\")", quoted(&name)));
+        }
+        let path = format!(
+            "{directory}/{}animations.tres",
+            if restored { "restored/" } else { "" }
+        );
+        project.write(path.clone(),format!("[gd_resource type=\"AnimationLibrary\" load_steps={} format=3]\n\n{links}\n[resource]\n_data = {{ {} }}\n",states.len()+1,entries.join(",\n")).as_bytes())?;
+        libraries.push((restored, path));
+    }
+    let mut function = format!(
+        "\nfunc {rig_id}() -> Node3D:\n    var actor = Node3D.new()\n    actor.set_script(native_resource({}))\n    actor.set_meta(\"source_family\", {})\n    var channels = Node3D.new()\n    channels.name = \"Channels\"\n    actor.add_child(channels)\n    channels.owner = actor\n",
+        quoted(PLAYER),
+        quoted(family.path.as_str())
+    );
+    for channel in channels {
+        writeln!(
+            function,
+            "    var c_{channel} = Node3D.new()\n    c_{channel}.name = \"channel_{channel}\"\n    channels.add_child(c_{channel})\n    c_{channel}.owner = actor\n    c_{channel}.set_meta(\"source_channel\", {})\n    c_{channel}.set_meta(\"source_channel_occurrence\", {})",
+            channel % 256,
+            channel / 256
         )?;
     }
-    let config = perso
-        .configuration
-        .as_ref()
-        .or(family.default_configuration.as_ref());
-    write_json(
-        project,
-        &perso.path,
-        &json!({"name":perso.name,"family":resource(project,&family.path),"configuration":config.map(|r|resource(project,&r.path)),"state":perso.current_state.or(perso.initial_state)}),
+    for (i, part) in parts.iter().enumerate() {
+        writeln!(
+            function,
+            "    var part_{i} = native_resource({}).instantiate()\n    part_{i}.name = {}\n    c_{}.add_child(part_{i})\n    part_{i}.owner = actor\n    part_{i}.visible = false\n    part_{i}.set_meta(\"configuration_slot\", {})",
+            quoted(&part.instance),
+            quoted(part.node().rsplit('/').next().unwrap()),
+            part.channel,
+            part.slot
+        )?;
+        if let Some([x, y, z]) = part.scale {
+            writeln!(function, "    part_{i}.scale = {}", vec3([x, z, y]))?;
+        }
+    }
+    writeln!(
+        function,
+        "    var player = AnimationPlayer.new()\n    player.name = \"AnimationPlayer\"\n    player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL\n    player.callback_mode_method = AnimationMixer.ANIMATION_CALLBACK_MODE_METHOD_IMMEDIATE\n    actor.add_child(player)\n    player.owner = actor"
     )?;
+    for (restored, path) in libraries {
+        writeln!(
+            function,
+            "    player.add_animation_library({}, native_resource({}))",
+            quoted(if restored { "restored" } else { "" }),
+            quoted(&format!("res://{path}"))
+        )?;
+    }
+    // The emitter operates on native waveform resources; no audio voices exist before cues.
+    writeln!(
+        function,
+        "    var sound = Node3D.new()\n    sound.name = \"SoundEmitter\"\n    sound.set_script(native_resource(\"res://addons/astrolabe/audio/emitter.gd\"))\n    actor.add_child(sound)\n    sound.owner = actor"
+    )?;
+    bounds(project, source, family, &mut function)?;
+    function.push_str("    return actor\n");
+    project.builder_functions.push_str(&function);
     Ok(())
 }
-fn export_clip(
+
+#[allow(clippy::too_many_arguments)]
+fn export_animation(
     project: &mut Project,
     source: &mut impl ContentSource,
-    clip: &AnimationClip,
+    state: &State,
+    channels: &BTreeSet<u16>,
+    parts: &[Part],
+    restored: bool,
+    path: &str,
     written: &mut BTreeSet<AssetPath>,
 ) -> Result<()> {
-    clip.validate()?;
-    if clip
-        .samples
-        .iter()
-        .any(|s| matches!(s.kind, ChannelKind::Light | ChannelKind::Unknown(_)))
-    {
-        project.diagnostic(format!("{}: light/reserved animation channels retain identity and transforms but their payloads are not rendered", clip.path));
+    let fps = state.state.speed;
+    let frames = &state.frames;
+    let mut anim = NativeAnimation::new(
+        &format!("state_{}", state.state.id),
+        frames.len() as f64 / f64::from(fps.max(1)),
+        fps,
+        frames.len(),
+        fps > 0,
+    );
+    let mut links = String::new();
+    anim.values(".:current_state", [state.state.id.to_string()], fps)?;
+    let mechanics = if let Some(reference) = &state.state.mechanics {
+        writeln!(
+            links,
+            "[ext_resource type=\"Resource\" path={} id=\"mechanics\"]",
+            quoted(&format!(
+                "res://{}",
+                disk_path(&project.selection, &reference.path, "tres")
+            ))
+        )?;
+        "ExtResource(\"mechanics\")"
+    } else {
+        "null"
+    };
+    anim.values(".:current_mechanics", [mechanics.into()], fps)?;
+    for channel in channels {
+        anim.values(
+            &format!("Channels/channel_{channel}:transform"),
+            frames.iter().map(|f| {
+                animation::affine(
+                    &f.get(channel)
+                        .map_or_else(Default::default, |s| s.transform.clone()),
+                )
+            }),
+            fps,
+        )?;
     }
-    let mut cues = Vec::new();
-    for cue in &clip.cues {
-        export_action(project, source, &cue.action, written)?;
-        cues.push(json!({"action":resource(project, &cue.action.path),"frame":cue.frame,"channel":cue.channel,"configuration_slot":cue.configuration_slot}));
-    }
-    let mut samples = Vec::new();
-    for sample in &clip.samples {
-        let transform = if let Some(link) = &sample.transform {
-            let pool = source.load(&link.pool)?;
-            pool.validate_reference(&link.pool.path)?;
-            ensure!(
-                pool.entries
-                    .binary_search_by_key(&link.entry, |e| e.id)
-                    .is_ok(),
-                "missing animation transform entry"
-            );
-            if written.insert(pool.path.clone()) {
-                pool.validate()?;
-                let mut entries = serde_json::Map::new();
-                for entry in &pool.entries {
-                    let t = entry.value.affine();
-                    let basis = [
-                        vector(t.basis[0]),
-                        vector(t.basis[2]),
-                        vector(t.basis[1]).map(|v| -v),
-                    ];
-                    let values: Vec<_> = basis
-                        .into_iter()
-                        .flatten()
-                        .chain(vector(t.translation))
-                        .collect();
-                    entries.insert(entry.id.to_string(), json!(values));
-                }
-                write_json(project, &pool.path, &json!({"entries":entries}))?;
-            }
-            Some(json!({"pool":resource(project,&link.pool.path),"entry":link.entry}))
-        } else {
-            None
+    for part in parts {
+        let active = |f: &BTreeMap<u16, Pose>| {
+            f.get(&part.channel)
+                .filter(|s| restored == part.restored && s.object == Some(part.slot))
+                .map(|s| (s.visible, s.opacity))
         };
-        let object = if sample.kind == ChannelKind::Object {
-            sample.object
-        } else {
-            None
-        };
-        samples.push(json!({"transform":transform,"object":object,"channel":sample.channel,"opacity":sample.opacity,"visibility":sample.visibility}));
+        anim.values(
+            &format!("{}:visible", part.node()),
+            frames
+                .iter()
+                .map(|f| active(f).is_some_and(|s| s.0).to_string()),
+            fps,
+        )?;
+        for geometry in &part.geometries {
+            anim.values(
+                &format!("{}{geometry}:transparency", part.node()),
+                frames.iter().map(|f| {
+                    active(f)
+                        .map_or(0., |s| 1. - f32::from(s.1) / 255.)
+                        .to_string()
+                }),
+                fps,
+            )?;
+        }
     }
-    write_json(
-        project,
-        &clip.path,
-        &json!({"channel_count":clip.channel_count,"samples":samples,"frames":clip.frames,"speed":clip.speed,"frame_rate":clip.frame_rate,"cues":cues}),
-    )?;
-    Ok(())
+    if let Some(clip) = &state.clip {
+        writeln!(
+            anim.text,
+            "metadata/source_animation = {}\nmetadata/source_state_next = {}",
+            quoted(clip.path.as_str()),
+            state.state.next.map_or(-1, i64::from)
+        )?;
+        let mut groups: BTreeMap<u8, Vec<(usize, &AnimationCue)>> = BTreeMap::new();
+        for (i, cue) in clip.cues.iter().enumerate() {
+            export_action(project, source, &cue.action, written)?;
+            writeln!(
+                links,
+                "[ext_resource type=\"Resource\" path={} id=\"cue_{i}\"]",
+                quoted(&format!(
+                    "res://{}",
+                    disk_path(&project.selection, &cue.action.path, "tres")
+                ))
+            )?;
+            groups.entry(cue.frame).or_default().push((i, cue));
+        }
+        let mut keys = Vec::new();
+        for (frame, cues) in groups {
+            keys.push((f64::from(frame)/f64::from(fps.max(1)),format!("{{\"method\": &\"_cues\", \"args\": [{frame}, PackedInt32Array({}), PackedInt32Array({}), [{}]]}}",cues.iter().map(|(_,c)|c.channel.to_string()).collect::<Vec<_>>().join(","),cues.iter().map(|(_,c)|c.configuration_slot.to_string()).collect::<Vec<_>>().join(","),cues.iter().map(|(i,_)|format!("ExtResource(\"cue_{i}\")")).collect::<Vec<_>>().join(","))));
+        }
+        anim.methods(keys)?;
+    }
+    project.write(
+        path.into(),
+        format!(
+            "[gd_resource type=\"Animation\" load_steps={} format=3]\n\n{links}\n{}",
+            links.lines().count() + 1,
+            anim.text
+        )
+        .as_bytes(),
+    )
 }
+
 fn export_action(
     project: &mut Project,
     source: &mut impl ContentSource,
@@ -253,25 +463,155 @@ fn export_action(
     let action = source.load(reference)?;
     action.validate_reference(&reference.path)?;
     action.validate()?;
-    let sound = if let AnimationOperation::Sound { event: Some(event) } = &action.operation {
-        Some(super::sound::export_event(project, source, event, written)?)
-    } else {
-        if !matches!(action.operation, AnimationOperation::Sound { .. }) {
-            project.diagnostic(format!("{}: timed action signals exported; attachment/mechanics/camera behavior is not yet executed", action.path));
+    let mut links = String::new();
+    let mut sound = "null";
+    let (kind, command) = match &action.operation {
+        AnimationOperation::Sound { event } => {
+            if let Some(event) = event {
+                let path = super::sound::export_event(project, source, event, written)?;
+                writeln!(
+                    links,
+                    "[ext_resource type=\"Resource\" path={} id=\"sound\"]",
+                    quoted(&path)
+                )?;
+                sound = "ExtResource(\"sound\")";
+            }
+            ("sound", 0)
         }
-        None
+        AnimationOperation::Mechanics { command } => ("mechanics", *command),
+        AnimationOperation::Attachment { value } => ("attachment", *value),
+        AnimationOperation::AttachmentControl { command } => ("attachment_control", *command),
+        AnimationOperation::Camera { command } => ("camera", *command),
+        AnimationOperation::Unknown { kind, .. } => ("unknown", u32::from(*kind)),
     };
-    write_json(
-        project,
-        &action.path,
-        &json!({"path":action.path,"operation":action.operation,"unknown":action.unknown,"sound":sound}),
+    if kind != "sound" {
+        project.diagnostic(format!(
+            "{}: native timed cue signal; {kind} operation is not executed",
+            action.path
+        ));
+    }
+    project.write(disk_path(&project.selection,&action.path,"tres"),format!("[gd_resource type=\"Resource\" load_steps={} format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/character/cue.gd\" id=\"script\"]\n{links}\n[resource]\nscript = ExtResource(\"script\")\nsource_action = {}\nkind = &{}\ncommand = {command}\nsound = {sound}\n",links.lines().count()+2,quoted(action.path.as_str()),quoted(kind)).as_bytes())
+}
+
+fn export_mechanics(
+    project: &mut Project,
+    source: &mut impl ContentSource,
+    reference: &AssetRef<Mechanics>,
+    written: &mut BTreeSet<AssetPath>,
+) -> Result<()> {
+    if !written.insert(reference.path.clone()) {
+        return Ok(());
+    }
+    let value = source.load(reference)?;
+    value.validate_reference(&reference.path)?;
+    value.validate()?;
+    let mut text = String::from(
+        "[gd_resource type=\"Resource\" load_steps=2 format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/character/mechanics.gd\" id=\"script\"]\n\n[resource]\nscript = ExtResource(\"script\")\n",
+    );
+    match &value.data {
+        MechanicsData::Mass { mass } => writeln!(text, "mass = {mass}")?,
+        MechanicsData::Character { mode, settings } => {
+            writeln!(text, "mode = {mode}")?;
+            // Named numeric target properties, not a runtime source-card decoder.
+            let values = serde_json::to_value(settings)?;
+            for (key, value) in values.as_object().unwrap() {
+                if value.is_number() {
+                    if [
+                        "fsl_available",
+                        "orientation_free",
+                        "dt_forced",
+                        "against_wall",
+                    ]
+                    .contains(&key.as_str())
+                    {
+                        writeln!(text, "{key} = {}", value.as_u64().unwrap() != 0)?;
+                    } else {
+                        writeln!(text, "{key} = {value}")?;
+                    }
+                }
+            }
+        }
+        MechanicsData::Unresolved { kind, .. } => {
+            writeln!(text, "mode = {kind}")?;
+            project.diagnostic(format!(
+                "{}: unresolved mechanics card {kind}; values remain in Rete",
+                value.path
+            ));
+        }
+    }
+    project.diagnostic(format!(
+        "{}: typed mechanics parameters; original dynamics simulation remains unsupported",
+        value.path
+    ));
+    project.write(
+        disk_path(&project.selection, &value.path, "tres"),
+        text.as_bytes(),
     )
 }
-fn write_json(project: &mut Project, path: &AssetPath, value: &Value) -> Result<()> {
-    project.write(
-        disk_path(&project.selection, path, "json"),
-        &serde_json::to_vec(value)?,
-    )
+
+fn bounds(
+    project: &mut Project,
+    source: &mut impl ContentSource,
+    family: &Family,
+    code: &mut String,
+) -> Result<()> {
+    let Some(reference) = &family.bounding_geometry else {
+        return Ok(());
+    };
+    let geometry = source.load(reference)?;
+    geometry.validate_reference(&reference.path)?;
+    let geometry = geometry.resolve(source)?;
+    code.push_str("    var bounds = Node3D.new()\n    bounds.name = \"FamilyBounds\"\n    bounds.visible = false\n    actor.add_child(bounds)\n    bounds.owner = actor\n    var bounds_material = StandardMaterial3D.new()\n    bounds_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED\n    bounds_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA\n    bounds_material.albedo_color = Color(0.1, 1.0, 0.4, 0.18)\n    bounds_material.cull_mode = BaseMaterial3D.CULL_DISABLED\n");
+    let mut i = 0;
+    for element in &geometry.elements {
+        let mut shapes = Vec::new();
+        match element {
+            crate::model::collision::CollisionElement::Spheres(spheres) => {
+                for s in spheres {
+                    if s.radius > 0. {
+                        shapes.push((
+                            "SphereMesh.new()".to_string(),
+                            format!(
+                                "    bound_{i}_mesh.radius = {}\n    bound_{i}_mesh.height = {}\n",
+                                s.radius,
+                                2. * s.radius
+                            ),
+                            vector(geometry.positions[s.center as usize]),
+                        ));
+                        i += 1;
+                    }
+                }
+            }
+            crate::model::collision::CollisionElement::Boxes(boxes) => {
+                for b in boxes {
+                    let a = vector(geometry.positions[b.min as usize]);
+                    let b = vector(geometry.positions[b.max as usize]);
+                    shapes.push((
+                        "BoxMesh.new()".into(),
+                        format!(
+                            "    bound_{i}_mesh.size = {}\n",
+                            vec3(std::array::from_fn(|c| (b[c] - a[c]).abs()))
+                        ),
+                        std::array::from_fn(|c| (a[c] + b[c]) * 0.5),
+                    ));
+                    i += 1;
+                }
+            }
+            _ => project.diagnostic(format!(
+                "{}: triangle family bounds have no debug primitive projection",
+                reference.path
+            )),
+        }
+        let start = i - shapes.len();
+        for (i, (mesh, properties, position)) in (start..).zip(shapes) {
+            writeln!(
+                code,
+                "    var bound_{i} = MeshInstance3D.new()\n    bound_{i}.name = \"Bound_{i}\"\n    var bound_{i}_mesh = {mesh}\n{properties}    bound_{i}.mesh = bound_{i}_mesh\n    bound_{i}.material_override = bounds_material\n    bound_{i}.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF\n    bound_{i}.position = {}\n    bound_{i}.set_meta(\"family_bounds_debug\", true)\n    bounds.add_child(bound_{i})\n    bound_{i}.owner = actor",
+                vec3(position)
+            )?;
+        }
+    }
+    Ok(())
 }
 impl Project {
     pub(super) fn character_node(
@@ -283,24 +623,12 @@ impl Project {
     ) -> Result<()> {
         let perso = source.load(reference)?;
         perso.validate_reference(&reference.path)?;
-        ensure!(
-            self.generated.contains(PLAYER),
-            "character dependencies were not exported"
-        );
-        let definition = resource(self, &perso.path);
-        let path = definition
-            .strip_prefix("res://")
-            .context("invalid character resource path")?;
-        ensure!(
-            self.generated.contains(path),
-            "missing character definition"
-        );
+        let path = perso_path(self, &perso);
+        ensure!(self.generated.contains(&path), "missing character scene");
         writeln!(
             self.builder,
-            "    var {parent}_character = Node3D.new()\n    {parent}_character.name = \"Character\"\n    {parent}_character.set_script(load({}))\n    {parent}_character.definition_path = {}\n    {parent}.add_child({parent}_character)\n    {parent}_character.owner = {owner}\n    {parent}_character.set_meta(\"source_perso_name\", {})",
-            quoted(&format!("res://{PLAYER}")),
-            quoted(&definition),
-            quoted(&perso.name)
+            "    var {parent}_character = load({}).instantiate()\n    {parent}.add_child({parent}_character)\n    {parent}_character.owner = {owner}",
+            quoted(&format!("res://{path}"))
         )?;
         Ok(())
     }

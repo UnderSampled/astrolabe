@@ -5,6 +5,35 @@ use crate::model::{content::ContentSource, environment::*, io::Content, scene::S
 use anyhow::Result;
 use std::{collections::BTreeMap, fmt::Write as _};
 impl Project {
+    pub(super) fn native_environment(&mut self, root: &str) -> Result<()> {
+        let color = self.scene_ambient.unwrap_or([1.; 3]);
+        let energy = if self.scene_ambient.is_some() {
+            1.0
+        } else {
+            0.7
+        };
+        writeln!(
+            self.builder,
+            "    var {root}_environment = Environment.new()\n    {root}_environment.background_mode = Environment.BG_COLOR\n    {root}_environment.background_color = Color(0.08, 0.1, 0.14, 1)\n    {root}_environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR\n    {root}_environment.ambient_light_color = Color({}, {}, {}, 1)\n    {root}_environment.ambient_light_energy = {energy}",
+            color[0].clamp(0., 1.),
+            color[1].clamp(0., 1.),
+            color[2].clamp(0., 1.)
+        )?;
+        if !self.scene_fog_conflict
+            && let Some(Some(fog)) = &self.scene_fog
+        {
+            for property in preview_properties(fog).lines() {
+                writeln!(self.builder, "    {root}_environment.{property}")?;
+            }
+        }
+        writeln!(
+            self.builder,
+            "    var {root}_world_environment = WorldEnvironment.new()\n    {root}_world_environment.name = \"Environment\"\n    {root}_world_environment.environment = {root}_environment\n    {root}.add_child({root}_world_environment)\n    {root}_world_environment.owner = {root}\n    {root}.set_meta(\"astrolabe_support_interface\", {})",
+            super::support::INTERFACE
+        )?;
+        Ok(())
+    }
+
     pub(super) fn scene_environment(
         &mut self,
         scene: &Scene,
@@ -66,7 +95,7 @@ impl Project {
         if self.scene_fog_conflict {
             self.diagnostic(format!("{}: multiple fog environments; preview fog disabled until sector/surface draw routing is implemented",scene.path));
         } else if self.scene_fog.as_ref().is_some_and(Option::is_some) {
-            self.diagnostic(format!("{}: shared environment fog projected in the preview with native depth fog; Godot's smooth depth curve approximates Hype's quantized linear Glide table; infinite distance is retained but unused by that driver",scene.path));
+            self.diagnostic(format!("{}: shared environment fog projected in the level with native depth fog; Godot's smooth depth curve approximates Hype's quantized linear Glide table; infinite distance is retained but unused by that driver",scene.path));
         }
         Ok(())
     }

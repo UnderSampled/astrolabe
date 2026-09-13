@@ -1,8 +1,8 @@
 # Godot project structure and ownership
 
-Design direction agreed on 2026-09-13. This specifies the next exporter/project
-work; the directory layout below is a proposed baseline, not an implemented
-project or a claim of complete game support. It complements the
+Design direction agreed on 2026-09-13 and implemented for the supported native
+scene/character slice. See [migration evidence](native-godot-migration.md) for
+checks and remaining gaps; this is not a claim of complete game support. It complements the
 [native conversion contract](rust-architecture.md#godot-adapter-native-project-conversion).
 
 ## Develop the Godot target alongside parity work
@@ -38,7 +38,7 @@ states; rehydration fills in converted content without reorganizing the project.
 | Import caches, staging and evidence | Absent | Derived local files | Godot/conversion tooling |
 
 Use a Godot-facing project directory separate from Rust source, Rete packages,
-the disc and comparison reports. The proposed baseline is:
+the disc and comparison reports. The implemented baseline is:
 
 ```text
 godot/
@@ -48,7 +48,9 @@ godot/
   addons/astrolabe/
     README.md
     rendering/             # shaders and related support resources
-    audio/                 # native audio behavior, added as needed
+    audio/                 # native voices and compiled-event support
+    character/             # native animation controls and typed parameters
+    scene/                 # native sector inspection
     behavior/              # engine functions for generated GDScript, as needed
   game/
     bootstrap.tscn         # source-free entry point and content availability
@@ -60,6 +62,7 @@ godot/
     levels/astrolabe/
       level.tscn
       persos/
+      characters/          # family/configuration-specialized native libraries
     shared/                # Fix-owned families, reusable scenes and resources
     textures/
     sounds/
@@ -151,9 +154,8 @@ owned, unchanged generated files can be replaced or removed as stale. Preserve
 authored files, local edits, unselected levels and unrelated generated packages;
 report collisions or modified generated files before publication.
 
-Ignore generated directories and caches by location. Replace the repository's
-current blanket `*.tscn`/`*.tres` ignore rules when introducing the committed
-project, so authored scenes and resources are actually tracked. Keep support
+Ignore generated directories and caches by location. The repository's blanket `*.tscn`/`*.tres` ignore rules have been removed;
+authored scenes and resources are tracked. Keep support
 script/resource identity files and import settings required by the pinned Godot
 version in version control with their owners; derived `.godot/` caches stay
 local. Generated identity/import sidecars follow generated ownership. Confirm

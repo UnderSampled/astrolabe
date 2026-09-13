@@ -26,7 +26,8 @@ impl Project {
         source: &mut impl crate::model::content::ContentSource,
     ) -> Result<()> {
         scene.validate()?;
-        let path = disk_path(&self.selection, &scene.path, "tscn");
+        let path = self.level_path("level.tscn");
+        self.has_level_scene = true;
         self.reserve(&path)?;
         let scene_id = format!("scene_{}", self.preview_instances.len());
         writeln!(
@@ -120,6 +121,7 @@ impl Project {
             }
             names.insert(node.id.clone(), name);
         }
+        self.native_environment(&scene_id)?;
         writeln!(
             self.builder,
             "    var {scene_id}_packed = PackedScene.new()\n    if {scene_id}_packed.pack({scene_id}) != OK or ResourceSaver.save({scene_id}_packed, {}) != OK:\n        push_error(\"cannot save scene\")\n        quit(1)\n        return\n    {scene_id}.free()",

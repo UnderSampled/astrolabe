@@ -1,44 +1,35 @@
 # Rust implementation evidence
 
-The Rust implementation covers the media and rooted-model work of milestones 0–5 and now has partial scene/character routes for milestones 6–7. The complete suite passed on 2026-09-12: **81 tests in 216.32 seconds**, including release compilation, every local corpus/Godot check, and cleanup. The measured report is `TestResults/scene-graph-full-retry-20260913.log.json`. This remains a converter for supported useful assets and a disposable Godot preview, not a complete level/game port. Original game data, generated content, save fixtures, and reference binaries remain local.
+The Rust implementation covers milestones 0–5 and a native scene/character slice of 6–7. The complete local suite passed on 2026-09-13: **83 tests in 364.727 seconds**, including compilation (warm build), every corpus/Godot check, actual editor scrubbing, regeneration and cleanup. Report: `TestResults/20260913T081826.069430Z-4061873.log.json`. No processes leaked. This is a converter for supported useful assets and native Godot project files; full level/game behavior remains incomplete. Game data, generated content and reference binaries remain local.
 
 See [the Rust contributor guide](contributing-rust.md) for the current module map and extension workflow. The readability refactor moved root traversal/export rules into their adapters, split level and texture responsibilities, unified texture sharing, and separated geometry from instance state. Audio reconstruction gaps are typed data; explanatory notes no longer control writer support.
 
-The previous visual pass is accepted and closed at the user's request. The
-2026-09-13 plan review identifies native Godot representation as the next
-priority. The [prioritized remaining-work list](remaining-work.md) is the handoff;
-milestones 6–7 are not claimed complete.
+The native scene/character migration is accepted for the supported English PC
+Astrolabe fixture. See [the migration report](native-godot-migration.md) for
+native representation, ownership, actual editor and source-game evidence.
+Milestones 6–7 remain partial; [remaining work](remaining-work.md) records the
+open semantics and reconstruction work. The next behavior phase compiles typed
+AI into GDScript.
 
-## Native Godot conversion gap
+## Native Godot scene/character migration
 
-The current scene exporter saves the source node hierarchy and static model
-instances, but `src/godot/character.rs` attaches a scripted character node whose
-`src/godot/scripts/character.gd` loads JSON in `_ready()`. That script constructs
-channels/parts and applies sampled transforms and object switches during play.
-Consequently, a runtime preview can show persos/clutter that are absent when the
-saved level opens in the editor. Character, family/configuration, animation,
-transform-pool, bounds/mechanics, and sound-program JSON exports remain a
-conversion gap. Existing character playback checks exercise that temporary
-player; they do not demonstrate native Animation/AnimationLibrary resources or
-animation-editor scrubbing. Native mesh/scene and audio-mixer evidence below
-remains valid within its stated scope.
+The supported fixture now exports saved level/perso scenes with initial parts,
+poses, visibility and native Animation/AnimationLibrary/AnimationPlayer tracks.
+The former character and sound JSON interpreters have been removed. Conversion
+resolves transform pools, changing hierarchies and object configurations;
+maintained Godot support controls native playback and compiled sound behavior.
+The committed `godot/` starter separates authored content, support and ignored
+regenerated content. Initialization, support updates and regeneration have
+separate ownership rules. Generated resource/node IDs and sidecars are stable.
 
-The revised [Godot adapter contract](rust-architecture.md#godot-adapter-native-project-conversion)
-requires persisted level/perso contents and initial poses, native resources and
-animation tracks, and later AI AST-to-GDScript conversion. These changes are
-planned, not implemented by this documentation update. JSON used only for
-diagnostics, test evidence, generation manifests, or conversion-time staging is
-separate from the runtime asset-loading gap.
-
-The same review removes the blanket deferral of converter-owned Godot assets.
-Needed shaders/components may be maintained alongside the exporter and parity
-work; engine-side AI functions grow with the GDScript tests that need them.
-[Godot project structure and ownership](godot-project.md) specifies the proposed
-committed/rehydrated workflow. It is not implemented by this documentation update:
-the CLI still publishes the generated preview arrangement, support scripts remain
-under `src/godot/`, and the root ignore rules still exclude all `.tscn`/`.tres`
-files. Package ownership, ignore rules and native project migration remain work
-for the next slice.
+Focused tests and the actual Godot editor verify affine/shear values, duplicate
+logical channels, native seeking/backward seeking, configuration restore, state
+speed, fractional loop boundaries and cue-driven state changes. Direct and
+reopened-Rete output agrees at the current scene checkpoint. The complete suite,
+authored regeneration and visual inspection passed; see
+[native migration evidence](native-godot-migration.md) for the exact status and
+original-engine walking comparison. Milestones 6–7 remain partial: this projection
+does not complete source reconstruction, morphs, interpolation or gameplay.
 
 ## Demonstrated coverage
 
@@ -51,10 +42,10 @@ for the next slice.
 | 4: rooted access | SNA/RT resolution loads shared Fix with one level and follows GPT scene roots. The selected level has 150 rooted nodes and 22 rooted model candidates. Source block/RT hashes, null/missing/conflicting references, Fix/level binding and sentinel cases are tested. Verified SNA framing and PTX header/pointer/channel declarations generate controlled output with derived pointers. |
 | 5: model/Godot | The first rooted model has 26 positions, 32 triangles, four materials/textures, one selected LOD and 26 signed radiosity colors. Native ArrayMesh/PackedScene resources render in Godot. Direct conversion and closed/reopened Rete produce identical generated bytes. A persisted position edit changes the actual Godot array and independently inspected source fragment. Source reconstruction covers 75 generated pointer sites, PTX/RTT names and selected model/material/geometry/IPO/ISI data, plus derived SNA fragment framing and four dependent GF files. |
 
-| 6: scene, in progress | All 150 rooted nodes, 22 triangle/sprite IPOs and ZDR collision bindings survive Rete and Godot conversion. Twenty collision bindings reference their shared render model; two own independent meshes. Native raycasts check placement, hierarchy and disabled shapes. Canonical game materials contain optional visual data, collision properties and sound-material IDs. Basic sprites, 54 shared lights and 17 sectors import. The sectors share one environment, visual environment and fog asset; Rete retains all three identities, source fog bytes reconstruct exactly and the Godot preview applies uniform fog. [MCP and pixel evidence](environment-fog.md) verifies the source values and records the rendering approximation. Thirteen sector boundaries retain triangle/UV/normal/subset data and neighbor links; ordered graphics, optional graphics, collision, activity, perso/light membership and sound-propagation links persist. Controlled scene and sector writer APIs regenerate supported records using caller-supplied component targets. All 150 full 64-byte SO records reconstruct hierarchy, source-kind identity, opacity and initial matrices; 145 picking-bound references retain 58 shared assets. [Scene hierarchy evidence](scene-hierarchy.md) covers Rete edits, embedded character matrices and native world/local placement. These APIs are not yet composed into CLI scene assembly. Godot portal queries match an original-engine sector crossing. Animation sound actions resolve typed programs and 178 shared waveforms; native Godot probes cover material/random selection, sample loops and event-targeted stop. Advanced sprites, exact lighting and per-sector fog routing, ambient and AI-triggered scene audio, and full scene reconstruction remain incomplete. |
-| 7: characters, in progress | 108 persos, 21 families, 17 configurations, 492 animation clips, 436 triangle/sprite models and two transform pools import. The temporary JSON-driven Godot player tests channel parenting changes, object switches/hide, state timing and selection. Rete/direct exports agree. Of 204,927 imported compact matrices, 204,474 reconstruct byte-for-byte; 453 derive smaller equivalent forms, verified to preserve transforms. Original pool ordinals preserve sharing and distinct equal entries. 147 shared action assets retain 145 configuration action slots and 593 ordered cues in 304 clips. SND/RTS links resolve into library bank/member references and source fragments regenerate their receiving sites. Godot emits timed action signals and plays supported sound programs. The 56-byte Hype family layout is verified against the engine; configuration writers preserve 2,380 active/reset entries and regenerate model/action links. Godot exposes configuration restore without replaying animation cues. Family/state writers regenerate all 585 state records, 19 transitions and shared configuration links. Eighteen family bounds and ten mechanics cards persist; five cards have typed parameters and five retain explicit unpromoted fields. Godot exposes bounds and selected mechanics for inspection. Related/morph data, interpolation and full perso reconstruction remain incomplete. MCP observations verify selected states and a matched-camera comparison checks environment/character placement, with runtime visibility overrides and approximate lighting explicitly recorded. |
+| 6: scene, in progress | All 150 rooted nodes, 22 triangle/sprite IPOs and ZDR collision bindings survive Rete and Godot conversion. Twenty collision bindings reference their shared render model; two own independent meshes. Native raycasts check placement, hierarchy and disabled shapes. Canonical game materials contain optional visual data, collision properties and sound-material IDs. Basic sprites, 54 shared lights and 17 sectors import. The sectors share one environment, visual environment and fog asset; Rete retains all three identities, source fog bytes reconstruct exactly and the saved Godot level applies uniform fog. [MCP and pixel evidence](environment-fog.md) verifies the source values and records the rendering approximation. Thirteen sector boundaries retain triangle/UV/normal/subset data and neighbor links; ordered graphics, optional graphics, collision, activity, perso/light membership and sound-propagation links persist. Controlled scene and sector writer APIs regenerate supported records using caller-supplied component targets. All 150 full 64-byte SO records reconstruct hierarchy, source-kind identity, opacity and initial matrices; 145 picking-bound references retain 58 shared assets. [Scene hierarchy evidence](scene-hierarchy.md) covers Rete edits, embedded character matrices and native world/local placement. These APIs are not yet composed into CLI scene assembly. Godot portal queries match an original-engine sector crossing. Animation sound actions resolve typed programs and 178 shared waveforms; native Godot probes cover material/random selection, sample loops and event-targeted stop. Advanced sprites, exact lighting and per-sector fog routing, ambient and AI-triggered scene audio, and full scene reconstruction remain incomplete. |
+| 7: characters, in progress | 108 persos, 21 families, 17 configurations, 492 animation clips, 436 triangle/sprite models and two transform pools import. Native Godot libraries/players now project channel parenting changes, object switches/hide, state timing and selection into persisted parts and poses. Rete/direct exports agree. Of 204,927 imported compact matrices, 204,474 reconstruct byte-for-byte; 453 derive smaller equivalent forms, verified to preserve transforms. Original pool ordinals preserve sharing and distinct equal entries. 147 shared action assets retain 145 configuration action slots and 593 ordered cues in 304 clips. SND/RTS links resolve into library bank/member references and source fragments regenerate their receiving sites. Godot emits timed action signals and plays supported sound programs. The 56-byte Hype family layout is verified against the engine; configuration writers preserve 2,380 active/reset entries and regenerate model/action links. Godot exposes configuration restore without replaying animation cues. Family/state writers regenerate all 585 state records, 19 transitions and shared configuration links. Eighteen family bounds and ten mechanics cards persist; five cards have typed parameters and five retain explicit unpromoted fields. Godot exposes bounds and selected mechanics for inspection. Related/morph data, interpolation and full perso reconstruction remain incomplete. MCP observations verify selected states and a matched-camera comparison checks environment/character placement, with runtime visibility overrides and approximate lighting explicitly recorded. |
 
-See [scene/animation research](scene-animation-research.md) for source corrections, original-engine observations, matrix differences and current visual gaps. Scene conversion uses `--content scene`; the default remains the first-model fixture. The viewer adds character/state selection, pause, model focus and fly controls; `--show-sectors` displays boundary wireframes and `--show-bounds` displays family bounds without adding physics bodies. A repeatable pose capture accepts `--character Hype --state 47 --frame 0`. Generated fragments now keep `fix/` and `level/` under `fragments/` to prevent cross-role filename collisions.
+See [scene/animation research](scene-animation-research.md) for source corrections, original-engine observations, matrix differences and current visual gaps. Scene conversion is the default; `--content model` selects the first-model fixture explicitly. The viewer adds character/state selection, pause, model focus and fly controls; `--show-sectors` displays boundary wireframes and `--show-bounds` displays family bounds without adding physics bodies. A repeatable pose capture accepts `--character Hype --state 47 --frame 0`. Generated fragments now keep `fix/` and `level/` under `fragments/` to prevent cross-role filename collisions.
 
 Evidence lives in [testing.md](testing.md), [texture-rust.md](texture-rust.md), [audio-rust.md](audio-rust.md), [level-rust-research.md](level-rust-research.md), [godot-review.md](godot-review.md), and the corresponding executable tests. Full decoded source/fixture hashes are recorded in those tests. No proprietary bytes were embedded in the repository's fixtures.
 
@@ -79,7 +70,7 @@ The generated development viewer supports drag/orbit, wheel/zoom, a texture cont
 
 ```sh
 timeout --signal=TERM --kill-after=3 40 xvfb-run -a godot \
-  --path output/godot --audio-driver Dummy -- \
+  --path output/godot --audio-driver Dummy res://generated/hype/levels/astrolabe/preview.tscn -- \
   --capture /absolute/path/model-preview.png
 ```
 
@@ -127,7 +118,7 @@ The existing local Raymap WebGL snapshot opens in the browser. Both the local-da
 - Static Godot radiosity uses the verified material branch `clamp(2*(ambient + diffuse*RLI/256),0,1)`. Exact signed/unclamped lighting remains in Rete and mesh metadata; the fourth source component is not opacity. Source-gated color-key cutouts, alpha and additive blending are projected into native Godot materials. Source bilinear filtering reduces the matched opening-scene pixel RMSE by a further 4% after the transparency fix; exact mip selection remains open. Full context flags and exact dynamic lighting remain incomplete, and visual pixel parity is not claimed. See [the transparency and matched-camera pixel comparison](material-transparency.md).
 - Original texture mip values remain in Rete; Godot currently imports base PNGs. CNT output deliberately derives an unencrypted representation; original per-entry XOR keys are not cached as metadata.
 - APM writing is functional lossy ADPCM re-encoding. PCM-only BNM writing is limited; CSB binary event behavior, Ubi-MPEG encoding and full-bank reconstruction remain explicit gaps. Surround components are preserved separately but target mixing remains unverified. Animation event routing and selected original cue timing are checked; ambient/AI/dialogue routing and original mixer parity remain incomplete.
-- Reusable geometry and instance transforms/radiosity are now separate model assets. Synthetic shared instances exercise Rete, independent edits, controlled source fragments, and Godot mesh sharing/lighting variants. The default model route selects the first rooted instance; the scene route traverses all 150 nodes and preserves observed render/collision geometry sharing.
+- Reusable geometry and instance transforms/radiosity are now separate model assets. Synthetic shared instances exercise Rete, independent edits, controlled source fragments, and Godot mesh sharing/lighting variants. The explicit model route selects the first rooted instance; the scene route traverses all 150 nodes and preserves observed render/collision geometry sharing.
 - Rete schema 9 and generated Godot paths are provisional. Regenerate older packages from source; scene, character, sprite, light, shared animation-action, typed sound-program, configuration reset-table, family bounds, state mechanics, shared environment/fog and full scene-node properties changed the schema. Shared whole-asset loads work; generic direct member hydration is deliberately rejected until owner-specific resolution is defined. Embedded Model/ModelInstance/Material identities must agree with references. A rename must update both explicitly.
 - Shared diagnostics have stable codes, asset context and severity; semantic coverage survives Rete persistence. Source address summaries remain transient debug observations. Broaden diagnostic codes and source profiles when new domains need them, not by creating a second wire-object database.
 - Godot 4.7.2's ResourceSaver did not retain the mesh path with FLAG_CHANGE_PATH alone; explicit take_over_path is required. Generated node/resource IDs are normalized, and destination import caches are rebuilt. Every authored/stale-file conflict is checked before publishing generated content.

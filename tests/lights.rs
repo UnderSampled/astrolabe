@@ -126,7 +126,7 @@ fn godot_signed_lights_and_sector_sharing() -> Result<()> {
         temp.path().join("check.gd"),
         r#"extends SceneTree
 func _initialize():
-    var scene = load("res://generated/hype/levels/lights/scene.tscn").instantiate()
+    var scene = load("res://generated/hype/levels/lights/level.tscn").instantiate()
     var lights = scene.find_children("*", "OmniLight3D", true, false)
     assert(lights.size() == 2, "shared light duplicated across memberships")
     var positive = scene.get_node("Light_0/Positive")

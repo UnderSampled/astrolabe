@@ -200,15 +200,26 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
     configuration.reset_parts.as_mut().unwrap()[300].scale = Some([3., 4., 5.]);
     let pool = TransformPool {
         path: AssetPath::new("fix:/transforms/test")?,
-        entries: vec![TransformEntry {
-            id: 7,
-            source_index: Some(7),
-            value: TransformValue::Components {
-                translation: [1., 2., 3.],
-                quaternion: [1., 0., 0., 0.],
-                stretch: [1., 0., 0., 1., 0., 1.],
+        entries: vec![
+            TransformEntry {
+                id: 7,
+                source_index: Some(7),
+                value: TransformValue::Components {
+                    translation: [1., 2., 3.],
+                    quaternion: [1., 0., 0., 0.],
+                    stretch: [1., 0., 0., 1., 0., 1.],
+                },
             },
-        }],
+            TransformEntry {
+                id: 8,
+                source_index: Some(8),
+                value: TransformValue::Affine(SourceTransform {
+                    translation: [10., 0., 0.],
+                    basis: [[2., 0., 0.], [0.5, 1., 0.], [0., 0., 1.]],
+                    ..Default::default()
+                }),
+            },
+        ],
     };
     let action = AnimationAction {
         path: AssetPath::new("fix:/animation-actions/attachment")?,
@@ -323,6 +334,39 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
     clip.frames[0].hierarchy.push([0, 1]);
     assert!(clip.validate().is_err());
     clip.frames[0].hierarchy.pop();
+    let mut fractional_clip = clip.clone();
+    fractional_clip.path = AssetPath::new("fix:/animations/fractional")?;
+    fractional_clip.frames = clip.frames.iter().cycle().take(29).cloned().collect();
+    fractional_clip.cues[1].frame = 14;
+    let mut affine_clip = clip.clone();
+    affine_clip.path = AssetPath::new("fix:/animations/affine")?;
+    affine_clip.channel_count = 3;
+    affine_clip.cues.clear();
+    let mut auxiliary = affine_clip.samples[1].clone();
+    auxiliary.kind = ChannelKind::Light;
+    auxiliary.object = None;
+    affine_clip.samples.push(auxiliary);
+    let mut parent = affine_clip.samples[0].clone();
+    parent.transform = Some(TransformLink {
+        pool: AssetRef::from_path(pool.path.clone()),
+        entry: 8,
+    });
+    affine_clip.samples.push(parent);
+    affine_clip.samples[1].opacity = 127;
+    affine_clip.frames = vec![
+        AnimationFrame {
+            samples: vec![7, 1, 6],
+            hierarchy: vec![[1, 0]],
+            motion_rotation: None,
+            motion_translation: None,
+        },
+        AnimationFrame {
+            samples: vec![6, 1, 7],
+            hierarchy: vec![[1, 2]],
+            motion_rotation: None,
+            motion_translation: None,
+        },
+    ];
     let bounds = astrolabe::model::collision::Collision {
         path: AssetPath::new("fix:/collision/family-bounds/test")?,
         geometry: astrolabe::model::collision::CollisionGeometry::Mesh(
@@ -351,11 +395,41 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
         name: "Test".into(),
         states: vec![
             CharacterState {
+                mechanics: None,
+                id: 10,
+                animation: Some(AssetRef::from_path(fractional_clip.path.clone())),
+                speed: 30,
+                next: None,
+                transitions: vec![],
+                prohibited: vec![],
+                unknown: [0; 7],
+            },
+            CharacterState {
+                mechanics: None,
+                id: 9,
+                animation: Some(AssetRef::from_path(affine_clip.path.clone())),
+                speed: 2,
+                next: None,
+                transitions: vec![],
+                prohibited: vec![],
+                unknown: [0; 7],
+            },
+            CharacterState {
                 mechanics: Some(AssetRef::from_path(mechanics.path.clone())),
                 id: 0,
                 animation: Some(AssetRef::from_path(clip.path.clone())),
                 speed: 2,
                 next: Some(5),
+                transitions: vec![],
+                prohibited: vec![],
+                unknown: [0; 7],
+            },
+            CharacterState {
+                mechanics: None,
+                id: 8,
+                animation: Some(AssetRef::from_path(clip.path.clone())),
+                speed: 0,
+                next: None,
                 transitions: vec![],
                 prohibited: vec![],
                 unknown: [0; 7],
@@ -419,6 +493,8 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
     put!(configuration);
     put!(pool);
     put!(clip);
+    put!(affine_clip);
+    put!(fractional_clip);
     put!(action);
     put!(family);
     put!(bounds);
@@ -471,62 +547,100 @@ func require(ok: bool, message: String) -> bool:
 func _initialize():
     call_deferred("check")
 func check():
-    var scene = load("res://generated/hype/levels/animation-test/scene.tscn").instantiate()
+    var packed = load("res://generated/hype/levels/animation-test/level.tscn") as PackedScene
+    var scene = packed.instantiate()
+    var actor = scene.get_node("world/Test")
+    var player = actor.get_node("AnimationPlayer") as AnimationPlayer
+    var channel0 = actor.get_node("Channels/channel_0")
+    var channel1 = actor.get_node("Channels/channel_1")
+    var initial = channel1.get_node("part_300")
+    var saved_count = actor.find_children("*", "", true, false).size()
+    if not require(initial.visible and not channel0.get_node("part_1").visible, "saved initial configuration missing before ready"): return
+    if not require(channel1.position.is_equal_approx(Vector3(1,3,-2)), "saved initial pose missing before ready"): return
+    if not require(actor.current_mechanics.mass == 17, "saved typed mechanics missing"): return
+    if not require(player.get_animation("state_0") is Animation and player.get_animation_library("") is AnimationLibrary, "native library missing"): return
+    for animation_name in player.get_animation_list():
+        var animation = player.get_animation(animation_name)
+        for track in animation.get_track_count():
+            var path = animation.track_get_path(track)
+            if not require(actor.has_node(NodePath(path.get_concatenated_names())), "unresolved native track: " + str(path)): return
+    actor.autoplay = false
     root.add_child(scene)
-    var actor = scene.get_node("world/Character")
-    actor.playing = false
-    var cues: Array = []
-    actor.cue_triggered.connect(func(cue, action):
-        require(actor.frame_index == int(cue.frame), "cue listener observed the wrong pose")
-        cues.append([int(cue.frame),int(cue.channel),int(cue.configuration_slot),action.path]))
-    actor.select_state(0)
-    if not require(actor.current_mechanics.data.Mass.mass == 17, "state mechanics reference not projected"): return
+    if not require(saved_count == actor.find_children("*", "", true, false).size(), "ready constructed missing character content"): return
+    if not require(channel1.global_position.is_equal_approx(Vector3(6,3,-2)), "source placement"): return
     actor.set_bounds_visible(true)
-    var bound = actor.bounds_debug.get_child(0)
-    if not require(bound is MeshInstance3D and bound.mesh is SphereMesh and bound.mesh.radius == 2 and bound.position.is_equal_approx(Vector3(1,3,-2)), "family bound geometry differs"): return
-    if not require(actor.bounds_debug.find_children("*", "CollisionObject3D", true, false).is_empty(), "debug bound must not create physics"): return
+    var bound = actor.get_node("FamilyBounds/Bound_0")
+    if not require(bound.mesh is SphereMesh and bound.mesh.radius == 2 and bound.position.is_equal_approx(Vector3(1,3,-2)), "persisted family bounds"): return
+    if not require(actor.get_node("FamilyBounds").find_children("*", "CollisionObject3D", true, false).is_empty(), "bounds became physics"): return
     actor.set_bounds_visible(false)
-    if not require(not actor.bounds_debug.visible, "bound visibility toggle failed"): return
-    if not require(cues.size() == 1 and cues[0].slice(0,3) == [0,1,300], "state entry cue/column/slot"): return
+    var cues: Array = []
+    var observed_poses: Array = []
+    actor.cue_triggered.connect(func(action, frame, channel, slot):
+        cues.append([frame,channel,slot,action.source_action])
+        observed_poses.append([actor.frame_index, channel0.position, channel1.position]))
+    actor.select_state(0)
+    player.pause()
+    if not require(cues.size() == 1 and cues[0].slice(0,3) == [0,1,300], "state entry native cue"): return
     cues.clear()
-    if not require(actor.current_state == 0 and actor.frame_index == 0, "initial state/frame"): return
-    if not require(actor.channels[1].get_parent() == actor.channels[0], "initial channel parent"): return
-    if not require(actor.channels[1].get_node("Part").is_visible_in_tree(), "empty parent hides visible child"): return
-    if not require(actor.channels[1].global_position.is_equal_approx(Vector3(6,3,-2)), "source-local transform conversion"): return
-    actor.advance(0.5)
-    if not require(actor.frame_index == 1, "state speed must override clip default speed"): return
-    if not require(actor.channels[0].get_parent() == actor.channels[1], "changed hierarchy"): return
-    if not require(actor.channels[1].get_node_or_null("Part") == null, "hidden part still present"): return
-    if not require(actor.channels[0].get_node("Part").scale.is_equal_approx(Vector3(2,2,2)), "object switch lost configuration scale"): return
-    actor.advance(0.5)
-    if not require(actor.frame_index == 2 and actor.channels[0].get_parent() == actor and actor.channels[1].get_parent() == actor, "removed parents must reset"): return
-    actor.advance(0.5)
-    if not require(actor.frame_index == 0, "animation wrap"): return
-    if not require(cues.size() == 2 and cues[0][0] == 2 and cues[1][0] == 0 and cues[0][3] == cues[1][3], "loop cue order and shared action identity"): return
-    cues.clear()
-    actor.advance(3.0)
-    if not require(cues.size() == 4 and cues.map(func(c):return c[0]) == [2,0,2,0], "long tick must preserve complete-loop cues"): return
-    actor.apply_frame(2)
-    if not require(cues.size() == 4, "visual inspection must not trigger sounds/actions"): return
-    if not require(actor.select_state(5), "stable state ID selection"): return
-    if not require(actor.current_mechanics.is_empty(), "state without mechanics retained another state's card"): return
-    actor.advance(0.25)
-    if not require(actor.current_state == 5 and actor.frame_index == 1, "selected state timing"): return
-    if not require(not actor.select_state(99) and actor.current_state == 5, "invalid state changed playback"): return
+    player.seek(0.5, true, true)
+    if not require(actor.frame_index == 1 and actor.current_state == 0, "state rate overrides clip fps"): return
+    if not require(not initial.visible and channel0.get_node("part_1").visible, "native object visibility switch"): return
+    if not require(channel0.get_node("part_1").scale.is_equal_approx(Vector3(2,2,2)), "configuration scale"): return
+    player.seek(1.0, true, true)
+    if not require(channel0.position.is_equal_approx(Vector3(1,3,-2)) and channel1.position.is_zero_approx(), "logical identity follows swapped columns"): return
+    player.seek(0.0, true, true)
+    if not require(initial.visible and not channel0.get_node("part_1").visible and channel1.position.is_equal_approx(Vector3(1,3,-2)), "backward seek did not restore pose/configuration"): return
+    if not require(cues.is_empty(), "editor seek dispatched cue side effects"): return
+    if not require(actor.restore_configuration(), "reset library missing"): return
+    if not require(not initial.visible and channel1.get_node("reset_part_300").visible and channel1.get_node("reset_part_300").scale.is_equal_approx(Vector3(3,5,4)), "native reset configuration edit"): return
+    if not require(cues.is_empty() and actor.frame_index == 0, "configuration restore replayed cues or changed time: " + str(cues) + " frame " + str(actor.frame_index)): return
+    actor.select_state(5)
+    player.advance(0.25)
+    if not require(actor.current_state == 5 and actor.frame_index == 1 and actor.current_mechanics == null, "native state selection timing/mechanics"): return
+    if not require(not actor.select_state(99) and actor.current_state == 5, "invalid state changed player"): return
     actor.select_state(0)
     cues.clear()
-    actor.cue_triggered.connect(func(cue, _action):
-        if int(cue.frame) == 2: actor.select_state(5))
-    actor.advance(2.0)
-    if not require(actor.current_state == 5 and actor.frame_index == 0 and actor.elapsed == 0.0 and cues.map(func(c):return c[0]) == [2,0], "cue-driven transition must cancel the previous clip tick"): return
+    player.advance(0.5)
+    player.advance(0.5)
+    player.advance(0.5)
+    if not require(actor.frame_index == 0 and cues.map(func(c):return c[0]) == [2,0], "native looping cue order"): return
+    cues.clear()
+    observed_poses.clear()
+    actor.advance(4.6)
+    if not require(cues.map(func(c):return c[0]) == [2,0,2,0,2,0], "large tick skipped complete loops: " + str(cues)): return
+    for i in cues.size():
+        var frame = cues[i][0]
+        if not require(observed_poses[i][0] == frame, "cue observed wrong playback time: " + str(observed_poses)): return
+        if not require(observed_poses[i][1 if frame == 2 else 2].is_equal_approx(Vector3(1,3,-2)), "cue observed previous pose: " + str(observed_poses)): return
+    actor.select_state(8)
+    cues.clear()
+    actor.advance(9.0)
+    if not require(actor.frame_index == 0 and not actor.playing and cues.is_empty(), "zero-speed source state advanced"): return
     actor.select_state(0)
-    var restored_frame = actor.frame_index
-    var restored_cues = cues.size()
-    if not require(actor.restore_configuration(), "configuration snapshot not exported"): return
-    if not require(actor.channels[1].get_node("Part").scale.is_equal_approx(Vector3(3,5,4)), "reset table edit did not change the displayed part"): return
-    if not require(actor.frame_index == restored_frame and cues.size() == restored_cues, "restoring objects must not advance time or replay cues"): return
-    actor.configuration[300].scale[0] = 99
-    if not require(actor.restore_configuration() and actor.configuration[300].scale[0] == 3, "mutable object table changed the saved snapshot"): return
+    var change_state = func(_action, frame, _channel, _slot):
+        if frame == 2: actor.select_state(5)
+    actor.cue_triggered.connect(change_state)
+    cues.clear()
+    actor.advance(5.0)
+    if not require(actor.current_state == 5 and actor.frame_index == 0 and cues.map(func(c):return c[0]) == [2,0], "cue callback did not cancel old tick: " + str(cues)): return
+    actor.cue_triggered.disconnect(change_state)
+    actor.select_state(10)
+    cues.clear()
+    actor.advance(26.0/30.0)
+    actor.advance(3.0/30.0)
+    if not require(actor.frame_index == 0 and cues.map(func(c):return c[0]) == [14,0], "fractional frame-rate loop boundary stranded playback: " + str(cues)): return
+    actor.select_state(9)
+    player.pause()
+    var repeated = actor.get_node("Channels/channel_257")
+    if not require(channel1.position.is_equal_approx(Vector3(13,3,-2)), "native parent composition"): return
+    if not require(channel1.basis.is_equal_approx(Basis(Vector3(2,0,0),Vector3(0,1,0),Vector3(-0.5,0,1))), "native affine shear was decomposed: " + str(channel1.basis)): return
+    if not require(is_equal_approx(channel1.get_node("reset_part_300").transparency, 1.0 - 127.0/255.0), "native opacity missing"): return
+    if not require(repeated.position.is_equal_approx(Vector3(1,3,-2)) and repeated.get_meta("source_channel") == 1 and repeated.get_meta("source_channel_occurrence") == 1, "duplicate logical channel lost"): return
+    player.seek(0.5, true, true)
+    if not require(repeated.position.is_equal_approx(Vector3(13,3,-2)) and repeated.get_node("reset_part_300").visible and not channel1.get_node("reset_part_300").visible, "duplicate occurrence object selection"): return
+    player.seek(0.0, true, true)
+    if not require(channel1.get_node("reset_part_300").visible and not repeated.get_node("reset_part_300").visible, "duplicate occurrence backward seek"): return
+    if not require(saved_count == actor.find_children("*", "", true, false).size(), "native playback rebuilt parts"): return
     scene.free()
     quit(0)
 "#,

@@ -28,3 +28,19 @@ independently authored work. Such compositions need their documented generated
 dependencies rehydrated before they can open fully. Editing a generated file
 directly causes a regeneration conflict; move a deliberate independent copy
 under your ownership if it should stop receiving converter updates.
+
+`tests/example.tscn` uses the maintained character support with a native,
+independently authored rotating cube animation. Select its AnimationPlayer to
+inspect or scrub it without the disc. `game/characters/luminous_hype.tscn` is an
+authored inherited scene: a scaled Hype with an original blue beacon material,
+mesh and light. It requires the Astrolabe dependency shown above to be generated;
+the bootstrap does not load it unconditionally. Its authored properties survive
+regeneration while the generated character's native poses/resources update.
+
+Perso filenames use the source name plus a stable source-identity suffix;
+family/configuration-specialized libraries live beside the owning level's
+`characters/` directory. State names remain `state_ID` because the source states
+are numeric. The animation inspector exposes original frame count, state speed,
+source animation identity and next-state metadata. Select `restored/state_ID`
+to inspect the separately converted reset configuration. Shared models/materials
+remain under their source role and keep independent resource identity.

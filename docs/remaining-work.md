@@ -1,11 +1,11 @@
 # Remaining work after the visual pass
 
-The visual pass closed at the user's request on 2026-09-12. Milestones 6 and 7
-have useful, tested coverage and remain partially complete. The 2026-09-13
-plan review makes native Godot project conversion the next priority: the
-accepted runtime image does not establish that the saved level contains its
-clutter/persos or that exported animations use Godot's animation pipeline.
-This document updates the handoff; no exporter change is claimed by that review.
+The native Godot scene/character migration passed on 2026-09-13. The saved
+fixture contains supported parts and initial poses, native clips can be scrubbed
+in the actual editor, and authored content survives Rete edits/regeneration.
+The complete local suite passed 83 tests in 364.727 seconds. See
+[native migration evidence](native-godot-migration.md). Milestones 6–7 remain
+partial because the source reconstruction and semantic gaps below are still open.
 
 The reported helmet-eye, ladder-wall and star-ceiling transparency defects are
 fixed. The opening scene is compared with the original Hype MCP screenshot at
@@ -16,17 +16,18 @@ The star-ceiling before/after check is Godot-only. See
 and [scene reconstruction](scene-hierarchy.md). Current suite results and
 coverage counts are in [implementation progress](implementation-progress.md).
 
-## Suggested next pass
+## Next pass and completed migration
 
-Develop the [committed/rehydrated project structure](godot-project.md) with the
-first native scene/character slice below. Establish one maintained support
+The [committed/rehydrated project structure](godot-project.md) and native
+scene/character slice are implemented. Continue with typed AI-to-GDScript
+behavior work and the remaining reconstruction/semantics below. Establish one maintained support
 package for any required shader/component, explicit authored/generated ownership,
 and a source-free bootstrap with synthetic examples. Needed support assets may
 be production code now. Review the scene/resource extension workflow and update
 location-based ignore rules when introducing the committed project; broad
 OpenSpace reconstruction need not precede this work.
 
-1. **Make the saved Godot level complete for the supported slice.** Keep the
+1. **Completed for the supported fixture: saved native level.** Keep the
    meaningful OpenSpace tree as the level's root scene, with reusable prop/perso
    subscenes and shared geometry/resources. Convert initial configuration and
    pose into persisted part nodes, transforms, and visibility. Opening the level
@@ -36,7 +37,7 @@ OpenSpace reconstruction need not precede this work.
    placement. Make the level root the normal level-port result and retain the
    model selection as an explicit development mode. The camera/inspection
    wrapper should instance that root without supplying its contents.
-2. **Replace interpreted Godot assets with native resources.** Convert the
+2. **Completed for the supported fixture: native resources and animation.** Convert the
    currently exported animation JSON into Animation/AnimationLibrary resources
    and AnimationPlayer nodes. Resolve transform pools, channel parenting, and
    object tables during conversion; assess derived transform tracks and
@@ -106,7 +107,7 @@ OpenSpace reconstruction need not precede this work.
   consumers. Current Rete schema 9 and Godot paths remain provisional; regenerate
   older local Rete packages from source and document target-interface changes.
 
-## Suggested initial goal
+## Completed migration goal
 
 For a bounded first implementation goal in a new conversation:
 
@@ -123,26 +124,26 @@ For a bounded first implementation goal in a new conversation:
 > and record any remaining semantic gaps. AI conversion remains the later
 > milestone; do not introduce an interpreter as an interim target.
 
-The project layout is a proposed baseline to test against that slice, not an
-already implemented scaffold. Current coverage and baseline evidence are in
-[implementation progress](implementation-progress.md). This suggested boundary
-can be widened when setting the goal; it does not replace the full port plan.
+That migration is now implemented in the committed `godot/` project. Current
+coverage and acceptance evidence are in [implementation progress](implementation-progress.md)
+and [the migration report](native-godot-migration.md). The full port plan and
+remaining semantic/source reconstruction work still apply.
 
 ## Resume without repeating setup
 
-Final local handoff artifacts:
+Current local handoff artifacts:
 
-- Godot project: `output/scene-graph-compare/project.godot` (generated with the
-  final release build; port completed in 20.14 seconds).
-- Matched opening capture: `output/scene-graph-final.png`; pixel report and
-  regional comparison images: `output/scene-graph-final-pixels/`. The capture
-  hash and every measured region match the preceding filtered preview exactly.
-- Camera values: `output/fog-camera-evidence.json`; the pixel report identifies
-  and hashes both the external original-game screenshot and final Godot image.
-- Complete validation: **81 tests in 216.322 seconds**,
-  `TestResults/scene-graph-full-retry-20260913.log.json`. Release build, strict
-  Clippy, formatting and whitespace checks also passed. Test/render processes
-  completed cleanly; the private original-game session is stopped.
+- Rehydrated project: `godot/project.godot`; saved level:
+  `godot/generated/hype/levels/astrolabe/level.tscn`.
+- Authored inherited variation: `godot/game/characters/luminous_hype.tscn`.
+- Native opening capture: `output/native-opening.png`; comparison report:
+  `output/native-opening-comparison/report.json`. The previous accepted preview
+  remains in `output/scene-graph-compare/` as historical comparison evidence.
+- Camera values: `output/fog-camera-evidence.json`.
+- Complete validation: **83 tests in 364.727 seconds**,
+  `TestResults/20260913T081826.069430Z-4061873.log.json`, including the actual
+  editor, direct/Rete routes, regeneration and cleanup. Strict Clippy and
+  formatting pass. The private source-game session is stopped.
 
 No reference-submodule update was made during this pass. Generated projects,
 captures and game-derived evidence stay local and are excluded from the
@@ -156,7 +157,7 @@ comparisons; no Unity Editor or new controller setup is needed.
 ```sh
 cargo build --release --locked
 python3 tools/test.py --local --offline
-target/release/astrolabe port disc output/next-scene --content scene --level astrolabe
+target/release/astrolabe port disc godot --level astrolabe --locale en
 ```
 
 The complete suite has one 570-second build/test deadline plus bounded cleanup.

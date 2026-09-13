@@ -1,13 +1,13 @@
 # Testing Astrolabe
 
-Latest checkpoint: the environment/fog slice passed **78 tests in 239.345 seconds**,
-including compilation, all local corpus/Godot checks and cleanup. Report:
-`TestResults/20260913T014933.418118Z-2136654.log.json`. Child CPU time was
-1,387.26 seconds, peak RSS 1,139,680 KiB, and no children leaked. The focused
-environment checks also passed in 48.40 seconds including compilation. See
-[environment/fog evidence](environment-fog.md) for the original MCP readings,
-matched-FoV pixel comparison, successful distance rendering probe and separately
-failed desktop capture attempt.
+Latest checkpoint: the native Godot migration passed **83 tests in 364.727 seconds**,
+including compilation (warm build), all local corpus/Godot checks, actual editor
+scrubbing, authored regeneration, support update/cache rebuild and cleanup.
+Report: `TestResults/20260913T081826.069430Z-4061873.log.json`. Child CPU time
+was 361.435 seconds, peak RSS 1,238,060 KiB, and no children leaked. The scene
+route's three conversions and native/editor checks took 238.10 seconds.
+See [migration evidence](native-godot-migration.md) for the supported semantics,
+original-game comparison, earlier failed attempts and remaining limits.
 
 Run the suite through one supervisor from any working directory:
 
@@ -18,7 +18,7 @@ python3 /home/stephen/Projects/astrolabe/tools/test.py --local --offline
 
 The routine command runs all non-ignored Rust tests. `--local` runs those tests **and every ignored integration/corpus test**, including the supplied game data and actual Godot checks. Each command is one complete suite invocation; it gets one budget rather than a fresh budget per format or child process. New Cargo tests are discovered automatically.
 
-The supervisor invokes `cargo test --release --locked -- --nocapture` once, adding `--include-ignored` for `--local`. `--offline` requires dependencies already in the Cargo cache. Compilation, Cargo lock waits, every test, Python/Godot workers, process cleanup and temporary-file cleanup all count toward the run's elapsed time. A cold release build counts too.
+The supervisor invokes `cargo test --release --locked --no-fail-fast -- --nocapture` once, adding `--include-ignored` for `--local`. `--offline` requires dependencies already in the Cargo cache. Compilation, Cargo lock waits, every test, Python/Godot workers, process cleanup and temporary-file cleanup all count toward the run's elapsed time. A cold release build counts too.
 
 The build/test deadline is **570 seconds**. The runner reserves cleanup/reporting time and treats 590 seconds as its internal maximum total, leaving room before the user-required ten-minute limit. `--timeout SECONDS` can shorten the deadline but cannot exceed 570 seconds. A timeout is a failed run, including when some tests have already passed. Do not divide one required suite into several commands to evade the limit.
 

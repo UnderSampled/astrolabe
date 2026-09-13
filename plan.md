@@ -6,12 +6,12 @@ This is the current Rust plan, updated 2026-09-13 with the native Godot conversi
 
 ## Priorities and completion
 
-The previous visual pass is closed. The user's subsequent review identifies a
-conversion gap: supported clutter/persos appear through runtime construction,
-and animations and other assets use JSON-driven players. Correcting that Godot
-representation is the next priority; prior screenshots do not establish editor
-or native animation support. See [remaining work](docs/remaining-work.md) for the
-prioritized handoff; milestones 6–7 remain partially complete.
+The supported native Godot scene/character migration is complete: saved parts
+and initial poses, native animation libraries, compiled sound behavior, committed
+support/project ownership and authored regeneration pass the complete local suite.
+See [migration evidence](docs/native-godot-migration.md). Milestones 6–7 still
+have explicit semantic/reconstruction gaps. The next behavior slice targets
+phase 8's typed AI-to-GDScript path, alongside the remaining source work.
 
 Godot is the primary deliverable. Work toward useful, repeatable conversion of Hype content and behavior, suitable for a modern fan-remaster and separately authored Godot extensions. OpenSpace reconstruction provides byte-level evidence and supports modifications of the original game. A full Godot-to-OpenSpace edit round trip is optional and deferred.
 
@@ -237,4 +237,4 @@ Shared text-token parsing for CSB/LCB/SIF and later configuration files can be f
 
 ## Next implementation task
 
-Continue from the demonstrated milestones 0–5 and partial 6–7 coverage; do not restart the initial media/model implementation. First migrate the supported scene/character slice to native Godot project assets while establishing the committed/rehydrated project and maintained support package. Follow [the prioritized handoff and suggested goal](docs/remaining-work.md#suggested-initial-goal) and [project design](docs/godot-project.md). Validate editor-visible contents, native animation seeking/playback and an authored extension that survives regeneration, preserving OpenSpace/Model/Rete evidence alongside that work. Resolve concrete target mappings during implementation; the directory sketch is a proposed baseline. Subsequent scene reconstruction, remaining animation/audio semantics and AI follow the ordered work above. Indeo AVI remains late work at milestone 11; exact historical LZO bytes remain at 13.
+Continue from the demonstrated milestones 0–5 and partial 6–7 coverage; do not restart the initial media/model implementation. The supported scene/character slice now uses native Godot project assets, with the committed/rehydrated project and maintained support package established. Follow [the prioritized handoff and suggested goal](docs/remaining-work.md#suggested-initial-goal) and [project design](docs/godot-project.md). Validate editor-visible contents, native animation seeking/playback and an authored extension that survives regeneration, preserving OpenSpace/Model/Rete evidence alongside that work. Resolve concrete target mappings during implementation; the directory sketch is a proposed baseline. Subsequent scene reconstruction, remaining animation/audio semantics and AI follow the ordered work above. Indeo AVI remains late work at milestone 11; exact historical LZO bytes remain at 13.

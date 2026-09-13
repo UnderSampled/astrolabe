@@ -4,24 +4,25 @@
 
 Astrolabe converts **Hype: The Time Quest** (1999), built on Ubisoft's OpenSpace Montreal engine, into useful, deterministic Godot content. Downstream fan-remaster and game-parity projects can depend on assets generated locally from the user's game copy. Those projects own their durable game assets and depend on Astrolabe, even if packaged together.
 
-The target is native Godot project files: editor-visible level scenes and instanced props/persos, native resources and animations, and AI ASTs converted into GDScript. Conversion should make full use of Godot's scene tree and asset pipeline. The current JSON-driven character/animation preview is a documented gap against that target; see the [conversion contract](docs/rust-architecture.md#godot-adapter-native-project-conversion) and [next priorities](docs/remaining-work.md).
+The target is native Godot project files: editor-visible level scenes and instanced props/persos, native resources and animations, and AI ASTs converted into GDScript. Conversion should make full use of Godot's scene tree and asset pipeline. The supported scene/character slice now uses saved native scenes and animations, with compiled sound behavior. AI-to-GDScript remains the next behavior phase; see the [conversion contract](docs/rust-architecture.md#godot-adapter-native-project-conversion) and [next priorities](docs/remaining-work.md).
 
-The first Rust library and CLI restore LZO, textures, and standalone audio, and convert a rooted textured model from the supplied Astrolabe level into a runnable Godot development project. Rete persists the same useful values. The previous C# implementation and the `gltf` branch remain pinned reference submodules. This is an initial asset converter, not a complete game port; see the [coverage and evidence](docs/implementation-progress.md).
+The first Rust library and CLI restore LZO, textures, and standalone audio, and convert the supported Astrolabe scene/character fixture into a native Godot development project. Rete persists the same useful values. The previous C# implementation and the `gltf` branch remain pinned reference submodules. This is an initial asset converter, not a complete game port; see the [coverage and evidence](docs/implementation-progress.md).
 
 Astrolabe has **one useful intermediate model**: textures, models, animations, scenes, sounds, and behaviors with meaningful fields and relationships. **Rete is the serialized form of that model**, using Serde/MessagePack. The planned binrw codecs declaratively map OpenSpace encodings to and from these same useful types, through a unified interface so independent formats can be documented and implemented alongside one another. See the [binary codec boundary](docs/rust-architecture.md#binary-codecs-with-binrw).
 
 **Three modular I/O adapters organize the tool:** OpenSpace reads and reconstructs game data, Rete loads and saves the shared model, and Godot exports it into the target engine. Application code composes them through the model. These module boundaries matter independently of how many Rust crates are used; Godot import remains optional future work. See the [architectural overview](docs/rust-architecture.md#three-modular-io-targets-one-useful-model).
 
-## Run the first model
+## Open the native Godot project
 
 Requires Rust/Cargo, Godot 4 (verified with `4.7.2.stable.arch_linux.ed1daf0bf`), and the local game files under `disc/`:
 
 ```sh
-cargo run --release --locked -- port disc output/godot --level astrolabe
-godot --path output/godot
+cargo build --release --locked
+target/release/astrolabe port disc godot --level astrolabe --locale en
+godot --path godot
 ```
 
-The disposable viewer supports mouse drag to orbit and wheel to zoom. The default scope selects the first rooted model and its material/texture dependencies. It does not export the whole level.
+The committed bootstrap and synthetic animation example work without game data. Rehydration adds `generated/hype/levels/astrolabe/level.tscn`, named perso scenes and native animation libraries. The default selects the supported scene slice; `--content model` selects the first rooted model explicitly. The optional level-local preview adds orbit/fly and inspection controls. This is not yet a complete playable level. See the [project guide](godot/README.md) and [native migration evidence](docs/native-godot-migration.md).
 
 To save and inspect Rete, then reconstruct supported source content:
 
@@ -54,7 +55,7 @@ The entire invocation, including compilation and cleanup, must finish under ten 
 - Rebuild OpenSpace files from canonical content without consulting the original disc. Prove unedited pre-compression package parity; close the remaining compression differences separately.
 - Keep a possible Godot-to-OpenSpace mod-editing round trip as an optional later capability.
 
-Develop needed converter-owned Godot shaders, components and engine functions alongside the exporter and OpenSpace/Model/Rete parity work, with clear ownership and tested interfaces. Design for a Godot developer in both the committed/dehydrated project and the rehydrated project containing locally converted assets; supported authored consumers can grow with those slices. Most AI engine functions can wait for the GDScript tests that need them, and Godot reverse import stays optional. See [Godot project structure and ownership](docs/godot-project.md) for the proposed support package, native editing workflow and safe regeneration rules.
+Develop needed converter-owned Godot shaders, components and engine functions alongside the exporter and OpenSpace/Model/Rete parity work, with clear ownership and tested interfaces. Design for a Godot developer in both the committed/dehydrated project and the rehydrated project containing locally converted assets; supported authored consumers can grow with those slices. Most AI engine functions can wait for the GDScript tests that need them, and Godot reverse import stays optional. See [Godot project structure and ownership](docs/godot-project.md) for the maintained support package, native editing workflow and safe regeneration rules.
 
 Read the [Rust architecture](docs/rust-architecture.md), [Rete asset design](docs/rete-design.md), and [ordered implementation plan and format matrix](plan.md). The historical C# plan is preserved in [`reference/astrolabe-csharp/plan.md`](reference/astrolabe-csharp/plan.md); the old Rete JSON specification and implementation checklists are research material. Current evidence and remaining limitations are in the [implementation report](docs/implementation-progress.md).
 
@@ -77,7 +78,8 @@ The [Rust contributor guide](docs/contributing-rust.md) gives a reading order, m
 src/model/     Useful values and shared typed references/load/save contracts
 src/openspace/ Declarative binrw codecs, source resolution and reconstruction
 src/rete/      Per-asset MessagePack persistence
-src/godot/     Native target resources and disposable development viewer
+src/godot/     Native conversion rules and disposable build/inspection harnesses
+godot/         Committed starter, maintained support, authored scenes and ignored rehydrated assets
 src/app.rs     CLI and adapter composition
 tests/         Synthetic, corpus and actual Godot checks
 docs/          OpenSpace, Hype, and Rete format documentation

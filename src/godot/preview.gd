@@ -17,7 +17,7 @@ var state_selector: OptionButton
 
 func _ready():
     var args = OS.get_cmdline_user_args()
-    characters = find_children("*", "Node3D", true, false).filter(func(n): return n.has_method("select_state") and not n.clip.is_empty())
+    characters = find_children("*", "Node3D", true, false).filter(func(n): return n.has_method("select_state") and n.current_clip != null)
     if "--character" in args:
         var requested = args[args.find("--character") + 1]
         for actor in characters:
@@ -27,13 +27,13 @@ func _ready():
                     actor.select_state(int(args[args.find("--state") + 1]))
                 actor.playing = false
                 if "--frame" in args:
-                    actor.apply_frame(int(args[args.find("--frame") + 1]))
+                    actor.seek_frame(int(args[args.find("--frame") + 1]))
                 break
     var boundaries = find_children("SectorBoundary", "MeshInstance3D", true, false)
     for boundary in boundaries: boundary.visible = "--show-sectors" in args
     if "--show-bounds" in args:
         for actor in characters: actor.set_bounds_visible(true)
-    var meshes = find_children("*", "MeshInstance3D", true, false).filter(func(n): return not n.has_method("intersect_segment") and not n.get_meta("family_bounds_debug", false))
+    var meshes = find_children("*", "MeshInstance3D", true, false).filter(func(n): return not n.has_method("intersect_segment") and not n.get_meta("family_bounds_debug", false) and n.is_visible_in_tree())
     if selected_character != null:
         if "--actor-position" in args:
             var p = args[args.find("--actor-position") + 1].split(",")
@@ -42,10 +42,9 @@ func _ready():
             selected_character.global_rotation = Vector3(0, float(args[args.find("--actor-yaw") + 1]), 0)
         if "--hide-channels" in args:
             for index in args[args.find("--hide-channels") + 1].split(","):
-                var channel = selected_character.nodes_by_id.get(int(index))
+                var channel = selected_character.get_node_or_null("Channels/channel_%d" % int(index))
                 if channel == null: continue
-                var part = channel.get_node_or_null("Part")
-                if part != null: part.visible = false
+                for part in channel.get_children(): part.visible = false
         if "--isolate-character" in args:
             for actor in characters:
                 if actor != selected_character:
@@ -162,14 +161,17 @@ func _ready():
 func select_character(index: int):
     selected_character = characters[index]
     state_selector.clear()
-    for state in selected_character.family.states:
-        state_selector.add_item("State %d · %d fps" % [int(state.id),int(state.speed)],int(state.id))
-        if int(state.id) == selected_character.current_state:
+    for animation_name in selected_character.state_names():
+        if not animation_name.begins_with("state_"): continue
+        var id := int(animation_name.trim_prefix("state_"))
+        var animation = selected_character.animation_player.get_animation(animation_name)
+        state_selector.add_item("State %d · %d fps" % [id, int(animation.get_meta("source_fps", 0))], id)
+        if id == selected_character.current_state:
             state_selector.select(state_selector.item_count-1)
     focus_character()
 
 func focus_character():
-    var meshes = selected_character.find_children("*", "MeshInstance3D", true, false)
+    var meshes = selected_character.find_children("*", "MeshInstance3D", true, false).filter(func(n): return n.is_visible_in_tree())
     if meshes.is_empty() or camera == null: return
     frame_meshes(meshes)
 

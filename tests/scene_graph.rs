@@ -258,7 +258,7 @@ func require(ok: bool, reason: String) -> bool:
 func _initialize():
     call_deferred("check")
 func check():
-    var scene = load("res://generated/hype/levels/scene-graph/scene.tscn").instantiate()
+    var scene = load("res://generated/hype/levels/scene-graph/level.tscn").instantiate()
     root.add_child(scene)
     await process_frame
     var local = scene.get_node("world/object")

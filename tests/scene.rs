@@ -203,11 +203,34 @@ fn source_scene_rete_routes_preserve_hierarchy_collision_and_model_sharing() -> 
     let reloaded = godot::export(
         &mut store,
         &package.roots,
-        package.selection,
+        package.selection.clone(),
         &temp.path().join("reloaded"),
         &engine,
     )?;
     assert_eq!(direct.files, reloaded.files);
+    let project = temp.path().join("reloaded");
+    fs::write(
+        project.join("native_scene_check.gd"),
+        include_bytes!("native_scene_check.gd"),
+    )?;
+    let check_native = |state: &str| -> Result<()> {
+        let evidence = godot::run_godot(
+            &engine,
+            &project,
+            &[
+                "--headless",
+                "--script",
+                "res://native_scene_check.gd",
+                "--",
+                state,
+            ],
+            Duration::from_secs(60),
+        )?;
+        assert!(evidence.contains("NATIVE_SCENE_OK"));
+        println!("{evidence}");
+        Ok(())
+    };
+    check_native("47")?;
     let source = openspace::export(&mut store, &package.roots, &temp.path().join("source"))?;
     assert!(
         source
@@ -233,6 +256,86 @@ fn source_scene_rete_routes_preserve_hierarchy_collision_and_model_sharing() -> 
     assert_eq!(collision.resolve(&mut store)?.positions, model.positions);
     let after = openspace::level::write_collision(&collision, &mut store, 0x1000)?;
     assert_ne!(before.bytes, after.bytes);
+    // An independently authored scene inherits a deliberate Rete state edit on regeneration.
+    let hero_ref = AssetRef::<astrolabe::model::character::Perso>::new("level:/persos/world/0/0")?;
+    let mut hero = (*store.load(&hero_ref)?).clone();
+    hero.current_state = Some(32);
+    store.save(&hero_ref, &hero)?;
+    let authored = project.join("game/characters/luminous_hype.tscn");
+    let authored_bytes = fs::read(&authored)?;
+    let settings = fs::read_to_string(project.join("project.godot"))?
+        + "\n[authored]\nregeneration_marker=73\n";
+    fs::write(project.join("project.godot"), &settings)?;
+    let native_before = fs::read_to_string(
+        project.join("generated/hype/levels/astrolabe/persos/Hype__891c7341e3.tscn"),
+    )?;
+    let edited = godot::export(
+        &mut store,
+        &package.roots,
+        package.selection,
+        &project,
+        &engine,
+    )?;
+    assert_ne!(edited.files, reloaded.files);
+    assert_eq!(fs::read(&authored)?, authored_bytes);
+    assert_eq!(fs::read_to_string(project.join("project.godot"))?, settings);
+    let native_after = fs::read_to_string(
+        project.join("generated/hype/levels/astrolabe/persos/Hype__891c7341e3.tscn"),
+    )?;
+    let identities = |text: &str| {
+        text.lines()
+            .filter_map(|l| {
+                l.split_once(" unique_id=")
+                    .or_else(|| l.split_once(" uid="))
+                    .map(|(_, value)| value.to_owned())
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        identities(&native_before),
+        identities(&native_after),
+        "regeneration changed resource/node identity"
+    );
+    godot::support::update(&project)?;
+    fs::remove_dir_all(project.join(".godot"))?;
+    godot::run_godot(
+        &engine,
+        &project,
+        &["--headless", "--import"],
+        Duration::from_secs(60),
+    )?;
+    check_native("32")?;
+    // Exercise the actual animation editor on these same saved native resources.
+    let plugin = project.join("addons/native_editor_probe");
+    fs::create_dir_all(&plugin)?;
+    fs::write(
+        plugin.join("probe.gd"),
+        include_bytes!("native_editor_check.gd"),
+    )?;
+    fs::write(
+        plugin.join("plugin.cfg"),
+        "[plugin]\nname=\"Native acceptance probe\"\ndescription=\"Disposable editor check\"\nauthor=\"Astrolabe\"\nversion=\"1\"\nscript=\"probe.gd\"\n",
+    )?;
+    fs::write(
+        project.join("project.godot"),
+        settings.clone()
+            + "\n[editor_plugins]\nenabled=PackedStringArray(\"res://addons/native_editor_probe/plugin.cfg\")\n",
+    )?;
+    let editor = godot::run_godot(
+        &engine,
+        &project,
+        &["--headless", "--editor"],
+        Duration::from_secs(60),
+    )?;
+    assert!(editor.contains("NATIVE_EDITOR_OK"));
+    println!(
+        "{}",
+        editor
+            .lines()
+            .find(|line| line.contains("NATIVE_EDITOR_OK"))
+            .unwrap()
+    );
+    fs::write(project.join("project.godot"), settings)?;
     Ok(())
 }
 
@@ -267,7 +370,7 @@ func require(ok: bool, reason: String) -> bool:
 func _initialize():
     call_deferred("check")
 func check():
-    var scene = load("res://generated/hype/levels/scene-test/scene.tscn").instantiate()
+    var scene = load("res://generated/hype/levels/scene-test/level.tscn").instantiate()
     root.add_child(scene)
     await physics_frame
     await physics_frame

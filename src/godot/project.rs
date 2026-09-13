@@ -1,5 +1,5 @@
 //! Staged project construction, engine validation, and publication.
-use super::engine::strip_uids;
+use super::engine::{normalize_native, resource_uid};
 use super::{Manifest, quoted, run_godot};
 use crate::{
     files::write_atomic,
@@ -15,6 +15,7 @@ use std::{
 };
 /// A fresh staging project keeps failed conversion from damaging an existing project.
 pub struct Project {
+    pub(super) has_level_scene: bool,
     pub(super) scene_fog: Option<Option<crate::model::environment::Fog>>,
     pub(super) scene_fog_conflict: bool,
     pub(super) scene_ambient: Option<[f32; 3]>,
@@ -22,6 +23,8 @@ pub struct Project {
     pub(super) stage: tempfile::TempDir,
     pub(super) selection: Selection,
     pub(super) builder: String,
+    pub(super) builder_functions: String,
+    pub(super) character_rigs: BTreeSet<String>,
     pub(super) scene: String,
     pub(super) preview_instances: Vec<String>,
     pub(super) instance_count: usize,
@@ -39,6 +42,7 @@ impl Project {
         let stage = tempfile::tempdir()?;
         super::support::stage(stage.path(), &output)?;
         Ok(Self {
+            has_level_scene: false,
             scene_ambient: None,
             scene_fog: None,
             scene_fog_conflict: false,
@@ -46,6 +50,8 @@ impl Project {
             stage,
             selection,
             builder: include_str!("scripts/build.gd").into(),
+            builder_functions: String::new(),
+            character_rigs: BTreeSet::new(),
             scene: String::new(),
             preview_instances: Vec::new(),
             instance_count: 0,
@@ -141,6 +147,9 @@ environment = SubResource("environment")
                 ),
             );
         }
+        if self.has_level_scene {
+            preview = preview.replace("[node name=\"Environment\" type=\"WorldEnvironment\" parent=\".\"]\nenvironment = SubResource(\"environment\")\n", "");
+        }
         for (n, id) in self.preview_instances.iter().enumerate() {
             writeln!(
                 preview,
@@ -176,6 +185,13 @@ environment = SubResource("environment")
             &self.stage.path().join(self.level_path("preview.tscn")),
             b"[gd_scene format=3]\n\n[node name=\"Loading\" type=\"Node3D\"]\n",
         )?;
+        for path in self.generated.iter().filter(|p| p.ends_with(".gd")) {
+            writeln!(
+                self.builder,
+                "    if not load({}).can_instantiate():\n        push_error(\"Generated script failed compilation\")\n        quit(1)\n        return",
+                quoted(&format!("res://{path}"))
+            )?;
+        }
         self.builder.push_str(&format!(
             r#"    var file = FileAccess.open({}, FileAccess.WRITE)
     file.store_string(JSON.stringify(evidence, "  "))
@@ -184,7 +200,21 @@ environment = SubResource("environment")
 "#,
             quoted(&format!("res://{}", self.level_path("validation.json")))
         ));
+        self.builder.push_str(&self.builder_functions);
         write_atomic(&self.stage.path().join("build.gd"), self.builder.as_bytes())?;
+        // Script identity belongs to the exporter, not a random import cache.
+        let scripts = self
+            .generated
+            .iter()
+            .filter(|p| p.ends_with(".gd"))
+            .cloned()
+            .collect::<Vec<_>>();
+        for path in scripts {
+            self.write(
+                format!("{path}.uid"),
+                format!("{}\n", resource_uid(&path)).as_bytes(),
+            )?;
+        }
         run_godot(
             godot,
             self.stage.path(),
@@ -199,14 +229,37 @@ environment = SubResource("environment")
         )?;
         self.write(self.level_path("preview.tscn"), preview.as_bytes())?;
         self.reserve(&self.level_path("validation.json"))?;
-        // ResourceSaver may assign cache-derived UIDs. Cross-resource links use explicit paths.
+        // Preserve path-derived resource/node identities across edits and cache rebuilds.
         for path in &self.generated {
             if path.ends_with(".tscn") || path.ends_with(".tres") {
                 let full = self.stage.path().join(path);
                 let text = fs::read_to_string(&full)?;
-                let normalized = strip_uids(&text);
+                let normalized = normalize_native(path, &text)?;
                 write_atomic(&full, normalized.as_bytes())?;
             }
+        }
+        let media = self
+            .generated
+            .iter()
+            .filter(|p| p.ends_with(".png") || p.ends_with(".wav"))
+            .cloned()
+            .collect::<Vec<_>>();
+        for path in media {
+            let sidecar = format!("{path}.import");
+            let text = fs::read_to_string(self.stage.path().join(&sidecar))?;
+            let text = text
+                .lines()
+                .map(|line| {
+                    if line.starts_with("uid=") {
+                        format!("uid=\"{}\"", resource_uid(&path))
+                    } else {
+                        line.to_string()
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+                + "\n";
+            self.write(sidecar, text.as_bytes())?;
         }
         run_godot(
             godot,
