@@ -228,7 +228,7 @@ fn godot_environment_fog_sharing_and_mixed_sector_guard() -> Result<()> {
         );
         let check=r#"extends SceneTree
 func _initialize():
-    var scene = load("res://generated/hype/preview.tscn").instantiate()
+    var scene = load("res://generated/hype/levels/fog-test/preview.tscn").instantiate()
     var env = scene.get_node("Environment").environment
     var expected = EXPECTED
     if env.fog_enabled != expected:

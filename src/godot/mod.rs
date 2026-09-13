@@ -12,6 +12,7 @@ mod project;
 mod publication;
 mod resources;
 mod scene;
+pub mod support;
 pub use engine::run_godot;
 pub use project::Project;
 
@@ -54,6 +55,11 @@ pub struct Manifest {
     pub godot_version: String,
     pub files: BTreeMap<String, String>,
     pub diagnostics: Vec<String>,
+    #[serde(default)]
+    pub support_interface: u32,
+    /// Active-level closures; a shared resource can have several owners.
+    #[serde(default)]
+    pub selections: BTreeMap<String, std::collections::BTreeSet<String>>,
 }
 
 mod export;

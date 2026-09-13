@@ -37,21 +37,7 @@ impl Project {
     pub fn new(output: impl Into<PathBuf>, selection: Selection) -> Result<Self> {
         let output = output.into();
         let stage = tempfile::tempdir()?;
-        // Godot 4.7.2 can crash on concurrent WAV imports. The sound-program
-        // regression retains two identical waveforms and exercises serial import.
-        let settings = r#"[application]
-config/name="Astrolabe Development"
-run/main_scene="res://generated/hype/preview.tscn"
-[editor]
-import/use_multiple_threads=false
-[display]
-window/size/viewport_width=960
-window/size/viewport_height=720
-[rendering]
-renderer/rendering_method="gl_compatibility"
-renderer/rendering_method.mobile="gl_compatibility"
-"#;
-        write_atomic(&stage.path().join("project.godot"), settings.as_bytes())?;
+        super::support::stage(stage.path(), &output)?;
         Ok(Self {
             scene_ambient: None,
             scene_fog: None,
@@ -70,6 +56,9 @@ renderer/rendering_method.mobile="gl_compatibility"
             generated: BTreeSet::new(),
             diagnostics: Vec::new(),
         })
+    }
+    pub(super) fn level_path(&self, file: &str) -> String {
+        format!("generated/hype/levels/{}/{file}", self.selection.level)
     }
     /// Reserve every output before either Rust or Godot writes it. This also
     /// creates directories for instance scenes that share a mesh elsewhere.
@@ -108,7 +97,11 @@ renderer/rendering_method.mobile="gl_compatibility"
             self.scene.lines().count() + 3,
             self.scene
         );
-        preview.push_str("[ext_resource type=\"Script\" path=\"res://generated/hype/preview.gd\" id=\"preview\"]\n\n");
+        writeln!(
+            preview,
+            "[ext_resource type=\"Script\" path={} id=\"preview\"]\n",
+            quoted(&format!("res://{}", self.level_path("preview.gd")))
+        )?;
         preview.push_str(
             r#"[sub_resource type="Environment" id="environment"]
 background_mode = 1
@@ -174,23 +167,23 @@ environment = SubResource("environment")
                 sound_paths.join(", ")
             ),
         );
-        self.write(
-            "generated/hype/preview.gd".into(),
-            include_bytes!("preview.gd"),
-        )?;
+        self.write(self.level_path("preview.gd"), include_bytes!("preview.gd"))?;
         // Camera belongs to the development harness and is positioned after the scene loads.
 
-        fs::create_dir_all(self.stage.path().join("generated/hype"))?;
+        fs::create_dir_all(self.stage.path().join(self.level_path("")))?;
         // The editor resolves main_scene during its first import, before native meshes exist.
         write_atomic(
-            &self.stage.path().join("generated/hype/preview.tscn"),
+            &self.stage.path().join(self.level_path("preview.tscn")),
             b"[gd_scene format=3]\n\n[node name=\"Loading\" type=\"Node3D\"]\n",
         )?;
-        self.builder.push_str(r#"    var file = FileAccess.open("res://generated/hype/validation.json", FileAccess.WRITE)
+        self.builder.push_str(&format!(
+            r#"    var file = FileAccess.open({}, FileAccess.WRITE)
     file.store_string(JSON.stringify(evidence, "  "))
     file.close()
     quit(0)
-"#);
+"#,
+            quoted(&format!("res://{}", self.level_path("validation.json")))
+        ));
         write_atomic(&self.stage.path().join("build.gd"), self.builder.as_bytes())?;
         run_godot(
             godot,
@@ -204,8 +197,8 @@ environment = SubResource("environment")
             &["--headless", "--script", "res://build.gd"],
             Duration::from_secs(60),
         )?;
-        self.write("generated/hype/preview.tscn".into(), preview.as_bytes())?;
-        self.reserve("generated/hype/validation.json")?;
+        self.write(self.level_path("preview.tscn"), preview.as_bytes())?;
+        self.reserve(&self.level_path("validation.json"))?;
         // ResourceSaver may assign cache-derived UIDs. Cross-resource links use explicit paths.
         for path in &self.generated {
             if path.ends_with(".tscn") || path.ends_with(".tres") {
@@ -227,6 +220,7 @@ environment = SubResource("environment")
             self.generated,
             self.diagnostics,
             version,
+            &self.selection.level,
         )?;
         // Import caches are derived in the destination, not copied from a temporary path.
         // This makes the fresh project immediately runnable with `godot --path`.

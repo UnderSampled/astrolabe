@@ -32,6 +32,10 @@ enum Scope {
 }
 #[derive(Subcommand)]
 enum Command {
+    /// Adopt the source-free Godot starter and compatible support package once.
+    InitGodot { output: PathBuf },
+    /// Update unchanged installed support without replacing adopted settings/content.
+    UpdateGodotSupport { output: PathBuf },
     /// Report supported target operations and important coverage restrictions.
     Formats,
     /// Import useful content into per-asset MessagePack Rete files.
@@ -42,7 +46,7 @@ enum Command {
         level: String,
         #[arg(long, default_value = "en")]
         locale: String,
-        #[arg(long, value_enum, default_value = "model")]
+        #[arg(long, value_enum, default_value = "scene")]
         content: Scope,
         #[arg(long)]
         audio_file: Vec<PathBuf>,
@@ -55,7 +59,7 @@ enum Command {
         level: String,
         #[arg(long, default_value = "en")]
         locale: String,
-        #[arg(long, value_enum, default_value = "model")]
+        #[arg(long, value_enum, default_value = "scene")]
         content: Scope,
         #[arg(long)]
         audio_file: Vec<PathBuf>,
@@ -109,6 +113,8 @@ fn import(
 pub fn run() -> Result<()> {
     let started = Instant::now();
     match Cli::parse().command {
+        Command::InitGodot { output } => godot::support::initialize(&output)?,
+        Command::UpdateGodotSupport { output } => godot::support::update(&output)?,
         Command::Formats => println!(
             "{}",
             serde_json::to_string_pretty(&serde_json::json!({

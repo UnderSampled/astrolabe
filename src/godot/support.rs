@@ -1,0 +1,211 @@
+//! One maintained support source; installation, updates and content are separate operations.
+use super::digest;
+use crate::files::write_atomic;
+use anyhow::{Context, Result, ensure};
+use serde::{Deserialize, Serialize};
+use std::{collections::BTreeMap, fs, path::Path};
+
+pub const INTERFACE: u32 = 1;
+const PACKAGE: &str = "addons/astrolabe";
+const RECEIPT: &str = "addons/astrolabe/installed.json";
+
+macro_rules! assets {
+    ($($path:literal),* $(,)?) => { &[$(($path, include_bytes!(concat!("../../godot/", $path)).as_slice())),*] };
+}
+const SUPPORT: &[(&str, &[u8])] = assets![
+    "addons/astrolabe/version.json",
+    "addons/astrolabe/README.md",
+    "addons/astrolabe/rendering/sprite.gd",
+    "addons/astrolabe/rendering/sprite.gd.uid",
+    "addons/astrolabe/scene/sector_boundary.gd",
+    "addons/astrolabe/scene/sector_boundary.gd.uid",
+];
+const STARTER: &[(&str, &[u8])] = assets![
+    "project.godot",
+    "README.md",
+    ".gitignore",
+    "game/bootstrap.gd",
+    "game/bootstrap.gd.uid",
+    "game/bootstrap.tscn",
+    "tests/example.tscn",
+];
+
+#[derive(Default, Serialize, Deserialize)]
+struct Receipt {
+    interface: u32,
+    files: BTreeMap<String, String>,
+}
+fn source_checkout(output: &Path) -> bool {
+    output.exists()
+        && output.canonicalize().ok()
+            == Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("godot")
+                .canonicalize()
+                .ok()
+}
+fn checked_path(root: &Path, relative: &str) -> Result<()> {
+    ensure!(
+        relative
+            .split('/')
+            .all(|p| !p.is_empty() && p != "." && p != "..")
+            && !relative.contains(['\\', '\0']),
+        "invalid support path"
+    );
+    let mut path = root.to_path_buf();
+    for part in relative.split('/') {
+        path.push(part);
+        if let Ok(meta) = fs::symlink_metadata(&path) {
+            ensure!(
+                !meta.file_type().is_symlink(),
+                "support/project path is a symlink: {}",
+                path.display()
+            );
+        }
+    }
+    Ok(())
+}
+pub(super) fn compatible(output: &Path) -> Result<()> {
+    checked_path(output, "addons/astrolabe/version.json")?;
+    let version: serde_json::Value =
+        serde_json::from_slice(&fs::read(output.join(PACKAGE).join("version.json"))?)?;
+    ensure!(
+        version["interface"].as_u64() == Some(u64::from(INTERFACE)),
+        "incompatible Astrolabe support interface; expected {INTERFACE}; run update-godot-support explicitly"
+    );
+    Ok(())
+}
+/// Prepare validation with the consumer's actual support (including local edits).
+pub(super) fn stage(stage: &Path, output: &Path) -> Result<()> {
+    for (path, bytes) in STARTER {
+        write_atomic(&stage.join(path), bytes)?;
+    }
+    let installed = output.join(PACKAGE).exists();
+    if installed {
+        compatible(output)?;
+    }
+    for (path, bytes) in SUPPORT {
+        checked_path(output, path)?;
+        let bytes = if installed {
+            fs::read(output.join(path)).with_context(|| {
+                format!("missing installed support {path}; update support explicitly")
+            })?
+        } else {
+            bytes.to_vec()
+        };
+        write_atomic(&stage.join(path), &bytes)?;
+    }
+    Ok(())
+}
+/// Initialize once. An existing project's adopted settings and authored files survive.
+pub fn initialize(output: &Path) -> Result<()> {
+    for (path, _) in STARTER.iter().chain(SUPPORT) {
+        checked_path(output, path)?;
+    }
+    if output.join(PACKAGE).exists() {
+        compatible(output)?;
+    } else {
+        update(output)?;
+    }
+    for (path, bytes) in STARTER {
+        if !output.join(path).exists() {
+            write_atomic(&output.join(path), bytes)?;
+        }
+    }
+    Ok(())
+}
+/// Explicit, preflighted package update. Never overwrites edited or unowned support.
+pub fn update(output: &Path) -> Result<()> {
+    ensure!(
+        !source_checkout(output),
+        "the source checkout owns support through Git; edit/review godot/addons/astrolabe instead of installing bundled copies"
+    );
+    checked_path(output, RECEIPT)?;
+    let old: Receipt = if output.join(RECEIPT).exists() {
+        serde_json::from_slice(&fs::read(output.join(RECEIPT))?)?
+    } else {
+        Receipt::default()
+    };
+    let mut next = Receipt {
+        interface: INTERFACE,
+        ..Default::default()
+    };
+    for path in old.files.keys() {
+        ensure!(
+            path.starts_with("addons/astrolabe/"),
+            "support receipt outside package"
+        );
+        checked_path(output, path)?;
+        if output.join(path).exists() {
+            ensure!(
+                digest(&fs::read(output.join(path))?) == old.files[path],
+                "support file was edited: {path}; preserve/review it before updating"
+            );
+        }
+    }
+    for (path, bytes) in SUPPORT {
+        checked_path(output, path)?;
+        let hash = digest(bytes);
+        if output.join(path).exists() && !old.files.contains_key(*path) {
+            ensure!(
+                digest(&fs::read(output.join(path))?) == hash,
+                "unowned support collision: {path}"
+            );
+        }
+        next.files.insert((*path).into(), hash);
+    }
+    for (path, bytes) in SUPPORT {
+        write_atomic(&output.join(path), bytes)?;
+    }
+    for path in old.files.keys().filter(|p| !next.files.contains_key(*p)) {
+        if output.join(path).exists() {
+            fs::remove_file(output.join(path))?;
+        }
+    }
+    write_atomic(&output.join(RECEIPT), &serde_json::to_vec_pretty(&next)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn adoption_update_and_support_edits_have_distinct_ownership() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let output = temp.path();
+        initialize(output)?;
+        let project = b"; independently adopted settings\n[application]\nconfig/name=\"Mine\"\n";
+        fs::write(output.join("project.godot"), project)?;
+        fs::write(output.join("game/variation.tscn"), b"authored composition")?;
+        // Simulate a previously installed support revision, using its receipt.
+        let version_path = "addons/astrolabe/version.json";
+        let previous = b"{\"interface\":0}";
+        fs::write(output.join(version_path), previous)?;
+        let mut receipt: Receipt = serde_json::from_slice(&fs::read(output.join(RECEIPT))?)?;
+        receipt.interface = 0;
+        receipt.files.insert(version_path.into(), digest(previous));
+        fs::write(output.join(RECEIPT), serde_json::to_vec(&receipt)?)?;
+        assert!(compatible(output).is_err());
+        update(output)?;
+        compatible(output)?;
+        initialize(output)?;
+        assert_eq!(fs::read(output.join("project.godot"))?, project);
+        assert_eq!(
+            fs::read(output.join("game/variation.tscn"))?,
+            b"authored composition"
+        );
+        let edited = "addons/astrolabe/rendering/sprite.gd";
+        let mut bytes = fs::read(output.join(edited))?;
+        bytes.extend(b"\n# authored support experiment\n");
+        fs::write(output.join(edited), &bytes)?;
+        let stage_dir = tempfile::tempdir()?;
+        stage(stage_dir.path(), output)?;
+        assert_eq!(fs::read(stage_dir.path().join(edited))?, bytes);
+        assert!(
+            update(output)
+                .unwrap_err()
+                .to_string()
+                .contains("was edited")
+        );
+        assert_eq!(fs::read(output.join(edited))?, bytes);
+        Ok(())
+    }
+}

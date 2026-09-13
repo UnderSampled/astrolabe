@@ -10,11 +10,8 @@ impl Project {
         parent: &str,
         owner: &str,
     ) -> Result<()> {
-        const SCRIPT: &str = "generated/hype/sector_boundary.gd";
-        if !self.generated.contains(SCRIPT) {
-            self.write(SCRIPT.into(), include_bytes!("scripts/sector_boundary.gd"))?;
-            self.diagnostic("Sector boundary segment queries and optional wireframes are available; graphics LOD/culling, activity and sound-propagation policies remain source metadata.");
-        }
+        const SCRIPT: &str = "addons/astrolabe/scene/sector_boundary.gd";
+        self.diagnostic("Sector boundary segment queries and optional wireframes are available; graphics LOD/culling, activity and sound-propagation policies remain source metadata.");
         let mut vertices = Vec::new();
         let mut targets = Vec::new();
         let mut surfaces = Vec::new();

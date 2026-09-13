@@ -3,7 +3,7 @@ use super::{Project, disk_path, quoted, vec3, vector};
 use crate::model::{content::ContentSource, geometry::Model, io::Content};
 use anyhow::Result;
 use std::fmt::Write as _;
-const SCRIPT: &str = "generated/hype/runtime/sprite.gd";
+const SCRIPT: &str = "addons/astrolabe/rendering/sprite.gd";
 impl Project {
     pub(super) fn sprite_nodes(
         &mut self,
@@ -13,9 +13,6 @@ impl Project {
     ) -> Result<String> {
         if model.sprite_elements.is_empty() {
             return Ok(String::new());
-        }
-        if !self.generated.contains(SCRIPT) {
-            self.write(SCRIPT.into(), include_bytes!("scripts/sprite.gd"))?;
         }
         let mut code = String::new();
         for (e, element) in model.sprite_elements.iter().enumerate() {

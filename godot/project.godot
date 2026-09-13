@@ -1,0 +1,17 @@
+; Adopted projects own these settings. Content regeneration does not replace them.
+config_version=5
+
+[application]
+config/name="Astrolabe"
+run/main_scene="res://game/bootstrap.tscn"
+
+[editor]
+import/use_multiple_threads=false
+
+[display]
+window/size/viewport_width=960
+window/size/viewport_height=720
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

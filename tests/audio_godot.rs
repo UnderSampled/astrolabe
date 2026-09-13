@@ -110,6 +110,7 @@ fn real_media_rete_and_godot_mixer() -> Result<()> {
         &output,
         &[
             "--headless",
+            "res://generated/hype/levels/astrolabe/preview.tscn",
             "--",
             "--audio-check",
             report.to_str().unwrap(),

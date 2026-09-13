@@ -6,8 +6,6 @@ full-disk
 # Build artifacts
 *.gltf
 *.glb
-*.tscn
-*.tres
 output/
 
 # .NET build artifacts
