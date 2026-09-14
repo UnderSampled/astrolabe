@@ -1,5 +1,24 @@
 # Rust implementation evidence
 
+On 2026-09-14 the unfinished player/runtime experiment was archived at `9374ef5`
+on `codex/archive-openspace-runtime-20260914`. Active production code was restored
+to `d8d0375`; the coverage below describes that baseline. The retained
+[API research](ai-api-assessment.md) informs the new [gameplay plan](godot-gameplay-plan.md).
+**We MUST NOT reimplement the OpenSpace engine within Godot; implement the AI
+script API using native Godot facilities.** Player movement/combat is still
+unimplemented at this boundary. Existing local generated files were preserved
+and may use newer interfaces; validate fresh output in a disposable project.
+
+The restored baseline passed the complete local corpus/Godot suite on
+2026-09-14: **86 tests in 535.787 seconds**, including release compilation,
+native scene/AI execution, Scene dock inspection, animation scrubbing and
+temporary cleanup. Report: `TestResults/20260914T041455.217561Z-1308058.log.json`.
+No timeout or leaked processes occurred. Locked offline release build,
+formatting and strict all-target Clippy also passed. All 3,880 pre-existing
+generated files retained identical SHA-256 hashes; all 5,328 inventoried local
+files retained size/mtime, and `godot/project.godot` matched its recovery copy.
+These checks validate the restored supported slices, not player gameplay.
+
 The Rust implementation covers milestones 0–5, the native scene/character slice of 6–7, and a first executable AI slice of 8. The complete local suite passed on 2026-09-13: **86 tests in 497.572 seconds**, including 104 seconds of release compilation, every corpus/Godot check, actual Scene dock inspection and editor scrubbing, authored regeneration, AI execution and cleanup. Report: `TestResults/20260913T185841.641467Z-25665.log.json`. No processes leaked. This is a converter for supported useful assets and native Godot project files; full level/game behavior remains incomplete. Game data, generated content and reference binaries remain local.
 
 See [the Rust contributor guide](contributing-rust.md) for the current module map and extension workflow. The readability refactor moved root traversal/export rules into their adapters, split level and texture responsibilities, unified texture sharing, and separated geometry from instance state. Audio reconstruction gaps are typed data; explanatory notes no longer control writer support.

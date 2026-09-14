@@ -163,7 +163,23 @@ Apply the same rule to family/configuration assets, bounds, mechanics, sound pro
 
 ### AI conversion and engine functionality
 
+**We MUST NOT reimplement the OpenSpace engine within Godot. Implement the AI
+script API using native Godot facilities, and compile the game's AI scripts to
+call that API.** Preserve the API's observable gameplay contract without porting
+the engine internals behind it.
+
 The Godot adapter compiles the shared typed AI AST into GDScript. Translate supported expressions, control flow, behaviors/macros, state changes, and instance variables into executable script code with resolved node/resource references. Preserve tick timing, blocking/meta actions, randomness, and persistent instance state through explicit generated control flow and appropriate Godot lifecycle hooks. There is no shipped AST/opcode interpreter or generic operation dispatcher replacing this conversion. Unsupported operations produce diagnostics identifying the affected source behavior and operation, rather than silent no-ops.
+
+Generating GDScript alone does not satisfy this boundary if the generated code
+recreates OpenSpace's execution or storage framework. Use ordinary typed
+properties, arrays and node/resource references; lower source access patterns
+and control instructions into direct code during conversion. Preserve observable
+game behavior with native callbacks, signals/coroutines and focused components,
+not a general instruction scheduler or per-variable memory-access layer. Narrow
+helpers are justified by a demonstrated gameplay difference, not solely by the
+existence of a source encoding quirk. Source-faithful model metadata and codecs
+remain available for reconstruction without dictating Godot runtime internals.
+See [the gameplay plan](godot-gameplay-plan.md) for the next concrete slices.
 
 Generated scripts may call a Godot implementation of the engine-side functions that OpenSpace supplied: for example movement, interaction queries, sound actions, and state changes. Implement these functions using Godot nodes, resources, signals, physics, and other native facilities where they fit. These reusable, authored engine-support assets belong to Astrolabe's versioned Godot support package, distinct from locally converted game scripts/content and consumer-authored game assets. Add functions as actual AST-to-GDScript behavior slices require them, with documented semantics and tests; they may be maintained production code immediately. Other support, such as shaders required by current exports, can land before AI work. Keep unneeded functions deferred by their feature dependencies rather than a whole-adapter readiness gate.
 

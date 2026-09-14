@@ -1,0 +1,887 @@
+# Hype PC research executable ed105a423f6e1bcf0460aa8f7357e2bae3783ca8aadfff8ef8a13b93d967d97d
+# category	id	name	parameter_signature	entry	update\tdirect_actor_call
+condition	0	Cond_And	BB	00533430	-	0
+condition	1	Cond_Or	BB	00533490	-	0
+condition	2	Cond_Not	B	005334f0	-	0
+condition	3	Cond_Equal	XX	005330d0	-	0
+condition	4	Cond_Different	XX	00533160	-	0
+condition	5	Cond_Lesser	XX	005331f0	-	0
+condition	6	Cond_Greater	XX	00533280	-	0
+condition	7	Cond_LesserOrEqual	XX	00533310	-	0
+condition	8	Cond_GreaterOrEqual	XX	005333a0	-	0
+condition	9	Cond_PressedBut	6	00533520	-	0
+condition	10	Cond_JustPressedBut	6	00533620	-	0
+condition	11	Cond_ReleasedBut	6	005335a0	-	0
+condition	12	Cond_JustReleasedBut	6	005336c0	-	0
+condition	13	Cond_CollidePersoZDDWithPerso	PZP	00533750	-	0
+condition	14	Cond_CollideModuleZDDWithPerso	PMP	00533750	-	0
+condition	15	Cond_CollidePersoAllZDDWithPersoAllZDD	PP	00533750	-	0
+condition	16	Cond_CollidePersoZDDWithAnyPErso	PZ	00533750	-	0
+condition	17	Cond_CollideModuleZDDWithAnyPerso	PM	00533750	-	0
+condition	18	Cond_CollidePersoZDEWithPersoZDE	PEPE	005338a0	-	0
+condition	19	Cond_CollideModuleZDEWithPersoZDE	PMPE	005338a0	-	0
+condition	20	Cond_CollidePersoZDEWithModuleZDE	PEPM	005338a0	-	0
+condition	21	Cond_CollideModuleZDEWithModuleZDE	PMPM	005338a0	-	0
+condition	22	Cond_CollidePersoZDEWithPersoTypeZDE	PEPK	005338a0	-	0
+condition	23	Cond_CollideModuleZDEWithPersoTypeZDE	PMPK	005338a0	-	0
+condition	24	Cond_CollidePersoTypeZDEWithPersoTypeZDE	PKPK	005338a0	-	0
+condition	25	Cond_CollidePersoAllZDEWithPersoAllZDE	PP	005338a0	-	0
+condition	26	Cond_CollidePersoTypeZDEWithPersoAllZDE	PKP	005338a0	-	0
+condition	27	Cond_CollidePersoAllZDEWithPersoTypeZDE	PPK	005338a0	-	0
+condition	28	Cond_CollidePersoZDENoWithTypeZDE	PEK	005338a0	-	0
+condition	29	Cond_CollideModuleZDENoWithTypeZDE	PMK	005338a0	-	0
+condition	30	Cond_CollideMovingZDM	UV	00533c90	-	0
+condition	31	Cond_CollideWithGround		00533d20	-	1
+condition	32	Cond_CollideWithWall		00533d20	-	1
+condition	33	Cond_CollideWithNothing		00533d20	-	1
+condition	34	Cond_CollideWithSlope		00533d20	-	1
+condition	35	Cond_CollideWithAttic		00533d20	-	1
+condition	36	Cond_CollideWithCeiling		00533d20	-	1
+condition	37	Cond_CollideWithPerso		00533d20	-	1
+condition	38	Cond_CollideWithTrap		00533d20	-	1
+condition	39	Cond_CollideWithPoint		00533e50	-	1
+condition	40	Cond_CollideWithTriangle		00533e50	-	1
+condition	41	Cond_CollideWithEdge		00533e50	-	1
+condition	42	Cond_CollideWithSphere		00533e50	-	1
+condition	43	Cond_CollideWithAlignedBox		00533e50	-	1
+condition	44	Cond_ZDMCollideWithGround	K	00533f90	-	1
+condition	45	Cond_ZDMCollideWithWall	K	00533f90	-	1
+condition	46	Cond_ZDMCollideWithNothing	K	00533f90	-	1
+condition	47	Cond_ZDMCollideWithSlope	K	00533f90	-	1
+condition	48	Cond_ZDMCollideWithAttic	K	00533f90	-	1
+condition	49	Cond_ZDMCollideWithCeiling	K	00533f90	-	1
+condition	50	Cond_InEnvironmentAir		005341d0	-	1
+condition	51	Cond_InEnvironmentWater		005341d0	-	1
+condition	52	Cond_InEnvironmentFire		005341d0	-	1
+condition	53	Cond_IsPersoInList	iP	00534270	-	0
+condition	54	Cond_ListEmptyTest	i	00534270	-	0
+condition	55	Cond_IsTimeElapsed	lL	00534320	-	0
+condition	56	Cond_IsInComport	PQ	005345a0	-	0
+condition	57	Cond_IsInReflex	PQ	00534630	-	0
+condition	58	Cond_ChangeActionEnable	A	00534700	-	0
+condition	59	Cond_IsInAction	A	005346c0	-	0
+condition	60	Cond_IsTypeOfGMTCollide	K	00534700	-	0
+condition	61	Cond_IsTypeOfGMTCollide_Wall	K	00534700	-	0
+condition	62	Cond_IsTypeOfGMTCollide_Obstacle	K	00534700	-	0
+condition	63	Cond_IsThereMechEvent	l	00534700	-	0
+condition	64	Cond_IsValidObject	P	005344a0	-	0
+condition	65	Cond_IsValidWayPoint	W	005344a0	-	0
+condition	66	Cond_IsValidGMT	C	005344a0	-	0
+condition	67	Cond_IsValidAction	A	005344a0	-	0
+condition	68	Cond_IsValidWay	Y	005344a0	-	0
+condition	69	Cond_InTopOfJump		00534390	-	1
+condition	70	Cond_CanSwim		00534390	-	1
+condition	71	Cond_CanSwimOnSurface		00534390	-	1
+condition	72	Cond_CanSwimUnderWater		00534390	-	1
+condition	73	Cond_IsNotOutOfDepth		00534390	-	1
+condition	74	Cond_IsCompletelyOutOfWater		00534390	-	1
+condition	75	Cond_LSY_IsSpeechOver		00534970	-	1
+condition	76	Cond_SeePerso	P	00534af0	-	1
+condition	77	Cond_SeePosition	V	00534af0	-	1
+condition	78	Cond_SeePositionWithOffset	VV	00534af0	-	1
+condition	79	Cond_SeePersoWithOffset	VPV	00534af0	-	1
+condition	80	Cond_IsSectorInTranslation	R	00534af0	-	0
+condition	81	Cond_IsSectorInRotation	R	00534af0	-	0
+condition	82	Condition_Camera_IsInState	PL	00535b60	-	0
+condition	83	Condition_Camera_IsInInitialState	P	00535b60	-	0
+condition	84	Condition_Camera_IsActive	P	00535c10	-	0
+condition	85	Condition_Camera_IsViewportOwner	PL	00535c10	-	0
+condition	86	Condition_Camera_IsCameraTargetVisible	P	00535a10	-	0
+condition	87	Condition_Camera_IsCameraTargetMoving	PL	00535a10	-	0
+condition	88	Cond_Camera_IsCamReachedItsOptPos	PX	00535d00	-	0
+condition	89	Cond_Camera_IsCamInAlphaOrientation	PXX	00535dd0	-	0
+condition	90	Cond_Camera_IsCamInTetaOrientation	PXX	00535dd0	-	0
+condition	91	Cond_IsSurfaceHeightMoving	F	00534e40	-	0
+condition	92	Cond_TestPower	N	00534ea0	-	0
+condition	93	Cond_IsActivable		00534f60	-	1
+condition	94	Cond_IsAtLeftOfPerso	VX	00534fc0	-	1
+condition	95	Cond_IsAtRightOfPerso	VX	00534fc0	-	1
+condition	96	Cond_IsBehindPerso	VX	00534fc0	-	1
+condition	97	Cond_IsInFrontOfPerso	VX	00534fc0	-	1
+condition	98	Cond_IsAbovePerso	VX	00534fc0	-	1
+condition	99	Cond_IsBelowPerso	VX	00534fc0	-	1
+condition	100	Cond_UserEvent_IsSet	L	00535170	-	0
+condition	101	Cond_IsPersoLightOn		00534ee0	-	1
+condition	102	Cond_IsPersoLightPulseOn		00534ee0	-	1
+condition	103	Cond_IsPersoLightGyroPhareOn		00534ee0	-	1
+condition	104	Cond_ZDMCollideWithObstacle	K	00535570	-	0
+condition	105	Cond_IsZDMCollideWithWall	K	00535570	-	0
+condition	106	Cond_IsZDMCollideWithGround	K	00535570	-	0
+condition	107	Cond_IsCustomBitSet	L	00535630	-	1
+condition	108	Cond_CollisionWP	PW	005356c0	-	0
+condition	109	Cond_GiBlock		00535770	-	0
+condition	110	Cond_NullVector	V	005357c0	-	0
+condition	111	Cond_HasTheCapability	##	00535890	-	1
+condition	112	Cond_HasTheCapabilityNumber	#L	00535890	-	1
+condition	113	Cond_PersoHasTheCapability	#	00535890	-	1
+condition	114	Cond_PersoHasTheCapabilityNumber	L	00535890	-	1
+condition	115	Cond_HasOneOfTheCapabilities	##	00535890	-	1
+condition	116	Cond_PersoHasOneOfTheCapabilities	#	00535890	-	1
+condition	117	Cond_GetAction	PA	005351d0	-	0
+condition	118	Cond_Inv_InventoryIsFull		00535390	-	0
+condition	119	Cond_Inv_FindObject	L	00535390	-	0
+condition	120	Cond_GetDialogStatus		00535250	-	0
+condition	121	Cond_DLG_IsDialogOver		00535250	-	0
+condition	122	Cond_DLG_IsScrollingOver		00535250	-	0
+condition	123	Cond_ActionFinished		00535410	-	1
+condition	124	SCT_ActorInSector	PR	00535460	-	0
+condition	125	Cond_CollisionSphereSphere	PMPM	00532b20	-	0
+condition	126	Cond_SectorActive	PR	00532cc0	-	0
+condition	127	Cond_SND_IsSonFinished	L	00532d60	-	0
+function	0	Func_GetPersoAbsolutePosition		00537570	-	1
+function	1	Func_GetAngleAroundZToPerso	P	00537640	-	1
+function	2	Func_GetAngleAroundZToPosition	V	00537780	-	1
+function	3	Func_GetWPAbsolutePosition	W	005375e0	-	0
+function	4	Func_DistanceToPerso	P	00537c20	-	1
+function	5	Func_DistanceXToPerso	P	00537920	-	1
+function	6	Func_DistanceYToPerso	P	005379a0	-	1
+function	7	Func_DistanceZToPerso	P	00537a20	-	1
+function	8	Func_DistanceXYToPerso	P	00537aa0	-	1
+function	9	Func_DistanceXZToPerso	P	00537ba0	-	1
+function	10	Func_DistanceYZToPerso	P	00537b20	-	1
+function	11	Func_DistanceToWP	W	005378c0	-	1
+function	12	Func_CloserWP	Y	00538020	-	1
+function	13	Func_DistanceToPosition	V	00538190	-	1
+function	14	Func_DistanceToPersoCenter	P	00537fa0	-	1
+function	15	Func_DistanceXToPersoCenter	P	00537ca0	-	1
+function	16	Func_DistanceYToPersoCenter	P	00537d20	-	1
+function	17	Func_DistanceZToPersoCenter	P	00537da0	-	1
+function	18	Func_DistanceXYToPersoCenter	P	00537e20	-	1
+function	19	Func_DistanceXZToPersoCenter	P	00537f20	-	1
+function	20	Func_DistanceYZToPersoCenter	P	00537ea0	-	1
+function	21	Func_Real	L	00538220	-	0
+function	22	Func_Int	X	00538260	-	0
+function	23	Func_Sinus	X	005382b0	-	0
+function	24	Func_Cosinus	X	00538300	-	0
+function	25	Func_Square	X	00538350	-	0
+function	26	Func_SquareRoot	X	005383a0	-	0
+function	27	Func_RandomInt	LL	005383e0	-	0
+function	28	Func_RandomReal	XX	00538450	-	0
+function	29	Func_MinimumReal	XX	005384d0	-	0
+function	30	Func_MaximumReal	XX	00538540	-	0
+function	31	Func_DegreeToRadian	X	005385b0	-	0
+function	32	Func_RadianToDegree	X	00538600	-	0
+function	33	Func_AbsoluteValue	X	00538650	-	0
+function	34	Func_AbsoluteInteger	L	005386a0	-	0
+function	35	Func_GetHitPoints	P	00538870	-	0
+function	36	Func_AddAndGetHitPoints	PL	00538870	-	0
+function	37	Func_SubAndGetHitPoints	PL	00538870	-	0
+function	38	Func_GetHitPointsMax	P	00538870	-	0
+function	39	Func_AddAndGetHitPointsMax	PL	00538870	-	0
+function	40	Func_SubAndGetHitPointsMax	PL	00538870	-	0
+function	41	Func_GetTime		00538a20	-	0
+function	42	Func_ElapsedTime	l	00538a20	-	0
+function	43	Func_ListSize	i	00538a70	-	0
+function	44	Func_GivePersoInList	iL	00538a70	-	0
+function	45	Func_GetInputAnalogicValue	6	00538b20	-	0
+function	46	Func_GenerateObject	PV	00538c50	-	0
+function	47	Func_DepthEnvironment		00538c50	-	1
+function	48	Func_AltitudeEnvironment		00538c50	-	1
+function	49	Func_GetFather		00538b70	-	1
+function	50	Function_Camera_GetCamera	L	0053d110	-	0
+function	51	Function_Camera_GetMainCamera		0053d110	-	0
+function	52	Function_Camera_GetDistanceCameraTarget	P	0053d210	-	0
+function	53	Function_Camera_GetTargetCamera	LP	0053d300	-	0
+function	54	Function_Camera_GetDistMin	LP	0053d300	-	0
+function	55	Function_Camera_GetDistMax	LP	0053d300	-	0
+function	56	Function_Camera_GetBoundDistMin	LP	0053d300	-	0
+function	57	Function_Camera_GetBoundDistMax	LP	0053d300	-	0
+function	58	Function_Camera_GetAlpha	LP	0053d300	-	0
+function	59	Function_Camera_GetShiftAlpha	LP	0053d300	-	0
+function	60	Function_Camera_GetTeta	LP	0053d300	-	0
+function	61	Function_Camera_GetShiftTeta	LP	0053d300	-	0
+function	62	Function_Camera_GetOrientationX	LP	0053d300	-	0
+function	63	Function_Camera_GetOrientationY	LP	0053d300	-	0
+function	64	Function_Camera_GetOrientationZ	LP	0053d300	-	0
+function	65	Function_Camera_GetCamLinearSpeedMin	LP	0053d300	-	0
+function	66	Function_Camera_GetCamLinearSpeedMax	LP	0053d300	-	0
+function	67	Function_Camera_GetCamAngularSpeed	LP	0053d300	-	0
+function	68	Function_Camera_GetTgtLinearSpeed	LP	0053d300	-	0
+function	69	Function_Camera_GetFocal	LP	0053d300	-	0
+function	70	Function_Camera_GetState	LP	0053d300	-	0
+function	71	Function_Camera_GetFlag	LP	0053d300	-	0
+function	72	Function_Camera_GetActivation	LP	0053d300	-	0
+function	73	Function_Camera_GetShiftPerso	LP	0053d300	-	0
+function	74	Function_Camera_GetShiftVertex	LP	0053d300	-	0
+function	75	Function_Camera_GetLookVertex	LP	0053d300	-	0
+function	76	Function_Camera_ComputeAlphaAngleCamTgt	P	0053d770	-	0
+function	77	Function_Camera_ComputeTetaAngleCamTgt	P	0053d770	-	0
+function	78	Function_Camera_GetOrientationSpeed	LP	0053d300	-	0
+function	79	Function_Camera_GetOrientationLimitX	LP	0053d300	-	0
+function	80	Function_Camera_GetOrientationLimitY	LP	0053d300	-	0
+function	81	Function_Camera_GetOrientationLimitZ	LP	0053d300	-	0
+function	82	Function_Camera_ComputeTargetPosition	P	0053d8a0	-	0
+function	83	Func_GetNormSpeed		00538e10	-	1
+function	84	Func_GetAlphaPas		00538e10	-	1
+function	85	Func_GetThetaPas		00538e10	-	1
+function	86	Func_GetAlpha		00538e10	-	1
+function	87	Func_GetTheta		00538e10	-	1
+function	88	Func_GetVectorNorm	V	00538810	-	0
+function	89	Func_AbsoluteVector	V	00538700	-	1
+function	90	Func_RelativeVector	V	00538780	-	1
+function	91	Func_GetEnvironmentToxicity		00538f40	-	1
+function	92	Func_AddColor	LL	00539260	-	0
+function	93	Func_AddRed	LL	00539260	-	0
+function	94	Func_AddGreen	LL	00539260	-	0
+function	95	Func_AddBlue	LL	00539260	-	0
+function	96	Func_AddAlpha	LL	00539260	-	0
+function	97	Func_ColorRGBA	LLLL	00539260	-	0
+function	98	Func_ColorRGB	LLL	00539260	-	0
+function	99	Func_ColorRed	L	00539260	-	0
+function	100	Func_ColorGreen	L	00539260	-	0
+function	101	Func_ColorBlue	L	00539260	-	0
+function	102	Func_ColorAlpha	L	00539260	-	0
+function	103	Func_GetCurrentCollidedGMT		00538fb0	-	1
+function	104	Func_GetMechanicalGMTAdhesionCoef	C	00539770	-	0
+function	105	Func_GetMechanicalGMTAbsorptionCoef	C	00539770	-	0
+function	106	Func_GetMechanicalGMTFrictionCoef	C	00539770	-	0
+function	107	Func_GetMechanicalGMTSlideCoef	C	00539770	-	0
+function	108	Func_GetMechanicalGMTProgressionCoef	C	00539770	-	0
+function	109	Func_GetMechanicalGMTPenetrationCoef	C	00539770	-	0
+function	110	Func_GetMechanicalGMTPenetrationMaxCoef	C	00539770	-	0
+function	111	Func_GetVisualGMTColor	C	00539060	-	0
+function	112	Func_GetVisualGMTSpecularCoef	C	00539060	-	0
+function	113	Func_GetVisualGMTSpecularExponant	C	00539060	-	0
+function	114	Func_GetVisualGMTDiffuseCoef	C	00539060	-	0
+function	115	Func_GetVisualGMTAmbientCoef	C	00539060	-	0
+function	116	Func_GetVisualGMTTextureScrollingCoefU	C	00539060	-	0
+function	117	Func_GetVisualGMTTextureScrollingCoefV	C	00539060	-	0
+function	118	Func_GetVisualGMTFrame	C	00539060	-	0
+function	119	Func_GetVisualGMTNumberOfFrames	C	00539060	-	0
+function	120	Func_LitPointsDeMagie		0053a570	-	0
+function	121	Func_LitPointsDeMagieMax		0053a570	-	0
+function	122	Func_AjouteEtLitPointsDeMagie	L	0053a570	-	0
+function	123	Func_AjouteEtLitPointsDeMagieMax	L	0053a570	-	0
+function	124	Func_EnleveEtLitPointsDeMagie	L	0053a570	-	0
+function	125	Func_EnleveEtLitPointsDeMagieMax	L	0053a570	-	0
+function	126	Func_PersoLePlusProche		0053a900	-	1
+function	127	Func_PersoLePlusProcheAvecAngle	X	0053a900	-	1
+function	128	Func_ReseauLitIndexCourant		0053aee0	-	1
+function	129	Func_ReseauForceIndexCourant	L	0053aee0	-	1
+function	130	Func_ReseauLitPremierIndex		0053aee0	-	1
+function	131	Func_ReseauLitDernierIndex		0053aee0	-	1
+function	132	Func_ReseauIncrementIndex	L	0053aee0	-	1
+function	133	Func_ReseauDecrementIndex	L	0053aee0	-	1
+function	134	Func_ReseauLitWPAIndex	L	0053aee0	-	1
+function	135	Func_ReseauLitCapaciteLiaison	L	0053aee0	-	1
+function	136	Func_ReseauChangeCapaciteLiaison	$WW#	0053aee0	-	1
+function	137	Func_ReseauCheminLePlusCourt	$WW	0053aee0	-	1
+function	138	Func_NetworkAllocateGraphToMSWay	$	0053aee0	-	1
+function	139	Func_NetworkGetIndexOfWPInMSWay	W	0053aee0	-	1
+function	140	Func_NetworkForceWPToCurrent	W	0053aee0	-	1
+function	141	Func_ReseauWPnLePlusProche	$L	0053b2c0	-	1
+function	142	Func_NetworkWPCloserOrientation	$LL	0053b2c0	-	1
+function	143	Proc_CapsGetCapabilities		0053b750	-	1
+function	144	Proc_CapabilityAtBitNumber	L	0053b750	-	1
+function	145	Func_VitesseHorizontaleDuPerso	L	0053a430	-	1
+function	146	Func_VitesseVerticaleDuPerso	L	0053a430	-	1
+function	147	Func_LitPositionZDM	PU	0053a360	-	1
+function	148	Func_LitPositionZDE	PE	0053a360	-	1
+function	149	Func_LitPositionZDD	PZ	0053a360	-	1
+function	150	Func_GetDT		0053b7e0	-	0
+function	151	Func_VectorLocalToGlobal	V	0053b830	-	1
+function	152	Func_VectorGlobalToLocal	V	0053b8d0	-	1
+function	153	Func_GetNormalCollideVector		0053b990	-	1
+function	154	Func_GetCollidePoint		0053bd80	-	1
+function	155	Func_CollisionPoint	VVL	0053bed0	-	0
+function	156	Func_CollisionNormalVector	VVL	0053bed0	-	0
+function	157	Func_MTH_CrossProduct	VV	0053c0f0	-	0
+function	158	Func_MTH_NormalizeVector	V	0053c060	-	0
+function	159	Func_GetLastTraversedMaterial		00538fb0	-	1
+function	160	Func_GetModuleAbsolutePosition	M	0053bad0	-	1
+function	161	Func_GetModuleRelativePosition	M	0053bad0	-	1
+function	162	Func_GetModuleZoomFactor	M	0053bad0	-	1
+function	163	Func_GetPersoZoomFactor		0053bad0	-	1
+function	164	Func_GetPersoSighting		0053bad0	-	1
+function	165	Func_GetModuleSighting	MB	0053bad0	-	1
+function	166	Func_GetPlayerName		0053bcd0	-	0
+function	167	Func_GetStringCharAt	SL	0053bcd0	-	0
+function	168	Func_LitDernierPersoCollisione	P	0053be30	-	0
+function	169	Func_CalculVecteurRebond	VVX	0053c1b0	-	0
+function	170	Func_CalculVecteurRebond2	VVX	0053c2f0	-	0
+function	171	Func_VecteurAngle	VVL	0053c430	-	0
+function	172	Func_VecteurCos	VV	0053c430	-	0
+function	173	Func_VecteurSin	VVL	0053c430	-	0
+function	174	Func_GetNormalGroundVector		0053ba40	-	0
+function	175	Func_PositionAbsolueCanal	L	0053c760	-	1
+function	176	Func_DistancePersoToCanal	PXV	0053c840	-	1
+function	177	Func_CollisionRopeSphere		0053ca40	-	0
+function	178	TBL_WayPointResearchInTable	DW	0053cb90	-	0
+function	179	TBL_PersoResearchInTable	DP	0053cd70	-	0
+function	180	MTH_DotProduct	VV	0053cf50	-	0
+function	181	GetRopeSpeedVector	P	0053cfb0	-	0
+function	182	ChannelPosition	L	0053d030	-	0
+function	183	MTH_RoundRealToInteger	X	0053d0c0	-	0
+function	184	Func_GetCurrectAnimFrame		005398b0	-	1
+function	185	Func_PersoUnderCursor		00539ec0	-	0
+function	186	Func_XCoordOfCursor		00539ec0	-	0
+function	187	Func_YCoordOfCursor		00539ec0	-	0
+function	188	MTH_Power	XX	00539f60	-	0
+function	189	MTH_Modulus	LL	00539fc0	-	0
+function	190	RelativeXPositionOfPerso	P	0053a010	-	1
+function	191	RelativeYPositionOfPerso	P	0053a0a0	-	1
+function	192	RelativeZPositionOfPerso	P	0053a130	-	1
+function	193	RelativePositionOfPerso	P	0053a1c0	-	1
+function	194	Func_DistanceCaracToWP	PW	005398b0	-	1
+function	195	Func_GetGameState		005398b0	-	0
+function	196	Func_Inv_AddObject	P	00539b60	-	0
+function	197	Func_Inv_RemoveObject	L	00539b60	-	0
+function	198	Func_Inv_GetGold		00539b60	-	0
+function	199	Func_Inv_AddGold	L	00539b60	-	0
+function	200	Func_Inv_SubGold	L	00539b60	-	0
+function	201	Func_Inv_GetWeapon		00539b60	-	0
+function	202	Func_Inv_ChangeWeapon	L	00539b60	-	0
+function	203	Func_Inv_GetMagic	S	00539b60	-	0
+function	204	Func_Inv_ChangeMagic	L	00539b60	-	0
+function	205	Func_Inv_GetObject		00539b60	-	0
+function	206	Func_Inv_SelectObject	L	00539b60	-	0
+function	207	Func_Inv_UseItem	L	00539b60	-	0
+function	208	Func_Inv_GetObjectQuantity	L	00539b60	-	0
+function	209	Func_Inv_RemoveObjectQuantity	LL	00539b60	-	0
+function	210	Func_Inv_GetObjectMaximumCapacity	L	00539b60	-	0
+function	211	Proc_GetLaserPointerDirection		00539a60	-	1
+function	212	Proc_GetLaserPointerDistance		00539a60	-	1
+function	213	Proc_GetLaserPointerDistanceWithMap		00539a60	-	1
+function	214	Func_SpeedChannel	PM	00537430	-	1
+function	215	Func_ExecuteFloorGame		00537490	-	1
+function	216	Func_GPI_DifferentFromCurrentImage	SSS	005374c0	-	1
+function	217	Func_GPI_IsDrawn	S	005374c0	-	1
+function	218	Func_DLG_PersoTalks		00536af0	-	0
+function	219	WP_IndexCloserWP	D	00536c50	-	1
+function	220	ReduceIndexOfVectorArray	VDVL	00536e60	-	0
+function	221	Func_TBL_InitArray	DSLL	00537020	-	1
+function	222	SND_GetMicroPerso		00537330	-	1
+function	223	SND_GetMicroOrientationPerso		00537330	-	1
+function	224	Fight_RemoveHitPointsMainActorWithArmor	L	00536430	-	0
+function	225	Fight_RemoveAndReadHitPointsEnemy	PL	00536430	-	0
+function	226	Fight_ReadArmorResistance		00536430	-	0
+function	227	Fight_ReadNumberOfArmors		00536430	-	0
+function	228	Magic_ReadMagicPoints		00536550	-	0
+function	229	Magic_AddMagicPoints	L	00536550	-	0
+function	230	Magic_RemoveMagicPoints	L	00536550	-	0
+function	231	Magic_ReadMagicPointsMax		00536550	-	0
+function	232	Magic_ReadCurrentSpell		00536550	-	0
+function	233	Dragon_ReadNbrDiamonds		005366d0	-	0
+function	234	Dragon_AddDiamonds	L	005366d0	-	0
+function	235	Dragon_RemoveDiamonds	L	005366d0	-	0
+function	236	Dragon_ReadNbrDiamondsMax		005366d0	-	0
+function	237	POS_GetChannelPosition	M	005367e0	-	1
+function	238	Func_SendSoundRequest	0	00536890	-	1
+function	239	Func_SendVoiceRequest	0	00536890	-	1
+function	240	Func_SendMusicRequest	0	00536890	-	1
+function	241	GiveMeTheGround	V	00536930	-	1
+procedure	0	Proc_PlayerIsDead		0053fc00	-	0
+procedure	1	Proc_ChangeInitPosition		0053fc00	-	0
+procedure	2	Proc_SetMainActor	P	0053fc30	-	0
+procedure	3	Proc_ActivateObject	P	0053fc30	-	0
+procedure	4	Proc_DesactivateObject	P	0053fc30	-	0
+procedure	5	Proc_ChangeMap	S	0053fc30	-	0
+procedure	6	Proc_SetActionReturn	L	0053fc30	-	0
+procedure	7	Proc_FactorAnimationFrameRate	X	0053fc30	-	1
+procedure	8	Proc_PlayerIsDeadWithOption	L	0053fc30	-	0
+procedure	9	Proc_BecomesSonOfPerso	P	0053fae0	-	1
+procedure	10	Proc_BecomesFatherOfPerso	P	0053fae0	-	1
+procedure	11	Proc_FillListWithSons	i	0053fae0	-	1
+procedure	12	Proc_ActivateObjectOnPosition	PV	0053ff40	-	0
+procedure	13	Proc_ChangeMapAtPosition	SSS	0053ff40	-	0
+procedure	14	Proc_PlayerIsDeadWithPlacement	PP	0053ff40	-	0
+procedure	15	Proc_AllowDynamLOD		005400e0	-	1
+procedure	16	Proc_ForbidDynamLOD		005400e0	-	1
+procedure	17	Proc_ResetSpeed		005400e0	-	1
+procedure	18	Proc_ResetOrientation		005400e0	-	1
+procedure	19	Proc_SetRotationAxe	VVX	005404d0	-	1
+procedure	20	Proc_SetAlphaAngle	X	005404d0	-	1
+procedure	21	Proc_SetRotationAngleStep	X	005404d0	-	1
+procedure	22	Proc_SetThetaAngle	X	005404d0	-	1
+procedure	23	Proc_SetImpulse	V	005404d0	-	1
+procedure	24	Proc_SetNormSpeed	X	005404d0	-	1
+procedure	25	Proc_AddNormSpeed	X	005404d0	-	1
+procedure	26	Proc_MulNormSpeed	X	005404d0	-	1
+procedure	27	Proc_SetDirectionSpeed	V	005404d0	-	1
+procedure	28	Proc_AddDirectionSpeed	V	005404d0	-	1
+procedure	29	Proc_SetVectorSpeed	V	005404d0	-	1
+procedure	30	Proc_AddWind	V	005404d0	-	1
+procedure	31	Proc_SetDynamScalar	X	005404d0	-	1
+procedure	32	Proc_SetTarget	VX	005404d0	-	1
+procedure	33	Proc_TurnAround		00540220	-	1
+procedure	34	Proc_GoRelative		00540220	-	1
+procedure	35	Proc_GoInDirection		00540220	-	1
+procedure	36	Proc_TurnLeft		00540220	-	1
+procedure	37	Proc_TurnRight		00540220	-	1
+procedure	38	Proc_TurnUp		00540220	-	1
+procedure	39	Proc_LateralLeft		00540220	-	1
+procedure	40	Proc_TurnLateralright		00540220	-	1
+procedure	41	Proc_Brake		00540220	-	1
+procedure	42	Proc_AccelTurbo		00540220	-	1
+procedure	43	Proc_TurnDown		00540220	-	1
+procedure	44	Proc_Pulse	X	00540220	-	1
+procedure	45	Proc_StonePulse	V	00540220	-	1
+procedure	46	Proc_Jump		00540220	-	1
+procedure	47	Proc_JumpAbsolute		00540220	-	1
+procedure	48	Proc_JumpWithoutAddingSpeed		00540220	-	1
+procedure	49	Proc_Fire		00540220	-	1
+procedure	50	Proc_GoTarget		00540220	-	1
+procedure	51	Proc_ReachTarget		00540220	-	1
+procedure	52	Proc_SetHitPoints	PL	00540930	-	0
+procedure	53	Proc_SetHitPointsToInit	P	00540930	-	0
+procedure	54	Proc_SetHitPointsToMax	P	00540930	-	0
+procedure	55	Proc_AddHitPoints	PL	00540930	-	0
+procedure	56	Proc_SubHitPoints	PL	00540930	-	0
+procedure	57	Proc_SetHitPointsMax	PL	00540b10	-	0
+procedure	58	Proc_SetHitPointsMaxToInit	P	00540b10	-	0
+procedure	59	Proc_SetHitPointsMaxToMax	P	00540b10	-	0
+procedure	60	Proc_AddHitPointsMax	PL	00540b10	-	0
+procedure	61	Proc_SubHitPointsMax	PL	00540b10	-	0
+procedure	62	Proc_ListAffectWithPersoZDD	iZ	00540cf0	-	0
+procedure	63	Proc_ListAffectWithModuleZDD	iM	00540cf0	-	0
+procedure	64	Proc_ListAffectWithPersoZDE	iE	00540cf0	-	0
+procedure	65	Proc_ListAffectWithModuleZDE	iM	00540cf0	-	0
+procedure	66	Proc_ListAffectWithPersoTypeZDE	iEK	00540cf0	-	0
+procedure	67	Proc_ListAffectWithModuleTypeZDE	iMK	00540cf0	-	0
+procedure	68	Proc_ListAffectTypeZDEWithTypeZDE	iKK	00540cf0	-	0
+procedure	69	Proc_AddPersoInList	iP	00540e20	-	0
+procedure	70	Proc_AddPersoInListAt	iPL	00540e20	-	0
+procedure	71	Proc_DeletePersoAtInList	iPL	00540e20	-	0
+procedure	72	Proc_FindPersoAndDeleteInList	iP	00540e20	-	0
+procedure	73	Proc_Select	i	00540e20	-	0
+procedure	74	Proc_UnSelect	i	00540e20	-	0
+procedure	75	Proc_ListSort	iLLX	00540e20	-	0
+procedure	76	Proc_ListSortByFamily	iG	00540e20	-	0
+procedure	77	Proc_FillListWithAllPersoOfAFamily	iG	00540e20	-	0
+procedure	78	Proc_ListUnion	iii	00541060	-	0
+procedure	79	Proc_ListInter	iii	00541060	-	0
+procedure	80	Proc_ListDiff	iii	00541060	-	0
+procedure	81	Proc_ListAdd	iii	00541060	-	0
+procedure	82	Proc_SwapLinkTableObjects	LL	00541130	-	0
+procedure	83	Proc_ChangeCurrentObjectTable	J	00541130	-	0
+procedure	84	Proc_CopyObjectFromTableToTable	JS	005411b0	-	0
+procedure	85	Proc_LSY_StartSpeech	O	00541290	-	1
+procedure	86	Proc_LSY_StopSpeech		00541290	-	1
+procedure	87	Proc_TakeModuleControl	M	00541310	-	0
+procedure	88	Proc_ReleaseModuleControl	M	00541310	-	0
+procedure	89	Proc_InitModuleCtrlWithAnimTranslation	M	00541310	-	0
+procedure	90	Proc_InitModuleCtrlWithAnimRotation	M	00541310	-	0
+procedure	91	Proc_RotateSector	RVVXL	00541590	-	0
+procedure	92	Proc_RotateSectorLocalX	RXL	00541590	-	0
+procedure	93	Proc_RotateSectorLocalY	RXL	00541590	-	0
+procedure	94	Proc_RotateSectorLocalZ	RXL	00541590	-	0
+procedure	95	Proc_LevelSaveRotationSector	R	00541590	-	0
+procedure	96	Proc_PlayerSaveRotationSector	R	00541590	-	0
+procedure	97	Proc_TranslateSector	RVL	00541720	-	0
+procedure	98	Proc_TranslateLocalSector	RVL	00541720	-	0
+procedure	99	Proc_SaveGame	T	005417d0	-	0
+procedure	100	Proc_IncHistoricAndSaveGame	T	005417d0	-	0
+procedure	101	Proc_SaveAllGameValues		00541850	-	0
+procedure	102	Proc_EnableEscape	B	00541820	-	0
+procedure	103	Proc_ResetButtonState	6	00544340	-	0
+procedure	104	Proc_ActivateChannel	M	00541880	-	1
+procedure	105	Proc_DeactivateChannel	M	00541880	-	1
+procedure	106	Proc_FogOn	H	00541990	-	0
+procedure	107	Proc_FogOff	H	00541990	-	0
+procedure	108	Proc_SetFogColor	HL	00541990	-	0
+procedure	109	Proc_SetFogNearFarInf	HXXX	00541990	-	0
+procedure	110	Proc_PersoLightOn		00541b20	-	1
+procedure	111	Proc_PersoLightOff		00541b20	-	1
+procedure	112	Proc_SetPersoLightColor	L	00541b20	-	1
+procedure	113	Proc_SetPersoLightNearFar	XX	00541b20	-	1
+procedure	114	Proc_SetPersoLightLittleBigAlpha	XX	00541b20	-	1
+procedure	115	Proc_SetPersoLightGyrophare	BX	00541b20	-	1
+procedure	116	Proc_SetPersoLightPulse	BXX	00541b20	-	1
+procedure	117	Proc_SetPersoLightParalleleType		00541b20	-	1
+procedure	118	Proc_SetPersoLightSphericalType		00541b20	-	1
+procedure	119	Proc_SetPersoLightHotSpotType		00541b20	-	1
+procedure	120	Proc_SetPersoLightAmbientType		00541b20	-	1
+procedure	121	Proc_DYL_ChangeGraduallyIntensity	XL	00541b20	-	1
+procedure	122	Proc_DYL_CopyStaticToDynamic	S	00541b20	-	1
+procedure	123	Proc_AddSurfaceHeight	FX	00541f70	-	0
+procedure	124	Proc_MoveSurfaceHeight	FXL	00541f70	-	0
+procedure	125	Proc_LevelSaveMovingSurface	F	00541f70	-	0
+procedure	126	Proc_PlayerSaveMovingSurface	F	00541f70	-	0
+procedure	127	Proc_SendSoundRequest	0	00542230	-	1
+procedure	128	Proc_SendVoiceRequest	0	00542230	-	1
+procedure	129	Proc_SendMusicRequest	0	00542230	-	0
+procedure	130	Proc_DisplaylValue	LVLT5	00542050	-	0
+procedure	131	Proc_DisplayChrono	LVLT5	00542050	-	0
+procedure	132	Proc_DisplayString	LVT5	00542050	-	0
+procedure	133	Proc_ActivateString	L	005421d0	-	0
+procedure	134	Proc_EraseString	L	005421d0	-	0
+procedure	135	Proc_Camera_UpdatePosition		00545d80	-	0
+procedure	136	Procedure_Camera_Reset	P	005460c0	-	0
+procedure	137	Procedure_Camera_ActivateSctUpdPatch	B	00546080	-	0
+procedure	138	Procedure_Camera_RestoreAfterTrame	P	00546110	-	0
+procedure	139	Procedure_Camera_CancelRestoreTrame	P	00546160	-	0
+procedure	140	Procedure_Camera_ShowInfo	L	005461b0	-	0
+procedure	141	Procedure_Camera_ChangeCamera	LLLP	00546210	-	0
+procedure	142	Procedure_Camera_ActiveCamera	P	00546460	-	0
+procedure	143	Procedure_Camera_ChangeDistance	PLXX	00546510	-	0
+procedure	144	Procedure_Camera_BoundChangeDist	PLXX	00546740	-	0
+procedure	145	Procedure_Camera_ChangeCamLinearSpeed	PLXX	00546970	-	0
+procedure	146	Procedure_Camera_ChangeCamLinearInertia	PLXX	00546ba0	-	0
+procedure	147	Procedure_Camera_ChangeCamAngularSpeed	PLX	00546dd0	-	0
+procedure	148	Procedure_Camera_ChangeCamAngularInertia	PLXX	00546ed0	-	0
+procedure	149	Procedure_Camera_ChangeTgtLinearSpeed	PLX	00547100	-	0
+procedure	150	Procedure_Camera_MoveTarget	PLV	00547200	-	0
+procedure	151	Procedure_Camera_MoveLookTarget	PLV	00547360	-	0
+procedure	152	Procedure_Camera_MoveShift	PLV	005474c0	-	0
+procedure	153	Procedure_Camera_ChangeAngle	PLLX	00547620	-	0
+procedure	154	Procedure_Camera_Move	PV	00547980	-	0
+procedure	155	Procedure_Camera_Turn	PXXVV	00547a30	-	0
+procedure	156	Procedure_Camera_ManageSavedPos	LL	00547bd0	-	0
+procedure	157	Procedure_Camera_ChangeState	PL	00547be0	-	0
+procedure	158	Procedure_Camera_ChangeFocal	PLX	00547e10	-	0
+procedure	159	Procedure_Camera_ActivateFocalParsing	PX	00547f80	-	0
+procedure	160	Procedure_Camera_ChangeTargetedPerso	PP	00548070	-	0
+procedure	161	Proc_Cam_ChangeTgtChannel	PM	00548070	-	0
+procedure	162	Proc_Cam_StopTargettingChannel	P	00548070	-	0
+procedure	163	Procedure_Camera_ResetTargetedPerso	P	00548250	-	0
+procedure	164	Procedure_Camera_Shake	PXX	005482b0	-	0
+procedure	165	Procedure_Camera_SetPosition	PV	005483a0	-	0
+procedure	166	Procedure_Camera_ChangeFlag	PLLL	00548690	-	0
+procedure	167	Procedure_Camera_SavePositionAsOptimal	PL	00548c30	-	0
+procedure	168	Procedure_Camera_SetAdditionnalTarget	PPL	00548c40	-	0
+procedure	169	Procedure_Camera_SetApexParameters	PLXXX	00548ce0	-	0
+procedure	170	Procedure_Camera_SetCameraZMax	PX	00548db0	-	0
+procedure	171	Procedure_Camera_ResetCameraZMax	P	00548db0	-	0
+procedure	172	Procedure_Camera_SetCameraZMin	PX	00548db0	-	0
+procedure	173	Procedure_Camera_ResetCameraZMin	P	00548db0	-	0
+procedure	174	Procedure_Camera_SetCameraOrientation	PVV	00548ea0	-	0
+procedure	175	Procedure_Camera_SetCameraPosition	P	00549170	-	0
+procedure	176	Procedure_Camera_SetTargetPosition	PV	005491b0	-	0
+procedure	177	Procedure_Cam_ChangeOrientAngleMax	PLLX	00549260	-	0
+procedure	178	Procedure_Cam_ChangeOrientAngularSpeed	PLX	00549410	-	0
+procedure	179	Procedure_Cam_ChangeChannel	PLM	00549540	-	0
+procedure	180	Procedure_Camera_ChangeHard	LX	00548950	-	0
+procedure	181	Procedure_Camera_RepositionHard	PL	00549620	-	0
+procedure	182	Proc_SetPower	N	005422d0	-	0
+procedure	183	Proc_SubPower	N	005422d0	-	0
+procedure	184	Proc_AddPower	N	005422d0	-	0
+procedure	185	Proc_TransparentDisplay		00543130	-	1
+procedure	186	Proc_DefautDisplay		00543130	-	1
+procedure	187	Proc_SetTransparency	L	00543130	-	1
+procedure	188	Proc_SetDisplayFixFlag	L	00543130	-	1
+procedure	189	Proc_StartMenuWithPauseGame	S	00543690	-	1
+procedure	190	Proc_StartMenuWithoutPauseGame	S	00543690	-	1
+procedure	191	Proc_DisplayVignetteDuring	SL	00543690	-	1
+procedure	192	Proc_SetParticleGeneratorOn		00542340	-	1
+procedure	193	Proc_SetParticleGeneratorOff		00542340	-	1
+procedure	194	Proc_SetParticleGenerator	7	00542340	-	1
+procedure	195	Proc_SetGenerationModeNone		00542340	-	1
+procedure	196	Proc_SetGenerationModeContinuous		00542340	-	1
+procedure	197	Proc_SetGenerationModeCrenel	LL	00542340	-	1
+procedure	198	Proc_SetGenerationModeProbability	X	00542340	-	1
+procedure	199	Proc_SetGenerationNumberConstant	L	00542340	-	1
+procedure	200	Proc_SetGenerationNumberProbabilist	X	00542340	-	1
+procedure	201	Proc_SetGenerationInfiniteLifeTime		00542340	-	1
+procedure	202	Proc_SetGenerationConstantLifeTime	X	00542340	-	1
+procedure	203	Proc_SetGenerationProbabilistLifeTime	XX	00542340	-	1
+procedure	204	Proc_DeactivateBut	6	005425e0	-	0
+procedure	205	Proc_ActivateBut	6	005425e0	-	0
+procedure	206	Proc_None		00542640	-	0
+procedure	207	Proc_ChangeComport	PQ	00542650	-	0
+procedure	208	Proc_ChangeComportReflex	PQ	00542720	-	0
+procedure	209	Proc_ChangeMyComport	Q	005427c0	-	0
+procedure	210	Proc_ChangeMyComportReflex	Q	00542820	-	0
+procedure	211	Proc_TurnAbsoluteDirection	X	00542870	-	1
+procedure	212	Proc_GoAbsoluteDirection	XX	00542990	-	0
+procedure	213	Proc_Accelerate	XX	00542a70	-	0
+procedure	214	Proc_Turn	X	00542bb0	-	1
+procedure	215	Proc_Turn2	X	00542bb0	-	1
+procedure	216	Proc_DeltaTurnPerso	PXXX	00542c80	-	1
+procedure	217	Proc_TurnPerso	P	00542c80	-	1
+procedure	218	Proc_ChangeAction	A	00542e60	-	1
+procedure	219	Proc_ChangeActionRandom	A	00542f40	-	0
+procedure	220	Proc_ReInitWay	Y	00542ff0	-	0
+procedure	221	Proc_ReInitWayBack	Y	00542ff0	-	0
+procedure	222	Proc_InitWayWithWp	YW	00542ff0	-	0
+procedure	223	Proc_SwimPulse	X	00540220	-	1
+procedure	224	Proc_SkiTurnLeft	X	00542bb0	-	0
+procedure	225	Proc_SkiTurnRight	X	00542bb0	-	0
+procedure	226	Proc_KillPerso	P	0053fc30	-	0
+procedure	227	Proc_SetMechanicalGMTAdhesionCoef	CX	00543540	-	0
+procedure	228	Proc_SetMechanicalGMTAbsorptionCoef	CX	00543540	-	0
+procedure	229	Proc_SetMechanicalGMTFrictionCoef	CX	00543540	-	0
+procedure	230	Proc_SetMechanicalGMTSlideCoef	CX	00543540	-	0
+procedure	231	Proc_SetMechanicalGMTProgressionCoef	CX	00543540	-	0
+procedure	232	Proc_SetMechanicalGMTPenetrationCoef	CX	00543540	-	0
+procedure	233	Proc_SetMechanicalGMTPenetrationMaxCoef	CX	00543540	-	0
+procedure	234	Proc_SetVisualGMTColor	CL	00543230	-	0
+procedure	235	Proc_SetVisualGMTSpecularExponant	CL	00543230	-	0
+procedure	236	Proc_SetVisualGMTSpecularCoef	CL	00543230	-	0
+procedure	237	Proc_SetVisualGMTDiffuseCoef	CL	00543230	-	0
+procedure	238	Proc_SetVisualGMTAmbientCoef	CL	00543230	-	0
+procedure	239	Proc_SetVisualGMTAsChromed	C	00543230	-	0
+procedure	240	Proc_SetVisualGMTTextureScrollingCoef	CXX	00543230	-	0
+procedure	241	Proc_LockVisualGMT	C	00543230	-	0
+procedure	242	Proc_UnlockVisualGMT	C	00543230	-	0
+procedure	243	Proc_SetVisualGMTFrame	CL	00543230	-	0
+procedure	244	Proc_FootPath_AddFootPrint	L	00543740	-	0
+procedure	245	Proc_FootPath_Clear		00543780	-	0
+procedure	246	Proc_ReleaseAllModulesControl		00541310	-	1
+procedure	247	Proc_ConfirmModuleControl	M	00541310	-	0
+procedure	248	Proc_OptionChangeScreenSize	L	005452a0	-	0
+procedure	249	Proc_OptionChangeDetailsValue	L	005452a0	-	0
+procedure	250	Proc_OptionChangeMusicVolume	L	005452a0	-	0
+procedure	251	Proc_OptionChangeSfxVolume	L	005452a0	-	0
+procedure	252	Proc_OptionChangeVoiceVolume	L	005452a0	-	0
+procedure	253	Proc_SetPersoAbsolutePosition	V	00544590	-	1
+procedure	254	Proc_RelativeMovePerso	VB	00544590	-	1
+procedure	255	Proc_SetModuleAbsolutePosition	VMB	00544590	-	1
+procedure	256	Proc_RelativeMoveModule	VMB	00544590	-	1
+procedure	257	Proc_ChangeModuleSighting	VMB	00544590	-	1
+procedure	258	Proc_RotatePersoAroundX	X	00544590	-	1
+procedure	259	Proc_RotatePersoAroundY	X	00544590	-	1
+procedure	260	Proc_RotatePersoAroundZ	X	00544590	-	1
+procedure	261	Proc_RotateModuleAroundX	MX	00544590	-	1
+procedure	262	Proc_RotateModuleAroundY	MX	00544590	-	1
+procedure	263	Proc_RotateModuleAroundZ	MX	00544590	-	1
+procedure	264	Proc_ZoomPerso	V	00544590	-	1
+procedure	265	Proc_ZoomModule	MV	00544590	-	1
+procedure	266	Proc_InvisibleDisplay		00545030	-	1
+procedure	267	Proc_VisibleDisplay		00545030	-	1
+procedure	268	Proc_AddChildToChannel	PMP	005450a0	-	0
+procedure	269	Proc_RemoveChildFromChannel	PMP	005450a0	-	0
+procedure	270	Map_vEnableObject	LB	00545c70	-	0
+procedure	271	Map_vSetDestination	L	00545cc0	-	0
+procedure	272	Map_vResetDestination	L	00545d00	-	0
+procedure	273	Proc_ChangeOneCustomBit	LB	005443b0	-	1
+procedure	274	Proc_ChangeManyCustomBits	LL	005443b0	-	1
+procedure	275	Proc_StringAddChar	SLL	005444a0	-	1
+procedure	276	Proc_StringReplaceChar	SLL	005444a0	-	1
+procedure	277	Proc_StringRemoveChar	SL	005444a0	-	1
+procedure	278	Proc_SetWeightlessness	B	00545350	-	0
+procedure	279	Proc_OrientWallNormal		005453a0	-	0
+procedure	280	Proc_SetAnimationGravity	B	005456b0	-	0
+procedure	281	Proc_FixePositionZDM	PUV	005454c0	-	0
+procedure	282	Proc_FixePositionZDD	PZV	005454c0	-	0
+procedure	283	Proc_FixePositionZDE	PEV	005454c0	-	0
+procedure	284	Proc_ChangeLightIntensity	PXXXX	00545710	-	0
+procedure	285	Proc_GiveImpulsionRope	VL	005459c0	-	0
+procedure	286	Proc_ChangeSpringConstantForChannel	XXL	00545a30	-	0
+procedure	287	Proc_RopeHitAWall		00545aa0	-	0
+procedure	288	Proc_FixePointsDeMagie	L	005457e0	-	0
+procedure	289	Proc_FixePointsDeMagieMax	L	005457e0	-	0
+procedure	290	Proc_InitPointsDeMagie	L	005457e0	-	0
+procedure	291	Proc_InitPointsDeMagieMax	L	005457e0	-	0
+procedure	292	Proc_AddMagicPoints	L	005457e0	-	0
+procedure	293	Proc_AddMagicPointsMax	PL	005457e0	-	0
+procedure	294	Proc_SubMagicPoints	L	005457e0	-	0
+procedure	295	Proc_SubMagicPointsMax	PL	005457e0	-	0
+procedure	296	Proc_CapsSetCapabilities	#	00545910	-	1
+procedure	297	Proc_CapsAddCapabilities	#	00545910	-	1
+procedure	298	Proc_CapsSubCapabilities	#	00545910	-	1
+procedure	299	SCT_ActivateSector	R	00545ac0	-	0
+procedure	300	SCT_DesactivateSector	R	00545ac0	-	0
+procedure	301	SCT_ActivateSectorVisibility	R	00545ac0	-	0
+procedure	302	SCT_DesactivateSectorVisibility	R	00545ac0	-	0
+procedure	303	SCT_ActivateSectorCollisions	R	00545ac0	-	0
+procedure	304	SCT_DesactivateSectorCollisions	R	00545ac0	-	0
+procedure	305	QuitGame		00545bc0	-	0
+procedure	306	ReturnToMainMenu		00545bd0	-	0
+procedure	307	DisplayVignetteAndReturnToMainMenu	SL	00545be0	-	0
+procedure	308	DisplayVignetteAndQuitGame	SL	00545be0	-	0
+procedure	309	PlayAvi	S	00545d40	-	0
+procedure	310	Proc_ActivateOptionnalSectors		005437b0	-	0
+procedure	311	Proc_DeactivateOptionnalSectors		005437b0	-	0
+procedure	312	Proc_SetGameState	L	00544050	-	0
+procedure	313	Proc_SetMouseCursorTexture	S	00543b90	-	0
+procedure	314	Proc_RestoreComport	P	00543f70	-	0
+procedure	315	Proc_RestoreMyComport		00543f70	-	0
+procedure	316	Proc_SCT_SetTransparence	RX	00544120	-	0
+procedure	317	Proc_setFadeValue	L	00544180	-	0
+procedure	318	Proc_setFadeTexture	L	00544180	-	0
+procedure	319	Proc_ActivateFade		00544180	-	0
+procedure	320	Proc_DeactivateFade		00544180	-	0
+procedure	321	Proc_ExecuteFade	LLX	00544180	-	0
+procedure	322	Proc_ExecuteFadeMS	LLX	00544180	-	0
+procedure	323	Proc_ToggleWideScreen		00544180	-	0
+procedure	324	Proc_EndDialog		00543c00	-	0
+procedure	325	Proc_RunDialog	SL	00543c00	-	0
+procedure	326	Proc_ScrollDialog	L	00543c00	-	0
+procedure	327	Proc_SelectDialog		00543c00	-	0
+procedure	328	Proc_PositionDialog	LL	00543c00	-	0
+procedure	329	Proc_DLG_ChangeAction		00543c00	-	0
+procedure	330	Proc_DLG_ChangeComport		00543c00	-	0
+procedure	331	Proc_DLG_ActivateChannel	M	00541880	-	1
+procedure	332	Proc_SND_SetSoundEventActivation	B	00543f20	-	0
+procedure	333	Proc_ActivateCreditsMotorMode		005437e0	-	0
+procedure	334	Proc_ActivateInventoryMotorMode		005437e0	-	0
+procedure	335	Proc_ActivateBinocularMotorMode	S	005437e0	-	0
+procedure	336	Proc_ActivateSaveGameMotorMode		005437e0	-	0
+procedure	337	Proc_ActivateLaserPointer		00543920	-	0
+procedure	338	Proc_HideLaserPointer		00543920	-	0
+procedure	339	Proc_SetLaserPointerDistance	L	00543920	-	0
+procedure	340	Proc_SetLaserPointerTexture	S	00543920	-	0
+procedure	341	Proc_SetLaserPointerDetailLevel	L	00543920	-	0
+procedure	342	Proc_SetLaserPointerSniperMode	B	00543920	-	0
+procedure	343	Proc_SetLaserPointerFlyMode	B	00543920	-	0
+procedure	344	Proc_FadeRandom	LL	00543aa0	-	1
+procedure	345	Proc_RopeInitialisation	P	00543b50	-	1
+procedure	346	InterpolationReset		00544370	-	0
+procedure	347	InterpolationOff		00544370	-	0
+procedure	348	InterpolationOn		00544370	-	0
+procedure	349	Proc_GPI_SetDraw	SB	0053ef50	-	0
+procedure	350	Proc_GPI_SetImage	SSS	0053ef50	-	0
+procedure	351	Proc_GPI_SetToNextImage	SS	0053ef50	-	0
+procedure	352	Proc_GPI_FadeImage	SSSSL	0053ef50	-	0
+procedure	353	Proc_GPI_MovingUV	SSSSL	0053ef50	-	0
+procedure	354	Proc_GPI_Rotation	SSSXL	0053ef50	-	0
+procedure	355	Proc_GPI_SetText	SSS	0053ef50	-	0
+procedure	356	Proc_GPI_SetTextNumber	SSL	0053ef50	-	0
+procedure	357	Proc_GPI_SlideGamePlayInterface	S	0053ef50	-	0
+procedure	358	Proc_HilitePerso		0053f330	-	1
+procedure	359	Proc_ResetPersoToInitialState		0053f330	-	1
+procedure	360	Proc_SetFlashingSpeed	L	0053f330	-	0
+procedure	361	Proc_SetFlashingTransparent		0053f330	-	0
+procedure	362	Proc_SetFlashingNotTransparent		0053f330	-	0
+procedure	363	Proc_SetFlashingWithDefaultGMT		0053f330	-	0
+procedure	364	Proc_SetFlashingNotWithDefaultGMT		0053f330	-	0
+procedure	365	Proc_SetInitialGameFloors		0053f430	-	0
+procedure	366	Proc_SetStandardFloor		0053f430	-	0
+procedure	367	Proc_ActivateFloorGame	L	0053f430	-	0
+procedure	368	Proc_SetColorPathGoal	S	0053f430	-	0
+procedure	369	Proc_LGT_ChangeColor	SLLLX	0053f4d0	-	0
+procedure	370	Proc_LGT_ChangeIntensity	SX	0053f4d0	-	0
+procedure	371	Proc_LGT_Switch	SB	0053f4d0	-	0
+procedure	372	Proc_LGT_SwitchAll	B	0053f4d0	-	0
+procedure	373	SetStableEnvironnement	B	0053f6f0	-	1
+procedure	374	Proc_ActivateMapMotorMode		005437e0	-	0
+procedure	375	Proc_ActivateEpoque	LB	0053f780	-	0
+procedure	376	Proc_ActivateName	LB	0053f7d0	-	0
+procedure	377	Proc_RopeCareTaker	XXXXL	0053e360	-	0
+procedure	378	Proc_ChangeChannelMassForPolySys	LX	0053e510	-	0
+procedure	379	Proc_FixNormReelSpeed	X	0053e580	-	1
+procedure	380	Proc_SND_LoadSoundBank	L	0053e700	-	0
+procedure	381	Proc_SND_UnLoadSoundBank	L	0053e700	-	0
+procedure	382	Proc_SND_KillMusic		0053e770	-	0
+procedure	383	Proc_SND_KillSoundEffect		0053e770	-	0
+procedure	384	Proc_SND_KillVoice		0053e770	-	0
+procedure	385	Proc_SND_KillAllSounds		0053e770	-	0
+procedure	386	Proc_SND_ChangeMyVolumeEffects	L	0053e7e0	-	0
+procedure	387	Proc_SND_PersoChangeVolEffects	L	0053e7e0	-	1
+procedure	388	Proc_SND_ChangeVolumeEffects	L	0053e970	-	0
+procedure	389	Proc_SND_ChangeMyVolumeVoice	L	0053e7e0	-	0
+procedure	390	Proc_SND_ChangeVolumeVoice	L	0053e970	-	0
+procedure	391	Proc_SND_ChangeMyVolumeMusic	L	0053e7e0	-	0
+procedure	392	Proc_SND_ChangeVolumeMusic	L	0053e970	-	0
+procedure	393	Proc_SND_ChangeAllVolume	L	0053e970	-	0
+procedure	394	Proc_SND_ResetMyVolumeEffects		0053e7e0	-	0
+procedure	395	Proc_SND_ResetMyVolumeVoice		0053e7e0	-	0
+procedure	396	Proc_SND_ResetMyVolumeMusique		0053e7e0	-	0
+procedure	397	Proc_SND_ResetVolumeEffects		0053e970	-	0
+procedure	398	Proc_SND_ResetVolumeVoice		0053e970	-	0
+procedure	399	Proc_SND_ResetVolumeMusic		0053e970	-	0
+procedure	400	Proc_SND_ResetAllVolume		0053e970	-	0
+procedure	401	Proc_SND_SetEffectSound	L	0053ead0	-	0
+procedure	402	Proc_SND_SwitchMicroPerso	P	0053eb10	-	0
+procedure	403	Proc_SND_SwitchOldMicroPerso	PP	0053eb10	-	0
+procedure	404	Proc_SND_SetMicroOrientationPerso	P	0053eb10	-	0
+procedure	405	SetVignetteIndex	L	0053ec30	-	0
+procedure	406	Proc_SND_SaveMusic		0053ec70	-	0
+procedure	407	Proc_SND_LoadMusic		0053ec70	-	0
+procedure	408	Proc_SND_FadeMusic	LL	0053ec70	-	0
+procedure	409	Proc_SND_FadeVoice	LL	0053ec70	-	0
+procedure	410	Proc_SND_FadeSound	LL	0053ec70	-	0
+procedure	411	Proc_SND_FadeAll	LL	0053ec70	-	0
+procedure	412	Proc_SND_FadeObjectAndStop	LL	0053ec70	-	1
+procedure	413	Proc_SND_FadeInObject	LL0	0053ec70	-	1
+procedure	414	Proc_SND_KillObject		0053ec70	-	1
+procedure	415	Proc_SetEconomicPersoAbsolutePosition	V	0053db00	-	1
+procedure	416	ScaleReallyModule	MV	0053e020	-	0
+procedure	417	Inv_UnselectSelectedObject		0053d920	-	0
+procedure	418	Inv_ChangeObjectMaxCapacity	LL	0053d920	-	0
+procedure	419	Inv_ChangeJewelState	LL	0053d920	-	0
+procedure	420	Inv_ChangeStockLstNumber	PL	0053d920	-	0
+procedure	421	Inv_DisplayAnObject	LLXXLLLL	0053d920	-	0
+procedure	422	Stats_DisplayMainActorLife	B	0053dbb0	-	0
+procedure	423	Stats_DisplayMainActorArmor	B	0053dbb0	-	0
+procedure	424	Stats_DisplayMainActorMagic	B	0053dbb0	-	0
+procedure	425	Stats_DisplayMainActorSelectedObject	B	0053dbb0	-	0
+procedure	426	Stats_DisplayMainActorWeapon	B	0053dbb0	-	0
+procedure	427	Stats_DisplayDragon	B	0053dbb0	-	0
+procedure	428	Stats_DisplayCash	B	0053dbb0	-	0
+procedure	429	Fight_ChangeArmor	L	0053dd60	-	0
+procedure	430	Fight_ChangeArmorResistance	L	0053dd60	-	0
+procedure	431	Fight_RepairArmor		0053dd60	-	0
+procedure	432	Fight_SubHitPointsEnemy	PL	0053dd60	-	0
+procedure	433	Magic_ChangeInitialMagicPoints	L	0053de60	-	0
+procedure	434	Magic_ChangeMaxMagicPoints	L	0053de60	-	0
+procedure	435	Magic_InitMagicPointsToInit		0053de60	-	0
+procedure	436	Magic_InitMagicPointsToMax		0053de60	-	0
+procedure	437	Magic_SelectPrevSpellType		0053de60	-	0
+procedure	438	Magic_SelectNextSpellType		0053de60	-	0
+procedure	439	Dragon_ChangeInitialNbrDiamonds	L	0053df60	-	0
+procedure	440	Dragon_ChangeMaxNbrDiamonds	L	0053df60	-	0
+procedure	441	Dragon_InitDiamondsToInit		0053df60	-	0
+procedure	442	Dragon_InitDiamondsToMax	L	0053df60	-	0
+procedure	443	Dragon_ChangeDragonActor	P	0053df60	-	0
+procedure	444	Demo_ValidateMap		0053e350	-	0
+procedure	445	Proc_ChangePersoSighting	V	0053e140	-	1
+meta_action	0	Action_IncrementalTurn2	XL	00549f00	00549fb0	-
+meta_action	1	Action_IncrementalTurn	XL	00549e30	00549ea0	-
+meta_action	2	Action_Pursuit	PX	00522a50	0054b030	-
+meta_action	3	Action_DeltaPursuit	PXXXX	00522a50	0054b080	-
+meta_action	4	Action_ExecuteAction	A	0054a020	0054a110	-
+meta_action	5	Action_ExecuteActionPerso	PA	0054a020	0054a160	-
+meta_action	6	Action_WaitEndOfAction		00522a50	0054a300	-
+meta_action	7	Action_WaitEndOfActionPerso	P	00522a50	0054a320	-
+meta_action	8	Action_WaitEndOfAnim		00522a50	0054a3d0	-
+meta_action	9	Action_WaitEndOfAnimPerso	P	00522a50	0054a3f0	-
+meta_action	10	Action_SpeakAndWaitEnd	O	0054a210	0054a250	-
+meta_action	11	Action_LSY_SpeakPersoAndWaitEnd	PO	0054a270	0054a2d0	-
+meta_action	12	Action_ExecuteActionAndTakeObject	PA	0054a4a0	0054a110	-
+meta_action	13	Action_ExecuteActionAndPutObject	PA	0054a4a0	0054a110	-
+meta_action	14	Action_ExecuteActionAndLaunchObject	PAV	0054a530	0054a110	-
+meta_action	15	Action_ExecuteActionAndGenerateObject	PAV	0054a5d0	0054a110	-
+meta_action	16	Action_AdjustPersoOnObjectAxes	PVAA	0054a790	0054a8a0	-
+meta_action	17	Action_AdjustPersoOnObject	PXXAA	0054ac30	0054ad00	-
+meta_action	18	Action_RunAway	PX	00522a50	0054af50	-
+meta_action	19	Action_IncrementalTurnPosition	VL	0054cbc0	0054d030	-
+meta_action	20	Action_IncrementalDeltaTurnPerso2	PLXXX	0054cd20	0054d2a0	-
+meta_action	21	Action_IncrementalTurnPerso2	PL	0054d120	0054d2a0	-
+meta_action	22	Action_IncrementalDeltaTurnPerso	PLXXX	0054ca20	0054d030	-
+meta_action	23	Action_IncrementalTurnPerso	PL	0054ced0	0054d030	-
+meta_action	24	Action_RunAwayWP	WX	00522a50	0054afe0	-
+meta_action	25	Action_GoToWP	W	00522a50	0054b110	-
+meta_action	26	Action_GoToWPXY	W	00522a50	0054b160	-
+meta_action	27	Action_GoOverWay	Y	0054b260	0054c8d0	-
+meta_action	28	Action_GoOverWay3D	Y	0054b260	0054ca00	-
+meta_action	29	Action_GoOverWayBack	Y	0054b280	0054c8f0	-
+meta_action	30	Action_GoToNextWPOfWay	Y	0054b260	0054c910	-
+meta_action	31	Action_GoToNextWPOfWayBack	Y	0054b280	0054c930	-
+meta_action	32	Action_GoToPosition	VX	00522a50	0054d3b0	-
+meta_action	33	Action_GoToPositionXY	VX	00522a50	0054d3e0	-
+meta_action	34	Action_GoOverShortestPath	W$L	0054b680	0054b7e0	-
+meta_action	35	Action_GoOverShortestPathBezier	W$LL	0054b980	0054c080	-
+meta_action	36	Action_MoveLift	VVX	0054d410	0054d440	-
+meta_action	37	Action_Wait	L	0054dad0	0054db00	-
+meta_action	38	Action_WaitBoolean	BB	0054db40	0054dbd0	-
+meta_action	39	Action_WaitNextTime	L	0054dc50	0054dcb0	-
+meta_action	40	Action_WaitInteger	LLL	0054dd00	0054ddb0	-
+meta_action	41	Action_WaitReal	XLX	0054deb0	0054df60	-
+meta_action	42	Action_IncrementalTurnPositionW	VX	0054e300	0054e3d0	-
+meta_action	43	Action_IncrementalTurnPositionWPerso	PVX	0054e300	0054e4f0	-
+meta_action	44	Action_IncrementalTurnPersoW	PX	0054e210	0054e3d0	-
+meta_action	45	Action_IncrementalTurnPersoWPerso	PPX	0054e210	0054e4f0	-
+meta_action	46	Action_IncrementalTurn2PersoW	XPX	0054e5a0	0054e720	-
+meta_action	47	Action_IncrementalTurn2PersoWPerso	PXPX	0054e5a0	0054e800	-
+meta_action	48	Action_Camera_GoToPosition	PVX	00522a50	0054f1e0	-
+meta_action	49	Action_Camera_GoToWP	PW	00522a50	0054f2d0	-
+meta_action	50	Action_Camera_GoOverWay	PY	0054f6a0	0054f6e0	-
+meta_action	51	Action_Camera_GoOverWayBack	PY	0054f6c0	0054f700	-
+meta_action	52	Action_Camera_GoToNextWPOfWay	PY	0054f6a0	0054f720	-
+meta_action	53	Action_Camera_GoToNextWPOfWayBack	PY	0054f6c0	0054f740	-
+meta_action	54	Action_Camera_StayInWay	PY	0054f760	0054f810	-
+meta_action	55	Action_Camera_GoToFromTarget	PXXX	0054fe00	0054ff80	-
+meta_action	56	Action_Camera_Shake	PXXLLL	00550060	00550130	-
+meta_action	57	Action_Camera_WaitUntil	PLX	00522a50	00550200	-
+meta_action	58	Action_RotateModule	MVV	0054ee50	0054ef70	-
+meta_action	59	Action_RotateModuleToPerso	MPV	0054f050	0054ef70	-
+meta_action	60	Action_SwimToSurface		00522a50	0054e9f0	-
+meta_action	61	Action_WaitEndOfFade		00522a50	0054e8b0	-
+meta_action	62	Action_SendSoundRequestAndWait	0	0054e8c0	0054e9c0	-
+meta_action	63	Action_SendVoiceRequestAndWait	0	0054e910	0054e9c0	-
+meta_action	64	Action_SendVoiceRequestPersoAndWait	P0	0054e960	0054e9c0	-
+meta_action	65	Action_PersoGoToPosition	PVX	00522a50	0054d580	-
+meta_action	66	Action_IncrementalTurnAbsDirection	XL	0054d720	0054d030	-
+meta_action	67	Action_IncTurnPersoAbsDirection	PXL	0054d850	0054d9a0	-
+meta_action	68	Action_WaitNbFrames	L	00522a50	0054daa0	-

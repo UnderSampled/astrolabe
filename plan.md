@@ -2,7 +2,7 @@
 
 **Make a tool to repeatably port this OpenSpace game to Godot.**
 
-This is the current Rust plan, updated 2026-09-13 with the native Godot conversion requirements. The Rust implementation covers initial milestones 0–5 and partial scene/character slices of 6–7; see [the implementation report](docs/implementation-progress.md) for evidence, measured checks, and explicit remaining limitations. The milestone requirements below remain the acceptance criteria. The former C# plan and completion claims remain in [the archived snapshot](reference/astrolabe-csharp/plan.md); they are research evidence, not Rust progress. Read [the architecture](docs/rust-architecture.md) and [Rete design](docs/rete-design.md) before implementation.
+This is the current Rust plan, updated 2026-09-14 with the gameplay implementation reset. The Rust implementation covers initial milestones 0–5, partial scene/character slices of 6–7 and the first torch AI slice of 8; see [the implementation report](docs/implementation-progress.md) for evidence, measured checks, and explicit remaining limitations. The milestone requirements below remain the acceptance criteria. The former C# plan and completion claims remain in [the archived snapshot](reference/astrolabe-csharp/plan.md); they are research evidence, not Rust progress. Read [the architecture](docs/rust-architecture.md) and [Rete design](docs/rete-design.md) before implementation.
 
 ## Priorities and completion
 
@@ -14,6 +14,19 @@ have explicit semantic/reconstruction gaps. Phase 8 now has a first
 [typed AI-to-GDScript slice](docs/ai-gdscript-slice.md): the two real torch sound
 controllers, with a source-game comparison and a tested Rete parameter edit.
 Broader gameplay and AI reconstruction remain open.
+
+**We MUST NOT reimplement the OpenSpace engine within Godot. Implement the AI
+script API using native Godot facilities, and compile the game's AI scripts to
+call that API.** The script decisions and observable API behavior are the
+contract; OpenSpace's internal execution and storage machinery are not.
+
+The unfinished runtime experiment is preserved at `9374ef5` on
+`codex/archive-openspace-runtime-20260914`; active production code returns to
+`d8d0375`. Follow [the concrete Godot gameplay plan](docs/godot-gameplay-plan.md)
+for milestone 8. The next implementation checkpoint is Hype's real AI driving
+idle/walk/run with native Godot movement and contact in `manoir`, followed by
+jump, sword/crossbow and magick. The prior broad implementation goal is paused;
+this planning update does not restart it.
 
 Godot is the primary deliverable. Work toward useful, repeatable conversion of Hype content and behavior, suitable for a modern fan-remaster and separately authored Godot extensions. OpenSpace reconstruction provides byte-level evidence and supports modifications of the original game. A full Godot-to-OpenSpace edit round trip is optional and deferred.
 
@@ -138,9 +151,25 @@ Replace the current animation/configuration/family/perso JSON loading path for t
 
 ### 8. AI, interactions, and a playable behavior slice
 
-Implement shared AIModel/Behavior/Macro types; Brain/Mind, designer-variable definitions and instance values; typed script trees; state transitions; perso physics/collision/sector membership; waypoints and relevant action bindings. Resolve text, sound, perso, state, and object references into semantic links. Pull the small localization subset required for the chosen behavior from phase 9 when needed.
+The torch slice is complete. Continue with the ordered controls and explicit
+exit checks in [Hype gameplay in Godot](docs/godot-gameplay-plan.md). Its first
+checkpoint is input to visible idle/walk/run with floor/wall contact, through
+the actual converted Hype scripts. Complete that integrated path before
+broadening the engine-service catalogue.
+
+Extend shared AIModel/Behavior/Macro types, designer-variable definitions and instance values, typed script trees, action bindings and semantic actor/resource links as that path requires. Preserve meaningful Brain/Mind source metadata for reconstruction without exporting their memory/execution organization as a Godot framework. Add physics/collision/sector and waypoint semantics when the selected gameplay uses them. Pull the small localization subset required for the chosen behavior from phase 9 when needed.
 
 Choose one real interaction/character behavior and compile its typed AI AST into executable GDScript in the Godot adapter. Translate expressions, branches, loops, macros, state changes, and instance values into code; resolve content references into Godot nodes/resources. Preserve tick timing, blocking/meta actions, state changes, random-seed handling, and persistent instance state through generated control flow and appropriate Godot callbacks. Implement the needed engine-side functions in the maintained Godot support package using native facilities, with explicit supported semantics. Test the generated behavior and those same functions in the rehydrated project and focused fixtures. Do not ship an AST/opcode interpreter or generic operation dispatcher, count S-expression output as execution support, or silently stub unimplemented actions.
+
+The [API assessment](docs/ai-api-assessment.md) distinguishes behavior requests,
+queries, game services and procedural property changes. Compile ordinary values,
+arrays and references to ordinary GDScript properties and node/resource links.
+Implement the API with InputMap, CharacterBody3D, native animation, PackedScenes
+and focused Hype game services. Preserve observable ordering and completion with
+generated game control flow; do not recreate generic source instruction cursors,
+variable-access APIs or return-flag machinery. Required initialization and
+referenced actors must work; unrelated controller coverage and whole-package
+parity must not displace the playable checkpoint.
 
 Use the harness's measured hidden-lever or Fire Trinity sequence as a candidate source baseline once the slice supports its dependencies. The lever has a two-second activation window and a distance condition of less than 1.5 units; the projectile test records a 35-mana cost, steering, pause/resume, and active-ball count changes. Reproduce the relevant observation and compare the exported Godot behavior, distinguishing input recognition, state changes, and visible effects. These are source-game fixtures, not already implemented Astrolabe AI support.
 
