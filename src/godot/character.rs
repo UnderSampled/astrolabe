@@ -15,7 +15,6 @@ use std::{
     sync::Arc,
 };
 
-const PLAYER: &str = "res://addons/astrolabe/character/character.gd";
 fn label(name: &str) -> String {
     let text: String = name
         .chars()
@@ -62,6 +61,110 @@ struct State {
     state: CharacterState,
     clip: Option<Arc<AnimationClip>>,
     frames: Vec<BTreeMap<u16, Pose>>,
+}
+
+fn movement_collision(
+    project: &mut Project,
+    source: &mut impl ContentSource,
+    perso: &Perso,
+    actor: &str,
+    base: &str,
+) -> Result<()> {
+    let Some(collisions) = &perso.collisions else {
+        return Ok(());
+    };
+    collisions.validate()?;
+    let group = &collisions.groups[2];
+    let Some(reference) = &group.profile else {
+        return Ok(());
+    };
+    let profile = source.load(reference)?;
+    profile.validate_reference(&reference.path)?;
+    profile.validate()?;
+    if let Some(id) = group.active {
+        profile.selection(id)?;
+    }
+    let Some(geometry) = &profile.geometry else {
+        return Ok(());
+    };
+    let selected = |id| -> BTreeSet<_> {
+        profile
+            .selections
+            .iter()
+            .find(|s| Some(s.id) == id)
+            .into_iter()
+            .flat_map(|s| &s.zones)
+            .map(|z| usize::from(z.index))
+            .collect()
+    };
+    let active = selected(group.active);
+    let mut shapes = Vec::new();
+    for (slot, reference) in geometry.slots.iter().enumerate() {
+        let Some(reference) = reference else {
+            continue;
+        };
+        let collision = source.load(reference)?;
+        collision.validate_reference(&reference.path)?;
+        let mesh = collision.resolve(source)?;
+        for name in project.collision_shapes(
+            &mesh,
+            source,
+            actor,
+            actor,
+            &format!("{actor}_movement_{slot}"),
+            true,
+        )? {
+            let node = name.split_once("_movement_").unwrap().1;
+            writeln!(
+                project.builder,
+                "    {name}.name = \"Movement_{node}\"\n    {name}.set_meta(\"source_zone\", {slot})\n    {name}.set_meta(\"source_collision\", {})\n    {actor}._set_movement_shape_active({name}, {})",
+                quoted(reference.path.as_str()),
+                active.contains(&slot)
+            )?;
+            shapes.push((slot, format!("Movement_{node}")));
+        }
+    }
+    if shapes.is_empty() {
+        return Ok(());
+    }
+    writeln!(
+        project.builder,
+        "    {actor}.collision_layer = 2\n    {actor}.collision_mask = 1"
+    )?;
+    let Some(activations) = &profile.activations else {
+        return Ok(());
+    };
+    let mut cases: BTreeMap<Option<u32>, Vec<String>> = BTreeMap::new();
+    for activation in activations {
+        cases
+            .entry(activation.selection)
+            .or_default()
+            .push(activation.state.to_string());
+    }
+    let mut script = format!(
+        "extends {}\n## Compiled state activation of persisted native movement shapes.\nfunc _state_movement_collision(id: int) -> void:\n    match id:\n",
+        quoted(base)
+    );
+    for (selection, states) in cases {
+        writeln!(script, "        {}:", states.join(", "))?;
+        let active = selected(selection);
+        for (slot, node) in &shapes {
+            writeln!(
+                script,
+                "            _set_movement_shape_active(${node}, {})",
+                active.contains(slot)
+            )?;
+        }
+    }
+    script.push_str("        _: pass\n");
+    let path = perso_path(project, perso).replace(".tscn", "_collisions.gd");
+    project.write(path.clone(), script.as_bytes())?;
+    writeln!(
+        project.builder,
+        "    {actor}.set_script(native_resource({}))",
+        quoted(&format!("res://{path}"))
+    )?;
+    Ok(())
 }
 
 pub(super) fn export_perso(
@@ -129,10 +232,19 @@ pub(super) fn export_perso(
         .map_or(-1, i64::from);
     writeln!(
         project.builder,
-        "    var {name} = {rig_id}()\n    {name}.name = {}\n    {name}.set_meta(\"source_perso_name\", {})\n    {name}.set_meta(\"source_perso\", {})\n    {name}.initial_state = {state}\n    {name}.current_state = {state}\n    if {state} >= 0:\n        apply_initial_pose({name}, {name}.get_node(\"AnimationPlayer\").get_animation(\"state_{state}\"))",
+        "    var {name} = {rig_id}()\n    {name}.name = {}\n    {name}.set_meta(\"source_perso_name\", {})\n    {name}.set_meta(\"source_perso\", {})",
         quoted(&label(&perso.name)),
         quoted(&perso.name),
         quoted(perso.path.as_str())
+    )?;
+    let controller = format!(
+        "res://{}/actions.gd",
+        rig_directory(project, &family, &rig_id)
+    );
+    movement_collision(project, source, perso, &name, &controller)?;
+    writeln!(
+        project.builder,
+        "    {name}.initial_state = {state}\n    {name}.current_state = {state}\n    if {state} >= 0:\n        apply_initial_pose({name}, {name}.get_node(\"AnimationPlayer\").get_animation(\"state_{state}\"))"
     )?;
     super::ai::component(project, source, perso, &name, written)?;
     writeln!(
@@ -146,8 +258,17 @@ pub(super) fn export_perso(
             perso.path
         ));
     }
-    project.diagnostic(format!("{}: native sampled poses; gameplay visibility overrides, root motion, lip sync and AI transitions remain unsupported",perso.path));
+    project.diagnostic(format!("{}: native sampled poses; native translation tracks available; gameplay visibility overrides, root rotation, lip sync and complete AI control remain unsupported",perso.path));
     Ok(())
+}
+
+fn rig_directory(project: &Project, family: &Family, rig_id: &str) -> String {
+    project.level_path(&format!(
+        "characters/{}__{}/{}",
+        label(&family.name),
+        &super::digest(family.path.as_str().as_bytes())[..8],
+        &rig_id[4..]
+    ))
 }
 
 fn export_rig(
@@ -158,12 +279,7 @@ fn export_rig(
     rig_id: &str,
     written: &mut BTreeSet<AssetPath>,
 ) -> Result<()> {
-    let directory = project.level_path(&format!(
-        "characters/{}__{}/{}",
-        label(&family.name),
-        &super::digest(family.path.as_str().as_bytes())[..8],
-        &rig_id[4..]
-    ));
+    let directory = rig_directory(project, family, rig_id);
     let mut states = Vec::new();
     let mut channels = BTreeSet::new();
     let mut slots: BTreeMap<u16, BTreeSet<u16>> = BTreeMap::new();
@@ -297,9 +413,14 @@ fn export_rig(
         project.write(path.clone(),format!("[gd_resource type=\"AnimationLibrary\" load_steps={} format=3]\n\n{links}\n[resource]\n_data = {{ {} }}\n",states.len()+1,entries.join(",\n")).as_bytes())?;
         libraries.push((restored, path));
     }
+    let controller = format!("{directory}/actions.gd");
+    project.write(
+        controller.clone(),
+        super::action::compile(family)?.as_bytes(),
+    )?;
     let mut function = format!(
-        "\nfunc {rig_id}() -> Node3D:\n    var actor = Node3D.new()\n    actor.set_script(native_resource({}))\n    actor.set_meta(\"source_family\", {})\n    var channels = Node3D.new()\n    channels.name = \"Channels\"\n    actor.add_child(channels)\n    channels.owner = actor\n",
-        quoted(PLAYER),
+        "\nfunc {rig_id}() -> Node3D:\n    var actor = CharacterBody3D.new()\n    actor.set_script(native_resource({}))\n    actor.set_meta(\"source_family\", {})\n    actor.collision_layer = 0\n    actor.collision_mask = 1\n    var motion = Node3D.new()\n    motion.name = \"RootMotion\"\n    actor.add_child(motion)\n    motion.owner = actor\n    var channels = Node3D.new()\n    channels.name = \"Channels\"\n    actor.add_child(channels)\n    channels.owner = actor\n",
+        quoted(&format!("res://{controller}")),
         quoted(family.path.as_str())
     );
     for channel in channels {
@@ -325,7 +446,7 @@ fn export_rig(
     }
     writeln!(
         function,
-        "    var player = AnimationPlayer.new()\n    player.name = \"AnimationPlayer\"\n    player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL\n    player.callback_mode_method = AnimationMixer.ANIMATION_CALLBACK_MODE_METHOD_IMMEDIATE\n    actor.add_child(player)\n    player.owner = actor"
+        "    var player = AnimationPlayer.new()\n    player.name = \"AnimationPlayer\"\n    player.root_motion_track = ^\"RootMotion\"\n    player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL\n    player.callback_mode_method = AnimationMixer.ANIMATION_CALLBACK_MODE_METHOD_IMMEDIATE\n    actor.add_child(player)\n    player.owner = actor"
     )?;
     for (restored, path) in libraries {
         writeln!(
@@ -420,6 +541,7 @@ fn export_animation(
         }
     }
     if let Some(clip) = &state.clip {
+        anim.root_translation(clip, fps)?;
         writeln!(
             anim.text,
             "metadata/source_animation = {}\nmetadata/source_state_next = {}",

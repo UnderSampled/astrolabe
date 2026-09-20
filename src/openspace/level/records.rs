@@ -14,6 +14,60 @@ pub(super) struct Address {
     pub(super) key: BlockKey,
     pub(super) offset: usize,
 }
+/// Hype's CollSet constructor 0045f4f0 allocates 52 bytes. The later Raymap
+/// collider-type offset +0x64 does not apply to this Montreal build.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct CharacterCollisionsWire {
+    pub(super) geometries: [u32; 4],
+    pub(super) activations: [u32; 4],
+    pub(super) active: [u32; 4],
+    pub(super) unknown: [u8; 4],
+}
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct CollisionSlotsWire {
+    pub(super) list: ListWire,
+    pub(super) unknown: [u8; 4],
+}
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct CollisionGeometryLinkWire {
+    pub(super) next: u32,
+    pub(super) previous: u32,
+    pub(super) header: u32,
+    pub(super) geometry: u32,
+}
+/// CollideActivation (00430d90): intrusive links, selected zone list, state index.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct CollisionActivationWire {
+    pub(super) next: u32,
+    pub(super) previous: u32,
+    pub(super) header: u32,
+    pub(super) selection: u32,
+    pub(super) state: u16,
+    pub(super) unknown: [u8; 2],
+}
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct CollisionZoneWire {
+    pub(super) next: u32,
+    pub(super) previous: u32,
+    pub(super) header: u32,
+    pub(super) index: u16,
+    pub(super) unknown: [u8; 2],
+}
+/// GEO_xCreateElementPoints (00469790), getters 00469b90..00469ca0.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct CollisionPointsWire {
+    pub(super) fatness: f32,
+    pub(super) count: u16,
+    pub(super) unknown: [u8; 2],
+    pub(super) indices: u32,
+    pub(super) material: u32,
+}
 #[derive(Clone)]
 pub(super) struct Block {
     pub(super) base: u32,
@@ -118,9 +172,13 @@ pub(super) struct CharacterStateWire {
     pub(super) mechanics: u32,
     #[br(assert(environment_samples == 0, "state environment samples are unsupported"))]
     pub(super) environment_samples: u32,
-    pub(super) unknown: [u8; 3],
+    pub(super) unknown: [u8; 2],
+    /// 00433e90 copies +58 to the remaining-repeat counter; 00442920 decrements it.
+    pub(super) repeats: u8,
     pub(super) speed: u8,
-    pub(super) unknown_tail: [u8; 4],
+    /// 00435250 rejects unlisted transitions only when +60 equals one.
+    pub(super) transition_lock: u8,
+    pub(super) unknown_tail: [u8; 3],
 }
 #[derive(BinRead, BinWrite)]
 #[brw(little)]

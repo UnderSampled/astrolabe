@@ -39,6 +39,7 @@ pub fn export<R: ContentSource>(
             | Asset::TransformPool(_)
             | Asset::Family(_)
             | Asset::ObjectList(_)
+            | Asset::CollisionProfile(_)
             | Asset::Perso(_) => {
                 anyhow::bail!("character content export requires its owning scene")
             }

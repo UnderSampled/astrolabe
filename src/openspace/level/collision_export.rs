@@ -58,6 +58,7 @@ pub fn write_collision(
         .iter()
         .map(|e| {
             [match e {
+                CollisionElement::Points { .. } => 5,
                 CollisionElement::Triangles { .. } => 1,
                 CollisionElement::Spheres(_) => 7,
                 CollisionElement::Boxes(_) => 8,
@@ -72,6 +73,30 @@ pub fn write_collision(
     for (i, element) in collision.elements.iter().enumerate() {
         let name = format!("elements/{i}");
         let address = match element {
+            CollisionElement::Points {
+                fatness,
+                indices,
+                material,
+                unknown,
+            } => {
+                let address = out.allocate(
+                    &name,
+                    &encoded(&CollisionPointsWire {
+                        fatness: *fatness,
+                        count: indices.len().try_into()?,
+                        unknown: *unknown,
+                        indices: 0,
+                        material: 0,
+                    })?,
+                )?;
+                if !indices.is_empty() {
+                    let data: Vec<_> = indices.iter().flat_map(|i| i.to_le_bytes()).collect();
+                    let p = out.allocate(format!("{name}/indices"), &data)?;
+                    out.pointer(address + 8, p)?;
+                }
+                material_pointer(&mut out, source, &mut materials, address + 12, material)?;
+                address
+            }
             CollisionElement::Triangles {
                 material,
                 indices,

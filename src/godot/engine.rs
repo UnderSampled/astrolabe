@@ -91,6 +91,16 @@ pub(super) fn strip_uids(text: &str) -> String {
             .map_or(value.len(), |n| start + 11 + n);
         value.replace_range(start..end, "");
     }
+    // Inherited overrides can also retain ResourceSaver's random parent IDs.
+    // They no longer identify the normalized nodes. Godot's text loader accepts
+    // the explicit parent path without this optional rename-recovery hint.
+    // Keep that path instead of publishing stale references to random IDs.
+    while let Some(start) = value.find(" parent_id_path=PackedInt32Array(") {
+        let Some(end) = value[start..].find(')') else {
+            break;
+        };
+        value.replace_range(start..start + end + 1, "");
+    }
     // ResourceSaver also chooses opaque IDs. File-local IDs only connect references;
     // name them by declaration order so independent engine processes agree.
     let declarations = value

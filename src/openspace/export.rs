@@ -36,6 +36,8 @@ struct ExportFiles<'a> {
     owners: BTreeMap<String, AssetPath>,
     model_targets: BTreeMap<AssetPath, super::level::ReferenceTarget>,
     collision_targets: BTreeMap<AssetPath, super::level::ReferenceTarget>,
+    collision_profiles: BTreeMap<AssetPath, super::level::CollisionProfileTargets>,
+    next_collision_profile_base: u32,
     next_geometry_base: u32,
 }
 impl ExportFiles<'_> {
@@ -73,11 +75,16 @@ pub fn export<R: ContentSource>(
         owners: BTreeMap::new(),
         model_targets: BTreeMap::new(),
         collision_targets: BTreeMap::new(),
+        collision_profiles: BTreeMap::new(),
+        next_collision_profile_base: 0x60000000,
         next_geometry_base: 0x10000000,
     };
     let mut gaps = Vec::new();
     for root in roots {
         match Asset::load(source, root)? {
+            Asset::CollisionProfile(value) => {
+                export_collision_profile(source, &value, &mut files, &mut gaps)?;
+            }
             Asset::Mechanics(value) => {
                 files.write(
                     &value.path,
@@ -356,6 +363,54 @@ fn fragment_path(path: &AssetPath, extension: &str) -> String {
         extension
     )
 }
+fn export_collision_profile(
+    source: &mut impl ContentSource,
+    value: &crate::model::character::CollisionProfile,
+    files: &mut ExportFiles<'_>,
+    gaps: &mut Vec<String>,
+) -> Result<()> {
+    if files.collision_profiles.contains_key(&value.path) {
+        return Ok(());
+    }
+    for reference in value.geometry.iter().flat_map(|g| &g.slots).flatten() {
+        let geometry = source.load(reference)?;
+        geometry.validate_reference(&reference.path)?;
+        export_collision(source, &geometry, files, gaps)?;
+    }
+    let output = super::level::write_collision_profile(
+        value,
+        &files.collision_targets,
+        files.next_collision_profile_base,
+    )?;
+    files.next_collision_profile_base = files
+        .next_collision_profile_base
+        .checked_add(
+            u32::try_from(output.fragment.bytes.len())?
+                .checked_add(3)
+                .context("profile size overflow")?
+                & !3,
+        )
+        .context("profile address overflow")?;
+    ensure!(
+        files.next_collision_profile_base < 0x70000000,
+        "collision profiles exceed controlled address range"
+    );
+    files.write(
+        &value.path,
+        fragment_path(&value.path, "bin"),
+        &output.fragment.bytes,
+    )?;
+    files.write(
+        &value.path,
+        fragment_path(&value.path, "rtb"),
+        &output.fragment.rtb,
+    )?;
+    files
+        .collision_profiles
+        .insert(value.path.clone(), output.targets);
+    gaps.extend(output.fragment.coverage);
+    Ok(())
+}
 fn export_characters(
     source: &mut impl ContentSource,
     scene: &crate::model::scene::Scene,
@@ -370,6 +425,26 @@ fn export_characters(
     for reference in scene.nodes.iter().filter_map(|n| n.perso.as_ref()) {
         let perso = source.load(reference)?;
         perso.validate_reference(&reference.path)?;
+        if let Some(collisions) = &perso.collisions {
+            for reference in collisions.groups.iter().filter_map(|g| g.profile.as_ref()) {
+                let profile = source.load(reference)?;
+                profile.validate_reference(&reference.path)?;
+                export_collision_profile(source, &profile, files, gaps)?;
+            }
+            let fragment = super::level::write_character_collisions(
+                collisions,
+                &files.collision_profiles,
+                perso.path.role(),
+                0x70000000,
+            )?;
+            for (extension, bytes) in [
+                ("collisions.bin", fragment.bytes),
+                ("collisions.rtb", fragment.rtb),
+            ] {
+                files.write(&perso.path, fragment_path(&perso.path, extension), &bytes)?;
+            }
+            gaps.extend(fragment.coverage);
+        }
         let family = source.load(&perso.family)?;
         family.validate_reference(&perso.family.path)?;
         if let Some(reference) = &family.bounding_geometry {

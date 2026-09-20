@@ -104,9 +104,11 @@ pub fn write_families(
                     unknown_reference: 0,
                     mechanics: 0,
                     environment_samples: 0,
-                    unknown: state.unknown[..3].try_into()?,
+                    unknown: state.unknown[..2].try_into()?,
+                    repeats: state.repeats,
                     speed: state.speed,
-                    unknown_tail: state.unknown[3..].try_into()?,
+                    transition_lock: state.transition_lock,
+                    unknown_tail: state.unknown[2..].try_into()?,
                 })?,
             )?;
             state_offsets.insert((family.path.clone(), state.id), offset);

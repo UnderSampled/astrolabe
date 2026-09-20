@@ -13,7 +13,7 @@ use std::{
     sync::Arc,
 };
 
-pub const SCHEMA: u32 = 10;
+pub const SCHEMA: u32 = 25;
 const MAGIC: &str = "astrolabe-rete";
 const MAX_ASSET_BYTES: u64 = 256 * 1024 * 1024;
 
@@ -256,6 +256,9 @@ impl Store {
             }
             Asset::Fog(value) => self.save(&AssetRef::from_path(path.clone()), value.as_ref()),
             Asset::Light(value) => self.save(&AssetRef::from_path(path.clone()), value.as_ref()),
+            Asset::CollisionProfile(value) => {
+                self.save(&AssetRef::from_path(path.clone()), value.as_ref())
+            }
             Asset::Mechanics(value) => {
                 self.save(&AssetRef::from_path(path.clone()), value.as_ref())
             }
@@ -299,6 +302,7 @@ impl Store {
             Asset::VisualEnvironment(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::Fog(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::Light(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::CollisionProfile(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::Mechanics(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::Sprite(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::Model(value) => serde_json::to_string_pretty(value.as_ref())?,

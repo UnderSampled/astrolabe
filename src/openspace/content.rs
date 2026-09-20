@@ -154,6 +154,9 @@ pub fn import_scene(game: &Path, selection: Selection) -> Result<Imported> {
             false,
         )?;
     }
+    for asset in scene.collision_profiles {
+        imported.put(&AssetRef::from_path(asset.path.clone()), asset, false)?;
+    }
     for asset in scene.mechanics {
         imported.put(&AssetRef::from_path(asset.path.clone()), asset, false)?;
     }

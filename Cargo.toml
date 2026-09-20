@@ -23,3 +23,10 @@ tempfile = "3.27"
 
 [profile.release]
 lto = "thin"
+
+# Native/corpus checks use release semantics with modest optimization. Avoid
+# optimizing the large generic exporters anew for every integration-test binary.
+[profile.validation]
+inherits = "release"
+opt-level = 1
+lto = false

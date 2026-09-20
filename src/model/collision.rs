@@ -26,6 +26,12 @@ pub struct CollisionMesh {
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum CollisionElement {
+    Points {
+        fatness: f32,
+        indices: Vec<u16>,
+        material: Option<AssetRef<Material>>,
+        unknown: [u8; 2],
+    },
     Triangles {
         material: Option<AssetRef<Material>>,
         indices: Vec<[u16; 3]>,
@@ -135,6 +141,16 @@ impl CollisionMesh {
         let valid = |i: u16| usize::from(i) < self.positions.len();
         for element in &self.elements {
             match element {
+                CollisionElement::Points {
+                    fatness, indices, ..
+                } => {
+                    ensure!(
+                        fatness.is_finite()
+                            && indices.len() <= i16::MAX as usize
+                            && indices.iter().all(|&i| valid(i)),
+                        "invalid collision points"
+                    );
+                }
                 CollisionElement::Triangles {
                     indices,
                     normals,

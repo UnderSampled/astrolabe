@@ -19,12 +19,32 @@ impl Project {
             self.builder,
             "    var {body} = StaticBody3D.new()\n    {body}.name = \"Collision\"\n    {parent}.add_child({body})\n    {body}.owner = {owner}"
         )?;
+        self.collision_shapes(&collision, source, &body, owner, &body, false)?;
+        Ok(())
+    }
+    pub(super) fn collision_shapes(
+        &mut self,
+        collision: &CollisionMesh,
+        source: &mut impl ContentSource,
+        body: &str,
+        owner: &str,
+        prefix: &str,
+        moving: bool,
+    ) -> Result<Vec<String>> {
+        let mut shapes = Vec::new();
         for (i, element) in collision.elements.iter().enumerate() {
-            let name = format!("{body}_{i}");
+            let name = format!("{prefix}_{i}");
             match element {
+                CollisionElement::Points { .. } => {
+                    self.diagnostic(format!("{prefix}: point collision retained; native contact projection is unsupported"));
+                }
                 CollisionElement::Triangles {
                     material, indices, ..
                 } => {
+                    if moving {
+                        self.diagnostic(format!("{prefix}: moving triangle collision retained; native contact projection is unsupported"));
+                        continue;
+                    }
                     let vertices: Vec<_> = indices
                         .iter()
                         .flat_map(|t| [t[0], t[2], t[1]])
@@ -35,13 +55,14 @@ impl Project {
                         "    var {name}_shape = ConcavePolygonShape3D.new()\n    {name}_shape.set_faces(PackedVector3Array([{}]))",
                         vertices.join(",")
                     )?;
-                    self.collision_shape_node(source, material, &name, &body, owner, [0.; 3])?;
+                    self.collision_shape_node(source, material, &name, body, owner, [0.; 3])?;
+                    shapes.push(name);
                 }
                 CollisionElement::Spheres(spheres) => {
                     for (j, sphere) in spheres.iter().enumerate() {
                         if sphere.radius == 0. {
                             self.diagnostic(format!(
-                                "{parent}: empty source sphere omitted from physics"
+                                "{prefix}: empty source sphere omitted from physics"
                             ));
                             continue;
                         }
@@ -55,10 +76,11 @@ impl Project {
                             source,
                             &sphere.material,
                             &name,
-                            &body,
+                            body,
                             owner,
                             vector(collision.positions[sphere.center as usize]),
                         )?;
+                        shapes.push(name);
                     }
                 }
                 CollisionElement::Boxes(boxes) => {
@@ -73,19 +95,13 @@ impl Project {
                             "    var {name}_shape = BoxShape3D.new()\n    {name}_shape.size = {}",
                             vec3(size)
                         )?;
-                        self.collision_shape_node(
-                            source,
-                            &b.material,
-                            &name,
-                            &body,
-                            owner,
-                            center,
-                        )?;
+                        self.collision_shape_node(source, &b.material, &name, body, owner, center)?;
+                        shapes.push(name);
                     }
                 }
             }
         }
-        Ok(())
+        Ok(shapes)
     }
     fn collision_shape_node(
         &mut self,

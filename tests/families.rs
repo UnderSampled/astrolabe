@@ -37,7 +37,9 @@ fn family_graph_rete_edits_identity_sharing_and_intrusive_links() -> Result<()> 
                     unknown: [11, 12, 13],
                 }],
                 prohibited: vec![42],
-                unknown: [1, 2, 3, 4, 5, 6, 7],
+                repeats: 3,
+                transition_lock: 4,
+                unknown: [1, 2, 5, 6, 7],
             },
             CharacterState {
                 id: 42,
@@ -47,7 +49,9 @@ fn family_graph_rete_edits_identity_sharing_and_intrusive_links() -> Result<()> 
                 next: None,
                 transitions: vec![],
                 prohibited: vec![],
-                unknown: [0; 7],
+                repeats: 0,
+                transition_lock: 0,
+                unknown: [0; 5],
             },
         ],
         configurations: vec![AssetRef::from_path(config.path.clone())],
@@ -140,6 +144,7 @@ fn family_graph_rete_edits_identity_sharing_and_intrusive_links() -> Result<()> 
     assert_eq!(word(state + 48), 0x41000000);
     assert_eq!(word(state + 12), 0x20000000);
     assert_eq!(out.fragment.bytes[state + 59], 15);
+    assert_eq!(&out.fragment.bytes[state + 56..state + 59], &[1, 2, 3]);
     assert_eq!(&out.fragment.bytes[state + 60..state + 64], &[4, 5, 6, 7]);
     assert_eq!(word(state + 24), 2);
     let transition = (word(state + 16) - 0x70000000) as usize;

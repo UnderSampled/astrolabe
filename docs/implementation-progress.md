@@ -9,6 +9,20 @@ script API using native Godot facilities.** Player movement/combat is still
 unimplemented at this boundary. Existing local generated files were preserved
 and may use newer interfaces; validate fresh output in a disposable project.
 
+Current work after that restoration is tracked in
+[Hype control progress](hype-control-progress.md): native root motion/contact,
+action completion, typed action arrays and input bindings are implemented and
+tested. Native rule/reflex flow and behavior transitions are now implemented;
+Hype's full initialization and the remaining calls in its movement rules still
+need conversion. The playable walk/run checkpoint remains open. Current work
+uses Rete schema 25 and support interface 17. The 2026-09-20 checkpoint also
+preserves source turn/walk rule probes and character collision-profile work.
+Gameplay expansion is paused for improved testing/comparison infrastructure.
+The new rule probe currently exceeds its Godot deadline after printing its
+success marker; this is a failed test, not completed player acceptance. See the
+[checkpoint record](hype-control-progress.md#paused-implementation-checkpoint--2026-09-20).
+The historical coverage below describes the restored baseline unless updated.
+
 The restored baseline passed the complete local corpus/Godot suite on
 2026-09-14: **86 tests in 535.787 seconds**, including release compilation,
 native scene/AI execution, Scene dock inspection, animation scrubbing and

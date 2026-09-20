@@ -1,6 +1,35 @@
 # Testing Astrolabe
 
-Latest checkpoint: native Godot migration, first AI-to-GDScript slice and
+The 2026-09-20 paused gameplay checkpoint is **not fully validated**. The local
+suite ended at the existing 570-second cap after **570.119 seconds**, exit 124,
+with 84 logged passes and one explicit failure; remaining tests did not finish.
+The new `source_hype_turn_and_walk_rules_drive_native_character` probe prints its
+success marker but exceeds its own Godot 30-second deadline. Scene/direct/Rete/
+editor checks passed before the suite cutoff. Cleanup completed with no leaked
+or remaining processes. Report:
+`TestResults/realtime-harness-checkpoint-20260920.log.json`.
+Formatting, strict all-target Clippy, diff whitespace checks and the locked
+offline release build pass. A mechanical Clippy correction in the new probe was
+made after the suite compiled; no gameplay logic changed and the full suite was
+not rerun. See [the checkpoint](hype-control-progress.md#paused-implementation-checkpoint--2026-09-20)
+for the preserved work and limitations.
+
+Earlier control-helper checkpoint: **94 tests passed in 451.614 seconds**
+through `python3 tools/test.py --local --offline`, including ordered native
+rule/reflex flow, repeated coroutine cancellation, Hype's complete idle rule 0,
+the source action-array initializer, native input/action/contact checks, complete
+corpus, Godot scene/editor checks and cleanup. There were no timeouts or leaked
+children. Report: `TestResults/20260914T062627.071582Z-2088262.log.json`.
+The locked offline release build passed in 37.62 seconds; formatting, strict
+all-target Clippy and diff whitespace checks also passed.
+See [Hype control progress](hype-control-progress.md) for original-game comparison
+and the still-open playable-controller checkpoint.
+
+The preceding checkpoint passed 91 tests in 469.441 seconds, before the native
+rule/reflex and behavior-transition work:
+`TestResults/20260914T055405.086137Z-1855899.log.json`.
+
+Earlier checkpoint: native Godot migration, first AI-to-GDScript slice and
 Scene dock visibility passed **86 tests in 497.572 seconds**, including 104
 seconds of release compilation, all local corpus/Godot checks, actual sidebar
 inspection and editor scrubbing, authored regeneration, support update/cache
@@ -24,7 +53,7 @@ python3 /home/stephen/Projects/astrolabe/tools/test.py --local --offline
 
 The routine command runs all non-ignored Rust tests. `--local` runs those tests **and every ignored integration/corpus test**, including the supplied game data and actual Godot checks. Each command is one complete suite invocation; it gets one budget rather than a fresh budget per format or child process. New Cargo tests are discovered automatically.
 
-The supervisor invokes `cargo test --release --locked --no-fail-fast -- --nocapture` once, adding `--include-ignored` for `--local`. `--offline` requires dependencies already in the Cargo cache. Compilation, Cargo lock waits, every test, Python/Godot workers, process cleanup and temporary-file cleanup all count toward the run's elapsed time. A cold release build counts too.
+The supervisor invokes `cargo test --profile validation --locked --no-fail-fast -- --nocapture` once, adding `--include-ignored` for `--local`. `--offline` requires dependencies already in the Cargo cache. Compilation, Cargo lock waits, every test, Python/Godot workers, process cleanup and temporary-file cleanup all count toward the run's elapsed time. A cold validation build counts too. The validation profile inherits release semantics, uses optimization level 1, and disables ThinLTO to bound compilation of the large generic exporters in every integration-test executable. The production release profile retains ThinLTO; validate it separately with `cargo build --release --locked`.
 
 The build/test deadline is **570 seconds**. The runner reserves cleanup/reporting time and treats 590 seconds as its internal maximum total, leaving room before the user-required ten-minute limit. `--timeout SECONDS` can shorten the deadline but cannot exceed 570 seconds. A timeout is a failed run, including when some tests have already passed. Do not divide one required suite into several commands to evade the limit.
 

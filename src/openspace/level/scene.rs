@@ -19,6 +19,7 @@ pub struct SceneImport {
     pub environments: Vec<crate::model::environment::Environment>,
     pub visual_environments: Vec<crate::model::environment::VisualEnvironment>,
     pub fogs: Vec<crate::model::environment::Fog>,
+    pub collision_profiles: Vec<crate::model::character::CollisionProfile>,
     pub mechanics: Vec<crate::model::mechanics::Mechanics>,
     pub actions: Vec<crate::model::animation::AnimationAction>,
     pub sound_definitions: Vec<(AssetPath, crate::model::audio::SoundDefinitions)>,
@@ -47,6 +48,7 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
         environments: Vec::new(),
         visual_environments: Vec::new(),
         fogs: Vec::new(),
+        collision_profiles: Vec::new(),
         mechanics: Vec::new(),
         actions: Vec::new(),
         sound_definitions: Vec::new(),
@@ -235,7 +237,7 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
             ));
         }
     }
-    characters.finish()?;
+    let state_references = characters.finish()?;
     for (i, bound) in bounds {
         result.scene.nodes[i].properties.bounding_geometry = Some(bound);
     }
@@ -244,7 +246,7 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
         result.scene.nodes[i].perso = Some(reference);
     }
     super::lighting::import(&session, &tree, &mut result)?;
-    super::ai::import(&session, game, selection, &mut result)?;
+    super::ai::import(&session, game, selection, &state_references, &mut result)?;
     result.scene.validate()?;
     Ok(result)
 }

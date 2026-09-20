@@ -23,9 +23,10 @@ pub(super) struct Importer<'a> {
     actions: BTreeMap<Address, AssetPath>,
     pub material_ids: &'a mut BTreeMap<Address, AssetPath>,
     families: BTreeMap<Address, AssetPath>,
+    pub collision_profiles: super::character_collision::Profiles,
     bounds: BTreeMap<Address, AssetPath>,
     mechanics: BTreeMap<Address, AssetPath>,
-    states: BTreeMap<Address, u32>,
+    states: BTreeMap<Address, StateRef>,
     configs: BTreeMap<Address, AssetPath>,
     clips: BTreeMap<Address, AssetPath>,
     physical: BTreeMap<Address, Option<AssetPath>>,
@@ -75,6 +76,7 @@ impl<'a> Importer<'a> {
             geometry_ids,
             material_ids,
             families: BTreeMap::new(),
+            collision_profiles: Default::default(),
             bounds: BTreeMap::new(),
             mechanics: BTreeMap::new(),
             states: BTreeMap::new(),
@@ -105,11 +107,11 @@ impl<'a> Importer<'a> {
             .copied()
             .with_context(|| format!("reference is not an allocation start: {a:?}"))
     }
-    fn path(&mut self, a: Address, kind: &str) -> Result<AssetPath> {
+    pub(super) fn path(&mut self, a: Address, kind: &str) -> Result<AssetPath> {
         let index = self.index(a)?;
         AssetPath::new(format!("{}:/{kind}/{index}", role(a.owner)))
     }
-    fn list(&self, a: Address, field: usize) -> Result<Vec<Address>> {
+    pub(super) fn list(&self, a: Address, field: usize) -> Result<Vec<Address>> {
         let h: ListWire = wire(self.session.bytes(
             Address {
                 offset: a.offset + field,
@@ -136,10 +138,10 @@ impl<'a> Importer<'a> {
         }
         let target = self.session.required(site, field)?;
         Ok(Some(
-            *self
-                .states
+            self.states
                 .get(&target)
-                .context("state reference outside its imported family")?,
+                .context("state reference outside its imported family")?
+                .state,
         ))
     }
     pub fn perso(&mut self, so: Address, node: &str) -> Result<AssetRef<Perso>> {
@@ -174,6 +176,11 @@ impl<'a> Importer<'a> {
             initial_configuration: initial,
             object_types: types,
             brain: None,
+            collisions: self
+                .session
+                .pointer(perso, 24)?
+                .map(|a| self.collisions(a))
+                .transpose()?,
         };
         value.validate()?;
         self.result.persos.push(value);
@@ -189,7 +196,13 @@ impl<'a> Importer<'a> {
         self.families.insert(address, path.clone());
         let state_addresses = self.list(address, 16)?;
         for (i, &a) in state_addresses.iter().enumerate() {
-            self.states.insert(a, i as u32);
+            self.states.insert(
+                a,
+                StateRef {
+                    family: AssetRef::from_path(path.clone()),
+                    state: i as u32,
+                },
+            );
         }
         let mut states = Vec::new();
         for (i, st) in state_addresses.into_iter().enumerate() {
@@ -224,6 +237,8 @@ impl<'a> Importer<'a> {
                     .map(|a| self.mechanics(a))
                     .transpose()?,
                 speed: state.speed,
+                repeats: state.repeats,
+                transition_lock: state.transition_lock,
                 next: self.state_index(st, 40)?,
                 transitions,
                 prohibited,
@@ -659,7 +674,7 @@ impl<'a> Importer<'a> {
         self.result.animations.push(clip);
         Ok(AssetRef::from_path(path))
     }
-    pub fn finish(mut self) -> Result<()> {
+    pub fn finish(mut self) -> Result<BTreeMap<Address, StateRef>> {
         self.result
             .sound_definitions
             .push(self.sounds.library.clone());
@@ -681,7 +696,7 @@ impl<'a> Importer<'a> {
             pool.validate()?;
             self.result.transform_pools.push(pool);
         }
-        Ok(())
+        Ok(self.states)
     }
 }
 fn role(owner: Owner) -> &'static str {

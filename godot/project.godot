@@ -1,17 +1,29 @@
-; Adopted projects own these settings. Content regeneration does not replace them.
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
 config_version=5
 
 [application]
+
 config/name="Astrolabe"
 run/main_scene="res://game/bootstrap.tscn"
-
-[editor]
-import/use_multiple_threads=false
+config/features=PackedStringArray("4.7")
 
 [display]
+
 window/size/viewport_width=960
 window/size/viewport_height=720
 
+[editor]
+
+import/use_multiple_threads=false
+
 [rendering]
+
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"

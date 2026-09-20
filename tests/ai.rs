@@ -115,11 +115,11 @@ fn typed_ai_codec_preserves_branches_values_and_rejects_unknown_or_malformed_nod
     let mut bad = model.clone();
     bad.normal.as_mut().unwrap().default_behavior = Some(42);
     assert!(bad.validate().is_err());
-    let mut unsupported = model.clone();
-    unsupported.normal.as_mut().unwrap().behaviors[0]
+    let mut rules = model.clone();
+    rules.normal.as_mut().unwrap().behaviors[0]
         .rules
         .push(Some(script.clone()));
-    assert!(godot::ai::compile(&unsupported, &[]).is_err());
+    assert!(godot::ai::compile(&rules, &[]).is_ok());
     // An out-of-range source index must fail rather than truncate to a u8.
     let mut bad = bytes.clone();
     let variable = bad

@@ -22,16 +22,41 @@ pub struct Family {
     /// Unresolved bytes at the end of Hype's 56-byte family record.
     pub unknown: [u8; 3],
 }
+/// An action belongs to a family; the member number alone is not an identity.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StateRef {
+    pub family: AssetRef<Family>,
+    pub state: u32,
+}
+impl StateRef {
+    pub fn validate_family(&self, family: &Family) -> Result<()> {
+        ensure!(
+            self.family.path == family.path,
+            "action family identity differs"
+        );
+        ensure!(
+            family.states.iter().any(|s| s.id == self.state),
+            "missing action member {} in {}",
+            self.state,
+            family.path
+        );
+        Ok(())
+    }
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CharacterState {
     pub id: u32,
     pub animation: Option<AssetRef<AnimationClip>>,
     pub mechanics: Option<AssetRef<super::mechanics::Mechanics>>,
     pub speed: u8,
+    /// Additional animation cycles before the next state or action completion.
+    pub repeats: u8,
+    /// Blocks unlisted transitions only when exactly one (00435250).
+    pub transition_lock: u8,
     pub next: Option<u32>,
     pub transitions: Vec<StateTransition>,
     pub prohibited: Vec<u32>,
-    pub unknown: [u8; 7],
+    pub unknown: [u8; 5],
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StateTransition {
@@ -80,6 +105,104 @@ pub struct Perso {
     pub initial_configuration: Option<AssetRef<ObjectList>>,
     pub object_types: [u32; 3],
     pub brain: Option<super::ai::Brain>,
+    pub collisions: Option<CharacterCollisions>,
+}
+/// Each actor keeps its active selection; reusable definitions belong to a profile.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CharacterCollisions {
+    /// Source order: ZDD, ZDE, ZDM, ZDR.
+    pub groups: [CharacterCollisionGroup; 4],
+    pub unknown: [u8; 4],
+}
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct CharacterCollisionGroup {
+    pub profile: Option<AssetRef<CollisionProfile>>,
+    pub active: Option<u32>,
+}
+/// Reusable collision zones and their state-dependent selections for one purpose.
+/// Distinct actors can share a movement profile while using different reaction profiles.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CollisionProfile {
+    pub path: AssetPath,
+    pub geometry: Option<CollisionGeometrySlots>,
+    pub activations: Option<Vec<CollisionActivation>>,
+    pub selections: Vec<CollisionSelection>,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CollisionGeometrySlots {
+    /// Empty slots still have an index and can appear in an activation selection.
+    pub slots: Vec<Option<AssetRef<super::collision::Collision>>>,
+    pub unknown: [u8; 4],
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CollisionActivation {
+    pub state: u16,
+    pub selection: Option<u32>,
+    pub unknown: [u8; 2],
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CollisionSelection {
+    pub id: u32,
+    pub zones: Vec<CollisionZone>,
+    pub unknown: [u8; 4],
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CollisionZone {
+    pub index: u16,
+    pub unknown: [u8; 2],
+}
+impl CharacterCollisions {
+    pub fn validate(&self) -> Result<()> {
+        ensure!(
+            self.groups
+                .iter()
+                .all(|g| g.profile.is_some() || g.active.is_none()),
+            "active collision selection without a profile"
+        );
+        Ok(())
+    }
+}
+impl CollisionProfile {
+    pub fn selection(&self, id: u32) -> Result<&CollisionSelection> {
+        self.selections
+            .iter()
+            .find(|s| s.id == id)
+            .ok_or_else(|| anyhow::anyhow!("missing collision selection {id} in {}", self.path))
+    }
+}
+impl Content for CollisionProfile {
+    const KIND: &'static str = "collision-profile";
+    fn identity(&self) -> Option<&AssetPath> {
+        Some(&self.path)
+    }
+    fn validate(&self) -> Result<()> {
+        let selections: std::collections::BTreeSet<_> =
+            self.selections.iter().map(|s| s.id).collect();
+        ensure!(
+            selections.len() == self.selections.len(),
+            "duplicate collision selection"
+        );
+        let count = self.geometry.as_ref().map_or(0, |g| g.slots.len());
+        ensure!(count <= 65536, "too many collision slots");
+        for selection in &self.selections {
+            ensure!(
+                selection.zones.iter().all(|z| usize::from(z.index) < count),
+                "collision zone index outside geometry slots"
+            );
+        }
+        if let Some(activations) = &self.activations {
+            let states: std::collections::BTreeSet<_> =
+                activations.iter().map(|a| a.state).collect();
+            ensure!(
+                states.len() == activations.len(),
+                "duplicate collision activation state"
+            );
+            for id in activations.iter().filter_map(|a| a.selection) {
+                self.selection(id)?;
+            }
+        }
+        Ok(())
+    }
 }
 impl Content for Family {
     const KIND: &'static str = "family";
@@ -163,6 +286,9 @@ impl Content for Perso {
         Some(&self.path)
     }
     fn validate(&self) -> Result<()> {
+        if let Some(collisions) = &self.collisions {
+            collisions.validate()?;
+        }
         Ok(())
     }
 }

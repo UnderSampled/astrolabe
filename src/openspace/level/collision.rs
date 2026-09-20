@@ -93,6 +93,27 @@ impl CollisionImporter<'_> {
         for (i, [kind]) in kinds.into_iter().enumerate() {
             let element = self.session.required(table, i * 4)?;
             collision.elements.push(match kind {
+                5 => {
+                    let header: CollisionPointsWire = wire(self.session.bytes(element, 16)?)?;
+                    let indices = if header.count == 0 {
+                        Vec::new()
+                    } else {
+                        self.session
+                            .short_arrays::<1>(
+                                self.session.required(element, 8)?,
+                                header.count as usize,
+                            )?
+                            .into_iter()
+                            .map(|v| v[0])
+                            .collect()
+                    };
+                    CollisionElement::Points {
+                        fatness: header.fatness,
+                        indices,
+                        material: self.material(element, 12, &path)?,
+                        unknown: header.unknown,
+                    }
+                }
                 1 => {
                     let h: TrianglesWire = wire(self.session.bytes(element, 32)?)?;
                     let texcoords = if h.uv_count == 0 {

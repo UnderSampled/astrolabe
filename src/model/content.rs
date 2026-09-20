@@ -8,7 +8,7 @@ use super::{
 };
 use super::{
     animation::{AnimationAction, AnimationClip, TransformPool},
-    character::{Family, ObjectList, Perso},
+    character::{CollisionProfile, Family, ObjectList, Perso},
 };
 use super::{
     audio::{Sound, SoundBank, SoundDefinitions},
@@ -73,6 +73,7 @@ pub trait ContentSource:
     + Load<Perso>
     + Load<AiModel>
     + Load<Collision>
+    + Load<CollisionProfile>
     + Load<Environment>
     + Load<VisualEnvironment>
     + Load<Fog>
@@ -99,6 +100,7 @@ impl<T> ContentSource for T where
         + Load<Perso>
         + Load<AiModel>
         + Load<Collision>
+        + Load<CollisionProfile>
         + Load<Environment>
         + Load<VisualEnvironment>
         + Load<Fog>
@@ -134,6 +136,7 @@ pub enum Asset {
     ObjectList(Arc<ObjectList>),
     Perso(Arc<Perso>),
     Collision(Arc<Collision>),
+    CollisionProfile(Arc<CollisionProfile>),
 }
 impl Asset {
     pub fn load(source: &mut impl ContentSource, root: &super::io::ContentRoot) -> Result<Self> {
@@ -164,6 +167,7 @@ impl Asset {
             Family::KIND => Self::Family(load(source, &root.reference)?),
             ObjectList::KIND => Self::ObjectList(load(source, &root.reference)?),
             Perso::KIND => Self::Perso(load(source, &root.reference)?),
+            CollisionProfile::KIND => Self::CollisionProfile(load(source, &root.reference)?),
             Collision::KIND => Self::Collision(load(source, &root.reference)?),
             Scene::KIND => Self::Scene(load(source, &root.reference)?),
             Material::KIND => Self::Material(load(source, &root.reference)?),

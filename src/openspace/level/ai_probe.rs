@@ -130,6 +130,7 @@ fn source_ai_inventory_and_script_reconstruction() -> Result<()> {
         let moved = AiScriptCodec {
             sounds: codec.sounds.clone(),
             sound_handles: changed_binding,
+            ..Default::default()
         }
         .write(script)?;
         assert_ne!(moved, source.bytes);

@@ -1,7 +1,13 @@
 //! Session-bound AI model/instance import. Unsupported programs are diagnosed whole.
 #[cfg(test)]
+#[path = "hype_control_probe.rs"]
+mod control_tests;
+#[cfg(test)]
 #[path = "ai_probe.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "hype_turn_probe.rs"]
+mod turn_tests;
 use super::{
     container::{u32_at, wire},
     records::*,
@@ -13,10 +19,12 @@ use crate::{
     model::{
         AssetPath, AssetRef, Selection,
         ai::*,
+        character::StateRef,
         io::{Content, Diagnostic, Severity},
     },
     openspace::{
         ai::{AiScriptCodec, NodeWire},
+        ai_values::DesignerValueCodec,
         codec::FormatCodec,
     },
 };
@@ -121,6 +129,52 @@ struct InfoWire {
     kind: u32,
     save: u32,
     initialize: u32,
+}
+
+/// Verified PC IPT entry: 004a5ad0 uses 28-byte entries, names at +8.
+#[derive(BinRead)]
+#[br(little)]
+struct InputEntryWire {
+    _keyword_count: u32,
+    _keywords: u32,
+    _name: u32,
+    _unknown: u32,
+    _held_frames: i32,
+    _unknown_20: u32,
+    _active: u8,
+    _tail: [u8; 3],
+}
+fn input_action(s: &SourceSession, site: Address) -> Result<String> {
+    let entry = s.required(site, 0)?;
+    let _: InputEntryWire = wire(s.bytes(entry, 28)?)?;
+    let name = s.required(entry, 8)?;
+    let bytes = &s.block(name)?.data[name.offset..];
+    let end = bytes
+        .iter()
+        .take(256)
+        .position(|&b| b == 0)
+        .context("unterminated input action name")?;
+    ensure!(
+        end > 0 && bytes[..end].is_ascii(),
+        "invalid logical input action name"
+    );
+    Ok(std::str::from_utf8(&bytes[..end])?.to_owned())
+}
+fn state_reference(
+    s: &SourceSession,
+    states: &BTreeMap<Address, StateRef>,
+    site: Address,
+) -> Result<Option<StateRef>> {
+    if matches!(u32_at(s.bytes(site, 4)?, 0)?, 0 | u32::MAX) {
+        return Ok(None);
+    }
+    let target = s.required(site, 0)?;
+    Ok(Some(
+        states
+            .get(&target)
+            .context("action outside imported families")?
+            .clone(),
+    ))
 }
 
 fn add(a: Address, n: usize) -> Address {
@@ -247,6 +301,29 @@ fn source_set(s: &SourceSession, model: Address, field: usize) -> Result<Option<
     set.default = member(s, a, 8, &set)?;
     Ok(Some(set))
 }
+fn behavior_bindings(
+    path: &AssetPath,
+    sets: &[Option<SourceSet>; 2],
+) -> BTreeMap<Address, BehaviorRef> {
+    [BehaviorGroup::Normal, BehaviorGroup::Reflex]
+        .into_iter()
+        .zip(sets)
+        .flat_map(|(group, set)| {
+            set.iter().flat_map(move |s| {
+                s.behaviors.iter().enumerate().map(move |(i, b)| {
+                    (
+                        b.address,
+                        BehaviorRef {
+                            model: AssetRef::from_path(path.clone()),
+                            group,
+                            behavior: i as u32,
+                        },
+                    )
+                })
+            })
+        })
+        .collect()
+}
 fn unsupported(sets: &[Option<SourceSet>; 2]) -> Result<BTreeSet<String>> {
     let mut out = BTreeSet::new();
     for set in sets.iter().flatten() {
@@ -255,13 +332,13 @@ fn unsupported(sets: &[Option<SourceSet>; 2]) -> Result<BTreeSet<String>> {
                 for bytes in script.bytes.as_chunks::<8>().0 {
                     let n: NodeWire = wire(bytes)?;
                     let supported = match n.kind {
-                        0 => matches!(n.parameter, 0..=2 | 5),
-                        1 => n.parameter <= 8,
-                        2 => n.parameter == 11,
+                        0 => matches!(n.parameter, 0..=2 | 4 | 5),
+                        1 => matches!(n.parameter, 0..=12 | 56 | 57 | 59 | 123),
+                        2 => matches!(n.parameter, 2 | 4 | 6 | 11 | 26),
                         3 => n.parameter == 4,
-                        4 => matches!(n.parameter, 127 | 206),
-                        5 => n.parameter == 37,
-                        8 | 11 | 12 | 13 | 34 => true,
+                        4 => matches!(n.parameter, 6 | 127 | 206 | 209 | 210 | 214 | 218),
+                        5 => matches!(n.parameter, 4 | 6 | 8 | 37 | 68),
+                        8 | 11 | 12 | 13 | 14 | 25 | 32 | 34 => true,
                         _ => false,
                     };
                     if !supported {
@@ -279,10 +356,36 @@ fn unsupported(sets: &[Option<SourceSet>; 2]) -> Result<BTreeSet<String>> {
     }
     Ok(out)
 }
-fn decode_script(sounds: &SoundSites, script: &SourceScript) -> Result<Script> {
+fn decode_script(
+    s: &SourceSession,
+    sounds: &SoundSites,
+    states: &BTreeMap<Address, StateRef>,
+    behaviors: &BTreeMap<Address, BehaviorRef>,
+    script: &SourceScript,
+) -> Result<Script> {
     let mut codec = AiScriptCodec::default();
     for (i, bytes) in script.bytes.as_chunks::<8>().0.iter().enumerate() {
         let n: NodeWire = wire(bytes)?;
+        if n.kind == 14 {
+            codec
+                .buttons
+                .insert(i, input_action(s, add(script.address, i * 8))?);
+        }
+        if n.kind == 25 {
+            codec
+                .actions
+                .insert(i, state_reference(s, states, add(script.address, i * 8))?);
+        }
+        if n.kind == 32 {
+            let target = s.required(add(script.address, i * 8), 0)?;
+            codec.behaviors.insert(
+                i,
+                behaviors
+                    .get(&target)
+                    .context("behavior operand is outside the receiving model")?
+                    .clone(),
+            );
+        }
         if n.kind == 34 {
             let event = sounds
                 .events
@@ -293,7 +396,13 @@ fn decode_script(sounds: &SoundSites, script: &SourceScript) -> Result<Script> {
     }
     codec.read(&script.bytes)
 }
-fn decode_set(sounds: &SoundSites, set: &SourceSet) -> Result<BehaviorSet> {
+fn decode_set(
+    s: &SourceSession,
+    sounds: &SoundSites,
+    states: &BTreeMap<Address, StateRef>,
+    behaviors: &BTreeMap<Address, BehaviorRef>,
+    set: &SourceSet,
+) -> Result<BehaviorSet> {
     Ok(BehaviorSet {
         behaviors: set
             .behaviors
@@ -305,12 +414,16 @@ fn decode_set(sounds: &SoundSites, set: &SourceSet) -> Result<BehaviorSet> {
                     rules: b
                         .rules
                         .iter()
-                        .map(|s| s.as_ref().map(|s| decode_script(sounds, s)).transpose())
+                        .map(|slot| {
+                            slot.as_ref()
+                                .map(|script| decode_script(s, sounds, states, behaviors, script))
+                                .transpose()
+                        })
                         .collect::<Result<_>>()?,
                     schedule: b
                         .schedule
                         .as_ref()
-                        .map(|s| decode_script(sounds, s))
+                        .map(|script| decode_script(s, sounds, states, behaviors, script))
                         .transpose()?,
                     unknown: b.unknown,
                 })
@@ -355,44 +468,70 @@ fn designer_layout(s: &SourceSession, model: Address) -> Result<DesignerLayout> 
 }
 fn values(
     s: &SourceSession,
+    states: &BTreeMap<Address, StateRef>,
+    actors: &BTreeMap<Address, AssetRef<crate::model::character::Perso>>,
     a: Address,
     infos: &[InfoWire],
     length: usize,
 ) -> Result<Vec<DesignerValue>> {
     let bytes = s.bytes(a, length)?;
     let mut out = Vec::new();
-    let mut offset: usize = 0;
+    let mut ranges = Vec::new();
     for info in infos {
-        let size = if info.kind == 0 { 1 } else { 4 };
-        let aligned = offset.div_ceil(size) * size;
-        ensure!(
-            info.offset as usize == aligned,
-            "unsupported designer storage order/alignment"
-        );
-        ensure!(
-            bytes
-                .get(offset..aligned)
-                .context("short designer padding")?
-                .iter()
-                .all(|&b| b == 0),
-            "nonzero designer padding unsupported"
-        );
-        offset = aligned;
-        let value = match info.kind {
-            0 => {
-                let b = *bytes.get(offset).context("short Boolean designer memory")?;
-                ensure!(b <= 1, "noncanonical Boolean designer value");
-                DesignerValue::Boolean(b != 0)
-            }
-            5 => DesignerValue::Integer(u32_at(bytes, offset)? as i32),
-            7 => DesignerValue::Real(f32::from_bits(u32_at(bytes, offset)?)),
-            _ => anyhow::bail!("unsupported designer type {}", info.kind),
+        let mut codec = DesignerValueCodec {
+            kind: info.kind,
+            ..Default::default()
         };
-        value.validate()?;
-        out.push(value);
-        offset += size;
+        let offset = info.offset as usize;
+        let tail = bytes
+            .get(offset..)
+            .context("designer offset outside memory")?;
+        let size = codec.extent(tail)?;
+        let operands: Vec<usize> = match info.kind {
+            14 => vec![0],
+            25 => (0..(size - 8) / 12).map(|i| 8 + 12 * i).collect(),
+            _ => Vec::new(),
+        };
+        for operand in operands {
+            codec.actions.insert(
+                operand,
+                state_reference(s, states, add(a, offset + operand))?,
+            );
+        }
+        if info.kind == 10 {
+            let site = add(a, offset);
+            let actor = if matches!(u32_at(s.bytes(site, 4)?, 0)?, 0 | u32::MAX) {
+                None
+            } else {
+                Some(
+                    actors
+                        .get(&s.required(site, 0)?)
+                        .context("designer actor outside imported dependencies")?
+                        .clone(),
+                )
+            };
+            codec.actors.insert(0, actor);
+        }
+        out.push(codec.read(tail.get(..size).context("short designer memory")?)?);
+        ranges.push((offset, size));
     }
-    ensure!(offset == length, "unrepresented designer buffer tail");
+    // Declarations need not follow storage order, and some scalar fields are
+    // packed. Both orders are valid; all bytes must still be accounted for.
+    ranges.sort_unstable();
+    let mut end: usize = 0;
+    for (offset, size) in ranges {
+        let alignment = size.min(4);
+        ensure!(
+            offset == end || offset == end.div_ceil(alignment) * alignment,
+            "overlapping or unexplained designer memory gap at {offset} after {end}"
+        );
+        ensure!(
+            bytes[end..offset].iter().all(|&b| b == 0),
+            "nonzero designer alignment padding unsupported"
+        );
+        end = offset + size;
+    }
+    ensure!(end == length, "unrepresented designer memory tail");
     Ok(out)
 }
 fn selection(
@@ -422,6 +561,7 @@ pub(super) fn import(
     s: &SourceSession,
     game: &Path,
     selection_value: &Selection,
+    states: &BTreeMap<Address, StateRef>,
     result: &mut SceneImport,
 ) -> Result<()> {
     if u32_at(&s.gpt, 0x2ae0)? != 0 {
@@ -434,6 +574,15 @@ pub(super) fn import(
             .find(|n| n.address == node)
             .context("main actor outside rooted scene")?;
         result.scene.main_actor = Some(AssetRef::new(format!("level:/persos/{}", node.path))?);
+    }
+    let mut actors = BTreeMap::new();
+    for node in s.tree()? {
+        if u32_at(s.bytes(node.address, 4)?, 0)? == 4 {
+            actors.insert(
+                s.required(node.address, 4)?,
+                AssetRef::new(format!("level:/persos/{}", node.path))?,
+            );
+        }
     }
     let sounds = SoundSites::open(game, selection_value, s)?;
     let mut cache: BTreeMap<Address, CachedModel> = BTreeMap::new();
@@ -460,6 +609,7 @@ pub(super) fn import(
             let path = path(s, model)?;
             let h: ModelWire = wire(allocated(s, model, 16)?)?;
             let sets = [source_set(s, model, 0)?, source_set(s, model, 4)?];
+            let behaviors = behavior_bindings(&path, &sets);
             let mut missing = unsupported(&sets)?;
             let designer = designer_layout(s, model)?;
             let DesignerLayout {
@@ -467,14 +617,23 @@ pub(super) fn import(
                 fields: infos,
             } = &designer;
             for info in infos {
-                if !matches!(info.kind, 0 | 5 | 7) {
+                if !DesignerValueCodec::supports(info.kind) {
                     missing.insert(format!("designer type {}", info.kind));
                 }
             }
             let index = if missing.is_empty() {
                 let defaults = definition
                     .as_ref()
-                    .map(|(a, h)| values(s, s.required(*a, 0)?, infos, h.length as usize))
+                    .map(|(a, h)| {
+                        values(
+                            s,
+                            states,
+                            &actors,
+                            s.required(*a, 0)?,
+                            infos,
+                            h.length as usize,
+                        )
+                    })
                     .transpose()?
                     .unwrap_or_default();
                 let value = AiModel {
@@ -482,11 +641,11 @@ pub(super) fn import(
                     name: perso.name.clone(),
                     normal: sets[0]
                         .as_ref()
-                        .map(|set| decode_set(&sounds, set))
+                        .map(|set| decode_set(s, &sounds, states, &behaviors, set))
                         .transpose()?,
                     reflex: sets[1]
                         .as_ref()
-                        .map(|set| decode_set(&sounds, set))
+                        .map(|set| decode_set(s, &sounds, states, &behaviors, set))
                         .transpose()?,
                     variables: infos
                         .iter()
@@ -548,11 +707,11 @@ pub(super) fn import(
                 "designer memory refers to another definition"
             );
             if let Some(a) = s.pointer(mem, 8)? {
-                memory = values(s, a, infos, h.length as usize)?;
+                memory = values(s, states, &actors, a, infos, h.length as usize)?;
             }
             initial = s
                 .pointer(mem, 4)?
-                .map(|a| values(s, a, infos, h.length as usize))
+                .map(|a| values(s, states, &actors, a, infos, h.length as usize))
                 .transpose()?;
         }
         let brain = Brain {

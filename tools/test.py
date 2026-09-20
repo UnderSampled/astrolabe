@@ -216,7 +216,7 @@ def main():
     if log_path.exists() or report_path.exists():
         parser.error("log/report already exists; choose a new --log path")
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    command = ["cargo", "test", "--release", "--locked", "--no-fail-fast"]
+    command = ["cargo", "test", "--profile", "validation", "--locked", "--no-fail-fast"]
     if args.offline:
         command.append("--offline")
     command += ["--", "--nocapture"]

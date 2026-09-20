@@ -169,6 +169,38 @@ impl NativeAnimation {
         )?;
         Ok(())
     }
+    /// 00435930 integrates frame-local translation at the state's playback rate;
+    /// 004436c0 supplies the resulting velocity to character mechanics. Bake that
+    /// integral into native keys so Godot owns interpolation and loop extraction.
+    pub fn root_translation(&mut self, clip: &AnimationClip, fps: u8) -> Result<()> {
+        let mut position = [0.0f64; 3];
+        let mut keys = vec!["0,1,0,0,0".to_string()];
+        for (index, frame) in clip.frames.iter().enumerate() {
+            for (total, displacement) in position
+                .iter_mut()
+                .zip(vector(frame.motion_translation.unwrap_or([0.; 3])))
+            {
+                *total += f64::from(displacement);
+            }
+            // Include the last interval's endpoint. Without it a loop loses one
+            // frame of displacement and playback depends on physics tick size.
+            keys.push(format!(
+                "{},1,{},{},{}",
+                (index + 1) as f64 / f64::from(fps.max(1)),
+                position[0],
+                position[1],
+                position[2]
+            ));
+        }
+        let i = self.tracks;
+        self.tracks += 1;
+        writeln!(
+            self.text,
+            "tracks/{i}/type = \"position_3d\"\ntracks/{i}/path = NodePath(\"RootMotion\")\ntracks/{i}/interp = 1\ntracks/{i}/loop_wrap = false\ntracks/{i}/keys = PackedFloat32Array({})",
+            keys.join(",")
+        )?;
+        Ok(())
+    }
     pub fn methods(&mut self, keys: Vec<(f64, String)>) -> Result<()> {
         if keys.is_empty() {
             return Ok(());

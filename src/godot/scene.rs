@@ -122,6 +122,35 @@ impl Project {
             names.insert(node.id.clone(), name);
         }
         self.native_environment(&scene_id)?;
+        for node in &scene.nodes {
+            let Some(reference) = &node.perso else {
+                continue;
+            };
+            let perso = source.load(reference)?;
+            let Some(brain) = &perso.brain else { continue };
+            for (i, value) in brain.variables.iter().enumerate() {
+                let crate::model::ai::DesignerValue::Actor(Some(target)) = value else {
+                    continue;
+                };
+                let target_node = scene
+                    .nodes
+                    .iter()
+                    .find(|n| n.perso.as_ref() == Some(target))
+                    .ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "{} designer {i} refers to actor {} outside the saved scene",
+                            perso.path,
+                            target.path
+                        )
+                    })?;
+                let character = format!("{}_character", names[&node.id]);
+                let target = format!("{}_character", names[&target_node.id]);
+                writeln!(
+                    self.builder,
+                    "    {scene_id}.set_editable_instance({character}, true)\n    {character}.get_node(\"Brain\").dsg_{i} = {target}"
+                )?;
+            }
+        }
         if let Some(actor) = &scene.main_actor {
             let actor_node = scene
                 .nodes

@@ -402,7 +402,9 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
                 next: None,
                 transitions: vec![],
                 prohibited: vec![],
-                unknown: [0; 7],
+                repeats: 0,
+                transition_lock: 0,
+                unknown: [0; 5],
             },
             CharacterState {
                 mechanics: None,
@@ -412,7 +414,9 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
                 next: None,
                 transitions: vec![],
                 prohibited: vec![],
-                unknown: [0; 7],
+                repeats: 0,
+                transition_lock: 0,
+                unknown: [0; 5],
             },
             CharacterState {
                 mechanics: Some(AssetRef::from_path(mechanics.path.clone())),
@@ -422,7 +426,9 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
                 next: Some(5),
                 transitions: vec![],
                 prohibited: vec![],
-                unknown: [0; 7],
+                repeats: 0,
+                transition_lock: 0,
+                unknown: [0; 5],
             },
             CharacterState {
                 mechanics: None,
@@ -432,7 +438,9 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
                 next: None,
                 transitions: vec![],
                 prohibited: vec![],
-                unknown: [0; 7],
+                repeats: 0,
+                transition_lock: 0,
+                unknown: [0; 5],
             },
             CharacterState {
                 mechanics: None,
@@ -442,7 +450,9 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
                 next: None,
                 transitions: vec![],
                 prohibited: vec![],
-                unknown: [0; 7],
+                repeats: 0,
+                transition_lock: 0,
+                unknown: [0; 5],
             },
         ],
         configurations: vec![AssetRef::from_path(configuration.path.clone())],
@@ -461,6 +471,7 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
         initial_configuration: None,
         object_types: [0; 3],
         brain: None,
+        collisions: None,
     };
     let scene = Scene {
         main_actor: None,

@@ -45,6 +45,14 @@ pub use transform::{read_transform, write_transform};
 
 mod animation_export;
 mod character;
+mod character_collision;
+mod character_collision_export;
+pub use character_collision_export::{
+    CollisionProfileExport, CollisionProfileTargets, write_character_collisions,
+    write_collision_profile,
+};
+#[cfg(test)]
+mod character_collision_probe;
 mod configuration_export;
 pub use animation_export::{
     AnimationActionsExport, TransformPoolExport, write_animation, write_animation_actions,
