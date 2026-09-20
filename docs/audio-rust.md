@@ -39,7 +39,7 @@ timeout 540s cargo test --release --test audio -- --include-ignored --nocapture
 timeout 540s cargo test --release --lib local_layer2_synthesis_matches_ffmpeg -- --ignored --nocapture
 ```
 
-They are focused developer commands, not a way to split the overall project suite's ten-minute budget. The repository's complete suite must include appropriate coverage under one overall deadline. The optional local tests require the supplied `disc/`; the independent MPEG comparison also requires FFmpeg, solely as a test oracle. Production import has no subprocess decoder or C# dependency.
+These are focused developer commands. Development validation selects affected audio checks plus mandatory safeguards; the full release matrix retains the complete audio corpus. Bound individual tests and account for child cleanup under the [current testing policy](testing.md); there is no universal ten-minute release-suite ceiling. The optional local tests require the supplied `disc/`; the independent MPEG comparison also requires FFmpeg, solely as a test oracle. Production import has no subprocess decoder or C# dependency.
 
 The local corpus passes:
 

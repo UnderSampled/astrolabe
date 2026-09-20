@@ -45,7 +45,14 @@ Authority does not imply a required runtime harness: original-engine tests are o
 
 ## Runtime validation
 
-**For automated comparisons, use the verified standalone Hype MCP harness at `/home/stephen/Projects/hype-harness`.** It is separate from Astrolabe and has a private game copy at `local/prefix/drive_c/Games/Hype`. The persistent `hype-mcp.service` is registered as `hype` in the local Codex MCP configuration. Its 15 tools cover lifecycle, keyboard/cheat input, timed sequences and state waits, screenshots, state/mana reads, memory maps, guarded memory writes, and logged level navigation. Read the [harness README](/home/stephen/Projects/hype-harness/README.md) for tool arguments, save-loading recipe, service management, and authenticated client/CLI fallback when an existing Codex session has not refreshed tool discovery. Keep authentication material, the controller, and game-derived files outside this repository.
+2026-09-20 direction: preserve this working external installation/service while
+developing the [native Rust live loader and comparison testkit](../docs/realtime-comparison-plan.md).
+Reusable replacement tooling may be maintained alongside the converter and link
+Astrolabe directly. The current Python controller remains the migration reference;
+authentication material, game installations, saves and game-derived evidence stay
+local. Retire the old controller only after native acceptance checks pass.
+
+**For automated comparisons, use the verified standalone Hype MCP harness at `/home/stephen/Projects/hype-harness`.** It is separate from Astrolabe and has a private game copy at `local/prefix/drive_c/Games/Hype`. The persistent `hype-mcp.service` is registered as `hype` in the local Codex MCP configuration. Its 15 tools cover lifecycle, keyboard/cheat input, timed sequences and state waits, screenshots, state/mana reads, memory maps, guarded memory writes, and logged level navigation. Read the [harness README](/home/stephen/Projects/hype-harness/README.md) for tool arguments, save-loading recipe, service management, and authenticated client/CLI fallback when an existing Codex session has not refreshed tool discovery. Preserve the current external controller during the planned migration; do not copy its private files into the repository.
 
 Start with `status` and `start_game`, then load the supplied save using the documented `run_sequence` recipe; wait for phase 9, level `manoir`, and fade-in completion. Save loading and gameplay are verified. All 36 hidden-lever teleport destinations loaded; `tele11` reaches `astrolabe`. The [hidden-lever report](/home/stephen/Projects/hype-harness/HIDDEN_BUTTON.md) documents the required unlock, temporary positioning intervention, Fire Trinity steering/pause tests, and input/camera/quest-state limitations. `navigate_level` is a memory intervention, not a cheat or proof of story progression. The [272-code catalog](/home/stephen/Projects/hype-harness/CHEATS.md) labels unverified bindings. Do not reuse captured heap addresses without resolving and validating the current process.
 

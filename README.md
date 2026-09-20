@@ -42,7 +42,7 @@ Run the complete local corpus and engine suite with one enforced deadline:
 python3 tools/test.py --local --offline
 ```
 
-The entire invocation, including compilation and cleanup, must finish under ten minutes. Use `python3 tools/test.py --offline` for synthetic checks. See [testing](docs/testing.md) for dependencies, logs, and deadline enforcement.
+Keep individual tests and development-area checks fast and bounded; full release validation may take longer. Use `python3 tools/test.py --offline` for the current synthetic suite. The current runner still has its historical 570-second cap; focused suites, coverage and the native comparison testkit are planned in [live testing and comparison](docs/realtime-comparison-plan.md). See [testing](docs/testing.md) for available commands, dependencies and logs.
 
 ## Goals
 

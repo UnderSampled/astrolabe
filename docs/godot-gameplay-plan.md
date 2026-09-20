@@ -6,6 +6,12 @@ and [project ownership contract](godot-project.md). It is a plan, not completed
 player control. The previous broad implementation goal is paused; this recovery
 does not restart it.
 
+2026-09-20 update: checkpoint the current component/source-rule work, then build
+the [live loader and comparison testkit](realtime-comparison-plan.md). That plan
+defines data parity, shared Gherkin with original/Godot step implementations,
+coverage and focused testing. Resume slice 1 below through those comparisons;
+the playable checkpoint is still open.
+
 ## Starting point and recovery
 
 The complete unfinished experiment is committed on
@@ -193,8 +199,9 @@ compression parity does not gate these controls.
 maintained support without a converter process, source tables or special test
 controller. Inspect animation seeking and generated scripts in Godot. Make an
 authored scene/resource variation through normal extension points, regenerate,
-and show that it and unrelated levels/settings survive. Run the complete local
-suite within the enforced ten-minute deadline.
+and show that it and unrelated levels/settings survive. Run affected development
+suites plus mandatory safeguards; use the full declared matrix at release or
+broad integration checkpoints under the [current test policy](testing.md).
 
 ## Working discipline
 
@@ -216,11 +223,12 @@ suite within the enforced ten-minute deadline.
   [the runtime guide](../reference/README.md#runtime-validation). Record executable
   and fixture hashes, save/scene, input sequence, interventions and observations.
   Use Raymap/decompilation evidence when a particular comparison cannot run and
-  state the remaining gameplay uncertainty. Do not rebuild the harness.
+  state the remaining gameplay uncertainty. Preserve the existing harness until
+  its [planned native replacement](realtime-comparison-plan.md) is validated.
 - Use disposable projects with the consumer's real exporter/support for tests.
-  Keep game-derived output local. Run focused checks as work changes and the
-  supervised local suite at integration checkpoints; one suite including build
-  and cleanup must finish below 600 seconds.
+  Keep game-derived output local. Run affected checks and mandatory safeguards
+  as work changes. Bound individual tests and active-area runs, and reserve the
+  full, potentially longer matrix for release/broad integration validation.
 - Report what the player can do, what was compared and what remains blocked.
   Counts of types, API entries or passing service-only tests do not substitute
   for a completed gameplay slice.

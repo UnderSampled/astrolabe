@@ -1,5 +1,9 @@
 # Remaining work after the visual pass
 
+Current priority (2026-09-20): follow the [live loader/comparison plan](realtime-comparison-plan.md)
+before resuming checkpointed gameplay work. This document retains the broader
+remaining-work inventory and historical visual-pass evidence.
+
 The native Godot scene/character migration passed on 2026-09-13. The saved
 fixture contains supported parts and initial poses, native clips can be scrubbed
 in the actual editor, and authored content survives Rete edits/regeneration.
@@ -110,7 +114,8 @@ is not a prerequisite.
 
 ## Completed migration goal
 
-The completed request was:
+The completed request was (its historical whole-suite timing limit was superseded
+on 2026-09-20 by the [focused testing policy](realtime-comparison-plan.md#test-selection-and-timing-policy)):
 
 > Implement the native Godot scene/character migration for the currently
 > supported Astrolabe fixture, following AGENTS.md, plan.md and

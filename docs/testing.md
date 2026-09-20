@@ -1,5 +1,25 @@
 # Testing Astrolabe
 
+## Current policy and planned test infrastructure
+
+As of 2026-09-20, individual tests and each active development area's checks must
+remain reasonably fast and bounded. The full release matrix may take longer;
+there is no universal ten-minute whole-suite ceiling. Development validation
+selects affected tests/dependencies plus mandatory safeguards against bypassing
+real conversion and gameplay. Timeout, leaked processes and failed cleanup
+remain failures. Record build/setup/test/teardown times and selected/excluded
+tests; preserve release coverage when splitting large cases.
+
+The [implementation plan](realtime-comparison-plan.md) defines area selection,
+mandatory safeguards, per-test/scenario supervision, Rust code coverage,
+level-data coverage, structured original-engine loading, static/Rete-to-live
+comparison and shared Gherkin with original/Godot step implementations. These
+are planned deliverables, not currently available runners or coverage numbers.
+The existing commands below remain available and retain their historical
+570-second cap until that runner work is implemented.
+
+## Checkpoint evidence
+
 The 2026-09-20 paused gameplay checkpoint is **not fully validated**. The local
 suite ended at the existing 570-second cap after **570.119 seconds**, exit 124,
 with 84 logged passes and one explicit failure; remaining tests did not finish.
@@ -55,7 +75,7 @@ The routine command runs all non-ignored Rust tests. `--local` runs those tests 
 
 The supervisor invokes `cargo test --profile validation --locked --no-fail-fast -- --nocapture` once, adding `--include-ignored` for `--local`. `--offline` requires dependencies already in the Cargo cache. Compilation, Cargo lock waits, every test, Python/Godot workers, process cleanup and temporary-file cleanup all count toward the run's elapsed time. A cold validation build counts too. The validation profile inherits release semantics, uses optimization level 1, and disables ThinLTO to bound compilation of the large generic exporters in every integration-test executable. The production release profile retains ThinLTO; validate it separately with `cargo build --release --locked`.
 
-The build/test deadline is **570 seconds**. The runner reserves cleanup/reporting time and treats 590 seconds as its internal maximum total, leaving room before the user-required ten-minute limit. `--timeout SECONDS` can shorten the deadline but cannot exceed 570 seconds. A timeout is a failed run, including when some tests have already passed. Do not divide one required suite into several commands to evade the limit.
+The existing runner's build/test deadline is **570 seconds**, with cleanup/reporting reserved inside its 590-second internal maximum. `--timeout SECONDS` can shorten this deadline but cannot currently exceed 570 seconds. This is a remaining implementation constraint, not the current project policy. A timeout is a failed run, including when some tests passed. The planned runner will add independent per-test/scenario deadlines, focused selection plus safeguards, and an explicitly budgeted full release mode. Do not report a partial invocation as a complete passing suite.
 
 To choose fixtures or Godot explicitly:
 
