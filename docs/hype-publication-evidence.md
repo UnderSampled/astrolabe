@@ -86,7 +86,9 @@ post-gameplay tail.
 Therefore, a wrapper that copies the current action immediately after the real
 `0x0044a1e0` invocation returns and before `0x0044a670` begins has a
 source-qualified completed-update boundary for that field. The wrapper must not
-call `0x0044a1e0` itself: gameplay already performs graphics work, and a second or
+invoke an extra `0x0044a1e0` merely to obtain an observation. It must forward the
+intercepted main-loop invocation exactly once, then copy the field after that
+original call returns. Gameplay already performs graphics work, so a second or
 "pre-render" call would execute another update rather than observe one.
 
 ## Runtime acceptance still required
