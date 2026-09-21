@@ -9,6 +9,11 @@ struct Cli {
 }
 #[derive(Subcommand)]
 enum Commands {
+    /// Write the exact provisional physical-input recording shared by adapters.
+    RecordBoundary {
+        #[arg(long)]
+        output: PathBuf,
+    },
     /// Inspect the supplied manor fixture using the native private-game runtime.
     InspectOriginal {
         #[arg(long)]
@@ -124,6 +129,22 @@ fn fixture(output: PathBuf, escaped: bool, leaf: bool, partial: bool) -> Result<
 }
 fn main() -> Result<()> {
     match Cli::parse().command {
+        Commands::RecordBoundary { output } => {
+            use std::io::Write;
+            let prepared = astrolabe_testkit::replay::boundary_recording()?;
+            let mut file = std::fs::File::create_new(&output)?;
+            file.write_all(prepared.bytes())?;
+            file.sync_all()?;
+            println!(
+                "{}",
+                serde_json::json!({
+                    "output": output,
+                    "sha256": prepared.sha256(),
+                    "updates": prepared.recording().updates.len(),
+                })
+            );
+            Ok(())
+        }
         Commands::InspectOriginal {
             config,
             output,
