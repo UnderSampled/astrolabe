@@ -203,36 +203,6 @@ impl Process {
         self.check()?;
         Ok(bytes)
     }
-    /// Writes dedicated controller-owned instrumentation memory. Callers must
-    /// separately establish why the destination is writable and synchronize
-    /// publication; this is never an actor-state mutation API.
-    pub(crate) fn write_instrumentation(&self, address: usize, bytes: &[u8]) -> Result<()> {
-        self.check()?;
-        ensure!(
-            !bytes.is_empty() && bytes.len() <= MAX_READ,
-            "invalid write size"
-        );
-        let local = libc::iovec {
-            iov_base: bytes.as_ptr() as *mut libc::c_void,
-            iov_len: bytes.len(),
-        };
-        let remote = libc::iovec {
-            iov_base: address as *mut libc::c_void,
-            iov_len: bytes.len(),
-        };
-        // SAFETY: local describes an immutable byte slice and the kernel checks
-        // the remote mapping. This crate exposes the method only to its bounded
-        // instrumentation implementation.
-        let count = unsafe { libc::process_vm_writev(self.identity.pid, &local, 1, &remote, 1, 0) };
-        if count < 0 {
-            return Err(std::io::Error::last_os_error().into());
-        }
-        ensure!(
-            count as usize == bytes.len(),
-            "partial instrumentation write"
-        );
-        self.check()
-    }
     pub fn pause(&self, timeout: Duration) -> Result<Pause<'_>> {
         ensure!(
             !timeout.is_zero() && timeout <= Duration::from_secs(2),
