@@ -1,5 +1,10 @@
 # Realtime comparison implementation handoff
 
+**Implementation handoff, 2026-09-21:** continue from the
+[stopped implementation checkpoint](realtime-comparison-handoff-20260921.md).
+The material below preserves the original pre-implementation handoff and goal;
+its starting-state descriptions are historical.
+
 Prepared 2026-09-20 after planning, independent design review and two original-
 engine timing investigations. The new work is implementation of the comparison
 harness; full gameplay recovery follows once that harness exposes real failures.

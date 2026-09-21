@@ -6,7 +6,7 @@ use super::{
     records::{Address, ListWire},
     session::SourceSession,
 };
-use anyhow::{ensure, Context, Result};
+use anyhow::{Context, Result, ensure};
 use std::{borrow::Cow, collections::BTreeSet, fmt::Debug};
 
 pub(super) trait RecordSource {
@@ -14,7 +14,7 @@ pub(super) trait RecordSource {
     fn add(&self, address: Self::Location, offset: usize) -> Result<Self::Location>;
     fn bytes(&mut self, address: Self::Location, size: usize) -> Result<Cow<'_, [u8]>>;
     fn pointer(&mut self, address: Self::Location, offset: usize)
-        -> Result<Option<Self::Location>>;
+    -> Result<Option<Self::Location>>;
     fn required(&mut self, address: Self::Location, offset: usize) -> Result<Self::Location> {
         self.pointer(address, offset)?
             .with_context(|| format!("required null reference at {address:?}+{offset:x}"))

@@ -259,7 +259,7 @@ fn fingerprint_path_resolution_accepts_unique_case_and_rejects_ambiguity() -> Re
 fn shared_actor_reader_matches_useful_file_import_for_both_levels() -> Result<()> {
     use crate::{
         app,
-        model::{io::Load, Selection},
+        model::{Selection, io::Load},
         rete,
     };
     let game = std::env::var_os("ASTROLABE_GAME_DIR")
@@ -280,10 +280,12 @@ fn shared_actor_reader_matches_useful_file_import_for_both_levels() -> Result<()
         assert_eq!(fingerprint.profile, selection.profile);
         assert_eq!(fingerprint.level, level);
         assert_eq!(fingerprint.locale, "en");
-        assert!(fingerprint
-            .files
-            .iter()
-            .all(|file| file.byte_count > 0 && file.sha256.len() == 64));
+        assert!(
+            fingerprint
+                .files
+                .iter()
+                .all(|file| file.byte_count > 0 && file.sha256.len() == 64)
+        );
         assert_eq!(
             fingerprint
                 .files

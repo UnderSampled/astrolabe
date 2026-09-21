@@ -10,7 +10,7 @@ use crate::model::{
     animation::TransformValue,
     character::{Family, Perso},
 };
-use anyhow::{ensure, Context, Result};
+use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{borrow::Cow, collections::BTreeSet};

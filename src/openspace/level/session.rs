@@ -1,10 +1,10 @@
 //! One active level and its Fix bindings; all addresses are transient.
 use super::container::{
-    file, level_textures, merge_relocations, pointer_file, reloc, sna, u32_at, wire, PointerMap,
+    PointerMap, file, level_textures, merge_relocations, pointer_file, reloc, sna, u32_at, wire,
 };
 use super::records::*;
-use crate::model::{geometry::SourceTransform, Selection};
-use anyhow::{anyhow, ensure, Result};
+use crate::model::{Selection, geometry::SourceTransform};
+use anyhow::{Result, anyhow, ensure};
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},

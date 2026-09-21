@@ -6,13 +6,13 @@ use super::{
     session::SourceSession,
 };
 use crate::model::{
+    AssetPath, AssetRef,
     animation::*,
     character::*,
     geometry::*,
     io::{Content, Diagnostic, Severity},
-    AssetPath, AssetRef,
 };
-use anyhow::{ensure, Context, Result};
+use anyhow::{Context, Result, ensure};
 use std::collections::BTreeMap;
 
 pub(super) struct Importer<'a> {
