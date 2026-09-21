@@ -1439,6 +1439,62 @@
       "timeout_seconds": 60,
       "ignored": true,
       "release": true
+    },
+    {
+      "binary": "astrolabe-testkit::runtime",
+      "test": "stopped_capture_is_bounded_immutable_and_never_completed_update",
+      "areas": [
+        "runtime"
+      ],
+      "kind": "process",
+      "prerequisites": [],
+      "fixture": "synthetic Linux child",
+      "timeout_seconds": 8,
+      "ignored": false,
+      "release": true,
+      "safeguard": "always"
+    },
+    {
+      "binary": "astrolabe-testkit::runtime",
+      "test": "pause_preserves_existing_stop_and_unwinds_new_stop",
+      "areas": [
+        "runtime"
+      ],
+      "kind": "process",
+      "prerequisites": [],
+      "fixture": "synthetic Linux child",
+      "timeout_seconds": 8,
+      "ignored": false,
+      "release": true,
+      "safeguard": "always"
+    },
+    {
+      "binary": "astrolabe-testkit::runtime",
+      "test": "cleanup_reaps_term_resistant_escaped_descendant_and_preserves_unrelated_child",
+      "areas": [
+        "runtime"
+      ],
+      "kind": "process",
+      "prerequisites": [],
+      "fixture": "synthetic Linux child",
+      "timeout_seconds": 8,
+      "ignored": false,
+      "release": true,
+      "safeguard": "always"
+    },
+    {
+      "binary": "astrolabe-testkit::runtime",
+      "test": "failed_launch_and_duplicate_owner_do_not_leave_ownership_locked",
+      "areas": [
+        "runtime"
+      ],
+      "kind": "process",
+      "prerequisites": [],
+      "fixture": "synthetic Linux child",
+      "timeout_seconds": 8,
+      "ignored": false,
+      "release": true,
+      "safeguard": "always"
     }
   ]
 }

@@ -5,6 +5,11 @@ edition = "2024"
 license = "CC0-1.0"
 description = "Repeatable conversion of OpenSpace game content through a useful model"
 
+[workspace]
+members = ["crates/astrolabe-testkit"]
+default-members = ["."]
+resolver = "3"
+
 [dependencies]
 anyhow = "1.0"
 binrw = "0.15.2"

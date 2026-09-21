@@ -4,7 +4,7 @@
 
 `tools/test.py` now uses a checked-in, exact test inventory and cargo-nextest
 **0.9.145**. It retains the Python outer supervisor while the native runtime is
-implemented. The initial manifest classifies all 96 Rust tests, their areas,
+implemented. The manifest currently classifies all 100 Rust tests, their areas,
 prerequisites, fixtures, release membership and individual hard deadlines. New,
 removed, duplicate or newly ignored tests require a manifest update; discovery
 mismatches fail before execution. The native original-game runtime, comparisons,
@@ -51,6 +51,9 @@ build/discovery time, execution and cleanup time, CPU time and peak child RSS.
 Changing implementation files during validation invalidates the run. Nextest
 JUnit output retains successful and failed test logs. New logs never overwrite
 old evidence; `--log PATH` creates a sibling `.json` report and `.d` directory.
+The optional native testkit is a companion workspace package; ordinary converter
+builds still select the root package. Use `cargo fmt --all --check` and
+`cargo clippy --workspace --locked --all-targets -- -D warnings` when changing it.
 
 ## Process ownership and mandatory controls
 
@@ -71,6 +74,10 @@ missing cases and stale/skipped/duplicate results. Converter safeguards cover
 source-free Rete export and deliberate edits, identity/sharing/schema checks,
 native saved resources, production support, authored regeneration and diagnostics.
 These tests complement architectural review; they do not establish full gameplay.
+The four native process-owner safeguards additionally verify all-thread pauses,
+pre-existing stop preservation, unwind restoration, immutable bounded snapshots,
+mid-update rejection and stale processes. [Native runtime progress](native-runtime-progress.md)
+records their scope and the remaining runtime acceptance gates.
 
 ## Checkpoint evidence
 

@@ -96,6 +96,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "astrolabe-testkit"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "astrolabe",
+ "clap",
+ "libc",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

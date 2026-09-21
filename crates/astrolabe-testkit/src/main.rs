@@ -1,0 +1,122 @@
+use anyhow::{Result, bail};
+use clap::{Parser, Subcommand};
+use std::path::PathBuf;
+#[derive(Parser)]
+#[command(about = "Optional Astrolabe native runtime and comparison tools")]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+#[derive(Subcommand)]
+enum Commands {
+    /// Synthetic process used by lifecycle acceptance tests; no game data.
+    #[command(hide = true)]
+    Fixture {
+        output: PathBuf,
+        #[arg(long)]
+        escaped: bool,
+        #[arg(long)]
+        leaf: bool,
+        #[arg(long)]
+        partial: bool,
+    },
+}
+#[cfg(target_os = "linux")]
+fn fixture(output: PathBuf, escaped: bool, leaf: bool, partial: bool) -> Result<()> {
+    use std::{
+        sync::atomic::{AtomicU64, Ordering},
+        thread,
+        time::Duration,
+    };
+    if escaped {
+        use std::os::unix::process::CommandExt;
+        let mut command = std::process::Command::new(std::env::current_exe()?);
+        command.args([
+            "fixture",
+            output
+                .to_str()
+                .ok_or_else(|| anyhow::anyhow!("output path"))?,
+            "--leaf",
+        ]);
+        // SAFETY: setsid only changes the new child before exec.
+        unsafe {
+            command.pre_exec(|| {
+                if libc::setsid() < 0 {
+                    Err(std::io::Error::last_os_error())
+                } else {
+                    Ok(())
+                }
+            });
+        }
+        let mut child = command.spawn()?;
+        // The test requires the child to outlive this parent. Bound failed setup.
+        let start = std::time::Instant::now();
+        while !output.exists() {
+            if start.elapsed() > Duration::from_secs(2) {
+                child.kill()?;
+                child.wait()?;
+                bail!("fixture child did not start");
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+        thread::sleep(Duration::from_millis(100));
+        return Ok(());
+    }
+    if leaf {
+        // SAFETY: SIG_IGN is the documented special handler value; only this fixture process is changed.
+        unsafe {
+            libc::signal(libc::SIGTERM, libc::SIG_IGN);
+        }
+    }
+    let data = Box::leak(Box::new([
+        AtomicU64::new(0),
+        AtomicU64::new(0),
+        AtomicU64::new(0),
+    ]));
+    let address = data.as_ptr() as usize;
+    let continue_path = output.with_extension("continue");
+    thread::spawn(move || {
+        let mut tick = 0;
+        loop {
+            tick += 1;
+            data[1].store(tick, Ordering::SeqCst);
+            data[0].store(1, Ordering::SeqCst);
+            while partial && !continue_path.exists() {
+                thread::sleep(Duration::from_millis(1));
+            }
+            thread::sleep(Duration::from_millis(20));
+            data[2].store(tick, Ordering::SeqCst);
+            data[0].store(2, Ordering::SeqCst);
+            thread::sleep(Duration::from_millis(30));
+        }
+    });
+    let tmp = output.with_extension("tmp");
+    std::fs::write(
+        &tmp,
+        serde_json::to_vec(
+            &serde_json::json!({"pid": std::process::id(), "address": address, "size": 24}),
+        )?,
+    )?;
+    std::fs::rename(tmp, output)?;
+    loop {
+        thread::sleep(Duration::from_secs(1));
+    }
+}
+fn main() -> Result<()> {
+    match Cli::parse().command {
+        Commands::Fixture {
+            output,
+            escaped,
+            leaf,
+            partial,
+        } => {
+            #[cfg(target_os = "linux")]
+            return fixture(output, escaped, leaf, partial);
+            #[cfg(not(target_os = "linux"))]
+            {
+                let _ = (output, escaped, leaf, partial);
+                bail!("native runtime currently requires Linux");
+            }
+        }
+    }
+}
