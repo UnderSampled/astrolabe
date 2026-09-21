@@ -1,5 +1,6 @@
 #![cfg(target_os = "linux")]
 use anyhow::{Result, ensure};
+use astrolabe_testkit::instrumentation::Scratch;
 use astrolabe_testkit::linux::{Consistency, Owner, Process};
 use std::{
     fs,
@@ -193,4 +194,24 @@ fn native_owner_preserves_short_command_exit_status() -> Result<()> {
     }
     owner.close()?;
     Ok(())
+}
+
+#[test]
+fn dedicated_remote_scratch_is_writable_bounded_and_unmapped() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    let output = temp.path().join("fixture.json");
+    let mut owner = Owner::new()?;
+    owner.spawn(&mut command(&output))?;
+    let (process, _) = ready(&mut owner, &output)?;
+    let scratch = Scratch::allocate(&process, 137)?;
+    assert_eq!(scratch.size(), 4096);
+    let address = scratch.address();
+    let payload = b"astrolabe-owned-runtime-scratch";
+    scratch.write(101, payload)?;
+    assert_eq!(scratch.read(101, payload.len())?, payload);
+    assert!(scratch.write(scratch.size(), b"x").is_err());
+    assert!(scratch.read(scratch.size(), 1).is_err());
+    scratch.close()?;
+    assert!(process.read_running(address, 1).is_err());
+    owner.close()
 }
