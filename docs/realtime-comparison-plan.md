@@ -32,9 +32,10 @@ ordinary conversion do not depend on the controller, MCP, or the original game.
 
 ## Checkpoint and resume contract
 
-Gameplay checkpoint: **`c912db7`**, on `codex/live-comparison-plan`; `main` remains
-at the prior committed baseline. The checkpoint builds and passes formatting/
-Clippy, but has a known Godot rule-probe timeout and an incomplete full-suite run
+Gameplay checkpoint: **`c912db7`**, now included on `main` together with the
+reviewed plan and implementation handoff. Start new implementation from `main`;
+the named recovery tag preserves the pre-implementation state. The checkpoint
+builds and passes formatting/Clippy, but has a known Godot rule-probe timeout and an incomplete full-suite run
 at the old global cap. The [checkpoint evidence](hype-control-progress.md#paused-implementation-checkpoint--2026-09-20)
 records the exact limits. The initial planning/policy commit is **`4732ed7`**;
 this update records the subsequent timing decision and shared-step design.

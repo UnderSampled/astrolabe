@@ -6,9 +6,11 @@ harness; full gameplay recovery follows once that harness exposes real failures.
 
 ## Recoverable starting point
 
-The annotated tag **`codex/realtime-comparison-checkpoint-20260920`** identifies
-the commit containing this handoff on `codex/live-comparison-plan`. Its history
-includes these separate checkpoints:
+The primary branch is **`main`** and now includes the current gameplay work,
+reviewed plan and this handoff. Start implementation from `main`. The annotated
+tag **`codex/realtime-comparison-checkpoint-20260920`** preserves the exact
+pre-implementation state at `46dfc40`; it is a recovery point, not a separate
+implementation baseline. Its history includes these checkpoints:
 
 | Commit | Preserved state |
 | --- | --- |
@@ -71,9 +73,8 @@ also remain in their original locations.
 
 Implement Astrolabe's native Rust realtime loader, live tester and comparison
 harness, following `docs/realtime-comparison-plan.md` through ordered steps 2–6.
-Start from `codex/realtime-comparison-checkpoint-20260920` in
-`/home/stephen/Projects/astrolabe`; preserve that checkpoint and make new commits
-on a development branch. Read `AGENTS.md`, this handoff, `plan.md`,
+Start from `main` in `/home/stephen/Projects/astrolabe`; preserve the recovery tag
+and commit coherent implementation slices. Read `AGENTS.md`, this handoff, `plan.md`,
 `docs/rust-architecture.md`, `docs/rete-design.md`, `docs/testing.md`, and the
 external harness's runtime instructions before implementation.
 
