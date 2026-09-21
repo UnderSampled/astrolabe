@@ -2,15 +2,16 @@
 
 This is the next stopping point for transferring the goal to another agent. The
 native wrapper path is now committed and has passed the focused comparison suite
-under the required host privileges. No Hype game session was started: the live
-physical-input gate remains intentionally open. Preserve `disc/`, `output/`,
+under the required host privileges. A supervised Hype session has also completed
+the native replay and direct/reopened comparison checks, but the live physical
+consumer gate remains intentionally open. Preserve `disc/`, `output/`,
 `TestResults/`, reference submodules and the external
 `/home/stephen/Projects/hype-harness` installation.
 
 ## Resume here
 
 The committed implementation baseline at this handoff is
-`cb8e8d3dcf82c96532a2ab8472dc71c6c88762df` on `main`. It contains the native
+`bcb58bb` on `main`. It contains the native
 replay CLI, hand-emitted i386 wrappers, synthetic execution fixture, and complete
 test inventory. The
 [original handoff](realtime-comparison-handoff.md),
@@ -19,11 +20,14 @@ test inventory. The
 Complete ordered plan steps 2–6; gameplay recovery and wider platform/release
 expansion follow later.
 
-The next gate is **native physical input and verified completed-update
-publication**. Do not skip ahead to a broad coverage pass or call the harness
-complete. After that gate, run the one-actor direct/reopened-Rete/live comparison,
-then shared/duplicate/replaced/stale identity cases, then the same physical-input
-recording in both engines, then broader BDD and coverage accounting.
+The next gate is **source-qualified physical-consumer evidence**. The wrapper
+now publishes a verified-build Left action counter after the original keyboard
+callback and completed-update hook, while explicitly reporting
+`physical_consumption_verified: false`; the Shift/history consumer remains
+unobserved. Do not skip ahead to a broad coverage pass or call the harness
+complete. After that gate, run shared/duplicate/replaced/stale identity cases,
+then the same physical-input recording in both engines, then broader BDD and
+coverage accounting.
 
 ## Committed work and its limits
 
@@ -38,6 +42,7 @@ recording in both engines, then broader BDD and coverage accounting.
 | `1625c4f`, `6ed75ca` | Shared exact-byte physical-input recording, narrow comparison reports, closed/reopened Rete edit detection, compiled ignored live comparison test and optional Godot recording-file consumption. |
 | `c32a17d`, `0345d67` | Source evidence qualifies only current-action publication after the original gameplay callback returns. No global-transform publication proof. |
 | `cb8e8d3` | Synthetic ELF32 execution now forwards both callbacks exactly once, survives hostile `timeGetTime` register clobbering, publishes 18 completed updates, rejects duplicate polls, checks actor identity/pointer chains, and records the exact shared input masks. The focused comparison suite passed 27 selected tests in 72.396 seconds under the required host privileges; release build, workspace Clippy and formatting also passed. |
+| `bcb58bb` | Adds the verified-build `LEFT_ACTION_COUNTER` source observation after callback/update publication, keeps the overall physical-consumption result false, and makes the synthetic fixture map its own counter address. Native probe unit tests (3) and workspace Clippy/formatting pass. |
 
 The former unsafe instrumentation prototype `89aec5a` was reverted by `4f76657`.
 Do not resurrect it. The safe foundation is `bde4541` and `90a4684`.
@@ -87,14 +92,14 @@ fixture, but the fixture still does not prove that the real Hype consumer reads
 the injected buffer.
 
 Publication must forward the original callback exactly once and observe only
-after it returns. Read `docs/hype-publication-evidence.md`: current action is the
-only source-qualified outcome so far. SO+36 global-transform writer closure is
-unproved. Early counters/actor stamps and stopped snapshots are not fences;
-screenshots remain independent until their association is proved. No automatic
-millisecond replay fallback is allowed. The committed report labels planned key
-masks and protocol ordinals separately from source-qualified current-action
-publication; it does not claim physical-buffer consumption until a real Hype run
-provides that evidence.
+after it returns. Read `docs/hype-publication-evidence.md`: current action and the
+verified-build Left action counter are source-qualified observations. The native
+report still keeps `physical_consumption_verified: false`; Shift/history
+consumption and SO+36 global-transform writer closure remain unproved. Early
+counters/actor stamps and stopped snapshots are not fences; screenshots remain
+independent until their association is proved. No automatic millisecond replay
+fallback is allowed. The report labels planned key masks and protocol ordinals
+separately from source-qualified observations.
 
 ## Runtime operation and delegation
 
@@ -104,15 +109,18 @@ timeout and expected evidence. Luna returns raw results without improvising.
 For precise memory/pointer operations, writes/patches or unexpected results,
 Luna stops and escalates review; no guesses or retries. Use one Hype controller
 at a time. Sol specifies and interprets native-runtime work instead of
-independently operating Hype MCP. No live operation is part of this handoff.
+independently operating Hype MCP. The existing Python Hype MCP remains the
+behavioral physical-key baseline while the Rust wrapper is brought to equivalent
+frame-indexed consumption evidence.
 
 Current delegation ledger: Astra (gpt-6-astra) reviewed the wrapper ABI and
 failure modes; Sol (gpt-5.6-sol) implemented the native wrappers and synthetic
 ELF32 execution fixture; Luna (gpt-5.6-luna) supplied the bounded live-run
-procedure and remains the sole Hype MCP operator; Terra was not needed for this
-checkpoint. All implementation agents are stopped after their evidence was
-incorporated. Coordinate file ownership and freeze implementation during any
-supervised Hype validation.
+procedure, operated the supervised Hype sessions, and remains the sole Hype MCP
+operator; Terra (gpt-5.6-terra) audited the ordered acceptance matrix and
+identified the remaining identity/consumer gates. All implementation agents are
+stopped after their evidence was incorporated. Coordinate file ownership and
+freeze implementation during any supervised Hype validation.
 
 The preserved native fixture config is
 `/home/stephen/Projects/hype-harness/local/config.json`. Its EXE hash is
@@ -140,25 +148,40 @@ Read `reference/README.md` and the external runtime instructions before use.
   ignored. This includes real closed/reopened-Rete edit detection.
 - `TestResults/shared-recording-godot-parse-20260921-writable-log.log` is a
   parser check, not the shared recording's gameplay acceptance test.
+- `TestResults/native-replay-20260921-luna-5/summary.json` has SHA-256
+  `0d8ebcf2be311c601f2cbf387281f9adbbe827ed867b04f3e135500d0e187fc9` and
+  `worker.json` has SHA-256
+  `4968cc387615422af10a9276d7c2ef183d113928ef9a664bbfbbf15ac61b3699`. The
+  rebuilt `target/release/astrolabe-testkit` was used (SHA-256
+  `5969eee9f4b34e43be27ea59d392a2b4e6e230a236a16ccc139c6687c88f10b7`). The
+  run reached phase 9 `manoir`, published 18 completed updates, observed the
+  Left counter in every row, and cleaned up fully; physical consumption,
+  frame replay and behavior parity remain false.
+- `TestResults/comparison-original-20260921-luna/actor-comparison-1789967787416059917/comparison.json`
+  has SHA-256 `a288661a1c4e5d410a8320145f417840ccdcb66419a5f725ed6838e0335ec72b`.
+  Direct and reopened-Rete selected invariants match, a deliberate persisted
+  edit is rejected, and the baseline is restored; behavior parity remains false.
 
 Handoff verification passed:
 
 ```sh
-python3 -B tools/test.py --area comparison --offline --log TestResults/handoff-20260921-stop/validation.log
+python3 -B tools/test.py --area comparison --offline --log TestResults/handoff-20260921-bcb58bb-validation3.log
 cargo fmt --all --check
 cargo clippy --workspace --locked --offline --all-targets -- -D warnings
 git diff --check
 ```
 
 The latest focused run discovered the complete manifest, passed all 27 selected
-Rust tests and 14 Python supervisor/selection checks in **72.396 seconds** under
+Rust tests and 14 Python supervisor/selection checks in **37.344 seconds** under
 the required host privileges, with no leaked/remaining child processes and
-complete temporary cleanup. The Godot safeguard took 64.399 seconds. Evidence is
-`TestResults/20260921T045933.116219Z-development.log.json`; the committed code
-hash is `cb8e8d3`. `cargo build --release --locked`, workspace Clippy and
-formatting also passed. The earlier 152.375-second handoff run remains useful
-baseline evidence, but it predates the wrapper execution fixture and manifest
-entries.
+complete temporary cleanup. The Godot safeguard took 32.395 seconds. Evidence is
+`TestResults/handoff-20260921-bcb58bb-validation3.log.json`; the committed code
+hash is `bcb58bb43816cd08f024079e97da0f6861b56102`. `cargo build --release
+--locked`, workspace Clippy and formatting also passed. An earlier parallel run
+showed two transient process-lifecycle failures; both safeguards passed when
+rerun serially and the final supervised run passed all 27.
 
-Original-engine tests were excluded. No new full release run, native replay,
-live comparison or full gameplay acceptance is claimed by this handoff.
+Original-engine tests were excluded from the focused offline run. The supervised
+native replay and one-actor direct/reopened comparison are recorded above; full
+shared/duplicate/replaced/stale identity acceptance, BDD coverage accounting,
+and gameplay parity remain open.
