@@ -147,6 +147,7 @@ fn native_boundary_replay_publishes_18_completed_updates() -> Result<()> {
     assert_eq!(report["consistency"], "completed_update_hook");
     assert_eq!(report["frame_replay"], false);
     assert_eq!(report["consumption_verified"], false);
+    assert_eq!(report["physical_consumption_verified"], false);
     assert_eq!(report["updates"].as_array().unwrap().len(), 18);
     for (index, row) in report["updates"].as_array().unwrap().iter().enumerate() {
         assert_eq!(row["ordinal"], index + 1);

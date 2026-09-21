@@ -12,6 +12,9 @@ pub const UPDATE_COUNTER: u32 = 0x0075_4aa8;
 pub const CLOCK_MS: u32 = 0x0075_4ab0;
 pub const RAW_DELTA_MS: u32 = 0x0075_4ab4;
 pub const CLAMPED_DELTA_MS: u32 = 0x0075_4af8;
+/// Runtime held/released counter for the verified ArrowLeft binding. This is
+/// a consumer observation, not a generic input-clock or frame counter.
+pub const LEFT_ACTION_COUNTER: u32 = 0x0030_a031c;
 pub const STATUS: u32 = 0x0075_4420;
 pub const MAIN_ACTOR_ROOT: u32 = 0x0075_6e70;
 pub const DEVICE_TABLE: u32 = 0x0087_4250;

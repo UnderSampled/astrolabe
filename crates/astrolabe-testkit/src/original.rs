@@ -93,7 +93,7 @@ const INPUT_CODE: usize = 0;
 const UPDATE_CODE: usize = 256;
 const STATE: usize = 512;
 const RECORDS: usize = 1024;
-const RECORD_SIZE: usize = 40;
+const RECORD_SIZE: usize = 44;
 const RECORD_COUNT: usize = 18;
 const MASKS: usize = STATE + 20;
 const ACTOR_ROOT_ID: u8 = 60;
@@ -125,7 +125,12 @@ fn patch_rel32(code: &mut [u8], site: usize, target: usize) -> Result<()> {
     code[site..site + 4].copy_from_slice(&displacement.to_le_bytes());
     Ok(())
 }
-fn probe_image(base: u32, expected_device: u32, expected_buffer: u32) -> Result<Vec<u8>> {
+fn probe_image(
+    base: u32,
+    expected_device: u32,
+    expected_buffer: u32,
+    left_action_counter: u32,
+) -> Result<Vec<u8>> {
     let prepared = boundary_recording()?;
     ensure!(
         prepared.recording().updates.len() == RECORD_COUNT,
@@ -293,6 +298,9 @@ fn probe_image(base: u32, expected_device: u32, expected_buffer: u32) -> Result<
     update.extend_from_slice(&[
         0x89, 0x42, 0x20, 0x8b, 0x40, 0x04, 0x89, 0x42, 0x24, 0x89, 0x4f, 0x0c,
     ]);
+    update.push(0xa1);
+    imm(&mut update, left_action_counter);
+    update.extend_from_slice(&[0x89, 0x42, 0x28]);
     let done = update.len();
     update.extend_from_slice(&[0x61, 0x9d, 0xc3]);
     let error = update.len();
@@ -468,7 +476,12 @@ pub fn worker(
             let keyboard_buffer = u32::from_le_bytes(buffer_bytes.as_slice().try_into()?);
             ensure!(keyboard_buffer != 0, "keyboard data pointer is null");
             let mut scratch = Scratch::allocate(&process, 4096)?;
-            let image = probe_image(scratch.address() as u32, keyboard.address, keyboard_buffer)?;
+            let image = probe_image(
+                scratch.address() as u32,
+                keyboard.address,
+                keyboard_buffer,
+                hype_runtime::LEFT_ACTION_COUNTER,
+            )?;
             scratch.write(0, &image)?;
             // Publication starts disarmed (dispatched == 0), so installing the
             // completed-update wrapper first cannot mislabel an old update.
@@ -556,7 +569,8 @@ pub fn worker(
                     "planned_left_shift":mask&2!=0,
                     "actor_entry":format!("live:{:08x}",word(24)),"actor_node":format!("live:{:08x}",word(28)),
                     "data3d":format!("live:{:08x}",word(32)),
-                    "current_action_pointer":format!("live:{:08x}",word(36))}));
+                    "current_action_pointer":format!("live:{:08x}",word(36)),
+                    "left_action_counter":word(40)}));
             }
             scratch.close()?;
             desktop.release()?;
@@ -565,10 +579,11 @@ pub fn worker(
                 "fixture":config,"process":process.identity(),"game":status,"recording_sha256":boundary_recording()?.sha256(),
                 "keyboard":{"device":format!("live:{:08x}",keyboard.address),"callback_slot":format!("live:{:08x}",keyboard.callback_slot)},
                 "updates":rows,"consistency":"completed_update_hook","completed_update":true,"frame_replay":false,
-                "consumption_verified":false,
+                "consumption_verified":false,"physical_consumption_verified":false,
                 "publication":{"qualified_completed_fields":["current_action_pointer"],
                     "provenance_fields":["update_counter","clock_ms","raw_delta_ms","clamped_delta_ms","boundary_time_ms"],
                     "planned_input_fields":["planned_left","planned_left_shift"],
+                    "consumer_observation_fields":["left_action_counter"],
                     "acknowledgment_field":"boundary_acknowledged_ordinal",
                     "input_contract":"protocol acknowledgment associates planned keyboard state prepared after update k with the completed-update wrapper for update k+1; physical consumption is not observed",
                     "source_evidence":{"getter":"004424f0","setter":"00442500",
@@ -894,6 +909,7 @@ mod probe_tests {
     const ACTOR_PERSO: u32 = 0x0070_4200;
     const ACTOR_DATA3D: u32 = 0x0070_4300;
     const CURRENT_ACTION: u32 = 0x0070_4400;
+    const SYNTHETIC_LEFT_ACTION_COUNTER: u32 = 0x0070_4500;
     const IMAGE_END: u32 = 0x0088_0000;
 
     fn at(image: &mut [u8], address: u32, bytes: &[u8]) {
@@ -1004,6 +1020,7 @@ mod probe_tests {
         put_u32(&mut image, ACTOR_NODE + 4, ACTOR_PERSO);
         put_u32(&mut image, ACTOR_PERSO, ACTOR_DATA3D);
         put_u32(&mut image, ACTOR_DATA3D + 4, CURRENT_ACTION);
+        put_u32(&mut image, SYNTHETIC_LEFT_ACTION_COUNTER, 0);
         image
     }
 
@@ -1030,7 +1047,15 @@ mod probe_tests {
             thread::sleep(Duration::from_millis(1));
         }
         let mut scratch = Scratch::allocate(&process, 4096)?;
-        scratch.write(0, &probe_image(scratch.address() as u32, DEVICE, BUFFER)?)?;
+        scratch.write(
+            0,
+            &probe_image(
+                scratch.address() as u32,
+                DEVICE,
+                BUFFER,
+                SYNTHETIC_LEFT_ACTION_COUNTER,
+            )?,
+        )?;
         scratch.install_callback(
             hype_runtime::UPDATE_CALLBACK_SLOT as usize,
             hype_runtime::UPDATE_CALLBACK,
@@ -1136,7 +1161,7 @@ mod probe_tests {
     #[test]
     fn generated_probe_is_bounded_and_contains_exact_shared_input_states() -> Result<()> {
         let base = 0x1234_0000;
-        let image = probe_image(base, DEVICE, BUFFER)?;
+        let image = probe_image(base, DEVICE, BUFFER, SYNTHETIC_LEFT_ACTION_COUNTER)?;
         assert_eq!(image.len(), 4096);
         assert_eq!(
             &image[MASKS..MASKS + RECORD_COUNT],
