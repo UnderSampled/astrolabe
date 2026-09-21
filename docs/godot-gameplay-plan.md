@@ -8,9 +8,10 @@ does not restart it.
 
 2026-09-20 update: checkpoint the current component/source-rule work, then build
 the [live loader and comparison testkit](realtime-comparison-plan.md). That plan
-defines data parity, shared Gherkin with original/Godot step implementations,
-coverage and focused testing. Resume slice 1 below through those comparisons;
-the playable checkpoint is still open.
+defines data parity, one shared Gherkin step registry with identical frame-indexed
+physical input recordings, engine-specific observations, independent elapsed-ms
+and screenshot/pixel comparisons, coverage and focused testing. Resume slice 1
+below through those comparisons; the playable checkpoint is still open.
 
 ## Starting point and recovery
 

@@ -1,8 +1,8 @@
 # Live loading, comparison, and behavior testing
 
-Implementation plan, 2026-09-20. This is not a claim that
-the live loader, coverage collection, or BDD runners already exist. Checkpoint
-the current gameplay work before implementing this plan. Resume the
+Implementation plan, updated 2026-09-20 after the live input-timing experiment.
+The gameplay checkpoint is preserved; the live loader, coverage collection and
+BDD runners remain planned. Resume the
 [gameplay plan](godot-gameplay-plan.md) after the first useful comparison slice;
 do not wait for complete engine or level coverage.
 
@@ -13,9 +13,10 @@ There are two independently reported comparisons:
 1. **Data:** OpenSpace files or reopened Rete assets against structured values
    read from the running original game. Establish asset identity, relationships,
    loaded values, and the reasons particular fields should differ.
-2. **Behavior:** the same high-level scenario against the original game and the
-   generated Godot port. Establish player-visible outcomes, event order, timing,
-   movement, and contact using engine-specific controls and observations.
+2. **Behavior:** shared Gherkin steps produce the same literal input recording
+   for the original game and generated Godot port. Engine adapters deliver those
+   events and independently observe their effects. Report gameplay/state,
+   measured elapsed milliseconds and screenshots/pixel matching separately.
 
 Neither comparison implies the other. Matching meshes or action definitions
 does not prove movement; matching an observed movement does not prove complete
@@ -35,11 +36,12 @@ Gameplay checkpoint: **`c912db7`**, on `codex/live-comparison-plan`; `main` rema
 at the prior committed baseline. The checkpoint builds and passes formatting/
 Clippy, but has a known Godot rule-probe timeout and an incomplete full-suite run
 at the old global cap. The [checkpoint evidence](hype-control-progress.md#paused-implementation-checkpoint--2026-09-20)
-records the exact limits. This planning/policy change is a separate commit.
+records the exact limits. The initial planning/policy commit is **`4732ed7`**;
+this update records the subsequent timing decision and shared-step design.
 
-Preserve current implementation and tests in a dedicated gameplay checkpoint
-commit, followed by a separate planning/policy commit. The existing changes to
-model types, codecs, Rete schema, exporter, native support, and their tests are
+The implementation and tests are preserved separately from planning/policy. The
+checkpoint changes to model types, codecs, Rete schema, exporter, native support,
+and their tests are
 interdependent; do not manufacture independently buildable feature commits by
 arbitrarily splitting those files. Keep the validation-profile/runner change
 with the tests it supports. Record exact versions, verification and open work in
@@ -100,6 +102,19 @@ do not copy the struct catalogue into the controller. Source pointer integers
 remain 32-bit Hype addresses, even in a 64-bit Rust process. Read bytes through
 the OS and decode them; do not cast remote pointers into Rust references.
 
+Byte access is not the only offline assumption to remove: current AI readers
+derive asset paths from allocation ordinals and record/script lengths from
+preceding allocator words. Keep bounds and source-local locators inside
+OpenSpace. Prove their live equivalents rather than inventing allocation indices
+to satisfy an offline API. Before freezing the shared reader, compare two
+distinct equal-valued objects, a shared definition and a replaced dynamic
+instance through offline, reopened-Rete and live paths. Source-local locators
+and runtime generations belong to observation provenance; cross-source matching
+evidence belongs to the comparison session, not a new canonical asset identity.
+Unmatched dynamic objects must remain inspectable without pretending they had a
+file allocation. This proof must accompany the narrow Hype slice before broader
+reader migration makes an incorrect identity/bounds contract costly to change.
+
 Offline reads retain GPT/RTP/RTB handling and active-level Fix bindings. Live
 reads use verified globals and relocated pointers, including objects created or
 patched after loading. Do not synthesize an SNA/relocation table to make live
@@ -120,11 +135,22 @@ local evidence and are not Rete metadata.
 
 ### Snapshot and observation semantics
 
-- A coherent inspection capture briefly pauses the owned process, checks that
+- A memory-stable inspection capture briefly pauses the owned process, checks that
   relevant threads are stopped, copies the bounded requested closure, and resumes
-  before formatting/reporting. A stopped process may be between engine updates;
-  structural validation still applies. A missing page cannot be fetched after
-  resume and silently added to the same snapshot.
+  before formatting/reporting. This can freeze the engine halfway through an
+  update, with new position but previous action/contact values. Label it as a
+  stopped-byte capture, not a completed-update gameplay observation. Structural
+  validation still applies. A missing page cannot be fetched after resume and
+  silently added to the same snapshot.
+- Behavioral observations need a separately verified completion/publication
+  boundary for their fields and an associated input ordinal. An unchanged frame
+  counter is insufficient if it increments at update start. Copy the bounded
+  selected values at that boundary, or establish equivalent evidence that they
+  represent a completed update and no writer can change them during observation.
+  Writer quiescence alone is insufficient. Preserve phase/consistency in
+  the report; do not silently promote an inspection snapshot into a behavior
+  assertion. A fake producer stopped between related field writes must fail
+  completed-update acceptance. Render association remains a separate contract.
 - Cache/batch memory ranges within a capture; avoid a syscall for every scalar
   binrw read. Cache immutable definitions separately only after establishing their
   lifetime. Revalidate roots and invalidate mutable values on each capture.
@@ -141,13 +167,198 @@ local evidence and are not Rete metadata.
   tests decoding/comparison, not live behavior. Do not treat an old capture as a
   fresh original-engine run.
 
-Linux/Wine is the first validated backend. Port process ownership/subreaping,
-Gamescope/X11 input and capture, focus handling, and bounded teardown from the
+Linux/Wine is the first native target, using the validated existing harness.
+Port process ownership/subreaping, Gamescope/X11 input and capture, focus
+handling, and bounded teardown from the
 existing harness without reinstalling its prepared game. Windows is a separate
 backend for process memory/control, not a restriction on the shared decoder.
 Native Windows launch, input, capture and snapshot consistency need their own
 validation; do not claim support from compiling a memory reader alone. Optional
 platform dependencies must not prevent ordinary converter builds elsewhere.
+
+## Replay decision: frames drive inputs, milliseconds judge timing
+
+Implement **one frame-indexed physical-input scheduler**. There is no automatic
+millisecond scheduling fallback. A missing or unverified frame/input boundary
+fails the selected replay capability; it must not silently become a timed OS
+keypress. Existing best-effort MCP actions remain useful for setup during the
+migration, but do not qualify as frame-exact behavior evidence.
+
+Here, a replay frame means one eligible gameplay input-consumption update,
+identified by a verified engine boundary. It is not a rendered image, a polled
+counter change, or an assumed interval derived from a configured FPS. Assign
+relative replay ordinals from a verified ready state; retain engine counters,
+phase and load/session epochs separately. Menus, focus loss, pause and loading
+must have explicit policies. Initially, unexpected transitions abort a gameplay
+tape; later transition scenarios need separately verified boundaries.
+
+### Feasibility evidence and its limits
+
+The 2026-09-20 experiment used the Hype MCP, the supplied English save in
+`manoir`, and Godot `4.7.2.stable.arch_linux.ed1daf0bf`. The
+[local experiment report](/home/stephen/Projects/hype-harness/local/frame-timing-research-20260920/README.md)
+and adjacent raw evidence record fixture/build hashes, the probe and cleanup.
+
+- Six original-engine replays supplied physical Left in the current keyboard
+  device buffer for exactly five consecutive input updates. The original
+  binding/history processing observed held counts 1–5 followed by release.
+  No character transform, action counter or game clock was forced. Ordinary
+  100 ms MCP pulses instead yielded eleven five-update holds and one four-update
+  hold in twelve trials.
+- Two real-time Godot probes supplied the equivalent five-update hold using
+  physical key events, with correct pressed/held/released observations. Preparing
+  the event between updates worked; injecting inside `physics_frame` put
+  `just_pressed` on the following physics tick. The production ordering must be
+  verified through the actual generated character's input/AI/movement path.
+- The measured five-update intervals were **166, 161, 174, 147, 102 and 126 ms**
+  in Hype and **104.177 and 103.919 ms** in Godot. These demonstrate scheduling
+  feasibility, not timing parity or proposed tolerances. Both were configured
+  for a 48 FPS cap in this experiment; the cap did not establish equal cadence.
+- Hype uses elapsed real time, including a derived timestep clamped to 16–80 ms.
+  Its update counter continues in the pause menu, and its game timer is restored
+  on resume. Keep real elapsed time, raw game delta and clamped game delta
+  distinct. The counters used by
+  [HTTQPlayBack at the inspected revision](https://github.com/RKDGU/HTTQPlayBack/blob/c967c24278c1a4f6040234ecd4c7ea677a773cf9/HTTQ_PlayBack/HTTQPlayBack.cs)
+  track animated textures and a water effect; polling them and sending OS keys
+  is not a verified input-consumption boundary.
+
+The experiment covered one key, level and executable. It did not prove behavior
+parity, arbitrary input devices, transitions, multiple Godot physics ticks per
+render, synchronized screenshots or deterministic physics. The running EXE
+differed from the decompilation reference; the four relevant live code spans
+were checked byte-for-byte before interpreting them. Production validates a
+supported build profile, not merely a familiar filename or a few matching bytes.
+
+The disposable Hype wrapper borrowed an empty pending-level buffer. One extra
+state-report call consequently failed to decode that buffer; replay completed,
+the callback self-restored, and final cleanup verified the restored buffer and
+game state before stopping the game. **Production uses dedicated owned scratch
+memory**, validated hook ownership and bounded cleanup, never a game string or
+an address copied from the experiment.
+
+### Original mechanics cadence, input phase and observations
+
+The [local follow-up mechanics investigation](../TestResults/physics-clock-investigation-20260920.md)
+traced the main gameplay path and used read-only Hype MCP observations on a fresh
+manor fixture. Twenty relevant live code spans matched the static reference;
+the owned game was stopped afterward. No memory writes or hooks were used.
+
+**No separate fixed-rate physics accumulator or independent physics thread was
+found in that path.** The main gameplay update advances the global clock once,
+then traverses actors. Eligible actors receive mechanics delta
+`clamp(raw_elapsed_ms, 16, 80) * 0.001` seconds. Hype's own eight-sample mechanics
+history contained both 0.020 and 0.021 seconds; separately read global raw/clamped
+delta pairs included 20/20, 22/22 and 21/21 ms. These corroborate variable
+integration steps, not a phase-pinned trace or an exact callback-count proof.
+
+Actor activation and update guards determine whether mechanics runs; a global
+update does not guarantee physics for every actor. The traced eligible-actor
+path performs animation, AI and mechanics in per-actor order, not an all-AI then
+all-physics world barrier. Mechanics command processing and the selected final
+updater receive the same clamped delta. Inspected collision loops perform bounded
+geometric resolution work; they do not establish independently scheduled physics
+ticks. Exhaustive solver modes and internal subdivisions remain unproved.
+
+The investigation also checked the running game's dispatch pointers: the
+gameplay callback performs actor updates and graphics work, followed by the
+graphics-end/buffer-swap callback, engine end-of-turn processing and keyboard
+input polling. In
+steady gameplay, a keyboard poll labelled with global update counter `k` prepares
+input for update `k + 1`. It does not describe input already consumed by update
+`k`. Preserve delivery and intended/confirmed consumption ordinals separately.
+
+The actor's last-updated stamp is written before its animation/mechanics work.
+Matching that stamp to the global counter cannot establish a completed actor
+observation. Return from the gameplay callback, after actor updates and before
+buffer swap, is a candidate completed-state boundary to validate. That callback
+already does graphics work; it is not a proven pre-render boundary.
+Presentation/image capture remains separate.
+These findings strengthen the requirement to prove the actual consumer and
+observation phases before interpreting the earlier keyboard probe as a full
+gameplay replay contract.
+
+Consequently, do not label the original input counter a fixed physics clock or
+assume its timestep equals Godot's. Use the original consume-update boundary
+and a verified native Godot consumer boundary to index the shared recording;
+qualify their real-time cadence and preserve both engines' actual deltas.
+Choosing Godot's native physics rate for a comparison profile is still a required
+experiment, not permission to replay original deltas or recreate its scheduler.
+
+### One shared recording and two delivery adapters
+
+Shared steps/helpers build a versioned recording of literal physical events:
+relative input-update ordinal, ordered press/release events, physical key/device
+identity and relevant modifiers. Bind both fixtures to the same controls;
+platform-specific key-code translation preserves the physical event. Keep
+repeats, simultaneous events, initial held state and final release explicit.
+Start with keyboard support; do not claim mouse/controller equivalence yet.
+Compose the steps into **one complete scenario recording**, with one ready-state
+epoch, explicit neutral gaps and observation/settling windows. Compile and hash
+that recording once before playback; both backends consume those same bytes.
+Assertions inspect declared recorded checkpoints without delaying later inputs.
+Step dispatch, MCP latency, screenshots and assertion execution must not define
+gaps in the recording. A two-action test with a deliberately slow intervening
+assertion must still deliver identical event ordinals on both backends. A reset
+inside a scenario is an explicit new setup epoch, not an unrecorded delay.
+Do not change keys, hold length or release time in response to either engine's
+progress. A missed boundary, duplicate event or replay buffer underrun is a
+failure, not permission to catch up by compressing several events into one tick.
+
+The original adapter queues the tape locally and applies it at the verified
+physical keyboard sampling boundary, leaving original bindings, edge/history
+processing and player AI responsible for the outcome. The Godot adapter supplies
+equivalent physical `InputEvent`s through normal input dispatch before the
+intended consumer tick; it does not call player actions or set movement state.
+Do not equate render and physics ticks or introduce an OpenSpace scheduler into
+Godot to obtain matching counters. Prove the ordering of normal Godot input,
+generated AI, movement and observation before fixing the adapter contract.
+
+Use bounded local queues and batched trace reads instead of one MCP transaction
+per frame. Acknowledgments record where each event was actually consumed, not
+when the controller requested it. Validate press/release edges, one-tick pulses,
+chords, repeat policy, slow renders and multiple physics ticks per render; also
+test pause/reload invalidation, buffer exhaustion, failed hook installation and
+worker death. Restore callbacks only while ownership still matches; do not free
+scratch memory while a callback can execute. An outer owner must release inputs
+and safely detach or stop its game after a failed worker. Bound the cost and
+capacity of instrumentation; missing/overwritten observations invalidate the
+affected assertion.
+
+Keep the recording schema and backend tick contract provisional until those
+cases pass. The scheduling choice is settled; unproved boundary details are
+implementation acceptance gates, not alternate millisecond execution modes.
+
+### Independent real-time comparison
+
+For each run retain three timelines: requested/consumed replay ordinals, engine
+simulation counters/deltas, and measured monotonic elapsed milliseconds. Record
+dispatch, consumption and observable outcome times with sampling uncertainty.
+Relate any engine clock to the host monotonic clock with measured uncertainty;
+handle resets/wrap explicitly. Never calculate measured milliseconds as
+`frames / FPS`, use a pause-adjusted game timer as wall time, or count an
+accelerated `--fixed-fps` run as real-time parity evidence.
+
+Compare input hold duration and input-to-outcome latency (movement onset,
+stopping, action transitions, contact), as well as the state trajectory and
+visual milestones. Same input ordinals make the stimulus reproducible; they do
+not guarantee equal simulation time, physics results or elapsed time. Keep both
+event ordinal and elapsed time in reports. Semantic labels may identify matching
+events, but must not shift/stretch timelines to conceal a late result.
+
+Qualify baseline cadence with repeated original runs and instrumented versus
+minimally observed controls before accepting tolerances. Record actual update/
+render intervals, configured caps, stalls and observation overhead; do not
+silently retry away slow runs. A documented environment/cadence failure is
+inconclusive or failed, never a parity pass. Choose the first Godot test cadence
+from this evidence and validate its ordinary native update behavior; the probe's
+48 Hz is not a permanent gameplay requirement. Do not inject recorded Hype
+deltas or modify clocks just to obtain a passing timing comparison.
+
+Predeclare per-outcome millisecond targets/tolerances and uncertainty bounds
+from source semantics and repeatable baselines. Freeze them before assessing
+Godot. A timing mismatch fails even when frame counts and final positions match.
+If environment noise cannot be bounded enough for a particular target, report
+that timing assertion as unavailable and keep the required parity job non-green.
 
 ## Comparing assets with a loaded game
 
@@ -275,19 +486,22 @@ report its asset closure coverage; it cannot reconstruct whole-source byte
 coverage without a matching local audit manifest. Do not introduce layout caches
 into Rete for metrics. Synthetic overlap/gap/alias tests verify the accounting.
 
-## Gherkin and two step implementations
+## Gherkin with shared step definitions
 
 Use Cucumber for Rust in the companion package, with one versioned set of
-`.feature` files, one scenario vocabulary and engine-specific step implementations.
-A selected backend supplies the implementation; avoid duplicate registrations
-of identical step patterns. Keep shared outcome assertions and normalized
-observation types, while the original and Godot modules independently implement
-setup, logical input, state observation and cleanup. Do not copy expected results
-from the other backend at assertion time.
+`.feature` files and **one shared step registry**. Step definitions or their shared
+helpers own the literal physical-input recordings. Selecting a backend changes
+setup, delivery, observation and cleanup, not the meaning or implementation of
+the player action. Original observations decode structured process memory;
+Godot observations query actual scene/physics state through test commands.
+Shared assertions compare normalized observations with independently sourced
+expectations. Do not copy expected results from the other backend at assertion
+time or duplicate the step definitions under engine-specific registrations.
 
 Feature files describe player intent and observable outcomes. Exact positions,
-keys, durations, mana amounts, state IDs, fixture mappings and tolerances belong
-in reviewed step definitions or typed fixture data owned by those definitions.
+keys, input-update counts, mana amounts, state IDs, fixture mappings and
+tolerances belong in reviewed step definitions or typed fixture data owned by
+those definitions.
 Those values have sources and are emitted into failure reports. Avoid a generic
 "execute command/assert field" Gherkin vocabulary and backend-specific feature
 copies. Product outcomes stay explicit even when their numeric realization is
@@ -320,19 +534,24 @@ Feature: Moving through the world
     Then Hype faces the new direction without walking away
 ```
 
-The walking step dispatches real input for a documented interval, samples through
-release and settling, and retains the trace. The standing assertion checks both
-action/visible pose and displacement within a fixed observation window. The run
-comparison excludes start/stop transients and uses comparable reset conditions;
+The walking step emits a fixed frame-indexed press/hold/release recording,
+samples through release and settling, and retains the trace. Millisecond outcome
+targets are separate fixture values; they do not schedule a second input path.
+Steps contribute to the scenario recording and its observation checkpoints;
+they cannot run a tape, wait arbitrarily for an assertion, then start another
+tape while calling the combined inputs identical. Report assertion success only
+after its recorded evidence has been evaluated. The standing assertion checks
+both action/visible pose and displacement within a fixed observation window.
+The run comparison excludes start/stop transients and uses comparable reset conditions;
 the wall check uses signed clearance/contact and a rendered corroboration, not
 just an engine-reported flag. Chosen constants and tolerances must be established
 from source evidence and repeated original runs, not tuned until Godot passes.
 
-Original-game steps use the native controller, supplied save, logical key mapping
-and structured live loader. Godot steps use the generated project, native input
-delivery and observed scene/physics state. A test-only endpoint may deliver input
-and expose observations; it must not implement player logic, force the expected
-action in a When step, or manufacture success events. Test setup may supply
+The original adapter uses the native controller, supplied save, verified physical
+input boundary and structured live loader. The Godot adapter uses the generated
+project, native input dispatch and observed scene/physics state. A test-only
+endpoint may deliver input and expose observations; it must not implement player
+logic, force the expected action in a When step, or manufacture success events. Test setup may supply
 explicit save-dependent initial state while full save import is unavailable;
 verify equivalence and label that limitation. Initialization behavior itself must
 be exercised without bypassing it when it is the subject of the scenario.
@@ -341,15 +560,19 @@ Given setup, logged and verified; it cannot repair converted data or pre-produce
 the outcome asserted by Then. A fixture which disables required reflex or
 initialization behavior is component evidence, not full gameplay acceptance.
 
-Run each scenario against each backend, then compare independently obtained
-normalized traces. Each backend must also satisfy the scenario's own assertions;
+Run each scenario's shared recording against each backend, then compare
+independently obtained normalized traces, real-time measurements and selected
+images. Each backend must also satisfy the scenario's own assertions;
 two identically broken outcomes must not pass parity. Normalize coordinates,
 units and semantic action identities in the comparison layer, preserving raw
-observations. Align by acknowledged input and semantic events, not assumed equal
-frame numbers. Use predeclared timing/spatial envelopes, record sample gaps and
-clock uncertainty, and fail/invalidate insufficient evidence. Sampling an unseen
-apex cannot prove an exact jump height. Repeated runs characterize nondeterminism;
-automatic retries do not turn an intermittent failure into an unqualified pass.
+observations. Pair acknowledged tape events using their relative input ordinals,
+retaining each engine's absolute counters and elapsed times. Compare semantic
+outcomes against that input origin; do not align away timing errors or assume
+equal absolute frame numbers. Use predeclared timing/spatial envelopes, record
+sample gaps and clock uncertainty, and fail/invalidate insufficient evidence.
+Sampling an unseen apex cannot prove an exact jump height. Repeated runs
+characterize nondeterminism; automatic retries do not turn an intermittent
+failure into an unqualified pass.
 
 Use scenario-scoped state and reset between examples. Serialize scenarios sharing
 one original-game installation; parallelize independent offline tests only.
@@ -358,14 +581,60 @@ setup and missing required engines fail the selected job. Explicitly unselected
 capabilities appear as not run. Lightweight hooks own technical lifecycle; Given
 steps own meaningful game setup. Always release inputs and close owned processes
 after failed steps. Save fixture/executable hashes, loaded Godot manifest/support
-version, inputs, times, intervention log, traces, mismatch report and selected
-screenshots; retain compact summaries on success and richer evidence on failure.
+version, recording/hash and consumption acknowledgments, all three timelines,
+intervention log, traces, mismatch report and linked screenshots; retain compact
+summaries on success and richer evidence on failure.
 
 Order later features after movement: jump/landing, sword/crossbow interaction,
 magick resource cost and projectile lifecycle, then selected world interactions.
 Add negative cases such as blocked movement, insufficient mana, interrupted
 actions and invalid targets. Keep component fixtures for localization; they do
 not replace end-to-end scenarios through the real exported character and AI.
+
+## Screenshots and pixel comparison
+
+Visual comparison is a planned assertion path with its own coverage and result,
+not merely an optional image attached to a memory mismatch. Keep two uses clear:
+
+- Asset/pose checks use an explicitly matched camera, pose, resolution and render
+  profile. They help localize conversion/material/animation differences but do
+  not establish gameplay or natural-camera parity.
+- Behavior checks capture the scene reached by the shared inputs, using the
+  game's normal camera. Camera movement and framing are part of the result;
+  forcing Godot's camera to the original's observed pose would conceal errors.
+
+Each visual checkpoint declares its input ordinal or observable milestone,
+simulation observation point and completed-render/capture relationship. Record
+the producing state/tick where observable, image acquisition interval and
+uncertainty. Presentation can lag simulation; an MCP screenshot response time
+does not identify its game state. Prove capture association on both engines
+before claiming frame-matched pixels. If exact association is unavailable, use
+an explicitly bounded settled-state checkpoint for that assertion or report it
+unavailable. This is a declared visual profile, not an input-timing fallback.
+Do not search neighboring frames for the best match and discard the timing error.
+
+Pin viewport/content rectangle, scaling, aspect ratio, color space, renderer,
+lighting/quality settings and relevant UI/locale for the profile. Preserve raw
+images; document any color conversion or crop used for comparison. Compare at
+the declared native/content resolution. Whole-image exact pixel equality is a
+useful measured target, but not a universal gate across different renderers.
+Profiles specify pixel error thresholds, allowed differing-pixel fraction and
+regions, with any secondary perceptual/edge metric labelled separately. Freeze
+thresholds from known intended equivalence and same-engine repeatability, not
+from whatever makes the port pass. Every exclusion/mask has a reason and is
+visible in the report; excluded pixels count toward reported visual gaps.
+Never introduce geometric warping, adaptive alignment or broad masks to hide
+camera, placement, missing-object or animation errors.
+
+Retain both source images, difference/heat map, optional overlay and per-region
+metrics, with tape/fixture/build identifiers and state/time metadata. Check
+missing geometry, wrong pose/camera, a one-update-late frame and altered pixels
+as negative controls; keep raw-image capture independent of the assertions it
+supports. A stale, torn or unassociated required capture cannot pass. Measure
+capture overhead as part of timing qualification; blocking memory snapshots or
+slow readback must not silently distort the real-time run. Initially validate
+one synchronized or bounded-settled movement checkpoint before expanding visual
+coverage to every scenario.
 
 ## Test selection and timing policy
 
@@ -432,41 +701,81 @@ never become a production gameplay dependency.
 1. **Checkpoint and policy.** Preserve gameplay code/tests, record fresh results
    and open limitations, commit this plan separately. No gameplay completion or
    new coverage percentage is asserted by creating the checkpoint.
-2. **Focused test foundation.** Inventory/classify existing tests, implement area
-   selection plus mandatory safeguards, per-test supervision and release mode.
-   Establish Rust coverage and level-data inventory baselines. Exit: a selected
-   area runs without unrelated expensive tests, safeguards cannot be omitted,
-   coverage gaps remain visible, and timeout/cleanup negative tests pass.
-3. **Shared source reader and native controller.** First prove file versus
-   synthetic relocated-memory decoding, then port lifecycle/input/capture and
-   implement bounded live snapshots. Exit: the supplied save loads, Hype's
-   transform/action/behavior/designer data is returned without caller addresses,
-   reload and process-exit tests reject stale state, and cleanup survives failure.
-   Preserve existing mana, sequence serialization and screenshot acceptance.
-4. **Static/live data comparison.** Join selected level/Fix assets, apply explicit
-   field policies, compare both direct and reopened-Rete routes, and integrate
-   coverage reports. Exit: manoir and astrolabe fixtures report real matched/gap
-   counts; deliberate Rete edits and broken sharing produce precise mismatches;
-   save-dependent differences are explained rather than ignored globally.
-5. **First dual-backend BDD feature.** Implement the movement vocabulary and both
-   engine step implementations, capture original traces, and run the checkpoint
-   Godot port. Exit: real original runs pass their assertions, missing Godot
-   behavior is reported as failing/incomplete, known injected faults are caught,
-   and no setup or test endpoint substitutes for the missing player controller.
-6. **Resume gameplay through red/green comparisons.** Complete initialization and
+2. **Resolve consumer boundary and cadence before infrastructure.** Use the
+   original mechanics/phase findings above and verify the selected fixture,
+   then exercise the actual
+   generated AI/native Godot character with one-tick presses/releases, consecutive
+   catch-up ticks and render stalls. Distinguish delivery success from gameplay
+   correctness, so the checkpoint's missing behavior need not block the probe.
+   Exit: the native integration point and supported execution profile are
+   evidenced, with independently measured elapsed time. A failed experiment
+   requires an explicit integration decision, not a millisecond fallback or an
+   unnoticed constraint that makes only the synthetic probe work.
+3. **Minimum focused test foundation.** Classify the first development area's
+   tests and mandatory safeguards, add bounded selection/supervision and a full
+   inventory that keeps unclassified work visible and required for release.
+   Establish code and level-data coverage baselines for the first actor slice.
+   Exit: that area runs without unrelated expensive tests, safeguards cannot be
+   omitted, and timeout/cleanup negative tests pass. Broad test decomposition
+   and all-level inventory work must not delay the first live comparison.
+4. **Native replay and narrow live loading.** Reuse selected source declarations
+   against files and synthetic relocated memory, then load Hype's transform,
+   action/behavior and needed designer values without caller addresses. Port
+   enough lifecycle/input/capture to run the supplied manor fixture. Prove the
+   scenario recording at both actual consumer boundaries, including a slow
+   intervening assertion, cleanup, stale handles and unmodified clocks. Prove
+   the duplicate/shared/dynamic identity cases before expanding the reader.
+   Exit: replay acknowledgments establish identical inputs; completed-update
+   observations reject mid-update tuples; real-time controls characterize
+   overhead; one visual checkpoint has a verified capture relationship. Do not
+   freeze the tape format or source-reader contract before these checks pass.
+5. **First data comparison and shared BDD movement feature.** Compare the narrow
+   manor actor/definition slice through direct and closed/reopened Rete routes;
+   implement one shared movement step registry and engine observation adapters.
+   Replay against the checkpoint Godot port immediately. Exit: original runs
+   satisfy their own assertions; missing Godot behavior is reported as failing/
+   incomplete; state, elapsed-ms and visual results are independent; deliberate
+   Rete edits and no-op/late-input/wrong-image faults are caught. No setup or test
+   endpoint substitutes for the missing player controller.
+6. **Complete focused reporting around that path.** Extend profiles to a shared
+   family, static model/dependency graph and `astrolabe`; integrate code and
+   independently accounted level-data coverage. Complete affected-area selection
+   and release membership reporting. Exit: real matched/gap counts, sharing and
+   save-dependent differences are visible. This broadening is not a prerequisite
+   for starting gameplay work once step 5 can reliably expose its failures.
+7. **Resume gameplay through red/green comparisons.** Complete initialization and
    actual idle/walk/run/contact until the same feature passes both backends and
-   paired trace checks through direct and Rete conversions. Only then broaden
-   jump, combat and magick. Add codec/coverage tests with each newly used field.
-7. **Broaden and package.** Expand level/domain/scenario inventory, validate a
+   paired state, measured-millisecond and declared visual checks through direct
+   and Rete conversions. Only then broaden jump, combat and magick. Add codec/
+   coverage tests with each newly used field.
+8. **Broaden and package.** Expand level/domain/scenario inventory, validate a
    Windows backend when available, publish optional testkit/inspection tooling,
    and run the complete release matrix. Retire Python control after equivalent
-   native evidence and a documented migration; keep game installations/evidence
-   local. Full source-package fidelity remains its own existing milestone.
+   native mana, sequence serialization, screenshot and failure/cleanup evidence
+   and a documented migration; keep installations/evidence local. Full source-
+   package fidelity remains its own existing milestone.
 
-The first implementation task is step 2, followed by a narrow actor-data slice
-of step 3. Complete that useful vertical path before attempting a general live
-object browser or broad engine introspection. No human-effort estimates are part
-of this plan; progress is judged by the exit evidence above.
+The first implementation task is the boundary/cadence proof in step 2, followed
+by the minimum foundation and narrow comparisons in steps 3–5. Complete that
+path before a general live object browser, broad engine introspection or
+exhaustive metrics infrastructure. No human-effort estimates are part of this
+plan; progress is judged by the exit evidence above.
+
+### Design review: decisions that become expensive to reverse
+
+Independent review on 2026-09-20 supported the adapter/dependency direction and
+shared-input design, and identified four contracts to prove early:
+
+| Contract | Likely regret if fixed too early | Required early evidence |
+| --- | --- | --- |
+| Input-consumer boundary and cadence | Fixtures depend on one-render/one-physics-tick behavior or an unjustified clock correspondence | Actual character/AI edge and catch-up tests; original mechanics cadence investigation; independent real-time controls |
+| Complete scenario chronology | Identical step tapes acquire different gaps through assertion/controller latency | One scenario recording; slow intervening assertion leaves input ordinals unchanged |
+| Observation phase | Mid-update tuples become the behavior oracle and generate false failures | Verified completed-update publication; partial-write negative control |
+| Source bounds and cross-source identity | Offline allocation assumptions leak into live handles or persisted assets | Distinct equal-valued objects, sharing and replacement across offline/Rete/live |
+
+These gates reduce the cost of revising integration details; writing them down
+does not establish their results. In particular, exact input counts do not yet
+prove a useful real-time gameplay comparison profile.
 
 ## Tool references
 

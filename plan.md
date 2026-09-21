@@ -9,9 +9,10 @@ This is the current Rust plan, updated 2026-09-14 with the gameplay implementati
 2026-09-20 priority: preserve the current gameplay foundations in a checkpoint,
 then implement the [live loading, comparison and testing plan](docs/realtime-comparison-plan.md).
 It defines static/Rete-to-live data comparison, original-to-Godot behavior
-comparison using shared Gherkin and two step implementations, Rust code and
-level-data coverage, and focused suites with mandatory safeguards. Resume the
-playable idle/walk/run checkpoint through that harness; do not restart completed
+comparison using shared Gherkin step definitions and literal frame-indexed input
+recordings, independent measured-millisecond and screenshot/pixel assertions,
+Rust code and level-data coverage, and focused suites with mandatory safeguards.
+Resume the playable idle/walk/run checkpoint through that harness; do not restart completed
 media/model work or resume the archived engine-runtime experiment.
 
 The supported native Godot scene/character migration is complete: saved parts
@@ -71,7 +72,7 @@ Read the external [harness README](/home/stephen/Projects/hype-harness/README.md
 | All 36 teleport destinations reached after hidden-lever activation; `tele11` reaches `astrolabe` | Reach representative levels without a complete playthrough. `navigate_level` provides a separate, logged memory transition when a tested cheat cannot reach the required state. |
 | Mana consumption/refill and Fire Trinity steering/pause/resume (`hunter`, `geritole`) | Candidate behavior fixtures for milestone 8: input, designer-variable changes, mana cost, projectile lifetime, and collision outcomes. |
 
-For milestones 6–8, select a bounded source-game comparison alongside each useful Godot slice: scene placement/materials/collision, an animation/action, or a supported interaction. Record executable/fixture hashes, level/save, input sequence, interventions, relevant values, screenshots/viewpoint, elapsed time, and expected Godot behavior. Reload the clean supplied fixture between unrelated behavior tests when cross-level state interferes. Keyboard timing is best effort, not frame-exact replay.
+For milestones 6–8, select a bounded source-game comparison alongside each useful Godot slice: scene placement/materials/collision, an animation/action, or a supported interaction. Record executable/fixture hashes, level/save, input sequence, interventions, relevant values, screenshots/viewpoint, elapsed time, and expected Godot behavior. Reload the clean supplied fixture between unrelated behavior tests when cross-level state interferes. Existing timed MCP key actions are best effort. The [2026-09-20 timing experiment and replay decision](docs/realtime-comparison-plan.md#replay-decision-frames-drive-inputs-milliseconds-judge-timing) establish a narrow frame-indexed input proof in both engines; production replay remains planned. Implement that scheduling model without a millisecond fallback, and compare independently measured real elapsed time as well as state and pixels.
 
 Keep **original-game baseline observations**, **Godot behavior comparisons**, and **original-engine acceptance of rebuilt files** as separate evidence. No Astrolabe-generated package has yet been accepted by this harness. When a suitable rebuilt file is available, stage it only in a test copy, identify/hash the actual files loaded, and demonstrate the intended edited effect. Do not silently exercise the original asset or repair exported data through memory writes. Comparing a useful Godot slice against the original game need not wait for complete SNA reconstruction.
 
@@ -276,4 +277,4 @@ Shared text-token parsing for CSB/LCB/SIF and later configuration files can be f
 
 ## Next implementation task
 
-Follow [ordered delivery](docs/realtime-comparison-plan.md#ordered-delivery-and-exit-evidence): first establish focused test selection, mandatory safeguards and coverage baselines; then implement shared source access/native control, static/live comparison, and the first dual-backend movement feature. Resume the checkpointed gameplay work through failing/passing comparisons. Existing media/model and native asset conversion remain the foundation. The [remaining-work inventory](docs/remaining-work.md) and [project design](docs/godot-project.md) remain relevant after this priority; Indeo AVI and exact historical LZO fidelity retain their late milestones.
+Follow [ordered delivery](docs/realtime-comparison-plan.md#ordered-delivery-and-exit-evidence): first prove input-consumer ordering and cadence through the actual engine paths, including Godot catch-up ticks. Then add the minimum focused selection, safeguards and coverage accounting for one actor slice, native replay and narrow static/live and shared-step movement comparisons. Validate real elapsed time and one associated screenshot before expanding the harness. Resume gameplay as soon as this path reliably exposes its failures; exhaustive metrics and all-area test refactoring must not block it. Existing media/model and native asset conversion remain the foundation. The [remaining-work inventory](docs/remaining-work.md) and [project design](docs/godot-project.md) remain relevant after this priority; Indeo AVI and exact historical LZO fidelity retain their late milestones.

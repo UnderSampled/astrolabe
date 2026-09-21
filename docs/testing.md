@@ -13,7 +13,10 @@ tests; preserve release coverage when splitting large cases.
 The [implementation plan](realtime-comparison-plan.md) defines area selection,
 mandatory safeguards, per-test/scenario supervision, Rust code coverage,
 level-data coverage, structured original-engine loading, static/Rete-to-live
-comparison and shared Gherkin with original/Godot step implementations. These
+comparison and shared Gherkin step definitions generating the same frame-indexed
+physical inputs for both engines. Original/Godot adapters deliver inputs and
+observe results; real elapsed milliseconds and screenshot/pixel matches are
+independent assertions. There is no millisecond replay fallback. These
 are planned deliverables, not currently available runners or coverage numbers.
 The existing commands below remain available and retain their historical
 570-second cap until that runner work is implemented.

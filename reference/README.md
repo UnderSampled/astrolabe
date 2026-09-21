@@ -52,6 +52,18 @@ Astrolabe directly. The current Python controller remains the migration referenc
 authentication material, game installations, saves and game-derived evidence stay
 local. Retire the old controller only after native acceptance checks pass.
 
+The [2026-09-20 replay investigation](../docs/realtime-comparison-plan.md#replay-decision-frames-drive-inputs-milliseconds-judge-timing)
+demonstrated five-update physical-key holds in the original and Godot. This is
+a narrow feasibility result, not production replay or behavior/timing parity.
+The selected design schedules inputs by verified consumption updates, compares
+measured real milliseconds independently, and has no millisecond replay fallback.
+The report records hook restoration, clock findings and remaining acceptance
+cases; existing MCP timed key actions still provide best-effort timing.
+The [follow-up mechanics trace](../docs/realtime-comparison-plan.md#original-mechanics-cadence-input-phase-and-observations)
+found main-update-driven variable mechanics timesteps and keyboard polling after
+update/render, preparing the next update. Do not assume an independent fixed
+OpenSpace physics clock or use an actor's early update stamp as a completion fence.
+
 **For automated comparisons, use the verified standalone Hype MCP harness at `/home/stephen/Projects/hype-harness`.** It is separate from Astrolabe and has a private game copy at `local/prefix/drive_c/Games/Hype`. The persistent `hype-mcp.service` is registered as `hype` in the local Codex MCP configuration. Its 15 tools cover lifecycle, keyboard/cheat input, timed sequences and state waits, screenshots, state/mana reads, memory maps, guarded memory writes, and logged level navigation. Read the [harness README](/home/stephen/Projects/hype-harness/README.md) for tool arguments, save-loading recipe, service management, and authenticated client/CLI fallback when an existing Codex session has not refreshed tool discovery. Preserve the current external controller during the planned migration; do not copy its private files into the repository.
 
 Start with `status` and `start_game`, then load the supplied save using the documented `run_sequence` recipe; wait for phase 9, level `manoir`, and fade-in completion. Save loading and gameplay are verified. All 36 hidden-lever teleport destinations loaded; `tele11` reaches `astrolabe`. The [hidden-lever report](/home/stephen/Projects/hype-harness/HIDDEN_BUTTON.md) documents the required unlock, temporary positioning intervention, Fire Trinity steering/pause tests, and input/camera/quest-state limitations. `navigate_level` is a memory intervention, not a cheat or proof of story progression. The [272-code catalog](/home/stephen/Projects/hype-harness/CHEATS.md) labels unverified bindings. Do not reuse captured heap addresses without resolving and validating the current process.

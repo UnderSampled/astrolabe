@@ -137,6 +137,23 @@ Before the readability refactor and schema 2, a separate bounded measurement run
 
 ## Runtime reference status
 
+**2026-09-20 input timing experiment:** six original-engine and two real-time
+Godot probes delivered the same five-update physical-key hold. Original elapsed
+intervals ranged from 102 to 174 ms, versus approximately 104 ms in Godot; this
+proves a narrow input-scheduling capability, not timing or gameplay parity.
+Production replay, actual character consumer ordering and synchronized images
+remain unimplemented/unverified. The [replay decision and evidence](realtime-comparison-plan.md#replay-decision-frames-drive-inputs-milliseconds-judge-timing)
+choose frame-indexed inputs with independent measured-ms assertions and no
+automatic timing fallback. The experiment's temporary hook/buffer were restored
+and its owned game was stopped.
+
+The subsequent [mechanics investigation](realtime-comparison-plan.md#original-mechanics-cadence-input-phase-and-observations)
+found variable elapsed-time mechanics in the traced main gameplay path, not a
+separate fixed-rate physics clock. Read-only live checks corroborated 20/21 ms
+actor timesteps and the update/render/input dispatch order. Keyboard input is
+prepared for the next gameplay update; the actor stamp precedes completion.
+Correspondence with Godot's fixed physics cadence remains to be qualified.
+
 **Original-engine automation is available.** The standalone `/home/stephen/Projects/hype-harness` project now provides the persistent `hype` MCP server registered with local Codex. All 15 tools were discovered by a fresh Codex client and again through MCP after the game tests. The 28.2-second harness suite verified save loading, timed keyboard control, screenshots, mana consumption/refill (30 → 20 → 50), guarded memory write/restore, failure handling, and client reconnection. The private Gamescope/Wine window uses dgVoodoo 2.79.3 and DXVK 2.6.2 at 1024×768/48 FPS, with videos disabled and no desktop focus capture on launch. The controller and game copy remain outside Astrolabe; see the [comparison plan](../plan.md#available-original-engine-comparison-harness) and [harness README](/home/stephen/Projects/hype-harness/README.md).
 
 Further source-game tests activated the hidden manor lever through keyboard input after temporarily moving the lever into reach, then restored its position without patching cheat flags. All 36 teleport destinations loaded, including `tele11` → `astrolabe`. A fresh-fixture Fire Trinity test measured a 35-mana cost, steering, pause/resume, and active-ball count changes. The supplied save files remained byte-identical to the archive. The [test report](/home/stephen/Projects/hype-harness/HIDDEN_BUTTON.md) records hashes, sequences, memory interventions, screenshots, and camera/input/quest-state limitations; its 272-entry catalog distinguishes bindings from proven effects. Evidence is local under the harness's `local/hidden-button-research/` and `local/runs/`. These are useful original-game baselines, **not acceptance of Astrolabe-generated packages or established Godot gameplay parity**. The test game was stopped; the MCP service remained available. Use this tool for relevant comparisons rather than treating original-engine setup as unavailable.
