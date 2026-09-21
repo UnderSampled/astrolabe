@@ -135,18 +135,32 @@ impl Process {
         }
         Ok(())
     }
-    fn thread_states(&self) -> Result<BTreeMap<i32, char>> {
+    pub(crate) fn thread_states(&self) -> Result<BTreeMap<i32, char>> {
         self.check()?;
         let mut states = BTreeMap::new();
         for entry in fs::read_dir(format!("/proc/{}/task", self.identity.pid))? {
-            let entry = entry?;
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(error.into()),
+            };
             let tid = entry
                 .file_name()
                 .to_str()
                 .context("invalid thread name")?
                 .parse()?;
-            states.insert(tid, stat_path(entry.path().join("stat"), tid)?.state);
+            match stat_path(entry.path().join("stat"), tid) {
+                Ok(row) => {
+                    states.insert(tid, row.state);
+                }
+                Err(error)
+                    if error
+                        .downcast_ref::<std::io::Error>()
+                        .is_some_and(|error| error.kind() == std::io::ErrorKind::NotFound) => {}
+                Err(error) => return Err(error),
+            }
         }
+        self.check()?;
         ensure!(!states.is_empty(), "no process threads");
         Ok(states)
     }
@@ -202,6 +216,57 @@ impl Process {
         );
         self.check()?;
         Ok(bytes)
+    }
+    pub(crate) fn write_instrumentation(&self, address: usize, bytes: &[u8]) -> Result<()> {
+        self.check()?;
+        ensure!(
+            !bytes.is_empty() && bytes.len() <= MAX_READ,
+            "invalid write size"
+        );
+        let local = libc::iovec {
+            iov_base: bytes.as_ptr() as *mut libc::c_void,
+            iov_len: bytes.len(),
+        };
+        let remote = libc::iovec {
+            iov_base: address as *mut libc::c_void,
+            iov_len: bytes.len(),
+        };
+        // SAFETY: local points at initialized source bytes. The kernel checks
+        // the remote mapping; the instrumentation owner bounds destinations.
+        let count = unsafe { libc::process_vm_writev(self.identity.pid, &local, 1, &remote, 1, 0) };
+        if count < 0 {
+            return Err(std::io::Error::last_os_error().into());
+        }
+        ensure!(
+            count as usize == bytes.len(),
+            "partial instrumentation write"
+        );
+        self.check()
+    }
+    /// Fail closed when instrumentation restoration cannot be established.
+    /// The pidfd pins the exact owned process even if its numeric PID is reused.
+    pub(crate) fn terminate_instrumentation(&self) -> Result<()> {
+        // SAFETY: the pidfd pins the owned identity and SIGKILL has no user
+        // pointer payload. ESRCH means that same process already exited.
+        let result = unsafe {
+            libc::syscall(
+                libc::SYS_pidfd_send_signal,
+                self.descriptor.as_raw_fd(),
+                libc::SIGKILL,
+                std::ptr::null::<libc::siginfo_t>(),
+                0,
+            )
+        };
+        if result < 0 {
+            let error = std::io::Error::last_os_error();
+            if error.raw_os_error() != Some(libc::ESRCH) {
+                return Err(error.into());
+            }
+        }
+        Ok(())
+    }
+    pub(crate) fn resume_instrumentation(&self) -> Result<()> {
+        self.signal(libc::SIGCONT)
     }
     pub fn pause(&self, timeout: Duration) -> Result<Pause<'_>> {
         ensure!(
