@@ -4,7 +4,7 @@
 //! are adopted with subreaping; pre-existing children and their descendants are
 //! excluded. External test supervision remains responsible for killed owners.
 use anyhow::{Context, Result, bail, ensure};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
     fs,
@@ -25,10 +25,15 @@ static OWNER_ACTIVE: AtomicBool = AtomicBool::new(false);
 const MAX_READ: usize = 1024 * 1024;
 const MAX_CAPTURE: usize = 16 * MAX_READ;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Identity {
     pub pid: i32,
     pub start_ticks: u64,
+}
+impl Identity {
+    pub fn current() -> Result<Self> {
+        Ok(stat(std::process::id() as i32)?.identity)
+    }
 }
 #[derive(Clone)]
 struct Stat {
@@ -93,7 +98,13 @@ impl Process {
             identity,
             descriptor,
         };
-        process.check()?;
+        // A very short command may already be a zombie. Pin its identity so the
+        // owner can retrieve its real exit status; memory/signal calls still
+        // reject dead processes through check().
+        ensure!(
+            stat(identity.pid)?.identity == identity,
+            "stale process identity"
+        );
         Ok(process)
     }
     pub fn identity(&self) -> Identity {
@@ -244,13 +255,21 @@ impl Pause<'_> {
     pub fn stopped_threads(&self) -> usize {
         self.threads
     }
-    pub fn capture(&self) -> Capture<'_> {
-        Capture {
+    pub fn capture(&self) -> Result<Capture<'_>> {
+        // SAFETY: sysconf queries the host page size and takes no pointers.
+        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
+        ensure!(
+            page_size > 0 && (page_size as usize).is_power_of_two(),
+            "invalid host page size"
+        );
+        Ok(Capture {
             guard: self,
             ranges: BTreeMap::new(),
+            pages: BTreeMap::new(),
+            page_size: page_size as usize,
             bytes: 0,
             started: Instant::now(),
-        }
+        })
     }
 }
 impl Drop for Pause<'_> {
@@ -264,6 +283,8 @@ impl Drop for Pause<'_> {
 pub struct Capture<'a> {
     guard: &'a Pause<'a>,
     ranges: BTreeMap<usize, Vec<u8>>,
+    pages: BTreeMap<usize, Vec<u8>>,
+    page_size: usize,
     bytes: usize,
     started: Instant,
 }
@@ -273,6 +294,8 @@ pub struct Snapshot {
     pub consistency: Consistency,
     pub capture_micros: u128,
     pub stopped_threads: usize,
+    pub page_reads: usize,
+    pub copied_source_bytes: usize,
     ranges: BTreeMap<usize, Vec<u8>>,
 }
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -284,21 +307,38 @@ impl Capture<'_> {
         if let Ok(bytes) = range(&self.ranges, address, size) {
             return Ok(bytes.to_vec());
         }
+        ensure!((1..=MAX_READ).contains(&size), "invalid capture range size");
         ensure!(
-            self.bytes
-                .checked_add(size)
-                .is_some_and(|n| n <= MAX_CAPTURE),
-            "capture exceeds 16 MiB"
+            self.ranges.len() < 16384,
+            "capture exceeds bounded record count"
         );
+        let end = address
+            .checked_add(size)
+            .context("capture range overflow")?;
+        self.guard.process.check()?;
+        let mut bytes = Vec::with_capacity(size);
+        let mut position = address;
+        while position < end {
+            let page = position & !(self.page_size - 1);
+            let page_end = page
+                .checked_add(self.page_size)
+                .context("page range overflow")?;
+            if !self.pages.contains_key(&page) {
+                ensure!(
+                    self.bytes + (self.pages.len() + 1) * self.page_size + size <= MAX_CAPTURE,
+                    "capture exceeds 16 MiB of retained records and page cache"
+                );
+                let data = self.guard.process.read_running(page, self.page_size)?;
+                self.pages.insert(page, data);
+            }
+            let stop = end.min(page_end);
+            bytes.extend_from_slice(&self.pages[&page][position - page..stop - page]);
+            position = stop;
+        }
         ensure!(
-            self.guard
-                .process
-                .thread_states()?
-                .values()
-                .all(|s| *s == 'T'),
-            "capture lost stopped state"
+            self.bytes + self.pages.len() * self.page_size + size <= MAX_CAPTURE,
+            "capture exceeds 16 MiB of retained records and page cache"
         );
-        let bytes = self.guard.process.read_running(address, size)?;
         self.bytes += size;
         self.ranges.insert(address, bytes.clone());
         Ok(bytes)
@@ -317,6 +357,10 @@ impl Capture<'_> {
             consistency: Consistency::StoppedBytes,
             capture_micros: self.started.elapsed().as_micros(),
             stopped_threads: self.guard.threads,
+            page_reads: self.pages.len(),
+            copied_source_bytes: self.pages.len() * self.page_size,
+            // Page prefetch is transient. Preserve only explicitly requested
+            // records so neighboring bytes cannot be fetched after resume.
             ranges: self.ranges,
         })
     }
@@ -407,6 +451,18 @@ impl Owner {
             .filter(|p| p.check().is_ok())
             .cloned()
             .collect())
+    }
+    pub fn try_wait(&mut self, process: &Process) -> Result<Option<std::process::ExitStatus>> {
+        ensure!(
+            self.owned.contains_key(&process.identity),
+            "process belongs to another owner"
+        );
+        self.children
+            .iter_mut()
+            .find(|child| child.id() as i32 == process.identity.pid)
+            .context("only directly launched children have an owned exit status")?
+            .try_wait()
+            .map_err(Into::into)
     }
     fn refresh(&mut self) -> Result<()> {
         for child in &mut self.children {

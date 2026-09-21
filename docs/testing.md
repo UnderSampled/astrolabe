@@ -4,7 +4,7 @@
 
 `tools/test.py` now uses a checked-in, exact test inventory and cargo-nextest
 **0.9.145**. It retains the Python outer supervisor while the native runtime is
-implemented. The manifest currently classifies all 103 Rust tests, their areas,
+implemented. The manifest currently classifies all 106 Rust tests, their areas,
 prerequisites, fixtures, release membership and individual hard deadlines. New,
 removed, duplicate or newly ignored tests require a manifest update; discovery
 mismatches fail before execution. The native original-game runtime, comparisons,
@@ -33,6 +33,14 @@ Use `--game PATH` and `--godot EXECUTABLE` for explicit fixtures, or the existin
 nextest executable with `--nextest`/`ASTROLABE_NEXTEST`; an executable on PATH or
 `output/test-tools/nextest-0.9.145/cargo-nextest` is also detected. Tool versions
 are checked. The runner does not install runtimes or proprietary data.
+
+Native original-game checks use `--original-config PATH` or
+`ASTROLABE_HYPE_CONFIG`; the existing sibling `hype-harness/local/config.json`
+is detected when present. These ignored tests are selected by `--area runtime
+--local` and the complete local/release inventory. They require the prepared
+private Wine/Gamescope/KDE fixture and serialize with other engine tests. Missing
+prerequisites are reported unavailable. Their retained JSON, raw snapshots and
+screenshots live beneath the job's evidence directory.
 
 The job budgets are explicit: development 300 seconds, routine 600, complete
 local converter inventory 1,800, release inventory 2,400. `--timeout` can select a
@@ -74,7 +82,7 @@ missing cases and stale/skipped/duplicate results. Converter safeguards cover
 source-free Rete export and deliberate edits, identity/sharing/schema checks,
 native saved resources, production support, authored regeneration and diagnostics.
 These tests complement architectural review; they do not establish full gameplay.
-The four native process-owner safeguards additionally verify all-thread pauses,
+The five native process-owner safeguards additionally verify all-thread pauses,
 pre-existing stop preservation, unwind restoration, immutable bounded snapshots,
 mid-update rejection and stale processes. [Native runtime progress](native-runtime-progress.md)
 records their scope and the remaining runtime acceptance gates.

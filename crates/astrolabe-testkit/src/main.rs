@@ -9,6 +9,26 @@ struct Cli {
 }
 #[derive(Subcommand)]
 enum Commands {
+    /// Inspect the supplied manor fixture using the native private-game runtime.
+    InspectOriginal {
+        #[arg(long)]
+        config: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long, hide = true)]
+        fail_stopped_worker: bool,
+    },
+    #[command(hide = true)]
+    OriginalWorker {
+        #[arg(long)]
+        config: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long)]
+        host_display: String,
+        #[arg(long, hide = true)]
+        fail_stopped_worker: bool,
+    },
     /// Synthetic process used by lifecycle acceptance tests; no game data.
     #[command(hide = true)]
     Fixture {
@@ -104,6 +124,38 @@ fn fixture(output: PathBuf, escaped: bool, leaf: bool, partial: bool) -> Result<
 }
 fn main() -> Result<()> {
     match Cli::parse().command {
+        Commands::InspectOriginal {
+            config,
+            output,
+            fail_stopped_worker,
+        } => {
+            #[cfg(target_os = "linux")]
+            return astrolabe_testkit::original::inspect(&config, &output, fail_stopped_worker);
+            #[cfg(not(target_os = "linux"))]
+            {
+                let _ = (config, output, fail_stopped_worker);
+                bail!("native runtime currently requires Linux");
+            }
+        }
+        Commands::OriginalWorker {
+            config,
+            output,
+            host_display,
+            fail_stopped_worker,
+        } => {
+            #[cfg(target_os = "linux")]
+            return astrolabe_testkit::original::worker(
+                &config,
+                &output,
+                &host_display,
+                fail_stopped_worker,
+            );
+            #[cfg(not(target_os = "linux"))]
+            {
+                let _ = (config, output, host_display, fail_stopped_worker);
+                bail!("native runtime currently requires Linux");
+            }
+        }
         Commands::Fixture {
             output,
             escaped,

@@ -60,7 +60,7 @@ fn stopped_capture_is_bounded_immutable_and_never_completed_update() -> Result<(
     let stopped = process.pause(Duration::from_secs(1))?;
     assert!(stopped.stopped_threads() >= 2);
     assert!(!stopped.preserved_existing_stop());
-    let mut capture = stopped.capture();
+    let mut capture = stopped.capture()?;
     let bytes = capture.read(address, 24)?;
     assert_ne!(
         words(&bytes)[1],
@@ -164,5 +164,33 @@ fn failed_launch_and_duplicate_owner_do_not_leave_ownership_locked() -> Result<(
         owner.close()?;
     }
     Owner::new()?.close()?;
+    Ok(())
+}
+
+#[test]
+fn native_owner_preserves_short_command_exit_status() -> Result<()> {
+    let mut owner = Owner::new()?;
+    for code in [0, 1, 0, 1, 1, 0] {
+        let program = if code == 0 {
+            "/usr/bin/true"
+        } else {
+            "/usr/bin/false"
+        };
+        let process = owner.spawn(&mut Command::new(program))?;
+        let deadline = Instant::now() + Duration::from_secs(1);
+        loop {
+            // Ownership refresh may reap a fast child before its caller checks
+            // the status; that exact exit code must remain available.
+            owner.processes()?;
+            if let Some(status) = owner.try_wait(&process)? {
+                assert_eq!(status.code(), Some(code));
+                break;
+            }
+            ensure!(Instant::now() < deadline, "short command did not exit");
+            thread::sleep(Duration::from_millis(1));
+        }
+        assert!(process.check().is_err());
+    }
+    owner.close()?;
     Ok(())
 }

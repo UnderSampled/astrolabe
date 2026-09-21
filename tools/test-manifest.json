@@ -1539,6 +1539,50 @@
       "timeout_seconds": 30,
       "ignored": true,
       "release": true
+    },
+    {
+      "binary": "astrolabe-testkit::runtime",
+      "test": "native_owner_preserves_short_command_exit_status",
+      "areas": [
+        "runtime"
+      ],
+      "kind": "process",
+      "prerequisites": [],
+      "fixture": "synthetic Linux child",
+      "timeout_seconds": 8,
+      "ignored": false,
+      "release": true,
+      "safeguard": "always"
+    },
+    {
+      "binary": "astrolabe-testkit::original",
+      "test": "native_manor_inspection_reads_actor_captures_pixels_and_cleans_up",
+      "areas": [
+        "runtime"
+      ],
+      "kind": "original-engine",
+      "prerequisites": [
+        "original"
+      ],
+      "fixture": "pinned Hype executable and supplied English SaveGame0",
+      "timeout_seconds": 210,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe-testkit::original",
+      "test": "native_owner_cleans_game_after_worker_dies_while_paused",
+      "areas": [
+        "runtime"
+      ],
+      "kind": "original-engine",
+      "prerequisites": [
+        "original"
+      ],
+      "fixture": "pinned Hype executable and supplied English SaveGame0",
+      "timeout_seconds": 210,
+      "ignored": true,
+      "release": true
     }
   ]
 }

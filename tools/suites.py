@@ -56,8 +56,9 @@ def prerequisites(environment, root):
             'disc': (game/'Gamedata/World/Levels/Fix.sna').is_file(),
             'liblzo2': bool(ctypes.util.find_library('lzo2')),
             'ffmpeg': bool(shutil.which('ffmpeg')),
-            # Native original-engine fixture validation is added with testkit.
-            'original': False}
+            'original': Path(environment.get('ASTROLABE_HYPE_CONFIG', '/nonexistent')).is_file()
+                        and all(shutil.which(tool) for tool in ('gamescope', 'kwriteconfig6', 'qdbus6'))
+                        and bool(environment.get('WAYLAND_DISPLAY'))}
 
 
 def junit_results(path, selected):
@@ -89,6 +90,7 @@ def main():
     parser.add_argument('--offline', action='store_true')
     parser.add_argument('--game', type=Path)
     parser.add_argument('--godot')
+    parser.add_argument('--original-config', type=Path, help='existing private Hype fixture configuration')
     parser.add_argument('--nextest', default=os.environ.get('ASTROLABE_NEXTEST'))
     parser.add_argument('--timeout', type=float, help='job budget including build and cleanup; no universal cap')
     parser.add_argument('--log', type=Path, help='new log path; sibling artifacts retain inventory and per-test evidence')
@@ -114,6 +116,13 @@ def main():
         environment['ASTROLABE_GAME_DIR'] = str(args.game.resolve())
     if args.godot:
         environment['ASTROLABE_GODOT'] = str(Path(args.godot).resolve()) if os.sep in args.godot else args.godot
+    if args.original_config:
+        environment['ASTROLABE_HYPE_CONFIG'] = str(args.original_config.resolve())
+    else:
+        prepared = root.parent/'hype-harness/local/config.json'
+        if prepared.is_file():
+            environment.setdefault('ASTROLABE_HYPE_CONFIG', str(prepared))
+    environment['ASTROLABE_EVIDENCE_DIR'] = str(evidence)
     tool = args.nextest or shutil.which('cargo-nextest')
     local_tool = root/'output/test-tools'/f'nextest-{manifest["nextest_version"]}'/'cargo-nextest'
     if not tool and local_tool.is_file():
