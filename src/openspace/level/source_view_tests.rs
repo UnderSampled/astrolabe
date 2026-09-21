@@ -40,6 +40,7 @@ fn fixture(base: u32) -> (Memory, SourceSession) {
         (0x510, 0x600),
         (0x514, 0x640),
         (0x600, 0x640),
+        (0x628, 0x640),
     ];
     for (site, target) in sites {
         word(&mut data, site, base + target);
@@ -51,6 +52,8 @@ fn fixture(base: u32) -> (Memory, SourceSession) {
     }
     word(&mut data, 0x50c, 5);
     word(&mut data, 0x518, 2);
+    data[0x63a..0x63d].copy_from_slice(&[3, 7, 1]);
+    data[0x67a..0x67d].copy_from_slice(&[2, 9, 0]);
     word(&mut data, 0x700, 0x90);
     for (i, value) in [1.25f32, -2., 3.5].into_iter().enumerate() {
         word(&mut data, 0x704 + i * 4, value.to_bits());
@@ -104,7 +107,7 @@ fn file_and_relocated_memory_share_bounded_actor_and_transform_readers() -> Resu
     assert!(HypeBuild::verified(&"0".repeat(64)).is_err());
     for base in [0x1000, 0x21000] {
         let (mut memory, file) = fixture(base);
-        let observed = build.actor(&mut memory)?;
+        let observed = build.actor_with_actions(&mut memory, &[0, 1])?;
         let file_observed = live::actor(
             &mut FileView(&file),
             Address {
@@ -112,6 +115,7 @@ fn file_and_relocated_memory_share_bounded_actor_and_transform_readers() -> Resu
                 key: BlockKey(6, 2),
                 offset: 0,
             },
+            &[0, 1],
             |a| format!("{a:?}"),
         )?;
         assert_eq!(observed.object_types, [5, 9, 42]);
@@ -133,9 +137,29 @@ fn file_and_relocated_memory_share_bounded_actor_and_transform_readers() -> Resu
             [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]]
         );
         assert_eq!(observed.action_members.len(), 2);
+        assert_eq!(
+            observed.action_definitions,
+            vec![
+                live::ActionDefinitionProjection {
+                    id: 0,
+                    speed: 7,
+                    repeats: 3,
+                    transition_lock: 1,
+                    next: Some(1),
+                },
+                live::ActionDefinitionProjection {
+                    id: 1,
+                    speed: 9,
+                    repeats: 2,
+                    transition_lock: 0,
+                    next: None,
+                },
+            ]
+        );
         assert_ne!(observed.action_members[0], observed.action_members[1]);
         assert_eq!(observed.object_types, file_observed.object_types);
         assert_eq!(observed.current_action, file_observed.current_action);
+        assert_eq!(observed.projection(), file_observed.projection());
         assert_eq!(observed.global_transform, file_observed.global_transform);
         assert_eq!(build.status(&mut memory)?.level, "manoir");
         // A distinct equal-valued actor has separate node/perso identity while
@@ -145,10 +169,11 @@ fn file_and_relocated_memory_share_bounded_actor_and_transform_readers() -> Resu
         data.copy_within(0x200..0x208, 0x900);
         word(data, 4, base + 0x800);
         word(data, 0x804, base + 0x900);
-        let second = build.actor(&mut memory)?;
+        let second = build.actor_with_actions(&mut memory, &[0, 1])?;
         assert_ne!(observed.node, second.node);
         assert_ne!(observed.perso, second.perso);
         assert_eq!(observed.family, second.family);
+        assert_eq!(observed.projection(), second.projection());
         assert_eq!(observed.global_transform, second.global_transform);
     }
     Ok(())
@@ -170,12 +195,15 @@ fn source_views_reject_cycles_short_records_unknown_transforms_and_foreign_membe
     ] {
         let (mut memory, _) = fixture(0x1000);
         word(memory.ranges.get_mut(&0x1000).unwrap(), offset, value);
-        let error = format!("{:#}", build.actor(&mut memory).unwrap_err());
+        let error = format!(
+            "{:#}",
+            build.actor_with_actions(&mut memory, &[0, 1]).unwrap_err()
+        );
         assert!(error.contains(expected), "{offset:x}: {error}");
     }
     let (mut memory, _) = fixture(0x1000);
     memory.ranges.get_mut(&0x1000).unwrap().truncate(0x757);
-    assert!(build.actor(&mut memory).is_err());
+    assert!(build.actor_with_actions(&mut memory, &[0, 1]).is_err());
     // Compact translation ends exactly at the range boundary. Maximum-size
     // speculative reads would fail here; only the eight declared bytes exist.
     let data = memory.ranges.get_mut(&0x1000).unwrap();
@@ -183,7 +211,7 @@ fn source_views_reject_cycles_short_records_unknown_transforms_and_foreign_membe
     data[0x700..].copy_from_slice(&[0x11, 0, 0, 2, 0, 0xfc, 0, 7]);
     assert_eq!(
         build
-            .actor(&mut memory)?
+            .actor_with_actions(&mut memory, &[0, 1])?
             .global_transform
             .affine()
             .translation,
@@ -194,7 +222,11 @@ fn source_views_reject_cycles_short_records_unknown_transforms_and_foreign_membe
 #[test]
 #[ignore = "requires local manoir/astrolabe files; selected by tools/test.py --local"]
 fn shared_actor_reader_matches_useful_file_import_for_both_levels() -> Result<()> {
-    use crate::model::{Selection, io::Load};
+    use crate::{
+        app,
+        model::{io::Load, Selection},
+        rete,
+    };
     let game = std::env::var_os("ASTROLABE_GAME_DIR")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| "disc".into());
@@ -206,11 +238,33 @@ fn shared_actor_reader_matches_useful_file_import_for_both_levels() -> Result<()
             imported.load(&crate::model::AssetRef::new("level:/scene")?)?;
         let actor = imported.load(scene.main_actor.as_ref().context("missing main actor")?)?;
         let family = imported.load(&actor.family)?;
+        let direct = live::ActorProjection::from_model(&actor, &family, &[47])?;
+        assert_eq!(observed.projection(), direct);
+        let selected = direct
+            .family
+            .selected_actions
+            .first()
+            .context("main actor family lacks selected action 47")?;
+        assert_eq!(selected.id, 47);
         assert_eq!(observed.object_types, actor.object_types);
         assert_eq!(observed.family_type, family.object_type);
         assert_eq!(observed.current_action, actor.current_state);
         assert_eq!(observed.initial_action, actor.initial_state);
         assert_eq!(observed.action_members.len(), family.states.len());
+
+        let temp = tempfile::tempdir()?;
+        app::save_rete(&mut imported, temp.path())?;
+        let scene_ref = crate::model::AssetRef::new("level:/scene")?;
+        drop(family);
+        drop(actor);
+        drop(scene);
+        drop(imported);
+        let (mut reopened, _) = rete::Store::open(temp.path())?;
+        let scene: std::sync::Arc<crate::model::scene::Scene> = reopened.load(&scene_ref)?;
+        let actor = reopened.load(scene.main_actor.as_ref().context("missing main actor")?)?;
+        let family = reopened.load(&actor.family)?;
+        let persisted = live::ActorProjection::from_model(&actor, &family, &[47])?;
+        assert_eq!(direct, persisted);
         println!(
             "{level}: {} actions, current {:?}, transform {:?}",
             family.states.len(),

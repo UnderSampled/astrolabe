@@ -6,7 +6,7 @@ use super::{
     records::{Address, ListWire},
     session::SourceSession,
 };
-use anyhow::{Context, Result, ensure};
+use anyhow::{ensure, Context, Result};
 use std::{borrow::Cow, collections::BTreeSet, fmt::Debug};
 
 pub(super) trait RecordSource {
@@ -14,7 +14,7 @@ pub(super) trait RecordSource {
     fn add(&self, address: Self::Location, offset: usize) -> Result<Self::Location>;
     fn bytes(&mut self, address: Self::Location, size: usize) -> Result<Cow<'_, [u8]>>;
     fn pointer(&mut self, address: Self::Location, offset: usize)
-    -> Result<Option<Self::Location>>;
+        -> Result<Option<Self::Location>>;
     fn required(&mut self, address: Self::Location, offset: usize) -> Result<Self::Location> {
         self.pointer(address, offset)?
             .with_context(|| format!("required null reference at {address:?}+{offset:x}"))
@@ -44,6 +44,29 @@ pub(super) struct PersoParts<L> {
     pub(super) data3d: L,
     pub(super) family: L,
     pub(super) object_types: [u32; 3],
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct StateDefinition {
+    pub(super) speed: u8,
+    pub(super) repeats: u8,
+    pub(super) transition_lock: u8,
+    pub(super) next: Option<u32>,
+}
+
+pub(super) fn state_definition<S: RecordSource>(
+    source: &mut S,
+    state: S::Location,
+    members: &[S::Location],
+) -> Result<StateDefinition> {
+    use super::records::CharacterStateWire;
+    let raw: CharacterStateWire = wire(&source.bytes(state, 64)?)?;
+    Ok(StateDefinition {
+        speed: raw.speed,
+        repeats: raw.repeats,
+        transition_lock: raw.transition_lock,
+        next: optional_member(source, state, 40, members)?,
+    })
 }
 pub(super) fn perso_parts<S: RecordSource>(
     source: &mut S,

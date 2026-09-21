@@ -6,13 +6,13 @@ use super::{
     session::SourceSession,
 };
 use crate::model::{
-    AssetPath, AssetRef,
     animation::*,
     character::*,
     geometry::*,
     io::{Content, Diagnostic, Severity},
+    AssetPath, AssetRef,
 };
-use anyhow::{Context, Result, ensure};
+use anyhow::{ensure, Context, Result};
 use std::collections::BTreeMap;
 
 pub(super) struct Importer<'a> {
@@ -191,8 +191,13 @@ impl<'a> Importer<'a> {
             );
         }
         let mut states = Vec::new();
-        for (i, st) in state_addresses.into_iter().enumerate() {
+        for (i, &st) in state_addresses.iter().enumerate() {
             let state: CharacterStateWire = wire(self.session.bytes(st, 64)?)?;
+            let definition = super::source_view::state_definition(
+                &mut super::source_view::FileView(self.session),
+                st,
+                &state_addresses,
+            )?;
             let animation = self
                 .session
                 .pointer(st, 12)?
@@ -222,10 +227,10 @@ impl<'a> Importer<'a> {
                     .pointer(st, 48)?
                     .map(|a| self.mechanics(a))
                     .transpose()?,
-                speed: state.speed,
-                repeats: state.repeats,
-                transition_lock: state.transition_lock,
-                next: self.state_index(st, 40)?,
+                speed: definition.speed,
+                repeats: definition.repeats,
+                transition_lock: definition.transition_lock,
+                next: definition.next,
                 transitions,
                 prohibited,
                 unknown: state

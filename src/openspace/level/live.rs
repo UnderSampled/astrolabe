@@ -6,10 +6,13 @@ use super::{
     records::{FamilyWire, MainActorWire, SuperObjectWire},
     source_view::{self, RecordSource},
 };
-use crate::model::animation::TransformValue;
-use anyhow::{Context, Result, ensure};
+use crate::model::{
+    animation::TransformValue,
+    character::{Family, Perso},
+};
+use anyhow::{ensure, Context, Result};
 use serde::Serialize;
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::BTreeSet};
 
 pub const HYPE_EXECUTABLE_SHA256: &str =
     "048ff4f4f0447a1f54a5a73ff588df78b484015c78df99a8f2d7acd3469df7da";
@@ -69,6 +72,15 @@ impl HypeBuild {
         })
     }
     pub fn actor(&self, memory: &mut impl ReadMemory) -> Result<ActorObservation> {
+        self.actor_with_actions(memory, &[47])
+    }
+    /// Inspect only the explicitly requested invariant action definitions. The
+    /// family list is still traversed to preserve ordering and resolve links.
+    pub fn actor_with_actions(
+        &self,
+        memory: &mut impl ReadMemory,
+        actions: &[u32],
+    ) -> Result<ActorObservation> {
         let status = self.status(memory)?;
         ensure!(
             status.phase == 9 && !status.level.is_empty(),
@@ -78,7 +90,7 @@ impl HypeBuild {
         // FUN_00443470 returns this global; FUN_00443460 reads its entry at +4.
         // File counterpart is GPT+0x2ae0. Do not infer other globals from a base.
         let entry = source.required(0x756e70, 0)?;
-        actor(&mut source, entry, |a| format!("live:{a:08x}"))
+        actor(&mut source, entry, actions, |a| format!("live:{a:08x}"))
     }
 }
 #[derive(Debug, Serialize)]
@@ -98,16 +110,144 @@ pub struct ActorObservation {
     pub object_types: [u32; 3],
     pub family_type: u32,
     pub action_members: Vec<String>,
+    pub action_definitions: Vec<ActionDefinitionProjection>,
     pub initial_action: Option<u32>,
     pub current_action: Option<u32>,
     pub secondary_action: Option<u32>,
     pub global_transform: TransformValue,
 }
+
+/// Cross-adapter meaning for the selected controlled actor and its resolved
+/// family. Source locators and runtime generations remain observation evidence.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ActorProjection {
+    pub role: ActorRole,
+    pub object_types: [u32; 3],
+    pub family: FamilyProjection,
+    /// File initialization or named-fixture state rather than definition data.
+    pub selections: ActorSelections,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ActorRole {
+    MainActor,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct FamilyProjection {
+    pub object_type: u32,
+    pub action_count: u32,
+    /// Requested definitions only; other family actions remain unselected.
+    pub selected_actions: Vec<ActionDefinitionProjection>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct ActionDefinitionProjection {
+    pub id: u32,
+    pub speed: u8,
+    pub repeats: u8,
+    pub transition_lock: u8,
+    pub next: Option<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct ActorSelections {
+    pub initial: Option<u32>,
+    pub current: Option<u32>,
+    pub secondary: Option<u32>,
+}
+
+impl ActorObservation {
+    pub fn projection(&self) -> ActorProjection {
+        ActorProjection {
+            role: ActorRole::MainActor,
+            object_types: self.object_types,
+            family: FamilyProjection {
+                object_type: self.family_type,
+                action_count: self.action_members.len() as u32,
+                selected_actions: self.action_definitions.clone(),
+            },
+            selections: ActorSelections {
+                initial: self.initial_action,
+                current: self.current_action,
+                secondary: self.secondary_action,
+            },
+        }
+    }
+}
+
+impl ActorProjection {
+    /// The caller supplies the family resolved by `actor.family`; this verifies
+    /// that relationship instead of joining by an address, ordinal or value hash.
+    pub fn from_model(actor: &Perso, family: &Family, actions: &[u32]) -> Result<Self> {
+        ensure!(
+            actions.iter().copied().collect::<BTreeSet<_>>().len() == actions.len(),
+            "duplicate selected action"
+        );
+        ensure!(
+            actor.family.path == family.path,
+            "actor family reference does not resolve to supplied family"
+        );
+        ensure!(
+            family.object_type == actor.object_types[0],
+            "actor object type and family index differ"
+        );
+        ensure!(
+            family
+                .states
+                .iter()
+                .enumerate()
+                .all(|(index, state)| state.id == index as u32),
+            "noncanonical family state order"
+        );
+        let selected_actions = actions
+            .iter()
+            .map(|&id| {
+                let state = family
+                    .states
+                    .get(id as usize)
+                    .context("selected action outside family")?;
+                Ok(ActionDefinitionProjection {
+                    id: state.id,
+                    speed: state.speed,
+                    repeats: state.repeats,
+                    transition_lock: state.transition_lock,
+                    next: state.next,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok(Self {
+            role: ActorRole::MainActor,
+            object_types: actor.object_types,
+            family: FamilyProjection {
+                object_type: family.object_type,
+                action_count: family.states.len().try_into()?,
+                selected_actions,
+            },
+            selections: ActorSelections {
+                initial: actor.initial_state,
+                current: actor.current_state,
+                secondary: actor.secondary_state,
+            },
+        })
+    }
+}
 pub(super) fn actor<S: RecordSource>(
     source: &mut S,
     entry: S::Location,
+    selected_actions: &[u32],
     label: impl Fn(S::Location) -> String,
 ) -> Result<ActorObservation> {
+    ensure!(
+        selected_actions
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>()
+            .len()
+            == selected_actions.len(),
+        "duplicate selected action"
+    );
     let _: MainActorWire = wire(&source.bytes(entry, 20)?)?;
     let node = source.required(entry, 4)?;
     let so: SuperObjectWire = wire(&source.bytes(node, 64)?)?;
@@ -123,6 +263,22 @@ pub(super) fn actor<S: RecordSource>(
         "actor object type and family index differ"
     );
     let members = source_view::list(source, family, 16)?;
+    let action_definitions = selected_actions
+        .iter()
+        .map(|&id| {
+            let member = *members
+                .get(id as usize)
+                .context("selected action outside family")?;
+            let state = source_view::state_definition(source, member, &members)?;
+            Ok(ActionDefinitionProjection {
+                id,
+                speed: state.speed,
+                repeats: state.repeats,
+                transition_lock: state.transition_lock,
+                next: state.next,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
     let initial_action = source_view::optional_member(source, data3d, 0, &members)?;
     let current_action = source_view::optional_member(source, data3d, 4, &members)?;
     let secondary_action = source_view::optional_member(source, data3d, 8, &members)?;
@@ -135,7 +291,8 @@ pub(super) fn actor<S: RecordSource>(
         family: label(family),
         object_types,
         family_type: header.index,
-        action_members: members.into_iter().map(label).collect(),
+        action_members: members.iter().copied().map(&label).collect(),
+        action_definitions,
         initial_action,
         current_action,
         secondary_action,
@@ -150,7 +307,7 @@ pub fn inspect_file_actor(
 ) -> Result<ActorObservation> {
     let session = super::session::SourceSession::open(game, selection)?;
     let root = session.root(0x2ae0)?;
-    actor(&mut source_view::FileView(&session), root, |a| {
+    actor(&mut source_view::FileView(&session), root, &[47], |a| {
         format!(
             "file:{:?}:{:02x}:{:02x}+{:x}",
             a.owner, a.key.0, a.key.1, a.offset
