@@ -1583,6 +1583,143 @@
       "timeout_seconds": 210,
       "ignored": true,
       "release": true
+    },
+    {
+      "binary": "astrolabe-testkit::replay",
+      "test": "complete_recording_preserves_literal_edges_gaps_and_exact_bytes",
+      "areas": [
+        "comparison"
+      ],
+      "kind": "contract",
+      "prerequisites": [],
+      "fixture": "literal physical input recording",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe-testkit::replay",
+      "test": "recording_rejects_skipped_ticks_repeat_edges_and_unreleased_keys",
+      "areas": [
+        "comparison"
+      ],
+      "kind": "contract",
+      "prerequisites": [],
+      "fixture": "literal physical input recording",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe-testkit::comparison",
+      "test": "reopened_rete_comparison_catches_edits_missing_actions_and_ambiguous_role",
+      "areas": [
+        "comparison"
+      ],
+      "kind": "contract",
+      "prerequisites": [],
+      "fixture": "synthetic closed/reopened Rete actor",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::hype_runtime::tests::exact_profile_and_dynamic_keyboard_are_both_required",
+      "areas": [
+        "runtime"
+      ],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic pinned runtime profile",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::hype_runtime::tests::malformed_runtime_profile_is_rejected_without_panics",
+      "areas": [
+        "runtime"
+      ],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic pinned runtime profile",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe-testkit::comparison_original",
+      "test": "original_actor_definitions_match_direct_and_reopened_rete_and_detect_edit",
+      "areas": [
+        "comparison"
+      ],
+      "kind": "original-engine",
+      "prerequisites": [
+        "original",
+        "disc"
+      ],
+      "fixture": "matching manoir source files and pinned supplied English save",
+      "timeout_seconds": 210,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::source_view::tests::source_fingerprint_rejects_invalid_selection_before_filesystem_access",
+      "areas": [
+        "source",
+        "runtime"
+      ],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic source selection and case ambiguity",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::source_view::tests::fingerprint_path_resolution_accepts_unique_case_and_rejects_ambiguity",
+      "areas": [
+        "source",
+        "runtime"
+      ],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic source selection and case ambiguity",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe-testkit::instrumentation",
+      "test": "native_and_i386_scratch_lifetimes_are_bounded",
+      "areas": [
+        "runtime"
+      ],
+      "kind": "process",
+      "prerequisites": [],
+      "fixture": "owned native and i386 synthetic child",
+      "timeout_seconds": 20,
+      "ignored": false,
+      "release": true,
+      "safeguard": "always"
+    },
+    {
+      "binary": "astrolabe-testkit",
+      "test": "instrumentation::tests::mutation_failures_kill_exact_owned_child",
+      "areas": [
+        "runtime"
+      ],
+      "kind": "process",
+      "prerequisites": [],
+      "fixture": "owned native and i386 synthetic child",
+      "timeout_seconds": 45,
+      "ignored": false,
+      "release": true,
+      "safeguard": "always"
     }
   ]
 }

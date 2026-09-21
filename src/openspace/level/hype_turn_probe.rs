@@ -302,6 +302,15 @@ fn run_native_rule_fixture(check_source: &str, boundary: bool) -> Result<()> {
         println!("Hype rule action {name}: {state}");
     }
     std::fs::write(project.join("check.gd"), check)?;
+    let recording_path = if boundary {
+        std::env::var_os("ASTROLABE_INPUT_RECORDING")
+            .map(std::fs::canonicalize)
+            .transpose()?
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
     let profiles = if boundary {
         vec![("48", "0"), ("48", "80"), ("60", "0"), ("60", "80")]
     } else {
@@ -319,6 +328,8 @@ fn run_native_rule_fixture(check_source: &str, boundary: bool) -> Result<()> {
                 player_path,
                 rate,
                 stall,
+                "",
+                &recording_path,
             ],
             std::time::Duration::from_secs(30),
         )?;
@@ -347,6 +358,7 @@ fn run_native_rule_fixture(check_source: &str, boundary: bool) -> Result<()> {
                     "48",
                     "0",
                     fault,
+                    &recording_path,
                 ],
                 std::time::Duration::from_secs(30),
             )

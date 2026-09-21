@@ -17,6 +17,8 @@ var acknowledgments: Array[Dictionary] = []
 var warmup_ticks := 0
 var setup_finished_us := 0
 var fault := ""
+var recording_sha256 := ""
+var recorded_events: Dictionary = {}
 # Deliberate consecutive one-update press/release edges and a physical chord.
 const EVENTS := {3: [[KEY_LEFT, true]], 4: [[KEY_LEFT, false]],
     5: [[KEY_LEFT, true]], 6: [[KEY_LEFT, false]],
@@ -41,8 +43,43 @@ func _initialize() -> void:
     Engine.max_physics_steps_per_frame = 8
     stall_ms = int(args[2])
     if args.size() > 3: fault = args[3]
+    recorded_events = EVENTS.duplicate(true)
+    if args.size() > 4 and not args[4].is_empty():
+        if not load_recording(args[4]):
+            push_error("invalid or incompatible shared component recording")
+            quit(1)
+            return
     Input.use_accumulated_input = false
     call_deferred("setup")
+
+func load_recording(path: String) -> bool:
+    # This fixture proves the established pulse/chord boundary. Broader gameplay
+    # recordings need their own expectations, not a different meaning here.
+    if not FileAccess.file_exists(path): return false
+    var value = JSON.parse_string(FileAccess.get_file_as_string(path))
+    if not value is Dictionary or value.get("schema") != 1: return false
+    if value.get("initial_held") != []: return false
+    var updates = value.get("updates")
+    if not updates is Array or updates.size() != 18: return false
+    var physical := {"ArrowLeft": KEY_LEFT, "ArrowRight": KEY_RIGHT,
+        "ArrowUp": KEY_UP, "ArrowDown": KEY_DOWN, "LeftShift": KEY_SHIFT}
+    var supplied := {}
+    for index in updates.size():
+        var update = updates[index]
+        if not update is Dictionary or update.get("ordinal") != index + 1: return false
+        var edges = update.get("events")
+        if not edges is Array: return false
+        var converted := []
+        for edge in edges:
+            if not edge is Dictionary or edge.get("keyboard") != 0: return false
+            if not physical.has(edge.get("key")): return false
+            if edge.get("edge") not in ["press", "release"]: return false
+            converted.append([physical[edge.key], edge.edge == "press"])
+        if converted != EVENTS.get(index + 1, []): return false
+        if not converted.is_empty(): supplied[index + 1] = converted
+    recorded_events = supplied
+    recording_sha256 = FileAccess.get_sha256(path)
+    return recording_sha256.length() == 64
 
 func require(ok: bool, message: String) -> bool:
     if not ok and not failed:
@@ -100,8 +137,8 @@ func after_consumer(delta: float) -> void:
     var press := ordinal in [3, 5, 8]
     var release := ordinal in [4, 6, 13]
     var expected_received := 0
-    for at in EVENTS:
-        if at <= ordinal: expected_received += EVENTS[at].size()
+    for at in recorded_events:
+        if at <= ordinal: expected_received += recorded_events[at].size()
     var queries := [audit.dsg_0, audit.dsg_1, audit.dsg_2]
     var now := Time.get_ticks_usec()
     trace.append({"ordinal": ordinal, "physics_frame": Engine.get_physics_frames(),
@@ -123,7 +160,7 @@ func after_consumer(delta: float) -> void:
     # Input stamps its physics edge for the NEXT physics update. Dispatch after
     # this actor has completed, even when the next update precedes idle/render.
     var scheduled := ordinal if fault == "late-input" else ordinal + 1
-    for event in EVENTS.get(scheduled, []):
+    for event in recorded_events.get(scheduled, []):
         dispatch(event[0], event[1])
         acknowledgments.append({"requested_ordinal": ordinal + 1,
             "dispatch_after_physics": Engine.get_physics_frames(),
@@ -134,6 +171,8 @@ func dispatch(code: int, pressed: bool) -> void:
     var event := InputEventKey.new()
     event.physical_keycode = code
     event.pressed = pressed
+    if code == KEY_SHIFT: event.location = KEY_LOCATION_LEFT
+    event.shift_pressed = pressed if code == KEY_SHIFT else Input.is_physical_key_pressed(KEY_SHIFT)
     Input.parse_input_event(event)
     Input.flush_buffered_events()
 
@@ -145,6 +184,7 @@ func finish() -> void:
     print("HYPE_INPUT_BOUNDARY_TRACE ", JSON.stringify({"ticks_per_second": Engine.physics_ticks_per_second,
         "stall_ms": stall_ms, "catchup_ticks": catchup_count, "samples": trace,
         "dispatch": acknowledgments, "elapsed_us": Time.get_ticks_usec() - started_us,
+        "recording_sha256": recording_sha256,
         "warmup_ticks": warmup_ticks, "warmup_us": started_us - setup_finished_us,
         "scope": "source turn rule; full initialization/reflex and movement not accepted"}))
     if not failed: print("HYPE_INPUT_BOUNDARY_OK")

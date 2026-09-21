@@ -6,6 +6,7 @@ mod container;
 mod fix_bindings;
 mod fragment;
 mod geometry;
+pub mod hype_runtime;
 mod import;
 pub mod live;
 mod records;
