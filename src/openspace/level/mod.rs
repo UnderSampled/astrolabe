@@ -7,11 +7,13 @@ mod fix_bindings;
 mod fragment;
 mod geometry;
 mod import;
+pub mod live;
 mod records;
 #[cfg(test)]
 mod reference_tests;
 mod scene;
 mod session;
+mod source_view;
 #[cfg(test)]
 mod tests;
 

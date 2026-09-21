@@ -13,7 +13,7 @@ use crate::model::{
     io::{Content, Diagnostic, Severity},
 };
 use anyhow::{Context, Result, ensure};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 pub(super) struct Importer<'a> {
     pub session: &'a SourceSession,
@@ -112,25 +112,9 @@ impl<'a> Importer<'a> {
         AssetPath::new(format!("{}:/{kind}/{index}", role(a.owner)))
     }
     pub(super) fn list(&self, a: Address, field: usize) -> Result<Vec<Address>> {
-        let h: ListWire = wire(self.session.bytes(
-            Address {
-                offset: a.offset + field,
-                ..a
-            },
-            12,
-        )?)?;
-        ensure!(h.count <= 65536, "excessive linked-list count");
-        let mut next = self.session.pointer(a, field)?;
-        let mut seen = BTreeSet::new();
-        let mut result = Vec::new();
-        for _ in 0..h.count {
-            let entry = next.context("short linked list")?;
-            ensure!(seen.insert(entry), "cyclic linked list");
-            result.push(entry);
-            next = self.session.pointer(entry, 0)?;
-        }
-        Ok(result)
+        super::source_view::list(&mut super::source_view::FileView(self.session), a, field)
     }
+
     fn state_index(&self, site: Address, field: usize) -> Result<Option<u32>> {
         let value = u32_at(self.session.bytes(site, field + 4)?, field)?;
         if value == 0 || value == u32::MAX {
@@ -146,11 +130,13 @@ impl<'a> Importer<'a> {
     }
     pub fn perso(&mut self, so: Address, node: &str) -> Result<AssetRef<Perso>> {
         let perso = self.session.required(so, 4)?;
-        let data = self.session.required(perso, 0)?;
-        let standard = self.session.required(perso, 4)?;
-        let bytes = self.session.bytes(standard, 12)?;
-        let types = [u32_at(bytes, 0)?, u32_at(bytes, 4)?, u32_at(bytes, 8)?];
-        let family = self.family(self.session.required(data, 20)?)?;
+        let parts = super::source_view::perso_parts(
+            &mut super::source_view::FileView(self.session),
+            perso,
+        )?;
+        let data = parts.data3d;
+        let types = parts.object_types;
+        let family = self.family(parts.family)?;
         let config = self
             .session
             .pointer(data, 12)?
@@ -485,9 +471,11 @@ impl<'a> Importer<'a> {
     fn matrix(&mut self, address: Address) -> Result<TransformLink> {
         let entry = self.index(address)?;
         if !self.matrices.contains_key(&address) {
-            let bytes = &self.session.block(address)?.data[address.offset..];
-            self.matrices
-                .insert(address, super::transform::read_transform(bytes)?);
+            let value = super::source_view::transform(
+                &mut super::source_view::FileView(self.session),
+                address,
+            )?;
+            self.matrices.insert(address, value);
         }
         Ok(TransformLink {
             pool: AssetRef::from_path(pool_path(address)?),

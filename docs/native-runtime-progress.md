@@ -41,3 +41,45 @@ and ownership exclusivity, 0.155 seconds for preserved-stop/unwind restoration,
 and 0.134 seconds for bounded immutable captures, stale reads and mid-update
 rejection. The real reopened-Rete/native Godot safeguard passed in 65.102 seconds.
 All cleanup completed and the implementation hash remained unchanged.
+
+## Shared source-reader decisions
+
+The initial `RecordSource` boundary separates bounded bytes, offset arithmetic and
+pointer resolution from interpretation. `FileView` retains normal block relocation
+and active-level Fix binding. A relocated-memory view uses 32-bit pointers through
+the caller's bounded capture. It never synthesizes source files or allocation indices.
+The production character importer now shares intrusive-list traversal and exact
+transform extents with the inspection path. Existing binrw declarations decode the
+main-actor entry, superobject and family; the inspection projection contains canonical
+`TransformValue` values and capture-local locators rather than new Rete assets.
+
+A deliberately relocated known-byte fixture checks independent transform values,
+null/sentinel and forward references, two distinct equal-valued members, and separate
+actors sharing one family. Malformed counts, cycles, truncated records, unsupported
+transform flags, foreign action references, build hashes and menu phases are rejected.
+The named `manoir` and `astrolabe` file-side checks compare actor types, action members
+and initial/current selections with the existing useful import. This is still **file
+and synthetic-memory evidence**. Within-level replacement generations, real live
+module/root validation, Rete/live identity proof, and completed-update hooks remain
+acceptance gates; this reader contract is provisional until those pass.
+
+The initial combined source/runtime/animation job passed 21 of 22 tests but failed
+its new corpus fixture because the test supplied locale `EN` instead of the
+importer's required `en`. That failure remains in
+`TestResults/shared-source-views-20260920.log.json` (208.195 seconds). Correcting
+only the fixture locale gave **15/15** runtime/actor tests plus the mandatory
+Python checks in **124.278 seconds**;
+`TestResults/shared-source-views-20260920-corrected.log.json`. Both source levels
+completed their useful-import comparison in 5.994 seconds. A final run follows
+promotion/reuse of the selected Perso/3dData/StandardGame prefixes; those changes
+also correct the observation label from `dynamics` to `data3d` without changing
+Rete or Godot interfaces.
+
+The completed shared-reader extraction passed **22/22 Rust tests and 14 Python
+checks in 206.235 seconds**, including build, both corpus projections, all
+compact-matrix reconstruction checks, native animation/contact and mandatory
+Rete/resource safeguards. Report:
+`TestResults/shared-source-views-20260920-final.log.json`. Engine checks took
+13.408 seconds (animation), 62.601 seconds (reopened-Rete resources) and 42.544
+seconds (native motion/contact). Cleanup and implementation provenance passed.
+Strict workspace Clippy, formatting and whitespace checks also pass.

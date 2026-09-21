@@ -35,32 +35,11 @@ use std::{
     path::Path,
 };
 
-/// Montreal's extra word follows the three name pointers; Brain is at +16.
-/// Other Perso fields are decoded by the character importer.
-#[derive(BinRead)]
-#[br(little)]
-struct PersoBrainWire {
-    _names: [u32; 3],
-    _montreal: u32,
-    brain: u32,
-}
-
 #[derive(BinRead, BinWrite)]
 #[brw(little)]
 struct BrainWire {
     mind: u32,
     unknown: u32,
-}
-/// GPT+0x2ae0 selects the first controlled actor. 00443470/00443460 and
-/// MainActor keyword 00549a00 follow this 20-byte entry's node at +4.
-#[derive(BinRead, BinWrite)]
-#[brw(little)]
-struct MainActorWire {
-    unknown: u32,
-    node: u32,
-    next: u32,
-    previous: u32,
-    header: u32,
 }
 #[derive(BinRead, BinWrite)]
 #[brw(little)]
@@ -591,7 +570,7 @@ pub(super) fn import(
             continue;
         }
         let p = s.required(node.address, 4)?;
-        let header: PersoBrainWire = wire(s.bytes(p, 20)?)?;
+        let header: PersoHeaderWire = wire(s.bytes(p, 20)?)?;
         if header.brain == 0 {
             continue;
         }

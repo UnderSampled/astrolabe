@@ -4,7 +4,7 @@
 
 `tools/test.py` now uses a checked-in, exact test inventory and cargo-nextest
 **0.9.145**. It retains the Python outer supervisor while the native runtime is
-implemented. The manifest currently classifies all 100 Rust tests, their areas,
+implemented. The manifest currently classifies all 103 Rust tests, their areas,
 prerequisites, fixtures, release membership and individual hard deadlines. New,
 removed, duplicate or newly ignored tests require a manifest update; discovery
 mismatches fail before execution. The native original-game runtime, comparisons,

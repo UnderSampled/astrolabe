@@ -501,3 +501,15 @@ impl Drop for Owner {
         OWNER_ACTIVE.store(false, Ordering::SeqCst);
     }
 }
+
+impl astrolabe::openspace::level::live::ReadMemory for Capture<'_> {
+    fn read(&mut self, address: u32, size: usize) -> Result<Vec<u8>> {
+        Capture::read(self, address as usize, size)
+    }
+}
+
+impl astrolabe::openspace::level::live::ReadMemory for Snapshot {
+    fn read(&mut self, address: u32, size: usize) -> Result<Vec<u8>> {
+        self.bytes(address as usize, size).map(<[u8]>::to_vec)
+    }
+}

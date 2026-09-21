@@ -601,3 +601,47 @@ pub(super) struct SoundSiteWire {
     pub event: u32,
     pub site: u32,
 }
+
+/// GPT+0x2ae0 selects the first controlled actor. 00443470/00443460 and
+/// MainActor keyword 00549a00 follow this 20-byte entry's node at +4.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct MainActorWire {
+    unknown: u32,
+    node: u32,
+    next: u32,
+    previous: u32,
+    header: u32,
+}
+
+/// Selected Hype/Montreal Perso prefix: Raymap Object/Perso.Read, corroborated
+/// by the existing Hype character and AI probes. The extra Montreal word moves
+/// Brain to +16. Data3d (+0) and dynamics/mechanics (+8) are different objects.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct PersoHeaderWire {
+    pub(super) data3d: u32,
+    pub(super) standard_game: u32,
+    pub(super) dynamics: u32,
+    pub(super) unknown_montreal: [u8; 4],
+    pub(super) brain: u32,
+}
+/// The first six pointers of Perso3dData; the rest is not inferred by this view.
+/// Raymap Object/Properties/Perso3dData.Read and the Hype source-rule probes.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct PersoData3dPrefixWire {
+    pub(super) initial_state: u32,
+    pub(super) current_state: u32,
+    pub(super) secondary_state: u32,
+    pub(super) configuration: u32,
+    pub(super) initial_configuration: u32,
+    pub(super) family: u32,
+}
+/// Hype StandardGame's family/model/instance type-table entries. Other standard
+/// properties are not read through this prefix.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct StandardIdentityWire {
+    pub(super) object_types: [u32; 3],
+}

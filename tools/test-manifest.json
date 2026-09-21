@@ -1495,6 +1495,50 @@
       "ignored": false,
       "release": true,
       "safeguard": "always"
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::source_view::tests::file_and_relocated_memory_share_bounded_actor_and_transform_readers",
+      "areas": [
+        "source",
+        "runtime"
+      ],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic relocated memory",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::source_view::tests::source_views_reject_cycles_short_records_unknown_transforms_and_foreign_members",
+      "areas": [
+        "source",
+        "runtime"
+      ],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic relocated memory",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::source_view::tests::shared_actor_reader_matches_useful_file_import_for_both_levels",
+      "areas": [
+        "source",
+        "runtime"
+      ],
+      "kind": "source",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "manoir/astrolabe",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
     }
   ]
 }
