@@ -145,6 +145,8 @@ fn native_boundary_replay_publishes_18_completed_updates() -> Result<()> {
     let report: Value = serde_json::from_slice(&fs::read(output.join("worker.json"))?)?;
     assert_eq!(report["status"], "replay_complete");
     assert_eq!(report["consistency"], "completed_update_hook");
+    assert_eq!(report["frame_replay"], false);
+    assert_eq!(report["consumption_verified"], false);
     assert_eq!(report["updates"].as_array().unwrap().len(), 18);
     for (index, row) in report["updates"].as_array().unwrap().iter().enumerate() {
         assert_eq!(row["ordinal"], index + 1);

@@ -125,7 +125,7 @@ fn patch_rel32(code: &mut [u8], site: usize, target: usize) -> Result<()> {
     code[site..site + 4].copy_from_slice(&displacement.to_le_bytes());
     Ok(())
 }
-fn probe_image(base: u32) -> Result<Vec<u8>> {
+fn probe_image(base: u32, expected_device: u32, expected_buffer: u32) -> Result<Vec<u8>> {
     let prepared = boundary_recording()?;
     ensure!(
         prepared.recording().updates.len() == RECORD_COUNT,
@@ -177,10 +177,15 @@ fn probe_image(base: u32) -> Result<Vec<u8>> {
     let input_done_a = rel32(&mut input, 0x83); // dispatched >= capacity
     input.extend_from_slice(&[0x3b, 0x4f, 0x0c]);
     let input_done_b = rel32(&mut input, 0x85); // prior input not consumed
-    input.extend_from_slice(&[
-        0x8b, 0x74, 0x24, 0x28, 0x8b, 0x76, 0x08, 0x0f, 0xbf, 0x96, 0x02, 0x02, 0x00, 0x00, 0xc1,
-        0xe2, 0x08,
-    ]);
+    input.extend_from_slice(&[0x8b, 0x74, 0x24, 0x28, 0x81, 0xfe]);
+    imm(&mut input, expected_device);
+    let wrong_device = rel32(&mut input, 0x85);
+    input.extend_from_slice(&[0x8b, 0x76, 0x08, 0x81, 0xfe]);
+    imm(&mut input, expected_buffer);
+    let wrong_buffer = rel32(&mut input, 0x85);
+    input.extend_from_slice(&[0x0f, 0xbf, 0x96, 0x02, 0x02, 0x00, 0x00, 0x83, 0xfa, 0x01]);
+    let wrong_bank = rel32(&mut input, 0x87); // unsigned > 1 also rejects negative selectors
+    input.extend_from_slice(&[0xc1, 0xe2, 0x08]);
     for scan in [0x2b_u32, 0xcc] {
         input.extend_from_slice(&[0xc6, 0x84, 0x16]);
         imm(&mut input, scan);
@@ -211,8 +216,18 @@ fn probe_image(base: u32) -> Result<Vec<u8>> {
     imm(&mut input, 2);
     let input_error_back = rel8(&mut input, 0xeb);
     patch_rel8(&mut input, input_error_back, input_done)?;
+    // The original callback is allowed to refresh bytes, but it may not
+    // replace the verified device/data objects or select an unverified bank.
+    let input_bank_error = input.len();
+    input.extend_from_slice(&[0xc7, 0x47, 0x10]);
+    imm(&mut input, 3);
+    let input_bank_error_back = rel8(&mut input, 0xeb);
+    patch_rel8(&mut input, input_bank_error_back, input_done)?;
     patch_rel32(&mut input, input_done_a, input_done)?;
     patch_rel32(&mut input, input_done_b, input_error)?;
+    patch_rel32(&mut input, wrong_device, input_bank_error)?;
+    patch_rel32(&mut input, wrong_buffer, input_bank_error)?;
+    patch_rel32(&mut input, wrong_bank, input_bank_error)?;
     ensure!(
         input.len() <= UPDATE_CODE - INPUT_CODE,
         "input wrapper too large"
@@ -444,8 +459,16 @@ pub fn worker(
             // verified profile callback. Do not reread and trust a replacement
             // value between discovery and paused installation.
             let keyboard_original = hype_runtime::KEYBOARD_CALLBACK;
+            let buffer_address = keyboard
+                .address
+                .checked_add(8)
+                .context("keyboard data-pointer address overflow")?;
+            let buffer_bytes = process.read_running(buffer_address as usize, 4)?;
+            ensure!(buffer_bytes.len() == 4, "truncated keyboard data pointer");
+            let keyboard_buffer = u32::from_le_bytes(buffer_bytes.as_slice().try_into()?);
+            ensure!(keyboard_buffer != 0, "keyboard data pointer is null");
             let mut scratch = Scratch::allocate(&process, 4096)?;
-            let image = probe_image(scratch.address() as u32)?;
+            let image = probe_image(scratch.address() as u32, keyboard.address, keyboard_buffer)?;
             scratch.write(0, &image)?;
             // Publication starts disarmed (dispatched == 0), so installing the
             // completed-update wrapper first cannot mislabel an old update.
@@ -480,6 +503,15 @@ pub fn worker(
             let stopped = process.pause(Duration::from_secs(1))?;
             let raw = scratch.read(STATE, RECORDS + RECORD_COUNT * RECORD_SIZE - STATE)?;
             let status = build.status(&mut stopped.capture()?)?;
+            let final_dispatched = u32::from_le_bytes(raw[8..12].try_into()?);
+            let final_completed = u32::from_le_bytes(raw[12..16].try_into()?);
+            let final_error = u32::from_le_bytes(raw[16..20].try_into()?);
+            ensure!(
+                final_dispatched == RECORD_COUNT as u32
+                    && final_completed == RECORD_COUNT as u32
+                    && final_error == 0,
+                "stopped replay header is inconsistent: dispatched={final_dispatched}, completed={final_completed}, error={final_error}"
+            );
             drop(stopped);
             ensure!(
                 status.phase == 9 && status.level == "manoir",
@@ -529,15 +561,16 @@ pub fn worker(
             scratch.close()?;
             desktop.release()?;
             return Ok(
-                json!({"schema":1,"status":"replay_complete","scope":"native physical input and completed-update publication",
+                json!({"schema":1,"status":"replay_complete","scope":"native replay protocol and completed-update publication",
                 "fixture":config,"process":process.identity(),"game":status,"recording_sha256":boundary_recording()?.sha256(),
                 "keyboard":{"device":format!("live:{:08x}",keyboard.address),"callback_slot":format!("live:{:08x}",keyboard.callback_slot)},
-                "updates":rows,"consistency":"completed_update_hook","completed_update":true,"frame_replay":true,
+                "updates":rows,"consistency":"completed_update_hook","completed_update":true,"frame_replay":false,
+                "consumption_verified":false,
                 "publication":{"qualified_completed_fields":["current_action_pointer"],
                     "provenance_fields":["update_counter","clock_ms","raw_delta_ms","clamped_delta_ms","boundary_time_ms"],
                     "planned_input_fields":["planned_left","planned_left_shift"],
                     "acknowledgment_field":"boundary_acknowledged_ordinal",
-                    "input_contract":"keyboard poll after update k prepares physical state consumed by update k+1",
+                    "input_contract":"protocol acknowledgment associates planned keyboard state prepared after update k with the completed-update wrapper for update k+1; physical consumption is not observed",
                     "source_evidence":{"getter":"004424f0","setter":"00442500",
                         "ordinary_update":"004499b0 -> 00433e90 -> 004442e0",
                         "post_gameplay_tail":"0044a670 -> GLI_vEndOfTurnEngine -> 0044dbd0; no current-action setter"}},
@@ -851,6 +884,7 @@ mod probe_tests {
     const TIME_STUB: u32 = 0x0040_1100;
     const DEVICE: u32 = 0x0070_1000;
     const BUFFER: u32 = 0x0070_2000;
+    const ALTERNATE_BUFFER: u32 = 0x0070_2800;
     const START: u32 = 0x0070_3000;
     const DONE: u32 = 0x0070_3001;
     const UPDATE_CALLS: u32 = 0x0070_3004;
@@ -869,7 +903,7 @@ mod probe_tests {
     fn put_u32(image: &mut [u8], address: u32, value: u32) {
         at(image, address, &value.to_le_bytes());
     }
-    fn synthetic_elf(duplicate_poll: bool) -> Vec<u8> {
+    fn synthetic_elf(duplicate_poll: bool, bank: u16) -> Vec<u8> {
         let mut image = vec![0; (IMAGE_END - ELF_BASE) as usize];
         image[..7].copy_from_slice(b"\x7fELF\x01\x01\x01");
         image[16..18].copy_from_slice(&2u16.to_le_bytes());
@@ -959,6 +993,7 @@ mod probe_tests {
         );
         put_u32(&mut image, 0x005c_0810, TIME_STUB);
         put_u32(&mut image, DEVICE + 8, BUFFER);
+        at(&mut image, BUFFER + 0x202, &bank.to_le_bytes());
         at(&mut image, hype_runtime::STATUS, &[9]);
         put_u32(&mut image, hype_runtime::UPDATE_COUNTER, 100);
         put_u32(&mut image, hype_runtime::CLOCK_MS, 1000);
@@ -976,10 +1011,10 @@ mod probe_tests {
         u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap())
     }
 
-    fn run_synthetic(duplicate_poll: bool) -> Result<()> {
+    fn run_synthetic(duplicate_poll: bool, bank: u16, replace_buffer: bool) -> Result<()> {
         let temp = tempfile::tempdir()?;
         let executable = temp.path().join("wrapper-fixture");
-        fs::write(&executable, synthetic_elf(duplicate_poll))?;
+        fs::write(&executable, synthetic_elf(duplicate_poll, bank))?;
         fs::set_permissions(&executable, fs::Permissions::from_mode(0o700))?;
         let mut owner = Owner::new()?;
         let process = owner.spawn(&mut Command::new(executable))?;
@@ -995,7 +1030,7 @@ mod probe_tests {
             thread::sleep(Duration::from_millis(1));
         }
         let mut scratch = Scratch::allocate(&process, 4096)?;
-        scratch.write(0, &probe_image(scratch.address() as u32)?)?;
+        scratch.write(0, &probe_image(scratch.address() as u32, DEVICE, BUFFER)?)?;
         scratch.install_callback(
             hype_runtime::UPDATE_CALLBACK_SLOT as usize,
             hype_runtime::UPDATE_CALLBACK,
@@ -1006,6 +1041,33 @@ mod probe_tests {
             hype_runtime::KEYBOARD_CALLBACK,
             INPUT_CODE,
         )?;
+        // Seed both verified keyboard banks with a canary. A valid wrapper
+        // must clear only the selected bank; an invalid selector or replaced
+        // data pointer must leave every canary untouched.
+        for bank_index in 0..=1_u32 {
+            for scan in [0x2b_u32, 0xcc] {
+                process.write_instrumentation(
+                    (BUFFER + bank_index * 0x100 + scan) as usize,
+                    &[0x5a],
+                )?;
+            }
+        }
+        let guarded_buffer = if replace_buffer {
+            process
+                .write_instrumentation((DEVICE + 8) as usize, &ALTERNATE_BUFFER.to_le_bytes())?;
+            ALTERNATE_BUFFER
+        } else if bank > 1 {
+            // Keep the canary address mapped even for the sign-extended -1
+            // selector case; the wrapper must reject before calculating it.
+            ALTERNATE_BUFFER
+        } else {
+            BUFFER + u32::from(bank) * 0x100
+        };
+        if replace_buffer || bank > 1 {
+            for scan in [0x2b_u32, 0xcc] {
+                process.write_instrumentation((guarded_buffer + scan) as usize, &[0x5a])?;
+            }
+        }
         process.write_instrumentation(START as usize, &[1])?;
         loop {
             if process.read_running(DONE as usize, 1)? == [1] {
@@ -1018,7 +1080,17 @@ mod probe_tests {
             thread::sleep(Duration::from_millis(1));
         }
         let state = scratch.read(STATE, RECORDS + RECORD_COUNT * RECORD_SIZE - STATE)?;
-        if duplicate_poll {
+        if replace_buffer || bank > 1 {
+            assert_eq!(word(&state, 8), 0);
+            assert_eq!(word(&state, 12), 0);
+            assert_eq!(word(&state, 16), 3);
+            for scan in [0x2b_u32, 0xcc] {
+                assert_eq!(
+                    process.read_running((guarded_buffer + scan) as usize, 1)?,
+                    [0x5a]
+                );
+            }
+        } else if duplicate_poll {
             assert_eq!(word(&state, 16), 2);
             assert_eq!(
                 word(&process.read_running(KEYBOARD_CALLS as usize, 4)?, 0),
@@ -1037,6 +1109,20 @@ mod probe_tests {
                 word(&process.read_running(UPDATE_CALLS as usize, 4)?, 0),
                 18
             );
+            for bank_index in 0..=1_u32 {
+                let bank_base = BUFFER + bank_index * 0x100;
+                for scan in [0x2b_u32, 0xcc] {
+                    let expected = if bank_index == u32::from(bank) {
+                        0
+                    } else {
+                        0x5a
+                    };
+                    assert_eq!(
+                        process.read_running((bank_base + scan) as usize, 1)?,
+                        [expected]
+                    );
+                }
+            }
             for index in 0..RECORD_COUNT {
                 let record = RECORDS - STATE + index * RECORD_SIZE;
                 assert_eq!(word(&state, record), index as u32 + 1);
@@ -1050,7 +1136,7 @@ mod probe_tests {
     #[test]
     fn generated_probe_is_bounded_and_contains_exact_shared_input_states() -> Result<()> {
         let base = 0x1234_0000;
-        let image = probe_image(base)?;
+        let image = probe_image(base, DEVICE, BUFFER)?;
         assert_eq!(image.len(), 4096);
         assert_eq!(
             &image[MASKS..MASKS + RECORD_COUNT],
@@ -1086,7 +1172,11 @@ mod probe_tests {
 
     #[test]
     fn elf32_wrappers_forward_exactly_once_and_reject_duplicate_poll() -> Result<()> {
-        run_synthetic(false)?;
-        run_synthetic(true)
+        run_synthetic(false, 0, false)?;
+        run_synthetic(false, 1, false)?;
+        run_synthetic(true, 0, false)?;
+        run_synthetic(false, 2, false)?;
+        run_synthetic(false, u16::MAX, false)?;
+        run_synthetic(false, 0, true)
     }
 }
