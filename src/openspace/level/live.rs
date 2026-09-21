@@ -11,7 +11,8 @@ use crate::model::{
     character::{Family, Perso},
 };
 use anyhow::{ensure, Context, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::{borrow::Cow, collections::BTreeSet};
 
 pub const HYPE_EXECUTABLE_SHA256: &str =
@@ -93,15 +94,68 @@ impl HypeBuild {
         actor(&mut source, entry, actions, |a| format!("live:{a:08x}"))
     }
 }
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Status {
     pub phase: u8,
     pub level: String,
 }
+
+/// Immutable provenance for exactly the level source files consumed by the
+/// selected `SourceSession`. This is report evidence, never a Rete asset.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SourceFingerprint {
+    pub profile: String,
+    pub level: String,
+    pub locale: String,
+    pub files: Vec<SourceFileFingerprint>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SourceFileFingerprint {
+    pub relative_path: String,
+    pub sha256: String,
+    pub byte_count: u64,
+}
+
+pub fn source_fingerprint(
+    game: &std::path::Path,
+    selection: &crate::model::Selection,
+) -> Result<SourceFingerprint> {
+    // Opening first proves these are the exact parseable inputs selected by the
+    // source adapter, rather than a parallel list that merely happens to exist.
+    let (session, files) =
+        super::session::SourceSession::open_with_fingerprint_files(game, selection)?;
+    drop(session);
+    let files = files
+        .entries()
+        .map(|(relative, absolute)| {
+            let bytes = std::fs::read(absolute)
+                .with_context(|| format!("fingerprint {}", absolute.display()))?;
+            Ok(SourceFileFingerprint {
+                relative_path: relative
+                    .to_str()
+                    .context("non-UTF-8 source relative path")?
+                    .replace(std::path::MAIN_SEPARATOR, "/"),
+                sha256: format!("{:x}", Sha256::digest(&bytes)),
+                byte_count: bytes.len().try_into()?,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    Ok(SourceFingerprint {
+        profile: selection.profile.clone(),
+        level: selection.level.clone(),
+        locale: selection.locale.clone(),
+        files,
+    })
+}
 /// Source-local locators are evidence within this capture only. Equal values do
 /// not merge locators; reuse of an address across captures requires generation
 /// and replacement evidence from the controller, which is not supplied here.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ActorObservation {
     pub node: String,
     pub perso: String,
@@ -119,7 +173,8 @@ pub struct ActorObservation {
 
 /// Cross-adapter meaning for the selected controlled actor and its resolved
 /// family. Source locators and runtime generations remain observation evidence.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ActorProjection {
     pub role: ActorRole,
     pub object_types: [u32; 3],
@@ -128,13 +183,14 @@ pub struct ActorProjection {
     pub selections: ActorSelections,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ActorRole {
     MainActor,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FamilyProjection {
     pub object_type: u32,
     pub action_count: u32,
@@ -142,7 +198,8 @@ pub struct FamilyProjection {
     pub selected_actions: Vec<ActionDefinitionProjection>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ActionDefinitionProjection {
     pub id: u32,
     pub speed: u8,
@@ -151,7 +208,8 @@ pub struct ActionDefinitionProjection {
     pub next: Option<u32>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ActorSelections {
     pub initial: Option<u32>,
     pub current: Option<u32>,

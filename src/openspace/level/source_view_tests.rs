@@ -219,6 +219,41 @@ fn source_views_reject_cycles_short_records_unknown_transforms_and_foreign_membe
     );
     Ok(())
 }
+
+#[test]
+fn source_fingerprint_rejects_invalid_selection_before_filesystem_access() -> Result<()> {
+    let selection = crate::model::Selection {
+        level: "../manoir".into(),
+        locale: "en".into(),
+        profile: "hype-pc-montreal".into(),
+    };
+    let error = live::source_fingerprint(std::path::Path::new("missing"), &selection)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("invalid level selection"), "{error}");
+    Ok(())
+}
+
+#[test]
+fn fingerprint_path_resolution_accepts_unique_case_and_rejects_ambiguity() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    std::fs::create_dir_all(temp.path().join("GameData/World/Levels"))?;
+    let resolved = super::super::session::resolve_unique_case_insensitive(
+        temp.path(),
+        std::path::Path::new("Gamedata/world/levels"),
+    )?;
+    assert_eq!(resolved, temp.path().join("GameData/World/Levels"));
+    std::fs::create_dir(temp.path().join("gamedata"))?;
+    let error = super::super::session::resolve_unique_case_insensitive(
+        temp.path(),
+        std::path::Path::new("Gamedata/World"),
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(error.contains("2 case-insensitive matches"), "{error}");
+    Ok(())
+}
+
 #[test]
 #[ignore = "requires local manoir/astrolabe files; selected by tools/test.py --local"]
 fn shared_actor_reader_matches_useful_file_import_for_both_levels() -> Result<()> {
@@ -232,6 +267,41 @@ fn shared_actor_reader_matches_useful_file_import_for_both_levels() -> Result<()
         .unwrap_or_else(|| "disc".into());
     for level in ["manoir", "astrolabe"] {
         let selection = Selection::hype(level, "en")?;
+        let fingerprint = live::source_fingerprint(&game, &selection)?;
+        assert_eq!(fingerprint, live::source_fingerprint(&game, &selection)?);
+        if let Some(installed) = std::env::var_os("ASTROLABE_INSTALLED_GAME_DIR") {
+            assert_eq!(
+                fingerprint,
+                live::source_fingerprint(std::path::Path::new(&installed), &selection)?,
+                "installed fixture source differs from disc corpus"
+            );
+        }
+        assert_eq!(fingerprint.files.len(), 9);
+        assert_eq!(fingerprint.profile, selection.profile);
+        assert_eq!(fingerprint.level, level);
+        assert_eq!(fingerprint.locale, "en");
+        assert!(fingerprint
+            .files
+            .iter()
+            .all(|file| file.byte_count > 0 && file.sha256.len() == 64));
+        assert_eq!(
+            fingerprint
+                .files
+                .iter()
+                .map(|file| file.relative_path.clone())
+                .collect::<Vec<_>>(),
+            vec![
+                "Gamedata/World/Levels/Fix.sna".to_owned(),
+                "Gamedata/World/Levels/Fix.rtb".to_owned(),
+                format!("Gamedata/World/Levels/{level}/{level}.sna"),
+                format!("Gamedata/World/Levels/{level}/{level}.rtb"),
+                format!("Gamedata/World/Levels/{level}/fixlvl.rtb"),
+                format!("Gamedata/World/Levels/{level}/{level}.rtp"),
+                format!("Gamedata/World/Levels/{level}/{level}.rtt"),
+                format!("Gamedata/World/Levels/{level}/{level}.gpt"),
+                format!("Gamedata/World/Levels/{level}/{level}.ptx"),
+            ]
+        );
         let observed = live::inspect_file_actor(&game, &selection)?;
         let mut imported = crate::openspace::content::import_scene(&game, selection)?;
         let scene: std::sync::Arc<crate::model::scene::Scene> =

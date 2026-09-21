@@ -1,14 +1,85 @@
 //! One active level and its Fix bindings; all addresses are transient.
 use super::container::{
-    PointerMap, file, level_textures, merge_relocations, pointer_file, reloc, sna, u32_at, wire,
+    file, level_textures, merge_relocations, pointer_file, reloc, sna, u32_at, wire, PointerMap,
 };
 use super::records::*;
-use crate::model::{Selection, geometry::SourceTransform};
-use anyhow::{Result, anyhow, ensure};
+use crate::model::{geometry::SourceTransform, Selection};
+use anyhow::{anyhow, ensure, Result};
 use std::{
     collections::{BTreeMap, BTreeSet},
-    path::Path,
+    path::{Path, PathBuf},
 };
+
+pub(super) struct SourceFiles {
+    relative: Vec<PathBuf>,
+    resolved: Vec<PathBuf>,
+}
+impl SourceFiles {
+    fn new(game: &Path, selection: &Selection) -> Result<Self> {
+        ensure!(
+            Selection::hype(selection.level.clone(), selection.locale.clone())? == *selection,
+            "unsupported source profile"
+        );
+        let directory = PathBuf::from("Gamedata/World/Levels");
+        let level = directory.join(&selection.level);
+        let relative = vec![
+            directory.join("Fix.sna"),
+            directory.join("Fix.rtb"),
+            level.join(format!("{}.sna", selection.level)),
+            level.join(format!("{}.rtb", selection.level)),
+            level.join("fixlvl.rtb"),
+            level.join(format!("{}.rtp", selection.level)),
+            level.join(format!("{}.rtt", selection.level)),
+            level.join(format!("{}.gpt", selection.level)),
+            level.join(format!("{}.ptx", selection.level)),
+        ];
+        let resolved = relative.iter().map(|path| game.join(path)).collect();
+        Ok(Self { relative, resolved })
+    }
+    fn case_insensitive(game: &Path, selection: &Selection) -> Result<Self> {
+        let mut files = Self::new(game, selection)?;
+        files.resolved = files
+            .relative
+            .iter()
+            .map(|relative| resolve_unique_case_insensitive(game, relative))
+            .collect::<Result<Vec<_>>>()?;
+        Ok(files)
+    }
+    pub(super) fn entries(&self) -> impl Iterator<Item = (&Path, &Path)> {
+        self.relative
+            .iter()
+            .zip(&self.resolved)
+            .map(|(relative, resolved)| (relative.as_path(), resolved.as_path()))
+    }
+    fn path(&self, index: usize) -> &Path {
+        &self.resolved[index]
+    }
+}
+
+pub(super) fn resolve_unique_case_insensitive(root: &Path, relative: &Path) -> Result<PathBuf> {
+    let mut resolved = root.to_owned();
+    for component in relative.components() {
+        let wanted = component.as_os_str().to_string_lossy();
+        let entries = std::fs::read_dir(&resolved)?.collect::<std::io::Result<Vec<_>>>()?;
+        let matches = entries
+            .into_iter()
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .eq_ignore_ascii_case(&wanted)
+            })
+            .map(|entry| entry.path())
+            .collect::<Vec<_>>();
+        ensure!(
+            matches.len() == 1,
+            "source path component {wanted:?} has {} case-insensitive matches",
+            matches.len()
+        );
+        resolved = matches.into_iter().next().unwrap();
+    }
+    Ok(resolved)
+}
 pub(super) struct RootedNode {
     pub(super) path: String,
     pub(super) address: Address,
@@ -28,14 +99,17 @@ pub(super) struct SourceSession {
 }
 impl SourceSession {
     pub(super) fn open(game: &Path, selection: &Selection) -> Result<Self> {
-        ensure!(
-            selection.profile == "hype-pc-montreal",
-            "unsupported source profile"
-        );
-        let levels = game.join("Gamedata/World/Levels");
-        let level = levels.join(&selection.level);
-        let fix = sna(&file(&levels.join("Fix.sna"))?)?;
-        let lvl = sna(&file(&level.join(format!("{}.sna", selection.level)))?)?;
+        Self::open_files(SourceFiles::new(game, selection)?).map(|(session, _)| session)
+    }
+    pub(super) fn open_with_fingerprint_files(
+        game: &Path,
+        selection: &Selection,
+    ) -> Result<(Self, SourceFiles)> {
+        Self::open_files(SourceFiles::case_insensitive(game, selection)?)
+    }
+    fn open_files(files: SourceFiles) -> Result<(Self, SourceFiles)> {
+        let fix = sna(&file(files.path(0))?)?;
+        let lvl = sna(&file(files.path(2))?)?;
         let mut actual = BTreeMap::new();
         for (owner, blocks) in [(Owner::Fix, &fix), (Owner::Level, &lvl)] {
             for (key, b) in blocks {
@@ -46,27 +120,27 @@ impl SourceSession {
         }
         let mut pointers = BTreeMap::new();
         for (owner, path) in [
-            (Owner::Fix, levels.join("Fix.rtb")),
-            (Owner::Level, level.join(format!("{}.rtb", selection.level))),
-            (Owner::Fix, level.join("fixlvl.rtb")),
+            (Owner::Fix, files.path(1)),
+            (Owner::Level, files.path(3)),
+            (Owner::Fix, files.path(4)),
         ] {
-            merge_relocations(&mut pointers, owner, reloc(&file(&path)?)?)?;
+            merge_relocations(&mut pointers, owner, reloc(&file(path)?)?)?;
         }
-        let rtp = pointer_file(&file(&level.join(format!("{}.rtp", selection.level)))?)?;
-        let rtt = pointer_file(&file(&level.join(format!("{}.rtt", selection.level)))?)?;
+        let rtp = pointer_file(&file(files.path(5))?)?;
+        let rtt = pointer_file(&file(files.path(6))?)?;
         let mut session = Self {
             fix_bindings: Default::default(),
             allocation_cache: Default::default(),
             blocks: BTreeMap::from([(Owner::Fix, fix), (Owner::Level, lvl)]),
             actual,
             pointers,
-            gpt: file(&level.join(format!("{}.gpt", selection.level)))?,
+            gpt: file(files.path(7))?,
             rtp,
-            ptx: file(&level.join(format!("{}.ptx", selection.level)))?,
+            ptx: file(files.path(8))?,
             rtt,
         };
         session.bind_fix_persos()?;
-        Ok(session)
+        Ok((session, files))
     }
     pub(super) fn block(&self, a: Address) -> Result<&Block> {
         self.blocks
