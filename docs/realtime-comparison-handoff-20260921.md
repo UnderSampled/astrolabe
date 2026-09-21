@@ -1,16 +1,18 @@
 # Realtime comparison implementation checkpoint — 2026-09-21
 
-The user requested a stopping point to transfer the goal to another agent. The
-goal is paused and incomplete. All delegated agents stopped; the final replay
-draft was never executed in Hype. No game session was started during this
-handoff. Preserve `disc/`, `output/`, `TestResults/`, reference submodules and the
-external `/home/stephen/Projects/hype-harness` installation.
+This is the next stopping point for transferring the goal to another agent. The
+native wrapper path is now committed and has passed the focused comparison suite
+under the required host privileges. No Hype game session was started: the live
+physical-input gate remains intentionally open. Preserve `disc/`, `output/`,
+`TestResults/`, reference submodules and the external
+`/home/stephen/Projects/hype-harness` installation.
 
 ## Resume here
 
-The committed implementation baseline before this handoff is
-`0345d67c391998b7b0fa3aeae021ab5f4b8c81f4` on `main`. This handoff adds formatting
-corrections to five shared-reader files and documentation. The
+The committed implementation baseline at this handoff is
+`cb8e8d3dcf82c96532a2ab8472dc71c6c88762df` on `main`. It contains the native
+replay CLI, hand-emitted i386 wrappers, synthetic execution fixture, and complete
+test inventory. The
 [original handoff](realtime-comparison-handoff.md),
 [comparison plan](realtime-comparison-plan.md), `AGENTS.md`, `plan.md`,
 `docs/rust-architecture.md` and `docs/rete-design.md` remain the governing scope.
@@ -35,6 +37,7 @@ recording in both engines, then broader BDD and coverage accounting.
 | `bde4541`, `90a4684` | Fail-closed owned-process instrumentation. Existing syscall instructions, all-thread stops, register restoration, callback ownership checks and exposed scratch retained until process exit. Native and real i386 synthetic tracees tested; no Hype injection acceptance yet. |
 | `1625c4f`, `6ed75ca` | Shared exact-byte physical-input recording, narrow comparison reports, closed/reopened Rete edit detection, compiled ignored live comparison test and optional Godot recording-file consumption. |
 | `c32a17d`, `0345d67` | Source evidence qualifies only current-action publication after the original gameplay callback returns. No global-transform publication proof. |
+| `cb8e8d3` | Synthetic ELF32 execution now forwards both callbacks exactly once, survives hostile `timeGetTime` register clobbering, publishes 18 completed updates, rejects duplicate polls, checks actor identity/pointer chains, and records the exact shared input masks. The focused comparison suite passed 27 selected tests in 72.396 seconds under the required host privileges; release build, workspace Clippy and formatting also passed. |
 
 The former unsafe instrumentation prototype `89aec5a` was reverted by `4f76657`.
 Do not resurrect it. The safe foundation is `bde4541` and `90a4684`.
@@ -63,8 +66,8 @@ rejects ambiguity. Matching values/addresses are not lifecycle identity proof.
 
 ## Preserved unfinished draft
 
-The stopped Sol agent's changes were backed up, reread and restored out of the
-working tree. Local, ignored directory:
+The stopped Sol agent's original changes remain backed up for provenance. Local,
+ignored directory:
 
 ```text
 TestResults/handoff-20260921-stop/
@@ -76,36 +79,22 @@ TestResults/handoff-20260921-stop/
 
 Patch SHA-256:
 `8aed5cf3541ad7e3d3020b6855669b1149a19bb94f3b51c1a83b6579c8c936f6`.
-It applies to the implementation baseline above; `git apply --check` passed
-after restoration. The manifest records the baseline and all three full-file
-hashes. Keep this directory when transferring the workspace; it is not in Git.
-Review or reimplement it rather than treating it as accepted code.
-
-The draft adds a replay CLI, hand-emitted i386 keyboard/update wrappers and an
-ignored 18-update test. Sol reported Clippy and test compilation passing, but no
-wrapper execution or independent review occurred. Concrete blockers found by
-root inspection, not yet fixed:
-
-- `patch_rel8` uses unsigned `checked_sub`, so its backward error branch cannot
-  be encoded. Add meaningful synthetic assembly/control-flow tests before any
-  live installation.
-- The wrappers call `timeGetTime` while ECX/EDX hold values used afterward;
-  those are caller-saved registers. Verify and preserve the full callback ABI.
-- A second poll before consumption silently returns. Prove input consumption
-  and reject missed/duplicate boundaries; reporting queued masks is not an
-  independent observation of consumption.
-- The wrapper follows the actor pointer chain without per-update null/root/
-  phase checks. A final phase check cannot prevent an invalid dereference or
-  qualify an intervening epoch change.
-- The independent monotonic time relationship and wrap handling are unproved.
-  Keep timestamps, engine counters/deltas and consumer ordinals distinct.
+It applies to the earlier implementation baseline and is retained only as
+research evidence; the manifest records its original base and file hashes. Keep
+this directory when transferring the workspace; it is not in Git. The concrete
+wrapper blockers identified in review are covered by the committed synthetic
+fixture, but the fixture still does not prove that the real Hype consumer reads
+the injected buffer.
 
 Publication must forward the original callback exactly once and observe only
 after it returns. Read `docs/hype-publication-evidence.md`: current action is the
 only source-qualified outcome so far. SO+36 global-transform writer closure is
 unproved. Early counters/actor stamps and stopped snapshots are not fences;
 screenshots remain independent until their association is proved. No automatic
-millisecond replay fallback is allowed.
+millisecond replay fallback is allowed. The committed report labels planned key
+masks and protocol ordinals separately from source-qualified current-action
+publication; it does not claim physical-buffer consumption until a real Hype run
+provides that evidence.
 
 ## Runtime operation and delegation
 
@@ -117,12 +106,13 @@ Luna stops and escalates review; no guesses or retries. Use one Hype controller
 at a time. Sol specifies and interprets native-runtime work instead of
 independently operating Hype MCP. No live operation is part of this handoff.
 
-Prior division: Sol owned native runtime and shared readers, Astra reviewed and
-implemented safe instrumentation, Terra audited checkpoint provenance, Luna
-prepared checkpoint notes. All stopped; do not assume those agent sessions can
-be reused. Multi-agent work was explicitly authorized for the implementation
-goal. Coordinate file ownership and freeze implementation during supervised
-validation.
+Current delegation ledger: Astra (gpt-6-astra) reviewed the wrapper ABI and
+failure modes; Sol (gpt-5.6-sol) implemented the native wrappers and synthetic
+ELF32 execution fixture; Luna (gpt-5.6-luna) supplied the bounded live-run
+procedure and remains the sole Hype MCP operator; Terra was not needed for this
+checkpoint. All implementation agents are stopped after their evidence was
+incorporated. Coordinate file ownership and freeze implementation during any
+supervised Hype validation.
 
 The preserved native fixture config is
 `/home/stephen/Projects/hype-harness/local/config.json`. Its EXE hash is
@@ -160,16 +150,15 @@ cargo clippy --workspace --locked --offline --all-targets -- -D warnings
 git diff --check
 ```
 
-The runner discovered all 116 declared tests, passed its 24 selected Rust tests
-and all 14 Python supervisor/selection checks in **152.375 seconds**, with no
-leaked/remaining child processes and complete temporary cleanup. Build/discovery
-took 82.602 seconds; the Godot safeguard took 62.608 seconds. The report retains
-selection/exclusion reasons and `source_unchanged: true`. Implementation digest:
-`018bc6557e4b70c0b5bafe5170302894334d7a1ad9e9c0f128c6b22c55dd60c3`.
-This was baseline `0345d67` plus the committed formatting corrections; docs are
-outside the implementation digest. Evidence is `validation.log.json` and
-`style.log` in the handoff directory. The patch backup is separate from accepted
-implementation and is not included in that digest.
+The latest focused run discovered the complete manifest, passed all 27 selected
+Rust tests and 14 Python supervisor/selection checks in **72.396 seconds** under
+the required host privileges, with no leaked/remaining child processes and
+complete temporary cleanup. The Godot safeguard took 64.399 seconds. Evidence is
+`TestResults/20260921T045933.116219Z-development.log.json`; the committed code
+hash is `cb8e8d3`. `cargo build --release --locked`, workspace Clippy and
+formatting also passed. The earlier 152.375-second handoff run remains useful
+baseline evidence, but it predates the wrapper execution fixture and manifest
+entries.
 
 Original-engine tests were excluded. No new full release run, native replay,
 live comparison or full gameplay acceptance is claimed by this handoff.
