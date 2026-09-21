@@ -61,10 +61,13 @@ new outputs in disposable directories; old schemas require deliberate fresh
 conversion. Store new evidence under ignored TestResults/output or the external
 harness's local directory, with the associated source revision and fixture hashes.
 
-Resume from these commits, not from the older archived runtime experiment.
-First run the new movement scenarios against the checkpoint and expose its
-actual failures; then complete the missing gameplay path without replacing the
-real converted AI with a test controller.
+The [implementation handoff](realtime-comparison-handoff.md) records the named
+recovery tag, preserved local evidence and a goal for the next agent. Start with
+the boundary/cadence proof and harness work in the ordered delivery below. Once
+the new movement scenarios exist, run them against this gameplay checkpoint and
+expose its actual failures; then complete the missing gameplay path without
+replacing the real converted AI with a test controller. Do not resume the older
+archived runtime experiment.
 
 ## Native runtime and shared loading
 
