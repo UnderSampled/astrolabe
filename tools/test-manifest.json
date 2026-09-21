@@ -1709,6 +1709,61 @@
     },
     {
       "binary": "astrolabe-testkit",
+      "test": "original::probe_tests::elf32_wrappers_forward_exactly_once_and_reject_duplicate_poll",
+      "areas": [
+        "runtime"
+      ],
+      "kind": "process",
+      "prerequisites": [],
+      "fixture": "owned ELF32 callback and hostile-register synthetic child",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true,
+      "safeguard": "always"
+    },
+    {
+      "binary": "astrolabe-testkit",
+      "test": "original::probe_tests::generated_probe_is_bounded_and_contains_exact_shared_input_states",
+      "areas": [
+        "comparison"
+      ],
+      "kind": "contract",
+      "prerequisites": [],
+      "fixture": "shared literal physical input recording and generated wrapper image",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe-testkit",
+      "test": "original::probe_tests::relative_branch_encoder_accepts_forward_and_backward_targets",
+      "areas": [
+        "runtime"
+      ],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic signed i386 branch offsets",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe-testkit::original",
+      "test": "native_boundary_replay_publishes_18_completed_updates",
+      "areas": [
+        "comparison"
+      ],
+      "kind": "original-engine",
+      "prerequisites": [
+        "original"
+      ],
+      "fixture": "pinned Hype executable and supplied English SaveGame0",
+      "timeout_seconds": 210,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe-testkit",
       "test": "instrumentation::tests::mutation_failures_kill_exact_owned_child",
       "areas": [
         "runtime"

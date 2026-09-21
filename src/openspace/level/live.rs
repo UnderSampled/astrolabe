@@ -61,7 +61,7 @@ impl HypeBuild {
     }
     pub fn status(&self, memory: &mut impl ReadMemory) -> Result<Status> {
         let mut source = MemoryView(memory);
-        let bytes = source.bytes(0x754420, 261)?;
+        let bytes = source.bytes(super::hype_runtime::STATUS, 261)?;
         let end = bytes[1..]
             .iter()
             .position(|b| *b == 0)

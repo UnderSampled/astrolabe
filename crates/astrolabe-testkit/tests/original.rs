@@ -111,3 +111,57 @@ fn native_owner_cleans_game_after_worker_dies_while_paused() -> Result<()> {
     );
     Ok(())
 }
+
+#[test]
+#[ignore = "requires prepared Hype save, private Wine/Gamescope and KDE; selected by --local"]
+fn native_boundary_replay_publishes_18_completed_updates() -> Result<()> {
+    let config = PathBuf::from(
+        std::env::var_os("ASTROLABE_HYPE_CONFIG").context("ASTROLABE_HYPE_CONFIG is required")?,
+    );
+    Config::load(&config)?;
+    let focus = PathBuf::from(std::env::var_os("HOME").context("HOME missing")?)
+        .join(".config/kwinrulesrc");
+    let focus_before = fs::read(&focus)?;
+    let evidence = std::env::var_os("ASTROLABE_EVIDENCE_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../TestResults"));
+    fs::create_dir_all(&evidence)?;
+    let output = evidence.join(format!(
+        "original-replay-{}",
+        SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
+    ));
+    let status = Command::new(env!("CARGO_BIN_EXE_astrolabe-testkit"))
+        .arg("replay-original")
+        .arg("--config")
+        .arg(&config)
+        .arg("--output")
+        .arg(&output)
+        .status()?;
+    let summary: Value = serde_json::from_slice(&fs::read(output.join("summary.json"))?)?;
+    assert!(status.success(), "{summary}");
+    assert_eq!(summary["cleanup_complete"], true);
+    assert_eq!(fs::read(&focus)?, focus_before);
+    Config::load(&config)?;
+    let report: Value = serde_json::from_slice(&fs::read(output.join("worker.json"))?)?;
+    assert_eq!(report["status"], "replay_complete");
+    assert_eq!(report["consistency"], "completed_update_hook");
+    assert_eq!(report["updates"].as_array().unwrap().len(), 18);
+    for (index, row) in report["updates"].as_array().unwrap().iter().enumerate() {
+        assert_eq!(row["ordinal"], index + 1);
+        assert_eq!(row["boundary_acknowledged_ordinal"], index + 1);
+        if index > 0 {
+            assert_eq!(
+                row["update_counter"].as_u64().unwrap(),
+                report["updates"][index - 1]["update_counter"]
+                    .as_u64()
+                    .unwrap()
+                    + 1
+            );
+        }
+        let ordinal = index + 1;
+        assert_eq!(row["planned_left"], matches!(ordinal, 3 | 5 | 8..=12));
+        assert_eq!(row["planned_left_shift"], matches!(ordinal, 8..=12));
+    }
+    println!("native replay evidence: {}", output.display());
+    Ok(())
+}

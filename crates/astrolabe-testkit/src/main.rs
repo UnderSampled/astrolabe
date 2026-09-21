@@ -23,6 +23,13 @@ enum Commands {
         #[arg(long, hide = true)]
         fail_stopped_worker: bool,
     },
+    /// Replay the shared 18-update physical-input recording in Hype.
+    ReplayOriginal {
+        #[arg(long)]
+        config: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+    },
     #[command(hide = true)]
     OriginalWorker {
         #[arg(long)]
@@ -33,6 +40,8 @@ enum Commands {
         host_display: String,
         #[arg(long, hide = true)]
         fail_stopped_worker: bool,
+        #[arg(long, hide = true)]
+        replay: bool,
     },
     /// Synthetic process used by lifecycle acceptance tests; no game data.
     #[command(hide = true)]
@@ -158,11 +167,21 @@ fn main() -> Result<()> {
                 bail!("native runtime currently requires Linux");
             }
         }
+        Commands::ReplayOriginal { config, output } => {
+            #[cfg(target_os = "linux")]
+            return astrolabe_testkit::original::replay(&config, &output);
+            #[cfg(not(target_os = "linux"))]
+            {
+                let _ = (config, output);
+                bail!("native runtime currently requires Linux");
+            }
+        }
         Commands::OriginalWorker {
             config,
             output,
             host_display,
             fail_stopped_worker,
+            replay,
         } => {
             #[cfg(target_os = "linux")]
             return astrolabe_testkit::original::worker(
@@ -170,10 +189,11 @@ fn main() -> Result<()> {
                 &output,
                 &host_display,
                 fail_stopped_worker,
+                replay,
             );
             #[cfg(not(target_os = "linux"))]
             {
-                let _ = (config, output, host_display, fail_stopped_worker);
+                let _ = (config, output, host_display, fail_stopped_worker, replay);
                 bail!("native runtime currently requires Linux");
             }
         }

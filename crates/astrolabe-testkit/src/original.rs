@@ -4,9 +4,12 @@
 use crate::{
     config::{Config, digest},
     desktop::{Desktop, SetupKey},
+    instrumentation::Scratch,
     linux::{Identity, Owner, Process},
+    replay::{Edge, Key, boundary_recording},
 };
 use anyhow::{Context, Result, ensure};
+use astrolabe::openspace::level::hype_runtime;
 use astrolabe::openspace::level::live::{HypeBuild, ReadMemory};
 use serde_json::json;
 use std::{
@@ -85,6 +88,224 @@ impl ReadMemory for Running<'_> {
         self.0.read_running(address as usize, size)
     }
 }
+
+const INPUT_CODE: usize = 0;
+const UPDATE_CODE: usize = 256;
+const STATE: usize = 512;
+const RECORDS: usize = 1024;
+const RECORD_SIZE: usize = 40;
+const RECORD_COUNT: usize = 18;
+const MASKS: usize = STATE + 20;
+const ACTOR_ROOT_ID: u8 = 60;
+const INPUT_TIMES: usize = STATE + 64;
+
+fn imm(code: &mut Vec<u8>, value: u32) {
+    code.extend_from_slice(&value.to_le_bytes());
+}
+fn rel8(code: &mut Vec<u8>, opcode: u8) -> usize {
+    code.extend_from_slice(&[opcode, 0]);
+    code.len() - 1
+}
+fn rel32(code: &mut Vec<u8>, condition: u8) -> usize {
+    code.extend_from_slice(&[0x0f, condition, 0, 0, 0, 0]);
+    code.len() - 4
+}
+fn patch_rel8(code: &mut [u8], site: usize, target: usize) -> Result<()> {
+    let displacement = isize::try_from(target)? - isize::try_from(site + 1)?;
+    let displacement: i8 = displacement
+        .try_into()
+        .with_context(|| format!("probe branch outside signed-byte range: {site}->{target}"))?;
+    code[site] = displacement as u8;
+    Ok(())
+}
+fn patch_rel32(code: &mut [u8], site: usize, target: usize) -> Result<()> {
+    let displacement: i32 = (target as i128 - (site + 4) as i128)
+        .try_into()
+        .context("probe near branch outside signed-word range")?;
+    code[site..site + 4].copy_from_slice(&displacement.to_le_bytes());
+    Ok(())
+}
+fn probe_image(base: u32) -> Result<Vec<u8>> {
+    let prepared = boundary_recording()?;
+    ensure!(
+        prepared.recording().updates.len() == RECORD_COUNT,
+        "unexpected replay length"
+    );
+    ensure!(
+        MASKS + RECORD_COUNT <= STATE + ACTOR_ROOT_ID as usize
+            && STATE + ACTOR_ROOT_ID as usize + 4 <= INPUT_TIMES,
+        "probe state fields overlap"
+    );
+    let mut held = std::collections::BTreeSet::new();
+    let mut masks = vec![];
+    for update in &prepared.recording().updates {
+        for event in &update.events {
+            ensure!(event.keyboard == 0, "unsupported keyboard");
+            ensure!(
+                matches!(event.key, Key::ArrowLeft | Key::LeftShift),
+                "unsupported probe key"
+            );
+            match event.edge {
+                Edge::Press => {
+                    held.insert(event.key);
+                }
+                Edge::Release => {
+                    held.remove(&event.key);
+                }
+            }
+        }
+        masks.push(
+            u8::from(held.contains(&Key::ArrowLeft))
+                | (u8::from(held.contains(&Key::LeftShift)) << 1),
+        );
+    }
+    let state = base
+        .checked_add(STATE as u32)
+        .context("probe state overflow")?;
+    let records = base
+        .checked_add(RECORDS as u32)
+        .context("probe records overflow")?;
+    let mut image = vec![0; 4096];
+
+    let mut input = vec![0xff, 0x74, 0x24, 0x04, 0xb8];
+    imm(&mut input, hype_runtime::KEYBOARD_CALLBACK);
+    input.extend_from_slice(&[0xff, 0xd0, 0x83, 0xc4, 0x04, 0x9c, 0x60, 0xff, 0x15]);
+    imm(&mut input, 0x005c_0810);
+    input.extend_from_slice(&[0x8b, 0xe8, 0xbf]);
+    imm(&mut input, state);
+    input.extend_from_slice(&[0x8b, 0x4f, 0x08, 0x83, 0xf9, RECORD_COUNT as u8]);
+    let input_done_a = rel32(&mut input, 0x83); // dispatched >= capacity
+    input.extend_from_slice(&[0x3b, 0x4f, 0x0c]);
+    let input_done_b = rel32(&mut input, 0x85); // prior input not consumed
+    input.extend_from_slice(&[
+        0x8b, 0x74, 0x24, 0x28, 0x8b, 0x76, 0x08, 0x0f, 0xbf, 0x96, 0x02, 0x02, 0x00, 0x00, 0xc1,
+        0xe2, 0x08,
+    ]);
+    for scan in [0x2b_u32, 0xcc] {
+        input.extend_from_slice(&[0xc6, 0x84, 0x16]);
+        imm(&mut input, scan);
+        input.push(0);
+    }
+    input.extend_from_slice(&[0x8a, 0x44, 0x0f, 0x14, 0xa8, 0x01]);
+    let no_left = rel8(&mut input, 0x74);
+    input.extend_from_slice(&[0xc6, 0x84, 0x16]);
+    imm(&mut input, 0xcc);
+    input.push(0x80);
+    let after_left = input.len();
+    patch_rel8(&mut input, no_left, after_left)?;
+    input.extend_from_slice(&[0xa8, 0x02]);
+    let no_shift = rel8(&mut input, 0x74);
+    input.extend_from_slice(&[0xc6, 0x84, 0x16]);
+    imm(&mut input, 0x2b);
+    input.push(0x80);
+    let after_shift = input.len();
+    patch_rel8(&mut input, no_shift, after_shift)?;
+    input.extend_from_slice(&[0x89, 0x6c, 0x8f, 0x40, 0x41, 0x89, 0x4f, 0x08]);
+    let input_done = input.len();
+    input.extend_from_slice(&[0x61, 0x9d, 0xc3]);
+    // A second poll before the previous prepared state was consumed is a
+    // boundary violation. Latch it in scratch state so the host fails closed;
+    // never silently overwrite the pending physical buffer.
+    let input_error = input.len();
+    input.extend_from_slice(&[0xc7, 0x47, 0x10]);
+    imm(&mut input, 2);
+    let input_error_back = rel8(&mut input, 0xeb);
+    patch_rel8(&mut input, input_error_back, input_done)?;
+    patch_rel32(&mut input, input_done_a, input_done)?;
+    patch_rel32(&mut input, input_done_b, input_error)?;
+    ensure!(
+        input.len() <= UPDATE_CODE - INPUT_CODE,
+        "input wrapper too large"
+    );
+    image[INPUT_CODE..INPUT_CODE + input.len()].copy_from_slice(&input);
+
+    let mut update = vec![0xb8];
+    imm(&mut update, hype_runtime::UPDATE_CALLBACK);
+    update.extend_from_slice(&[0xff, 0xd0, 0x9c, 0x60, 0xff, 0x15]);
+    imm(&mut update, 0x005c_0810);
+    update.extend_from_slice(&[0x8b, 0xe8, 0xbf]);
+    imm(&mut update, state);
+    update.extend_from_slice(&[0x80, 0x3d]);
+    imm(&mut update, hype_runtime::STATUS);
+    update.push(9);
+    let error_phase = rel32(&mut update, 0x85);
+    update.extend_from_slice(&[0x8b, 0x4f, 0x08, 0x85, 0xc9]);
+    let done_zero = rel32(&mut update, 0x84);
+    update.extend_from_slice(&[0x3b, 0x4f, 0x0c]);
+    let done_same = rel32(&mut update, 0x84);
+    update.extend_from_slice(&[0x8b, 0x47, 0x0c, 0x40, 0x3b, 0xc8]);
+    let error_jump = rel32(&mut update, 0x85);
+    update.extend_from_slice(&[0x83, 0xf9, RECORD_COUNT as u8]);
+    let error_over = rel32(&mut update, 0x87);
+    update.extend_from_slice(&[0x8b, 0x57, 0x0c, 0x6b, 0xd2, RECORD_SIZE as u8, 0x81, 0xc2]);
+    imm(&mut update, records);
+    update.extend_from_slice(&[0x89, 0x0a]);
+    for (offset, address) in [
+        (4_u8, hype_runtime::UPDATE_COUNTER),
+        (8, hype_runtime::CLOCK_MS),
+        (12, hype_runtime::RAW_DELTA_MS),
+        (16, hype_runtime::CLAMPED_DELTA_MS),
+    ] {
+        update.push(0xa1);
+        imm(&mut update, address);
+        update.extend_from_slice(&[0x89, 0x42, offset]);
+    }
+    update.extend_from_slice(&[0x89, 0x6a, 0x14]);
+    update.push(0xa1);
+    imm(&mut update, hype_runtime::MAIN_ACTOR_ROOT);
+    // MainActor entry -> superobject node -> perso -> data3d -> current action.
+    // Every pointer that will be dereferenced is checked before use. A null
+    // current-action member is valid optional content and is recorded as zero;
+    // the data3d object itself is not optional for this actor contract.
+    update.extend_from_slice(&[0x85, 0xc0]);
+    let error_root = rel32(&mut update, 0x84);
+    // Retain the first accepted actor root as the session identity. A changed
+    // root means replacement/reload and aborts before traversing its pointers.
+    update.extend_from_slice(&[0x83, 0x7f, ACTOR_ROOT_ID, 0x00]);
+    let root_seen = rel8(&mut update, 0x75);
+    update.extend_from_slice(&[0x89, 0x47, ACTOR_ROOT_ID]);
+    let root_after_init = rel8(&mut update, 0xeb);
+    let root_compare = update.len();
+    update.extend_from_slice(&[0x3b, 0x47, ACTOR_ROOT_ID]);
+    let root_changed = rel32(&mut update, 0x85);
+    let root_after = update.len();
+    update.extend_from_slice(&[0x89, 0x42, 0x18, 0x8b, 0x40, 0x04, 0x85, 0xc0]);
+    let error_node = rel32(&mut update, 0x84);
+    update.extend_from_slice(&[0x89, 0x42, 0x1c, 0x8b, 0x40, 0x04, 0x85, 0xc0]);
+    let error_perso = rel32(&mut update, 0x84);
+    update.extend_from_slice(&[0x8b, 0x00, 0x85, 0xc0]);
+    let error_data3d = rel32(&mut update, 0x84);
+    update.extend_from_slice(&[
+        0x89, 0x42, 0x20, 0x8b, 0x40, 0x04, 0x89, 0x42, 0x24, 0x89, 0x4f, 0x0c,
+    ]);
+    let done = update.len();
+    update.extend_from_slice(&[0x61, 0x9d, 0xc3]);
+    let error = update.len();
+    update.extend_from_slice(&[0xc7, 0x47, 0x10]);
+    imm(&mut update, 1);
+    let back = rel8(&mut update, 0xeb);
+    patch_rel32(&mut update, done_zero, done)?;
+    patch_rel32(&mut update, done_same, done)?;
+    patch_rel32(&mut update, error_jump, error)?;
+    patch_rel32(&mut update, error_over, error)?;
+    patch_rel32(&mut update, error_phase, error)?;
+    patch_rel32(&mut update, error_root, error)?;
+    patch_rel8(&mut update, root_seen, root_compare)?;
+    patch_rel8(&mut update, root_after_init, root_after)?;
+    patch_rel32(&mut update, root_changed, error)?;
+    patch_rel32(&mut update, error_node, error)?;
+    patch_rel32(&mut update, error_perso, error)?;
+    patch_rel32(&mut update, error_data3d, error)?;
+    patch_rel8(&mut update, back, done)?;
+    ensure!(
+        update.len() <= STATE - UPDATE_CODE,
+        "update wrapper too large"
+    );
+    image[UPDATE_CODE..UPDATE_CODE + update.len()].copy_from_slice(&update);
+    image[MASKS..MASKS + masks.len()].copy_from_slice(&masks);
+    Ok(image)
+}
+
 fn phase(
     process: &Process,
     build: &HypeBuild,
@@ -149,6 +370,7 @@ pub fn worker(
     output: &Path,
     host_display: &str,
     fail_stopped_worker: bool,
+    replay: bool,
 ) -> Result<()> {
     let cancel = Cancellation::new()?;
     let config = Config::load(config_path)?;
@@ -214,6 +436,114 @@ pub fn worker(
             &cancel,
         )?;
         cancel.wait(Duration::from_secs(4))?;
+        if replay {
+            let mut running = Running(&process);
+            hype_runtime::verify_callbacks(&build, &mut running)?;
+            let keyboard = hype_runtime::keyboard_device(&build, &mut running)?;
+            // `keyboard_device` admitted this slot only when it contained the
+            // verified profile callback. Do not reread and trust a replacement
+            // value between discovery and paused installation.
+            let keyboard_original = hype_runtime::KEYBOARD_CALLBACK;
+            let mut scratch = Scratch::allocate(&process, 4096)?;
+            let image = probe_image(scratch.address() as u32)?;
+            scratch.write(0, &image)?;
+            // Publication starts disarmed (dispatched == 0), so installing the
+            // completed-update wrapper first cannot mislabel an old update.
+            scratch.install_callback(
+                hype_runtime::UPDATE_CALLBACK_SLOT as usize,
+                hype_runtime::UPDATE_CALLBACK,
+                UPDATE_CODE,
+            )?;
+            scratch.install_callback(
+                keyboard.callback_slot as usize,
+                keyboard_original,
+                INPUT_CODE,
+            )?;
+            let replay_started = Instant::now();
+            loop {
+                let header = scratch.read(STATE + 8, 12)?;
+                let completed = u32::from_le_bytes(header[4..8].try_into()?);
+                let error = u32::from_le_bytes(header[8..12].try_into()?);
+                ensure!(
+                    error == 0,
+                    "native replay hook reported ordinal failure {error}"
+                );
+                if completed == RECORD_COUNT as u32 {
+                    break;
+                }
+                ensure!(
+                    replay_started.elapsed() < Duration::from_secs(10),
+                    "native replay deadline exceeded"
+                );
+                cancel.wait(Duration::from_millis(1))?;
+            }
+            let stopped = process.pause(Duration::from_secs(1))?;
+            let raw = scratch.read(STATE, RECORDS + RECORD_COUNT * RECORD_SIZE - STATE)?;
+            let status = build.status(&mut stopped.capture()?)?;
+            drop(stopped);
+            ensure!(
+                status.phase == 9 && status.level == "manoir",
+                "replay epoch changed"
+            );
+            let mut rows = vec![];
+            let mut previous_counter = None;
+            let mut actor_identity = None;
+            for index in 0..RECORD_COUNT {
+                let offset = RECORDS - STATE + index * RECORD_SIZE;
+                let row = &raw[offset..offset + RECORD_SIZE];
+                let word = |at: usize| u32::from_le_bytes(row[at..at + 4].try_into().unwrap());
+                ensure!(
+                    word(0) == index as u32 + 1,
+                    "missing completed-update ordinal"
+                );
+                if let Some(previous) = previous_counter {
+                    ensure!(
+                        word(4) == previous + 1,
+                        "non-consecutive engine update counter"
+                    );
+                }
+                previous_counter = Some(word(4));
+                let identity = (word(24), word(28), word(32));
+                ensure!(
+                    actor_identity.is_none_or(|expected| expected == identity),
+                    "controlled actor identity changed during replay"
+                );
+                actor_identity = Some(identity);
+                ensure!(
+                    (16..=80).contains(&word(16)),
+                    "clamped delta outside verified range"
+                );
+                let input_time_offset = INPUT_TIMES - STATE + index * 4;
+                let input_time =
+                    u32::from_le_bytes(raw[input_time_offset..input_time_offset + 4].try_into()?);
+                let mask = raw[MASKS - STATE + index];
+                rows.push(json!({"ordinal":word(0),"boundary_acknowledged_ordinal":word(0),
+                    "update_counter":word(4),"clock_ms":word(8),
+                    "raw_delta_ms":word(12),"clamped_delta_ms":word(16),"boundary_time_ms":word(20),
+                    "input_preparation_time_ms":input_time,"planned_left":mask&1!=0,
+                    "planned_left_shift":mask&2!=0,
+                    "actor_entry":format!("live:{:08x}",word(24)),"actor_node":format!("live:{:08x}",word(28)),
+                    "data3d":format!("live:{:08x}",word(32)),
+                    "current_action_pointer":format!("live:{:08x}",word(36))}));
+            }
+            scratch.close()?;
+            desktop.release()?;
+            return Ok(
+                json!({"schema":1,"status":"replay_complete","scope":"native physical input and completed-update publication",
+                "fixture":config,"process":process.identity(),"game":status,"recording_sha256":boundary_recording()?.sha256(),
+                "keyboard":{"device":format!("live:{:08x}",keyboard.address),"callback_slot":format!("live:{:08x}",keyboard.callback_slot)},
+                "updates":rows,"consistency":"completed_update_hook","completed_update":true,"frame_replay":true,
+                "publication":{"qualified_completed_fields":["current_action_pointer"],
+                    "provenance_fields":["update_counter","clock_ms","raw_delta_ms","clamped_delta_ms","boundary_time_ms"],
+                    "planned_input_fields":["planned_left","planned_left_shift"],
+                    "acknowledgment_field":"boundary_acknowledged_ordinal",
+                    "input_contract":"keyboard poll after update k prepares physical state consumed by update k+1",
+                    "source_evidence":{"getter":"004424f0","setter":"00442500",
+                        "ordinary_update":"004499b0 -> 00433e90 -> 004442e0",
+                        "post_gameplay_tail":"0044a670 -> GLI_vEndOfTurnEngine -> 0044dbd0; no current-action setter"}},
+                "behavior_parity":false,"elapsed_micros":replay_started.elapsed().as_micros()}),
+            );
+        }
         let capture_start = started.elapsed().as_micros();
         let stopped = process.pause(Duration::from_secs(1))?;
         let mut capture = stopped.capture()?;
@@ -366,6 +696,17 @@ impl Drop for Supervisor {
 /// when that worker crashes or hangs. Both native and reference controllers use
 /// the prepared installation's same advisory lock; its service is not stopped.
 pub fn inspect(config_path: &Path, output: &Path, fail_stopped_worker: bool) -> Result<()> {
+    supervise(config_path, output, fail_stopped_worker, false)
+}
+pub fn replay(config_path: &Path, output: &Path) -> Result<()> {
+    supervise(config_path, output, false, true)
+}
+fn supervise(
+    config_path: &Path,
+    output: &Path,
+    fail_stopped_worker: bool,
+    replay: bool,
+) -> Result<()> {
     let cancel = Cancellation::new()?;
     let config_path = config_path.canonicalize()?;
     let lock = File::open(
@@ -437,6 +778,9 @@ pub fn inspect(config_path: &Path, output: &Path, fail_stopped_worker: bool) -> 
         if fail_stopped_worker {
             command.arg("--fail-stopped-worker");
         }
+        if replay {
+            command.arg("--replay");
+        }
         let gamescope = supervisor.owner.spawn(&mut command)?;
         loop {
             cancel.check()?;
@@ -474,8 +818,14 @@ pub fn inspect(config_path: &Path, output: &Path, fail_stopped_worker: bool) -> 
         let report: serde_json::Value =
             serde_json::from_slice(&fs::read(output.join("worker.json"))?)?;
         ensure!(
-            report["status"] == "inspection_complete" && report["cleanup_complete"] == true,
-            "native worker did not finish inspection and cleanup"
+            report["status"]
+                == if replay {
+                    "replay_complete"
+                } else {
+                    "inspection_complete"
+                }
+                && report["cleanup_complete"] == true,
+            "native worker did not finish and clean up"
         );
         Ok(())
     })();
@@ -483,10 +833,260 @@ pub fn inspect(config_path: &Path, output: &Path, fail_stopped_worker: bool) -> 
     write_json(
         &output.join("summary.json"),
         &json!({"schema":1,"status":if result.is_ok() && cleanup.is_ok() {"passed"} else {"failed"},
-        "scope":"native original-game inspection, not frame replay or parity", "elapsed_seconds":started.elapsed().as_secs_f64(),
+        "scope":if replay {"native original-game physical-input replay"} else {"native original-game inspection, not frame replay or parity"}, "elapsed_seconds":started.elapsed().as_secs_f64(),
         "cleanup_complete":cleanup.is_ok(),"error":result.as_ref().err().map(|e|format!("{e:#}")),"cleanup_error":cleanup.as_ref().err().map(|e|format!("{e:#}")),"worker_report":"worker.json"}),
     )?;
     result?;
     cleanup?;
     Ok(())
+}
+
+#[cfg(test)]
+mod probe_tests {
+    use super::*;
+    use std::{os::unix::fs::PermissionsExt, process::Command};
+
+    const ELF_BASE: u32 = 0x0040_0000;
+    const ENTRY: u32 = 0x0040_1000;
+    const TIME_STUB: u32 = 0x0040_1100;
+    const DEVICE: u32 = 0x0070_1000;
+    const BUFFER: u32 = 0x0070_2000;
+    const START: u32 = 0x0070_3000;
+    const DONE: u32 = 0x0070_3001;
+    const UPDATE_CALLS: u32 = 0x0070_3004;
+    const KEYBOARD_CALLS: u32 = 0x0070_3008;
+    const ACTOR_ENTRY: u32 = 0x0070_4000;
+    const ACTOR_NODE: u32 = 0x0070_4100;
+    const ACTOR_PERSO: u32 = 0x0070_4200;
+    const ACTOR_DATA3D: u32 = 0x0070_4300;
+    const CURRENT_ACTION: u32 = 0x0070_4400;
+    const IMAGE_END: u32 = 0x0088_0000;
+
+    fn at(image: &mut [u8], address: u32, bytes: &[u8]) {
+        let offset = (address - ELF_BASE) as usize;
+        image[offset..offset + bytes.len()].copy_from_slice(bytes);
+    }
+    fn put_u32(image: &mut [u8], address: u32, value: u32) {
+        at(image, address, &value.to_le_bytes());
+    }
+    fn synthetic_elf(duplicate_poll: bool) -> Vec<u8> {
+        let mut image = vec![0; (IMAGE_END - ELF_BASE) as usize];
+        image[..7].copy_from_slice(b"\x7fELF\x01\x01\x01");
+        image[16..18].copy_from_slice(&2u16.to_le_bytes());
+        image[18..20].copy_from_slice(&3u16.to_le_bytes());
+        image[20..24].copy_from_slice(&1u32.to_le_bytes());
+        image[24..28].copy_from_slice(&ENTRY.to_le_bytes());
+        image[28..32].copy_from_slice(&52u32.to_le_bytes());
+        image[40..42].copy_from_slice(&52u16.to_le_bytes());
+        image[42..44].copy_from_slice(&32u16.to_le_bytes());
+        image[44..46].copy_from_slice(&1u16.to_le_bytes());
+        image[52..56].copy_from_slice(&1u32.to_le_bytes());
+        image[60..64].copy_from_slice(&ELF_BASE.to_le_bytes());
+        image[64..68].copy_from_slice(&ELF_BASE.to_le_bytes());
+        let size = image.len() as u32;
+        image[68..72].copy_from_slice(&size.to_le_bytes());
+        image[72..76].copy_from_slice(&size.to_le_bytes());
+        image[76..80].copy_from_slice(&7u32.to_le_bytes());
+        image[80..84].copy_from_slice(&4096u32.to_le_bytes());
+
+        let mut entry = vec![0x80, 0x3d];
+        imm(&mut entry, START);
+        entry.extend_from_slice(&[0, 0x75, 9, 0xb8]);
+        imm(&mut entry, 20); // getpid: bounded polling without an unsupported i386 syscall
+        entry.extend_from_slice(&[0xcd, 0x80, 0xeb, 0xee, 0xb9]);
+        imm(
+            &mut entry,
+            if duplicate_poll {
+                1
+            } else {
+                RECORD_COUNT as u32
+            },
+        );
+        let loop_start = entry.len();
+        for _ in 0..if duplicate_poll { 2 } else { 1 } {
+            entry.push(0x68);
+            imm(&mut entry, DEVICE);
+            entry.extend_from_slice(&[0xff, 0x15]);
+            imm(&mut entry, DEVICE + hype_runtime::DEVICE_CALLBACK_OFFSET);
+            entry.extend_from_slice(&[0x83, 0xc4, 0x04]);
+        }
+        entry.extend_from_slice(&[0xff, 0x15]);
+        imm(&mut entry, hype_runtime::UPDATE_CALLBACK_SLOT);
+        entry.extend_from_slice(&[0x49, 0x75]);
+        let back = entry.len();
+        entry.push(0);
+        let displacement: i8 = (loop_start as isize - entry.len() as isize)
+            .try_into()
+            .unwrap();
+        entry[back] = displacement as u8;
+        entry.extend_from_slice(&[0xc6, 0x05]);
+        imm(&mut entry, DONE);
+        entry.extend_from_slice(&[1, 0xb8]);
+        imm(&mut entry, 20);
+        entry.extend_from_slice(&[0xcd, 0x80, 0xeb, 0xf7]);
+        at(&mut image, ENTRY, &entry);
+
+        let mut keyboard = vec![0xff, 0x05];
+        imm(&mut keyboard, KEYBOARD_CALLS);
+        keyboard.push(0xc3);
+        at(&mut image, hype_runtime::KEYBOARD_CALLBACK, &keyboard);
+        let mut update = vec![0xff, 0x05];
+        imm(&mut update, UPDATE_CALLS);
+        update.extend_from_slice(&[0xff, 0x05]);
+        imm(&mut update, hype_runtime::UPDATE_COUNTER);
+        update.push(0xc3);
+        at(&mut image, hype_runtime::UPDATE_CALLBACK, &update);
+        let mut timer = vec![0xff, 0x05];
+        imm(&mut timer, hype_runtime::CLOCK_MS);
+        timer.push(0xa1);
+        imm(&mut timer, hype_runtime::CLOCK_MS);
+        timer.extend_from_slice(&[0xb9]);
+        imm(&mut timer, 0xdead_beef);
+        timer.push(0xba);
+        imm(&mut timer, 0xcafe_babe);
+        timer.push(0xc3);
+        at(&mut image, TIME_STUB, &timer);
+
+        put_u32(
+            &mut image,
+            hype_runtime::UPDATE_CALLBACK_SLOT,
+            hype_runtime::UPDATE_CALLBACK,
+        );
+        put_u32(
+            &mut image,
+            DEVICE + hype_runtime::DEVICE_CALLBACK_OFFSET,
+            hype_runtime::KEYBOARD_CALLBACK,
+        );
+        put_u32(&mut image, 0x005c_0810, TIME_STUB);
+        put_u32(&mut image, DEVICE + 8, BUFFER);
+        at(&mut image, hype_runtime::STATUS, &[9]);
+        put_u32(&mut image, hype_runtime::UPDATE_COUNTER, 100);
+        put_u32(&mut image, hype_runtime::CLOCK_MS, 1000);
+        put_u32(&mut image, hype_runtime::RAW_DELTA_MS, 20);
+        put_u32(&mut image, hype_runtime::CLAMPED_DELTA_MS, 20);
+        put_u32(&mut image, hype_runtime::MAIN_ACTOR_ROOT, ACTOR_ENTRY);
+        put_u32(&mut image, ACTOR_ENTRY + 4, ACTOR_NODE);
+        put_u32(&mut image, ACTOR_NODE + 4, ACTOR_PERSO);
+        put_u32(&mut image, ACTOR_PERSO, ACTOR_DATA3D);
+        put_u32(&mut image, ACTOR_DATA3D + 4, CURRENT_ACTION);
+        image
+    }
+
+    fn word(bytes: &[u8], offset: usize) -> u32 {
+        u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap())
+    }
+
+    fn run_synthetic(duplicate_poll: bool) -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let executable = temp.path().join("wrapper-fixture");
+        fs::write(&executable, synthetic_elf(duplicate_poll))?;
+        fs::set_permissions(&executable, fs::Permissions::from_mode(0o700))?;
+        let mut owner = Owner::new()?;
+        let process = owner.spawn(&mut Command::new(executable))?;
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while process.read_running(ELF_BASE as usize, 4).is_err() {
+            if process.check().is_err() {
+                anyhow::bail!(
+                    "ELF32 fixture exited before mapping: {:?}",
+                    owner.try_wait(&process).ok().flatten()
+                );
+            }
+            ensure!(Instant::now() < deadline, "ELF32 fixture did not map");
+            thread::sleep(Duration::from_millis(1));
+        }
+        let mut scratch = Scratch::allocate(&process, 4096)?;
+        scratch.write(0, &probe_image(scratch.address() as u32)?)?;
+        scratch.install_callback(
+            hype_runtime::UPDATE_CALLBACK_SLOT as usize,
+            hype_runtime::UPDATE_CALLBACK,
+            UPDATE_CODE,
+        )?;
+        scratch.install_callback(
+            (DEVICE + hype_runtime::DEVICE_CALLBACK_OFFSET) as usize,
+            hype_runtime::KEYBOARD_CALLBACK,
+            INPUT_CODE,
+        )?;
+        process.write_instrumentation(START as usize, &[1])?;
+        loop {
+            if process.read_running(DONE as usize, 1)? == [1] {
+                break;
+            }
+            ensure!(
+                Instant::now() < deadline,
+                "ELF32 wrapper fixture deadline expired"
+            );
+            thread::sleep(Duration::from_millis(1));
+        }
+        let state = scratch.read(STATE, RECORDS + RECORD_COUNT * RECORD_SIZE - STATE)?;
+        if duplicate_poll {
+            assert_eq!(word(&state, 16), 2);
+            assert_eq!(
+                word(&process.read_running(KEYBOARD_CALLS as usize, 4)?, 0),
+                2
+            );
+            assert_eq!(word(&process.read_running(UPDATE_CALLS as usize, 4)?, 0), 1);
+        } else {
+            assert_eq!(word(&state, 8), RECORD_COUNT as u32);
+            assert_eq!(word(&state, 12), RECORD_COUNT as u32);
+            assert_eq!(word(&state, 16), 0);
+            assert_eq!(
+                word(&process.read_running(KEYBOARD_CALLS as usize, 4)?, 0),
+                18
+            );
+            assert_eq!(
+                word(&process.read_running(UPDATE_CALLS as usize, 4)?, 0),
+                18
+            );
+            for index in 0..RECORD_COUNT {
+                let record = RECORDS - STATE + index * RECORD_SIZE;
+                assert_eq!(word(&state, record), index as u32 + 1);
+                assert_eq!(word(&state, record + 36), CURRENT_ACTION);
+            }
+        }
+        scratch.close()?;
+        owner.close()
+    }
+
+    #[test]
+    fn generated_probe_is_bounded_and_contains_exact_shared_input_states() -> Result<()> {
+        let base = 0x1234_0000;
+        let image = probe_image(base)?;
+        assert_eq!(image.len(), 4096);
+        assert_eq!(
+            &image[MASKS..MASKS + RECORD_COUNT],
+            &[0, 0, 1, 0, 1, 0, 0, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0, 0]
+        );
+        assert_eq!(&image[5..9], &hype_runtime::KEYBOARD_CALLBACK.to_le_bytes());
+        assert_eq!(image[UPDATE_CODE], 0xb8);
+        assert_eq!(
+            &image[UPDATE_CODE + 1..UPDATE_CODE + 5],
+            &hype_runtime::UPDATE_CALLBACK.to_le_bytes()
+        );
+        assert!(image[..UPDATE_CODE].iter().any(|byte| *byte != 0));
+        assert!(image[UPDATE_CODE..STATE].iter().any(|byte| *byte != 0));
+        assert!(
+            image[MASKS + RECORD_COUNT..RECORDS]
+                .iter()
+                .all(|byte| *byte == 0)
+        );
+        assert!(image[RECORDS..].iter().all(|byte| *byte == 0));
+        Ok(())
+    }
+
+    #[test]
+    fn relative_branch_encoder_accepts_forward_and_backward_targets() -> Result<()> {
+        let mut bytes = vec![0xeb, 0, 0, 0, 0];
+        patch_rel8(&mut bytes, 1, 5)?;
+        assert_eq!(bytes[1] as i8, 3);
+        patch_rel8(&mut bytes, 4, 1)?;
+        assert_eq!(bytes[4] as i8, -4);
+        assert!(patch_rel8(&mut bytes, 1, 200).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn elf32_wrappers_forward_exactly_once_and_reject_duplicate_poll() -> Result<()> {
+        run_synthetic(false)?;
+        run_synthetic(true)
+    }
 }
