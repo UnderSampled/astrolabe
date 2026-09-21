@@ -154,7 +154,8 @@ pub fn run_godot(godot: &str, project: &Path, args: &[&str], timeout: Duration) 
                 anyhow::bail!("Godot exceeded 8MiB diagnostic limit (truncated): {output}");
             }
             anyhow::bail!(
-                "Godot exceeded {}s deadline (log capped at 64KiB): {output}",
+                "Godot {args:?} in {} exceeded {}s deadline (log capped at 64KiB): {output}",
+                project.display(),
                 timeout.as_secs()
             );
         }

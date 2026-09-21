@@ -1,8 +1,10 @@
 # Live loading, comparison, and behavior testing
 
 Implementation plan, updated 2026-09-20 after the live input-timing experiment.
-The gameplay checkpoint is preserved; the live loader, coverage collection and
-BDD runners remain planned. Resume the
+The gameplay checkpoint is preserved. The actual Godot input-boundary probe,
+focused test runner and initial Rust coverage collection are implemented; see
+[testing evidence](testing.md). The native live loader and BDD runners remain
+in progress. Resume the
 [gameplay plan](godot-gameplay-plan.md) after the first useful comparison slice;
 do not wait for complete engine or level coverage.
 
@@ -652,8 +654,9 @@ prerequisites, fixture and budget. Prefer `cargo-nextest` for isolated Rust test
 execution/filtering/per-test timeouts after evaluating it with existing child
 cleanup. Supervise custom Cucumber binaries and external engines explicitly too;
 libtest/nextest timeouts alone do not guarantee descendant cleanup. The current
-Python supervisor remains until a tested replacement is ready. Its present
-570-second limit is an implementation constraint, not the new project policy.
+Python outer supervisor remains while the native controller is implemented.
+The implemented runner uses explicit per-selection budgets and pinned nextest
+deadlines; it has replaced the historical 570-second limit.
 
 Initial targets to measure and revise with evidence, not existing guarantees:
 

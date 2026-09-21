@@ -1,0 +1,16 @@
+{
+  "nextest": {
+    "version": "0.9.145",
+    "url": "https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-0.9.145/cargo-nextest-0.9.145-x86_64-unknown-linux-gnu.tar.gz",
+    "sha256": "32aa82416099eb12fffae9cf1a279ad201fecbd3f74826c613e32e9006b29867",
+    "executable": "cargo-nextest",
+    "platform": "x86_64-unknown-linux-gnu"
+  },
+  "llvm-cov": {
+    "version": "0.9.1",
+    "url": "https://github.com/taiki-e/cargo-llvm-cov/releases/download/v0.9.1/cargo-llvm-cov-x86_64-unknown-linux-gnu.tar.gz",
+    "sha256": "b3f68e625481fed9b16444174f3fa5ebcdbde4a1878803a35eabe2dcefcdc41a",
+    "executable": "cargo-llvm-cov",
+    "platform": "x86_64-unknown-linux-gnu"
+  }
+}

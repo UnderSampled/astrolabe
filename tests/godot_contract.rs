@@ -8,7 +8,7 @@ use astrolabe::{
         geometry::{
             Material, Model, ModelInstance, SourceTransform, Submesh, TextureInfo, VisualMaterial,
         },
-        io::{Content, Load},
+        io::{Content, Load, Save},
         texture::{
             OpenSpaceColorKey, Texture, TextureColors, TextureLevel, TexturePixels, TextureUsage,
         },
@@ -149,21 +149,70 @@ fn engine() -> String {
 }
 fn export(path: &Path, model: &Model, material: &Material, texture: &Texture) -> Result<Manifest> {
     let mut memory = source(model, material, texture);
+    let manifest = export_source(path, model, material, &mut memory)?;
+    ensure!(
+        memory.reads.get(material.texture().unwrap()) == Some(&1),
+        "shared texture loaded more than once"
+    );
+    Ok(manifest)
+}
+
+struct Reopened {
+    store: astrolabe::rete::Store,
+    reads: BTreeMap<AssetPath, usize>,
+}
+impl<T: Content + serde::de::DeserializeOwned> Load<T> for Reopened {
+    fn load(&mut self, id: &AssetRef<T>) -> Result<Arc<T>> {
+        *self.reads.entry(id.path.clone()).or_default() += 1;
+        self.store.load(id)
+    }
+}
+fn export_rete(
+    path: &Path,
+    model: &Model,
+    material: &Material,
+    texture: &Texture,
+) -> Result<Manifest> {
+    let temp = tempfile::tempdir()?;
+    let selection = Selection::hype("synthetic", "EN")?;
+    let mut store = astrolabe::rete::Store::new(temp.path(), selection.clone())?;
+    store.save(&AssetRef::from_path(model.path.clone()), model)?;
+    store.save(&AssetRef::from_path(material.path.clone()), material)?;
+    store.save(
+        &AssetRef::from_path(material.texture().unwrap().clone()),
+        texture,
+    )?;
+    let placed = instance(model);
+    store.save(&AssetRef::from_path(placed.path.clone()), &placed)?;
+    drop(store);
+    let mut reopened = Reopened {
+        store: astrolabe::rete::Store::new(temp.path(), selection)?,
+        reads: Default::default(),
+    };
+    let manifest = export_source(path, model, material, &mut reopened)?;
+    ensure!(
+        reopened.reads.get(material.texture().unwrap()) == Some(&1),
+        "shared Rete texture loaded more than once"
+    );
+    Ok(manifest)
+}
+fn export_source(
+    path: &Path,
+    model: &Model,
+    _material: &Material,
+    memory: &mut impl astrolabe::model::content::ContentSource,
+) -> Result<Manifest> {
     let roots = [Root {
         kind: "model-instance".into(),
         reference: instance(model).path,
     }];
     let manifest = export_godot(
-        &mut memory,
+        memory,
         &roots,
         Selection::hype("synthetic", "EN")?,
         path,
         &engine(),
     )?;
-    ensure!(
-        memory.reads.get(material.texture().unwrap()) == Some(&1),
-        "shared texture loaded more than once"
-    );
     ensure!(
         manifest
             .files
@@ -245,7 +294,7 @@ fn worker() -> Result<()> {
     let host=b"[application]\nconfig/name=\"Synthetic Authored Host\"\n[rendering]\nrenderer/rendering_method=\"gl_compatibility\"\n";
     fs::write(a.join("project.godot"), host)?;
     let first = export(&a, &model, &material, &texture)?;
-    let second = export(&b, &model, &material, &texture)?;
+    let second = export_rete(&b, &model, &material, &texture)?;
     if first.files != second.files {
         let mut differences = String::new();
         for (path, hash) in &first.files {
@@ -267,7 +316,7 @@ fn worker() -> Result<()> {
     edited.positions[2][0] = 4.;
     let mut edited_material = material.clone();
     edited_material.visual.as_mut().unwrap().color[0] = 0.75;
-    let changed = export(&a, &edited, &edited_material, &texture)?;
+    let changed = export_rete(&a, &edited, &edited_material, &texture)?;
     ensure!(
         first.files != changed.files,
         "deliberate edit did not change target output"

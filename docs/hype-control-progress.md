@@ -7,6 +7,40 @@ Current development output uses Rete schema 25 and Godot support interface 17;
 the intervening identifiers belong to the archived experiment and are skipped
 to prevent falsely accepting incompatible preserved local assets.
 
+## Input boundary and focused validation — 2026-09-20
+
+The first comparison-harness slice uses Hype's unchanged complete turn/walk rules
+with its exported native character, animations and maintained support. The rule
+fixture exports the transitive closure of its 14 referenced actions; it still
+verifies all 389 source state identities, and complete scene tests retain full
+native family coverage. This reduces a 252 MB unrelated animation setup without
+removing any rule, action, pose, reconstruction or edited-value assertion.
+The Godot 30-second probe and 60-second export deadlines are unchanged.
+
+A post-character physics callback supplies physical events for the next native
+physics tick. A separate compiled query observer verifies held/pressed/released
+edges, while the actual source rule's rotation verifies consumption by gameplay
+code. Four profiles exercise 48/60 Hz, each with ordinary execution or injected
+80 ms main-loop/render stalls. These include consecutive one-tick pulses, release
+edges, a Shift chord and multiple physics ticks between render loops. Thirty
+neutral physics ticks establish readiness before the recording origin, excluding
+asset-load catch-up from measured gameplay time. No gameplay clock or recorded
+source delta is injected. Delayed-input and no-op rule faults must fail.
+
+This is a **component boundary proof**, not full initialization/reflex, movement,
+contact, real-time parity, or synchronized image acceptance. The 48 Hz comparison
+candidate reflects the original investigation's ordinary 20/21 ms updates;
+repeatable original native replay and timing-envelope qualification remain open.
+The original English save was freshly loaded into `manoir` via the preserved MCP
+on 2026-09-20, with the pinned executable hash, then the owned game was stopped.
+Its setup evidence is in the external harness's
+`local/runs/20260920-222522/events.jsonl`. The fresh running read showed raw/clamped
+25/25 ms; it was not a completed-update snapshot.
+
+Fresh evidence and the remaining runtime/coverage work are recorded in
+[testing](testing.md) and the active [comparison plan](realtime-comparison-plan.md).
+The earlier failing logs below remain preserved.
+
 ## Paused implementation checkpoint — 2026-09-20
 
 Gameplay expansion is paused while improved structured comparison/testing is

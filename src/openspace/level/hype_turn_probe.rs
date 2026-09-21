@@ -8,6 +8,16 @@ use crate::model::{
 #[test]
 #[ignore = "requires local manoir data and Godot; included by tools/test.py --local"]
 fn source_hype_turn_and_walk_rules_drive_native_character() -> Result<()> {
+    run_native_rule_fixture(include_str!("hype_turn_check.gd"), false)
+}
+
+#[test]
+#[ignore = "requires local manoir data and Godot; included by tools/test.py --local"]
+fn source_hype_input_consumer_handles_edges_catchup_and_render_stalls() -> Result<()> {
+    run_native_rule_fixture(include_str!("hype_boundary_check.gd"), true)
+}
+
+fn run_native_rule_fixture(check_source: &str, boundary: bool) -> Result<()> {
     let game = std::env::var_os("ASTROLABE_GAME_DIR")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| "disc".into());
@@ -130,6 +140,33 @@ fn source_hype_turn_and_walk_rules_drive_native_character() -> Result<()> {
     let reopened = crate::rete::decode::<AiModel>(&crate::rete::encode(&fixture)?)?;
     let mut imported = crate::openspace::content::import_scene(&game, selection.clone())?;
     let family = imported.load(&family_ref)?;
+    // This rule component fixture exports its unchanged transitive action
+    // closure. Complete scene-route tests retain full-family native coverage.
+    let mut needed: BTreeSet<_> = fixture.state_references().iter().map(|r| r.state).collect();
+    needed.insert(47);
+    loop {
+        let before = needed.len();
+        for state in &family.states {
+            if needed.contains(&state.id) {
+                needed.extend(state.next);
+                needed.extend(state.prohibited.iter().copied());
+                for transition in &state.transitions {
+                    needed.extend([transition.target, transition.via]);
+                }
+            }
+        }
+        if needed.len() == before {
+            break;
+        }
+    }
+    let mut selected_family = family.as_ref().clone();
+    selected_family.states.retain(|s| needed.contains(&s.id));
+    assert_eq!(selected_family.states.len(), needed.len());
+    println!(
+        "Rule fixture action closure: {needed:?}; full source family: {} states",
+        family.states.len()
+    );
+    imported.assets.insert(&family_ref, selected_family)?;
     let script = crate::godot::ai::compile_for_family(&fixture, &[], Some(&family))?;
     assert_eq!(
         script,
@@ -161,6 +198,13 @@ fn source_hype_turn_and_walk_rules_drive_native_character() -> Result<()> {
     player.id = "hype".into();
     player.transform = None;
     player.properties = Default::default();
+    let actor_ref = player.perso.as_ref().context("fixture actor missing")?;
+    let mut actor = imported.load(actor_ref)?.as_ref().clone();
+    // The documented Given state, also selected by the Godot probe.
+    actor.initial_state = Some(47);
+    actor.current_state = Some(47);
+    actor.secondary_state = None;
+    imported.assets.insert(actor_ref, actor)?;
     scene.nodes = vec![player];
     imported.assets.insert(&root, scene)?;
     let temp = tempfile::tempdir()?;
@@ -189,7 +233,51 @@ fn source_hype_turn_and_walk_rules_drive_native_character() -> Result<()> {
         project.join("rules-edited.gd"),
         crate::godot::ai::compile_for_family(&edited, &[], Some(&family))?,
     )?;
-    let mut check = include_str!("hype_turn_check.gd").to_owned();
+    if boundary {
+        // A separate compiled observer exercises the exact generated ButtonQuery
+        // path; it cannot select an action or move the real source-rule actor.
+        let mut audit = fixture.clone();
+        audit.path = AssetPath::new("level:/ai/input-observer")?;
+        audit.variables = (0..3)
+            .map(|_| DesignerVariable {
+                default: DesignerValue::Boolean(false),
+                save: 0,
+                initialize: 0,
+            })
+            .collect();
+        audit.normal = Some(BehaviorSet {
+            behaviors: vec![Behavior {
+                id: 0,
+                rules: vec![Some(Script {
+                    statements: [
+                        ButtonQuery::Pressed,
+                        ButtonQuery::JustPressed,
+                        ButtonQuery::JustReleased,
+                    ]
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, query)| Statement::Assign {
+                        variable: index as u16,
+                        value: Expression::Button {
+                            action: "Button_Left".into(),
+                            query,
+                        },
+                    })
+                    .collect(),
+                })],
+                schedule: None,
+                unknown: [0; 3],
+            }],
+            default_behavior: Some(0),
+            action_capacity: 0,
+            unknown: [0; 3],
+        });
+        std::fs::write(
+            project.join("input-observer.gd"),
+            crate::godot::ai::compile(&audit, &[])?,
+        )?;
+    }
+    let mut check = check_source.to_owned();
     for (compact, original) in variable_ids.iter().enumerate() {
         check = check.replace(&format!("@v{original}@"), &format!("dsg_{compact}"));
     }
@@ -214,19 +302,58 @@ fn source_hype_turn_and_walk_rules_drive_native_character() -> Result<()> {
         println!("Hype rule action {name}: {state}");
     }
     std::fs::write(project.join("check.gd"), check)?;
-    let evidence = crate::godot::run_godot(
-        &engine,
-        &project,
-        &[
-            "--headless",
-            "--script",
-            "res://check.gd",
-            "--",
-            player_path,
-        ],
-        std::time::Duration::from_secs(30),
-    )?;
-    assert!(evidence.contains("HYPE_NATIVE_RULES_OK"));
-    println!("{evidence}");
+    let profiles = if boundary {
+        vec![("48", "0"), ("48", "80"), ("60", "0"), ("60", "80")]
+    } else {
+        vec![("60", "0")]
+    };
+    for (rate, stall) in profiles {
+        let evidence = crate::godot::run_godot(
+            &engine,
+            &project,
+            &[
+                "--headless",
+                "--script",
+                "res://check.gd",
+                "--",
+                player_path,
+                rate,
+                stall,
+            ],
+            std::time::Duration::from_secs(30),
+        )?;
+        let marker = if boundary {
+            "HYPE_INPUT_BOUNDARY_OK"
+        } else {
+            "HYPE_NATIVE_RULES_OK"
+        };
+        assert!(evidence.contains(marker), "{evidence}");
+        println!("{evidence}");
+    }
+    if boundary {
+        for (fault, expected) in [
+            ("late-input", "compiled input edge mismatch"),
+            ("no-op", "source turn was not consumed"),
+        ] {
+            let failure = crate::godot::run_godot(
+                &engine,
+                &project,
+                &[
+                    "--headless",
+                    "--script",
+                    "res://check.gd",
+                    "--",
+                    player_path,
+                    "48",
+                    "0",
+                    fault,
+                ],
+                std::time::Duration::from_secs(30),
+            )
+            .expect_err("boundary negative control unexpectedly passed");
+            assert!(format!("{failure:#}").contains(expected), "{failure:#}");
+            println!("HYPE_INPUT_FAULT_REJECTED: {fault}: {expected}");
+        }
+    }
     Ok(())
 }

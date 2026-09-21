@@ -18,8 +18,16 @@ need conversion. The playable walk/run checkpoint remains open. Current work
 uses Rete schema 25 and support interface 17. The 2026-09-20 checkpoint also
 preserves source turn/walk rule probes and character collision-profile work.
 Gameplay expansion is paused for improved testing/comparison infrastructure.
-The new rule probe currently exceeds its Godot deadline after printing its
-success marker; this is a failed test, not completed player acceptance. See the
+The rule probe now exports the transitive closure of its 14 required states,
+preserving its complete source-rule assertions and the separate full-family
+conversion tests. It passes within the existing Godot deadlines. A second probe
+verifies compiled input edges and actual native turning at 48/60 Hz, including
+render stalls, catch-up ticks and rejected late/no-op input controls. These are
+component checks, not complete player acceptance. The focused movement job
+passed 28 tests in 210.554 seconds; the strengthened reopened-Rete runtime
+safeguards passed eight tests in 70.549 seconds. The new exact-inventory runner
+and cleanup controls are documented in [testing](testing.md). The native original
+runtime and comparison scenarios remain in progress. Retain the failed historical
 [checkpoint record](hype-control-progress.md#paused-implementation-checkpoint--2026-09-20).
 The historical coverage below describes the restored baseline unless updated.
 

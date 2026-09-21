@@ -1,27 +1,91 @@
 # Testing Astrolabe
 
-## Current policy and planned test infrastructure
+## Focused suites and supervision
 
-As of 2026-09-20, individual tests and each active development area's checks must
-remain reasonably fast and bounded. The full release matrix may take longer;
-there is no universal ten-minute whole-suite ceiling. Development validation
-selects affected tests/dependencies plus mandatory safeguards against bypassing
-real conversion and gameplay. Timeout, leaked processes and failed cleanup
-remain failures. Record build/setup/test/teardown times and selected/excluded
-tests; preserve release coverage when splitting large cases.
+`tools/test.py` now uses a checked-in, exact test inventory and cargo-nextest
+**0.9.145**. It retains the Python outer supervisor while the native runtime is
+implemented. The initial manifest classifies all 96 Rust tests, their areas,
+prerequisites, fixtures, release membership and individual hard deadlines. New,
+removed, duplicate or newly ignored tests require a manifest update; discovery
+mismatches fail before execution. The native original-game runtime, comparisons,
+BDD scenarios and coverage collection remain in progress under the
+[comparison plan](realtime-comparison-plan.md).
 
-The [implementation plan](realtime-comparison-plan.md) defines area selection,
-mandatory safeguards, per-test/scenario supervision, Rust code coverage,
-level-data coverage, structured original-engine loading, static/Rete-to-live
-comparison and shared Gherkin step definitions generating the same frame-indexed
-physical inputs for both engines. Original/Godot adapters deliver inputs and
-observe results; real elapsed milliseconds and screenshot/pixel matches are
-independent assertions. There is no millisecond replay fallback. These
-are planned deliverables, not currently available runners or coverage numbers.
-The existing commands below remain available and retain their historical
-570-second cap until that runner work is implemented.
+```sh
+python3 tools/test.py --area runtime --offline
+python3 tools/test.py --area movement --local --offline
+python3 tools/test.py --area source --area rete --offline
+python3 tools/test.py --local --offline
+python3 tools/test.py --release --offline
+python3 tools/test.py --area movement --local --offline --list
+```
+
+Area runs always include mandatory safeguards. Movement also selects AI and
+animation dependencies and the actual-input native gameplay component safeguard.
+`--local` enables ignored local tests within the selected areas; without an area,
+it selects the complete existing converter inventory. `--release` selects every
+declared test and cannot filter areas. The manifest is the current converter/test
+foundation inventory, not evidence that planned live/parity scenarios exist.
+`--list` builds and discovers tests but reports **not_run**, never passed.
+
+Use `--game PATH` and `--godot EXECUTABLE` for explicit fixtures, or the existing
+`ASTROLABE_GAME_DIR` and `ASTROLABE_GODOT` environment variables. Select the pinned
+nextest executable with `--nextest`/`ASTROLABE_NEXTEST`; an executable on PATH or
+`output/test-tools/nextest-0.9.145/cargo-nextest` is also detected. Tool versions
+are checked. The runner does not install runtimes or proprietary data.
+
+The job budgets are explicit: development 300 seconds, routine 600, complete
+local converter inventory 1,800, release inventory 2,400. `--timeout` can select a
+finite job budget above the cleanup reserve. These are initial measured-budget
+settings, not performance guarantees. There is no universal 570-second cap.
+Per-test deadlines in `tools/test-manifest.json` are enforced by nextest, with no
+retries. Engine tests serialize within one job. Two independent validation jobs
+must not share an original-game installation.
+
+Selection and exclusions are printed with reasons and retained in a JSON report.
+Missing selected prerequisites are **unavailable** and fail the job; missing,
+skipped or duplicate execution results cannot pass. Reports retain the source
+revision, hash of tracked changes and all implementation files (including
+untracked files), manifest hash, tool version, commands, individual results,
+build/discovery time, execution and cleanup time, CPU time and peak child RSS.
+Changing implementation files during validation invalidates the run. Nextest
+JUnit output retains successful and failed test logs. New logs never overwrite
+old evidence; `--log PATH` creates a sibling `.json` report and `.d` directory.
+
+## Process ownership and mandatory controls
+
+The Linux outer supervisor uses child subreaping and tracks descendant process
+identities, including children that call `setsid` and leave the test process
+group. Signals use pidfds after checking process start identity. An otherwise
+successful test job with escaped workers fails and cleans them up. Existing
+unrelated children are excluded. SIGINT/SIGTERM, failed setup and deadlines all
+lead through bounded cleanup. Every run owns one temporary tree; only that tree
+is removed. Source data, old generated assets and external game installations
+are preserved.
+
+The mandatory Python checks exercise real child processes, TERM resistance,
+escaped sessions, parent exit, interruption, unrelated-process preservation,
+and nextest's actual per-test timeout. A passing nextest job that leaks a detached
+worker is explicitly a negative control. Selection tests reject hidden new or
+missing cases and stale/skipped/duplicate results. Converter safeguards cover
+source-free Rete export and deliberate edits, identity/sharing/schema checks,
+native saved resources, production support, authored regeneration and diagnostics.
+These tests complement architectural review; they do not establish full gameplay.
 
 ## Checkpoint evidence
+
+The initial focused implementation passed the movement selection: **28 Rust tests
+in 210.554 seconds**, plus all mandatory supervisor/selection checks. Report:
+`TestResults/focused-movement-foundation-20260920.log.json`. This includes the
+actual compiled-input boundary proof, all four cadence/stall profiles, and both
+deliberate late-input/no-op controls. After strengthening the mandatory contract
+to export from a closed/reopened Rete store, the runtime selection passed **eight
+Rust tests and 14 Python checks in 70.549 seconds**. Report:
+`TestResults/runtime-foundation-20260920-final.log.json`. Both runs retained clean
+process cleanup and unchanged implementation hashes. The earlier runtime attempt
+failed its diagnostic-limit supervisor test despite passing all eight Rust tests;
+its report remains at `TestResults/runtime-foundation-20260920.log.json`. The fix
+bounds process-tree scan frequency independently of diagnostic throughput.
 
 The 2026-09-20 paused gameplay checkpoint is **not fully validated**. The local
 suite ended at the existing 570-second cap after **570.119 seconds**, exit 124,
@@ -67,42 +131,40 @@ for supported semantics, original-game comparisons and remaining limits.
 The earlier native-only checkpoint passed 83 tests in 364.727 seconds, recorded
 in `TestResults/20260913T081826.069430Z-4061873.log.json`.
 
-Run the suite through one supervisor from any working directory:
-
-```sh
-python3 /home/stephen/Projects/astrolabe/tools/test.py --offline
-python3 /home/stephen/Projects/astrolabe/tools/test.py --local --offline
-```
-
-The routine command runs all non-ignored Rust tests. `--local` runs those tests **and every ignored integration/corpus test**, including the supplied game data and actual Godot checks. Each command is one complete suite invocation; it gets one budget rather than a fresh budget per format or child process. New Cargo tests are discovered automatically.
-
-The supervisor invokes `cargo test --profile validation --locked --no-fail-fast -- --nocapture` once, adding `--include-ignored` for `--local`. `--offline` requires dependencies already in the Cargo cache. Compilation, Cargo lock waits, every test, Python/Godot workers, process cleanup and temporary-file cleanup all count toward the run's elapsed time. A cold validation build counts too. The validation profile inherits release semantics, uses optimization level 1, and disables ThinLTO to bound compilation of the large generic exporters in every integration-test executable. The production release profile retains ThinLTO; validate it separately with `cargo build --release --locked`.
-
-The existing runner's build/test deadline is **570 seconds**, with cleanup/reporting reserved inside its 590-second internal maximum. `--timeout SECONDS` can shorten this deadline but cannot currently exceed 570 seconds. This is a remaining implementation constraint, not the current project policy. A timeout is a failed run, including when some tests passed. The planned runner will add independent per-test/scenario deadlines, focused selection plus safeguards, and an explicitly budgeted full release mode. Do not report a partial invocation as a complete passing suite.
-
-To choose fixtures or Godot explicitly:
-
-```sh
-python3 /home/stephen/Projects/astrolabe/tools/test.py --local --offline \
-  --game /home/stephen/Projects/astrolabe/disc \
-  --godot /usr/bin/godot
-```
-
-`--game` sets `ASTROLABE_GAME_DIR` to the game/disc root containing `Gamedata`; otherwise tests use an existing environment setting or the repository's ignored `disc/`. `--godot` sets `ASTROLABE_GODOT`; otherwise Godot tests use that environment setting or `godot` on `PATH`. A relative executable path is resolved from the caller's working directory. Supplying a fixture/runtime option does not implicitly enable ignored tests: use `--local`.
-
-No runtimes are installed by this runner. The development environment requires Linux with `/proc`, Rust/Cargo, Python 3 and the system `liblzo2` runtime. Local Godot tests require Godot 4; source corpus tests additionally require the user-supplied Hype files. Verified runtime versions during implementation were Cargo 1.98.1, Python 3.14.7 and Godot `4.7.2.stable.arch_linux.ed1daf0bf`. Missing prerequisites fail visibly rather than silently reducing coverage.
-
-## Deadline supervision and cleanup
-
-Cargo starts in a new process session. The supervisor tracks every process group in that session, including integration workers that create a separate process group. It sends TERM, then KILL when necessary, and uses Linux child-subreaper support to reap orphaned workers. SIGINT/SIGTERM also trigger cleanup. A Cargo process that exits successfully while leaving a renderer/worker alive is reported as a failed run and its children are terminated.
-
-Each invocation gets its own temporary directory through `TMPDIR`. Rust/Python test fixtures and Godot staging projects use that directory, allowing cleanup even if a killed test cannot run destructors. The supervisor removes only its own temporary tree with a bounded cleanup process. It leaves the Cargo build cache, source data, reference snapshots and unrelated outputs intact. Failure to complete cleanup is reported with remaining process IDs or the retained temporary path.
-
-Every run streams Cargo output to the console and keeps a timestamped `.log` plus `.log.json` report in the ignored `TestResults/` directory. `--log /absolute/new-file.log` chooses a different new log; existing logs/reports are never overwritten. The report includes the command, total elapsed time, status, child CPU time, peak child RSS, timeout/leak information and cleanup status. Peak child RSS is the largest reported child-process resident set, not a sum of concurrent processes.
-
-Exit codes preserve test failures. Code 124 identifies the shared deadline, 125 identifies supervision/cleanup failure or leaked children, and interrupted runs use the usual 128-plus-signal convention. A log containing passing individual tests is not a passing suite unless the final report says `passed`.
+The historical results above used the former one-invocation Cargo runner. Its
+570-second cap and session-only cleanup have been replaced by the focused runner
+described above; retain those logs as historical evidence, not current timings.
 
 ## Coverage and evidence
+
+Install the optional, checksum-pinned Linux tools locally with
+`python3 tools/install-test-tools.py nextest llvm-cov`. Existing tool directories
+are preserved. `tools/test-tools.json` records the reviewed download URLs and
+SHA-256 values; ordinary validation does not download tools.
+
+```sh
+python3 tools/coverage.py --area movement --local --offline
+```
+
+Coverage uses cargo-llvm-cov **0.9.1** and verifies the Rust/LLVM tool versions
+match (baseline: Rust **1.98.1**, LLVM **22.1.8**). Each run builds in its own new
+instrumented directory, exercises the same selected suites, and writes JSON,
+LCOV and HTML plus provenance under `TestResults/coverage/`. Synthetic and
+local-inclusive runs are labelled separately; profiles are never merged
+implicitly. Ordinary test results remain separate. The reviewed initial
+exclusion pattern removes `tests/`, `target/` and `reference/` trees. This raw
+baseline **includes in-module test helpers under `src/`**; its totals must not be
+presented as coverage of production implementation alone. Refining that scope
+and changed-code targets remains part of the reporting work.
+
+The first local-inclusive movement baseline passed in **334.071 seconds**,
+including 329.658 seconds for build and selected tests. Evidence:
+`TestResults/coverage/movement-baseline-20260920/summary.json` and
+`html/html/index.html` beneath that directory. It measured **12,479/16,432 lines**,
+**21,403/30,520 regions**, and **895/1,168 functions** for that selection and scope.
+Per-domain counts are in the summary. These are Rust metrics, not branch,
+GDScript, original-executable or level-data coverage. Level byte accounting,
+changed-code reporting and broader live/scenario coverage remain unfinished.
 
 The foundation tests exercise the same useful-content consumer against an in-memory collection and a reopened Rete store. They check shared versus equal-but-distinct assets, forward references, level A/B/A rebinding, cache invalidation, schema/kind/path/member validation, package roots and exact floating-point bits.
 
