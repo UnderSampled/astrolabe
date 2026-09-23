@@ -1,5 +1,5 @@
 use anyhow::Result;
-use astrolabe_testkit::replay::{Edge, Key, PreparedRecording, boundary_recording};
+use orrery::replay::{Edge, Key, PreparedRecording, boundary_recording};
 
 #[test]
 fn complete_recording_preserves_literal_edges_gaps_and_exact_bytes() -> Result<()> {

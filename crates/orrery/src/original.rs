@@ -1,6 +1,6 @@
 //! Native prepared-fixture inspection. The outer process owns Gamescope and a
-//! bounded worker; that worker links Astrolabe directly and owns Wine. No Python
-//! broker, user-supplied memory addresses or gameplay replay fallback is involved.
+//! bounded worker; that worker links Astrolabe directly and owns Wine. The
+//! Python controller remains the migration reference for OS keyboard semantics.
 use crate::{
     config::{Config, digest},
     desktop::{Desktop, SetupKey},
@@ -89,15 +89,82 @@ impl ReadMemory for Running<'_> {
     }
 }
 
-const INPUT_CODE: usize = 0;
-const UPDATE_CODE: usize = 256;
+const OBSERVATION_CODE: usize = 0;
 const STATE: usize = 512;
 const RECORDS: usize = 1024;
 const RECORD_SIZE: usize = 44;
 const RECORD_COUNT: usize = 18;
-const MASKS: usize = STATE + 20;
 const ACTOR_ROOT_ID: u8 = 60;
-const INPUT_TIMES: usize = STATE + 64;
+const IDLE_ACTION: u32 = 47;
+const LEFT_ACTION: u32 = 35;
+const SHIFT_LEFT_ACTION: u32 = 348;
+
+fn live_locator(value: &str) -> Result<u32> {
+    let value = value
+        .strip_prefix("live:")
+        .context("runtime action member is not a live locator")?;
+    u32::from_str_radix(value, 16).context("runtime action member has an invalid address")
+}
+
+/// Resolve completed action pointers through the actor's own ordered family.
+/// This qualifies the exact physical tape outcomes instead of treating three
+/// merely distinct pointers as semantic action identities.
+fn qualify_boundary_consumption(
+    action_members: &[String],
+    observations: &[(u32, u8, u32, u32)],
+) -> Result<Vec<u32>> {
+    ensure!(
+        observations.len() == RECORD_COUNT,
+        "boundary consumer observation count differs"
+    );
+    let members = action_members
+        .iter()
+        .map(|member| live_locator(member))
+        .collect::<Result<Vec<_>>>()?;
+    ensure!(
+        members.len() > SHIFT_LEFT_ACTION as usize,
+        "runtime family omits a boundary action"
+    );
+    ensure!(
+        members
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            == members.len(),
+        "runtime family contains duplicate action members"
+    );
+    observations
+        .iter()
+        .enumerate()
+        .map(|(index, &(ordinal, mask, pointer, counter))| {
+            ensure!(
+                ordinal as usize == index + 1,
+                "boundary consumer observation ordinal differs"
+            );
+            let action: u32 = members
+                .iter()
+                .position(|member| *member == pointer)
+                .context("completed action pointer is outside the actor family")?
+                .try_into()?;
+            let expected = match mask {
+                0 => IDLE_ACTION,
+                1 => LEFT_ACTION,
+                3 => SHIFT_LEFT_ACTION,
+                _ => anyhow::bail!("unsupported boundary input mask {mask}"),
+            };
+            ensure!(
+                action == expected,
+                "physical input was not consumed at ordinal {ordinal}: mask {mask}, action {action}, expected {expected}"
+            );
+            ensure!(
+                ((counter as i32) > 0) == (mask & 1 != 0) && counter as i32 != 0,
+                "Left consumer counter disagrees at ordinal {ordinal}"
+            );
+            Ok(action)
+        })
+        .collect()
+}
 
 fn imm(code: &mut Vec<u8>, value: u32) {
     code.extend_from_slice(&value.to_le_bytes());
@@ -125,45 +192,9 @@ fn patch_rel32(code: &mut [u8], site: usize, target: usize) -> Result<()> {
     code[site..site + 4].copy_from_slice(&displacement.to_le_bytes());
     Ok(())
 }
-fn probe_image(
-    base: u32,
-    expected_device: u32,
-    expected_buffer: u32,
-    left_action_counter: u32,
-) -> Result<Vec<u8>> {
-    let prepared = boundary_recording()?;
-    ensure!(
-        prepared.recording().updates.len() == RECORD_COUNT,
-        "unexpected replay length"
-    );
-    ensure!(
-        MASKS + RECORD_COUNT <= STATE + ACTOR_ROOT_ID as usize
-            && STATE + ACTOR_ROOT_ID as usize + 4 <= INPUT_TIMES,
-        "probe state fields overlap"
-    );
-    let mut held = std::collections::BTreeSet::new();
-    let mut masks = vec![];
-    for update in &prepared.recording().updates {
-        for event in &update.events {
-            ensure!(event.keyboard == 0, "unsupported keyboard");
-            ensure!(
-                matches!(event.key, Key::ArrowLeft | Key::LeftShift),
-                "unsupported probe key"
-            );
-            match event.edge {
-                Edge::Press => {
-                    held.insert(event.key);
-                }
-                Edge::Release => {
-                    held.remove(&event.key);
-                }
-            }
-        }
-        masks.push(
-            u8::from(held.contains(&Key::ArrowLeft))
-                | (u8::from(held.contains(&Key::LeftShift)) << 1),
-        );
-    }
+/// Diagnostic publication probe. It observes completed gameplay callbacks and
+/// never participates in input delivery or patches the keyboard callback.
+fn observation_probe_image(base: u32, left_action_counter: u32) -> Result<Vec<u8>> {
     let state = base
         .checked_add(STATE as u32)
         .context("probe state overflow")?;
@@ -171,74 +202,6 @@ fn probe_image(
         .checked_add(RECORDS as u32)
         .context("probe records overflow")?;
     let mut image = vec![0; 4096];
-
-    let mut input = vec![0xff, 0x74, 0x24, 0x04, 0xb8];
-    imm(&mut input, hype_runtime::KEYBOARD_CALLBACK);
-    input.extend_from_slice(&[0xff, 0xd0, 0x83, 0xc4, 0x04, 0x9c, 0x60, 0xff, 0x15]);
-    imm(&mut input, 0x005c_0810);
-    input.extend_from_slice(&[0x8b, 0xe8, 0xbf]);
-    imm(&mut input, state);
-    input.extend_from_slice(&[0x8b, 0x4f, 0x08, 0x83, 0xf9, RECORD_COUNT as u8]);
-    let input_done_a = rel32(&mut input, 0x83); // dispatched >= capacity
-    input.extend_from_slice(&[0x3b, 0x4f, 0x0c]);
-    let input_done_b = rel32(&mut input, 0x85); // prior input not consumed
-    input.extend_from_slice(&[0x8b, 0x74, 0x24, 0x28, 0x81, 0xfe]);
-    imm(&mut input, expected_device);
-    let wrong_device = rel32(&mut input, 0x85);
-    input.extend_from_slice(&[0x8b, 0x76, 0x08, 0x81, 0xfe]);
-    imm(&mut input, expected_buffer);
-    let wrong_buffer = rel32(&mut input, 0x85);
-    input.extend_from_slice(&[0x0f, 0xbf, 0x96, 0x02, 0x02, 0x00, 0x00, 0x83, 0xfa, 0x01]);
-    let wrong_bank = rel32(&mut input, 0x87); // unsigned > 1 also rejects negative selectors
-    input.extend_from_slice(&[0xc1, 0xe2, 0x08]);
-    for scan in [0x2b_u32, 0xcc] {
-        input.extend_from_slice(&[0xc6, 0x84, 0x16]);
-        imm(&mut input, scan);
-        input.push(0);
-    }
-    input.extend_from_slice(&[0x8a, 0x44, 0x0f, 0x14, 0xa8, 0x01]);
-    let no_left = rel8(&mut input, 0x74);
-    input.extend_from_slice(&[0xc6, 0x84, 0x16]);
-    imm(&mut input, 0xcc);
-    input.push(0x80);
-    let after_left = input.len();
-    patch_rel8(&mut input, no_left, after_left)?;
-    input.extend_from_slice(&[0xa8, 0x02]);
-    let no_shift = rel8(&mut input, 0x74);
-    input.extend_from_slice(&[0xc6, 0x84, 0x16]);
-    imm(&mut input, 0x2b);
-    input.push(0x80);
-    let after_shift = input.len();
-    patch_rel8(&mut input, no_shift, after_shift)?;
-    input.extend_from_slice(&[0x89, 0x6c, 0x8f, 0x40, 0x41, 0x89, 0x4f, 0x08]);
-    let input_done = input.len();
-    input.extend_from_slice(&[0x61, 0x9d, 0xc3]);
-    // A second poll before the previous prepared state was consumed is a
-    // boundary violation. Latch it in scratch state so the host fails closed;
-    // never silently overwrite the pending physical buffer.
-    let input_error = input.len();
-    input.extend_from_slice(&[0xc7, 0x47, 0x10]);
-    imm(&mut input, 2);
-    let input_error_back = rel8(&mut input, 0xeb);
-    patch_rel8(&mut input, input_error_back, input_done)?;
-    // The original callback is allowed to refresh bytes, but it may not
-    // replace the verified device/data objects or select an unverified bank.
-    let input_bank_error = input.len();
-    input.extend_from_slice(&[0xc7, 0x47, 0x10]);
-    imm(&mut input, 3);
-    let input_bank_error_back = rel8(&mut input, 0xeb);
-    patch_rel8(&mut input, input_bank_error_back, input_done)?;
-    patch_rel32(&mut input, input_done_a, input_done)?;
-    patch_rel32(&mut input, input_done_b, input_error)?;
-    patch_rel32(&mut input, wrong_device, input_bank_error)?;
-    patch_rel32(&mut input, wrong_buffer, input_bank_error)?;
-    patch_rel32(&mut input, wrong_bank, input_bank_error)?;
-    ensure!(
-        input.len() <= UPDATE_CODE - INPUT_CODE,
-        "input wrapper too large"
-    );
-    image[INPUT_CODE..INPUT_CODE + input.len()].copy_from_slice(&input);
-
     let mut update = vec![0xb8];
     imm(&mut update, hype_runtime::UPDATE_CALLBACK);
     update.extend_from_slice(&[0xff, 0xd0, 0x9c, 0x60, 0xff, 0x15]);
@@ -253,8 +216,9 @@ fn probe_image(
     let done_zero = rel32(&mut update, 0x84);
     update.extend_from_slice(&[0x3b, 0x4f, 0x0c]);
     let done_same = rel32(&mut update, 0x84);
-    update.extend_from_slice(&[0x8b, 0x47, 0x0c, 0x40, 0x3b, 0xc8]);
-    let error_jump = rel32(&mut update, 0x85);
+    // Capture each completed callback until the fixed observation limit. Input
+    // delivery is independent and never arms this probe.
+    update.extend_from_slice(&[0x8b, 0x47, 0x0c, 0x40, 0x89, 0xc1]);
     update.extend_from_slice(&[0x83, 0xf9, RECORD_COUNT as u8]);
     let error_over = rel32(&mut update, 0x87);
     update.extend_from_slice(&[0x8b, 0x57, 0x0c, 0x6b, 0xd2, RECORD_SIZE as u8, 0x81, 0xc2]);
@@ -309,7 +273,6 @@ fn probe_image(
     let back = rel8(&mut update, 0xeb);
     patch_rel32(&mut update, done_zero, done)?;
     patch_rel32(&mut update, done_same, done)?;
-    patch_rel32(&mut update, error_jump, error)?;
     patch_rel32(&mut update, error_over, error)?;
     patch_rel32(&mut update, error_phase, error)?;
     patch_rel32(&mut update, error_root, error)?;
@@ -321,11 +284,11 @@ fn probe_image(
     patch_rel32(&mut update, error_data3d, error)?;
     patch_rel8(&mut update, back, done)?;
     ensure!(
-        update.len() <= STATE - UPDATE_CODE,
+        update.len() <= STATE - OBSERVATION_CODE,
         "update wrapper too large"
     );
-    image[UPDATE_CODE..UPDATE_CODE + update.len()].copy_from_slice(&update);
-    image[MASKS..MASKS + masks.len()].copy_from_slice(&masks);
+    image[OBSERVATION_CODE..OBSERVATION_CODE + update.len()].copy_from_slice(&update);
+    image[STATE + 8..STATE + 12].copy_from_slice(&(RECORD_COUNT as u32).to_le_bytes());
     Ok(image)
 }
 
@@ -460,42 +423,40 @@ pub fn worker(
         )?;
         cancel.wait(Duration::from_secs(4))?;
         if replay {
+            let prepared = boundary_recording()?;
+            let recording = prepared.recording();
+            ensure!(
+                recording.updates.len() == RECORD_COUNT,
+                "unexpected replay length"
+            );
             let mut running = Running(&process);
             hype_runtime::verify_callbacks(&build, &mut running)?;
             let keyboard = hype_runtime::keyboard_device(&build, &mut running)?;
-            // `keyboard_device` admitted this slot only when it contained the
-            // verified profile callback. Do not reread and trust a replacement
-            // value between discovery and paused installation.
-            let keyboard_original = hype_runtime::KEYBOARD_CALLBACK;
-            let buffer_address = keyboard
-                .address
-                .checked_add(8)
-                .context("keyboard data-pointer address overflow")?;
-            let buffer_bytes = process.read_running(buffer_address as usize, 4)?;
-            ensure!(buffer_bytes.len() == 4, "truncated keyboard data pointer");
-            let keyboard_buffer = u32::from_le_bytes(buffer_bytes.as_slice().try_into()?);
-            ensure!(keyboard_buffer != 0, "keyboard data pointer is null");
+            // Match the proven Python controller: focus the owned Wine window,
+            // allow the guest focus event to settle, then send literal XTest
+            // edges. The keyboard callback and device buffer stay untouched.
+            desktop.focus()?;
+            cancel.wait(Duration::from_millis(200))?;
+            let replay_started = Instant::now();
+            let mut dispatch_times = vec![None; RECORD_COUNT];
+            ensure!(
+                recording.updates[0].events.is_empty(),
+                "initial OS-input update must be neutral for this fixture"
+            );
+            dispatch_times[0] = Some(replay_started.elapsed().as_micros());
+
             let mut scratch = Scratch::allocate(&process, 4096)?;
-            let image = probe_image(
+            let image = observation_probe_image(
                 scratch.address() as u32,
-                keyboard.address,
-                keyboard_buffer,
                 hype_runtime::LEFT_ACTION_COUNTER,
             )?;
             scratch.write(0, &image)?;
-            // Publication starts disarmed (dispatched == 0), so installing the
-            // completed-update wrapper first cannot mislabel an old update.
             scratch.install_callback(
                 hype_runtime::UPDATE_CALLBACK_SLOT as usize,
                 hype_runtime::UPDATE_CALLBACK,
-                UPDATE_CODE,
+                OBSERVATION_CODE,
             )?;
-            scratch.install_callback(
-                keyboard.callback_slot as usize,
-                keyboard_original,
-                INPUT_CODE,
-            )?;
-            let replay_started = Instant::now();
+            let mut last_completed = 0_u32;
             loop {
                 let header = scratch.read(STATE + 8, 12)?;
                 let completed = u32::from_le_bytes(header[4..8].try_into()?);
@@ -507,6 +468,23 @@ pub fn worker(
                 if completed == RECORD_COUNT as u32 {
                     break;
                 }
+                if completed != last_completed {
+                    ensure!(
+                        completed == last_completed + 1,
+                        "OS input dispatcher missed completed-update boundary: {last_completed}->{completed}"
+                    );
+                    let next = completed as usize;
+                    if !recording.updates[next].events.is_empty() {
+                        desktop.physical_events(&recording.updates[next].events)?;
+                    }
+                    dispatch_times[next] = Some(replay_started.elapsed().as_micros());
+                    let after = scratch.read(STATE + 12, 4)?;
+                    ensure!(
+                        u32::from_le_bytes(after.as_slice().try_into()?) == completed,
+                        "OS input edge arrived after its intended completed-update boundary"
+                    );
+                    last_completed = completed;
+                }
                 ensure!(
                     replay_started.elapsed() < Duration::from_secs(10),
                     "native replay deadline exceeded"
@@ -515,25 +493,64 @@ pub fn worker(
             }
             let stopped = process.pause(Duration::from_secs(1))?;
             let raw = scratch.read(STATE, RECORDS + RECORD_COUNT * RECORD_SIZE - STATE)?;
-            let status = build.status(&mut stopped.capture()?)?;
-            let final_dispatched = u32::from_le_bytes(raw[8..12].try_into()?);
+            let mut capture = stopped.capture()?;
+            let status = build.status(&mut capture)?;
+            let actor = build.actor_with_actions(&mut capture, &[])?;
+            let _snapshot = capture.finish()?;
+            let final_limit = u32::from_le_bytes(raw[8..12].try_into()?);
             let final_completed = u32::from_le_bytes(raw[12..16].try_into()?);
             let final_error = u32::from_le_bytes(raw[16..20].try_into()?);
             ensure!(
-                final_dispatched == RECORD_COUNT as u32
+                final_limit == RECORD_COUNT as u32
                     && final_completed == RECORD_COUNT as u32
                     && final_error == 0,
-                "stopped replay header is inconsistent: dispatched={final_dispatched}, completed={final_completed}, error={final_error}"
+                "stopped observation header is inconsistent: limit={final_limit}, completed={final_completed}, error={final_error}"
             );
             drop(stopped);
             ensure!(
                 status.phase == 9 && status.level == "manoir",
                 "replay epoch changed"
             );
+            let mut expected_held = std::collections::BTreeSet::new();
+            let mut completed = Vec::with_capacity(RECORD_COUNT);
+            for (index, input_update) in recording.updates.iter().enumerate() {
+                for event in &input_update.events {
+                    match event.edge {
+                        Edge::Press => {
+                            expected_held.insert(event.key);
+                        }
+                        Edge::Release => {
+                            expected_held.remove(&event.key);
+                        }
+                    }
+                }
+                let offset = RECORDS - STATE + index * RECORD_SIZE;
+                let row = &raw[offset..offset + RECORD_SIZE];
+                let word = |at: usize| u32::from_le_bytes(row[at..at + 4].try_into().unwrap());
+                let mask = u8::from(expected_held.contains(&Key::ArrowLeft))
+                    | (u8::from(expected_held.contains(&Key::LeftShift)) << 1);
+                completed.push((word(0), mask, word(36), word(40)));
+            }
+            let action_ids = qualify_boundary_consumption(&actor.action_members, &completed)?;
             let mut rows = vec![];
             let mut previous_counter = None;
             let mut actor_identity = None;
-            for index in 0..RECORD_COUNT {
+            let mut held = std::collections::BTreeSet::new();
+            let mut left_counters = vec![];
+            let mut action_pointers = vec![];
+            for (index, (input_update, dispatch_time)) in
+                recording.updates.iter().zip(&dispatch_times).enumerate()
+            {
+                for event in &input_update.events {
+                    match event.edge {
+                        Edge::Press => {
+                            held.insert(event.key);
+                        }
+                        Edge::Release => {
+                            held.remove(&event.key);
+                        }
+                    }
+                }
                 let offset = RECORDS - STATE + index * RECORD_SIZE;
                 let row = &raw[offset..offset + RECORD_SIZE];
                 let word = |at: usize| u32::from_le_bytes(row[at..at + 4].try_into().unwrap());
@@ -555,37 +572,71 @@ pub fn worker(
                 );
                 actor_identity = Some(identity);
                 ensure!(
+                    word(28) == live_locator(&actor.node)?
+                        && word(32) == live_locator(&actor.data3d)?,
+                    "completed observation belongs to a different final actor"
+                );
+                ensure!(
                     (16..=80).contains(&word(16)),
                     "clamped delta outside verified range"
                 );
-                let input_time_offset = INPUT_TIMES - STATE + index * 4;
-                let input_time =
-                    u32::from_le_bytes(raw[input_time_offset..input_time_offset + 4].try_into()?);
-                let mask = raw[MASKS - STATE + index];
-                rows.push(json!({"ordinal":word(0),"boundary_acknowledged_ordinal":word(0),
+                let action_pointer = word(36);
+                let left_counter = word(40) as i32;
+                action_pointers.push(action_pointer);
+                left_counters.push(left_counter);
+                rows.push(json!({"ordinal":word(0),"observation_ordinal":word(0),
                     "update_counter":word(4),"clock_ms":word(8),
                     "raw_delta_ms":word(12),"clamped_delta_ms":word(16),"boundary_time_ms":word(20),
-                    "input_preparation_time_ms":input_time,"planned_left":mask&1!=0,
-                    "planned_left_shift":mask&2!=0,
+                    "os_dispatch_micros":dispatch_time,
+                    "os_events":input_update.events,
+                    "planned_left":held.contains(&Key::ArrowLeft),
+                    "planned_left_shift":held.contains(&Key::LeftShift),
                     "actor_entry":format!("live:{:08x}",word(24)),"actor_node":format!("live:{:08x}",word(28)),
                     "data3d":format!("live:{:08x}",word(32)),
-                    "current_action_pointer":format!("live:{:08x}",word(36)),
-                    "left_action_counter":word(40)}));
+                    "current_action_pointer":format!("live:{action_pointer:08x}"),
+                    "current_action_id":action_ids[index],
+                    "left_action_counter":left_counter}));
             }
+            ensure!(
+                left_counters[0] < 0
+                    && left_counters[1] < left_counters[0]
+                    && left_counters[2..7] == [1, -1, 1, -1, -2]
+                    && left_counters[7..12] == [1, 2, 3, 4, 5]
+                    && left_counters[12..18] == [-1, -2, -3, -4, -5, -6],
+                "Hype did not consume the OS Left edges at the recorded update ordinals: {left_counters:?}"
+            );
+            let neutral_action = action_pointers[1];
+            let turn_action = action_pointers[2];
+            let chord_action = action_pointers[7];
+            ensure!(
+                turn_action != neutral_action
+                    && chord_action != neutral_action
+                    && chord_action != turn_action
+                    && action_pointers[3] == neutral_action
+                    && action_pointers[4] == turn_action
+                    && action_pointers[5..7].iter().all(|p| *p == neutral_action)
+                    && action_pointers[7..12].iter().all(|p| *p == chord_action)
+                    && action_pointers[12..18].iter().all(|p| *p == neutral_action),
+                "Hype action transitions did not follow the OS key recording: {action_pointers:?}"
+            );
             scratch.close()?;
             desktop.release()?;
             return Ok(
-                json!({"schema":1,"status":"replay_complete","scope":"native replay protocol and completed-update publication",
+                json!({"schema":1,"status":"replay_complete","scope":"native OS-input delivery with separate completed-update observation",
                 "fixture":config,"process":process.identity(),"game":status,"recording_sha256":boundary_recording()?.sha256(),
                 "keyboard":{"device":format!("live:{:08x}",keyboard.address),"callback_slot":format!("live:{:08x}",keyboard.callback_slot)},
-                "updates":rows,"consistency":"completed_update_hook","completed_update":true,"frame_replay":false,
-                "consumption_verified":false,"physical_consumption_verified":false,
-                "publication":{"qualified_completed_fields":["current_action_pointer"],
+                "updates":rows,"input_delivery":"x11_xtest_os_events","keyboard_callback_patched":false,
+                "keyboard_buffer_written":false,"observation_probe":"completed_update_diagnostic_only",
+                "consistency":"completed_update_hook","completed_update":true,"frame_replay":true,
+                "consumption_verified":true,"physical_consumption_verified":true,
+                "consumer_evidence":{"left_counter_pattern":[1,-1,1,-1,-2,1,2,3,4,5,-1,-2,-3,-4,-5,-6],
+                    "current_action_transitions":"neutral -> turn -> neutral -> turn -> neutral -> shifted-left chord -> neutral",
+                    "consumer_profile":{"idle_action":IDLE_ACTION,"left_action":LEFT_ACTION,"shift_left_action":SHIFT_LEFT_ACTION}},
+                "publication":{"qualified_completed_fields":["current_action_pointer","current_action_id"],
                     "provenance_fields":["update_counter","clock_ms","raw_delta_ms","clamped_delta_ms","boundary_time_ms"],
                     "planned_input_fields":["planned_left","planned_left_shift"],
                     "consumer_observation_fields":["left_action_counter"],
-                    "acknowledgment_field":"boundary_acknowledged_ordinal",
-                    "input_contract":"protocol acknowledgment associates planned keyboard state prepared after update k with the completed-update wrapper for update k+1; physical consumption is not observed",
+                    "input_contract":"literal OS key edges are dispatched after completed update k for Hype's ordinary keyboard poll and update k+1; the actor's root-resolved family qualifies exact idle, Left and Shift+Left action ids while the independent Left counter verifies consumption and the game owns focus, translation, callback order and bindings",
                     "source_evidence":{"getter":"004424f0","setter":"00442500",
                         "ordinary_update":"004499b0 -> 00433e90 -> 004442e0",
                         "post_gameplay_tail":"0044a670 -> GLI_vEndOfTurnEngine -> 0044dbd0; no current-action setter"}},
@@ -897,13 +948,9 @@ mod probe_tests {
     const ELF_BASE: u32 = 0x0040_0000;
     const ENTRY: u32 = 0x0040_1000;
     const TIME_STUB: u32 = 0x0040_1100;
-    const DEVICE: u32 = 0x0070_1000;
-    const BUFFER: u32 = 0x0070_2000;
-    const ALTERNATE_BUFFER: u32 = 0x0070_2800;
     const START: u32 = 0x0070_3000;
     const DONE: u32 = 0x0070_3001;
     const UPDATE_CALLS: u32 = 0x0070_3004;
-    const KEYBOARD_CALLS: u32 = 0x0070_3008;
     const ACTOR_ENTRY: u32 = 0x0070_4000;
     const ACTOR_NODE: u32 = 0x0070_4100;
     const ACTOR_PERSO: u32 = 0x0070_4200;
@@ -919,7 +966,7 @@ mod probe_tests {
     fn put_u32(image: &mut [u8], address: u32, value: u32) {
         at(image, address, &value.to_le_bytes());
     }
-    fn synthetic_elf(duplicate_poll: bool, bank: u16) -> Vec<u8> {
+    fn synthetic_elf() -> Vec<u8> {
         let mut image = vec![0; (IMAGE_END - ELF_BASE) as usize];
         image[..7].copy_from_slice(b"\x7fELF\x01\x01\x01");
         image[16..18].copy_from_slice(&2u16.to_le_bytes());
@@ -944,22 +991,8 @@ mod probe_tests {
         entry.extend_from_slice(&[0, 0x75, 9, 0xb8]);
         imm(&mut entry, 20); // getpid: bounded polling without an unsupported i386 syscall
         entry.extend_from_slice(&[0xcd, 0x80, 0xeb, 0xee, 0xb9]);
-        imm(
-            &mut entry,
-            if duplicate_poll {
-                1
-            } else {
-                RECORD_COUNT as u32
-            },
-        );
+        imm(&mut entry, RECORD_COUNT as u32);
         let loop_start = entry.len();
-        for _ in 0..if duplicate_poll { 2 } else { 1 } {
-            entry.push(0x68);
-            imm(&mut entry, DEVICE);
-            entry.extend_from_slice(&[0xff, 0x15]);
-            imm(&mut entry, DEVICE + hype_runtime::DEVICE_CALLBACK_OFFSET);
-            entry.extend_from_slice(&[0x83, 0xc4, 0x04]);
-        }
         entry.extend_from_slice(&[0xff, 0x15]);
         imm(&mut entry, hype_runtime::UPDATE_CALLBACK_SLOT);
         entry.extend_from_slice(&[0x49, 0x75]);
@@ -976,10 +1009,6 @@ mod probe_tests {
         entry.extend_from_slice(&[0xcd, 0x80, 0xeb, 0xf7]);
         at(&mut image, ENTRY, &entry);
 
-        let mut keyboard = vec![0xff, 0x05];
-        imm(&mut keyboard, KEYBOARD_CALLS);
-        keyboard.push(0xc3);
-        at(&mut image, hype_runtime::KEYBOARD_CALLBACK, &keyboard);
         let mut update = vec![0xff, 0x05];
         imm(&mut update, UPDATE_CALLS);
         update.extend_from_slice(&[0xff, 0x05]);
@@ -1002,14 +1031,7 @@ mod probe_tests {
             hype_runtime::UPDATE_CALLBACK_SLOT,
             hype_runtime::UPDATE_CALLBACK,
         );
-        put_u32(
-            &mut image,
-            DEVICE + hype_runtime::DEVICE_CALLBACK_OFFSET,
-            hype_runtime::KEYBOARD_CALLBACK,
-        );
         put_u32(&mut image, 0x005c_0810, TIME_STUB);
-        put_u32(&mut image, DEVICE + 8, BUFFER);
-        at(&mut image, BUFFER + 0x202, &bank.to_le_bytes());
         at(&mut image, hype_runtime::STATUS, &[9]);
         put_u32(&mut image, hype_runtime::UPDATE_COUNTER, 100);
         put_u32(&mut image, hype_runtime::CLOCK_MS, 1000);
@@ -1028,10 +1050,10 @@ mod probe_tests {
         u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap())
     }
 
-    fn run_synthetic(duplicate_poll: bool, bank: u16, replace_buffer: bool) -> Result<()> {
+    fn run_synthetic() -> Result<()> {
         let temp = tempfile::tempdir()?;
         let executable = temp.path().join("wrapper-fixture");
-        fs::write(&executable, synthetic_elf(duplicate_poll, bank))?;
+        fs::write(&executable, synthetic_elf())?;
         fs::set_permissions(&executable, fs::Permissions::from_mode(0o700))?;
         let mut owner = Owner::new()?;
         let process = owner.spawn(&mut Command::new(executable))?;
@@ -1049,50 +1071,13 @@ mod probe_tests {
         let mut scratch = Scratch::allocate(&process, 4096)?;
         scratch.write(
             0,
-            &probe_image(
-                scratch.address() as u32,
-                DEVICE,
-                BUFFER,
-                SYNTHETIC_LEFT_ACTION_COUNTER,
-            )?,
+            &observation_probe_image(scratch.address() as u32, SYNTHETIC_LEFT_ACTION_COUNTER)?,
         )?;
         scratch.install_callback(
             hype_runtime::UPDATE_CALLBACK_SLOT as usize,
             hype_runtime::UPDATE_CALLBACK,
-            UPDATE_CODE,
+            OBSERVATION_CODE,
         )?;
-        scratch.install_callback(
-            (DEVICE + hype_runtime::DEVICE_CALLBACK_OFFSET) as usize,
-            hype_runtime::KEYBOARD_CALLBACK,
-            INPUT_CODE,
-        )?;
-        // Seed both verified keyboard banks with a canary. A valid wrapper
-        // must clear only the selected bank; an invalid selector or replaced
-        // data pointer must leave every canary untouched.
-        for bank_index in 0..=1_u32 {
-            for scan in [0x2b_u32, 0xcc] {
-                process.write_instrumentation(
-                    (BUFFER + bank_index * 0x100 + scan) as usize,
-                    &[0x5a],
-                )?;
-            }
-        }
-        let guarded_buffer = if replace_buffer {
-            process
-                .write_instrumentation((DEVICE + 8) as usize, &ALTERNATE_BUFFER.to_le_bytes())?;
-            ALTERNATE_BUFFER
-        } else if bank > 1 {
-            // Keep the canary address mapped even for the sign-extended -1
-            // selector case; the wrapper must reject before calculating it.
-            ALTERNATE_BUFFER
-        } else {
-            BUFFER + u32::from(bank) * 0x100
-        };
-        if replace_buffer || bank > 1 {
-            for scan in [0x2b_u32, 0xcc] {
-                process.write_instrumentation((guarded_buffer + scan) as usize, &[0x5a])?;
-            }
-        }
         process.write_instrumentation(START as usize, &[1])?;
         loop {
             if process.read_running(DONE as usize, 1)? == [1] {
@@ -1105,82 +1090,93 @@ mod probe_tests {
             thread::sleep(Duration::from_millis(1));
         }
         let state = scratch.read(STATE, RECORDS + RECORD_COUNT * RECORD_SIZE - STATE)?;
-        if replace_buffer || bank > 1 {
-            assert_eq!(word(&state, 8), 0);
-            assert_eq!(word(&state, 12), 0);
-            assert_eq!(word(&state, 16), 3);
-            for scan in [0x2b_u32, 0xcc] {
-                assert_eq!(
-                    process.read_running((guarded_buffer + scan) as usize, 1)?,
-                    [0x5a]
-                );
-            }
-        } else if duplicate_poll {
-            assert_eq!(word(&state, 16), 2);
-            assert_eq!(
-                word(&process.read_running(KEYBOARD_CALLS as usize, 4)?, 0),
-                2
-            );
-            assert_eq!(word(&process.read_running(UPDATE_CALLS as usize, 4)?, 0), 1);
-        } else {
-            assert_eq!(word(&state, 8), RECORD_COUNT as u32);
-            assert_eq!(word(&state, 12), RECORD_COUNT as u32);
-            assert_eq!(word(&state, 16), 0);
-            assert_eq!(
-                word(&process.read_running(KEYBOARD_CALLS as usize, 4)?, 0),
-                18
-            );
-            assert_eq!(
-                word(&process.read_running(UPDATE_CALLS as usize, 4)?, 0),
-                18
-            );
-            for bank_index in 0..=1_u32 {
-                let bank_base = BUFFER + bank_index * 0x100;
-                for scan in [0x2b_u32, 0xcc] {
-                    let expected = if bank_index == u32::from(bank) {
-                        0
-                    } else {
-                        0x5a
-                    };
-                    assert_eq!(
-                        process.read_running((bank_base + scan) as usize, 1)?,
-                        [expected]
-                    );
-                }
-            }
-            for index in 0..RECORD_COUNT {
-                let record = RECORDS - STATE + index * RECORD_SIZE;
-                assert_eq!(word(&state, record), index as u32 + 1);
-                assert_eq!(word(&state, record + 36), CURRENT_ACTION);
-            }
+        assert_eq!(word(&state, 8), RECORD_COUNT as u32);
+        assert_eq!(word(&state, 12), RECORD_COUNT as u32);
+        assert_eq!(word(&state, 16), 0);
+        assert_eq!(
+            word(&process.read_running(UPDATE_CALLS as usize, 4)?, 0),
+            RECORD_COUNT as u32
+        );
+        for index in 0..RECORD_COUNT {
+            let record = RECORDS - STATE + index * RECORD_SIZE;
+            assert_eq!(word(&state, record), index as u32 + 1);
+            assert_eq!(word(&state, record + 36), CURRENT_ACTION);
         }
         scratch.close()?;
         owner.close()
     }
 
     #[test]
-    fn generated_probe_is_bounded_and_contains_exact_shared_input_states() -> Result<()> {
+    fn generated_probe_is_observation_only_and_bounded() -> Result<()> {
         let base = 0x1234_0000;
-        let image = probe_image(base, DEVICE, BUFFER, SYNTHETIC_LEFT_ACTION_COUNTER)?;
+        let image = observation_probe_image(base, SYNTHETIC_LEFT_ACTION_COUNTER)?;
         assert_eq!(image.len(), 4096);
+        assert_eq!(word(&image, STATE + 8), RECORD_COUNT as u32);
+        assert_eq!(image[OBSERVATION_CODE], 0xb8);
         assert_eq!(
-            &image[MASKS..MASKS + RECORD_COUNT],
-            &[0, 0, 1, 0, 1, 0, 0, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0, 0]
-        );
-        assert_eq!(&image[5..9], &hype_runtime::KEYBOARD_CALLBACK.to_le_bytes());
-        assert_eq!(image[UPDATE_CODE], 0xb8);
-        assert_eq!(
-            &image[UPDATE_CODE + 1..UPDATE_CODE + 5],
+            &image[OBSERVATION_CODE + 1..OBSERVATION_CODE + 5],
             &hype_runtime::UPDATE_CALLBACK.to_le_bytes()
         );
-        assert!(image[..UPDATE_CODE].iter().any(|byte| *byte != 0));
-        assert!(image[UPDATE_CODE..STATE].iter().any(|byte| *byte != 0));
         assert!(
-            image[MASKS + RECORD_COUNT..RECORDS]
-                .iter()
-                .all(|byte| *byte == 0)
+            !image
+                .windows(4)
+                .any(|bytes| bytes == hype_runtime::KEYBOARD_CALLBACK.to_le_bytes().as_slice()),
+            "observation probe must not call or patch the keyboard callback"
         );
+        assert!(image[OBSERVATION_CODE..STATE].iter().any(|byte| *byte != 0));
         assert!(image[RECORDS..].iter().all(|byte| *byte == 0));
+        let members: Vec<_> = (0..389_u32)
+            .map(|id| format!("live:{:08x}", 0x0200_0000 + id * 4))
+            .collect();
+        let masks = [0, 0, 1, 0, 1, 0, 0, 3, 3, 3, 3, 3, 0, 0, 0, 0, 0, 0];
+        let observations: Vec<_> = masks
+            .iter()
+            .enumerate()
+            .map(|(index, &mask)| {
+                let action = match mask {
+                    0 => IDLE_ACTION,
+                    1 => LEFT_ACTION,
+                    3 => SHIFT_LEFT_ACTION,
+                    _ => unreachable!(),
+                };
+                (
+                    index as u32 + 1,
+                    mask,
+                    0x0200_0000 + action * 4,
+                    if mask & 1 == 0 { u32::MAX } else { 1 },
+                )
+            })
+            .collect();
+        assert_eq!(
+            qualify_boundary_consumption(&members, &observations)?,
+            masks
+                .iter()
+                .map(|mask| match mask {
+                    0 => IDLE_ACTION,
+                    1 => LEFT_ACTION,
+                    3 => SHIFT_LEFT_ACTION,
+                    _ => unreachable!(),
+                })
+                .collect::<Vec<_>>()
+        );
+        let mut wrong_shift = observations.clone();
+        wrong_shift[7].2 = 0x0200_0000 + LEFT_ACTION * 4;
+        assert!(
+            format!(
+                "{:#}",
+                qualify_boundary_consumption(&members, &wrong_shift).unwrap_err()
+            )
+            .contains("physical input was not consumed")
+        );
+        let mut wrong_counter = observations;
+        wrong_counter[2].3 = u32::MAX;
+        assert!(
+            format!(
+                "{:#}",
+                qualify_boundary_consumption(&members, &wrong_counter).unwrap_err()
+            )
+            .contains("Left consumer counter disagrees")
+        );
         Ok(())
     }
 
@@ -1196,12 +1192,7 @@ mod probe_tests {
     }
 
     #[test]
-    fn elf32_wrappers_forward_exactly_once_and_reject_duplicate_poll() -> Result<()> {
-        run_synthetic(false, 0, false)?;
-        run_synthetic(false, 1, false)?;
-        run_synthetic(true, 0, false)?;
-        run_synthetic(false, 2, false)?;
-        run_synthetic(false, u16::MAX, false)?;
-        run_synthetic(false, 0, true)
+    fn elf32_observation_wrapper_forwards_gameplay_callback_exactly_once() -> Result<()> {
+        run_synthetic()
     }
 }

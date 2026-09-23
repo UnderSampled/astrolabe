@@ -1,6 +1,6 @@
 #![cfg(target_os = "linux")]
 use anyhow::{Result, ensure};
-use astrolabe_testkit::linux::{Consistency, Owner, Process};
+use orrery::linux::{Consistency, Owner, Process};
 use std::{
     fs,
     process::{Command, Stdio},
@@ -8,7 +8,7 @@ use std::{
     time::{Duration, Instant},
 };
 fn command(output: &std::path::Path) -> Command {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_astrolabe-testkit"));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_orrery"));
     command
         .arg("fixture")
         .arg(output)

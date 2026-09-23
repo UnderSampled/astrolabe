@@ -1,6 +1,6 @@
 #![cfg(target_os = "linux")]
 use anyhow::{Context, Result};
-use astrolabe_testkit::config::Config;
+use orrery::config::Config;
 use serde_json::Value;
 use std::{
     fs,
@@ -25,7 +25,7 @@ fn run(fault: bool) -> Result<(PathBuf, Value)> {
         if fault { "worker-death" } else { "inspect" },
         SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
     ));
-    let mut command = Command::new(env!("CARGO_BIN_EXE_astrolabe-testkit"));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_orrery"));
     command
         .arg("inspect-original")
         .arg("--config")
@@ -130,7 +130,7 @@ fn native_boundary_replay_publishes_18_completed_updates() -> Result<()> {
         "original-replay-{}",
         SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
     ));
-    let status = Command::new(env!("CARGO_BIN_EXE_astrolabe-testkit"))
+    let status = Command::new(env!("CARGO_BIN_EXE_orrery"))
         .arg("replay-original")
         .arg("--config")
         .arg(&config)
@@ -144,14 +144,21 @@ fn native_boundary_replay_publishes_18_completed_updates() -> Result<()> {
     Config::load(&config)?;
     let report: Value = serde_json::from_slice(&fs::read(output.join("worker.json"))?)?;
     assert_eq!(report["status"], "replay_complete");
+    assert_eq!(report["input_delivery"], "x11_xtest_os_events");
+    assert_eq!(report["keyboard_callback_patched"], false);
+    assert_eq!(report["keyboard_buffer_written"], false);
+    assert_eq!(
+        report["observation_probe"],
+        "completed_update_diagnostic_only"
+    );
     assert_eq!(report["consistency"], "completed_update_hook");
-    assert_eq!(report["frame_replay"], false);
-    assert_eq!(report["consumption_verified"], false);
-    assert_eq!(report["physical_consumption_verified"], false);
+    assert_eq!(report["frame_replay"], true);
+    assert_eq!(report["consumption_verified"], true);
+    assert_eq!(report["physical_consumption_verified"], true);
     assert_eq!(report["updates"].as_array().unwrap().len(), 18);
     for (index, row) in report["updates"].as_array().unwrap().iter().enumerate() {
         assert_eq!(row["ordinal"], index + 1);
-        assert_eq!(row["boundary_acknowledged_ordinal"], index + 1);
+        assert_eq!(row["observation_ordinal"], index + 1);
         if index > 0 {
             assert_eq!(
                 row["update_counter"].as_u64().unwrap(),
@@ -164,7 +171,34 @@ fn native_boundary_replay_publishes_18_completed_updates() -> Result<()> {
         let ordinal = index + 1;
         assert_eq!(row["planned_left"], matches!(ordinal, 3 | 5 | 8..=12));
         assert_eq!(row["planned_left_shift"], matches!(ordinal, 8..=12));
+        assert_eq!(
+            row["current_action_id"],
+            match ordinal {
+                3 | 5 => 35,
+                8..=12 => 348,
+                _ => 47,
+            }
+        );
+        assert_eq!(
+            row["os_events"].as_array().unwrap().len(),
+            match ordinal {
+                3..=6 => 1,
+                8 | 13 => 2,
+                _ => 0,
+            }
+        );
     }
+    let counters: Vec<_> = report["updates"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|row| row["left_action_counter"].as_i64().unwrap())
+        .collect();
+    assert!(counters[0] < 0 && counters[1] < counters[0]);
+    assert_eq!(
+        &counters[2..],
+        &[1, -1, 1, -1, -2, 1, 2, 3, 4, 5, -1, -2, -3, -4, -5, -6]
+    );
     println!("native replay evidence: {}", output.display());
     Ok(())
 }

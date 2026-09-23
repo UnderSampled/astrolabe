@@ -10,7 +10,7 @@ use astrolabe::{
     },
     openspace::level::live::{ActorObservation, source_fingerprint},
 };
-use astrolabe_testkit::{
+use orrery::{
     comparison::{Outcome, compare_main_actor, load_rete_actor, prepare_routes},
     config::{Config, digest},
 };
@@ -54,7 +54,7 @@ fn original_actor_definitions_match_direct_and_reopened_rete_and_detect_edit() -
     )?;
     // This is the same native runtime used by inspection, with its own bounded
     // worker and outer owner. No Python memory broker or caller-supplied address.
-    let status = Command::new(env!("CARGO_BIN_EXE_astrolabe-testkit"))
+    let status = Command::new(env!("CARGO_BIN_EXE_orrery"))
         .arg("inspect-original")
         .arg("--config")
         .arg(&config_path)

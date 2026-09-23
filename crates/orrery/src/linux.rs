@@ -217,6 +217,27 @@ impl Process {
         self.check()?;
         Ok(bytes)
     }
+    /// List mappings for this exact owned process. The identity is checked both
+    /// before and after reading procfs so a recycled numeric PID cannot be used.
+    pub fn memory_maps(&self) -> Result<Vec<serde_json::Value>> {
+        self.check()?;
+        let mut maps = Vec::new();
+        for line in fs::read_to_string(format!("/proc/{}/maps", self.identity.pid))?.lines() {
+            let mut fields = line.split_whitespace();
+            let bounds = fields.next().context("missing map bounds")?;
+            let permissions = fields.next().context("missing map permissions")?;
+            let offset = fields.next().context("missing map offset")?;
+            let device = fields.next().context("missing map device")?;
+            let inode = fields.next().context("missing map inode")?;
+            let path = fields.collect::<Vec<_>>().join(" ");
+            maps.push(serde_json::json!({
+                "range": bounds, "permissions": permissions, "offset": offset,
+                "device": device, "inode": inode, "path": path
+            }));
+        }
+        self.check()?;
+        Ok(maps)
+    }
     pub(crate) fn write_instrumentation(&self, address: usize, bytes: &[u8]) -> Result<()> {
         self.check()?;
         ensure!(
@@ -336,6 +357,43 @@ impl Pause<'_> {
             started: Instant::now(),
         })
     }
+    /// Compare and replace bytes while every thread of the exact owned process
+    /// remains stopped. A mismatch performs no write; a successful write is
+    /// read back before the pause guard can resume the process.
+    pub fn guarded_write(
+        &self,
+        address: usize,
+        value: &[u8],
+        expected: &[u8],
+    ) -> Result<serde_json::Value> {
+        ensure!(
+            !value.is_empty() && value.len() == expected.len() && value.len() <= 4096,
+            "guarded write size outside 1..4096 or expected size differs"
+        );
+        let before = self.process.read_running(address, value.len())?;
+        ensure!(
+            before == expected,
+            "expected old value does not match live memory"
+        );
+        self.process.write_instrumentation(address, value)?;
+        let after = self.process.read_running(address, value.len())?;
+        ensure!(after == value, "guarded write verification failed");
+        Ok(serde_json::json!({
+            "address": format!("0x{address:x}"),
+            "before": hex(&before), "after": hex(&after), "size": value.len(),
+            "process": self.process.identity
+        }))
+    }
+}
+
+fn hex(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut text = String::with_capacity(bytes.len() * 2);
+    for &byte in bytes {
+        text.push(DIGITS[(byte >> 4) as usize] as char);
+        text.push(DIGITS[(byte & 15) as usize] as char);
+    }
+    text
 }
 impl Drop for Pause<'_> {
     fn drop(&mut self) {

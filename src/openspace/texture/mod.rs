@@ -1,5 +1,5 @@
 //! Hype textures: standalone GF codecs and CNT archive membership.
-//! See docs/texture-rust.md for source evidence and tested coverage.
+//! See docs/openspace/texture.md for source evidence and tested coverage.
 mod cnt;
 mod gf;
 

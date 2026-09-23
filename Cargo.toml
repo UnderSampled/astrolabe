@@ -6,7 +6,7 @@ license = "CC0-1.0"
 description = "Repeatable conversion of OpenSpace game content through a useful model"
 
 [workspace]
-members = ["crates/astrolabe-testkit"]
+members = ["crates/orrery"]
 default-members = ["."]
 resolver = "3"
 

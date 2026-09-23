@@ -1441,7 +1441,7 @@
       "release": true
     },
     {
-      "binary": "astrolabe-testkit::runtime",
+      "binary": "orrery::runtime",
       "test": "stopped_capture_is_bounded_immutable_and_never_completed_update",
       "areas": [
         "runtime"
@@ -1455,7 +1455,7 @@
       "safeguard": "always"
     },
     {
-      "binary": "astrolabe-testkit::runtime",
+      "binary": "orrery::runtime",
       "test": "pause_preserves_existing_stop_and_unwinds_new_stop",
       "areas": [
         "runtime"
@@ -1469,7 +1469,7 @@
       "safeguard": "always"
     },
     {
-      "binary": "astrolabe-testkit::runtime",
+      "binary": "orrery::runtime",
       "test": "cleanup_reaps_term_resistant_escaped_descendant_and_preserves_unrelated_child",
       "areas": [
         "runtime"
@@ -1483,7 +1483,7 @@
       "safeguard": "always"
     },
     {
-      "binary": "astrolabe-testkit::runtime",
+      "binary": "orrery::runtime",
       "test": "failed_launch_and_duplicate_owner_do_not_leave_ownership_locked",
       "areas": [
         "runtime"
@@ -1526,6 +1526,36 @@
     },
     {
       "binary": "astrolabe",
+      "test": "openspace::level::source_view::tests::live_ai_reader_resolves_behavior_and_requested_designer_values",
+      "areas": [
+        "source",
+        "ai",
+        "runtime"
+      ],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic relocated AI memory",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::source_view::tests::live_ai_reader_rejects_malformed_truncated_and_foreign_references",
+      "areas": [
+        "source",
+        "ai",
+        "runtime"
+      ],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic relocated AI memory",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "openspace::level::source_view::tests::shared_actor_reader_matches_useful_file_import_for_both_levels",
       "areas": [
         "source",
@@ -1541,7 +1571,7 @@
       "release": true
     },
     {
-      "binary": "astrolabe-testkit::runtime",
+      "binary": "orrery::runtime",
       "test": "native_owner_preserves_short_command_exit_status",
       "areas": [
         "runtime"
@@ -1555,7 +1585,7 @@
       "safeguard": "always"
     },
     {
-      "binary": "astrolabe-testkit::original",
+      "binary": "orrery::original",
       "test": "native_manor_inspection_reads_actor_captures_pixels_and_cleans_up",
       "areas": [
         "runtime"
@@ -1570,7 +1600,7 @@
       "release": true
     },
     {
-      "binary": "astrolabe-testkit::original",
+      "binary": "orrery::original",
       "test": "native_owner_cleans_game_after_worker_dies_while_paused",
       "areas": [
         "runtime"
@@ -1585,7 +1615,7 @@
       "release": true
     },
     {
-      "binary": "astrolabe-testkit::replay",
+      "binary": "orrery::replay",
       "test": "complete_recording_preserves_literal_edges_gaps_and_exact_bytes",
       "areas": [
         "comparison"
@@ -1598,7 +1628,7 @@
       "release": true
     },
     {
-      "binary": "astrolabe-testkit::replay",
+      "binary": "orrery::replay",
       "test": "recording_rejects_skipped_ticks_repeat_edges_and_unreleased_keys",
       "areas": [
         "comparison"
@@ -1611,7 +1641,7 @@
       "release": true
     },
     {
-      "binary": "astrolabe-testkit::comparison",
+      "binary": "orrery::comparison",
       "test": "reopened_rete_comparison_catches_edits_missing_actions_and_ambiguous_role",
       "areas": [
         "comparison"
@@ -1650,7 +1680,7 @@
       "release": true
     },
     {
-      "binary": "astrolabe-testkit::comparison_original",
+      "binary": "orrery::comparison_original",
       "test": "original_actor_definitions_match_direct_and_reopened_rete_and_detect_edit",
       "areas": [
         "comparison"
@@ -1694,7 +1724,7 @@
       "release": true
     },
     {
-      "binary": "astrolabe-testkit::instrumentation",
+      "binary": "orrery::instrumentation",
       "test": "native_and_i386_scratch_lifetimes_are_bounded",
       "areas": [
         "runtime"
@@ -1708,8 +1738,8 @@
       "safeguard": "always"
     },
     {
-      "binary": "astrolabe-testkit",
-      "test": "original::probe_tests::elf32_wrappers_forward_exactly_once_and_reject_duplicate_poll",
+      "binary": "orrery",
+      "test": "original::probe_tests::elf32_observation_wrapper_forwards_gameplay_callback_exactly_once",
       "areas": [
         "runtime"
       ],
@@ -1722,8 +1752,8 @@
       "safeguard": "always"
     },
     {
-      "binary": "astrolabe-testkit",
-      "test": "original::probe_tests::generated_probe_is_bounded_and_contains_exact_shared_input_states",
+      "binary": "orrery",
+      "test": "original::probe_tests::generated_probe_is_observation_only_and_bounded",
       "areas": [
         "comparison"
       ],
@@ -1735,7 +1765,7 @@
       "release": true
     },
     {
-      "binary": "astrolabe-testkit",
+      "binary": "orrery",
       "test": "original::probe_tests::relative_branch_encoder_accepts_forward_and_backward_targets",
       "areas": [
         "runtime"
@@ -1748,7 +1778,7 @@
       "release": true
     },
     {
-      "binary": "astrolabe-testkit::original",
+      "binary": "orrery::original",
       "test": "native_boundary_replay_publishes_18_completed_updates",
       "areas": [
         "comparison"
@@ -1763,7 +1793,7 @@
       "release": true
     },
     {
-      "binary": "astrolabe-testkit",
+      "binary": "orrery",
       "test": "instrumentation::tests::mutation_failures_kill_exact_owned_child",
       "areas": [
         "runtime"
@@ -1775,6 +1805,108 @@
       "ignored": false,
       "release": true,
       "safeguard": "always"
+    },
+    {
+      "binary": "orrery",
+      "test": "mcp::tests::parity_surface_is_exact_and_annotated",
+      "areas": [
+        "runtime"
+      ],
+      "kind": "contract",
+      "prerequisites": [],
+      "fixture": "old 15-tool Hype MCP compatibility matrix",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true,
+      "safeguard": "always"
+    },
+    {
+      "binary": "orrery",
+      "test": "mcp::tests::entire_sequence_is_rejected_before_execution",
+      "areas": [
+        "runtime"
+      ],
+      "kind": "contract",
+      "prerequisites": [],
+      "fixture": "synthetic MCP sequences",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true,
+      "safeguard": "always"
+    },
+    {
+      "binary": "orrery",
+      "test": "mcp::tests::designer_value_inspection_is_opt_in_bounded_and_prevalidated",
+      "areas": [
+        "source",
+        "ai",
+        "runtime"
+      ],
+      "kind": "contract",
+      "prerequisites": [],
+      "fixture": "synthetic MCP typed-inspection requests",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true,
+      "safeguard": "always"
+    },
+    {
+      "binary": "orrery",
+      "test": "mcp::tests::protocol_dispatch_and_security_policy_work_without_network_access",
+      "areas": [
+        "runtime"
+      ],
+      "kind": "contract",
+      "prerequisites": [],
+      "fixture": "synthetic MCP JSON-RPC and HTTP security headers",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true,
+      "safeguard": "always"
+    },
+    {
+      "binary": "orrery",
+      "test": "mcp::tests::base64_vectors",
+      "areas": ["runtime"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "MCP image content vectors",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "mcp::tests::constant_time_comparison_has_exact_semantics",
+      "areas": ["runtime"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "bearer token comparison vectors",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "mcp::tests::guarded_write_validation_requires_equal_bounded_values",
+      "areas": ["runtime"],
+      "kind": "contract",
+      "prerequisites": [],
+      "fixture": "synthetic guarded write values",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "mcp::tests::loopback_streamable_http_initializes_acknowledges_notification_and_lists_tools",
+      "areas": ["runtime"],
+      "kind": "process",
+      "prerequisites": [],
+      "fixture": "loopback HTTP socket",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
     }
   ]
 }

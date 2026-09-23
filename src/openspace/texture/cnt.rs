@@ -1,5 +1,5 @@
 //! CNT membership, aliases, name encoding, and regenerated archive placement.
-//! Evidence: Raymap CNT.cs and the normalized local corpus (docs/texture-rust.md).
+//! Evidence: Raymap CNT.cs and the normalized local corpus (docs/openspace/texture.md).
 use super::gf::{decode_gf, encode_gf};
 use crate::model::{
     AssetPath, AssetRef,

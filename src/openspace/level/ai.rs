@@ -14,6 +14,7 @@ use super::{
     scene::SceneImport,
     session::SourceSession,
     sound::SoundSites,
+    source_view,
 };
 use crate::{
     model::{
@@ -37,77 +38,11 @@ use std::{
 
 #[derive(BinRead, BinWrite)]
 #[brw(little)]
-struct BrainWire {
-    mind: u32,
-    unknown: u32,
-}
-#[derive(BinRead, BinWrite)]
-#[brw(little)]
-struct MindWire {
-    model: u32,
-    normal: u32,
-    reflex: u32,
-    variables: u32,
-    unknown: [u8; 4],
-}
-#[derive(BinRead, BinWrite)]
-#[brw(little)]
-struct ModelWire {
-    normal: u32,
-    reflex: u32,
-    variables: u32,
-    unknown: [u8; 4],
-}
-#[derive(BinRead, BinWrite)]
-#[brw(little)]
-struct SetWire {
-    entries: u32,
-    count: u32,
-    default: u32,
-    capacity: u8,
-    unknown: [u8; 3],
-}
-#[derive(BinRead, BinWrite)]
-#[brw(little)]
 struct BehaviorWire {
     rules: u32,
     schedule: u32,
     count: u8,
     unknown: [u8; 3],
-}
-#[derive(BinRead, BinWrite)]
-#[brw(little)]
-struct IntelligenceWire {
-    model_slot: u32,
-    execution: u32,
-    current: u32,
-    previous: u32,
-    actions: u32,
-    initial: u32,
-}
-#[derive(BinRead, BinWrite)]
-#[brw(little)]
-struct MemoryWire {
-    definition_slot: u32,
-    initial: u32,
-    current: u32,
-}
-#[derive(BinRead, BinWrite)]
-#[brw(little)]
-struct DesignerWire {
-    defaults: u32,
-    infos: u32,
-    length: u32,
-    count: u8,
-    unknown: [u8; 3],
-}
-#[derive(BinRead, BinWrite)]
-#[brw(little)]
-struct InfoWire {
-    offset: u32,
-    kind: u32,
-    save: u32,
-    initialize: u32,
 }
 
 /// Verified PC IPT entry: 004a5ad0 uses 28-byte entries, names at +8.
@@ -457,41 +392,35 @@ fn values(
     let mut out = Vec::new();
     let mut ranges = Vec::new();
     for info in infos {
-        let mut codec = DesignerValueCodec {
-            kind: info.kind,
-            ..Default::default()
-        };
         let offset = info.offset as usize;
-        let tail = bytes
-            .get(offset..)
-            .context("designer offset outside memory")?;
-        let size = codec.extent(tail)?;
-        let operands: Vec<usize> = match info.kind {
-            14 => vec![0],
-            25 => (0..(size - 8) / 12).map(|i| 8 + 12 * i).collect(),
-            _ => Vec::new(),
-        };
-        for operand in operands {
-            codec.actions.insert(
-                operand,
-                state_reference(s, states, add(a, offset + operand))?,
-            );
-        }
-        if info.kind == 10 {
-            let site = add(a, offset);
-            let actor = if matches!(u32_at(s.bytes(site, 4)?, 0)?, 0 | u32::MAX) {
-                None
-            } else {
-                Some(
-                    actors
-                        .get(&s.required(site, 0)?)
-                        .context("designer actor outside imported dependencies")?
-                        .clone(),
-                )
-            };
-            codec.actors.insert(0, actor);
-        }
-        out.push(codec.read(tail.get(..size).context("short designer memory")?)?);
+        ensure!(offset < bytes.len(), "designer offset outside memory");
+        let (value, size) = source_view::designer_value(
+            &mut source_view::FileView(s),
+            a,
+            *info,
+            length,
+            |target| {
+                target
+                    .map(|target| {
+                        states
+                            .get(&target)
+                            .cloned()
+                            .context("action outside imported families")
+                    })
+                    .transpose()
+            },
+            |target| {
+                target
+                    .map(|target| {
+                        actors
+                            .get(&target)
+                            .cloned()
+                            .context("designer actor outside imported dependencies")
+                    })
+                    .transpose()
+            },
+        )?;
+        out.push(value);
         ranges.push((offset, size));
     }
     // Declarations need not follow storage order, and some scalar fields are

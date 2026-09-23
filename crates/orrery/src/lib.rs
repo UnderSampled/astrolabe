@@ -10,5 +10,9 @@ pub mod instrumentation;
 #[cfg(target_os = "linux")]
 pub mod linux;
 #[cfg(target_os = "linux")]
+pub mod mcp;
+#[cfg(target_os = "linux")]
 pub mod original;
+#[cfg(target_os = "linux")]
+pub mod orrery;
 pub mod replay;

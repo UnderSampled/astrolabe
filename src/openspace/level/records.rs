@@ -626,6 +626,76 @@ pub(super) struct PersoHeaderWire {
     pub(super) unknown_montreal: [u8; 4],
     pub(super) brain: u32,
 }
+
+/// The selected AI records are shared by file import and bounded relocated
+/// memory inspection. Keeping their declarations here prevents the live view
+/// from growing a second, subtly different decoder.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct BrainWire {
+    pub(super) mind: u32,
+    pub(super) unknown: u32,
+}
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct MindWire {
+    pub(super) model: u32,
+    pub(super) normal: u32,
+    pub(super) reflex: u32,
+    pub(super) variables: u32,
+    pub(super) unknown: [u8; 4],
+}
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct ModelWire {
+    pub(super) normal: u32,
+    pub(super) reflex: u32,
+    pub(super) variables: u32,
+    pub(super) unknown: [u8; 4],
+}
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct SetWire {
+    pub(super) entries: u32,
+    pub(super) count: u32,
+    pub(super) default: u32,
+    pub(super) capacity: u8,
+    pub(super) unknown: [u8; 3],
+}
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct IntelligenceWire {
+    pub(super) model_slot: u32,
+    pub(super) execution: u32,
+    pub(super) current: u32,
+    pub(super) previous: u32,
+    pub(super) actions: u32,
+    pub(super) initial: u32,
+}
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct MemoryWire {
+    pub(super) definition_slot: u32,
+    pub(super) initial: u32,
+    pub(super) current: u32,
+}
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct DesignerWire {
+    pub(super) defaults: u32,
+    pub(super) infos: u32,
+    pub(super) length: u32,
+    pub(super) count: u8,
+    pub(super) unknown: [u8; 3],
+}
+#[derive(BinRead, BinWrite, Clone, Copy)]
+#[brw(little)]
+pub(super) struct InfoWire {
+    pub(super) offset: u32,
+    pub(super) kind: u32,
+    pub(super) save: u32,
+    pub(super) initialize: u32,
+}
 /// The first six pointers of Perso3dData; the rest is not inferred by this view.
 /// Raymap Object/Properties/Perso3dData.Read and the Hype source-rule probes.
 #[derive(BinRead, BinWrite)]

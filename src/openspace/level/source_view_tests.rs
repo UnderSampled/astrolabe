@@ -41,6 +41,26 @@ fn fixture(base: u32) -> (Memory, SourceSession) {
         (0x514, 0x640),
         (0x600, 0x640),
         (0x628, 0x640),
+        (0x210, 0xa00),
+        (0xa00, 0xa20),
+        (0xa20, 0xa40),
+        (0xa24, 0xa80),
+        (0xa2c, 0xac0),
+        (0xa40, 0xb00),
+        (0xa48, 0xb40),
+        (0xa80, 0xba0),
+        (0xa88, 0xb8c),
+        (0xa8c, 0xb80),
+        (0xa94, 0xb80),
+        (0xac0, 0xbc0),
+        (0xac8, 0xc20),
+        (0xb00, 0xb80),
+        (0xb40, 0xc00),
+        (0xb44, 0xc40),
+        (0xba0, 0xb00),
+        (0xbc0, 0xb40),
+        (0xc24, 0x640),
+        (0xc28, 0x200),
     ];
     for (site, target) in sites {
         word(&mut data, site, base + target);
@@ -52,6 +72,15 @@ fn fixture(base: u32) -> (Memory, SourceSession) {
     }
     word(&mut data, 0x50c, 5);
     word(&mut data, 0x518, 2);
+    word(&mut data, 0xb04, 2);
+    word(&mut data, 0xb48, 12);
+    data[0xb4c] = 3;
+    word(&mut data, 0xc20, (-7i32) as u32);
+    for (index, (offset, kind)) in [(0u32, 5u32), (4, 14), (8, 10)].into_iter().enumerate() {
+        let info = 0xc40 + index * 16;
+        word(&mut data, info, offset);
+        word(&mut data, info + 4, kind);
+    }
     data[0x63a..0x63d].copy_from_slice(&[3, 7, 1]);
     data[0x67a..0x67d].copy_from_slice(&[2, 9, 0]);
     word(&mut data, 0x700, 0x90);
@@ -100,6 +129,91 @@ fn fixture(base: u32) -> (Memory, SourceSession) {
         },
         session,
     )
+}
+
+#[test]
+fn live_ai_reader_resolves_behavior_and_requested_designer_values() -> Result<()> {
+    let build = HypeBuild::verified(live::HYPE_EXECUTABLE_SHA256)?;
+    for base in [0x1000, 0x21000] {
+        let (mut memory, _) = fixture(base);
+        let observed = build.actor_with_ai(&mut memory, &[1], &[0, 1, 2])?;
+        assert_eq!(
+            observed.normal,
+            Some(crate::model::ai::BehaviorSelection {
+                current: Some(1),
+                previous: Some(0),
+                initial: Some(0),
+            })
+        );
+        assert_eq!(observed.reflex, None);
+        assert_eq!(
+            observed.designer_values,
+            vec![
+                live::SelectedDesignerValue {
+                    index: 0,
+                    kind: 5,
+                    value: live::ObservedDesignerValue::Value(
+                        crate::model::ai::DesignerValue::Integer(-7),
+                    ),
+                },
+                live::SelectedDesignerValue {
+                    index: 1,
+                    kind: 14,
+                    value: live::ObservedDesignerValue::Action(Some(1)),
+                },
+                live::SelectedDesignerValue {
+                    index: 2,
+                    kind: 10,
+                    value: live::ObservedDesignerValue::Actor(Some(format!(
+                        "live:{:08x}",
+                        base + 0x200
+                    ))),
+                },
+            ]
+        );
+        assert_eq!(observed.actor.current_action, Some(1));
+        assert!(
+            build.actor_with_ai(&mut memory, &[], &[0, 0]).is_err(),
+            "duplicate selection must not alias one captured value"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn live_ai_reader_rejects_malformed_truncated_and_foreign_references() -> Result<()> {
+    let build = HypeBuild::verified(live::HYPE_EXECUTABLE_SHA256)?;
+    for (offset, value, expected) in [
+        (0xa88, 0xd00, "outside its family"),
+        (0xba0, 0xb40, "binds another behavior set"),
+        (0xc24, 0xd00, "outside selected actor family"),
+        (0xb48, 8, "exceeds declared memory"),
+    ] {
+        let (mut memory, _) = fixture(0x1000);
+        word(
+            memory.ranges.get_mut(&0x1000).unwrap(),
+            offset,
+            if offset == 0xb48 {
+                value
+            } else {
+                0x1000 + value
+            },
+        );
+        let error = format!(
+            "{:#}",
+            build.actor_with_ai(&mut memory, &[], &[1, 2]).unwrap_err()
+        );
+        assert!(error.contains(expected), "{offset:x}: {error}");
+    }
+
+    let (mut memory, _) = fixture(0x1000);
+    memory.ranges.get_mut(&0x1000).unwrap().truncate(0xc43);
+    let error = format!(
+        "{:#}",
+        build.actor_with_ai(&mut memory, &[], &[0]).unwrap_err()
+    );
+    assert!(error.contains("short memory range"), "{error}");
+    Ok(())
 }
 #[test]
 fn file_and_relocated_memory_share_bounded_actor_and_transform_readers() -> Result<()> {

@@ -2,13 +2,33 @@ use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 #[derive(Parser)]
-#[command(about = "Optional Astrolabe native runtime and comparison tools")]
+#[command(
+    name = "orrery",
+    about = "Orrery native original-game controller and comparison tools"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
 }
 #[derive(Subcommand)]
 enum Commands {
+    /// Run the loopback-only authenticated Orrery Streamable HTTP MCP server.
+    Mcp {
+        #[arg(long)]
+        config: PathBuf,
+        #[arg(long)]
+        token_file: PathBuf,
+        #[arg(long)]
+        runs: PathBuf,
+        #[arg(long, default_value_t = 18766)]
+        port: u16,
+    },
+    /// Internal Gamescope process that publishes its private display.
+    #[command(hide = true)]
+    DisplayBridge {
+        #[arg(long)]
+        output: PathBuf,
+    },
     /// Write the exact provisional physical-input recording shared by adapters.
     RecordBoundary {
         #[arg(long)]
@@ -138,9 +158,32 @@ fn fixture(output: PathBuf, escaped: bool, leaf: bool, partial: bool) -> Result<
 }
 fn main() -> Result<()> {
     match Cli::parse().command {
+        Commands::Mcp {
+            config,
+            token_file,
+            runs,
+            port,
+        } => {
+            #[cfg(target_os = "linux")]
+            return orrery::mcp::serve(config, runs, token_file, port);
+            #[cfg(not(target_os = "linux"))]
+            {
+                let _ = (config, token_file, runs, port);
+                bail!("Orrery MCP currently requires Linux");
+            }
+        }
+        Commands::DisplayBridge { output } => {
+            #[cfg(target_os = "linux")]
+            return orrery::orrery::display_bridge(&output);
+            #[cfg(not(target_os = "linux"))]
+            {
+                let _ = output;
+                bail!("Orrery display bridge currently requires Linux");
+            }
+        }
         Commands::RecordBoundary { output } => {
             use std::io::Write;
-            let prepared = astrolabe_testkit::replay::boundary_recording()?;
+            let prepared = orrery::replay::boundary_recording()?;
             let mut file = std::fs::File::create_new(&output)?;
             file.write_all(prepared.bytes())?;
             file.sync_all()?;
@@ -160,7 +203,7 @@ fn main() -> Result<()> {
             fail_stopped_worker,
         } => {
             #[cfg(target_os = "linux")]
-            return astrolabe_testkit::original::inspect(&config, &output, fail_stopped_worker);
+            return orrery::original::inspect(&config, &output, fail_stopped_worker);
             #[cfg(not(target_os = "linux"))]
             {
                 let _ = (config, output, fail_stopped_worker);
@@ -169,7 +212,7 @@ fn main() -> Result<()> {
         }
         Commands::ReplayOriginal { config, output } => {
             #[cfg(target_os = "linux")]
-            return astrolabe_testkit::original::replay(&config, &output);
+            return orrery::original::replay(&config, &output);
             #[cfg(not(target_os = "linux"))]
             {
                 let _ = (config, output);
@@ -184,7 +227,7 @@ fn main() -> Result<()> {
             replay,
         } => {
             #[cfg(target_os = "linux")]
-            return astrolabe_testkit::original::worker(
+            return orrery::original::worker(
                 &config,
                 &output,
                 &host_display,

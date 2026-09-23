@@ -1,4 +1,5 @@
 //! Input and screenshots on the owned Gamescope Xwayland display only.
+use crate::replay::{Edge, Event, Key};
 use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 use std::{
@@ -28,6 +29,16 @@ impl SetupKey {
     }
 }
 
+fn physical_keysym(key: Key) -> u32 {
+    match key {
+        Key::ArrowLeft => 0xff51,
+        Key::ArrowUp => 0xff52,
+        Key::ArrowRight => 0xff53,
+        Key::ArrowDown => 0xff54,
+        Key::LeftShift => 0xffe1,
+    }
+}
+
 pub struct Desktop {
     connection: RustConnection,
     root: Window,
@@ -50,19 +61,106 @@ impl Desktop {
     /// supplied at exec. No global DISPLAY/XAUTHORITY mutation or host input.
     pub fn connect(host_display: &str, pid: u32) -> Result<Self> {
         let display = std::env::var("DISPLAY").context("Gamescope did not provide DISPLAY")?;
+        Self::connect_display(&display, host_display, pid)
+    }
+    pub fn connect_display(display: &str, host_display: &str, pid: u32) -> Result<Self> {
         ensure!(
             !display.is_empty() && display != host_display && display.starts_with(':'),
             "refusing input on host/nonlocal display"
         );
-        let (connection, screen) = x11rb::connect(Some(&display))?;
+        let (connection, screen) = x11rb::connect(Some(display))?;
         let root = connection.setup().roots[screen].root;
         Ok(Self {
             connection,
             root,
             pid,
             pressed: BTreeSet::new(),
-            display,
+            display: display.to_owned(),
         })
+    }
+
+    fn named_keysym(name: &str) -> Option<u32> {
+        match name {
+            "Left" => Some(0xff51),
+            "Up" => Some(0xff52),
+            "Right" => Some(0xff53),
+            "Down" => Some(0xff54),
+            "Return" => Some(0xff0d),
+            "Escape" => Some(0xff1b),
+            "space" => Some(0x20),
+            "Tab" => Some(0xff09),
+            "Control_L" => Some(0xffe3),
+            "Shift_L" => Some(0xffe1),
+            value if value.len() == 1 && value.as_bytes()[0].is_ascii_alphanumeric() => {
+                Some(value.as_bytes()[0].to_ascii_lowercase().into())
+            }
+            _ => None,
+        }
+    }
+
+    pub fn validate_chord(chord: &str) -> Result<Vec<u32>> {
+        let names = chord.split('+').collect::<Vec<_>>();
+        ensure!(
+            !names.is_empty() && names.len() <= 8,
+            "empty or oversized key chord"
+        );
+        names
+            .into_iter()
+            .map(|name| {
+                Self::named_keysym(name)
+                    .with_context(|| format!("unsupported X11 key name: {name}"))
+            })
+            .collect()
+    }
+
+    /// Timed interactive input for the MCP controller. Every chord is released
+    /// before its gap, and Drop remains a final release guard on failure.
+    pub fn timed_keys(
+        &mut self,
+        chords: &[String],
+        hold: Duration,
+        gap: Duration,
+        wait: impl Fn(Duration) -> Result<()>,
+    ) -> Result<()> {
+        ensure!(
+            (20..=10_000).contains(&hold.as_millis()),
+            "hold outside 20..10000 ms"
+        );
+        ensure!(gap.as_millis() <= 2_000, "gap outside 0..2000 ms");
+        ensure!(chords.len() <= 256, "too many key chords");
+        ensure!(
+            chords.len() as u128 * (hold.as_millis() + gap.as_millis()) <= 25_000,
+            "key action exceeds 25 seconds"
+        );
+        let validated = chords
+            .iter()
+            .map(|c| Self::validate_chord(c))
+            .collect::<Result<Vec<_>>>()?;
+        self.focus()?;
+        wait(Duration::from_millis(200))?;
+        let result = (|| -> Result<()> {
+            for symbols in validated {
+                ensure!(
+                    self.connection.get_input_focus()?.reply()?.focus == self.window()?,
+                    "game lost keyboard focus"
+                );
+                for symbol in symbols {
+                    let code = self.keycode(symbol)?;
+                    ensure!(self.pressed.insert(code), "duplicate physical key in chord");
+                    self.connection
+                        .xtest_fake_input(KEY_PRESS_EVENT, code, CURRENT_TIME, self.root, 0, 0, 0)?
+                        .check()?;
+                }
+                self.connection.flush()?;
+                wait(hold)?;
+                self.release()?;
+                wait(gap)?;
+            }
+            Ok(())
+        })();
+        let released = self.release();
+        result?;
+        released
     }
     fn atom(&self, name: &[u8]) -> Result<Atom> {
         Ok(self.connection.intern_atom(false, name)?.reply()?.atom)
@@ -152,14 +250,8 @@ impl Desktop {
         );
         Ok(())
     }
-    /// Timed OS input is permitted only for declared menu/save setup. Gameplay
-    /// replay must use the verified frame-indexed sampler, never this function.
-    pub fn setup_key(
-        &mut self,
-        key: SetupKey,
-        wait: impl Fn(Duration) -> Result<()>,
-    ) -> Result<()> {
-        self.focus()?;
+
+    fn keycode(&self, keysym: u32) -> Result<u8> {
         let setup = self.connection.setup();
         let count = setup
             .max_keycode
@@ -176,14 +268,63 @@ impl Desktop {
             .keysyms
             .chunks(mapping.keysyms_per_keycode as usize)
             .enumerate()
-            .filter(|(_, symbols)| symbols.first() == Some(&key.keysym()))
+            .filter(|(_, symbols)| symbols.contains(&keysym))
             .map(|(i, _)| setup.min_keycode + i as u8)
             .collect();
         ensure!(
             keys.len() == 1,
-            "setup key has no unique primary X11 mapping"
+            "physical key has no unique primary X11 mapping"
         );
-        let code = keys[0];
+        Ok(keys[0])
+    }
+
+    /// Deliver literal physical key edges through XTest on the private display.
+    /// Wine and Hype retain focus handling, translation, callback order, input
+    /// history, bindings and consumption. This never writes game memory.
+    pub fn physical_events(&mut self, events: &[Event]) -> Result<()> {
+        let window = self.window()?;
+        ensure!(
+            self.connection.get_input_focus()?.reply()?.focus == window,
+            "game lost keyboard focus before physical input"
+        );
+        for event in events {
+            ensure!(event.keyboard == 0, "unsupported physical keyboard");
+            let code = self.keycode(physical_keysym(event.key))?;
+            match event.edge {
+                Edge::Press => {
+                    ensure!(self.pressed.insert(code), "physical key is already held");
+                    self.connection
+                        .xtest_fake_input(KEY_PRESS_EVENT, code, CURRENT_TIME, self.root, 0, 0, 0)?
+                        .check()?;
+                }
+                Edge::Release => {
+                    ensure!(self.pressed.remove(&code), "physical key is not held");
+                    self.connection
+                        .xtest_fake_input(
+                            KEY_RELEASE_EVENT,
+                            code,
+                            CURRENT_TIME,
+                            self.root,
+                            0,
+                            0,
+                            0,
+                        )?
+                        .check()?;
+                }
+            }
+        }
+        self.connection.flush()?;
+        Ok(())
+    }
+    /// Timed OS input is permitted only for declared menu/save setup. Gameplay
+    /// replay must use the verified frame-indexed sampler, never this function.
+    pub fn setup_key(
+        &mut self,
+        key: SetupKey,
+        wait: impl Fn(Duration) -> Result<()>,
+    ) -> Result<()> {
+        self.focus()?;
+        let code = self.keycode(key.keysym())?;
         self.pressed.insert(code);
         let held = (|| -> Result<()> {
             self.connection

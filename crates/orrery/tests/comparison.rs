@@ -9,7 +9,7 @@ use astrolabe::{
     openspace::level::live::{ActionDefinitionProjection, ActorObservation},
     rete::Store,
 };
-use astrolabe_testkit::comparison::{Outcome, compare_main_actor, load_main_actor};
+use orrery::comparison::{Outcome, compare_main_actor, load_main_actor};
 
 fn fixture() -> Result<(Scene, Perso, Family, ActorObservation)> {
     let family = Family {

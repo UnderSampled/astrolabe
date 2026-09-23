@@ -1,5 +1,5 @@
 //! Rooted Hype model import and controlled source reconstruction.
-//! Virtual addresses remain private to this adapter. See docs/level-rust-research.md.
+//! Virtual addresses remain private to this adapter. See notes/level-rust-research.md.
 mod collision;
 mod collision_export;
 mod container;

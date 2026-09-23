@@ -3,12 +3,14 @@
 //! Observations are transient projections, not a second persistent asset model.
 use super::{
     container::{u32_at, wire},
-    records::{FamilyWire, MainActorWire, SuperObjectWire},
+    records::{FamilyWire, MainActorWire, PersoHeaderWire, SuperObjectWire},
     source_view::{self, RecordSource},
 };
 use crate::model::{
+    AssetRef,
+    ai::{BehaviorSelection, DesignerArray, DesignerValue},
     animation::TransformValue,
-    character::{Family, Perso},
+    character::{Family, Perso, StateRef},
 };
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
@@ -93,6 +95,128 @@ impl HypeBuild {
         let entry = source.required(0x756e70, 0)?;
         actor(&mut source, entry, actions, |a| format!("live:{a:08x}"))
     }
+
+    /// Inspect the selected actor plus its live behavior selections and only
+    /// the requested designer values. All roots are resolved from the verified
+    /// build; callers never supply process addresses. Returned labels are
+    /// capture-local evidence and must not be persisted as asset identities.
+    pub fn actor_with_ai(
+        &self,
+        memory: &mut impl ReadMemory,
+        actions: &[u32],
+        designer_values: &[u32],
+    ) -> Result<ActorAiObservation> {
+        ensure!(
+            designer_values
+                .iter()
+                .copied()
+                .collect::<BTreeSet<_>>()
+                .len()
+                == designer_values.len(),
+            "duplicate selected designer value"
+        );
+        let status = self.status(memory)?;
+        ensure!(
+            status.phase == 9 && !status.level.is_empty(),
+            "actor inspection requires a loaded gameplay phase"
+        );
+        let mut source = MemoryView(memory);
+        let entry = source.required(0x756e70, 0)?;
+        let actor = actor(&mut source, entry, actions, |a| format!("live:{a:08x}"))?;
+        let node = source.required(entry, 4)?;
+        let perso = source.required(node, 4)?;
+        let parts = source_view::perso_parts(&mut source, perso)?;
+        let action_members = source_view::list(&mut source, parts.family, 16)?;
+        let ai = source_view::ai_parts(&mut source, perso)?;
+        let normal_set = source_view::behavior_set(&mut source, ai.model, 0)?;
+        let reflex_set = source_view::behavior_set(&mut source, ai.model, 4)?;
+        let normal = source_view::behavior_selection(&mut source, ai.mind, 4, normal_set.as_ref())?;
+        let reflex = source_view::behavior_selection(&mut source, ai.mind, 8, reflex_set.as_ref())?;
+        let designer = source_view::designer_view(&mut source, ai.model, ai.mind)?;
+        ensure!(
+            designer.is_some() || designer_values.is_empty(),
+            "actor AI has no designer values"
+        );
+        let mut selected_designer_values = Vec::with_capacity(designer_values.len());
+        if let Some(designer) = designer {
+            let family = AssetRef::new("level:/families/__live_observation__")?;
+            let actor_ref = AssetRef::new("level:/persos/__live_observation__")?;
+            for &index in designer_values {
+                let info = *designer
+                    .fields
+                    .get(index as usize)
+                    .context("selected designer value outside definition")?;
+                let selected_actor = std::cell::Cell::new(None);
+                let (value, _) = source_view::designer_value(
+                    &mut source,
+                    designer.values,
+                    info,
+                    designer.length,
+                    |target| {
+                        target
+                            .map(|target| {
+                                action_members
+                                    .iter()
+                                    .position(|member| *member == target)
+                                    .map(|state| StateRef {
+                                        family: family.clone(),
+                                        state: state as u32,
+                                    })
+                                    .context("designer action outside selected actor family")
+                            })
+                            .transpose()
+                    },
+                    |target| {
+                        selected_actor.set(target);
+                        Ok(target.map(|_| actor_ref.clone()))
+                    },
+                )?;
+                let value = match value {
+                    DesignerValue::Action(value) => {
+                        ObservedDesignerValue::Action(value.map(|value| value.state))
+                    }
+                    DesignerValue::ActionArray(value) => {
+                        ObservedDesignerValue::ActionArray(DesignerArray {
+                            values: value
+                                .values
+                                .into_iter()
+                                .map(|value| value.map(|value| value.state))
+                                .collect(),
+                            unknown: value.unknown,
+                            element_unknown: value.element_unknown,
+                        })
+                    }
+                    DesignerValue::Actor(value) => {
+                        let target = selected_actor.get();
+                        ensure!(
+                            value.is_some() == target.is_some(),
+                            "designer actor binding differs"
+                        );
+                        if let Some(target) = target {
+                            let _: PersoHeaderWire = wire(&source.bytes(target, 20)?)?;
+                            source_view::perso_parts(&mut source, target)
+                                .context("designer actor is not a readable perso")?;
+                        }
+                        ObservedDesignerValue::Actor(
+                            target.map(|target| format!("live:{target:08x}")),
+                        )
+                    }
+                    value => ObservedDesignerValue::Value(value),
+                };
+                selected_designer_values.push(SelectedDesignerValue {
+                    index,
+                    kind: info.kind,
+                    value,
+                });
+            }
+        }
+        Ok(ActorAiObservation {
+            actor,
+            normal,
+            reflex,
+            designer_values: selected_designer_values,
+        })
+    }
 }
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -169,6 +293,33 @@ pub struct ActorObservation {
     pub current_action: Option<u32>,
     pub secondary_action: Option<u32>,
     pub global_transform: TransformValue,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ActorAiObservation {
+    pub actor: ActorObservation,
+    pub normal: Option<BehaviorSelection>,
+    pub reflex: Option<BehaviorSelection>,
+    pub designer_values: Vec<SelectedDesignerValue>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SelectedDesignerValue {
+    pub index: u32,
+    pub kind: u32,
+    pub value: ObservedDesignerValue,
+}
+
+/// Reference-bearing values use family member ids or capture-local actor labels;
+/// every other kind is exactly the useful model value decoded by the shared codec.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ObservedDesignerValue {
+    Value(DesignerValue),
+    Action(Option<u32>),
+    ActionArray(DesignerArray<Option<u32>>),
+    Actor(Option<String>),
 }
 
 /// Cross-adapter meaning for the selected controlled actor and its resolved

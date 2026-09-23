@@ -1,6 +1,6 @@
 #![cfg(all(target_os = "linux", target_arch = "x86_64"))]
 use anyhow::{Result, ensure};
-use astrolabe_testkit::{instrumentation::Scratch, linux::Owner};
+use orrery::{instrumentation::Scratch, linux::Owner};
 use std::{
     fs,
     process::{Command, Stdio},
@@ -13,7 +13,7 @@ fn native_and_i386_scratch_lifetimes_are_bounded() -> Result<()> {
     let fixture = temp.path().join("fixture.json");
     let mut owner = Owner::new()?;
     let process = owner.spawn(
-        Command::new(env!("CARGO_BIN_EXE_astrolabe-testkit"))
+        Command::new(env!("CARGO_BIN_EXE_orrery"))
             .arg("fixture")
             .arg(&fixture)
             .stdout(Stdio::null()),
