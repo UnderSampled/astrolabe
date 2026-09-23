@@ -1441,6 +1441,28 @@
       "release": true
     },
     {
+      "binary": "orrery::behavior_synthetic",
+      "test": "synthetic_turn_and_walk_use_shared_bdd_steps_and_report_pending_godot",
+      "areas": ["movement", "comparison"],
+      "kind": "contract",
+      "prerequisites": [],
+      "fixture": "synthetic functional movement actor",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery::behavior_original",
+      "test": "original_movement_scenarios_share_one_game_session",
+      "areas": ["movement", "comparison"],
+      "kind": "original-engine",
+      "prerequisites": ["original"],
+      "fixture": "pinned Hype executable and supplied English SaveGame0",
+      "timeout_seconds": 180,
+      "ignored": true,
+      "release": true
+    },
+    {
       "binary": "orrery::runtime",
       "test": "stopped_capture_is_bounded_immutable_and_never_completed_update",
       "areas": [

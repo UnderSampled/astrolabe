@@ -1,0 +1,552 @@
+use anyhow::{Context, Result, ensure};
+use astrolabe::{
+    model::{animation::TransformValue, geometry::SourceTransform},
+    openspace::level::live::ActorObservation,
+};
+use cucumber::{World as _, WriterExt as _, given, then, when, writer::Stats as _};
+use orrery::behavior::{self, ActorSample, BackendResult, OriginalBackend, Scenario};
+use std::{
+    cell::{Cell, RefCell},
+    fs,
+    path::PathBuf,
+    process::Command,
+    rc::Rc,
+    time::{SystemTime, UNIX_EPOCH},
+};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(dead_code)]
+pub enum Mode {
+    Synthetic,
+    Original,
+}
+
+struct ScenarioOutcome {
+    scenario: Scenario,
+    result: Option<BackendResult>,
+    failure: Option<String>,
+    local_cleanup_error: Option<String>,
+}
+
+fn source_provenance() -> serde_json::Value {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let revision = Command::new("git")
+        .arg("-C")
+        .arg(&root)
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .map(|text| text.trim().to_owned());
+    let dirty = Command::new("git")
+        .arg("-C")
+        .arg(&root)
+        .args(["status", "--porcelain"])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .map(|output| !output.stdout.is_empty());
+    serde_json::json!({"git_revision": revision, "working_tree_dirty": dirty})
+}
+
+#[derive(cucumber::World, Default)]
+pub struct BehaviorWorld {
+    backend: Option<OriginalBackend>,
+    result: Option<BackendResult>,
+    scenario: Option<Scenario>,
+    failure: Option<String>,
+    outcomes: Option<Rc<RefCell<Vec<ScenarioOutcome>>>>,
+    launch_count: Option<Rc<Cell<u32>>>,
+}
+impl std::fmt::Debug for BehaviorWorld {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BehaviorWorld")
+            .field("scenario", &self.scenario)
+            .field("failure", &self.failure)
+            .finish()
+    }
+}
+impl Drop for BehaviorWorld {
+    fn drop(&mut self) {
+        let cleanup = self.backend.as_mut().map(OriginalBackend::stop).transpose();
+        if let (Some(scenario), Some(outcomes)) = (self.scenario, &self.outcomes) {
+            outcomes.borrow_mut().push(ScenarioOutcome {
+                scenario,
+                result: self.result.take(),
+                failure: self.failure.take(),
+                local_cleanup_error: cleanup.err().map(|err| err.to_string()),
+            });
+        }
+    }
+}
+
+fn synthetic_actor(action: u32, translation: [f32; 3], heading: f32) -> ActorObservation {
+    let (sine, cosine) = heading.sin_cos();
+    let transform = SourceTransform {
+        translation,
+        rotation: [[cosine, sine, 0.], [-sine, cosine, 0.], [0., 0., 1.]],
+        basis: [[cosine, sine, 0.], [-sine, cosine, 0.], [0., 0., 1.]],
+    };
+    ActorObservation {
+        node: "synthetic:node".into(),
+        perso: "synthetic:perso".into(),
+        data3d: "synthetic:data3d".into(),
+        family: "synthetic:family".into(),
+        object_types: [1, 1, 1],
+        family_type: 1,
+        action_members: vec![],
+        action_definitions: vec![],
+        initial_action: Some(47),
+        current_action: Some(action),
+        secondary_action: None,
+        global_transform: TransformValue::Affine(transform),
+    }
+}
+pub fn synthetic_result(recording: behavior::FunctionalRecording) -> Result<BackendResult> {
+    let scenario = recording.scenario;
+    let (points, active) = match scenario {
+        Scenario::TurnReleaseIdle => (
+            [
+                (0., 0., 0.),
+                (0., 0., 1.),
+                (0., 0., 1.),
+                (0., 0., 1.),
+                (0., 0., 1.),
+            ],
+            35,
+        ),
+        Scenario::WalkReleaseStop => (
+            [
+                (0., 0., 0.),
+                (1., 0., 0.),
+                (2.2, 0., 0.),
+                (2.25, 0., 0.),
+                (2.25, 0., 0.),
+            ],
+            32,
+        ),
+    };
+    let samples = recording
+        .samples
+        .iter()
+        .zip(points)
+        .enumerate()
+        .map(|(index, (point, (x, y, heading)))| {
+            ActorSample::from_actor(
+                point.name.clone(),
+                point.at_ms,
+                point.at_ms,
+                point.at_ms + 1,
+                synthetic_actor(
+                    if index == 1 || index == 2 { active } else { 47 },
+                    [x, y, 0.],
+                    heading,
+                ),
+            )
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let checks = behavior::assertions(scenario, &samples)?;
+    let delivered = recording
+        .inputs
+        .iter()
+        .map(|input| behavior::DeliveredInput {
+            id: input.id.clone(),
+            planned_ms: input.at_ms,
+            actual_ms: input.at_ms,
+            event: input.event.clone(),
+        })
+        .collect();
+    Ok(BackendResult {
+        backend: "synthetic".into(),
+        scenario,
+        status: if checks.iter().all(|c| c.passed) {
+            "passed"
+        } else {
+            "failed"
+        }
+        .into(),
+        recording_sha256: recording.sha256()?,
+        recording,
+        executable_sha256: None,
+        save_sha256: None,
+        loaded_level: Some("synthetic_manoir".into()),
+        input_delivery: "synthetic_fixture".into(),
+        observation_consistency: "synthetic".into(),
+        completed_update: false,
+        setup_interventions: vec![],
+        delivered,
+        samples,
+        assertions: checks,
+        screenshot: None,
+        cleanup_complete: false,
+        error: None,
+    })
+}
+
+#[given("a clear path is ahead of Hype")]
+fn clear_path(world: &mut BehaviorWorld) {
+    if crate::BACKEND == Mode::Original {
+        let result = world
+            .backend
+            .as_mut()
+            .context("OpenSpace backend not started")
+            .and_then(OriginalBackend::face_clear_path);
+        if let Err(err) = result {
+            world.failure = Some(err.to_string());
+            panic!("clear-path setup failed: {err}")
+        }
+    }
+}
+
+#[given("Hype is ready to move in a clear part of the manor")]
+fn ready(world: &mut BehaviorWorld) {
+    if crate::BACKEND == Mode::Original && world.backend.is_none() {
+        let result = (|| -> Result<OriginalBackend> {
+            let config = PathBuf::from(
+                std::env::var_os("ASTROLABE_HYPE_CONFIG")
+                    .context("ASTROLABE_HYPE_CONFIG missing")?,
+            );
+            let runs = std::env::var_os("ASTROLABE_EVIDENCE_DIR")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../TestResults")
+                })
+                .join("behavior-runs");
+            OriginalBackend::start_with_bridge(
+                &config,
+                &runs,
+                Some(std::path::Path::new(env!("CARGO_BIN_EXE_orrery"))),
+            )
+        })();
+        match result {
+            Ok(backend) => {
+                world.backend = Some(backend);
+                if let Some(count) = &world.launch_count {
+                    count.set(count.get() + 1);
+                }
+            }
+            Err(err) => {
+                world.failure = Some(err.to_string());
+                panic!("OpenSpace setup failed: {err}")
+            }
+        }
+    }
+}
+fn perform(world: &mut BehaviorWorld, scenario: Scenario) {
+    world.scenario = Some(scenario);
+    let tape = behavior::recording(scenario);
+    let result = match crate::BACKEND {
+        Mode::Synthetic => synthetic_result(tape),
+        Mode::Original => world
+            .backend
+            .as_mut()
+            .context("OpenSpace backend not started")
+            .and_then(|backend| backend.run(tape)),
+    };
+    match result {
+        Ok(result) => world.result = Some(result),
+        Err(err) => {
+            world.failure = Some(err.to_string());
+            panic!("behavior recording failed: {err}")
+        }
+    }
+}
+
+#[when("the player turns and releases the turning control")]
+fn turn(world: &mut BehaviorWorld) {
+    perform(world, Scenario::TurnReleaseIdle);
+}
+
+#[when("the player walks forward and releases the movement control")]
+fn walk(world: &mut BehaviorWorld) {
+    perform(world, Scenario::WalkReleaseStop);
+}
+
+fn require_checks(world: &mut BehaviorWorld, names: &[&str]) {
+    let result = world
+        .result
+        .as_ref()
+        .expect("When step produced no backend result");
+    let mut failure = None;
+    for name in names {
+        match result.assertions.iter().find(|check| check.name == *name) {
+            Some(check) if check.passed => (),
+            Some(check) => {
+                failure = Some(format!(
+                    "{}: {} outside {:?}..{:?}",
+                    check.name, check.actual, check.lower, check.upper
+                ));
+                break;
+            }
+            None => {
+                failure = Some(format!("missing assertion {name}"));
+                break;
+            }
+        }
+    }
+    if let Some(failure) = failure {
+        world.failure = Some(failure.clone());
+        panic!("{failure}")
+    }
+}
+
+#[then("Hype faces the new direction without walking away")]
+fn turned(world: &mut BehaviorWorld) {
+    require_checks(
+        world,
+        &["active_action", "heading_change_rad", "turn_translation_xy"],
+    );
+}
+
+#[then("Hype moves forward from the starting place")]
+fn moved(world: &mut BehaviorWorld) {
+    require_checks(
+        world,
+        &[
+            "active_action",
+            "walk_translation_xy",
+            "late_held_progress_xy",
+            "settling_continuation_xy",
+            "walk_height_change",
+            "heading_retained_rad",
+        ],
+    );
+}
+
+#[then("Hype returns to standing without continuing to drift")]
+fn stopped(world: &mut BehaviorWorld) {
+    require_checks(
+        world,
+        &[
+            "baseline_idle_action",
+            "settled_idle_action_start",
+            "settled_idle_action_end",
+            "post_release_drift_xy",
+        ],
+    );
+}
+
+fn selected_scenario(name: &str) -> Result<Scenario> {
+    Ok(match name {
+        "Turning while standing" => Scenario::TurnReleaseIdle,
+        "Walking and stopping" => Scenario::WalkReleaseStop,
+        _ => anyhow::bail!("unknown BDD scenario: {name}"),
+    })
+}
+
+fn evidence_directory() -> PathBuf {
+    std::env::var_os("ASTROLABE_EVIDENCE_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../TestResults"))
+}
+
+fn write_json(path: &PathBuf, value: &serde_json::Value) -> Result<()> {
+    let mut bytes = serde_json::to_vec_pretty(value)?;
+    bytes.push(b'\n');
+    fs::write(path, bytes).with_context(|| format!("write {}", path.display()))
+}
+
+#[allow(dead_code)]
+pub struct SessionEvidence {
+    pub scenario_reports: Vec<PathBuf>,
+    pub suite_report: PathBuf,
+}
+
+fn run_selected(names: &[&'static str], shared_session: bool) -> Result<SessionEvidence> {
+    ensure!(!names.is_empty(), "no BDD scenarios requested");
+    ensure!(
+        shared_session || names.len() == 1,
+        "isolated run selects one scenario"
+    );
+    let directory = evidence_directory();
+    fs::create_dir_all(&directory)?;
+    let session_id = SystemTime::now()
+        .duration_since(UNIX_EPOCH)?
+        .as_nanos()
+        .to_string();
+    let session = Rc::new(RefCell::new(None::<OriginalBackend>));
+    let outcomes = Rc::new(RefCell::new(Vec::<ScenarioOutcome>::new()));
+    let launch_count = Rc::new(Cell::new(0_u32));
+    let runtime = tokio::runtime::Runtime::new()?;
+    let mut run_error = None;
+    for name in names {
+        let name = *name;
+        let scenario = selected_scenario(name)?;
+        let before_session = Rc::clone(&session);
+        let before_outcomes = Rc::clone(&outcomes);
+        let before_launch_count = Rc::clone(&launch_count);
+        let after_session = Rc::clone(&session);
+        let writer = runtime.block_on(async {
+            BehaviorWorld::cucumber()
+                .with_writer(cucumber::writer::Basic::stdout().summarized())
+                .fail_on_skipped()
+                .max_concurrent_scenarios(1)
+                .before(move |_, _, _, world| {
+                    world.scenario = Some(scenario);
+                    world.outcomes = Some(Rc::clone(&before_outcomes));
+                    world.launch_count = Some(Rc::clone(&before_launch_count));
+                    world.backend = before_session.borrow_mut().take();
+                    Box::pin(async {})
+                })
+                .after(move |_, _, _, finished, world| {
+                    if let Some(world) = world {
+                        if !matches!(finished, cucumber::event::ScenarioFinished::StepPassed) {
+                            world.failure.get_or_insert_with(|| {
+                                "Cucumber scenario did not finish with passing steps".into()
+                            });
+                        }
+                        if world.failure.is_none()
+                            && world.result.as_ref().is_some_and(|r| r.status == "passed")
+                            && let Some(backend) = world.backend.take()
+                        {
+                            *after_session.borrow_mut() = Some(backend);
+                        }
+                    }
+                    Box::pin(async {})
+                })
+                .with_default_cli()
+                .filter_run(
+                    concat!(
+                        env!("CARGO_MANIFEST_DIR"),
+                        "/tests/features/movement.feature"
+                    ),
+                    move |_, _, candidate| candidate.name == name,
+                )
+                .await
+        });
+        if writer.passed_steps() < if name == "Walking and stopping" { 5 } else { 4 }
+            || writer.failed_steps() != 0
+            || writer.skipped_steps() != 0
+            || writer.parsing_errors() != 0
+            || writer.hook_errors() != 0
+        {
+            run_error = Some(format!("BDD scenario {name} was incomplete or failed"));
+            break;
+        }
+    }
+    let session_cleanup = session
+        .borrow_mut()
+        .take()
+        .map(|mut backend| backend.stop())
+        .transpose();
+    if let Err(err) = &session_cleanup {
+        run_error.get_or_insert_with(|| format!("BDD game cleanup failed: {err}"));
+    }
+    let cleanup_complete = session_cleanup.is_ok();
+    let mut paths = vec![];
+    for mut outcome in outcomes.borrow_mut().drain(..) {
+        let local_cleanup_complete = outcome.local_cleanup_error.is_none();
+        let error = outcome
+            .failure
+            .take()
+            .or(outcome.local_cleanup_error.take())
+            .or_else(|| session_cleanup.as_ref().err().map(ToString::to_string));
+        if let Some(result) = &mut outcome.result {
+            result.cleanup_complete = cleanup_complete && local_cleanup_complete;
+            if let Some(error) = &error {
+                result.status = "failed".into();
+                result.error = Some(error.clone());
+            } else if let Err(err) = result.require_pass() {
+                result.status = "failed".into();
+                result.error = Some(err.to_string());
+                run_error.get_or_insert_with(|| format!("{}: {err}", outcome.scenario.slug()));
+            }
+        }
+        let selected_backend = match crate::BACKEND {
+            Mode::Synthetic => "synthetic",
+            Mode::Original => "openspace",
+        };
+        let openspace_status = outcome
+            .result
+            .as_ref()
+            .map(|r| r.status.as_str())
+            .unwrap_or("failed");
+        let report = serde_json::json!({
+            "schema": 1, "scenario": outcome.scenario,
+            "selected_backend": selected_backend,
+            "source": source_provenance(),
+            "session": {"id": session_id, "shared": shared_session, "launch_count": launch_count.get(),
+                "startup_settle_ms": if crate::BACKEND == Mode::Original { Some(behavior::ORIGINAL_STARTUP_SETTLE_MS) } else { None }},
+            "result": outcome.result,
+            "openspace": if crate::BACKEND == Mode::Original { serde_json::json!({"status": openspace_status}) } else { serde_json::json!({"status": "not_run"}) },
+            "godot": BackendResult::pending_godot(outcome.scenario),
+            "cross_backend": {"status": "not_run", "reason": "Godot backend is pending"},
+            "cleanup_complete": cleanup_complete && local_cleanup_complete,
+            "error": error,
+        });
+        let path = directory.join(format!(
+            "behavior-{}-{session_id}.json",
+            outcome.scenario.slug()
+        ));
+        write_json(&path, &report)?;
+        eprintln!("behavior evidence: {}", path.display());
+        let validation = (|| -> Result<()> {
+            let stored: serde_json::Value = serde_json::from_slice(&fs::read(&path)?)?;
+            ensure!(stored["cleanup_complete"] == true, "BDD cleanup failed");
+            ensure!(stored["result"]["status"] == "passed", "BDD backend failed");
+            let result: BackendResult = serde_json::from_value(stored["result"].clone())?;
+            result.require_pass()?;
+            if crate::BACKEND == Mode::Original {
+                ensure!(
+                    stored["openspace"]["status"] == "passed",
+                    "OpenSpace result missing"
+                );
+            }
+            ensure!(stored["godot"]["status"] == "pending", "Godot slot missing");
+            Ok(())
+        })();
+        if let Err(err) = validation {
+            run_error.get_or_insert_with(|| format!("{}: {err}", outcome.scenario.slug()));
+        }
+        paths.push(path);
+    }
+    let not_run = names.iter().skip(paths.len()).copied().collect::<Vec<_>>();
+    if !not_run.is_empty() {
+        run_error.get_or_insert_with(|| "BDD scenario report missing".into());
+    }
+    if crate::BACKEND == Mode::Original && shared_session && launch_count.get() != 1 {
+        run_error.get_or_insert_with(|| "shared run restarted the game".into());
+    }
+    let suite_report = directory.join(format!("behavior-suite-{session_id}.json"));
+    write_json(
+        &suite_report,
+        &serde_json::json!({
+            "schema": 1,
+            "session_id": session_id,
+            "requested": names,
+            "completed_reports": paths,
+            "not_run": not_run,
+            "shared_session": shared_session,
+            "launch_count": launch_count.get(),
+            "startup_settle_ms": if crate::BACKEND == Mode::Original { Some(behavior::ORIGINAL_STARTUP_SETTLE_MS) } else { None },
+            "cleanup_complete": cleanup_complete,
+            "status": if run_error.is_none() && not_run.is_empty() { "passed" } else { "failed" },
+            "error": run_error,
+        }),
+    )?;
+    ensure!(
+        run_error.is_none(),
+        "{} (suite: {})",
+        run_error.as_deref().unwrap_or_default(),
+        suite_report.display()
+    );
+    Ok(SessionEvidence {
+        scenario_reports: paths,
+        suite_report,
+    })
+}
+
+#[allow(dead_code)]
+pub fn run_scenario(name: &'static str) -> Result<PathBuf> {
+    run_selected(&[name], false)?
+        .scenario_reports
+        .into_iter()
+        .next()
+        .context("BDD scenario report missing")
+}
+
+#[allow(dead_code)]
+pub fn run_scenarios_shared(names: &[&'static str]) -> Result<SessionEvidence> {
+    run_selected(names, true)
+}

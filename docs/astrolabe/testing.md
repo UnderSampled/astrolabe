@@ -15,6 +15,17 @@ python3 tools/test.py --area movement --local --offline --list
 
 Area runs include declared dependencies and mandatory safeguards. `--local` enables tests that need ignored local game data; without an area it selects the full existing converter inventory. `--release` selects the complete declared matrix. `--list` discovers the selected tests and reports `not_run`, never a pass. See `python3 tools/test.py --help` for fixture and budget options.
 
+The `movement` selection includes Cucumber functional scenarios in Orrery. The
+synthetic backend exercises the shared steps and mismatch reporting offline.
+With `--local` and the prepared original-game fixture, one ignored test runs
+turn–release–idle and walk–release–stop in order on one Hype process. Each
+Cucumber scenario has independent assertions and a `behavior-*.json` result;
+the suite file links both results, records one launch and final cleanup. The
+walk verifies and uses the position and heading left by the successful turn.
+Single-scenario execution remains available through the same step runner.
+Godot remains a pending slot in each result. See the [dated design and evidence note](../../notes/behavior-suite-2026-09-23.md)
+for the declared setup, bounds and limits.
+
 Each run owns a temporary workspace and tracks its process tree through cleanup. It does not install tools or proprietary game data. Independent jobs must not share one original-game installation. New reports do not overwrite older reports. The current selection, exclusions, tool versions, run times, and outcomes are captured in the generated JSON and supporting evidence directory.
 
 Use `cargo fmt --all --check` and `cargo clippy --workspace --locked --all-targets -- -D warnings` when changing the workspace. Rust test coverage is collected separately with `tools/coverage.py`; synthetic and local-inclusive reports remain separate. Install the pinned optional tools with `python3 tools/install-test-tools.py nextest llvm-cov` when needed.

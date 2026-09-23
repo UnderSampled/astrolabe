@@ -1,6 +1,7 @@
 //! Orrery's persistent native controller for the private original-game copy.
 //! The process owner, memory identity guard, private Gamescope display and XTest
 //! input path are the same primitives used by the focused comparison probes.
+use crate::replay::Event;
 use crate::{
     config::Config,
     desktop::Desktop,
@@ -9,7 +10,7 @@ use crate::{
 use anyhow::{Context, Result, bail, ensure};
 use astrolabe::openspace::level::{
     hype_runtime,
-    live::{HypeBuild, ReadMemory},
+    live::{ActorObservation, HypeBuild, ReadMemory},
 };
 use serde_json::{Value, json};
 use std::{
@@ -118,6 +119,15 @@ pub struct GameSession {
 
 impl GameSession {
     pub fn start(config_path: &Path, runs: &Path, duration: Duration) -> Result<Self> {
+        Self::start_with_bridge(config_path, runs, duration, &std::env::current_exe()?)
+    }
+
+    pub fn start_with_bridge(
+        config_path: &Path,
+        runs: &Path,
+        duration: Duration,
+        bridge_binary: &Path,
+    ) -> Result<Self> {
         ensure!(
             (60..=43_200).contains(&duration.as_secs()),
             "duration outside 60..43200 seconds"
@@ -168,7 +178,7 @@ impl GameSession {
                 "60",
                 "--",
             ])
-            .arg(std::env::current_exe()?)
+            .arg(bridge_binary)
             .arg("display-bridge")
             .arg("--output")
             .arg(&handoff)
@@ -359,6 +369,31 @@ impl GameSession {
             "consistency_limit": "stopped-byte capture is coherent during this read but has no completed-update publication evidence",
             "observation": observation,
         }))
+    }
+
+    /// A typed functional observation. Each call is one coherent stopped-byte
+    /// capture; it does not claim a completed gameplay update.
+    pub fn observe_main_actor(&self) -> Result<ActorObservation> {
+        self.check()?;
+        let build = HypeBuild::verified(&self.config.exe_sha256)?;
+        let pause = self.process.pause(Duration::from_secs(1))?;
+        let mut capture = pause.capture()?;
+        let actor = build.actor_with_actions(&mut capture, &[47])?;
+        capture.finish()?;
+        drop(pause);
+        Ok(actor)
+    }
+
+    /// Focus once before a functional input schedule. Gameplay events use the
+    /// same guarded private-display XTest path as precision replay.
+    pub fn prepare_physical_input(&mut self) -> Result<()> {
+        self.check()?;
+        self.desktop.focus()
+    }
+
+    pub fn physical_events(&mut self, events: &[Event]) -> Result<()> {
+        self.check()?;
+        self.desktop.physical_events(events)
     }
 
     pub fn keys(&mut self, keys: &[String], hold_ms: u64, gap_ms: u64) -> Result<Value> {
@@ -639,6 +674,7 @@ impl GameSession {
 pub struct NativeController {
     config: PathBuf,
     runs: PathBuf,
+    bridge_binary: Option<PathBuf>,
     game: Option<GameSession>,
 }
 
@@ -647,8 +683,13 @@ impl NativeController {
         Self {
             config,
             runs,
+            bridge_binary: None,
             game: None,
         }
+    }
+    pub fn with_bridge_binary(mut self, bridge_binary: PathBuf) -> Self {
+        self.bridge_binary = Some(bridge_binary);
+        self
     }
     pub fn running(&mut self) -> bool {
         if self.game.as_ref().is_some_and(|g| g.check().is_err())
@@ -664,7 +705,16 @@ impl NativeController {
             value["already_running"] = json!(true);
             return Ok(value);
         }
-        let game = GameSession::start(&self.config, &self.runs, Duration::from_secs(seconds))?;
+        let game = if let Some(bridge) = &self.bridge_binary {
+            GameSession::start_with_bridge(
+                &self.config,
+                &self.runs,
+                Duration::from_secs(seconds),
+                bridge,
+            )?
+        } else {
+            GameSession::start(&self.config, &self.runs, Duration::from_secs(seconds))?
+        };
         let mut value = game.status()?;
         value["already_running"] = json!(false);
         self.game = Some(game);

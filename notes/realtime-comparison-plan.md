@@ -5,8 +5,10 @@ before its first real comparison. The 2026-09-20 input-timing evidence and
 technical contracts below remain in force.
 The gameplay checkpoint is preserved. The actual Godot input-boundary probe,
 focused test runner and initial Rust coverage collection are implemented; see
-[testing evidence](../docs/astrolabe/testing.md). The native live loader and BDD runners remain
-in progress. Resume the
+[testing evidence](../docs/astrolabe/testing.md). The first shared Cucumber
+movement scenarios now pass on OpenSpace; Godot execution and broader typed
+live loading remain in progress. See the [dated behavior-suite checkpoint](./behavior-suite-2026-09-23.md).
+Resume the
 [gameplay plan](./godot-gameplay-plan.md) through the first functional comparison
 slice; do not wait for complete live loading, precision replay or level coverage.
 
@@ -23,13 +25,14 @@ have synthetic relocated-memory coverage but no live selected-field result yet.
 The native replay publishes a qualified action at completed updates for one
 fixed Left/Shift+Left recording; that publication is not yet a general typed
 AI or whole-level observation API.
-There are no `.feature` files, shared BDD step registry or runnable
-engine-independent gameplay scenarios in the current tree. The existing
-comparison code covers selected static actor fields; its results do not
-validate Hype's player behavior. The [saved player Brain gap](./hype-control-progress.md#player-brain-export-gap--2026-09-23-audit)
+There is now one `.feature` file and shared BDD step registry with OpenSpace
+turn–release–idle and walk–release–stop results. The synthetic run demonstrates
+selection, assertion and mismatch plumbing. These broad functional results use
+stopped-byte observations and do not validate exact input-consumer timing or
+contact. The [saved player Brain gap](./hype-control-progress.md#player-brain-export-gap--2026-09-23-audit)
 also prevents the ordinary `manoir` export from supplying a runnable player AI.
-Use these implemented parts as inputs to the suite framework below; do not count
-their component checks as a completed behavior comparison.
+The Godot slot and cross-backend result remain pending. Do not count the
+component checks as a completed behavior comparison.
 
 The Python `hype` MCP harness remains available for optional diagnosis and its
 recorded observations remain useful baselines. The new suite must not depend on
@@ -679,8 +682,14 @@ Sampling an unseen apex cannot prove an exact jump height. Repeated runs
 characterize nondeterminism; automatic retries do not turn an intermittent
 failure into an unqualified pass.
 
-Use scenario-scoped state and reset between examples. Serialize scenarios sharing
-one original-game installation; parallelize independent offline tests only.
+Keep each scenario's observations, assertions and report scoped to that scenario.
+For a selected group, reuse one running game only when the next Given verifies
+the compatible state left by the preceding passed scenario; otherwise start
+from its declared fixture. The movement group runs turn then walk, with a
+checked handoff and one final process cleanup. Cucumber Rust 0.23 has
+scenario hooks but no feature-level hooks, so an outer runner owns this optional
+session and invokes each Cucumber scenario in explicit order. Serialize scenarios
+sharing one original-game installation; parallelize independent offline tests only.
 Undefined/ambiguous steps, pending required scenarios, empty selections, failed
 setup and missing required engines fail the selected job. Explicitly unselected
 capabilities appear as not run. Lightweight hooks own technical lifecycle; Given
