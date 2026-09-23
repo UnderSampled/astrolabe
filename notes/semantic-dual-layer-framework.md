@@ -1,6 +1,6 @@
 # Semantic dual-layer framework
 
-> **Historical C# framework:** The current design is [`../docs/rete-design.md`](../docs/rete-design.md). Rust asset boundaries follow useful content and sharing, with minimal reconstruction metadata attached to that content. Global struct pools, JSON `byId`/`runs`, and `content.json` expansion rules below are historical implementation details, not Rust requirements.
+> **Historical C# framework:** The current design is [`../docs/rete/rete-design.md`](../docs/rete/rete-design.md). Rust asset boundaries follow useful content and sharing, with minimal reconstruction metadata attached to that content. Global struct pools, JSON `byId`/`runs`, and `content.json` expansion rules below are historical implementation details, not Rust requirements.
 
 Shared contract for non-animation domain aggregation. **Animation** (`animation/families.json` + `transforms.json`) is the reference implementation; all other domains follow the same shape.
 

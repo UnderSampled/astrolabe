@@ -1,12 +1,12 @@
 # Rete Type Promotion Checklist
 
-Implementation checklist for promoting OpenSpace structs into Rete canonical types. Read [`notes/rete-implementation.md`](rete-implementation.md) first. Format: [`docs/rete-format.md`](../docs/rete-format.md). Plan: [`plan.md`](../plan.md).
+Implementation checklist for promoting OpenSpace structs into Rete canonical types. Read [`notes/rete-implementation.md`](./rete-implementation.md) first. Format: [`notes/historical/rete-format-csharp.md`](./historical/rete-format-csharp.md). Plan: [`plan.md`](../plan.md).
 
 Checked items are represented as Rete content elements and export through struct codecs. Some checked kinds are structured JSON; others are named binary leaves that still need field-level schemas.
 
 ## Next Agent Goal
 
-Documented Type Promotion Backlog field-level codecs are registered (see below). Residual work is genuinely undocumented/unclassified islands and package-shape cleanup (dense buffers as JSON descriptors + binary payloads, hierarchical JSON, optional S-expression authoring for scripts). Opaque binary leaves should remain only for data listed in [`notes/residual-opaque.txt`](residual-opaque.txt).
+Documented Type Promotion Backlog field-level codecs are registered (see below). Residual work is genuinely undocumented/unclassified islands and package-shape cleanup (dense buffers as JSON descriptors + binary payloads, hierarchical JSON, optional S-expression authoring for scripts). Opaque binary leaves should remain only for data listed in [`notes/residual-opaque.txt`](./residual-opaque.txt).
 
 **Rule:** if implementation needs to parse or traverse a structure, it must be promoted — not left in `types/raw/`. See Engineering rules in [`plan.md`](../plan.md).
 
@@ -61,7 +61,7 @@ Avoid file-per-node or file-per-small-struct output by default. Use separate fil
 
 ## AI Script Representation
 
-AI scripts are already documented as serialized S-expression trees in `docs/ai-script-format.md`, and `src/Astrolabe.Core/FileFormats/AI/SExpressionConverter.cs` has the existing conversion path.
+AI scripts are already documented as serialized S-expression trees in `docs/openspace/ai-script-format.md`, and `src/Astrolabe.Core/FileFormats/AI/SExpressionConverter.cs` has the existing conversion path.
 
 Represent script-like ASTs as S-expression files where possible:
 
@@ -172,7 +172,7 @@ Promote these named binary leaves first because the local docs, readers, tracker
 
 ### Geometry and Materials
 
-References: `docs/geometry-format.md`, `docs/lighting.md`, `src/Astrolabe.Core/FileFormats/Geometry/`, `src/Astrolabe.Core/FileFormats/Materials/`, `reference/raymap/Assets/Scripts/OpenSpace/Visual/`.
+References: `docs/openspace/geometry-format.md`, `docs/openspace/lighting.md`, `src/Astrolabe.Core/FileFormats/Geometry/`, `src/Astrolabe.Core/FileFormats/Materials/`, `reference/raymap/Assets/Scripts/OpenSpace/Visual/`.
 
 - [x] `geometricobject` structured JSON exists.
 - [x] `physicalobject` structured JSON exists.
@@ -192,7 +192,7 @@ References: `docs/geometry-format.md`, `docs/lighting.md`, `src/Astrolabe.Core/F
 
 ### Perso, Families, Object Lists, and Names
 
-References: `docs/perso-mesh-animation.md`, `docs/file-format-catalogue.md`, `src/Astrolabe.Core/FileFormats/Animation/FamilyReader.cs`, `src/Astrolabe.Core/FileFormats/ObjectTypeReader.cs`, `src/Astrolabe.Core/FileFormats/TrackingSuperObjectReader.cs`, `reference/raymap/Assets/Scripts/OpenSpace/`.
+References: `docs/openspace/perso-mesh-animation.md`, `docs/openspace/file-format-catalogue.md`, `src/Astrolabe.Core/FileFormats/Animation/FamilyReader.cs`, `src/Astrolabe.Core/FileFormats/ObjectTypeReader.cs`, `src/Astrolabe.Core/FileFormats/TrackingSuperObjectReader.cs`, `reference/raymap/Assets/Scripts/OpenSpace/`.
 
 - [x] `perso`: instance fields, links to 3D data, standard game, brain, mind/intelligence, collision, sector info.
 - [x] `perso3ddata`: family/object-list/state links and graphics state.
@@ -205,7 +205,7 @@ References: `docs/perso-mesh-animation.md`, `docs/file-format-catalogue.md`, `sr
 
 ### Animation and State Machines
 
-References: `docs/perso-mesh-animation.md`, `docs/file-format-catalogue.md`, `src/Astrolabe.Core/FileFormats/Animation/`, `src/Astrolabe.Core/FileFormats/TrackingSuperObjectReader.cs`, `reference/raymap/Assets/Scripts/OpenSpace/Animation/`.
+References: `docs/openspace/perso-mesh-animation.md`, `docs/openspace/file-format-catalogue.md`, `src/Astrolabe.Core/FileFormats/Animation/`, `src/Astrolabe.Core/FileFormats/TrackingSuperObjectReader.cs`, `reference/raymap/Assets/Scripts/OpenSpace/Animation/`.
 
 - [x] `state`: state name buffer, animation reference, transition list, mechanics/flags.
 - [x] `transition`: transition target, condition/action references, unknown fields.
@@ -219,11 +219,11 @@ References: `docs/perso-mesh-animation.md`, `docs/file-format-catalogue.md`, `sr
 - [x] `animhierarchiesheader`: hierarchy header/counts.
 - [x] `transform` (was `compressedmatrix`): Montreal compressed matrix wire + trailing stream gaps via `TransformCodec`; pooled in `animation/transforms.json` with channel URIs.
 
-**Animation package shape:** nested `animation/families.json` (Family → State ownership) + transform pool; block `content.json` v2 segments/expand carry stream order. See dual-layer rules in [`docs/rete-format.md`](../docs/rete-format.md).
+**Animation package shape:** nested `animation/families.json` (Family → State ownership) + transform pool; block `content.json` v2 segments/expand carry stream order. See dual-layer rules in [`notes/historical/rete-format-csharp.md`](./historical/rete-format-csharp.md).
 
 ### AI, Scripts, DSG, and Behavior
 
-References: `docs/ai-script-format.md`, `src/Astrolabe.Core/FileFormats/AI/`, `src/Astrolabe.Core/FileFormats/Animation/FamilyReader.cs`, `src/Astrolabe.Core/FileFormats/TrackingSuperObjectReader.cs`, `reference/raymap/Assets/Scripts/OpenSpace/AI/`.
+References: `docs/openspace/ai-script-format.md`, `src/Astrolabe.Core/FileFormats/AI/`, `src/Astrolabe.Core/FileFormats/Animation/FamilyReader.cs`, `src/Astrolabe.Core/FileFormats/TrackingSuperObjectReader.cs`, `reference/raymap/Assets/Scripts/OpenSpace/AI/`.
 
 - [x] `brain`: links to mind and AI model data.
 - [x] `mind`: current AI state and AI model references.
@@ -241,7 +241,7 @@ References: `docs/ai-script-format.md`, `src/Astrolabe.Core/FileFormats/AI/`, `s
 
 ### Sectors and Collision
 
-References: `docs/file-format-catalogue.md`, `docs/lighting.md`, `src/Astrolabe.Core/FileFormats/SuperObjectReader.cs`, `src/Astrolabe.Core/FileFormats/TrackingSuperObjectReader.cs`, `reference/raymap/Assets/Scripts/OpenSpace/`.
+References: `docs/openspace/file-format-catalogue.md`, `docs/openspace/lighting.md`, `src/Astrolabe.Core/FileFormats/SuperObjectReader.cs`, `src/Astrolabe.Core/FileFormats/TrackingSuperObjectReader.cs`, `reference/raymap/Assets/Scripts/OpenSpace/`.
 
 - [x] `sector`: sector structure, linked lists, neighbor entries, activity/sound/graphics/collision sector references.
 - [x] `sectorname`: decoded sector names as text JSON, preserving original bytes when needed (`TextNameCodec`).
@@ -258,7 +258,7 @@ References: `docs/file-format-catalogue.md`, `docs/lighting.md`, `src/Astrolabe.
 
 ### Miscellaneous Documented or Partially Documented Leaves
 
-References: `docs/file-format-catalogue.md`, `src/Astrolabe.Core/FileFormats/TrackingSuperObjectReader.cs`, `reference/raymap/`.
+References: `docs/openspace/file-format-catalogue.md`, `src/Astrolabe.Core/FileFormats/TrackingSuperObjectReader.cs`, `reference/raymap/`.
 
 - [x] `dynam`: dynamic object/physics state fields (`DynamCodec`; trailing unknown bytes named explicitly).
 - [x] `elementptrs`: generic element pointer arrays where not covered by geometry-specific serializers (`PointerArrayCodec`).

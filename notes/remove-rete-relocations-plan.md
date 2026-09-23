@@ -24,7 +24,7 @@ flowchart LR
   end
 ```
 
-On `output/test-rete/astrolabe`: **69,922** `rtb-sites` rows (~17 MB), **14,983** `.reloc.json` files, and **1,180** opaque descriptors with **duplicate** inline `pointers` + `.reloc.json`. The designed model is already specified in [`docs/rete-format.md`](../docs/rete-format.md) lines 226–227: opaque JSON carries the `pointers` LUT; RT* are **generated at export**.
+On `output/test-rete/astrolabe`: **69,922** `rtb-sites` rows (~17 MB), **14,983** `.reloc.json` files, and **1,180** opaque descriptors with **duplicate** inline `pointers` + `.reloc.json`. The designed model is already specified in [`notes/historical/rete-format-csharp.md`](./historical/rete-format-csharp.md) lines 226–227: opaque JSON carries the `pointers` LUT; RT* are **generated at export**.
 
 **Remove all RT*-related package storage** (including encoding cache) while **keeping byte-identical `cmp`**.
 
@@ -115,12 +115,12 @@ Merge the RTB-annotation logic (currently writing `.reloc.json`) into **inline `
 
 ### fixlvl / Fix→level
 
-Replace `fix-level-sites.json` with URI-driven generation per [`docs/cross-package-uris.md`](../docs/cross-package-uris.md):
+Replace `fix-level-sites.json` with URI-driven generation per [`notes/historical/cross-package-uris-csharp.md`](./historical/cross-package-uris-csharp.md):
 
 - Import: `AnnotateOpaquePointersFromFixLevelRelocations` continues writing `level:/…` URIs into Fix opaque `pointers` LUT (extend to emit `level:/slots/{fixSite}.json` convention)
 - Export: rewrite `GenerateFixLevelRtb` to scan Fix package elements:
   - Mapped row: Fix element offset + LUT key with `level:/` URI → resolve to level block
-  - Sentinel `FF:FF`: Fix pointer slot where value escapes Fix VM range but has no `level:/` URI (algorithmic; matches [`docs/fixlvl-rtb.md`](../docs/fixlvl-rtb.md) export description)
+  - Sentinel `FF:FF`: Fix pointer slot where value escapes Fix VM range but has no `level:/` URI (algorithmic; matches [`docs/openspace/fixlvl-rtb.md`](../docs/openspace/fixlvl-rtb.md) export description)
 
 ---
 
@@ -189,10 +189,10 @@ Update `RelocationGeneratorTests.cs`: remove sites/overlay fixtures; add URI-LUT
 
 Update to match implementation:
 
-- `docs/rete-format.md` — explicit "no relocation inventory in packages"
+- `notes/historical/rete-format-csharp.md` — explicit "no relocation inventory in packages"
 - `notes/rete-implementation.md` — remove bridge/sidecar guidance
 - `plan.md` — Step 5 completion criteria = URI-only Rete + generated RT*
-- `docs/cross-package-uris.md` — mark `level:/slots/` emission as implemented (not "planned")
+- `notes/historical/cross-package-uris-csharp.md` — mark `level:/slots/` emission as implemented (not "planned")
 
 ---
 
@@ -205,7 +205,7 @@ Update to match implementation:
 | LZO byte-identical without cache | Compress on export; fix generator ordering before blaming LZO |
 | Duplicate opaque LUT sources | Single write path; delete `.reloc.json` entirely |
 
-**Out of scope:** promoting remaining opaque kinds per [`intermediate-type-checklist.md`](intermediate-type-checklist.md) — continue incrementally as RTB gaps dictate.
+**Out of scope:** promoting remaining opaque kinds per [`intermediate-type-checklist.md`](./intermediate-type-checklist.md) — continue incrementally as RTB gaps dictate.
 
 ## Todos
 

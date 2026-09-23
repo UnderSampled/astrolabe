@@ -87,7 +87,7 @@ cursors or source return flags are part of this interface.
 The Astrolabe torch schedule, focused native flow/action/input variations and
 Hype's complete idle rule 0 are checked. Full player control and original frame
 cadence remain unfinished.
-See `docs/ai-gdscript-slice.md` and `docs/hype-control-progress.md` in the Astrolabe
+See `notes/ai-gdscript-slice.md` and `notes/hype-control-progress.md` in the Astrolabe
 repository for evidence and limits. Interface numbers 3–12 and Rete schemas
 11–20 were used by the archived experiment; this implementation skips them so
 incompatible preserved local output cannot accidentally pass a version check.

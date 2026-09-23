@@ -1,13 +1,13 @@
 # Rete Implementation Guide
 
-> **Historical C# implementation:** This guide describes the implementation archived in [`reference/astrolabe-csharp/`](../reference/astrolabe-csharp/). Its code paths, APIs, commands, and completion claims do not describe the new Rust working tree. See [`README.md`](../README.md) and [`AGENTS.md`](../AGENTS.md) for current project status and guidance.
+> **Historical C# implementation:** This guide describes the implementation archived in [`reference/astrolabe-csharp/`](../reference/astrolabe-csharp). Its code paths, APIs, commands, and completion claims do not describe the new Rust working tree. See [`README.md`](../README.md) and [`AGENTS.md`](../AGENTS.md) for current project status and guidance.
 
 Cold-start entrypoint for the Rete refactor. Read in order:
 
 1. [`plan.md`](../plan.md) — architecture and implementation steps
-2. [`docs/rete-format.md`](../docs/rete-format.md) — format specification
+2. [`notes/historical/rete-format-csharp.md`](./historical/rete-format-csharp.md) — format specification
 3. This file — code map, APIs, step boundaries
-4. [`intermediate-type-checklist.md`](intermediate-type-checklist.md) — per-type promotion
+4. [`intermediate-type-checklist.md`](./intermediate-type-checklist.md) — per-type promotion
 
 ## Goal
 
@@ -32,7 +32,7 @@ Cold-start entrypoint for the Rete refactor. Read in order:
 | `FileFormats/*Reader` | Read-only scanners/readers used for semantic discovery | Thin wrappers over struct codecs where practical |
 | `FileFormats/Godot/*` | Export from memory scan | Also consume canonical types / Rete URIs |
 
-New imports emit manifest schema `astrolabe.rete.v1` only (no intermediate.v1). SNA block `content.json` is **only** `astrolabe.sna-block-content.v2` (segments + expand) — no v1 `elements[]` reader. Semantic dual-layer: [`semantic-dual-layer-framework.md`](semantic-dual-layer-framework.md).
+New imports emit manifest schema `astrolabe.rete.v1` only (no intermediate.v1). SNA block `content.json` is **only** `astrolabe.sna-block-content.v2` (segments + expand) — no v1 `elements[]` reader. Semantic dual-layer: [`semantic-dual-layer-framework.md`](./semantic-dual-layer-framework.md).
 
 Relocation tables are generated at OpenSpace export only; not stored in Rete.
 
@@ -97,13 +97,13 @@ Registry drives import element extract and export element serialize — **no gro
 
 The `raw` codec kind (`OpaqueBinaryRecord`, `types/raw/…`) is a **placeholder** for wire blobs not yet promoted to a struct codec. Use it for byte-identical import/export and optional inline pointer LUTs during relocation generation.
 
-**Do not use `raw` when code must understand the data.** Hub load, mesh scan, Godot export, scene semantics, and any logic that reads fields or follows nested pointers must go through **promoted** canonical types with `HubReference` fields — promote per [`intermediate-type-checklist.md`](intermediate-type-checklist.md) first. Heuristic scans of `raw` blobs (LUT key matching, `#byteOffset` slicing) for documented structs are out of scope; they duplicate codecs and fight lazy hub resolution.
+**Do not use `raw` when code must understand the data.** Hub load, mesh scan, Godot export, scene semantics, and any logic that reads fields or follows nested pointers must go through **promoted** canonical types with `HubReference` fields — promote per [`intermediate-type-checklist.md`](./intermediate-type-checklist.md) first. Heuristic scans of `raw` blobs (LUT key matching, `#byteOffset` slicing) for documented structs are out of scope; they duplicate codecs and fight lazy hub resolution.
 
 ## Reference URIs
 
 - One string per pointer field on canonical types.
 - Resolved from the **referring package root** (relative path + optional `#` RFC 6901 fragment).
-- Cross-package URIs: `fix:/` (level→Fix) and `level:/` (Fix→level). Spec: [`docs/cross-package-uris.md`](../docs/cross-package-uris.md). Resolver done; import slot assignment not started. Legacy `../fix/...` still emitted.
+- Cross-package URIs: `fix:/` (level→Fix) and `level:/` (Fix→level). Spec: [`notes/historical/cross-package-uris-csharp.md`](./historical/cross-package-uris-csharp.md). Resolver done; import slot assignment not started. Legacy `../fix/...` still emitted.
 - Resolver: `Path.GetFullPath(Path.Combine(packageRoot, relativePath))` after splitting `#`.
 - Current Step 4 bridge rewrites promoted pointer fields to URI strings when the raw address maps to a package content element. `0` becomes `null`. Unresolved sentinel values and unpromoted pointer-like fields remain numeric to preserve byte-identical export.
 
@@ -156,7 +156,7 @@ Merge `Intermediate*` fields into canonical types (including unknown bytes). `Vi
 
 ## Implementation steps
 
-Sequential work units are defined in [`plan.md`](../plan.md#implementation-steps). This file adds code-level detail per step:
+Sequential work units are defined in [`plan.md`](../plan.md). This file adds code-level detail per step:
 
 | Step | Focus here |
 |------|------------|
@@ -171,7 +171,7 @@ Sequential work units are defined in [`plan.md`](../plan.md#implementation-steps
 Progress as of 2026-06-14 (commits `5ca7ef4`, `137265d`):
 
 - Steps 1–4 are complete on `astrolabe`, preserving byte-identical OpenSpace export.
-- Level import creates/reuses sibling `fix/`; Fix export validates independently against `Fix.*` (uppercase prefix on disc — see `docs/file-format-catalogue.md`).
+- Level import creates/reuses sibling `fix/`; Fix export validates independently against `Fix.*` (uppercase prefix on disc — see `docs/openspace/file-format-catalogue.md`).
 - Promoted structured pointer fields are URI/null on import and resolved back to virtual addresses on export via `ReferenceJson.WriteElementBytesForExport`.
 - Relocation JSON and preserved encoded RT payloads remain in packages as the bridge for Step 5.
 - Fresh level imports annotate Fix opaque LUT entries from transient disc `fixlvl.rtb`: mapped rows get `level:/slots/0x{fixSite}.json` plus per-level slot files; sentinel rows get `null` URI. No fixlvl site inventory is persisted on the Fix package.
@@ -240,7 +240,7 @@ done
 
 ## Key references
 
-- RT binary layout: [`docs/relocation-tables.md`](../docs/relocation-tables.md)
+- RT binary layout: [`docs/openspace/relocation-tables.md`](../docs/openspace/relocation-tables.md)
 - Raymap relocation: `reference/raymap/Assets/Scripts/OpenSpace/FileFormat/RelocationTable.cs`
 - Segmentation: `LevelIntermediateCodec.BuildContentPlans` + `TrackingSuperObjectReader`
 - Fix on disc: `Gamedata/World/Levels/Fix.sna`, `fixlvl.rtb`

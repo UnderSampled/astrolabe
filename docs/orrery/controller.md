@@ -1,0 +1,101 @@
+# Orrery native original-game MCP controller
+
+Orrery is Astrolabe's optional native Rust controller for the private original
+Hype installation. The Cargo package, library, CLI binary, MCP server identity,
+and Gamescope application identity are all named `orrery`. The converter does
+not depend on Orrery. The [[docs/orrery/comparison-model|comparison evidence model]] defines which claims its observations can support.
+
+The Python `hype` MCP bridge remains available for optional diagnosis. Orrery
+implements its 15 control tools and adds one read-only typed-inspection tool.
+The controller exposes game launch, save loading, physical input, selected actor
+inspection, screenshots, and cleanup. A dated operation record is linked below. The 16th tool,
+`inspect_main_actor`, pauses the owned game and invokes Astrolabe's shared
+OpenSpace reader; Orrery does not maintain a second record decoder. Its result
+is a `StoppedBytes` capture with executable/save/process/capture provenance and
+capture-local locators. It is not a completed-update observation and must not be
+used as frame-consumption evidence. With no arguments the tool preserves its
+original action-only response. Supplying `designer_values` (zero to 64 unique
+indices) opts into the shared typed AI view: normal/reflex behavior selections
+plus only those current designer-memory values. An empty list requests behavior
+selections without designer values.
+
+The service binds only `127.0.0.1`, requires one exact bearer token from
+an owner-owned mode-0600 file, checks `Host` and optional `Origin`, limits HTTP
+bodies to 128 KiB, and serializes controller operations. It owns one private
+Gamescope and Wine process tree. Every live-memory operation rechecks the pinned
+PID/start-time identity and executable/private-prefix guards. Interactive input
+uses XTest on Gamescope's private Xwayland display; Orrery does not write Hype's
+keyboard buffer or patch its keyboard callback.
+
+The MCP transport uses `rmcp` 3.4.0, the official Rust SDK maintained by the
+Model Context Protocol project. Its Streamable HTTP service owns protocol
+negotiation, the initialize/initialized lifecycle, session IDs, notification
+responses, and content negotiation; Orrery layers its local security policy and
+native controller behind that service.
+
+## Build and run
+
+The prepared installation remains at the sibling harness path;
+its game data and token stay untracked:
+
+```sh
+cargo build -p orrery --release --locked --offline
+install -m 600 /dev/null /home/stephen/Projects/hype-harness/local/orrery-mcp-token
+openssl rand -hex 32 > /home/stephen/Projects/hype-harness/local/orrery-mcp-token
+target/release/orrery mcp \
+  --config /home/stephen/Projects/hype-harness/local/config.json \
+  --token-file /home/stephen/Projects/hype-harness/local/orrery-mcp-token \
+  --runs /home/stephen/Projects/hype-harness/local/orrery-runs \
+  --port 18766
+```
+
+The endpoint is `http://127.0.0.1:18766/mcp`. The token file must belong to the
+current user and have no group/other permission bits. The server starts without
+launching the game; `start_game` creates the private window and `stop_game`
+removes the full owned process tree. Dropping or terminating the server also
+cleans up its game session.
+
+After verification, this is the Codex entry to add manually. Replace the sample
+value with the exact contents of the token file. Do not include angle brackets.
+
+```toml
+[mcp_servers.orrery]
+url = "http://127.0.0.1:18766/mcp"
+http_headers = { Authorization = "Bearer <64-hex-character-token>" }
+```
+
+The implementation deliberately does not edit `~/.codex/config.toml`.
+
+## Compatibility matrix
+
+| Old Hype MCP tool | Orrery implementation and preserved guard |
+| --- | --- |
+| `status` | Service plus owned-session status; does not launch the game |
+| `start_game` | Idempotent 60–43,200 second session; verified fixture and executable; private Gamescope display |
+| `stop_game` | Idempotent bounded cleanup of the owned process tree |
+| `press_keys` | 1–256 validated names/chords, 20–10,000 ms hold, 0–2,000 ms gap, 25-second action cap, unconditional key release |
+| `enter_cheat` | 1–64 lowercase letters/digits, unique live binding, ordinary OS input |
+| `run_sequence` | 1–64 actions, complete prevalidation, 120-second worst-case budget, four screenshots, 1 MiB read budget, no request interleaving, stop and release on failure |
+| `get_state` | Live phase/current/pending level from the exact owned process |
+| `get_mana` | Live gauge pointer/current/maximum/spell read |
+| `screenshot` | Owned X11 window only; path plus MCP `image/png` content, constrained to the run tree and 8 MiB |
+| `list_bindings` | Live action table, keyboard-layout inversion, action/code/address output |
+| `inspect_main_actor` | Bounded selected action definitions, state selections and transform decoded through Astrolabe from one stopped-byte capture; optional unique action IDs (1–64), default `[47]`; optional `designer_values` (0–64 unique indices) adds normal/reflex behavior selections and typed current values; not a completed-update observation |
+| `read_memory` | Numeric or hex read; MCP hex limit 64 KiB; readable mappings and 32-bit address validation |
+| `write_memory` | 4 KiB maximum, expected-old-value comparison while all threads are stopped, read-back before resume |
+| `memory_maps` | `/proc` maps for the pinned owned identity only |
+| `memory_probe` | Write, deliberate guard rejection, and restoration under one pause before resume |
+| `navigate_level` | Installed-level check, phase-9 check, guarded transition writes, 30-second completion deadline |
+
+`run_sequence` supports `keys`, `cheat`, `wait`, `wait_state`, `state`, `mana`,
+`screenshot`, `bindings`, `inspect_main_actor`, `read`, `write`, and `level`. Runtime failure records
+the completed prefix, stops later steps, reports the skipped count, marks the MCP
+result as an error, and releases injected keys. Completed effects are retained.
+A client timeout does not cancel a controller operation; inspect `status` or
+state before retrying a mutation.
+
+## Verification
+
+### Operation record
+
+A dated exercise of these controller operations, including observations and cleanup evidence, is recorded in [notes](../../notes/orrery-live-session-2026-09-23.md).
