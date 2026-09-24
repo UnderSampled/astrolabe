@@ -177,6 +177,7 @@ fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
     assert_eq!(tail.children[0].node_locator, "live:00002100");
     assert_eq!(tail.children[1].node_locator, "live:00002200");
     assert_eq!(tail.children[1].perso_locator, None);
+    assert_eq!(tail.children[1].update_stamp, None);
     assert_eq!(tail.children[1].dynamics, None);
     assert!(
         tail.children
@@ -195,10 +196,11 @@ fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
     let mut data3d = vec![0; 24];
     word(&mut data3d, 20, 0x3400);
     memory.ranges.insert(0x3100, data3d);
-    let mut standard = vec![0; 12];
+    let mut standard = vec![0; 20];
     word(&mut standard, 0, 8);
     word(&mut standard, 4, 10);
     word(&mut standard, 8, 65536);
+    word(&mut standard, 0x10, 42);
     memory.ranges.insert(0x3200, standard);
     memory
         .ranges
@@ -210,17 +212,22 @@ fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
         tail.children[0].perso_locator.as_deref(),
         Some("live:00003000")
     );
+    assert_eq!(tail.children[0].update_stamp, Some(42));
     assert_eq!(tail.children[0].dynamics, Some(SceneTailDynamics::Absent));
     assert_eq!(tail.children[0].ai, Some(SceneTailAi::BrainAbsent));
     word(memory.ranges.get_mut(&0x3000).unwrap(), 8, 0x3600);
     let mut wrapper = vec![0; 0x100];
     word(&mut wrapper, 16, 0x4000);
     word(&mut wrapper, 0x14, 0x6000);
-    word(&mut wrapper, 0x18, 8);
+    word(&mut wrapper, 0x18, 0);
     word(&mut wrapper, 0xfc, 0x5000);
     memory.ranges.insert(0x3600, wrapper);
-    let mut dynamics = vec![0; 0x349];
+    let mut dynamics = vec![0; 0x358];
     dynamics[0x348] = 1;
+    word(&mut dynamics, 0xc0, 2.0_f32.to_bits());
+    word(&mut dynamics, 0x64, 1.0_f32.to_bits());
+    word(&mut dynamics, 0xe0, 8);
+    word(&mut dynamics, 0xf0, 1);
     memory.ranges.insert(0x4000, dynamics);
     let mut cards = vec![0; 0x2c];
     cards[0] = 2;
@@ -228,7 +235,11 @@ fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
     word(&mut cards, 8, 8);
     word(&mut cards, 0x28, 0x6000);
     memory.ranges.insert(0x5000, cards);
-    memory.ranges.insert(0x6000, 8_u32.to_le_bytes().to_vec());
+    let mut card = vec![0; 0x5c];
+    word(&mut card, 0, 0);
+    word(&mut card, 4, 2.0_f32.to_bits());
+    word(&mut card, 0x58, 0.5_f32.to_bits());
+    memory.ranges.insert(0x6000, card);
     let tail = build.scene_tail(&mut memory, 1)?;
     assert_eq!(
         tail.children[0].dynamics,
@@ -237,7 +248,15 @@ fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
             object_locator: "live:00004000".into(),
             override_flag: 1,
             cached_card_locator: Some("live:00006000".into()),
-            cached_card_type: 8,
+            cached_card_type: 0,
+            candidate_card_mass: Some(2.0),
+            candidate_card_ratio: Some(0.5),
+            cached_mass: 2.0,
+            integrated_velocity: [1.0, 0.0, 0.0],
+            pending_override_velocity: [0.0, 0.0, 0.0],
+            mode_e0: 8,
+            mode_f0: 1,
+            mode_f4: 0,
             list_locator: Some("live:00005000".into()),
             card_slots: vec![
                 live::SceneTailCardSlot {
@@ -250,11 +269,11 @@ fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
                     index: 1,
                     key: 8,
                     card_locator: Some("live:00006000".into()),
-                    card_type: Some(8),
+                    card_type: Some(0),
                 },
             ],
             selected_card_locator: Some("live:00006000".into()),
-            selected_card_type: Some(8),
+            selected_card_type: Some(0),
         })
     );
     word(memory.ranges.get_mut(&0x3000).unwrap(), 16, 0x3300);

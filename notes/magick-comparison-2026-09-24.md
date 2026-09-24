@@ -374,6 +374,47 @@ establish that Fire never selected a gravity callback. The empty list is a
 useful observation, not an inactivity assertion. The new run again verified
 the executable/save hashes and full process cleanup.
 
+A third exact original Fire BDD rerun passed with the effective-dynamics
+observer (`TestResults/behavior-fire-cast-1790282456643205135.json`). Fire
+appeared by `cast_late`; between `spent` and `settled` its StandardGame update
+stamp advanced from 215 to 232, the same as Hype's. Its visible position and
+sampled integrated velocity remained fixed and zero. At both stops the
+candidate cached type-0 card had mass 0 and ratio 0, while the dynamics object
+cached mass 72; its sole list slot (key 21) held no card, inferred selected
+card was null, mode fields `e0/f0/f4` were all 0, and override/pending
+velocities were 0. Hype's cached mass was 120 and its internal velocity
+changed through the same interval. This demonstrates Fire received actor
+updates without accumulating sampled motion. It does not prove the cached
+candidate card was the callback's actual input: its mass disagrees with the
+dynamics cached mass, and the list may change during an update. The source
+rule for exporting the initial motion state still needs resolution. The
+executable/save hashes and full process cleanup were verified again.
+
+The static template has another relevant source link. Raymap identifies
+Perso `+8` as a pointer to a serialized dynamics wrapper. Astrolabe declares
+that pointer in `PersoHeaderWire` but does not yet project the linked dynamics
+profile into the useful Perso model or Rete. The family state's nullable
+mechanics references are retained and are a separate concern. A source-backed
+initial motion configuration may belong on the converted Perso and exported
+scene, rather than in a Fire-specific support rule. The Fire template's actual
+serialized dynamics pointer and target have not yet been inspected, so
+disabling gravity solely because its states have null mechanics would still
+be a hypothesis. The existing unconditional `motion_enabled = true` at spawn
+is native-API fidelity debt; any corrective rule must be shared and derived
+from the converted source fields or explicit AI vector request.
+
+An offline Fix relocation/allocation probe resolved that static link for Fire
+and the arrow template. Each Perso has a nonnull dynamics wrapper, but the
+wrapper's first, nested serialized Dynamics pointer is null, with no
+relocation at that slot. Neither template therefore provides a serialized
+dynamics mode or initial velocity. This does not rule out runtime allocation
+of a dynamics object; Orrery has directly observed one for spawned Fire.
+Because both templates lack the nested record, that field alone cannot
+distinguish stationary Fire from the moving arrow. The Fire AI passes a zero
+spawn vector, while the arrow's source AI supplies a nonzero vector; the
+native creation handler's interpretation of that difference is the next
+contract to verify.
+
 Godot's generic generation path enables native motion on every spawned
 `CharacterBody3D`, and that component applies gravity each physics tick.
 Whether the source Fire actor has gravity, stays attached, or is repositioned

@@ -50,6 +50,17 @@ impl<M: ReadMemory> RecordSource for MemoryView<'_, M> {
     }
 }
 
+fn live_f32<M: ReadMemory>(
+    source: &mut MemoryView<'_, M>,
+    base: u32,
+    offset: usize,
+) -> Result<f32> {
+    let address = source.add(base, offset)?;
+    let value = f32::from_bits(u32_at(&source.bytes(address, 4)?, 0)?);
+    ensure!(value.is_finite(), "non-finite live dynamics value");
+    Ok(value)
+}
+
 /// Constructed only after a full executable-file hash matches. This guard does
 /// not by itself prove the live module mapping; the controller must check that.
 pub struct HypeBuild(());
@@ -316,9 +327,12 @@ impl HypeBuild {
                 "scene tail parent link differs"
             );
             ensure!(child.next == following, "scene tail next link differs");
-            let (object_types, ai, perso_locator, dynamics) = if child.kind == 4 {
+            let (object_types, ai, perso_locator, update_stamp, dynamics) = if child.kind == 4 {
                 let perso = source.required(address, SuperObjectWire::DATA)?;
                 let object_types = source_view::perso_parts(&mut source, perso)?.object_types;
+                let standard = source.required(perso, 4)?;
+                let stamp_address = source.add(standard, 0x10)?;
+                let update_stamp = u32_at(&source.bytes(stamp_address, 4)?, 0)?;
                 let dynamics = match (|| {
                     let Some(wrapper) = source.pointer(perso, 8)? else {
                         return Ok::<_, anyhow::Error>(SceneTailDynamics::Absent);
@@ -333,6 +347,37 @@ impl HypeBuild {
                     let cached_card = source.pointer(wrapper, 0x14)?;
                     let cached_type_address = source.add(wrapper, 0x18)?;
                     let cached_card_type = u32_at(&source.bytes(cached_type_address, 4)?, 0)?;
+                    let candidate_card_mass = if cached_card_type == 0 {
+                        cached_card
+                            .map(|card| live_f32(&mut source, card, 4))
+                            .transpose()?
+                    } else {
+                        None
+                    };
+                    let candidate_card_ratio = if cached_card_type == 0 {
+                        cached_card
+                            .map(|card| live_f32(&mut source, card, 0x58))
+                            .transpose()?
+                    } else {
+                        None
+                    };
+                    let cached_mass = live_f32(&mut source, object, 0xc0)?;
+                    let integrated_velocity = [
+                        live_f32(&mut source, object, 0x64)?,
+                        live_f32(&mut source, object, 0x68)?,
+                        live_f32(&mut source, object, 0x6c)?,
+                    ];
+                    let pending_override_velocity = [
+                        live_f32(&mut source, object, 0x34c)?,
+                        live_f32(&mut source, object, 0x350)?,
+                        live_f32(&mut source, object, 0x354)?,
+                    ];
+                    let mode_e0_address = source.add(object, 0xe0)?;
+                    let mode_e0 = u32_at(&source.bytes(mode_e0_address, 4)?, 0)?;
+                    let mode_f0_address = source.add(object, 0xf0)?;
+                    let mode_f0 = u32_at(&source.bytes(mode_f0_address, 4)?, 0)?;
+                    let mode_f4_address = source.add(object, 0xf4)?;
+                    let mode_f4 = u32_at(&source.bytes(mode_f4_address, 4)?, 0)?;
                     let list = source.pointer(wrapper, 0xfc)?;
                     let mut card_slots = Vec::new();
                     if let Some(list_address) = list {
@@ -373,6 +418,14 @@ impl HypeBuild {
                         cached_card_locator: cached_card
                             .map(|address| format!("live:{address:08x}")),
                         cached_card_type,
+                        candidate_card_mass,
+                        candidate_card_ratio,
+                        cached_mass,
+                        integrated_velocity,
+                        pending_override_velocity,
+                        mode_e0,
+                        mode_f0,
+                        mode_f4,
                         list_locator: list.map(|address| format!("live:{address:08x}")),
                         card_slots,
                         selected_card_locator,
@@ -425,10 +478,11 @@ impl HypeBuild {
                     Some(object_types),
                     Some(ai),
                     Some(format!("live:{perso:08x}")),
+                    Some(update_stamp),
                     Some(dynamics),
                 )
             } else {
-                (None, None, None, None)
+                (None, None, None, None, None)
             };
             let global_transform = if child.kind == 4 {
                 let transform = source.required(address, 36)?;
@@ -441,6 +495,7 @@ impl HypeBuild {
                 kind: child.kind,
                 node_locator: format!("live:{address:08x}"),
                 perso_locator,
+                update_stamp,
                 dynamics,
                 object_types,
                 global_transform,
@@ -713,6 +768,8 @@ pub struct SceneTailChild {
     /// They are observation evidence, not persistent asset identities.
     pub node_locator: String,
     pub perso_locator: Option<String>,
+    /// Source StandardGame frame stamp, not a completed-update oracle by itself.
+    pub update_stamp: Option<u32>,
     pub dynamics: Option<SceneTailDynamics>,
     pub object_types: Option<[u32; 3]>,
     pub global_transform: Option<TransformValue>,
@@ -732,6 +789,15 @@ pub enum SceneTailDynamics {
         override_flag: u8,
         cached_card_locator: Option<String>,
         cached_card_type: u32,
+        /// Source type-0 getters on the cached card; candidate callback inputs.
+        candidate_card_mass: Option<f32>,
+        candidate_card_ratio: Option<f32>,
+        cached_mass: f32,
+        integrated_velocity: [f32; 3],
+        pending_override_velocity: [f32; 3],
+        mode_e0: u32,
+        mode_f0: u32,
+        mode_f4: u32,
         list_locator: Option<String>,
         card_slots: Vec<SceneTailCardSlot>,
         /// Last nonnull card in the source selection walk, if any.
