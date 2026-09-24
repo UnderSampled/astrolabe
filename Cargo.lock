@@ -1350,6 +1350,7 @@ dependencies = [
  "axum",
  "clap",
  "cucumber",
+ "flate2",
  "libc",
  "png",
  "rmcp",

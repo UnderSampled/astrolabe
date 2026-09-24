@@ -17,3 +17,4 @@ pub mod original;
 #[cfg(target_os = "linux")]
 pub mod orrery;
 pub mod replay;
+pub mod save;

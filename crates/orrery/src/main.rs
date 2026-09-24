@@ -43,6 +43,19 @@ enum Commands {
         #[arg(long)]
         output: PathBuf,
     },
+    /// Decode and inspect a Hype PC save directory, ZIP, or .sav file.
+    SaveInspect {
+        path: PathBuf,
+        #[arg(long)]
+        output: Option<PathBuf>,
+    },
+    /// Compare decoded Hype save records from two directories, ZIPs, or files.
+    SaveDiff {
+        before: PathBuf,
+        after: PathBuf,
+        #[arg(long)]
+        output: Option<PathBuf>,
+    },
     /// Inspect the supplied manor fixture using the native private-game runtime.
     InspectOriginal {
         #[arg(long)]
@@ -247,6 +260,32 @@ fn main() -> Result<()> {
             )?;
             println!("{}", output.display());
             ensure!(passed, "functional behavior comparison failed");
+            Ok(())
+        }
+        Commands::SaveInspect { path, output } => {
+            let report = orrery::save::inspect(&path)?;
+            let bytes = serde_json::to_vec_pretty(&report)?;
+            if let Some(output) = output {
+                std::fs::write(&output, bytes)?;
+                println!("{}", output.display());
+            } else {
+                println!("{}", String::from_utf8(bytes)?);
+            }
+            Ok(())
+        }
+        Commands::SaveDiff {
+            before,
+            after,
+            output,
+        } => {
+            let report = orrery::save::diff(&before, &after)?;
+            let bytes = serde_json::to_vec_pretty(&report)?;
+            if let Some(output) = output {
+                std::fs::write(&output, bytes)?;
+                println!("{}", output.display());
+            } else {
+                println!("{}", String::from_utf8(bytes)?);
+            }
             Ok(())
         }
         Commands::InspectOriginal {

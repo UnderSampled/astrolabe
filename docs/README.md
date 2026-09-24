@@ -4,7 +4,7 @@
 
 ## OpenSpace knowledge
 
-[`openspace/`](openspace/README.md) indexes Hype's OpenSpace Montreal formats and observed semantics, with provenance and confidence stated in each topic. The [[docs/openspace/sna-format|SNA framing]] and [[docs/openspace/relocation-tables|relocation tables]] pages explain how records and pointer maps fit together. Raymap helps navigate the format; engine/decompilation evidence has higher authority when interpretations disagree.
+[`openspace/`](openspace/README.md) indexes Hype's OpenSpace Montreal formats and observed semantics, with provenance and confidence stated in each topic. The [[docs/openspace/sna-format|SNA framing]] and [[docs/openspace/relocation-tables|relocation tables]] pages explain how records and pointer maps fit together; the [cheat-code catalog](openspace/cheat-codes.md) records the observed input bindings. Raymap helps navigate the format; engine/decompilation evidence has higher authority when interpretations disagree.
 
 ## Astrolabe design
 
