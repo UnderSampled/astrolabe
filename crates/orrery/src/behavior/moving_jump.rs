@@ -55,6 +55,18 @@ pub(super) fn validate(recording: &FunctionalRecording) -> Result<()> {
 }
 
 pub(super) fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
+    assertions_with_walk_bound(
+        samples,
+        0.1,
+        "Orrery 2026-09-24 clear-route physical Up then Ctrl, with Up continuously held through takeoff",
+    )
+}
+
+pub(super) fn assertions_with_walk_bound(
+    samples: &[ActorSample],
+    walk_progress_lower: f64,
+    source: &str,
+) -> Result<Vec<Assertion>> {
     ensure!(samples.len() == 8, "moving jump needs eight observations");
     let [base, walk, rise, high, descent, floor, start, end] = samples else {
         unreachable!()
@@ -69,7 +81,6 @@ pub(super) fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
                 .map(|point| point.name.as_str())),
         "moving jump observations changed order"
     );
-    let source = "Orrery 2026-09-24 clear-route physical Up then Ctrl, with Up continuously held through takeoff";
     let height = |sample: &ActorSample| f64::from(sample.translation[2] - base.translation[2]);
     let walk_dx = f64::from(walk.translation[0] - base.translation[0]);
     let walk_dy = f64::from(walk.translation[1] - base.translation[1]);
@@ -100,7 +111,7 @@ pub(super) fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
         bound(
             "moving_jump_walk_progress",
             walk_distance,
-            Some(0.1),
+            Some(walk_progress_lower),
             None,
             source,
         ),

@@ -3,7 +3,7 @@
 use super::{
     ActorSample, BackendResult, CLEAR_ROUTE_HEADING_TOLERANCE_RAD, CLEAR_ROUTE_TARGET_HEADING_RAD,
     DeliveredInput, FunctionalRecording, IDLE_ACTION, SamplePoint, Scenario, TimedInput,
-    assertions, correction_hold_ms, distance_xy, heading_delta, heading_error_to, wall,
+    assertions, correction_hold_ms, distance_xy, heading_delta, heading_error_to, wall, wall_jump,
 };
 use crate::replay::{Edge, Event, Key};
 use anyhow::{Context, Result, ensure};
@@ -38,6 +38,7 @@ enum ReadyState {
     Fresh,
     ClearRoute,
     WallRoute,
+    WallJumpStart,
     JumpStart,
     TurnedLeft { settled: ActorSample, hash: String },
     Finished,
@@ -575,6 +576,49 @@ impl GodotBackend {
         Ok(())
     }
 
+    pub fn prepare_wall_jump(&mut self) -> Result<()> {
+        self.face_wall()?;
+        let origin = Instant::now();
+        self.physical_event(&Event {
+            keyboard: 0,
+            key: Key::ArrowUp,
+            edge: Edge::Press,
+        })?;
+        thread::sleep(Duration::from_millis(3_200));
+        self.physical_event(&Event {
+            keyboard: 0,
+            key: Key::ArrowUp,
+            edge: Edge::Release,
+        })?;
+        thread::sleep(Duration::from_millis(400));
+        let contact = self.observe("wall_jump_setup_contact", 0, origin)?;
+        self.physical_event(&Event {
+            keyboard: 0,
+            key: Key::ArrowDown,
+            edge: Edge::Press,
+        })?;
+        thread::sleep(Duration::from_millis(700));
+        self.physical_event(&Event {
+            keyboard: 0,
+            key: Key::ArrowDown,
+            edge: Edge::Release,
+        })?;
+        thread::sleep(Duration::from_millis(700));
+        let start = self.observe("wall_jump_setup_start", 0, origin)?;
+        wall_jump::validate_ready(&contact, &start)?;
+        self.setup_interventions.push(json!({
+            "method": "physical_up_to_corner_then_down_to_grounded_wall_jump_start",
+            "up_hold_ms": 3_200,
+            "contact_settle_ms": 400,
+            "down_hold_ms": 700,
+            "start_settle_ms": 700,
+            "contact": contact,
+            "start": start,
+        }));
+        self.ready_state = ReadyState::WallJumpStart;
+        Ok(())
+    }
+
     fn execute_trial(
         &mut self,
         inputs: &[TimedInput],
@@ -664,6 +708,7 @@ impl GodotBackend {
                     | (ReadyState::ClearRoute, Scenario::WalkReleaseStop)
                     | (ReadyState::JumpStart, Scenario::StationaryJump)
                     | (ReadyState::ClearRoute, Scenario::MovingJump)
+                    | (ReadyState::WallJumpStart, Scenario::WallJump)
             ),
             "Godot Given setup is not established"
         );

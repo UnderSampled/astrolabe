@@ -80,6 +80,60 @@ timing and completed-render pairing remain open. Original-game samples use a
 pause-compensated schedule, which does not establish source update time or
 wall-time parity with Godot.
 
+The new wall-jump scenario reuses the mapped manor corner. A physical Left
+250 ms turn faces the wall, Up 3200 ms reaches it, and Down 700 ms backs Hype
+to a grounded start. A diagnostic chord probe released Up between commands
+and could not establish airborne wall contact; it is not BDD evidence. The
+timed-input BDD keeps Up held from 200 to 700 ms and pulses Ctrl at 500–600 ms.
+Its second original-game run passed all five steps and cleaned up after one
+launch in 35.48 seconds:
+`TestResults/original-wall-jump-luna-rerun-20260924/behavior-wall-jump-1790248541559707277.json`.
+Hype began at `[-78.6239, 30.8277, 4.8536]`, walked 0.205 source units before
+takeoff, rose in action 7, and reached the mapped wall while airborne. The
+sampled minimum clearance was +0.022 units on the angled face and +0.0006
+on the cross face; both stayed outside the established -0.08-unit penetration
+limit. At the high sample action 7 had reached 7.4137 Z; descent used action
+8. Hype returned to idle 47 near the wall without drift. The first run also
+reached the wall and settled, but its 0.092-unit short pre-jump walk missed the
+open-route scenario's 0.1-unit threshold. The wall case now has a 0.05-unit
+minimum to assert real approach without conflating that short approach with
+the unobstructed moving-jump path. The headless Godot wall-jump BDD also passed
+all five steps and 21 assertions in one launch, with native contact against
+`world/1/5/0` at the high and descent samples, native floor return, stable
+idle and clean shutdown:
+`TestResults/behavior-wall-jump-1790248631885494866.json`.
+The independent-result comparison passes every relative position, height,
+heading and input check. Its largest relative XY and height errors are 0.125
+and 0.253 source units. The first comparison failed two exact action checks:
+at the high sample the source was in action 7 and Godot in 70; at descent
+the source was in 8 and Godot in 5
+(`TestResults/behavior-wall-jump-comparison-20260924.json`). The Godot slope
+query had treated a steep wall contact with up-normal component 0.262 as a
+slope despite `is_on_floor() == false`. It now gates inclined-floor reporting
+on native floor contact. A fresh Godot run passed the same wall-jump BDD with
+high action 7 and descent action 8, matching the source. The final headless
+run passed all five steps and 22 assertions, including direct observations
+that both ground and slope queries are false at the high and descent samples
+despite named native wall contact:
+`TestResults/behavior-wall-jump-1790249314015594559.json`.
+The corrected comparison passes 35 of 36 checks. Godot remains in action 5
+at the 1900 ms floor sample while the source is already idle 47; both are
+idle by the settled samples. Report:
+`TestResults/behavior-wall-jump-predicate-comparison-20260924.json`.
+No action comparator has been weakened, and sampled action-timing parity
+remains unaccepted.
+
+The original Hype condition handler at `0x00533d20` dispatches condition
+selector 34 (`Cond_CollideWithSlope`) by testing bit `0x4` in a resolved
+collision/category word at mechanics offset `+0xf8`. It does not inspect a
+normal or apply an angle threshold itself. `FUN_00443f00` publishes the
+aggregate, while `FUN_0059a504` can fill it from `FUN_00597be6`'s classified
+contact response. That classifier compares the contact normal with a supplied
+vector and configurable thresholds; the vector's exact meaning and the full
+bit-producer set remain unresolved. Godot's native floor gate removes the
+demonstrated steep-wall false positive, but its exact source equivalence is
+still provisional.
+
 The repeatable `original_stationary_jump_and_landing` Cucumber scenario passed
 all five steps and ten assertions in 25.26 seconds. Its ignored local report
 is `TestResults/behavior-stationary-jump-1790240969569836351.json`.

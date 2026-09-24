@@ -14,3 +14,9 @@ Feature: Jumping in the manor
     When the player jumps while continuously walking forward
     Then Hype jumps upward and forward from the walk
     And Hype lands and settles after the moving jump
+
+  Scenario: A moving jump meets the wall and lands
+    Given Hype is grounded near the verified manor corner wall
+    When the player jumps forward toward the wall
+    Then Hype meets the wall while airborne without passing through
+    And Hype lands and settles after meeting the wall

@@ -215,11 +215,11 @@ func source_collide_with_ground() -> bool:
     return is_on_floor()
 
 func source_collide_with_slope() -> bool:
-    for index in get_slide_collision_count():
-        var normal := get_slide_collision(index).get_normal()
-        if normal.y > 0.0 and normal.y < 0.999:
-            return true
-    return false
+    if not is_on_floor(): return false
+    # A steep wall can have a positive vertical component. Use the native
+    # walkable floor classification before reporting a slope to source AI.
+    var floor_alignment := get_floor_normal().normalized().dot(up_direction.normalized())
+    return floor_alignment > 0.0 and floor_alignment < 0.999
 
 func advance(seconds: float) -> void:
     # Godot folds a large advance to one loop. Bound its native playback at

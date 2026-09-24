@@ -47,6 +47,12 @@ impl SessionBackend {
             Self::Godot(backend) => backend.prepare_stationary_jump(),
         }
     }
+    fn prepare_wall_jump(&mut self) -> Result<()> {
+        match self {
+            Self::Original(backend) => backend.prepare_wall_jump(),
+            Self::Godot(backend) => backend.prepare_wall_jump(),
+        }
+    }
     fn run(&mut self, recording: behavior::FunctionalRecording) -> Result<BackendResult> {
         match self {
             Self::Original(backend) => backend.run(recording),
@@ -355,17 +361,30 @@ pub fn synthetic_result(recording: behavior::FunctionalRecording) -> Result<Back
                 error: None,
             });
         }
-        Scenario::MovingJump => {
-            let positions = [
-                ([0.0, 0.0, 4.55], 47),
-                ([0.4, 0.0, 4.55], 32),
-                ([1.3, 0.0, 5.7], 7),
-                ([2.4, 0.0, 6.8], 70),
-                ([3.4, 0.0, 5.3], 4),
-                ([4.0, 0.0, 4.55], 0),
-                ([4.0, 0.0, 4.55], 47),
-                ([4.0, 0.0, 4.55], 47),
-            ];
+        Scenario::MovingJump | Scenario::WallJump => {
+            let positions = if scenario == Scenario::WallJump {
+                [
+                    ([-78.68, 30.818, 4.852], 47),
+                    ([-78.745, 30.88, 4.852], 32),
+                    ([-79.50, 31.70, 6.20], 7),
+                    ([-79.83, 32.03, 7.10], 70),
+                    ([-79.83, 32.03, 5.60], 4),
+                    ([-79.83, 32.03, 4.95], 0),
+                    ([-79.83, 32.03, 4.95], 47),
+                    ([-79.83, 32.03, 4.95], 47),
+                ]
+            } else {
+                [
+                    ([0.0, 0.0, 4.55], 47),
+                    ([0.4, 0.0, 4.55], 32),
+                    ([1.3, 0.0, 5.7], 7),
+                    ([2.4, 0.0, 6.8], 70),
+                    ([3.4, 0.0, 5.3], 4),
+                    ([4.0, 0.0, 4.55], 0),
+                    ([4.0, 0.0, 4.55], 47),
+                    ([4.0, 0.0, 4.55], 47),
+                ]
+            };
             let samples = positions
                 .into_iter()
                 .zip(&recording.samples)
@@ -508,6 +527,21 @@ fn wall_path(world: &mut BehaviorWorld) {
     }
 }
 
+#[given("Hype is grounded near the verified manor corner wall")]
+fn wall_jump_start(world: &mut BehaviorWorld) {
+    if crate::BACKEND != Mode::Synthetic {
+        let result = world
+            .backend
+            .as_mut()
+            .context("behavior backend not started")
+            .and_then(SessionBackend::prepare_wall_jump);
+        if let Err(err) = result {
+            world.failure = Some(err.to_string());
+            panic!("wall-jump setup failed: {err}")
+        }
+    }
+}
+
 #[given("Hype has backed into a clear grounded jump start")]
 fn clear_jump_start(world: &mut BehaviorWorld) {
     if crate::BACKEND != Mode::Synthetic {
@@ -611,6 +645,46 @@ fn stationary_jump(world: &mut BehaviorWorld) {
 #[when("the player jumps while continuously walking forward")]
 fn moving_jump(world: &mut BehaviorWorld) {
     perform(world, Scenario::MovingJump);
+}
+
+#[when("the player jumps forward toward the wall")]
+fn wall_jump(world: &mut BehaviorWorld) {
+    perform(world, Scenario::WallJump);
+}
+
+#[then("Hype meets the wall while airborne without passing through")]
+fn wall_jump_contact(world: &mut BehaviorWorld) {
+    require_checks(
+        world,
+        &[
+            "moving_jump_baseline_idle",
+            "moving_jump_walking_action",
+            "moving_jump_walk_progress",
+            "moving_jump_launch_action",
+            "moving_jump_rise_height",
+            "moving_jump_forward_in_air",
+            "wall_jump_start_angled_clearance",
+            "wall_jump_start_cross_clearance",
+            "wall_jump_airborne_wall_approach",
+            "wall_jump_angled_no_passage",
+            "wall_jump_cross_no_passage",
+        ],
+    );
+    if crate::BACKEND == Mode::Godot {
+        require_checks(
+            world,
+            &[
+                "moving_jump_native_airborne",
+                "wall_jump_native_named_airborne_contact",
+                "wall_jump_native_wall_not_floor_or_slope",
+            ],
+        );
+    }
+}
+
+#[then("Hype lands and settles after meeting the wall")]
+fn wall_jump_lands(world: &mut BehaviorWorld) {
+    moving_jump_lands(world);
 }
 
 #[then("Hype jumps upward and forward from the walk")]
@@ -817,6 +891,7 @@ fn selected_scenario(name: &str) -> Result<Scenario> {
         "A wall blocks movement" => Scenario::WallContact,
         "Jumping from a standstill and landing" => Scenario::StationaryJump,
         "Jumping from a walk and landing" => Scenario::MovingJump,
+        "A moving jump meets the wall and lands" => Scenario::WallJump,
         _ => anyhow::bail!("unknown BDD scenario: {name}"),
     })
 }
@@ -864,7 +939,10 @@ fn run_selected(names: &[&'static str], shared_session: bool) -> Result<SessionE
         let before_launch_count = Rc::clone(&launch_count);
         let after_session = Rc::clone(&session);
         let writer = runtime.block_on(async {
-            let feature = if matches!(scenario, Scenario::StationaryJump | Scenario::MovingJump) {
+            let feature = if matches!(
+                scenario,
+                Scenario::StationaryJump | Scenario::MovingJump | Scenario::WallJump
+            ) {
                 concat!(env!("CARGO_MANIFEST_DIR"), "/tests/features/jump.feature")
             } else {
                 concat!(

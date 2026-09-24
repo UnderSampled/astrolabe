@@ -30,6 +30,19 @@ fn godot_moving_jump_and_landing() -> anyhow::Result<()> {
 
 #[test]
 #[ignore = "requires local Hype manor data and Godot; selected by --local"]
+fn godot_wall_jump_and_landing() -> anyhow::Result<()> {
+    let path = behavior_steps::run_scenario("A moving jump meets the wall and lands")?;
+    let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
+    anyhow::ensure!(
+        report["godot"]["status"] == "passed",
+        "Godot wall jump did not pass"
+    );
+    println!("Godot wall jump BDD evidence: {}", path.display());
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires local Hype manor data and Godot; selected by --local"]
 fn godot_movement_scenarios_share_saved_scene_and_brain() -> anyhow::Result<()> {
     let evidence = behavior_steps::run_scenarios_shared(&[
         "Turning while standing",

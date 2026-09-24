@@ -52,6 +52,14 @@ fn synthetic_moving_jump_requires_continuous_walk_and_forward_air_motion() -> an
 }
 
 #[test]
+fn synthetic_wall_jump_checks_source_faces_and_landing() -> anyhow::Result<()> {
+    let path = behavior_steps::run_scenario("A moving jump meets the wall and lands")?;
+    let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
+    assert_eq!(report["result"]["status"], "passed");
+    Ok(())
+}
+
+#[test]
 fn synthetic_movement_uses_shared_bdd_steps_and_report_pending_godot() -> anyhow::Result<()> {
     let shared = behavior_steps::run_scenarios_shared(&[
         "Turning while standing",

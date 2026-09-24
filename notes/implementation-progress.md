@@ -24,8 +24,12 @@ action 3 by the 800 ms sample while the source is still in action 2. The
 moving-jump BDD also passes independently on both backends: continuous
 walking through Ctrl produces action 7, forward airborne motion, native
 landing contact and stable idle. Its cross-engine functional comparison
-passes all 36 checks. The stationary peak-action difference and the jump
-wall/contact case remain before full jump acceptance. See the
+passes all 36 checks. The wall-jump BDD passes independently on both
+backends with mapped wall-face clearance and native Godot contact. Excluding
+steep walls from the Godot slope query makes the high and descent actions
+match, leaving one wall-jump floor action check failed. The stationary
+peak-action difference and wall-jump landing timing remain before full jump
+acceptance. See the
 [jump checkpoint](./jump-comparison-2026-09-24.md). Combat, magick,
 cliff/death and a real follow camera remain open. A playable combined demo
 has not yet been accepted.

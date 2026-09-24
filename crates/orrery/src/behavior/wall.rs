@@ -189,6 +189,10 @@ fn clearance(sample: &ActorSample, face: [Point; 3]) -> f64 {
         .fold(f64::INFINITY, f64::min)
 }
 
+pub(super) fn corner_clearances(sample: &ActorSample) -> (f64, f64) {
+    (clearance(sample, ANGLED), clearance(sample, CROSS))
+}
+
 fn native_contact(sample: &ActorSample) -> Option<(bool, bool)> {
     let contacts = sample.raw_observation.get("slide_contacts")?.as_array()?;
     let found = contacts

@@ -180,6 +180,8 @@ func observation() -> Dictionary:
         "slide_contacts": slide_contacts,
         "floor_normal": [floor_normal.x, floor_normal.y, floor_normal.z],
         "on_floor": actor.is_on_floor(),
+        "ground_contact": bool(actor.call("source_collide_with_ground")),
+        "slope_contact": bool(actor.call("source_collide_with_slope")),
         "brain_running": bool(brain.get("running")),
         "brain_failure": str(brain.get("unsupported_failure")),
         "global_field_17": bool(global_brain.get("dsg_17")) if global_brain != null else null,

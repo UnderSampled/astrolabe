@@ -1694,6 +1694,17 @@
       "release": true
     },
     {
+      "binary": "orrery::behavior_synthetic",
+      "test": "synthetic_wall_jump_checks_source_faces_and_landing",
+      "areas": ["jump", "comparison"],
+      "kind": "contract",
+      "prerequisites": [],
+      "fixture": "synthetic manor corner actor",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
       "binary": "orrery::behavior_original",
       "test": "original_movement_scenarios_share_one_game_session",
       "areas": ["movement", "comparison"],
@@ -1727,6 +1738,17 @@
       "release": true
     },
     {
+      "binary": "orrery::behavior_original",
+      "test": "original_wall_jump_and_landing",
+      "areas": ["jump", "comparison"],
+      "kind": "original-engine",
+      "prerequisites": ["original"],
+      "fixture": "pinned Hype executable and supplied English SaveGame0",
+      "timeout_seconds": 140,
+      "ignored": true,
+      "release": true
+    },
+    {
       "binary": "orrery::behavior_godot",
       "test": "godot_stationary_jump_and_landing",
       "areas": ["jump", "comparison"],
@@ -1740,6 +1762,17 @@
     {
       "binary": "orrery::behavior_godot",
       "test": "godot_moving_jump_and_landing",
+      "areas": ["jump", "comparison"],
+      "kind": "gameplay",
+      "prerequisites": ["disc", "godot"],
+      "fixture": "normal Hype manoir export with saved Brain",
+      "timeout_seconds": 360,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "orrery::behavior_godot",
+      "test": "godot_wall_jump_and_landing",
       "areas": ["jump", "comparison"],
       "kind": "gameplay",
       "prerequisites": ["disc", "godot"],
