@@ -111,9 +111,10 @@ The supplied `manoir` list begins empty. Binding a populated source list into
 saved Godot actor references remains unsupported and fails explicitly during
 export. This support code supplies the called list operation; it does not
 choose camera targets or alter the source script's branches.
-The model's ordinary camera-update branch still compiles an unsupported
-source action-return policy before its update procedure; attaching this Brain
-does not yet make the view follow.
+The observed return-zero/camera-update pair compiles to the native camera
+update API. That API still reports unsupported until the source pose and
+projection contract is mapped; attaching this Brain does not yet make the
+view follow.
 The compiled `Stats_DisplayMainActor*` calls retain their requested Boolean
 visibility in `source_hud_display` and emit `hud_visibility_requested`. An
 authored HUD can bind that signal to its native `Control` nodes. The current

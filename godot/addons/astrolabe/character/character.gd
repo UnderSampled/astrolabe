@@ -435,6 +435,14 @@ func source_camera_change_targeted_perso(camera_asset: String, target: Node3D) -
         return false
     return bool(camera.call("source_change_targeted_perso", target))
 
+## Called by the compiled camera Brain. The source pose calculation and its
+## persistent parameters are still unmapped, so this reports unsupported.
+func source_camera_update_position() -> bool:
+    var camera := get_node_or_null("SourceCamera")
+    if camera == null or not camera.has_method("source_update_position"):
+        return false
+    return bool(camera.call("source_update_position"))
+
 func source_collide_with_slope() -> bool:
     if not is_on_floor(): return false
     # A steep wall can have a positive vertical component. Use the native

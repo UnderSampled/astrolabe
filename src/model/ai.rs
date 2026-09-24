@@ -182,10 +182,16 @@ pub enum Statement {
     SetLaserPointerActive(bool),
     ChangeSighting(Expression),
     /// Camera procedure 160 receives an AI-referenced camera Perso and the
-    /// source MainActor keyword. Its native target-state effect is unfinished.
+    /// source MainActor keyword. The native API stores the target actor.
     CameraChangeTargetedPerso {
         camera: AssetRef<Perso>,
         target: ActorKeyword,
+    },
+    /// Source camera procedure 135 requests a position update. The preceding
+    /// return-zero form is retained for source reconstruction only; Godot
+    /// receives one native camera API call.
+    CameraUpdatePosition {
+        preceded_by_return_zero: bool,
     },
     /// Source Proc_AddPersoInList appends the referenced Perso to a bounded
     /// designer list. The script decides when to call it.

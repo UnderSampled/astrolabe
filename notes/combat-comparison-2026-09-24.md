@@ -335,9 +335,9 @@ actor contact result at offset `+0x20`; descriptor alignment and switch entry
 for raw condition 33 support a bit-zero test, but the collision updater's
 production of that bit is not yet proven. Native support should expose the
 contact result needed by this compiled condition, rather than make an arrow
-specific lifetime or steering decision. Camera procedure 160's exact
-target-state side effects and the role of the Fix actor
-reference remain unverified and belong with the later camera work. The raw
+specific lifetime or steering decision. Camera procedure 160's remaining
+reset effects and the Fix actor's role beyond selecting the rooted camera
+remain unverified and belong with the later camera work. The raw
 second operand is category 0, parameter 5: the `MainActor` keyword, not the
 integer five. Condition 33 now has a typed source round trip and a compiled
 Godot call guarded against an unknown native contact result. Its support API
@@ -349,11 +349,12 @@ allocation 437. The current in-memory import binds that source address to its
 rooted level occurrence `level:/persos/world/0/2`, also named `StdCamer`; no
 separate Fix Perso asset is expected. It decodes model 733's nested camera call
 as a typed statement with this actor reference and `MainActor`. The Godot
-camera API receives that identity but remains an explicit unsupported stub;
-it cannot silently redirect the camera. Binding it to the live camera node and
-implementing the target-state change belong to the later camera slice. The
-rooted `StdCamer` asset currently has no imported Brain even though the raw
-source Perso has a Brain link; camera behavior needs that dependency reviewed.
+camera API now resolves that identity to the saved `StdCamer` node and stores
+the target on its native `SourceCamera`. It does not select the viewport or
+move the camera. The rooted actor now retains its model-437 Brain and bounded
+Perso-list operations. Its return-zero/camera-update pair now compiles to a
+native API call, which still reports unsupported until the source pose update
+contract is implemented.
 The verified contact handler reads actor runtime offset `+0xf8`, whose producer
 ORs fields `+0xf0` and `+0xf4`. Bit zero's exact contact meaning and update
 order relative to the AI tick remain unresolved, so the native contact result
@@ -374,11 +375,9 @@ support approximations already listed above remain API fidelity debt; the
 crossbow's laser target acquisition and contact calls are pending source-backed
 implementation rather than a support-side attack script. The arrow's original
 contact branch calls the camera procedure before clearing MainActor fields and
-killing itself. The current strict unsupported-camera failure prevents those
-later source statements from running. A future contact/lifetime test may
-declare a narrow, recorded exclusion for this camera effect so the compiled
-cleanup still runs. The default must remain a visible failure, and such a test
-must report camera behavior as excluded until the native camera API exists.
+killing itself. Target storage now exists, but viewport selection, follow and
+the procedure's other reset effects remain fidelity debt. Any test that
+asserts arrow cleanup without those camera effects must report the exclusion.
 
 The verified executable's object-generation handler copies the firing actor's
 world transform into the new actor and separately writes the evaluated vector

@@ -124,6 +124,25 @@ fn rooted_source_camera_association_survives_rete() -> Result<()> {
             .any(|statement| matches!(statement, Statement::ActorListAdd { list: 27, .. })),
         "camera list addition was not compiled from source"
     );
+    ensure!(
+        model
+            .normal
+            .iter()
+            .flat_map(|set| &set.behaviors)
+            .filter(|behavior| behavior.id == 0)
+            .flat_map(|behavior| behavior.rules.iter().flatten())
+            .flat_map(|script| &script.statements)
+            .any(|statement| matches!(
+                statement,
+                Statement::If { then, .. } if then.iter().any(|nested| matches!(
+                    nested,
+                    Statement::CameraUpdatePosition {
+                        preceded_by_return_zero: true
+                    }
+                ))
+            )),
+        "camera return-zero/update pair was not compiled from source"
+    );
     let ordinary_ref = AssetRef::<Perso>::new("level:/persos/world/0/1")?;
     let ordinary = imported.load(&ordinary_ref)?;
     ensure!(!ordinary.has_camera, "ordinary actor gained a camera");

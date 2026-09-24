@@ -422,15 +422,29 @@ impl Parser<'_> {
                 (5, 68) => Statement::WaitFrames(self.expression(indent + 1)?),
                 (4, 209 | 210) => self.change_behavior(id, indent, false, at)?,
                 (4, 6) => {
-                    // Hype's locomotion rules pair this one-operation yield with
-                    // a behavior request. Normalize the pair into useful flow;
-                    // never expose source return flags as a Godot API/property.
+                    // The observed return-zero/camera-update pair proceeds to
+                    // the camera handler. Locomotion's return-one/behavior
+                    // request pair yields. Keep both as ordinary compiled flow,
+                    // without a source return flag in Godot support.
                     let (_, value) = self.take(indent + 1)?;
+                    let value_kind = value.kind;
+                    let return_policy = value.parameter;
                     ensure!(
-                        value.kind == 12,
+                        value_kind == 12,
                         "action-return policy lacks integer at node {at}"
                     );
-                    if value.parameter != 1
+                    if return_policy == 0
+                        && self.nodes.get(self.at).is_some_and(|request| {
+                            request.indent == indent
+                                && request.kind == 4
+                                && request.parameter == 135
+                        })
+                    {
+                        self.take(indent)?;
+                        Statement::CameraUpdatePosition {
+                            preceded_by_return_zero: true,
+                        }
+                    } else if return_policy != 1
                         || !self.nodes.get(self.at).is_some_and(|request| {
                             request.indent == indent
                                 && request.kind == 4
@@ -442,11 +456,15 @@ impl Parser<'_> {
                             format!("unsupported action-return policy at node {at}"),
                         )?));
                         continue;
+                    } else {
+                        let (_, request) = self.take(indent)?;
+                        let id = request.parameter;
+                        self.change_behavior(id, indent, true, at)?
                     }
-                    let (_, request) = self.take(indent)?;
-                    let id = request.parameter;
-                    self.change_behavior(id, indent, true, at)?
                 }
+                (4, 135) => Statement::CameraUpdatePosition {
+                    preceded_by_return_zero: false,
+                },
                 (4, 218) => Statement::ChangeAction(self.expression(indent + 1)?),
                 (5, 4) => Statement::ExecuteAction(self.expression(indent + 1)?),
                 (5, 15) => {
@@ -989,6 +1007,15 @@ impl Writer<'_> {
                     self.node(24, handle, indent + 1);
                     self.node(0, 5, indent + 1);
                 }
+                Statement::CameraUpdatePosition {
+                    preceded_by_return_zero,
+                } => {
+                    if *preceded_by_return_zero {
+                        self.node(4, 6, indent);
+                        self.node(12, 0, indent + 1);
+                    }
+                    self.node(4, 135, indent);
+                }
                 Statement::ActorListAdd { list, actor } => {
                     let handle = self
                         .codec
@@ -1381,6 +1408,20 @@ impl Writer<'_> {
 #[cfg(test)]
 mod partial_tests {
     use super::*;
+
+    #[test]
+    fn source_camera_update_return_zero_pair_round_trips() -> Result<()> {
+        let (codec, bytes) = partial(&[(4, 6, 1), (12, 0, 2), (4, 135, 1), (8, 0, 0)]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            script.statements.as_slice(),
+            [Statement::CameraUpdatePosition {
+                preceded_by_return_zero: true
+            }]
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
 
     #[test]
     fn source_actor_list_calls_decode_and_reconstruct() -> Result<()> {

@@ -1307,6 +1307,16 @@ fn statements(
                     quoted(&camera.path.to_string())
                 )?;
             }
+            Statement::CameraUpdatePosition { .. } => {
+                writeln!(
+                    out,
+                    "{pad}if not character().source_camera_update_position():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} requires native camera position update",
+                        model.path
+                    ))
+                )?;
+            }
             Statement::ActorListAdd { list, actor } => {
                 let capacity = actor_list_capacity(model, *list)?;
                 let id = flow.local;

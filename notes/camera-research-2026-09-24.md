@@ -161,17 +161,53 @@ reads selected actor translation and rotates a camera dynamics vector by
 actor basis. Viewport camera selection is a distinct call at `0x00485380`.
 Neither trace yet maps the linked 224-byte source allocation to projection,
 offset or smoothing fields; measured idle FoV/pose cannot serve as a general
-export rule. The ordinary model-437 update path remains blocked by a separate
-compiled-AI gap: `normal_0_rule_0` reaches `Proc_SetActionReturn` (category 4,
+export rule. The ordinary model-437 update path uses a distinct
+compiled-AI pattern: `normal_0_rule_0` reaches `Proc_SetActionReturn` (category 4,
 ID 6) with scalar zero before zero-argument `Proc_Camera_UpdatePosition`
-(category 4, ID 135). The compiler currently recognizes procedure 6
-only as a locomotion yield paired with behavior request 209/210, so this
-camera use becomes `fail_unsupported`. `normal_11_schedule` has the same gate.
-The source handler's observable flow must be established before normalizing
-this pair. Raymap provides the operation names, but the checked-in
+(category 4, ID 135); `normal_11_schedule` uses the same pair. The earlier
+compiler recognized procedure 6 only as a locomotion yield paired with
+behavior request 209/210. Raymap provides the operation names, but the checked-in
 decompilation has no handler body at the cataloged `0x0053fc30` entry, so
-the meaning of action-return zero remains unresolved. Editor parsing and the
-attached Brain do not establish a working
-follow camera. The camera allocation behind the source link also needs
+the meaning of action-return zero remained unresolved there. Offline
+disassembly of the installed executable with Orrery's pinned SHA-256 locates
+procedure 6 at `0x0053fc30`: its ID-6 branch stores the scalar's low byte in
+return-value global `0x00721b5c`, sets flag `0x00721b58`, then returns
+normally. A consumer at `0x00522750` clears that flag and retains its incoming
+status when the stored value is zero. A bounded Orrery-controlled live run
+loaded the pinned English `manoir` save, then GDB observed hits at
+`0x0053fc30` and `0x00545d80` in that order on the same thread, about 3.43 ms
+apart, with the same immediate return address `0x0252c2a4`. This supports
+normalizing the exact return-zero/camera-update pair to one typed camera call
+while retaining both source nodes for reconstruction. It does not identify
+the rule/frame boundary or prove the camera pose produced. The generated call
+now reaches an explicit Godot-side unsupported camera-update stub; it is not a
+working follow camera. The focused source-node round trip and local model-437
+Brain/Rete test passed. A fresh release manor export completed in 86.14 s;
+Godot's headless editor scan found no parse errors. Generated model 437 has
+zero unsupported type-11 or action-return-policy diagnostics, while 133 other
+unsupported-script diagnostics remain, so this is not full camera-AI coverage.
+The game and Orrery service stopped, and source save
+hashes remained unchanged. That read-only run reached phase 9 / `manoir` under
+owned game PID 3241812 and LWP 3241970. The executable and supplied-save hashes
+were the pinned
+`048ff4f4f0447a1f54a5a73ff588df78b484015c78df99a8f2d7acd3469df7da`
+and `877576b5867b5ad44b41dc4b72f6b70bc89dbe5e202c86817f2858948a1d634c`;
+the 2,847-byte installed `manoir.sav` retained SHA-256
+`d87d6b743514e070983633385742ab16c6f8a189ad6a01ff80e5bb636c7df6c7`.
+GDB breakpoint pauses perturb timing, and its stack unwinder could not prove
+the enclosing rule. The camera allocation behind the source link also needs
 useful-field mapping and explicit unknown preservation beyond the current
 association flag.
+
+A read-only source allocation probe (`TestResults/camera-payload-probe.json`)
+followed the rooted `StdCamer` Perso's `+0x14` link from Fix allocation 23322
+to Fix allocation 23339. It also followed the other linked manor actor at
+`world/0/147` to Level allocation 7889. Both targets are 224 bytes and have
+six relocation sites at `+0x00`, `+0x04`, `+0x08`, `+0x0c`, `+0x10` and
+`+0x1c`; the first four target the same source block, while the last two
+cross into other blocks. Their nonpointer payloads match: almost all zero,
+with sentinel floats at `+0xa4/+0xa8`, word 103 at `+0xac`, and word 42 at
+`+0xdc`. These bytes do not identify the active viewport's FoV or follow
+distance. The source payload is a distinct allocation from the live viewport
+record that Orrery samples. The current `has_camera` import preserves the
+association but does not yet preserve this payload or its six links.

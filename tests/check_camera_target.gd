@@ -37,6 +37,8 @@ func run() -> void:
     if not require(caller.source_camera_change_targeted_perso("level:/persos/world/0/2", target), "source camera target assignment failed"): return
     if not require(native_camera.targeted_actor == target, "source camera received another actor"): return
     if not require(native_camera.global_transform == original, "target assignment moved the camera"): return
+    if not require(not caller.source_camera_update_position(), "unmapped camera update silently succeeded"): return
+    if not require(native_camera.global_transform == original, "unmapped camera update moved the camera"): return
     var members: Array[Node3D] = []
     if not require(caller.source_list_add(members, 2, target), "first source list append failed"): return
     if not require(caller.source_list_add(members, 2, target), "source list incorrectly deduplicated actor"): return
