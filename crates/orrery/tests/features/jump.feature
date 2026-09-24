@@ -8,3 +8,9 @@ Feature: Jumping in the manor
     When the player presses and releases jump while standing
     Then Hype rises above the floor during the jump
     And Hype returns to the starting floor and settles
+
+  Scenario: Jumping from a walk and landing
+    Given a clear path is ahead of Hype
+    When the player jumps while continuously walking forward
+    Then Hype jumps upward and forward from the walk
+    And Hype lands and settles after the moving jump

@@ -23,6 +23,35 @@ fn synthetic_stationary_jump_uses_shared_bdd_and_checks_height() -> anyhow::Resu
 }
 
 #[test]
+fn synthetic_moving_jump_requires_continuous_walk_and_forward_air_motion() -> anyhow::Result<()> {
+    let path = behavior_steps::run_scenario("Jumping from a walk and landing")?;
+    let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
+    assert_eq!(report["result"]["status"], "passed");
+    use orrery::behavior::{self, Scenario};
+    let mut source = behavior_steps::synthetic_result(behavior::recording(Scenario::MovingJump))?;
+    source.backend = "openspace".into();
+    source.cleanup_complete = true;
+    let mut godot = source.clone();
+    godot.backend = "godot".into();
+    assert_eq!(behavior::compare_results(&source, &godot)?.status, "passed");
+    source.samples[1].action = Some(78);
+    source.assertions = behavior::assertions(source.scenario, &source.samples)?;
+    let comparison = behavior::compare_results(&source, &godot)?;
+    assert_eq!(comparison.status, "passed");
+    assert!(
+        comparison
+            .checks
+            .iter()
+            .any(|check| check.name == "moving_jump_walking_phase_compatible" && check.passed)
+    );
+    godot.samples[2].translation[2] = source.samples[0].translation[2];
+    godot.assertions = behavior::assertions(godot.scenario, &godot.samples)?;
+    assert_eq!(godot.status, "passed");
+    assert!(behavior::compare_results(&source, &godot).is_err());
+    Ok(())
+}
+
+#[test]
 fn synthetic_movement_uses_shared_bdd_steps_and_report_pending_godot() -> anyhow::Result<()> {
     let shared = behavior_steps::run_scenarios_shared(&[
         "Turning while standing",

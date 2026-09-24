@@ -1,6 +1,7 @@
 //! Functional behavior evidence shared by the OpenSpace and future Godot
-//! backends. Milliseconds here are wall-clock scheduling targets, never the
-//! verified consumer ordinals used by `replay`.
+//! backends. Milliseconds are functional elapsed-time targets, never the
+//! verified consumer ordinals used by `replay`. Original jump recordings
+//! subtract measured stopped-capture intervals from that elapsed time.
 use crate::replay::{Edge, Event, Key};
 use anyhow::{Context, Result, ensure};
 use astrolabe::openspace::level::live::ActorObservation;
@@ -14,6 +15,7 @@ use std::{
 
 pub mod godot;
 mod jump;
+mod moving_jump;
 mod wall;
 
 #[cfg(target_os = "linux")]
@@ -37,6 +39,7 @@ pub enum Scenario {
     RunVsWalk,
     WallContact,
     StationaryJump,
+    MovingJump,
 }
 impl Scenario {
     pub fn slug(self) -> &'static str {
@@ -46,6 +49,7 @@ impl Scenario {
             Self::RunVsWalk => "run-vs-walk",
             Self::WallContact => "wall-contact",
             Self::StationaryJump => "stationary-jump",
+            Self::MovingJump => "moving-jump",
         }
     }
 }
@@ -88,7 +92,7 @@ impl FunctionalRecording {
         ensure!(self.schema == 1, "unsupported functional recording schema");
         let expected_ready_state = match self.scenario {
             Scenario::TurnReleaseIdle => "supplied-english-save-manoir",
-            Scenario::WalkReleaseStop | Scenario::RunVsWalk => {
+            Scenario::WalkReleaseStop | Scenario::RunVsWalk | Scenario::MovingJump => {
                 "manoir-clear-route-after-physical-left-turn"
             }
             Scenario::WallContact => "manoir-corner-after-physical-left-turn",
@@ -103,6 +107,9 @@ impl FunctionalRecording {
         }
         if self.scenario == Scenario::StationaryJump {
             return jump::validate(self);
+        }
+        if self.scenario == Scenario::MovingJump {
+            return moving_jump::validate(self);
         }
         if self.scenario == Scenario::RunVsWalk {
             let walk = self
@@ -175,6 +182,9 @@ pub fn recording(scenario: Scenario) -> FunctionalRecording {
     if scenario == Scenario::StationaryJump {
         return jump::recording();
     }
+    if scenario == Scenario::MovingJump {
+        return moving_jump::recording();
+    }
     if scenario == Scenario::WallContact {
         return wall::recording();
     }
@@ -227,6 +237,7 @@ pub fn recording(scenario: Scenario) -> FunctionalRecording {
         Scenario::RunVsWalk => unreachable!(),
         Scenario::WallContact => unreachable!(),
         Scenario::StationaryJump => unreachable!(),
+        Scenario::MovingJump => unreachable!(),
     };
     FunctionalRecording {
         schema: 1,
@@ -237,6 +248,7 @@ pub fn recording(scenario: Scenario) -> FunctionalRecording {
             Scenario::RunVsWalk => unreachable!(),
             Scenario::WallContact => unreachable!(),
             Scenario::StationaryJump => unreachable!(),
+            Scenario::MovingJump => unreachable!(),
         }
         .into(),
         inputs: vec![
@@ -444,6 +456,9 @@ pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Ass
     if scenario == Scenario::StationaryJump {
         return jump::assertions(samples);
     }
+    if scenario == Scenario::MovingJump {
+        return moving_jump::assertions(samples);
+    }
     if scenario == Scenario::WallContact {
         return wall::assertions(samples);
     }
@@ -482,6 +497,7 @@ pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Ass
                 Scenario::RunVsWalk => unreachable!(),
                 Scenario::WallContact => unreachable!(),
                 Scenario::StationaryJump => unreachable!(),
+                Scenario::MovingJump => unreachable!(),
             },
             Some(1.),
             Some(1.),
@@ -570,6 +586,7 @@ pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Ass
         Scenario::RunVsWalk => unreachable!(),
         Scenario::WallContact => unreachable!(),
         Scenario::StationaryJump => unreachable!(),
+        Scenario::MovingJump => unreachable!(),
     }
     Ok(checks)
 }
@@ -780,6 +797,7 @@ pub fn compare_results(
         Scenario::RunVsWalk => 10,
         Scenario::WallContact => 7,
         Scenario::StationaryJump => 7,
+        Scenario::MovingJump => 8,
     };
     ensure!(
         openspace.samples.len() == godot.samples.len()
@@ -795,16 +813,17 @@ pub fn compare_results(
         let held_walk_phase = match openspace.scenario {
             Scenario::WalkReleaseStop => source.name == "held",
             Scenario::RunVsWalk => source.name == "walk_held",
+            Scenario::MovingJump => source.name == "walking",
             _ => false,
         };
         if held_walk_phase {
             // The source 78 entry action and 32 sustained action are both
             // active walking at this elapsed-time checkpoint. Exact IDs stay
             // in the backend reports; consumption-frame parity is not claimed.
-            let check_name = if openspace.scenario == Scenario::RunVsWalk {
-                "walk_held_phase_compatible"
-            } else {
-                "held_walk_phase_compatible"
+            let check_name = match openspace.scenario {
+                Scenario::RunVsWalk => "walk_held_phase_compatible",
+                Scenario::MovingJump => "moving_jump_walking_phase_compatible",
+                _ => "held_walk_phase_compatible",
             };
             checks.push(bound(
                 check_name,
@@ -839,7 +858,10 @@ pub fn compare_results(
             Some(1.0),
             "functional path tolerance; source-relative positions in canonical units",
         ));
-        if openspace.scenario == Scenario::StationaryJump {
+        if matches!(
+            openspace.scenario,
+            Scenario::StationaryJump | Scenario::MovingJump
+        ) {
             let source_height = source.translation[2] - openspace.samples[origin].translation[2];
             let target_height = target.translation[2] - godot.samples[origin].translation[2];
             checks.push(bound(
@@ -889,7 +911,15 @@ pub fn compare_results(
         recording_sha256: openspace.recording_sha256.clone(),
         checks,
         visual_status: "pending_completed_render_pairing".into(),
-        timing_profile: "functional_elapsed_ms_no_consumption_parity".into(),
+        timing_profile: if matches!(
+            openspace.scenario,
+            Scenario::StationaryJump | Scenario::MovingJump
+        ) {
+            "pause_compensated_functional_elapsed_ms_no_wall_or_consumption_parity"
+        } else {
+            "functional_elapsed_ms_no_consumption_parity"
+        }
+        .into(),
     })
 }
 impl BackendResult {
@@ -974,7 +1004,9 @@ impl BackendResult {
                 "backend sample contains nonfinite coordinates"
             );
         }
-        let settled_windows: &[(usize, usize)] = if self.scenario == Scenario::StationaryJump {
+        let settled_windows: &[(usize, usize)] = if self.scenario == Scenario::MovingJump {
+            &[(6, 7)]
+        } else if self.scenario == Scenario::StationaryJump {
             &[(5, 6)]
         } else if self.scenario == Scenario::WallContact {
             &[(5, 6)]
@@ -1634,10 +1666,14 @@ impl OriginalBackend {
                 (OriginalReadyState::FreshSave, Scenario::TurnReleaseIdle)
                     | (OriginalReadyState::ClearRoute, Scenario::WalkReleaseStop)
                     | (OriginalReadyState::JumpStart, Scenario::StationaryJump)
+                    | (OriginalReadyState::ClearRoute, Scenario::MovingJump)
             ),
             "the selected scenario's Given setup was not established"
         );
-        let pause_compensated = recording.scenario == Scenario::StationaryJump;
+        let pause_compensated = matches!(
+            recording.scenario,
+            Scenario::StationaryJump | Scenario::MovingJump
+        );
         let (delivered, samples, _) = self.execute_trial(
             &recording.inputs,
             &recording.samples,

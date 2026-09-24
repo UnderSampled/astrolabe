@@ -89,9 +89,15 @@ func _physics_process(delta: float) -> void:
             continue
         if external_velocity.dot(normal) < 0.0:
             external_velocity = external_velocity.slide(normal)
-    if is_on_floor() and external_velocity.dot(up_direction) < 0.0:
-        external_velocity -= up_direction * external_velocity.dot(up_direction)
-    if is_on_floor(): source_airborne = false
+    if is_on_floor():
+        if source_airborne:
+            # The jump impulse has ended at contact. Root motion supplies any
+            # subsequent grounded walk; retaining its airborne horizontal
+            # velocity would slide an idle character across a sloped floor.
+            external_velocity = Vector3.ZERO
+        elif external_velocity.dot(up_direction) < 0.0:
+            external_velocity -= up_direction * external_velocity.dot(up_direction)
+        source_airborne = false
     elif external_velocity.dot(up_direction) > 0.0: source_airborne = true
 
 func turn(degrees_per_second: float, seconds: float) -> void:

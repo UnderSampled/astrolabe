@@ -663,6 +663,7 @@ impl GodotBackend {
                 (ReadyState::Fresh, Scenario::TurnReleaseIdle)
                     | (ReadyState::ClearRoute, Scenario::WalkReleaseStop)
                     | (ReadyState::JumpStart, Scenario::StationaryJump)
+                    | (ReadyState::ClearRoute, Scenario::MovingJump)
             ),
             "Godot Given setup is not established"
         );

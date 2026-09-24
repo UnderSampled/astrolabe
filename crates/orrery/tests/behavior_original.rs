@@ -18,6 +18,19 @@ fn original_stationary_jump_and_landing() -> anyhow::Result<()> {
 
 #[test]
 #[ignore = "requires prepared Hype save and private Wine/Gamescope; selected by --local"]
+fn original_moving_jump_and_landing() -> anyhow::Result<()> {
+    let path = behavior_steps::run_scenario("Jumping from a walk and landing")?;
+    let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
+    anyhow::ensure!(
+        report["openspace"]["status"] == "passed",
+        "source moving jump did not pass"
+    );
+    println!("OpenSpace moving jump BDD evidence: {}", path.display());
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires prepared Hype save and private Wine/Gamescope; selected by --local"]
 fn original_movement_scenarios_share_one_game_session() -> anyhow::Result<()> {
     let evidence = behavior_steps::run_scenarios_shared(&[
         "Turning while standing",

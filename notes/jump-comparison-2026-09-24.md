@@ -1,8 +1,8 @@
 # Jump comparison checkpoint — 2026-09-24
 
-The stationary jump scenario now passes independently in the original game
-and Godot. Their recorded samples are being compared; movement remains the
-last accepted cross-engine gameplay checkpoint.
+The stationary and moving jump scenarios now pass independently in the
+original game and Godot. The moving jump passes coarse functional comparison.
+The stationary jump's action timing remains unaccepted.
 
 ## Original-game observation
 
@@ -35,11 +35,50 @@ takeoff time and landing time remain unmeasured. The screenshot is in
 the private Orrery run directory under
 `reference`-independent local harness data; it is not a completed-update image.
 
-The attempted moving sample was inconclusive. Up first reached a wall; further
-Up+Ctrl produced action 37 with no vertical gain. This cannot be used as a
-moving-jump expectation. A future moving test must use the verified clear-route
-turn or a shorter route and assert that Up is still making progress before Ctrl.
-The owned run `run-1790239310817303933` also stopped cleanly.
+The first attempted moving sample was inconclusive. Up first reached a wall;
+further Up+Ctrl produced action 37 with no vertical gain. A later clear-route
+probe confirmed 0.34 units of walking progress in 300 ms, but released Up
+for inspection before sending a new Up+Ctrl chord. It again produced action
+37 and negligible height gain, so it did not test uninterrupted walking. Both
+owned runs stopped cleanly.
+
+The `original_moving_jump_and_landing` Cucumber scenario now keeps Up held
+from 200 to 700 ms and pulses Ctrl from 500 to 600 ms. The verified left-turn
+setup faced the clear route without moving Hype. One original-game launch
+passed five steps and 13 assertions in 26.69 seconds, with clean shutdown:
+`TestResults/behavior-moving-jump-1790246743207529398.json`. At 450 ms Hype
+was walking in action 78, 0.207 units forward and level. At 800 ms the
+unarmed moving-jump action 7 had risen 1.721 units and moved a further 1.612
+units along the walking direction. At 1100 ms action 70 was 2.328 units
+above baseline. The 1900 ms and settled samples were idle 47 near the floor,
+0.074 units above the initial floor and without late drift. Source sample
+captures were pause compensated and physical input edges landed at their
+planned active times.
+
+The first Godot moving-jump run passed the takeoff and airborne Cucumber
+steps but failed its settled state. Its floor sample had retained horizontal
+external velocity; the actor slid 1.032 units and rose along a slope to a
+0.434-unit height error by the last sample. That run used one launch and
+cleaned up; report `TestResults/behavior-moving-jump-1790246842775712689.json`.
+The native character now clears the airborne jump impulse on floor contact,
+leaving subsequent walking to animation root motion. Updating only the
+maintained support script in the same disposable project passed Godot's
+headless editor scan. The moving-jump BDD then passed all five steps and
+all assertions in 47.04 seconds with one launch and clean shutdown:
+`TestResults/behavior-moving-jump-1790247007407800142.json`. At 800 ms
+Hype used moving-jump action 7, had risen 1.973 source units and moved
+1.516 units forward from the walking sample. It returned within 0.019
+units of initial height, with native floor contact, zero external velocity
+and no late drift. Comparing the independently passing reports with the
+existing source-informed walk-entry/action-32 phase check passes all 36
+functional checks:
+`TestResults/behavior-moving-jump-comparison-20260924.json`. The largest
+sampled relative-height difference is 0.461 source units, below the coarse
+1.0-unit limit. Input edges and recording hashes match. This accepts the
+functional moving jump at the stated tolerance, while exact input-consumption
+timing and completed-render pairing remain open. Original-game samples use a
+pause-compensated schedule, which does not establish source update time or
+wall-time parity with Godot.
 
 The repeatable `original_stationary_jump_and_landing` Cucumber scenario passed
 all five steps and ten assertions in 25.26 seconds. Its ignored local report
@@ -230,8 +269,23 @@ The action transition window needs a direct source/Godot measurement before
 deciding whether this is an acceptable timing difference or a native behavior
 bug; the comparison remains failed.
 
+An experimental stationary recording added 700 and 900 ms captures. Both
+backends passed their own nine-sample BDD, but the added observations changed
+the transition sequences. The original's 800 ms action became 4 instead of 2
+(`TestResults/behavior-stationary-jump-1790247286894506192.json`); Godot's
+became 2 instead of 3
+(`TestResults/behavior-stationary-jump-1790247368410201831.json`). Those
+runs diagnose sensitivity to sampling and are not replacement acceptance
+recordings. The seven-sample scenario remains in the suite. The source
+mechanics step clamps wall-time delta after an observation pause, so
+subtracting stopped time from the runner schedule does not reconstruct an
+unobserved trajectory. A follow-up should use separate trials with one
+terminal capture each and fixed wall-time input edges before comparing the
+transition window. In particular, no exact action-timing parity is claimed
+from either the seven- or nine-sample results.
+
 Other saved actors still report explicit unsupported AI calls during this
 test. They have not stopped Hype's jump path; their gameplay effects remain
 unverified. The generated object's identity, placement and lifetime have not
-yet been compared with the original. No cross-engine jump comparison is
-accepted yet.
+yet been compared with the original. Moving jump has coarse functional
+cross-engine acceptance; stationary jump still has one failed action check.

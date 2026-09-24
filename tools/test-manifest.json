@@ -134,6 +134,94 @@
     },
     {
       "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::actor_designer_read_reconstructs_dot_expression",
+      "areas": ["ai", "source"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::elapsed_clock_query_reconstructs_source_nodes",
+      "areas": ["ai", "source"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::jump_motion_requests_reconstruct_source_nodes",
+      "areas": ["ai", "source", "jump"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::jump_queries_and_arithmetic_reconstruct_source_nodes",
+      "areas": ["ai", "source", "jump"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::main_actor_designer_read_reconstructs_dot_expression",
+      "areas": ["ai", "source"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::object_action_retains_template_action_and_vector",
+      "areas": ["ai", "source", "jump"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::particle_generator_switch_reconstructs_source_nodes",
+      "areas": ["ai", "source"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::unrelated_dot_receiver_remains_a_partial_expression",
+      "areas": ["ai", "source"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::partial_decode_still_rejects_malformed_known_trees",
       "areas": ["ai", "source"],
       "kind": "unit",
@@ -1595,6 +1683,17 @@
       "release": true
     },
     {
+      "binary": "orrery::behavior_synthetic",
+      "test": "synthetic_moving_jump_requires_continuous_walk_and_forward_air_motion",
+      "areas": ["jump", "comparison"],
+      "kind": "contract",
+      "prerequisites": [],
+      "fixture": "synthetic moving jump actor",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
       "binary": "orrery::behavior_original",
       "test": "original_movement_scenarios_share_one_game_session",
       "areas": ["movement", "comparison"],
@@ -1617,8 +1716,30 @@
       "release": true
     },
     {
+      "binary": "orrery::behavior_original",
+      "test": "original_moving_jump_and_landing",
+      "areas": ["jump", "comparison"],
+      "kind": "original-engine",
+      "prerequisites": ["original"],
+      "fixture": "pinned Hype executable and supplied English SaveGame0",
+      "timeout_seconds": 140,
+      "ignored": true,
+      "release": true
+    },
+    {
       "binary": "orrery::behavior_godot",
       "test": "godot_stationary_jump_and_landing",
+      "areas": ["jump", "comparison"],
+      "kind": "gameplay",
+      "prerequisites": ["disc", "godot"],
+      "fixture": "normal Hype manoir export with saved Brain",
+      "timeout_seconds": 360,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "orrery::behavior_godot",
+      "test": "godot_moving_jump_and_landing",
       "areas": ["jump", "comparison"],
       "kind": "gameplay",
       "prerequisites": ["disc", "godot"],

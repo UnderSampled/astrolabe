@@ -355,6 +355,71 @@ pub fn synthetic_result(recording: behavior::FunctionalRecording) -> Result<Back
                 error: None,
             });
         }
+        Scenario::MovingJump => {
+            let positions = [
+                ([0.0, 0.0, 4.55], 47),
+                ([0.4, 0.0, 4.55], 32),
+                ([1.3, 0.0, 5.7], 7),
+                ([2.4, 0.0, 6.8], 70),
+                ([3.4, 0.0, 5.3], 4),
+                ([4.0, 0.0, 4.55], 0),
+                ([4.0, 0.0, 4.55], 47),
+                ([4.0, 0.0, 4.55], 47),
+            ];
+            let samples = positions
+                .into_iter()
+                .zip(&recording.samples)
+                .map(|((position, action), point)| {
+                    let mut sample = ActorSample::from_actor(
+                        point.name.clone(),
+                        point.at_ms,
+                        point.at_ms,
+                        point.at_ms + 1,
+                        synthetic_actor(action, position, 0.),
+                    )?;
+                    sample.raw_observation = serde_json::json!({
+                        "on_floor": !matches!(point.name.as_str(), "rise" | "high" | "descent")
+                    });
+                    Ok(sample)
+                })
+                .collect::<Result<Vec<_>>>()?;
+            let checks = behavior::assertions(scenario, &samples)?;
+            let delivered = recording
+                .inputs
+                .iter()
+                .map(|input| behavior::DeliveredInput {
+                    id: input.id.clone(),
+                    planned_ms: input.at_ms,
+                    actual_ms: input.at_ms,
+                    event: input.event.clone(),
+                })
+                .collect();
+            return Ok(BackendResult {
+                backend: "synthetic".into(),
+                scenario,
+                status: if checks.iter().all(|check| check.passed) {
+                    "passed"
+                } else {
+                    "failed"
+                }
+                .into(),
+                recording_sha256: recording.sha256()?,
+                recording,
+                executable_sha256: None,
+                save_sha256: None,
+                loaded_level: Some("synthetic_manoir".into()),
+                input_delivery: "synthetic_fixture".into(),
+                observation_consistency: "synthetic".into(),
+                completed_update: false,
+                setup_interventions: vec![],
+                delivered,
+                samples,
+                assertions: checks,
+                screenshot: None,
+                cleanup_complete: true,
+                error: None,
+            });
+        }
     };
     let samples = recording
         .samples
@@ -543,6 +608,48 @@ fn stationary_jump(world: &mut BehaviorWorld) {
     perform(world, Scenario::StationaryJump);
 }
 
+#[when("the player jumps while continuously walking forward")]
+fn moving_jump(world: &mut BehaviorWorld) {
+    perform(world, Scenario::MovingJump);
+}
+
+#[then("Hype jumps upward and forward from the walk")]
+fn moving_jump_rises(world: &mut BehaviorWorld) {
+    require_checks(
+        world,
+        &[
+            "moving_jump_baseline_idle",
+            "moving_jump_walking_action",
+            "moving_jump_walk_progress",
+            "moving_jump_walk_level",
+            "moving_jump_launch_action",
+            "moving_jump_rise_height",
+            "moving_jump_sampled_gain",
+            "moving_jump_forward_in_air",
+        ],
+    );
+    if crate::BACKEND == Mode::Godot {
+        require_checks(world, &["moving_jump_native_airborne"]);
+    }
+}
+
+#[then("Hype lands and settles after the moving jump")]
+fn moving_jump_lands(world: &mut BehaviorWorld) {
+    require_checks(
+        world,
+        &[
+            "moving_jump_floor_return",
+            "moving_jump_settled_height",
+            "moving_jump_settled_idle_start",
+            "moving_jump_settled_idle_end",
+            "moving_jump_post_landing_drift",
+        ],
+    );
+    if crate::BACKEND == Mode::Godot {
+        require_checks(world, &["moving_jump_native_floor_contact"]);
+    }
+}
+
 #[then("Hype rises above the floor during the jump")]
 fn jump_rises(world: &mut BehaviorWorld) {
     require_checks(
@@ -709,6 +816,7 @@ fn selected_scenario(name: &str) -> Result<Scenario> {
         "Running instead of walking" => Scenario::RunVsWalk,
         "A wall blocks movement" => Scenario::WallContact,
         "Jumping from a standstill and landing" => Scenario::StationaryJump,
+        "Jumping from a walk and landing" => Scenario::MovingJump,
         _ => anyhow::bail!("unknown BDD scenario: {name}"),
     })
 }
@@ -756,7 +864,7 @@ fn run_selected(names: &[&'static str], shared_session: bool) -> Result<SessionE
         let before_launch_count = Rc::clone(&launch_count);
         let after_session = Rc::clone(&session);
         let writer = runtime.block_on(async {
-            let feature = if scenario == Scenario::StationaryJump {
+            let feature = if matches!(scenario, Scenario::StationaryJump | Scenario::MovingJump) {
                 concat!(env!("CARGO_MANIFEST_DIR"), "/tests/features/jump.feature")
             } else {
                 concat!(

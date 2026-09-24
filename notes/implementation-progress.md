@@ -20,8 +20,12 @@ and [wall evidence](./wall-contact-2026-09-24.md). The stationary jump and
 landing BDD now passes independently in the original game and Godot, including
 native contact and one generated object on Godot's landing route. A
 pause-compensated comparison passes 29 of 30 functional checks; Godot enters
-action 3 by the 800 ms sample while the source is still in action 2. Moving
-jump and wall contact remain before jump acceptance. See the
+action 3 by the 800 ms sample while the source is still in action 2. The
+moving-jump BDD also passes independently on both backends: continuous
+walking through Ctrl produces action 7, forward airborne motion, native
+landing contact and stable idle. Its cross-engine functional comparison
+passes all 36 checks. The stationary peak-action difference and the jump
+wall/contact case remain before full jump acceptance. See the
 [jump checkpoint](./jump-comparison-2026-09-24.md). Combat, magick,
 cliff/death and a real follow camera remain open. A playable combined demo
 has not yet been accepted.
