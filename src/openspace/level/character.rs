@@ -172,6 +172,7 @@ impl<'a> Importer<'a> {
             configuration: config,
             initial_configuration: initial,
             object_types: types,
+            has_camera: self.session.pointer(perso, 20)?.is_some(),
             brain: None,
             collisions: self
                 .session

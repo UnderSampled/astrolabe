@@ -159,7 +159,7 @@ impl Project {
         // level root, so this remains valid for both rooted and global actors.
         writeln!(
             self.builder,
-            "    var {scene_id}_source_actor_brains = {{}}"
+            "    var {scene_id}_source_actor_brains = {{}}\n    var {scene_id}_source_actor_nodes = {{}}"
         )?;
         let mut source_actor_keys = BTreeSet::new();
         for node in &scene.nodes {
@@ -173,8 +173,13 @@ impl Project {
                 scene.path
             );
             let perso = source.load(reference)?;
+            let character = format!("{}_character", names[&node.id]);
+            writeln!(
+                self.builder,
+                "    {scene_id}_source_actor_nodes[{}] = {scene_id}.get_path_to({character})",
+                quoted(reference.path.as_str())
+            )?;
             if perso.brain.is_some() {
-                let character = format!("{}_character", names[&node.id]);
                 writeln!(
                     self.builder,
                     "    {scene_id}_source_actor_brains[{}] = {scene_id}.get_path_to({character}.get_node(\"Brain\"))",
@@ -190,8 +195,13 @@ impl Project {
                 scene.path
             );
             let perso = source.load(&global.perso)?;
+            let name = &global_names[&global.perso.path];
+            writeln!(
+                self.builder,
+                "    {scene_id}_source_actor_nodes[{}] = {scene_id}.get_path_to({name})",
+                quoted(global.perso.path.as_str())
+            )?;
             if perso.brain.is_some() {
-                let name = &global_names[&global.perso.path];
                 writeln!(
                     self.builder,
                     "    {scene_id}_source_actor_brains[{}] = {scene_id}.get_path_to({name}.get_node(\"Brain\"))",
@@ -201,7 +211,7 @@ impl Project {
         }
         writeln!(
             self.builder,
-            "    {scene_id}.set_meta(\"source_actor_brains\", {scene_id}_source_actor_brains)"
+            "    {scene_id}.set_meta(\"source_actor_brains\", {scene_id}_source_actor_brains)\n    {scene_id}.set_meta(\"source_actor_nodes\", {scene_id}_source_actor_nodes)"
         )?;
         for node in &scene.nodes {
             let Some(reference) = &node.perso else {

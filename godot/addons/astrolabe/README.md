@@ -96,11 +96,13 @@ scale. Its up/roll choice and zero-vector behavior remain fidelity questions.
 `Cond_CollideWithNothing` is decoded and compiled, but its contact-result
 mapping is not established. The native API currently returns an unknown value;
 the compiled AI reports that gap and stops before testing or negating it.
-The arrow's `Camera_ChangeTargetedPerso(StdCamer, MainActor)` call is also
-compiled. The native camera API currently returns unsupported; it receives the
-rooted `StdCamer` asset identity and MainActor reference without instantiating
-a replacement camera. A future camera slice must bind that asset to its live
-node before implementing the target-state change.
+The arrow's `Camera_ChangeTargetedPerso(StdCamer, MainActor)` call is compiled.
+The level exposes source actor node paths; the native camera API uses the
+compiled operand identity to find the saved actor's `SourceCamera` child and
+store the requested target reference. A source camera link adds that native
+`Camera3D` to the saved actor scene. Follow motion, viewport selection,
+projection fields and the procedure's other reset fields remain unsupported;
+target assignment alone does not change the view.
 The compiled `Stats_DisplayMainActor*` calls retain their requested Boolean
 visibility in `source_hud_display` and emit `hud_visibility_requested`. An
 authored HUD can bind that signal to its native `Control` nodes. The current

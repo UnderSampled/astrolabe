@@ -61,6 +61,26 @@ fn generated_actor_receives_live_scene_actor_brain_binding() -> Result<()> {
 }
 
 #[test]
+fn native_camera_api_stores_the_compiled_target_actor() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    let project = temp.path().join("godot");
+    godot::support::initialize(&project)?;
+    fs::write(
+        project.join("check_camera_target.gd"),
+        include_bytes!("check_camera_target.gd"),
+    )?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    let evidence = godot::run_godot(
+        &engine,
+        &project,
+        &["--headless", "--script", "res://check_camera_target.gd"],
+        Duration::from_secs(20),
+    )?;
+    assert!(evidence.contains("SOURCE_CAMERA_TARGET_OK"), "{evidence}");
+    Ok(())
+}
+
+#[test]
 fn fix_ai_programs_keep_distinct_level_projections() -> Result<()> {
     let temp = tempfile::tempdir()?;
     let project = temp.path().join("godot");

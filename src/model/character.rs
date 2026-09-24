@@ -104,6 +104,9 @@ pub struct Perso {
     pub configuration: Option<AssetRef<ObjectList>>,
     pub initial_configuration: Option<AssetRef<ObjectList>>,
     pub object_types: [u32; 3],
+    /// A source camera component is linked from this actor. Its Hype payload
+    /// remains unpromoted; this preserves the native camera role for export.
+    pub has_camera: bool,
     pub brain: Option<super::ai::Brain>,
     pub collisions: Option<CharacterCollisions>,
 }

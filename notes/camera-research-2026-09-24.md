@@ -55,3 +55,57 @@ movement suite. That suite continues to test actor behavior with its existing
 test-owned presentation camera. The later camera slice should determine how
 camera objects, selection and follow logic map to native Godot nodes, then
 investigate the walk-distance change before implementing collision or easing.
+
+## Native camera slice boundary
+
+Raymap's viewer locates a `StdCamer` Perso and copies its transform to its
+own initial camera, but that is a viewer setup path rather than the original
+follow controller. The original viewport holds a separate active camera
+pointer. Its general-camera routines initialize controller state from a camera
+Perso and compute a target offset through an actor-derived rotation. The
+checked-in decompilation does not establish follow smoothing or obstruction
+behavior. Raymap's 116-byte `CameraInfo` reader belongs to a separate ROM
+format, so its unnamed fields must not be applied to this Hype allocation.
+
+The current imported `StdCamer` has a rooted scene transform, but its Perso
+asset omits both its source camera link and Brain. An older local Rete fixture
+places it and Hype at different world coordinates from the supplied save; its
+relative initial placement is not proof of the saved runtime camera pose.
+The live horizontal 1.5-radian FoV, near/far planes and measured follow offsets
+are observation targets, not portable export constants. The Montreal Perso's
+camera slot at `+20` has a real relocated link on rooted `StdCamer` and is
+null on the ordinary actor checked. The linked allocation is pointer-rich
+and its Hype field meanings remain unknown. The camera slice should first
+preserve that source association and Brain, add a native
+`Camera3D` bound to that actor, then implement the verified target and follow
+API. Camera assertions stay separate from movement/contact scenarios. No
+camera-specific Godot support behavior is added until those source contracts
+are established.
+
+The verified executable's procedure 160 stores its resolved target Perso
+pointer in the camera actor's runtime data at `+0x10`. Procedure 163 restores
+the main actor there. The former also writes 255.0 to `+0x3c` and clears
+several other fields with unknown meanings; these reset effects must remain
+explicitly unresolved if only target assignment is ported. This target state
+does not by itself select the active viewport camera or prove a follow pose.
+
+The first native slice now records whether the Montreal Perso `+20` camera
+link is present. The `StdCamer` asset retains that association through Rete;
+the exporter gives it a saved `Camera3D` child. Godot would otherwise make the
+first camera current automatically, so the child clears that implicit selection
+on ready until source viewport selection is implemented. The level
+also indexes actor nodes by their source `AssetRef<Perso>` paths. Model 733's
+compiled camera operand is exactly `level:/persos/world/0/2`, the rooted
+StdCamer path, so procedure 160 can store MainActor on that camera component
+without matching a display name. The original handler also resets fields
+whose meaning is unknown; this support method implements only the target
+assignment and does not yet claim full procedure fidelity. The linked camera
+allocation remains unpromoted and is not preserved as a full editable camera
+asset in Rete. That source-content loss and the unimplemented follow,
+projection and reset effects are explicit camera slice debt.
+
+A fresh local `manoir` export saved `SourceCamera` in the rooted `StdCamer`
+scene and the exact `level:/persos/world/0/2` actor-to-node binding in the
+level scene. Godot's headless editor scan loaded the generated project without
+scene or GDScript parse errors. This validates the saved structure and target
+lookup, but does not establish that this camera produces the source view.

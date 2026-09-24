@@ -246,6 +246,16 @@ pub(super) fn export_perso(
         project.builder,
         "    {name}.initial_state = {state}\n    {name}.current_state = {state}\n    if {state} >= 0:\n        apply_initial_pose({name}, {name}.get_node(\"AnimationPlayer\").get_animation(\"state_{state}\"))"
     )?;
+    if perso.has_camera {
+        writeln!(
+            project.builder,
+            "    var {name}_camera = Camera3D.new()\n    {name}_camera.name = \"SourceCamera\"\n    {name}_camera.set_script(load(\"res://addons/astrolabe/camera/source_camera.gd\"))\n    {name}.add_child({name}_camera)\n    {name}_camera.owner = {name}"
+        )?;
+        project.diagnostic(format!(
+            "{}: source camera association exported; camera parameters, follow, viewport selection and procedure reset fields remain unsupported",
+            perso.path
+        ));
+    }
     super::ai::component(project, source, perso, &name, written)?;
     writeln!(
         project.builder,

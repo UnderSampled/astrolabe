@@ -78,3 +78,25 @@ fn fix_global_actor_brain_and_source_identity_survive_rete() -> Result<()> {
     ensure!(*reopened_model == *model, "Global AI model changed in Rete");
     Ok(())
 }
+
+#[test]
+#[ignore = "requires local Hype game data; included by tools/test.py --local"]
+fn rooted_source_camera_association_survives_rete() -> Result<()> {
+    let mut imported = openspace::content::import_scene(&game(), Selection::hype("manoir", "en")?)?;
+    let camera_ref = AssetRef::<Perso>::new("level:/persos/world/0/2")?;
+    let camera = imported.load(&camera_ref)?;
+    ensure!(camera.name == "StdCamer", "source camera actor differs");
+    ensure!(camera.has_camera, "source camera association was dropped");
+    let ordinary_ref = AssetRef::<Perso>::new("level:/persos/world/0/1")?;
+    let ordinary = imported.load(&ordinary_ref)?;
+    ensure!(!ordinary.has_camera, "ordinary actor gained a camera");
+
+    let temp = tempfile::tempdir()?;
+    astrolabe::app::save_rete(&mut imported, temp.path())?;
+    let (mut store, _) = rete::Store::open(temp.path())?;
+    ensure!(
+        store.load(&camera_ref)?.has_camera,
+        "Rete lost source camera association"
+    );
+    Ok(())
+}
