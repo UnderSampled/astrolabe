@@ -1,4 +1,4 @@
-# Astrolabe support, interface 32
+# Astrolabe support, interface 33
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -88,6 +88,9 @@ is intentionally unset until a source-backed game/camera ray can supply it;
 scripts fail explicitly when the target is unavailable. The native sighting
 method rotates the actor from the source vector while preserving position and
 scale. Its up/roll choice and zero-vector behavior remain fidelity questions.
+`Cond_CollideWithNothing` is decoded and compiled, but its contact-result
+mapping is not established. The native API currently returns an unknown value;
+the compiled AI reports that gap and stops before testing or negating it.
 The compiled `Stats_DisplayMainActor*` calls retain their requested Boolean
 visibility in `source_hud_display` and emit `hud_visibility_requested`. An
 authored HUD can bind that signal to its native `Control` nodes. The current

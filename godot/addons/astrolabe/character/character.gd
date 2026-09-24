@@ -376,6 +376,11 @@ func source_see_perso(receiver: Node3D, target: Node3D) -> bool:
 func source_collide_with_ground() -> bool:
     return is_on_floor()
 
+## Cond_CollideWithNothing uses a source contact-result bit whose producer and
+## native Godot mapping are not yet verified. Unknown must never become false.
+func source_collide_with_nothing() -> Variant:
+    return null
+
 func source_collide_with_slope() -> bool:
     if not is_on_floor(): return false
     # A steep wall can have a positive vertical component. Use the native

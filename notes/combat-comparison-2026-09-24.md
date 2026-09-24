@@ -308,9 +308,9 @@ target query refreshes the stored point before checking the presentation flag,
 so hiding the laser does not itself prevent a later query from updating the
 target. Its ray inputs and collision rules still need translation. A fresh Rete import and
 direct compilation of models 28 and 733 confirmed that model 28's firing
-schedule has no unsupported source AI nodes. Model 733 still has unsupported
+schedule has no unsupported source AI nodes. Model 733's later rule reaches
 condition 33 (`CollideWithNothing`) and statement 160
-(`Camera_ChangeTargetedPerso`) in its later rule. The native orientation
+(`Camera_ChangeTargetedPerso`). The native orientation
 builder uses world up when constructing a basis; source roll and zero-vector
 details are unresolved fidelity debt. Collision conditions remain unsupported.
 The source target query is camera based and traverses several world object
@@ -320,18 +320,23 @@ normal Godot gameplay cannot acquire one.
 
 Further static inspection of model 733's normal behavior 2 shows its
 collision branch is `not Cond_CollideWithNothing()` with no operands. On
-contact, the original AI calls `Camera_ChangeTargetedPerso` with a Fix target
-and integer `5`, clears two MainActor designer fields if field 120 is zero,
-then kills itself. A separate rule kills it after its lifetime counter exceeds
+contact, the original AI calls `Camera_ChangeTargetedPerso` with a Fix actor
+reference and the `MainActor` keyword, clears two MainActor designer fields if
+field 120 is zero, then kills itself. A separate rule kills it after its lifetime counter exceeds
 150. The verified executable's shared condition handler `0x533d20` reads the
 actor contact result at offset `+0x20`; descriptor alignment and switch entry
 for raw condition 33 support a bit-zero test, but the collision updater's
 production of that bit is not yet proven. Native support should expose the
 contact result needed by this compiled condition, rather than make an arrow
 specific lifetime or steering decision. Camera procedure 160 maps to handler
-`0x547f80`; its exact target-state side effects and the meaning of argument
-`5` remain unverified and belong with the later camera work. These calls remain
-explicitly unsupported in the current Godot compiler.
+`0x547f80`; its exact target-state side effects and the role of the Fix actor
+reference remain unverified and belong with the later camera work. The raw
+second operand is category 0, parameter 5: the `MainActor` keyword, not the
+integer five. Condition 33 now has a typed source round trip and a compiled
+Godot call guarded against an unknown native contact result. Its support API
+returns unknown until the collision updater mapping is verified; a negated
+condition cannot silently become true. Camera procedure 160 remains an
+unsupported source AI node.
 
 Any implementation that chooses a weapon or moves an arrow in Godot support
 without a corresponding compiled AI request would be a replacement gameplay

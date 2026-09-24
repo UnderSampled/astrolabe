@@ -264,6 +264,9 @@ pub enum Expression {
     ActionFinished,
     /// Current actor's native floor contact.
     CollideWithGround,
+    /// Source Cond_CollideWithNothing reads the actor contact result. The
+    /// native contact-category mapping remains under investigation.
+    CollideWithNothing,
     /// Source collision-category bit 0x4; Godot currently maps it to native
     /// inclined floor contact while the full source classification is studied.
     CollideWithSlope,

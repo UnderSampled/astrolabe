@@ -374,6 +374,7 @@ fn comparison_code(
 fn needs_guard(e: &Expression, model: &AiModel) -> bool {
     match e {
         Expression::Unsupported(_)
+        | Expression::CollideWithNothing
         | Expression::LaserDirection
         | Expression::MagicCurrentSpell
         | Expression::MagicPoints
@@ -580,6 +581,20 @@ fn guarded_expression(
             )?;
             format!("character().source_magic_remove_points(int({amount}))")
         }
+        Expression::CollideWithNothing => {
+            let id = flow.local;
+            flow.local += 1;
+            let local = format!("contact_result_{id}");
+            writeln!(
+                out,
+                "{pad}var {local} = character().source_collide_with_nothing()\n{pad}if {local} == null:\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                quoted(&format!(
+                    "{} requires a verified source contact result",
+                    model.path
+                ))
+            )?;
+            local
+        }
         Expression::LaserDirection => {
             writeln!(
                 out,
@@ -677,6 +692,7 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         ),
         Expression::ActionFinished => "character().action_complete".into(),
         Expression::CollideWithGround => "character().source_collide_with_ground()".into(),
+        Expression::CollideWithNothing => "character().source_collide_with_nothing()".into(),
         Expression::CollideWithSlope => "character().source_collide_with_slope()".into(),
         Expression::IsTypeOfGmtCollide(kind) => {
             format!("character().source_is_type_of_gmt_collide({kind})")

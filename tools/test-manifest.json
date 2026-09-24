@@ -364,6 +364,17 @@
     },
     {
       "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::contact_nothing_condition_reconstructs_exact_script",
+      "areas": ["source", "ai", "combat"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic source contact condition",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::main_actor_field_adjustments_reconstruct_exact_script",
       "areas": ["ai", "source", "combat"],
       "kind": "unit",
@@ -752,6 +763,17 @@
       "prerequisites": ["godot"],
       "fixture": "synthetic source mana state",
       "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
+      "test": "unknown_contact_stops_compiled_ai_before_negated_branch",
+      "areas": ["ai", "combat"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic arrow contact branch",
+      "timeout_seconds": 5,
       "ignored": false,
       "release": true
     },

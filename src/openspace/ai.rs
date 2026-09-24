@@ -582,6 +582,7 @@ impl Parser<'_> {
             (1, 59) => Expression::IsInAction(Box::new(self.expression(indent + 1)?)),
             (1, 123) => Expression::ActionFinished,
             (1, 31) => Expression::CollideWithGround,
+            (1, 33) => Expression::CollideWithNothing,
             (1, 34) => Expression::CollideWithSlope,
             (1, 60) => {
                 let (_, material_type) = self.take(indent + 1)?;
@@ -1129,6 +1130,7 @@ impl Writer<'_> {
             }
             Expression::ActionFinished => self.node(1, 123, indent),
             Expression::CollideWithGround => self.node(1, 31, indent),
+            Expression::CollideWithNothing => self.node(1, 33, indent),
             Expression::CollideWithSlope => self.node(1, 34, indent),
             Expression::IsTypeOfGmtCollide(kind) => {
                 self.node(1, 60, indent);
@@ -1607,6 +1609,21 @@ mod partial_tests {
                 value: Expression::MagicRemovePoints(amount),
                 ..
             } if **amount == Expression::Integer(10)
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn contact_nothing_condition_reconstructs_exact_script() -> Result<()> {
+        let (codec, bytes) = partial(&[(2, 11, 1), (11, 0, 2), (1, 33, 2), (8, 0, 0)]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            script.statements[0],
+            Statement::Assign {
+                value: Expression::CollideWithNothing,
+                ..
+            }
         ));
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())

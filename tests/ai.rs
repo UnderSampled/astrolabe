@@ -33,6 +33,31 @@ fn native_magick_service_follows_verified_remove_points_contract() -> Result<()>
     Ok(())
 }
 
+#[test]
+fn unknown_contact_stops_compiled_ai_before_negated_branch() -> Result<()> {
+    let mut model = model()?;
+    model.normal.as_mut().unwrap().behaviors[0]
+        .schedule
+        .as_mut()
+        .unwrap()
+        .statements = vec![Statement::If {
+        condition: Expression::Not(Box::new(Expression::CollideWithNothing)),
+        then: vec![Statement::Assign {
+            variable: 0,
+            value: Expression::Integer(1),
+        }],
+        otherwise: None,
+    }];
+    let code = godot::ai::compile(&model, &[])?;
+    let query = code.find("source_collide_with_nothing()").unwrap();
+    let guard = code
+        .find("requires a verified source contact result")
+        .unwrap();
+    let branch = code.find("if bool((not bool(contact_result_").unwrap();
+    assert!(query < guard && guard < branch, "{code}");
+    Ok(())
+}
+
 fn model() -> Result<AiModel> {
     Ok(AiModel {
         path: AssetPath::new("level:/ai/proximity")?,
