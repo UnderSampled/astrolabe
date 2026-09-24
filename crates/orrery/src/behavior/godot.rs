@@ -1,8 +1,8 @@
 //! One persistent Godot process for the shared functional movement scenarios.
 //! The test wrapper sends physical key edges to the saved, compiled Hype Brain.
 use super::{
-    ActorSample, BackendResult, DeliveredInput, FunctionalRecording, IDLE_ACTION, Scenario,
-    assertions, distance_xy, heading_delta,
+    ActorSample, BackendResult, DeliveredInput, FunctionalRecording, IDLE_ACTION, SamplePoint,
+    Scenario, TimedInput, assertions, distance_xy, heading_delta,
 };
 use crate::replay::{Edge, Event, Key};
 use anyhow::{Context, Result, ensure};
@@ -50,6 +50,7 @@ pub struct GodotBackend {
     fixture_intervention: Value,
     ready_state: ReadyState,
     project_sha256: String,
+    headless: bool,
 }
 
 impl GodotBackend {
@@ -109,7 +110,8 @@ impl GodotBackend {
         let log = File::create(control.path().join("godot.log"))?;
         let mut command = Command::new(&engine);
         command.arg("--path").arg(&project);
-        if godot::gameplay_headless()? {
+        let headless = godot::gameplay_headless()?;
+        if headless {
             command.arg("--headless");
         }
         let child = command
@@ -130,6 +132,7 @@ impl GodotBackend {
             fixture_intervention,
             ready_state: ReadyState::Fresh,
             project_sha256,
+            headless,
         };
         let ready_path = backend.control.path().join("ready.json");
         let deadline = Instant::now() + Duration::from_secs(70);
@@ -276,9 +279,55 @@ impl GodotBackend {
         self.validate_observation(&response)
     }
 
+    fn reload_saved_state(&mut self) -> Result<Value> {
+        let before = self.observe("before_same_process_reload", 0, Instant::now())?;
+        let after = self.request(json!({"action": "reload_fixture"}), Duration::from_secs(15))?;
+        self.validate_observation(&after)?;
+        let source_position = self.fixture_intervention["source_translation"]
+            .as_array()
+            .context("fixture source position missing")?;
+        let position = after["translation"]
+            .as_array()
+            .context("reloaded Godot position missing")?;
+        for axis in 0..3 {
+            let expected = source_position[axis]
+                .as_f64()
+                .context("fixture coordinate missing")?;
+            let actual = position[axis]
+                .as_f64()
+                .context("reloaded coordinate missing")?;
+            ensure!(
+                (actual - expected).abs() < if axis == 2 { 0.06 } else { 0.08 },
+                "same-process Godot reload changed saved position: {after}"
+            );
+        }
+        ensure!(
+            after["action"] == IDLE_ACTION
+                && after["heading_rad"]
+                    .as_f64()
+                    .is_some_and(|heading| (heading.abs() - std::f64::consts::PI).abs() < 0.08),
+            "same-process Godot reload did not restore idle facing: {after}"
+        );
+        self.ready_state = ReadyState::Fresh;
+        Ok(json!({
+            "method": "same_process_packed_scene_reinstantiation",
+            "before": before,
+            "after": after,
+            "resource_settle_ms": STARTUP_SETTLE_MS,
+        }))
+    }
+
     /// The successful turn scenario leaves the same process facing a clear route.
     pub fn face_clear_path(&mut self) -> Result<()> {
+        let reload = if matches!(self.ready_state, ReadyState::Finished) {
+            Some(self.reload_saved_state()?)
+        } else {
+            None
+        };
         self.setup_interventions = vec![self.fixture_intervention.clone()];
+        if let Some(reload) = reload {
+            self.setup_interventions.push(reload);
+        }
         if let ReadyState::TurnedLeft { settled, hash } = &self.ready_state {
             let settled = settled.clone();
             let hash = hash.clone();
@@ -336,29 +385,19 @@ impl GodotBackend {
         Ok(())
     }
 
-    pub fn run(&mut self, recording: FunctionalRecording) -> Result<BackendResult> {
-        recording.validate()?;
-        ensure!(
-            matches!(
-                (&self.ready_state, recording.scenario),
-                (ReadyState::Fresh, Scenario::TurnReleaseIdle)
-                    | (ReadyState::ClearRoute, Scenario::WalkReleaseStop)
-            ),
-            "Godot Given setup is not established"
-        );
+    fn execute_trial(
+        &mut self,
+        inputs: &[TimedInput],
+        points: &[SamplePoint],
+        prefix: &str,
+    ) -> Result<(Vec<DeliveredInput>, Vec<ActorSample>)> {
         let origin = Instant::now();
         let mut delivered = vec![];
         let mut samples = vec![];
-        let mut actions = recording
-            .inputs
+        let mut actions = inputs
             .iter()
             .map(|v| (v.at_ms, 0_u8, v.id.as_str()))
-            .chain(
-                recording
-                    .samples
-                    .iter()
-                    .map(|v| (v.at_ms, 1_u8, v.name.as_str())),
-            )
+            .chain(points.iter().map(|v| (v.at_ms, 1_u8, v.name.as_str())))
             .collect::<Vec<_>>();
         actions.sort_by_key(|(at, order, _)| (*at, *order));
         for (at_ms, order, name) in actions {
@@ -368,8 +407,7 @@ impl GodotBackend {
                 thread::sleep(remaining);
             }
             if order == 0 {
-                let input = recording
-                    .inputs
+                let input = inputs
                     .iter()
                     .find(|v| v.id == name)
                     .context("input missing")?;
@@ -386,12 +424,19 @@ impl GodotBackend {
                     event: input.event.clone(),
                 });
             } else {
-                samples.push(self.observe(name, at_ms, origin)?);
+                samples.push(self.observe(&format!("{prefix}{name}"), at_ms, origin)?);
             }
+        }
+        Ok((delivered, samples))
+    }
+
+    fn screenshot(&mut self, slug: &str) -> Result<Value> {
+        if self.headless {
+            return Ok(json!({"status": "not_captured_headless"}));
         }
         let screenshot_path = self.runs.join(format!(
             "godot-{}-{}.png",
-            recording.scenario.slug(),
+            slug,
             SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
         ));
         let screenshot_response = self.request(
@@ -401,9 +446,29 @@ impl GodotBackend {
         ensure!(
             screenshot_response["path"].as_str()
                 == Some(screenshot_path.to_string_lossy().as_ref()),
-            "Godot screenshot path changed"
+            "Godot screenshot path changed: requested {}, received {}",
+            screenshot_path.display(),
+            screenshot_response
         );
         let screenshot_hash = format!("{:x}", Sha256::digest(fs::read(&screenshot_path)?));
+        Ok(json!({"path": screenshot_path, "sha256": screenshot_hash}))
+    }
+
+    pub fn run(&mut self, recording: FunctionalRecording) -> Result<BackendResult> {
+        recording.validate()?;
+        if recording.scenario == Scenario::RunVsWalk {
+            return self.run_comparison(recording);
+        }
+        ensure!(
+            matches!(
+                (&self.ready_state, recording.scenario),
+                (ReadyState::Fresh, Scenario::TurnReleaseIdle)
+                    | (ReadyState::ClearRoute, Scenario::WalkReleaseStop)
+            ),
+            "Godot Given setup is not established"
+        );
+        let (delivered, samples) = self.execute_trial(&recording.inputs, &recording.samples, "")?;
+        let screenshot = self.screenshot(recording.scenario.slug())?;
         let checks = assertions(recording.scenario, &samples)?;
         let status = if checks.iter().all(|c| c.passed) {
             "passed"
@@ -428,7 +493,7 @@ impl GodotBackend {
             delivered,
             samples,
             assertions: checks,
-            screenshot: Some(json!({"path": screenshot_path, "sha256": screenshot_hash})),
+            screenshot: Some(screenshot),
             cleanup_complete: false,
             error: None,
         };
@@ -441,6 +506,63 @@ impl GodotBackend {
             } else {
                 ReadyState::Finished
             };
+        Ok(result)
+    }
+
+    fn run_comparison(&mut self, recording: FunctionalRecording) -> Result<BackendResult> {
+        ensure!(
+            matches!(self.ready_state, ReadyState::ClearRoute),
+            "Godot run comparison needs the verified clear-route start"
+        );
+        let walk = recording.preparatory_trial.as_ref().unwrap();
+        let initial_setup = self.setup_interventions.clone();
+        let (mut delivered, mut samples) =
+            self.execute_trial(&walk.inputs, &walk.samples, "walk_")?;
+        let walk_screenshot = self.screenshot("run-comparison-walk")?;
+        let reload = self.reload_saved_state()?;
+        self.face_clear_path()?;
+        let mut setup_interventions = initial_setup;
+        setup_interventions.push(json!({
+            "method": "walk_trial_completion",
+            "screenshot": walk_screenshot,
+            "settled": samples.last(),
+        }));
+        setup_interventions.push(reload);
+        setup_interventions.extend(self.setup_interventions.clone());
+        let (run_delivered, run_samples) =
+            self.execute_trial(&recording.inputs, &recording.samples, "run_")?;
+        delivered.extend(run_delivered);
+        samples.extend(run_samples);
+        let screenshot = self.screenshot("run-comparison-run")?;
+        let checks = assertions(recording.scenario, &samples)?;
+        let status = if checks.iter().all(|check| check.passed) {
+            "passed"
+        } else {
+            "failed"
+        };
+        let result = BackendResult {
+            backend: "godot".into(),
+            scenario: recording.scenario,
+            status: status.into(),
+            recording_sha256: recording.sha256()?,
+            recording,
+            executable_sha256: Some(self.project_sha256.clone()),
+            save_sha256: self.fixture_intervention["source_archive_sha256"]
+                .as_str()
+                .map(str::to_owned),
+            loaded_level: Some("manoir".into()),
+            setup_interventions,
+            input_delivery: "godot_inputeventkey_physical_edges".into(),
+            observation_consistency: "rendered_frame_scene_observation".into(),
+            completed_update: false,
+            delivered,
+            samples,
+            assertions: checks,
+            screenshot: Some(screenshot),
+            cleanup_complete: false,
+            error: None,
+        };
+        self.ready_state = ReadyState::Finished;
         Ok(result)
     }
 

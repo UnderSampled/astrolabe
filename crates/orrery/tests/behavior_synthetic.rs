@@ -3,19 +3,26 @@ mod behavior_steps;
 const BACKEND: behavior_steps::Mode = behavior_steps::Mode::Synthetic;
 
 #[test]
-fn synthetic_turn_and_walk_use_shared_bdd_steps_and_report_pending_godot() -> anyhow::Result<()> {
-    let shared =
-        behavior_steps::run_scenarios_shared(&["Turning while standing", "Walking and stopping"])?;
+fn synthetic_movement_uses_shared_bdd_steps_and_report_pending_godot() -> anyhow::Result<()> {
+    let shared = behavior_steps::run_scenarios_shared(&[
+        "Turning while standing",
+        "Walking and stopping",
+        "Running instead of walking",
+    ])?;
     let suite: serde_json::Value = serde_json::from_slice(&std::fs::read(&shared.suite_report)?)?;
     assert_eq!(suite["status"], "passed");
     assert_eq!(suite["launch_count"], 0);
-    assert_eq!(suite["completed_reports"].as_array().map(Vec::len), Some(2));
+    assert_eq!(suite["completed_reports"].as_array().map(Vec::len), Some(3));
     let shared_turn: serde_json::Value =
         serde_json::from_slice(&std::fs::read(&shared.scenario_reports[0])?)?;
     let shared_walk: serde_json::Value =
         serde_json::from_slice(&std::fs::read(&shared.scenario_reports[1])?)?;
     assert_eq!(shared_turn["session"]["id"], shared_walk["session"]["id"]);
-    for scenario in ["Turning while standing", "Walking and stopping"] {
+    for scenario in [
+        "Turning while standing",
+        "Walking and stopping",
+        "Running instead of walking",
+    ] {
         let path = behavior_steps::run_scenario(scenario)?;
         let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
         assert_eq!(report["selected_backend"], "synthetic");
@@ -30,6 +37,16 @@ fn synthetic_turn_and_walk_use_shared_bdd_steps_and_report_pending_godot() -> an
     let mut godot = source.clone();
     godot.backend = "godot".into();
     assert_eq!(behavior::compare_results(&source, &godot)?.status, "passed");
+    let mut run_source =
+        behavior_steps::synthetic_result(behavior::recording(Scenario::RunVsWalk))?;
+    run_source.backend = "openspace".into();
+    run_source.cleanup_complete = true;
+    let mut run_godot = run_source.clone();
+    run_godot.backend = "godot".into();
+    assert_eq!(
+        behavior::compare_results(&run_source, &run_godot)?.status,
+        "passed"
+    );
     let mut turn_source =
         behavior_steps::synthetic_result(behavior::recording(Scenario::TurnReleaseIdle))?;
     turn_source.backend = "openspace".into();

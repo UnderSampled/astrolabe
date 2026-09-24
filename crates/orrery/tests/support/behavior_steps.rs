@@ -154,6 +154,75 @@ pub fn synthetic_result(recording: behavior::FunctionalRecording) -> Result<Back
             ],
             32,
         ),
+        Scenario::RunVsWalk => {
+            let points = [
+                (0., 47),
+                (0.5, 32),
+                (0.8, 32),
+                (1.0, 47),
+                (1.0, 47),
+                (0., 47),
+                (1.0, 33),
+                (1.7, 33),
+                (2.4, 47),
+                (2.4, 47),
+            ];
+            let samples = points
+                .into_iter()
+                .enumerate()
+                .map(|(index, (distance, action))| {
+                    let phase = if index < 5 { "walk" } else { "run" };
+                    let point = &recording.samples[index % 5];
+                    ActorSample::from_actor(
+                        format!("{phase}_{}", point.name),
+                        point.at_ms,
+                        point.at_ms,
+                        point.at_ms + 1,
+                        synthetic_actor(action, [distance, 0., 0.], 0.),
+                    )
+                })
+                .collect::<Result<Vec<_>>>()?;
+            let checks = behavior::assertions(scenario, &samples)?;
+            let delivered = recording
+                .preparatory_trial
+                .as_ref()
+                .unwrap()
+                .inputs
+                .iter()
+                .chain(&recording.inputs)
+                .map(|input| behavior::DeliveredInput {
+                    id: input.id.clone(),
+                    planned_ms: input.at_ms,
+                    actual_ms: input.at_ms,
+                    event: input.event.clone(),
+                })
+                .collect();
+            return Ok(BackendResult {
+                backend: "synthetic".into(),
+                scenario,
+                status: if checks.iter().all(|check| check.passed) {
+                    "passed"
+                } else {
+                    "failed"
+                }
+                .into(),
+                recording_sha256: recording.sha256()?,
+                recording,
+                executable_sha256: None,
+                save_sha256: None,
+                loaded_level: Some("synthetic_manoir".into()),
+                input_delivery: "synthetic_fixture".into(),
+                observation_consistency: "synthetic".into(),
+                completed_update: false,
+                setup_interventions: vec![],
+                delivered,
+                samples,
+                assertions: checks,
+                screenshot: None,
+                cleanup_complete: false,
+                error: None,
+            });
+        }
     };
     let samples = recording
         .samples
@@ -297,6 +366,11 @@ fn walk(world: &mut BehaviorWorld) {
     perform(world, Scenario::WalkReleaseStop);
 }
 
+#[when("the player walks and runs from equivalent starts")]
+fn run_vs_walk(world: &mut BehaviorWorld) {
+    perform(world, Scenario::RunVsWalk);
+}
+
 fn require_checks(world: &mut BehaviorWorld, names: &[&str]) {
     let result = world
         .result
@@ -361,10 +435,35 @@ fn stopped(world: &mut BehaviorWorld) {
     );
 }
 
+#[then("running moves Hype faster than walking")]
+fn ran_faster(world: &mut BehaviorWorld) {
+    require_checks(
+        world,
+        &[
+            "walk_active_action",
+            "run_active_action",
+            "equivalent_start_xy",
+            "equivalent_heading_rad",
+            "walk_distance_xy",
+            "run_distance_xy",
+            "run_forward_distance",
+            "run_to_walk_ratio",
+            "run_lateral_distance",
+            "walk_settled_idle",
+            "run_settled_idle",
+            "walk_post_release_drift",
+            "run_post_release_drift",
+            "walk_height_change",
+            "run_height_change",
+        ],
+    );
+}
+
 fn selected_scenario(name: &str) -> Result<Scenario> {
     Ok(match name {
         "Turning while standing" => Scenario::TurnReleaseIdle,
         "Walking and stopping" => Scenario::WalkReleaseStop,
+        "Running instead of walking" => Scenario::RunVsWalk,
         _ => anyhow::bail!("unknown BDD scenario: {name}"),
     })
 }

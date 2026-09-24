@@ -213,19 +213,33 @@ Compare against the original save's observed 30-to-20 mana cast and establish
 the missing collision/lifetime evidence. Record any additional save, cheat or
 memory intervention used to reach a test state.
 
-### Camera development after magick
+### 5. Cliff fall and death
+
+Extend the same player path to a verified cliff in the converted level. Establish
+the route and fall outcome in the original game before fixing BDD bounds.
+Resolve loss of floor support, vertical motion, fall/death action selection and
+the collision or death condition through the compiled player AI and native
+Godot physics. For the first playable demo, death ends gameplay; a restart or
+save-load flow can be developed separately.
+
+**Exit:** Hype can walk off the identified cliff, fall visibly, and enter the
+source-informed death state. A behavior scenario checks the approach, loss of
+floor contact, descent, and terminal game state independently in both engines;
+it does not infer death merely from a position threshold or a missing actor.
+
+### 6. Real follow camera
 
 The 2026-09-24 source-camera probe measured the active `manoir` view at idle,
 after turning and after walking. Keep its transform, projection and screenshots
 in the [movement BDD evidence](./camera-research-2026-09-24.md).
-After the magick slice, implement a native Godot gameplay camera as its own
+After the cliff/death slice, implement a native Godot gameplay camera as its own
 development slice. Determine where camera selection and authored camera
 objects belong, then calibrate the view and its follow behavior against the
 source. Camera-specific assertions belong in that slice. The current movement
 BDD scenarios continue to test movement with their existing presentation
 wrapper.
 
-### 5. Repeatable conversion and Godot authoring
+### 7. Playable demo and repeatable conversion
 
 Apply these checks within every earlier slice, then for the combined controls.
 Direct OpenSpace conversion and conversion from closed/reopened Rete must
@@ -234,9 +248,11 @@ edit must survive Rete and change the expected visible behavior. Verify source
 reconstruction for newly supported fields separately; full-package or
 compression parity does not gate these controls.
 
-**Exit:** the combined sequence runs through the normal exported project and
-maintained support without a converter process, source tables or special test
-controller. Inspect animation seeking and generated scripts in Godot. Make an
+**Exit:** a person can launch the normal exported Godot project and play the
+combined movement, jump, weapon, magick, fall/death and follow-camera path
+without the BDD controller, converter process or source tables. The maintained
+support remains the same package exercised by the tests. Inspect animation
+seeking and generated scripts in Godot. Make an
 authored scene/resource variation through normal extension points, regenerate,
 and show that it and unrelated levels/settings survive. Run affected development
 suites plus mandatory safeguards; use the full declared matrix at release or

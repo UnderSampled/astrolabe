@@ -13,3 +13,8 @@ Feature: Moving through the manor
     When the player walks forward and releases the movement control
     Then Hype moves forward from the starting place
     And Hype returns to standing without continuing to drift
+
+  Scenario: Running instead of walking
+    Given a clear path is ahead of Hype
+    When the player walks and runs from equivalent starts
+    Then running moves Hype faster than walking

@@ -21,6 +21,8 @@ pub const IDLE_ACTION: u32 = 47;
 pub const TURN_LEFT_ACTION: u32 = 35;
 pub const WALK_FORWARD_ACTION: u32 = 32;
 pub const WALK_START_ACTION: u32 = 78;
+pub const RUN_FORWARD_ACTION: u32 = 33;
+pub const RUN_START_ACTION: u32 = 79;
 pub const ORIGINAL_STARTUP_SETTLE_MS: u64 = 2_500;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -28,12 +30,14 @@ pub const ORIGINAL_STARTUP_SETTLE_MS: u64 = 2_500;
 pub enum Scenario {
     TurnReleaseIdle,
     WalkReleaseStop,
+    RunVsWalk,
 }
 impl Scenario {
     pub fn slug(self) -> &'static str {
         match self {
             Self::TurnReleaseIdle => "turn-release-idle",
             Self::WalkReleaseStop => "walk-release-stop",
+            Self::RunVsWalk => "run-vs-walk",
         }
     }
 }
@@ -55,23 +59,52 @@ pub struct SamplePoint {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct TrialRecording {
+    pub inputs: Vec<TimedInput>,
+    pub samples: Vec<SamplePoint>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FunctionalRecording {
     pub schema: u32,
     pub scenario: Scenario,
     pub ready_state: String,
     pub inputs: Vec<TimedInput>,
     pub samples: Vec<SamplePoint>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preparatory_trial: Option<TrialRecording>,
 }
 impl FunctionalRecording {
     pub fn validate(&self) -> Result<()> {
         ensure!(self.schema == 1, "unsupported functional recording schema");
         let expected_ready_state = match self.scenario {
             Scenario::TurnReleaseIdle => "supplied-english-save-manoir",
-            Scenario::WalkReleaseStop => "manoir-clear-route-after-physical-left-turn",
+            Scenario::WalkReleaseStop | Scenario::RunVsWalk => {
+                "manoir-clear-route-after-physical-left-turn"
+            }
         };
         ensure!(
             self.ready_state == expected_ready_state,
             "unknown ready state"
+        );
+        if self.scenario == Scenario::RunVsWalk {
+            let walk = self
+                .preparatory_trial
+                .as_ref()
+                .context("run comparison lacks its walk trial")?;
+            validate_trial(&walk.inputs, &walk.samples, &[Key::ArrowUp])?;
+            validate_trial(&self.inputs, &self.samples, &[Key::LeftShift, Key::ArrowUp])?;
+            ensure!(
+                walk.inputs[1].at_ms - walk.inputs[0].at_ms
+                    == self.inputs[2].at_ms - self.inputs[0].at_ms,
+                "walk/run held durations differ"
+            );
+            return Ok(());
+        }
+        ensure!(
+            self.preparatory_trial.is_none(),
+            "ordinary movement has an unexpected preparatory trial"
         );
         ensure!(
             self.inputs.len() == 2,
@@ -123,9 +156,53 @@ impl FunctionalRecording {
 }
 
 pub fn recording(scenario: Scenario) -> FunctionalRecording {
+    if scenario == Scenario::RunVsWalk {
+        let samples = [
+            (0, "baseline"),
+            (450, "held"),
+            (600, "released"),
+            (1_800, "settled_start"),
+            (2_200, "settled_end"),
+        ]
+        .into_iter()
+        .map(|(at_ms, name)| SamplePoint {
+            at_ms,
+            name: name.into(),
+        })
+        .collect::<Vec<_>>();
+        let edge = |at_ms, id: &str, key, edge| TimedInput {
+            at_ms,
+            id: id.into(),
+            event: Event {
+                keyboard: 0,
+                key,
+                edge,
+            },
+        };
+        return FunctionalRecording {
+            schema: 1,
+            scenario,
+            ready_state: "manoir-clear-route-after-physical-left-turn".into(),
+            preparatory_trial: Some(TrialRecording {
+                inputs: vec![
+                    edge(200, "walk_press", Key::ArrowUp, Edge::Press),
+                    edge(500, "walk_release", Key::ArrowUp, Edge::Release),
+                ],
+                samples: samples.clone(),
+            }),
+            inputs: vec![
+                edge(200, "run_shift_press", Key::LeftShift, Edge::Press),
+                edge(200, "run_up_press", Key::ArrowUp, Edge::Press),
+                edge(500, "run_up_release", Key::ArrowUp, Edge::Release),
+                edge(500, "run_shift_release", Key::LeftShift, Edge::Release),
+            ],
+            samples,
+        };
+    }
     let (key, held_ms, release_ms, settled_start, settled_end) = match scenario {
         Scenario::TurnReleaseIdle => (Key::ArrowLeft, 600, 700, 2_500, 2_900),
         Scenario::WalkReleaseStop => (Key::ArrowUp, 450, 900, 2_200, 2_600),
+        Scenario::RunVsWalk => unreachable!(),
     };
     FunctionalRecording {
         schema: 1,
@@ -133,6 +210,7 @@ pub fn recording(scenario: Scenario) -> FunctionalRecording {
         ready_state: match scenario {
             Scenario::TurnReleaseIdle => "supplied-english-save-manoir",
             Scenario::WalkReleaseStop => "manoir-clear-route-after-physical-left-turn",
+            Scenario::RunVsWalk => unreachable!(),
         }
         .into(),
         inputs: vec![
@@ -168,7 +246,59 @@ pub fn recording(scenario: Scenario) -> FunctionalRecording {
             name: name.into(),
         })
         .collect(),
+        preparatory_trial: None,
     }
+}
+
+fn validate_trial(inputs: &[TimedInput], samples: &[SamplePoint], keys: &[Key]) -> Result<()> {
+    ensure!(
+        inputs.len() == keys.len() * 2,
+        "trial key edge count differs"
+    );
+    for key in keys {
+        ensure!(
+            inputs
+                .iter()
+                .filter(|input| input.event.key == *key && input.event.edge == Edge::Press)
+                .count()
+                == 1
+                && inputs
+                    .iter()
+                    .filter(|input| input.event.key == *key && input.event.edge == Edge::Release)
+                    .count()
+                    == 1,
+            "trial is missing a key press or release"
+        );
+    }
+    ensure!(
+        inputs.iter().all(|input| input.event.keyboard == 0),
+        "trial keyboard changed"
+    );
+    ensure!(
+        inputs
+            .iter()
+            .filter(|input| input.event.edge == Edge::Press)
+            .all(|input| input.at_ms == 200)
+            && inputs
+                .iter()
+                .filter(|input| input.event.edge == Edge::Release)
+                .all(|input| input.at_ms == 500),
+        "trial hold schedule changed"
+    );
+    ensure!(
+        samples
+            .iter()
+            .map(|point| (point.at_ms, point.name.as_str()))
+            .eq([
+                (0, "baseline"),
+                (450, "held"),
+                (600, "released"),
+                (1_800, "settled_start"),
+                (2_200, "settled_end")
+            ]),
+        "trial observation schedule changed"
+    );
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -265,10 +395,22 @@ fn walking_action_is_active(sample: &ActorSample) -> f64 {
     )))
 }
 
+fn running_action_is_active(sample: &ActorSample) -> f64 {
+    // Hype's source normal4 rule requests action 79 on entering the run;
+    // normal6 changes it to sustained action 33 when the start action ends.
+    f64::from(u8::from(matches!(
+        sample.action,
+        Some(RUN_START_ACTION | RUN_FORWARD_ACTION)
+    )))
+}
+
 /// Independently sourced functional bounds. The 2026-09-23 Orrery manor
 /// observation saw about 80 degrees/500 ms Left and 4.1 source units/1.8 s Up.
 /// These broad limits classify motion without claiming timing or pixel parity.
 pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Assertion>> {
+    if scenario == Scenario::RunVsWalk {
+        return run_comparison_assertions(samples);
+    }
     ensure!(samples.len() == 5, "five named samples required");
     ensure!(
         samples.iter().map(|s| s.name.as_str()).eq([
@@ -298,6 +440,7 @@ pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Ass
             match scenario {
                 Scenario::TurnReleaseIdle => action_is(held, TURN_LEFT_ACTION),
                 Scenario::WalkReleaseStop => walking_action_is_active(held),
+                Scenario::RunVsWalk => unreachable!(),
             },
             Some(1.),
             Some(1.),
@@ -383,8 +526,160 @@ pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Ass
                 ),
             ]);
         }
+        Scenario::RunVsWalk => unreachable!(),
     }
     Ok(checks)
+}
+
+fn run_comparison_assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
+    ensure!(
+        samples.len() == 10,
+        "walk/run comparison requires ten samples"
+    );
+    for (offset, prefix) in [(0, "walk"), (5, "run")] {
+        for (index, name) in [
+            "baseline",
+            "held",
+            "released",
+            "settled_start",
+            "settled_end",
+        ]
+        .iter()
+        .enumerate()
+        {
+            ensure!(
+                samples[offset + index].name == format!("{prefix}_{name}"),
+                "walk/run sample order changed"
+            );
+        }
+    }
+    let walk = &samples[..5];
+    let run = &samples[5..];
+    let walk_distance = distance_xy(&walk[0], &walk[4]);
+    let run_distance = distance_xy(&run[0], &run[4]);
+    let route_length = walk_distance.max(f64::EPSILON);
+    let route_x = f64::from(walk[4].translation[0] - walk[0].translation[0]) / route_length;
+    let route_y = f64::from(walk[4].translation[1] - walk[0].translation[1]) / route_length;
+    let run_dx = f64::from(run[4].translation[0] - run[0].translation[0]);
+    let run_dy = f64::from(run[4].translation[1] - run[0].translation[1]);
+    let run_forward = run_dx * route_x + run_dy * route_y;
+    let run_lateral = (run_dx * route_y - run_dy * route_x).abs();
+    let source = "Orrery 2026-09-24 supplied manor save, equal 300 ms physical Up / Shift+Up trials from a reloaded clear-route start; settled 1.095 and 2.521 source units";
+    Ok(vec![
+        bound(
+            "walk_baseline_idle",
+            action_is(&walk[0], IDLE_ACTION),
+            Some(1.),
+            Some(1.),
+            source,
+        ),
+        bound(
+            "run_baseline_idle",
+            action_is(&run[0], IDLE_ACTION),
+            Some(1.),
+            Some(1.),
+            source,
+        ),
+        bound(
+            "walk_active_action",
+            walking_action_is_active(&walk[1]),
+            Some(1.),
+            Some(1.),
+            source,
+        ),
+        bound(
+            "run_active_action",
+            running_action_is_active(&run[1]),
+            Some(1.),
+            Some(1.),
+            source,
+        ),
+        bound(
+            "walk_settled_idle",
+            action_is(&walk[4], IDLE_ACTION),
+            Some(1.),
+            Some(1.),
+            source,
+        ),
+        bound(
+            "run_settled_idle",
+            action_is(&run[4], IDLE_ACTION),
+            Some(1.),
+            Some(1.),
+            source,
+        ),
+        bound(
+            "equivalent_start_xy",
+            distance_xy(&walk[0], &run[0]),
+            None,
+            Some(0.08),
+            source,
+        ),
+        bound(
+            "equivalent_heading_rad",
+            heading_delta(&walk[0], &run[0]),
+            None,
+            Some(0.08),
+            source,
+        ),
+        bound(
+            "walk_distance_xy",
+            walk_distance,
+            Some(0.4),
+            Some(1.8),
+            source,
+        ),
+        bound(
+            "run_distance_xy",
+            run_distance,
+            Some(1.2),
+            Some(3.3),
+            source,
+        ),
+        bound(
+            "run_forward_distance",
+            run_forward,
+            Some(1.2),
+            Some(3.3),
+            source,
+        ),
+        bound(
+            "run_to_walk_ratio",
+            run_forward / route_length,
+            Some(1.5),
+            Some(3.5),
+            source,
+        ),
+        bound("run_lateral_distance", run_lateral, None, Some(0.3), source),
+        bound(
+            "walk_post_release_drift",
+            distance_xy(&walk[3], &walk[4]),
+            None,
+            Some(0.4),
+            source,
+        ),
+        bound(
+            "run_post_release_drift",
+            distance_xy(&run[3], &run[4]),
+            None,
+            Some(0.4),
+            source,
+        ),
+        bound(
+            "walk_height_change",
+            f64::from((walk[4].translation[2] - walk[0].translation[2]).abs()),
+            None,
+            Some(0.3),
+            source,
+        ),
+        bound(
+            "run_height_change",
+            f64::from((run[4].translation[2] - run[0].translation[2]).abs()),
+            None,
+            Some(0.3),
+            source,
+        ),
+    ])
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -437,12 +732,18 @@ pub fn compare_results(
     );
     openspace.require_pass()?;
     godot.require_pass()?;
+    let expected_samples = if openspace.scenario == Scenario::RunVsWalk {
+        10
+    } else {
+        5
+    };
     ensure!(
-        openspace.samples.len() == godot.samples.len() && openspace.samples.len() == 5,
+        openspace.samples.len() == godot.samples.len()
+            && openspace.samples.len() == expected_samples,
         "comparison sample coverage differs"
     );
     let mut checks = vec![];
-    for (source, target) in openspace.samples.iter().zip(&godot.samples) {
+    for (index, (source, target)) in openspace.samples.iter().zip(&godot.samples).enumerate() {
         ensure!(
             source.name == target.name,
             "comparison sample order differs"
@@ -454,10 +755,15 @@ pub fn compare_results(
             Some(1.),
             "canonical action identity at the same named checkpoint",
         ));
-        let sx = source.translation[0] - openspace.samples[0].translation[0];
-        let sy = source.translation[1] - openspace.samples[0].translation[1];
-        let tx = target.translation[0] - godot.samples[0].translation[0];
-        let ty = target.translation[1] - godot.samples[0].translation[1];
+        let origin = if openspace.scenario == Scenario::RunVsWalk && index >= 5 {
+            5
+        } else {
+            0
+        };
+        let sx = source.translation[0] - openspace.samples[origin].translation[0];
+        let sy = source.translation[1] - openspace.samples[origin].translation[1];
+        let tx = target.translation[0] - godot.samples[origin].translation[0];
+        let ty = target.translation[1] - godot.samples[origin].translation[1];
         let path_error = f64::from(sx - tx).hypot(f64::from(sy - ty));
         checks.push(bound(
             &format!("{}_relative_xy_error", source.name),
@@ -466,8 +772,8 @@ pub fn compare_results(
             Some(1.0),
             "functional path tolerance; source-relative positions in canonical units",
         ));
-        let source_yaw = source.heading_rad - openspace.samples[0].heading_rad;
-        let target_yaw = target.heading_rad - godot.samples[0].heading_rad;
+        let source_yaw = source.heading_rad - openspace.samples[origin].heading_rad;
+        let target_yaw = target.heading_rad - godot.samples[origin].heading_rad;
         let yaw_difference = source_yaw - target_yaw;
         checks.push(bound(
             &format!("{}_relative_heading_error", source.name),
@@ -528,11 +834,18 @@ impl BackendResult {
                 && self.recording.sha256()? == self.recording_sha256,
             "backend result recording identity differs"
         );
+        let planned_inputs = self
+            .recording
+            .preparatory_trial
+            .iter()
+            .flat_map(|trial| &trial.inputs)
+            .chain(&self.recording.inputs)
+            .collect::<Vec<_>>();
         ensure!(
-            self.delivered.len() == self.recording.inputs.len(),
+            self.delivered.len() == planned_inputs.len(),
             "backend input delivery is incomplete"
         );
-        for (delivered, planned) in self.delivered.iter().zip(&self.recording.inputs) {
+        for (delivered, planned) in self.delivered.iter().zip(planned_inputs) {
             ensure!(
                 delivered.id == planned.id
                     && delivered.event == planned.event
@@ -545,13 +858,30 @@ impl BackendResult {
                 "backend input delivery missed functional deadline"
             );
         }
+        let planned_samples = self
+            .recording
+            .preparatory_trial
+            .iter()
+            .flat_map(|trial| trial.samples.iter().map(|point| ("walk_", point)))
+            .chain(self.recording.samples.iter().map(|point| {
+                (
+                    if self.scenario == Scenario::RunVsWalk {
+                        "run_"
+                    } else {
+                        ""
+                    },
+                    point,
+                )
+            }))
+            .collect::<Vec<_>>();
         ensure!(
-            self.samples.len() == self.recording.samples.len(),
+            self.samples.len() == planned_samples.len(),
             "backend sample coverage is incomplete"
         );
-        for (sample, planned) in self.samples.iter().zip(&self.recording.samples) {
+        for (sample, (prefix, planned)) in self.samples.iter().zip(planned_samples) {
             ensure!(
-                sample.name == planned.name && sample.planned_ms == planned.at_ms,
+                sample.name == format!("{prefix}{}", planned.name)
+                    && sample.planned_ms == planned.at_ms,
                 "backend sample does not match recording checkpoint"
             );
             ensure!(
@@ -566,13 +896,15 @@ impl BackendResult {
                 "backend sample contains nonfinite coordinates"
             );
         }
-        ensure!(
-            self.samples[4]
-                .capture_start_ms
-                .saturating_sub(self.samples[3].capture_end_ms)
-                >= 300,
-            "settled observation window was shortened by late sampling"
-        );
+        for offset in (0..self.samples.len()).step_by(5) {
+            ensure!(
+                self.samples[offset + 4]
+                    .capture_start_ms
+                    .saturating_sub(self.samples[offset + 3].capture_end_ms)
+                    >= 300,
+                "settled observation window was shortened by late sampling"
+            );
+        }
         let expected_checks = assertions(self.scenario, &self.samples)?;
         ensure!(
             self.assertions.len() == expected_checks.len(),
@@ -605,6 +937,7 @@ impl BackendResult {
 pub struct OriginalBackend {
     controller: NativeController,
     config: Config,
+    initial_actor: ActorSample,
     setup_interventions: Vec<serde_json::Value>,
     ready_state: OriginalReadyState,
 }
@@ -676,19 +1009,132 @@ impl OriginalBackend {
                 && settled_actor.current_action == Some(IDLE_ACTION),
             "manor save changed during startup settle: {settled_state}"
         );
+        let initial_actor =
+            ActorSample::from_actor("supplied_save_start".into(), 0, 0, 0, settled_actor)?;
         Ok(Self {
             controller,
             config,
+            initial_actor,
             setup_interventions: vec![],
             ready_state: OriginalReadyState::FreshSave,
         })
+    }
+
+    fn reload_saved_state(&mut self) -> Result<serde_json::Value> {
+        let before = ActorSample::from_actor(
+            "before_same_process_reload".into(),
+            0,
+            0,
+            0,
+            self.controller.game()?.observe_main_actor()?,
+        )?;
+        self.controller.game()?.keys(&["Escape".into()], 100, 300)?;
+        let pause_deadline = Instant::now() + Duration::from_secs(8);
+        let pause_state = loop {
+            let state = self.controller.game()?.state()?;
+            if state["phase"] == 16 {
+                break state;
+            }
+            ensure!(
+                Instant::now() < pause_deadline,
+                "pause menu did not open: {state}"
+            );
+            thread::sleep(Duration::from_millis(100));
+        };
+        let exit_keys = ["Down", "Down", "Down", "Return", "Left", "Return"].map(str::to_owned);
+        for key in &exit_keys[..4] {
+            self.controller
+                .game()?
+                .keys(std::slice::from_ref(key), 100, 700)?;
+        }
+        thread::sleep(Duration::from_millis(500));
+        self.controller.game()?.keys(&exit_keys[4..5], 100, 700)?;
+        self.controller.game()?.keys(&exit_keys[5..], 100, 700)?;
+        let title_deadline = Instant::now() + Duration::from_secs(12);
+        let title_state = loop {
+            let state = self.controller.game()?.state()?;
+            if state["phase"] == 38 {
+                break state;
+            }
+            ensure!(
+                Instant::now() < title_deadline,
+                "title menu did not open: {state}"
+            );
+            thread::sleep(Duration::from_millis(100));
+        };
+        let load_keys = ["Down", "Return", "Return"].map(str::to_owned);
+        self.controller.game()?.keys(&load_keys, 100, 300)?;
+        let deadline = Instant::now() + Duration::from_secs(35);
+        loop {
+            let state = self.controller.game()?.state()?;
+            if state["phase"] == 9 && state["level"] == "manoir" {
+                break;
+            }
+            ensure!(
+                Instant::now() < deadline,
+                "same-process save reload failed: {state}"
+            );
+            thread::sleep(Duration::from_millis(100));
+        }
+        let idle_deadline = Instant::now() + Duration::from_secs(12);
+        loop {
+            let action = self.controller.game()?.observe_main_actor()?.current_action;
+            if action == Some(IDLE_ACTION) {
+                break;
+            }
+            ensure!(
+                Instant::now() < idle_deadline,
+                "reloaded manor actor did not become idle: {action:?}"
+            );
+            thread::sleep(Duration::from_millis(100));
+        }
+        thread::sleep(Duration::from_millis(ORIGINAL_STARTUP_SETTLE_MS));
+        let state = self.controller.game()?.state()?;
+        let after = ActorSample::from_actor(
+            "after_same_process_reload".into(),
+            0,
+            0,
+            0,
+            self.controller.game()?.observe_main_actor()?,
+        )?;
+        ensure!(
+            state["phase"] == 9
+                && state["level"] == "manoir"
+                && after.action == Some(IDLE_ACTION)
+                && distance_xy(&self.initial_actor, &after) < 0.08
+                && heading_delta(&self.initial_actor, &after) < 0.08
+                && (after.translation[2] - self.initial_actor.translation[2]).abs() < 0.05,
+            "same-process save reload did not restore the supplied start: {after:?}"
+        );
+        self.ready_state = OriginalReadyState::FreshSave;
+        Ok(serde_json::json!({
+            "method": "same_process_supplied_save_reload",
+            "exit_chords": exit_keys,
+            "load_chords": load_keys,
+            "pause_state": pause_state,
+            "title_state": title_state,
+            "menu_hold_ms": 100,
+            "menu_gap_ms": 700,
+            "startup_settle_ms": ORIGINAL_STARTUP_SETTLE_MS,
+            "before": before,
+            "after": after,
+            "state": state,
+        }))
     }
 
     /// The supplied save faces a barred gate. This documented Given turns the
     /// actor toward the clear manor route by actual input before the walking
     /// tape starts; it does not change actor state or position in memory.
     pub fn face_clear_path(&mut self) -> Result<()> {
+        let reload = if matches!(self.ready_state, OriginalReadyState::Finished) {
+            Some(self.reload_saved_state()?)
+        } else {
+            None
+        };
         self.setup_interventions.clear();
+        if let Some(reload) = reload {
+            self.setup_interventions.push(reload);
+        }
         if let OriginalReadyState::TurnedLeft {
             settled,
             recording_sha256,
@@ -769,30 +1215,20 @@ impl OriginalBackend {
         Ok(())
     }
 
-    pub fn run(&mut self, recording: FunctionalRecording) -> Result<BackendResult> {
-        recording.validate()?;
-        ensure!(
-            matches!(
-                (&self.ready_state, recording.scenario),
-                (OriginalReadyState::FreshSave, Scenario::TurnReleaseIdle)
-                    | (OriginalReadyState::ClearRoute, Scenario::WalkReleaseStop)
-            ),
-            "the selected scenario's Given setup was not established"
-        );
+    fn execute_trial(
+        &mut self,
+        inputs: &[TimedInput],
+        points: &[SamplePoint],
+        prefix: &str,
+    ) -> Result<(Vec<DeliveredInput>, Vec<ActorSample>)> {
         self.controller.game()?.prepare_physical_input()?;
         let origin = Instant::now();
         let mut delivered = vec![];
         let mut samples = vec![];
-        let mut actions = recording
-            .inputs
+        let mut actions = inputs
             .iter()
             .map(|v| (v.at_ms, 0_u8, v.id.as_str()))
-            .chain(
-                recording
-                    .samples
-                    .iter()
-                    .map(|v| (v.at_ms, 1_u8, v.name.as_str())),
-            )
+            .chain(points.iter().map(|v| (v.at_ms, 1_u8, v.name.as_str())))
             .collect::<Vec<_>>();
         actions.sort_by_key(|(at, order, _)| (*at, *order));
         for (at_ms, order, name) in actions {
@@ -801,8 +1237,7 @@ impl OriginalBackend {
                 thread::sleep(remaining);
             }
             if order == 0 {
-                let input = recording
-                    .inputs
+                let input = inputs
                     .iter()
                     .find(|i| i.id == name)
                     .context("missing input")?;
@@ -832,7 +1267,7 @@ impl OriginalBackend {
                 );
                 let capture_end_ms = origin.elapsed().as_millis() as u64;
                 samples.push(ActorSample::from_actor(
-                    name.into(),
+                    format!("{prefix}{name}"),
                     at_ms,
                     capture_start_ms,
                     capture_end_ms,
@@ -840,6 +1275,23 @@ impl OriginalBackend {
                 )?);
             }
         }
+        Ok((delivered, samples))
+    }
+
+    pub fn run(&mut self, recording: FunctionalRecording) -> Result<BackendResult> {
+        recording.validate()?;
+        if recording.scenario == Scenario::RunVsWalk {
+            return self.run_comparison(recording);
+        }
+        ensure!(
+            matches!(
+                (&self.ready_state, recording.scenario),
+                (OriginalReadyState::FreshSave, Scenario::TurnReleaseIdle)
+                    | (OriginalReadyState::ClearRoute, Scenario::WalkReleaseStop)
+            ),
+            "the selected scenario's Given setup was not established"
+        );
+        let (delivered, samples) = self.execute_trial(&recording.inputs, &recording.samples, "")?;
         let screenshot = self.controller.game()?.screenshot()?;
         let checks = assertions(recording.scenario, &samples)?;
         let status = if checks.iter().all(|c| c.passed) {
@@ -876,6 +1328,61 @@ impl OriginalBackend {
             } else {
                 OriginalReadyState::Finished
             };
+        Ok(result)
+    }
+
+    fn run_comparison(&mut self, recording: FunctionalRecording) -> Result<BackendResult> {
+        ensure!(
+            matches!(self.ready_state, OriginalReadyState::ClearRoute),
+            "run comparison needs the verified clear-route start"
+        );
+        let walk = recording.preparatory_trial.as_ref().unwrap();
+        let initial_setup = self.setup_interventions.clone();
+        let (mut delivered, mut samples) =
+            self.execute_trial(&walk.inputs, &walk.samples, "walk_")?;
+        let walk_screenshot = self.controller.game()?.screenshot()?;
+        let reload = self.reload_saved_state()?;
+        self.face_clear_path()?;
+        let mut setup_interventions = initial_setup;
+        setup_interventions.push(serde_json::json!({
+            "method": "walk_trial_completion",
+            "screenshot": walk_screenshot,
+            "settled": samples.last(),
+        }));
+        setup_interventions.push(reload);
+        setup_interventions.extend(self.setup_interventions.clone());
+        let (run_delivered, run_samples) =
+            self.execute_trial(&recording.inputs, &recording.samples, "run_")?;
+        delivered.extend(run_delivered);
+        samples.extend(run_samples);
+        let screenshot = self.controller.game()?.screenshot()?;
+        let checks = assertions(recording.scenario, &samples)?;
+        let status = if checks.iter().all(|check| check.passed) {
+            "passed"
+        } else {
+            "failed"
+        };
+        let result = BackendResult {
+            backend: "openspace".into(),
+            scenario: recording.scenario,
+            status: status.into(),
+            recording_sha256: recording.sha256()?,
+            recording,
+            executable_sha256: Some(self.config.exe_sha256.clone()),
+            save_sha256: Some(self.config.save_sha256.clone()),
+            loaded_level: Some("manoir".into()),
+            setup_interventions,
+            input_delivery: "private_x11_xtest_physical_edges".into(),
+            observation_consistency: "stopped_bytes_no_completed_update_claim".into(),
+            completed_update: false,
+            delivered,
+            samples,
+            assertions: checks,
+            screenshot: Some(screenshot),
+            cleanup_complete: false,
+            error: None,
+        };
+        self.ready_state = OriginalReadyState::Finished;
         Ok(result)
     }
 

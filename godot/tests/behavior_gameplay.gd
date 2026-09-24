@@ -10,6 +10,8 @@ var brain: Node
 var global_brain: Node
 var camera: Camera3D
 var fixture: Dictionary
+var packed: PackedScene
+var scene: Node3D
 var setup_snapshots: Array = []
 
 func _initialize() -> void:
@@ -34,12 +36,12 @@ func run() -> void:
     request_path = control_dir.path_join("request.json")
     response_path = control_dir.path_join("response.json")
     write_json(control_dir.path_join("phase.json"), {"phase": "loading_scene"})
-    var packed := load("res://" + args[1]) as PackedScene
+    packed = load("res://" + args[1]) as PackedScene
     if packed == null:
         write_json(control_dir.path_join("ready.json"), {"error": "saved manor scene did not load"})
         quit(1)
         return
-    var scene := packed.instantiate()
+    scene = packed.instantiate() as Node3D
     write_json(control_dir.path_join("phase.json"), {"phase": "instantiated_scene"})
     actor = scene.get_node_or_null("world/0/0/Hype") as CharacterBody3D
     brain = actor.get_node_or_null("Brain") if actor != null else null
@@ -113,7 +115,7 @@ func run() -> void:
         if not request is Dictionary:
             write_json(response_path, {"error": "invalid request JSON"})
             continue
-        var response := handle(request)
+        var response: Dictionary = await handle(request)
         write_json(response_path, response)
         if request.get("action", "") == "stop":
             quit()
@@ -149,9 +151,20 @@ func observation() -> Dictionary:
     var root_motion: Vector3 = actor.get("root_motion_displacement")
     var external_motion: Vector3 = actor.get("external_velocity")
     var slide_normals: Array = []
+    var slide_contacts: Array = []
     for index in actor.get_slide_collision_count():
-        var normal := actor.get_slide_collision(index).get_normal()
+        var contact := actor.get_slide_collision(index)
+        var normal := contact.get_normal()
         slide_normals.append([normal.x, normal.y, normal.z])
+        var collider := contact.get_collider() as Node
+        var owner := collider.get_parent() if collider != null else null
+        var point := contact.get_position()
+        slide_contacts.append({
+            "collider": str(collider.get_path()) if collider != null else "",
+            "source_node_id": str(owner.get_meta("source_node_id", "")) if owner != null else "",
+            "position": [point.x, point.y, point.z],
+            "normal": [normal.x, normal.y, normal.z],
+        })
     var floor_normal := actor.get_floor_normal() if actor.is_on_floor() else Vector3.ZERO
     return {
         "action": int(actor.get("current_state")),
@@ -163,6 +176,7 @@ func observation() -> Dictionary:
         "external_velocity": [external_motion.x, external_motion.y, external_motion.z],
         "slide_collisions": actor.get_slide_collision_count(),
         "slide_normals": slide_normals,
+        "slide_contacts": slide_contacts,
         "floor_normal": [floor_normal.x, floor_normal.y, floor_normal.z],
         "on_floor": actor.is_on_floor(),
         "brain_running": bool(brain.get("running")),
@@ -194,9 +208,51 @@ func handle(request: Dictionary) -> Dictionary:
             return observation()
         "screenshot":
             var path := str(request.get("path", ""))
-            var error := root.get_texture().get_image().save_png(path)
+            var texture := root.get_texture()
+            if texture == null:
+                return {"error": "rendered viewport unavailable for screenshot"}
+            var error := texture.get_image().save_png(path)
             return {"error": "" if error == OK else "screenshot failed", "path": path}
+        "reload_fixture":
+            return await reload_fixture()
         "stop":
             return {"stopped": true}
         _:
             return {"error": "unknown behavior command"}
+
+func reload_fixture() -> Dictionary:
+    brain.set("automatic", false)
+    brain.call("stop")
+    actor.set_physics_process(false)
+    scene.queue_free()
+    await process_frame
+    actor = null
+    brain = null
+    global_brain = null
+    camera = null
+    scene = packed.instantiate() as Node3D
+    actor = scene.get_node_or_null("world/0/0/Hype") as CharacterBody3D
+    brain = actor.get_node_or_null("Brain") if actor != null else null
+    if actor == null or brain == null:
+        return {"error": "reloaded saved Hype actor or Brain is missing"}
+    brain.set("automatic", false)
+    actor.set_physics_process(false)
+    root.add_child(scene)
+    actor.set_physics_process(false)
+    global_brain = scene.get_node_or_null("Globals/Global/Brain")
+    if global_brain == null or int(actor.get("current_state")) != int(fixture["expected_action"]):
+        return {"error": "reloaded manor scene differs from the save fixture"}
+    restore_save_fixture()
+    camera = Camera3D.new()
+    camera.name = "BehaviorCamera"
+    camera.current = true
+    scene.add_child(camera)
+    follow_actor()
+    await create_timer(5.0).timeout
+    actor.set_physics_process(true)
+    await create_timer(0.1).timeout
+    brain.set("automatic", true)
+    if not bool(brain.call("start")):
+        return {"error": "reloaded Hype Brain did not start"}
+    await create_timer(0.2).timeout
+    return observation()
