@@ -1,4 +1,4 @@
-# Astrolabe support, interface 33
+# Astrolabe support, interface 34
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -44,6 +44,11 @@ its aiming, contact response and lifetime. The source vector's final movement
 frame and exact collision timing still need a live cross-engine comparison; the
 initial conversion uses the spawning actor's basis, as indicated by a bounded
 original-game displacement observation.
+The exported level keeps a scene-local map from stable rooted and Global Perso
+references to native Brain paths. Object generation binds each compiled
+external actor reference to a live Brain before the generated actor starts; a
+missing binding fails the call with its source identity. These references are
+scene instances and expire when the level is freed.
 `gravity` is an explicit world-space acceleration; `external_velocity` retains
 force/impulse motion independently of the current clip. Ground contact clears
 downward speed without retaining a sideways projection of gravity. Neither native seeking

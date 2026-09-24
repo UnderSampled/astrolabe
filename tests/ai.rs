@@ -34,6 +34,74 @@ fn native_magick_service_follows_verified_remove_points_contract() -> Result<()>
 }
 
 #[test]
+fn generated_actor_receives_live_scene_actor_brain_binding() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    let project = temp.path().join("godot");
+    godot::support::initialize(&project)?;
+    fs::write(
+        project.join("check_actor_binding.gd"),
+        include_bytes!("check_actor_binding.gd"),
+    )?;
+    fs::write(
+        project.join("check_generated_brain.gd"),
+        include_bytes!("check_generated_brain.gd"),
+    )?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    let evidence = godot::run_godot(
+        &engine,
+        &project,
+        &["--headless", "--script", "res://check_actor_binding.gd"],
+        Duration::from_secs(20),
+    )?;
+    assert!(
+        evidence.contains("GENERATED_ACTOR_BINDING_OK"),
+        "{evidence}"
+    );
+    Ok(())
+}
+
+#[test]
+fn fix_ai_programs_keep_distinct_level_projections() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    let project = temp.path().join("godot");
+    let mut model = model()?;
+    model.path = AssetPath::new("fix:/ai/models/shared-fixture")?;
+    let reference = AssetRef::from_path(model.path.clone());
+    let roots = vec![ContentRoot {
+        kind: AiModel::KIND.into(),
+        reference: model.path.clone(),
+    }];
+    let mut source = Collection::default();
+    source.insert(&reference, model)?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    for level in ["binding-a", "binding-b"] {
+        godot::export(
+            &mut source,
+            &roots,
+            Selection::hype(level, "en")?,
+            &project,
+            &engine,
+        )?;
+    }
+    for level in ["binding-a", "binding-b"] {
+        let path = project.join(format!(
+            "generated/hype/levels/{level}/ai/models/shared-fixture.gd"
+        ));
+        assert!(
+            path.is_file(),
+            "missing level-scoped Fix AI at {}",
+            path.display()
+        );
+    }
+    assert!(
+        !project
+            .join("generated/hype/shared/ai/models/shared-fixture.gd")
+            .exists()
+    );
+    Ok(())
+}
+
+#[test]
 fn unknown_contact_stops_compiled_ai_before_negated_branch() -> Result<()> {
     let mut model = model()?;
     model.normal.as_mut().unwrap().behaviors[0]

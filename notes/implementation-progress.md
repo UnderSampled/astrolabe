@@ -54,6 +54,12 @@ query. The generated script parses in Godot, and the cost remains a source
 script call to the implemented native magick API. A full cast, effect and
 cross-engine magick scenario is still pending. See the
 [magick comparison](./magick-comparison-2026-09-24.md).
+The spawned spell's external actor field references now bind through a
+scene-local source actor map before its Brain starts. An isolated Godot test
+confirms direct binding and invalidation after target removal. The supplied
+save begins with the Enter gate field false; the original game's clear-ground
+Down then X sequence sets it true, giving the magick scenario a measured
+starting routine. The full spell path remains unaccepted.
 
 The earlier [Hype control progress](./hype-control-progress.md) checkpoint
 implemented and tested native root motion/contact, action completion, typed

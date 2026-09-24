@@ -790,6 +790,28 @@
     },
     {
       "binary": "astrolabe::ai",
+      "test": "generated_actor_receives_live_scene_actor_brain_binding",
+      "areas": ["ai", "magick", "runtime"],
+      "kind": "engine",
+      "prerequisites": ["godot"],
+      "fixture": "synthetic generated actor and level Brain map",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
+      "test": "fix_ai_programs_keep_distinct_level_projections",
+      "areas": ["ai", "runtime"],
+      "kind": "engine",
+      "prerequisites": ["godot"],
+      "fixture": "synthetic shared Fix model in two level selections",
+      "timeout_seconds": 60,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
       "test": "unknown_contact_stops_compiled_ai_before_negated_branch",
       "areas": ["ai", "combat"],
       "kind": "unit",

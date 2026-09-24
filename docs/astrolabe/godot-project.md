@@ -79,6 +79,9 @@ Within generated content, group a scene with its privately owned resources;
 give independently shared resources a clear shared location. Preserve level
 and source-package context, identity and meaningful tree relationships without
 making developers navigate wire-record IDs or a global folder per struct kind.
+Compile AI GDScript beside its selected level's Perso scenes when Fix-to-level
+references are bound in that selection; the canonical Fix model remains shared
+in the useful asset layer. Each level supplies its own live actor bindings.
 Prefer meaningful file/node names, documented stable disambiguation for source
 name collisions, and visible animation names. Exact filenames remain subject
 to the first native scene/character probe; document changes to referenced paths.

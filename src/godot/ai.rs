@@ -1,5 +1,5 @@
 //! Typed AI trees become ordinary GDScript control flow and native resource calls.
-use super::{Project, disk_path, quoted};
+use super::{Project, quoted};
 use crate::model::{AssetPath, ai::*, character::Perso, content::ContentSource, io::Content};
 use anyhow::{Result, ensure};
 use std::{collections::BTreeSet, fmt::Write as _};
@@ -50,7 +50,10 @@ pub(super) fn export_program(
             reference.validate_model(&target)?;
         }
     }
-    let path = disk_path(&project.selection, &model.path, "gd");
+    // Fix scripts may carry level-bound actor references. Compile their
+    // level-specific projection beside that level's Perso scenes rather than
+    // publishing one shared GDScript whose bindings a later level overwrites.
+    let path = project.level_path(&format!("{}.gd", model.path.file()));
     if project.generated.contains(&path) || !written.insert(model.path.clone()) {
         return Ok(path);
     }
@@ -117,9 +120,24 @@ fn compile_with_templates(
         "@export var source_model_path: String = {}",
         quoted(model.path.as_str())
     )?;
-    for (i, _) in model.actor_field_targets().iter().enumerate() {
+    let actor_targets = model.actor_field_targets();
+    for (i, _) in actor_targets.iter().enumerate() {
         writeln!(out, "@export var actor_brain_{i}_path: NodePath")?;
+        writeln!(out, "var actor_brain_{i}: Node")?;
     }
+    writeln!(
+        out,
+        "func source_external_actor_brains() -> PackedStringArray:"
+    )?;
+    writeln!(
+        out,
+        "    return PackedStringArray([{}])",
+        actor_targets
+            .iter()
+            .map(|actor| quoted(actor.path.as_str()))
+            .collect::<Vec<_>>()
+            .join(", ")
+    )?;
     for (i, reference) in model.object_templates().iter().enumerate() {
         let path = templates
             .iter()
@@ -481,7 +499,7 @@ fn guarded_expression(
             ));
             writeln!(
                 out,
-                "{pad}if actor_brain_{index}_path.is_empty():\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {node} := get_node_or_null(actor_brain_{index}_path)\n{pad}if not is_instance_valid({node}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {local} = {node}.get(\"dsg_{variable}\")"
+                "{pad}var {node} := actor_brain_{index}\n{pad}if not is_instance_valid({node}) and not actor_brain_{index}_path.is_empty():\n{pad}    {node} = get_node_or_null(actor_brain_{index}_path)\n{pad}if not is_instance_valid({node}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {local} = {node}.get(\"dsg_{variable}\")"
             )?;
             local
         }
@@ -1085,11 +1103,7 @@ fn statements(
                 let node = format!("actor_brain_{index}_target_{local}");
                 writeln!(
                     out,
-                    "{pad}if actor_brain_{index}_path.is_empty():\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var {node} := get_node_or_null(actor_brain_{index}_path)\n{pad}if not is_instance_valid({node}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
-                    quoted(&format!(
-                        "{} requires actor {} Brain field {variable}",
-                        model.path, actor.path
-                    )),
+                    "{pad}var {node} := actor_brain_{index}\n{pad}if not is_instance_valid({node}) and not actor_brain_{index}_path.is_empty():\n{pad}    {node} = get_node_or_null(actor_brain_{index}_path)\n{pad}if not is_instance_valid({node}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
                     quoted(&format!(
                         "{} requires actor {} Brain field {variable}",
                         model.path, actor.path
@@ -1180,7 +1194,7 @@ fn statements(
                         ));
                         writeln!(
                             out,
-                            "{pad}if actor_brain_{index}_path.is_empty():\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {node} := get_node_or_null(actor_brain_{index}_path)\n{pad}if not is_instance_valid({node}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}{node}.set(\"dsg_{variable}\", int({node}.get(\"dsg_{variable}\")) + ({delta}))"
+                            "{pad}var {node} := actor_brain_{index}\n{pad}if not is_instance_valid({node}) and not actor_brain_{index}_path.is_empty():\n{pad}    {node} = get_node_or_null(actor_brain_{index}_path)\n{pad}if not is_instance_valid({node}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}{node}.set(\"dsg_{variable}\", int({node}.get(\"dsg_{variable}\")) + ({delta}))"
                         )?;
                     }
                     FieldTarget::MainActorField(variable) => {

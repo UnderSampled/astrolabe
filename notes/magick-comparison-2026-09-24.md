@@ -86,6 +86,46 @@ or prove the game sampled that edge. Model 28's normal-4 cast transition needs
 failed pulse cannot yet be attributed to one of those gates or to input
 delivery. It does not overturn the earlier observed 30-to-20 cast.
 
+A separate stopped Orrery capture after the same ten-second manor settle read
+Hype at normal behavior 4, reflex behavior 3 and action 47. Its designer
+fields 0, 10, 56 and 59 were all typed Boolean false. In that captured state,
+the Enter transition cannot pass its required `dsg_59 == 1` gate. This
+explains why a new magick scenario cannot assume the untouched supplied save
+is ready to cast; it does not establish whether the earlier Enter pulse was
+sampled. The capture verified executable SHA-256
+`048ff4f4f0447a1f54a5a73ff588df78b484015c78df99a8f2d7acd3469df7da`
+and save archive SHA-256
+`877576b5867b5ad44b41dc4b72f6b70bc89dbe5e202c86817f2858948a1d634c`.
+The game and service were stopped without changing the save.
+
+Static model-28 AI shows a `Button_GetSword:Pressed` branch in normal behavior
+4 that can set `dsg_59` true when its other designer and Global gates allow it.
+A bounded original X pulse from the untouched save, with 55 ms hold and an
+800 ms release gap, left action 47, normal behavior 4 and fields 0, 10, 56,
+59 unchanged. Orrery acknowledged the physical pulse, but the capture did
+not establish whether the AI sampled it. The proven sword behavior scenario
+uses a clear-ground setup before X. That setup works in a fresh original-game
+run: after the ten-second load settle, Down for 800 ms and a 700 ms settle
+left normal behavior 4, action 47 and `dsg_59 == false`. One X pulse (120 ms
+hold, 120 ms release gap) produced action 48 and `dsg_59 == true`, stable
+after another 700 ms. Fields 0, 10 and 56 remained false, satisfying the
+observed Enter designer-field gates. This is a source-backed route to a
+cast-ready state; Enter was not sent in that run. Orrery verified the same
+executable and save hashes and stopped the game/service without changing the
+fixture.
+
+A following original run repeated that setup, then sent Enter for 100 ms.
+Action 290 was observed before mana changed; by about 0.9 seconds after the
+input step, mana was 20/50, action 271 was active, and the scene child count
+had risen from 176 to 177. The new child had object types `[13, 15, 65536]`
+and source translation `[-74.37799, 27.02758, 5.77880]`; it remained in the
+scene at the final 1.7–1.9-second sample. Its source identity and full
+motion/contact/lifetime were not established by that count and type triple.
+The stale Orrery service binary still reported null `source_code` while its
+inventory listed selected `MagicFire` ID 61. The same executable and save
+archive hashes were verified, and the game/service were stopped without save
+edits. This is an original-game cast baseline, not a Godot scenario pass.
+
 An in-memory import of the current spell template found a separate Godot
 blocker. Model 817's normal-0 rule 0 queries whether `MainActor` is in normal
 behavior 94 of `fix:/ai/models/28`. Its source operand points to an interior
@@ -97,8 +137,33 @@ behavior 94, so a missing or mismatched Brain fails visibly. The in-memory
 import confirms this rule contains no unsupported source AI node, and the
 generated model-817 script passes Godot's parse-only check. The spell's own
 compiled schedule still calls `Magic_RemoveMagicPoints(10)` and writes its
-result to `level:/persos/world/0/29` Brain field 2. This is typed source AI
+result to the current level's actor Brain field 2. In `manoir` that target is
+`level:/persos/world/0/27`; in `astrolabe` it is `/29`. This is typed source AI
 wiring; it has not yet demonstrated a complete cast in Godot.
+
+Normal behavior 94 is a positive condition for an optional rule body, not a
+prerequisite for model 817's schedule. That model has one normal behavior and
+no reflex set. Its rule and schedule have no remaining unsupported AST
+fragments, but the spawned actor also accesses manor actors `/27` and `/76`
+and the Fix Global actor's Brain. The initial spawn path bound only
+`MainActor`, so these actor field accesses could fail. The exported level now
+carries a scene-local map of stable Perso references to Brain paths, and
+generated Brains receive direct references before starting. The isolated
+Godot binding test confirms the
+resolved Brain identity and that a freed target remains invalid. This is
+generic reference wiring; the full manor spell path has not yet run.
+
+An escalated scene-content export of the local manor completed in a temporary
+project. Its packed level root retained the `source_actor_brains` map, and
+Godot's headless editor parse check completed without errors. The temporary
+generated project was removed after inspection.
+
+The apparent `/29` versus `/27` discrepancy came from importing the same Fix
+model against different active levels. This is why the external actor map is
+scene-local and regenerated for each selected level. The compiled GDScript
+projection of a Fix AI model also lives beside the selected level's Perso
+scenes: its source model identity stays `fix:/...`, while its resolved actor
+bindings cannot overwrite a different level's script.
 
 The boundary for the remaining work is the same: source script calls,
 parameters and branch decisions stay in compiled AI, including the spell's

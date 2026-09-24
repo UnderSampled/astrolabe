@@ -2,7 +2,10 @@
 use super::{Project, disk_path, quoted, vec3, vector};
 use crate::model::{geometry::SourceTransform, io::Content, scene::Scene};
 use anyhow::Result;
-use std::{collections::BTreeMap, fmt::Write as _};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::Write as _,
+};
 
 pub(super) fn transform(t: &SourceTransform) -> String {
     let basis = [
@@ -150,6 +153,56 @@ impl Project {
                 global_names.insert(global.perso.path.clone(), name);
             }
         }
+        // Expose one stable source-identity index for generated Brains whose
+        // external actor slots are compiled before the level is selected.
+        // Values are NodePaths relative to the
+        // level root, so this remains valid for both rooted and global actors.
+        writeln!(
+            self.builder,
+            "    var {scene_id}_source_actor_brains = {{}}"
+        )?;
+        let mut source_actor_keys = BTreeSet::new();
+        for node in &scene.nodes {
+            let Some(reference) = &node.perso else {
+                continue;
+            };
+            anyhow::ensure!(
+                source_actor_keys.insert(reference.path.clone()),
+                "duplicate source actor key {} in scene {}",
+                reference.path,
+                scene.path
+            );
+            let perso = source.load(reference)?;
+            if perso.brain.is_some() {
+                let character = format!("{}_character", names[&node.id]);
+                writeln!(
+                    self.builder,
+                    "    {scene_id}_source_actor_brains[{}] = {scene_id}.get_path_to({character}.get_node(\"Brain\"))",
+                    quoted(reference.path.as_str())
+                )?;
+            }
+        }
+        for global in &scene.global_actors {
+            anyhow::ensure!(
+                source_actor_keys.insert(global.perso.path.clone()),
+                "duplicate source actor key {} in rooted/global actors for scene {}",
+                global.perso.path,
+                scene.path
+            );
+            let perso = source.load(&global.perso)?;
+            if perso.brain.is_some() {
+                let name = &global_names[&global.perso.path];
+                writeln!(
+                    self.builder,
+                    "    {scene_id}_source_actor_brains[{}] = {scene_id}.get_path_to({name}.get_node(\"Brain\"))",
+                    quoted(global.perso.path.as_str())
+                )?;
+            }
+        }
+        writeln!(
+            self.builder,
+            "    {scene_id}.set_meta(\"source_actor_brains\", {scene_id}_source_actor_brains)"
+        )?;
         for node in &scene.nodes {
             let Some(reference) = &node.perso else {
                 continue;

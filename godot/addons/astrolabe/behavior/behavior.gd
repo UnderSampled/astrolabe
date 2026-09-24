@@ -52,6 +52,11 @@ func _start_automatic(token: int) -> void:
 func _bind_inputs() -> void:
 	pass
 
+## Compiled subclasses list their stable external actor references in the
+## same order as their actor_brain_* bindings. Level instances resolve them.
+func source_external_actor_brains() -> PackedStringArray:
+	return PackedStringArray()
+
 func adopt_input(action: StringName, physical_key: Key = KEY_NONE) -> void:
 	# Existing InputMap entries belong to the project, including empty entries
 	# deliberately used to disable a control. Defaults are adopted only once.

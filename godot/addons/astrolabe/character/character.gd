@@ -294,6 +294,24 @@ func source_set_hud_indicator_visible(indicator: String, visible: bool) -> void:
 ## source helper copies the caller's world transform, then passes its vector
 ## operand into the spawned actor's motion state.
 ## Return -1 for an unsupported request, 0 for a rejected action, 1 when started.
+func _bind_generated_actor_brains(generated_brain: Node, level: Node3D) -> bool:
+    var required: PackedStringArray = generated_brain.call("source_external_actor_brains")
+    if required.is_empty(): return true
+    var available: Dictionary = level.get_meta("source_actor_brains", {})
+    var model_path := str(generated_brain.get("source_model_path"))
+    for index in required.size():
+        var source_path := required[index]
+        if not available.has(source_path):
+            push_error("Generated Brain " + model_path + " requires missing actor " + source_path)
+            return false
+        var target_path: NodePath = available[source_path]
+        var target := level.get_node_or_null(target_path)
+        if not is_instance_valid(target):
+            push_error("Generated Brain " + model_path + " requires actor " + source_path + " at " + str(target_path))
+            return false
+        generated_brain.set("actor_brain_" + str(index), target)
+    return true
+
 func source_execute_action_and_generate_object(template_path: String, action: int, vector: Vector3) -> int:
     if template_path.is_empty():
         push_error("Action/object request has no converted Perso template path")
@@ -323,6 +341,10 @@ func source_execute_action_and_generate_object(template_path: String, action: in
         generated.free()
         push_error("Action/object motion requires a native character")
         return -1
+    var generated_brain := generated.get_node_or_null("Brain")
+    if generated_brain != null and not _bind_generated_actor_brains(generated_brain, destination):
+        generated.free()
+        return -1
     if not request_action(action, true):
         generated.free()
         return 0
@@ -337,7 +359,6 @@ func source_execute_action_and_generate_object(template_path: String, action: in
     generated.transform = destination.global_transform.affine_inverse() * global_transform
     if generated is CharacterBody3D:
         generated.call("source_initialize_motion", vector, global_basis)
-    var generated_brain := generated.get_node_or_null("Brain")
     if generated_brain != null:
         # A generated Perso's compiled Brain reads the source main actor. Bind
         # that ordinary scene reference before _ready schedules its first tick.
