@@ -213,19 +213,48 @@ fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
     assert_eq!(tail.children[0].dynamics, Some(SceneTailDynamics::Absent));
     assert_eq!(tail.children[0].ai, Some(SceneTailAi::BrainAbsent));
     word(memory.ranges.get_mut(&0x3000).unwrap(), 8, 0x3600);
-    let mut wrapper = vec![0; 20];
-    word(&mut wrapper, 16, 0x3700);
+    let mut wrapper = vec![0; 0x100];
+    word(&mut wrapper, 16, 0x4000);
+    word(&mut wrapper, 0x14, 0x6000);
+    word(&mut wrapper, 0x18, 8);
+    word(&mut wrapper, 0xfc, 0x5000);
     memory.ranges.insert(0x3600, wrapper);
     let mut dynamics = vec![0; 0x349];
     dynamics[0x348] = 1;
-    memory.ranges.insert(0x3700, dynamics);
+    memory.ranges.insert(0x4000, dynamics);
+    let mut cards = vec![0; 0x2c];
+    cards[0] = 2;
+    word(&mut cards, 4, 7);
+    word(&mut cards, 8, 8);
+    word(&mut cards, 0x28, 0x6000);
+    memory.ranges.insert(0x5000, cards);
+    memory.ranges.insert(0x6000, 8_u32.to_le_bytes().to_vec());
     let tail = build.scene_tail(&mut memory, 1)?;
     assert_eq!(
         tail.children[0].dynamics,
         Some(SceneTailDynamics::Ready {
             wrapper_locator: "live:00003600".into(),
-            object_locator: "live:00003700".into(),
+            object_locator: "live:00004000".into(),
             override_flag: 1,
+            cached_card_locator: Some("live:00006000".into()),
+            cached_card_type: 8,
+            list_locator: Some("live:00005000".into()),
+            card_slots: vec![
+                live::SceneTailCardSlot {
+                    index: 0,
+                    key: 7,
+                    card_locator: None,
+                    card_type: None,
+                },
+                live::SceneTailCardSlot {
+                    index: 1,
+                    key: 8,
+                    card_locator: Some("live:00006000".into()),
+                    card_type: Some(8),
+                },
+            ],
+            selected_card_locator: Some("live:00006000".into()),
+            selected_card_type: Some(8),
         })
     );
     word(memory.ranges.get_mut(&0x3000).unwrap(), 16, 0x3300);

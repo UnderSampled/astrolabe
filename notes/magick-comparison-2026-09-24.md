@@ -349,6 +349,31 @@ set between captures or whether this dynamics object was scheduled for
 integration. The stationary result still needs a source-backed mechanism
 before changing Godot's generated-actor motion.
 
+The next source trace separates actor-update eligibility from gravity callback
+selection. `004499b0_FUN_004499b0.c` gates per-actor work on the frame stamp;
+`004440e0_FUN_004440e0.c` follows the Perso's dynamics wrapper and selects
+the last nonnull card in its bounded list, then calls `00443f00_FUN_00443f00.c`
+only when a card is present. The latter dispatches a mechanics callback by
+card type; types 0 and 8 have the gravity-capable handler in the verified
+build. A dynamics object and a zero transient override byte therefore do not
+prove the callback ran. Orrery now reads the wrapper's cached card, list slots
+and selected card type as typed, capture-local evidence. The imported model
+can represent nullable state mechanics but not the original runtime update
+stamp or card-list selection. Until Fire's effective per-update selection is
+observed, an exported no-gravity rule would still be unsupported.
+
+A second exact original Fire BDD rerun passed with the card reader
+(`TestResults/behavior-fire-cast-1790281853278217524.json`). Child 176 stayed
+at `[-74.377914, 27.395926, 5.777324]` between `spent` and `settled`. At
+both stops its list was empty, inferred selected card was null, cached card
+was `live:046073c4` with cached type 0, and override byte was 0. Hype's
+sampled list was also empty, while its cached card was nonnull and its
+position changed through the scenario. The source update path can populate
+and consume a card list during an update, so these stopped captures cannot
+establish that Fire never selected a gravity callback. The empty list is a
+useful observation, not an inactivity assertion. The new run again verified
+the executable/save hashes and full process cleanup.
+
 Godot's generic generation path enables native motion on every spawned
 `CharacterBody3D`, and that component applies gravity each physics tick.
 Whether the source Fire actor has gravity, stays attached, or is repositioned

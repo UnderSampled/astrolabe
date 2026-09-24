@@ -330,10 +330,53 @@ impl HypeBuild {
                     // object +0x348, then clears it after its override step.
                     let flag_address = source.add(object, 0x348)?;
                     let override_flag = source.bytes(flag_address, 1)?[0];
+                    let cached_card = source.pointer(wrapper, 0x14)?;
+                    let cached_type_address = source.add(wrapper, 0x18)?;
+                    let cached_card_type = u32_at(&source.bytes(cached_type_address, 4)?, 0)?;
+                    let list = source.pointer(wrapper, 0xfc)?;
+                    let mut card_slots = Vec::new();
+                    if let Some(list_address) = list {
+                        let count = usize::from(source.bytes(list_address, 1)?[0]);
+                        ensure!(
+                            count <= 8,
+                            "dynamics card-selection list exceeds eight slots"
+                        );
+                        for index in 0..count {
+                            let key_address = source.add(list_address, 4 + 4 * index)?;
+                            let key = u32_at(&source.bytes(key_address, 4)?, 0)?;
+                            let card = source.pointer(list_address, 0x24 + 4 * index)?;
+                            let card_type = if let Some(card_address) = card {
+                                Some(u32_at(&source.bytes(card_address, 4)?, 0)?)
+                            } else {
+                                None
+                            };
+                            card_slots.push(SceneTailCardSlot {
+                                index: u8::try_from(index)?,
+                                key,
+                                card_locator: card.map(|address| format!("live:{address:08x}")),
+                                card_type,
+                            });
+                        }
+                    }
+                    // The original selection walk passes its last nonnull
+                    // candidate to the mechanics callback dispatcher.
+                    let selected = card_slots
+                        .iter()
+                        .rev()
+                        .find(|slot| slot.card_locator.is_some());
+                    let selected_card_locator = selected.and_then(|slot| slot.card_locator.clone());
+                    let selected_card_type = selected.and_then(|slot| slot.card_type);
                     Ok(SceneTailDynamics::Ready {
                         wrapper_locator: format!("live:{wrapper:08x}"),
                         object_locator: format!("live:{object:08x}"),
                         override_flag,
+                        cached_card_locator: cached_card
+                            .map(|address| format!("live:{address:08x}")),
+                        cached_card_type,
+                        list_locator: list.map(|address| format!("live:{address:08x}")),
+                        card_slots,
+                        selected_card_locator,
+                        selected_card_type,
                     })
                 })() {
                     Ok(dynamics) => dynamics,
@@ -687,10 +730,26 @@ pub enum SceneTailDynamics {
         wrapper_locator: String,
         object_locator: String,
         override_flag: u8,
+        cached_card_locator: Option<String>,
+        cached_card_type: u32,
+        list_locator: Option<String>,
+        card_slots: Vec<SceneTailCardSlot>,
+        /// Last nonnull card in the source selection walk, if any.
+        selected_card_locator: Option<String>,
+        selected_card_type: Option<u32>,
     },
     Unreadable {
         reason: String,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneTailCardSlot {
+    pub index: u8,
+    pub key: u32,
+    pub card_locator: Option<String>,
+    pub card_type: Option<u32>,
 }
 
 /// A validated live model link is capture-local evidence. Resolve it against
