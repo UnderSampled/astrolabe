@@ -284,6 +284,18 @@ impl GodotBackend {
             value["motion_enabled"] == true,
             "saved Hype gameplay motion is disabled: {value}"
         );
+        for field in ["generated_objects", "generated_trace"] {
+            if let Some(entries) = value[field].as_array() {
+                for entry in entries {
+                    ensure!(
+                        entry["template"].as_str().is_some()
+                            && entry["translation"].as_array().is_some(),
+                        "Godot {field} contains an incomplete actor snapshot: {entry}; {}",
+                        self.log_tail()
+                    );
+                }
+            }
+        }
         Ok(())
     }
 

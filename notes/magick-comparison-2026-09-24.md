@@ -218,3 +218,51 @@ frame/timing, `SeePerso` visibility approximation and channel presentation
 listed in the combat comparison note. A failing Godot cast must be traced to a
 source call, binding or missing API operation before considering any support
 side behavior rule; such a rule must be recorded here as new fidelity debt.
+
+## Effect identity probe
+
+The cast report's bounded scene tail grows from 176 to 177 children. The new
+source child at index 176 is AI-backed, has object types `[13, 15, 65536]`,
+and holds the same sampled position from the late-cast through settled
+checkpoints. These observations do not yet establish its source model or
+motion contract. The imported Fire template `fix:/persos/5-0-25549` uses
+AI model 817 but declares object types `[13, 15, 65596]`; mapping the live
+child's AI locator to that template requires another source identity check.
+
+The Godot cast report counted one generated actor, but its detailed observation
+was `{}`. A standalone Godot probe reproduced the test-harness error: model
+817 has no designer variable 0, and converting its missing `dsg_0` value to
+`int` aborts the dictionary-producing observation function. The harness now
+records a missing start value as null and rejects incomplete actor snapshots.
+This was an observation bug, not a change to the generated actor or its AI.
+
+The focused Godot rerun passed the cast scenario and produced complete generated
+actor snapshots (`TestResults/behavior-fire-cast-1790278778427649497.json`).
+The same original report paired with this rerun passes all 26 functional checks
+(`TestResults/fire-cast-cross-backend-observer-fix-20260924.json`); visual
+render pairing remains pending.
+At `cast_late`, the generated actor was at source coordinates about
+`[-74.379, 26.520, 4.527]` with zero velocity and a running compiled Brain.
+By `spent` it was at height 2.742 with vertical velocity −7.65; by `settled`
+it had fallen to height −9.290 with velocity −21.53. The observed source
+child remained at height 5.778 over those checkpoints. Because the live child
+has not yet been mapped to the imported Fire template, this is a strong
+placement/motion discrepancy to investigate, not proof that the two sampled
+actors are identical or that the cast assertion should fail.
+
+The verified generic source generation handler copies the caller's world
+transform at creation (see the combat comparison); the first captured Fire
+child position is later than that operation. Its apparent forward/upward
+offset therefore cannot be assigned to the creation API without an earlier
+sample or an execution trace. The arrow's imported and live third object-type
+values also differ while its first two match, suggesting a generic runtime
+type change, but neither case proves the Fire child's exact template identity.
+
+Godot's generic generation path enables native motion on every spawned
+`CharacterBody3D`, and that component applies gravity each physics tick.
+Whether the source Fire actor has gravity, stays attached, or is repositioned
+by another source operation is unverified. Changing gravity for Fire or all
+generated actors now would be a support-side gameplay guess. Resolve the
+source template identity and creation/movement contract first; if a generic
+API or exported initial-property mapping then proves wrong, fix that contract
+and record its remaining fidelity limits here.

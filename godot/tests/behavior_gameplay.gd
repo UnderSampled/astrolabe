@@ -282,6 +282,7 @@ func generated_object_snapshot(spawned: CharacterBody3D) -> Dictionary:
     var position := spawned.global_position
     var velocity: Vector3 = spawned.get("external_velocity")
     var spawned_brain := spawned.get_node_or_null("Brain")
+    var start_value: Variant = spawned_brain.get("dsg_0") if spawned_brain != null else null
     return {
         "instance_id": spawned.get_instance_id(),
         "template": str(spawned.get_meta("astrolabe_generated_template")),
@@ -291,7 +292,7 @@ func generated_object_snapshot(spawned: CharacterBody3D) -> Dictionary:
         "brain_running": bool(spawned_brain.get("running")) if spawned_brain != null else false,
         "brain_normal": int(spawned_brain.get("current_normal")) if spawned_brain != null else -1,
         "brain_clock_ms": float(spawned_brain.get("clock_milliseconds")) if spawned_brain != null else 0.0,
-        "brain_start_ms": int(spawned_brain.get("dsg_0")) if spawned_brain != null else 0,
+        "brain_start_ms": int(start_value) if start_value is int or start_value is float else null,
         "brain_failure": str(spawned_brain.get("unsupported_failure")) if spawned_brain != null else "",
         "visible_from_hype": bool(spawned.call("source_see_perso", actor, spawned)),
     }
