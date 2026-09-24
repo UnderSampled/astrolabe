@@ -373,7 +373,11 @@ fn comparison_code(
 }
 fn needs_guard(e: &Expression, model: &AiModel) -> bool {
     match e {
-        Expression::Unsupported(_) | Expression::LaserDirection => true,
+        Expression::Unsupported(_)
+        | Expression::LaserDirection
+        | Expression::MagicCurrentSpell
+        | Expression::MagicPoints
+        | Expression::MagicRemovePoints(_) => true,
         Expression::Variable(index) => unresolved_variable(model, *index),
         Expression::ActorFieldRead { .. } | Expression::MainActorFieldRead(_) => true,
         Expression::Vector(values) => values.iter().any(|value| needs_guard(value, model)),
@@ -553,6 +557,36 @@ fn guarded_expression(
             guarded_expression(out, item, model, depth, flow)?,
             guarded_expression(out, count, model, depth, flow)?
         ),
+        Expression::MagicCurrentSpell | Expression::MagicPoints => {
+            writeln!(
+                out,
+                "{pad}if not character().source_magic_ready():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                quoted(&format!(
+                    "{} requires restored source magick state",
+                    model.path
+                ))
+            )?;
+            expression(e, model)?
+        }
+        Expression::MagicRemovePoints(amount) => {
+            let amount = guarded_expression(out, amount, model, depth, flow)?;
+            let id = flow.local;
+            flow.local += 1;
+            let local = format!("magic_result_{id}");
+            writeln!(
+                out,
+                "{pad}if not character().source_magic_ready():\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var {local} = character().source_magic_remove_points(int({amount}))\n{pad}if {local} == null:\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                quoted(&format!(
+                    "{} requires restored source magick state",
+                    model.path
+                )),
+                quoted(&format!(
+                    "{} requires verified Magic_RemoveMagicPoints return semantics",
+                    model.path
+                ))
+            )?;
+            local
+        }
         Expression::LaserDirection => {
             writeln!(
                 out,
@@ -684,6 +718,12 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             "character().source_inventory_remove(int({}), int({}))",
             expression(item, model)?,
             expression(count, model)?
+        ),
+        Expression::MagicCurrentSpell => "character().source_magic_current_spell()".into(),
+        Expression::MagicPoints => "character().source_magic_points()".into(),
+        Expression::MagicRemovePoints(amount) => format!(
+            "character().source_magic_remove_points(int({}))",
+            expression(amount, model)?
         ),
         Expression::LaserDirection => {
             anyhow::bail!("laser direction requires guarded compilation")

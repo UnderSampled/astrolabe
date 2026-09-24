@@ -735,6 +735,9 @@ impl Parser<'_> {
                 item: Box::new(self.expression(indent + 1)?),
                 count: Box::new(self.expression(indent + 1)?),
             },
+            (3, 228) => Expression::MagicPoints,
+            (3, 230) => Expression::MagicRemovePoints(Box::new(self.expression(indent + 1)?)),
+            (3, 232) => Expression::MagicCurrentSpell,
             (3, 211) => Expression::LaserDirection,
             (3, 172) => Expression::VectorCos(
                 Box::new(self.expression(indent + 1)?),
@@ -1201,6 +1204,12 @@ impl Writer<'_> {
                 self.expression(item, indent + 1)?;
                 self.expression(count, indent + 1)?;
             }
+            Expression::MagicPoints => self.node(3, 228, indent),
+            Expression::MagicRemovePoints(amount) => {
+                self.node(3, 230, indent);
+                self.expression(amount, indent + 1)?;
+            }
+            Expression::MagicCurrentSpell => self.node(3, 232, indent),
             Expression::LaserDirection => self.node(3, 211, indent),
             Expression::VectorCos(a, b) => {
                 self.node(3, 172, indent);
@@ -1557,6 +1566,47 @@ mod partial_tests {
                 value: Expression::InventoryRemove { item, count },
                 ..
             } if **item == Expression::Integer(80) && **count == Expression::Integer(1)
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn magick_functions_reconstruct_exact_script() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (2, 11, 1),
+            (11, 0, 2),
+            (3, 232, 2),
+            (2, 11, 1),
+            (11, 1, 2),
+            (3, 228, 2),
+            (2, 11, 1),
+            (11, 2, 2),
+            (3, 230, 2),
+            (12, 10, 3),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            script.statements[0],
+            Statement::Assign {
+                value: Expression::MagicCurrentSpell,
+                ..
+            }
+        ));
+        assert!(matches!(
+            script.statements[1],
+            Statement::Assign {
+                value: Expression::MagicPoints,
+                ..
+            }
+        ));
+        assert!(matches!(
+            &script.statements[2],
+            Statement::Assign {
+                value: Expression::MagicRemovePoints(amount),
+                ..
+            } if **amount == Expression::Integer(10)
         ));
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())

@@ -6,12 +6,14 @@ signal action_finished(action: int)
 signal action_request_traced(requested: int, restart: bool, previous: int, selected: int, accepted: bool)
 signal hud_visibility_requested(indicator: String, visible: bool)
 const SOURCE_INVENTORY = preload("res://addons/astrolabe/character/inventory.gd")
+const SOURCE_MAGICK = preload("res://addons/astrolabe/character/magick.gd")
 const SOURCE_LASER_POINTER = preload("res://addons/astrolabe/character/laser_pointer.gd")
 @export var initial_state: int = -1
 @export var current_state: int = -1
 @export var current_mechanics: Resource
 @export var physical_environment: Resource
 @export var source_inventory: Resource
+@export var source_magick: Resource
 @export var source_laser_pointer: Resource
 @export var autoplay: bool = true
 ## Gameplay uses physics ticks; ordinary editor/pose inspection stays stationary.
@@ -59,6 +61,8 @@ var playing: bool:
 func _ready() -> void:
     if source_inventory == null:
         source_inventory = SOURCE_INVENTORY.new()
+    if source_magick == null:
+        source_magick = SOURCE_MAGICK.new()
     if source_laser_pointer == null:
         source_laser_pointer = SOURCE_LASER_POINTER.new()
     if motion_enabled:
@@ -192,6 +196,21 @@ func source_inventory_remove(item: int, count: int) -> int:
     assert(source_inventory != null)
     return int(source_inventory.call("remove", item, count))
 
+func source_magic_ready() -> bool:
+    return source_magick != null and bool(source_magick.call("ready"))
+
+func source_magic_current_spell() -> int:
+    assert(source_magic_ready())
+    return int(source_magick.get("selected_spell_code"))
+
+func source_magic_points() -> int:
+    assert(source_magic_ready())
+    return int(source_magick.get("current_points"))
+
+func source_magic_remove_points(amount: int) -> Variant:
+    assert(source_magic_ready() and amount >= 0)
+    return source_magick.call("remove_points", amount)
+
 func source_set_laser_pointer_active(active: bool) -> void:
     assert(source_laser_pointer != null)
     source_laser_pointer.set("active", active)
@@ -311,6 +330,7 @@ func source_execute_action_and_generate_object(template_path: String, action: in
         generated.set("motion_enabled", true)
         generated.set("physical_environment", physical_environment)
         generated.set("source_inventory", source_inventory)
+        generated.set("source_magick", source_magick)
         generated.set("source_laser_pointer", source_laser_pointer)
     # The source helper copies the caller's global SuperObject transform.
     # Initialize it before attachment: the compiled Brain can start in _ready.

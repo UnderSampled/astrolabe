@@ -298,6 +298,10 @@ pub enum Expression {
         item: Box<Expression>,
         count: Box<Expression>,
     },
+    /// Source magick functions read the shared selected spell and mana pool.
+    MagicCurrentSpell,
+    MagicPoints,
+    MagicRemovePoints(Box<Expression>),
     LaserDirection,
     VectorCos(Box<Expression>, Box<Expression>),
     /// Func_GetPersoSighting: current actor's source-coordinate sighting
@@ -608,7 +612,8 @@ impl AiModel {
                 Expression::Not(v)
                 | Expression::Negate(v)
                 | Expression::IsInAction(v)
-                | Expression::InventoryQuantity(v) => expression(v, out),
+                | Expression::InventoryQuantity(v)
+                | Expression::MagicRemovePoints(v) => expression(v, out),
                 Expression::Vector(values) => {
                     for value in values.iter() {
                         expression(value, out);
@@ -853,9 +858,10 @@ impl Script {
                     expression(left, out);
                     expression(right, out);
                 }
-                Expression::Not(v) | Expression::Negate(v) | Expression::IsInAction(v) => {
-                    expression(v, out)
-                }
+                Expression::Not(v)
+                | Expression::Negate(v)
+                | Expression::IsInAction(v)
+                | Expression::MagicRemovePoints(v) => expression(v, out),
                 Expression::Vector(values) => {
                     for value in values.iter() {
                         expression(value, out);
@@ -985,6 +991,7 @@ impl Script {
                 | Expression::Negate(value)
                 | Expression::IsInAction(value)
                 | Expression::InventoryQuantity(value)
+                | Expression::MagicRemovePoints(value)
                 | Expression::VectorComponent { vector: value, .. } => {
                     expression(value, variables, depth + 1, count)?
                 }

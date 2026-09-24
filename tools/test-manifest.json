@@ -11,6 +11,7 @@
     "movement",
     "jump",
     "combat",
+    "magick",
     "runtime",
     "comparison"
   ],
@@ -24,6 +25,10 @@
       "animation"
     ],
     "combat": [
+      "ai",
+      "animation"
+    ],
+    "magick": [
       "ai",
       "animation"
     ],
@@ -339,6 +344,17 @@
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::laser_aim_calls_reconstruct_exact_script",
       "areas": ["ai", "source", "combat"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::magick_functions_reconstruct_exact_script",
+      "areas": ["ai", "source", "magick"],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
