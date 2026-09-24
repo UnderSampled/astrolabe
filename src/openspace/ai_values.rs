@@ -15,6 +15,13 @@ struct ArrayHeader {
     count: u8,
     unknown: [u8; 3],
 }
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+struct ListHeader {
+    active_len: u8,
+    capacity: u8,
+    unknown: [u8; 2],
+}
 
 #[derive(Default)]
 pub struct DesignerValueCodec {
@@ -37,7 +44,7 @@ pub struct DesignerValueCodec {
 }
 impl DesignerValueCodec {
     pub fn supports(kind: u32) -> bool {
-        matches!(kind, 0..=8 | 10 | 12 | 14 | 20..=23 | 25)
+        matches!(kind, 0..=8 | 10..=12 | 14 | 20..=23 | 25)
     }
     pub fn kind(value: &DesignerValue) -> u32 {
         match value {
@@ -52,6 +59,7 @@ impl DesignerValueCodec {
             DesignerValue::UnsignedInteger(_) => 6,
             DesignerValue::Real(_) => 7,
             DesignerValue::Vector(_) => 12,
+            DesignerValue::ActorList(_) => 11,
             DesignerValue::VectorArray(_) => 20,
             DesignerValue::RealArray(_) => 21,
             DesignerValue::IntegerArray(_) => 22,
@@ -67,6 +75,7 @@ impl DesignerValueCodec {
             0..=2 => 1,
             3..=4 => 2,
             5..=8 | 10 | 14 => 4,
+            11 => 4 + 4 * usize::from(ListHeader::read(&mut Cursor::new(bytes))?.capacity),
             12 => 12,
             20..=23 | 25 => 8 + 12 * usize::from(ArrayHeader::read(&mut Cursor::new(bytes))?.count),
             _ => bail!("unsupported designer type {}", self.kind),
@@ -102,6 +111,33 @@ impl FormatCodec for DesignerValueCodec {
             5 => DesignerValue::Integer(i32::read_le(&mut c)?),
             6 => DesignerValue::UnsignedInteger(u32::read_le(&mut c)?),
             7 => DesignerValue::Real(f32::read_le(&mut c)?),
+            11 => {
+                let header = ListHeader::read(&mut c)?;
+                ensure!(
+                    header.active_len <= header.capacity,
+                    "designer list length exceeds capacity"
+                );
+                let mut slots = Vec::with_capacity(usize::from(header.capacity));
+                for index in 0..header.capacity {
+                    let raw = u32::read_le(&mut c)?;
+                    let offset = 4 + usize::from(index) * 4;
+                    let entry = if raw == 0 {
+                        None
+                    } else if let Some(Some(actor)) = self.actors.get(&offset) {
+                        Some(DesignerActorListEntry::Actor(actor.clone()))
+                    } else if let Some(Some(source)) = self.source_actors.get(&offset) {
+                        Some(DesignerActorListEntry::Source(source.clone()))
+                    } else {
+                        bail!("unbound designer list actor at +{offset}")
+                    };
+                    slots.push(entry);
+                }
+                DesignerValue::ActorList(DesignerActorList {
+                    active_len: header.active_len,
+                    header_unknown: header.unknown,
+                    slots,
+                })
+            }
             12 => DesignerValue::Vector(<[f32; 3]>::read_le(&mut c)?),
             20 => DesignerValue::VectorArray(read_array(&mut c, 12, false)?),
             21 => DesignerValue::RealArray(read_array(&mut c, 7, true)?),
@@ -162,6 +198,29 @@ impl FormatCodec for DesignerValueCodec {
             DesignerValue::UnsignedInteger(v) => v.write_le(&mut c)?,
             DesignerValue::Real(v) => v.write_le(&mut c)?,
             DesignerValue::Vector(v) => v.write_le(&mut c)?,
+            DesignerValue::ActorList(v) => {
+                ListHeader {
+                    active_len: v.active_len,
+                    capacity: v.slots.len().try_into()?,
+                    unknown: v.header_unknown,
+                }
+                .write(&mut c)?;
+                for slot in &v.slots {
+                    let handle = match slot {
+                        None => 0,
+                        Some(DesignerActorListEntry::Actor(actor)) => self
+                            .actor_handles
+                            .iter()
+                            .find(|(reference, _)| reference.as_ref() == Some(actor))
+                            .map(|(_, handle)| *handle)
+                            .context("missing assigned designer list actor handle")?,
+                        Some(DesignerActorListEntry::Source(_)) => {
+                            bail!("external source list actor reconstruction is not implemented")
+                        }
+                    };
+                    handle.write_le(&mut c)?;
+                }
+            }
             DesignerValue::VectorArray(v) => write_array(&mut c, v, 12, false)?,
             DesignerValue::RealArray(v) => write_array(&mut c, v, 7, true)?,
             DesignerValue::IntegerArray(v) => write_array(&mut c, v, 5, true)?,
@@ -266,4 +325,33 @@ where
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod list_tests {
+    use super::*;
+    use crate::model::AssetRef;
+
+    #[test]
+    fn source_perso_list_round_trips_empty_and_edited_entries() -> Result<()> {
+        let mut codec = DesignerValueCodec {
+            kind: 11,
+            ..Default::default()
+        };
+        let empty = [0u8, 1, 0, 0, 0, 0, 0, 0];
+        let mut value = codec.read(&empty)?;
+        assert_eq!(codec.write(&value)?, empty);
+        let actor = AssetRef::new("level:/persos/world/0/2")?;
+        let DesignerValue::ActorList(list) = &mut value else {
+            panic!("type 11 did not decode as a list")
+        };
+        list.active_len = 1;
+        list.slots[0] = Some(DesignerActorListEntry::Actor(actor.clone()));
+        codec.actor_handles.push((Some(actor.clone()), 0x1234));
+        let encoded = codec.write(&value)?;
+        assert_eq!(encoded, [1, 1, 0, 0, 0x34, 0x12, 0, 0]);
+        codec.actors.insert(4, Some(actor));
+        assert_eq!(codec.read(&encoded)?, value);
+        Ok(())
+    }
 }

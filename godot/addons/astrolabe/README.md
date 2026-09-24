@@ -103,6 +103,17 @@ store the requested target reference. A source camera link adds that native
 `Camera3D` to the saved actor scene. Follow motion, viewport selection,
 projection fields and the procedure's other reset fields remain unsupported;
 target assignment alone does not change the view.
+The rooted `StdCamer` now keeps its original model-437 Brain. Its source
+type-11 Perso list is saved as a typed, capacity-bounded designer value;
+compiled AI performs the original membership and append calls. The native
+append method retains duplicate entries and refuses to grow past capacity.
+The supplied `manoir` list begins empty. Binding a populated source list into
+saved Godot actor references remains unsupported and fails explicitly during
+export. This support code supplies the called list operation; it does not
+choose camera targets or alter the source script's branches.
+The model's ordinary camera-update branch still compiles an unsupported
+source action-return policy before its update procedure; attaching this Brain
+does not yet make the view follow.
 The compiled `Stats_DisplayMainActor*` calls retain their requested Boolean
 visibility in `source_hud_display` and emit `hud_visibility_requested`. An
 authored HUD can bind that signal to its native `Control` nodes. The current

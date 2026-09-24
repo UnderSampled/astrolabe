@@ -61,6 +61,44 @@ fn live_f32<M: ReadMemory>(
     Ok(value)
 }
 
+/// The verified camera block stores a world-to-camera basis and a translation
+/// vector after its two-byte pose flags. Applying the basis to the negated
+/// translation yields the camera origin in OpenSpace axes; its third row is
+/// the view-forward direction. The remaining nine pose floats duplicate the
+/// basis in the source's 22-word transform representation.
+fn decode_camera_pose(pose_words: &[u32; 22]) -> Result<([f32; 3], [f32; 3])> {
+    let translation = [
+        f32::from_bits(pose_words[1]),
+        f32::from_bits(pose_words[2]),
+        f32::from_bits(pose_words[3]),
+    ];
+    let mut basis = [[0.0f32; 3]; 3];
+    for (index, value) in pose_words[4..13].iter().copied().enumerate() {
+        basis[index / 3][index % 3] = f32::from_bits(value);
+    }
+    ensure!(
+        translation.into_iter().all(f32::is_finite)
+            && basis.iter().flatten().copied().all(f32::is_finite),
+        "camera pose contains non-finite values"
+    );
+    let mut position = [0.0f32; 3];
+    for row in 0..3 {
+        position[row] = -(basis[row][0] * translation[0]
+            + basis[row][1] * translation[1]
+            + basis[row][2] * translation[2]);
+    }
+    let mut forward = basis[2];
+    let norm = (forward[0] * forward[0] + forward[1] * forward[1] + forward[2] * forward[2]).sqrt();
+    ensure!(
+        norm.is_finite() && norm > 0.5,
+        "camera forward basis is degenerate"
+    );
+    for component in &mut forward {
+        *component /= norm;
+    }
+    Ok((position, forward))
+}
+
 /// Constructed only after a full executable-file hash matches. This guard does
 /// not by itself prove the live module mapping; the controller must check that.
 pub struct HypeBuild(());
@@ -83,6 +121,63 @@ impl HypeBuild {
         Ok(Status {
             phase: bytes[0],
             level: std::str::from_utf8(&bytes[1..1 + end])?.to_owned(),
+        })
+    }
+
+    /// Read the active viewport camera selected by the verified build. The
+    /// 22-word pose block is retained as capture provenance alongside the
+    /// decoded position and forward direction in OpenSpace source axes.
+    pub fn active_camera(&self, memory: &mut impl ReadMemory) -> Result<ActiveCameraObservation> {
+        let status = self.status(memory)?;
+        ensure!(
+            status.phase == 9,
+            "active camera requires loaded gameplay phase"
+        );
+        let mut source = MemoryView(memory);
+        let pointer = source.required(super::hype_runtime::ACTIVE_CAMERA_POINTER, 0)?;
+        ensure!(pointer != 0, "active viewport has no camera");
+        let identity = source.bytes(pointer, 12)?;
+        let kind = u32_at(&identity, 8)?;
+        ensure!(
+            kind == 103,
+            "active viewport camera has unexpected type {kind}"
+        );
+        let block = source.bytes(source.add(pointer, 0x0c)?, 0x58)?;
+        let mut pose_words = [0u32; 22];
+        for (index, word) in pose_words.iter_mut().enumerate() {
+            *word = u32_at(&block, index * 4)?;
+        }
+        let (position_source, forward_source) = decode_camera_pose(&pose_words)?;
+        let horizontal_fov = live_f32(&mut source, pointer, 0x64)?;
+        let vertical_fov = live_f32(&mut source, pointer, 0x68)?;
+        let near_plane = live_f32(&mut source, pointer, 0x6c)?;
+        let far_plane = live_f32(&mut source, pointer, 0x70)?;
+        let source_update_counter =
+            u32_at(&source.bytes(super::hype_runtime::UPDATE_COUNTER, 4)?, 0)?;
+        let source_clock_ms = u32_at(&source.bytes(super::hype_runtime::CLOCK_MS, 4)?, 0)?;
+        ensure!(
+            horizontal_fov > 0.0 && horizontal_fov < 3.2,
+            "invalid horizontal camera FoV"
+        );
+        ensure!(
+            vertical_fov > 0.0 && vertical_fov < 3.2,
+            "invalid vertical camera FoV"
+        );
+        ensure!(
+            near_plane > 0.0 && far_plane > near_plane,
+            "invalid camera clipping planes"
+        );
+        Ok(ActiveCameraObservation {
+            source_locator: pointer,
+            pose_words,
+            position_source,
+            forward_source,
+            horizontal_fov,
+            vertical_fov,
+            near_plane,
+            far_plane,
+            source_update_counter,
+            source_clock_ms,
         })
     }
     /// Read the active inventory list used by functions 201, 208 and 209 in
@@ -626,6 +721,90 @@ fn actor_ai_at_node(
     })
 }
 
+#[cfg(test)]
+mod active_camera_tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    struct Memory(BTreeMap<u32, u8>);
+    impl Memory {
+        fn put(&mut self, address: u32, bytes: &[u8]) {
+            for (offset, byte) in bytes.iter().copied().enumerate() {
+                self.0.insert(address + offset as u32, byte);
+            }
+        }
+    }
+    impl ReadMemory for Memory {
+        fn read(&mut self, address: u32, size: usize) -> Result<Vec<u8>> {
+            (0..size)
+                .map(|offset| {
+                    self.0
+                        .get(&(address + offset as u32))
+                        .copied()
+                        .context("unmapped synthetic camera byte")
+                })
+                .collect()
+        }
+    }
+
+    #[test]
+    fn active_camera_decodes_checked_projection_from_one_source_pointer() {
+        let mut memory = Memory(BTreeMap::new());
+        let mut status = vec![0; 261];
+        status[0] = 9;
+        status[1..7].copy_from_slice(b"manoir");
+        memory.put(super::super::hype_runtime::STATUS, &status);
+        let pointer = 0x1234_0000u32;
+        memory.put(
+            super::super::hype_runtime::ACTIVE_CAMERA_POINTER,
+            &pointer.to_le_bytes(),
+        );
+        memory.put(pointer, &[0; 12]);
+        memory.put(pointer + 8, &103u32.to_le_bytes());
+        let mut pose_words = [0u32; 22];
+        pose_words[0] = 0x80;
+        for (word, value) in pose_words[1..4].iter_mut().zip([2.0f32, 3.0, 4.0]) {
+            *word = value.to_bits();
+        }
+        let basis = [0.0f32, -1.0, 0.0, 0.0, 0.0, -1.0, 1.0, 0.0, 0.0];
+        for (word, value) in pose_words[4..13].iter_mut().zip(basis) {
+            *word = value.to_bits();
+        }
+        for (word, value) in pose_words[13..22].iter_mut().zip(basis) {
+            *word = value.to_bits();
+        }
+        let pose_block: Vec<u8> = pose_words
+            .iter()
+            .flat_map(|word| word.to_le_bytes())
+            .collect();
+        memory.put(pointer + 0x0c, &pose_block);
+        for (offset, value) in [
+            (0x64, 1.5f32),
+            (0x68, 1.2f32),
+            (0x6c, 0.25f32),
+            (0x70, 10_000.0f32),
+        ] {
+            memory.put(pointer + offset, &value.to_le_bytes());
+        }
+        memory.put(
+            super::super::hype_runtime::UPDATE_COUNTER,
+            &123u32.to_le_bytes(),
+        );
+        memory.put(super::super::hype_runtime::CLOCK_MS, &456u32.to_le_bytes());
+        let build = HypeBuild::verified(HYPE_EXECUTABLE_SHA256).unwrap();
+        let camera = build.active_camera(&mut memory).unwrap();
+        assert_eq!(camera.source_locator, pointer);
+        assert_eq!(camera.position_source, [3.0, 4.0, -2.0]);
+        assert_eq!(camera.forward_source, [1.0, 0.0, 0.0]);
+        assert_eq!(camera.horizontal_fov, 1.5);
+        assert_eq!(camera.vertical_fov, 1.2);
+        assert_eq!(camera.near_plane, 0.25);
+        assert_eq!(camera.far_plane, 10_000.0);
+        assert_eq!(camera.source_update_counter, 123);
+        assert_eq!(camera.source_clock_ms, 456);
+    }
+}
+
 fn scene_node(source: &mut MemoryView<'_, impl ReadMemory>, child_path: &[u32]) -> Result<u32> {
     ensure!(
         !child_path.is_empty() && child_path.len() <= 32,
@@ -862,6 +1041,31 @@ pub struct ActorObservation {
     pub current_action: Option<u32>,
     pub secondary_action: Option<u32>,
     pub global_transform: TransformValue,
+}
+
+/// Active source viewport camera values observed during the same stopped-byte
+/// capture as a selected actor. `pose_words` includes the engine's packed
+/// matrix header followed by its 21 transform words; it is not yet interpreted
+/// as a reusable camera model transform.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ActiveCameraObservation {
+    pub source_locator: u32,
+    /// Camera origin in OpenSpace engine coordinates, decoded from its view
+    /// basis and translation using `position = -basis * translation`.
+    pub position_source: [f32; 3],
+    /// Normalized third row of the source view basis, pointing from camera
+    /// toward the scene in OpenSpace engine coordinates.
+    pub forward_source: [f32; 3],
+    pub pose_words: [u32; 22],
+    pub horizontal_fov: f32,
+    pub vertical_fov: f32,
+    pub near_plane: f32,
+    pub far_plane: f32,
+    /// Global source update counter, included as a checkpoint only; it does
+    /// not prove a completed-update publication boundary.
+    pub source_update_counter: u32,
+    pub source_clock_ms: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

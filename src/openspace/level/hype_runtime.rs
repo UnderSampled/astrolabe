@@ -16,6 +16,9 @@ pub const CLAMPED_DELTA_MS: u32 = 0x0075_4af8;
 /// a consumer observation, not a generic input-clock or frame counter.
 pub const LEFT_ACTION_COUNTER: u32 = 0x0030_a031c;
 pub const STATUS: u32 = 0x0075_4420;
+/// Active viewport camera pointer published by `GLI_xGetViewportCamera` for
+/// the verified PC build. Capture-local pointer only; never persist it.
+pub const ACTIVE_CAMERA_POINTER: u32 = 0x0030_9171c;
 pub const MAIN_ACTOR_ROOT: u32 = 0x0075_6e70;
 pub const DEVICE_TABLE: u32 = 0x0087_4250;
 pub const DEVICE_STRIDE: u32 = 0x254;

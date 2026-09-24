@@ -3,7 +3,7 @@ use anyhow::{Context, Result, ensure};
 use astrolabe::{
     model::{
         AssetRef, Selection,
-        ai::{AiModel, DesignerValue, SourceRole},
+        ai::{AiModel, DesignerValue, Expression, SourceRole, Statement},
         character::Perso,
         io::Load,
         scene::Scene,
@@ -87,6 +87,43 @@ fn rooted_source_camera_association_survives_rete() -> Result<()> {
     let camera = imported.load(&camera_ref)?;
     ensure!(camera.name == "StdCamer", "source camera actor differs");
     ensure!(camera.has_camera, "source camera association was dropped");
+    let brain = camera
+        .brain
+        .as_ref()
+        .context("source camera Brain was dropped")?;
+    ensure!(
+        brain.model.path.as_str() == "fix:/ai/models/437",
+        "source camera AI model differs"
+    );
+    let model: std::sync::Arc<AiModel> = imported.load(&brain.model)?;
+    let DesignerValue::ActorList(list) = &model.variables[27].default else {
+        anyhow::bail!("source camera membership field is not a Perso list")
+    };
+    ensure!(
+        list.active_len == 0 && list.slots.len() == 1 && list.slots[0].is_none(),
+        "source camera list default differs"
+    );
+    ensure!(
+        brain.variables[27] == model.variables[27].default,
+        "source camera list memory differs"
+    );
+    ensure!(
+        model
+            .expressions()
+            .iter()
+            .any(|value| matches!(value, Expression::ActorListContains { list: 27, .. })),
+        "camera membership condition was not compiled from source"
+    );
+    ensure!(
+        model
+            .normal
+            .iter()
+            .flat_map(|set| &set.behaviors)
+            .flat_map(|behavior| behavior.schedule.iter())
+            .flat_map(|script| &script.statements)
+            .any(|statement| matches!(statement, Statement::ActorListAdd { list: 27, .. })),
+        "camera list addition was not compiled from source"
+    );
     let ordinary_ref = AssetRef::<Perso>::new("level:/persos/world/0/1")?;
     let ordinary = imported.load(&ordinary_ref)?;
     ensure!(!ordinary.has_camera, "ordinary actor gained a camera");
@@ -97,6 +134,14 @@ fn rooted_source_camera_association_survives_rete() -> Result<()> {
     ensure!(
         store.load(&camera_ref)?.has_camera,
         "Rete lost source camera association"
+    );
+    ensure!(
+        *store.load(&brain.model)? == *model,
+        "Rete changed camera AI model"
+    );
+    ensure!(
+        store.load(&camera_ref)?.brain == camera.brain,
+        "Rete changed source camera Brain"
     );
     Ok(())
 }

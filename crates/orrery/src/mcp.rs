@@ -107,10 +107,22 @@ fn inspect_main_actor_schema() -> Value {
                 "maxItems": 64,
                 "uniqueItems": true,
                 "description": "When present, also return live normal/reflex behavior selections and these current designer-memory values. An empty array requests behavior selections only."
+            },
+            "include_camera": {
+                "type": "boolean",
+                "default": false,
+                "description": "Also capture the active viewport camera in the same stopped-byte sample as MainActor."
             }
         }),
         &[],
     )
+}
+fn inspect_combat_schema() -> Value {
+    let mut schema = inspect_main_actor_schema();
+    if let Some(properties) = schema.get_mut("properties").and_then(Value::as_object_mut) {
+        properties.remove("include_camera");
+    }
+    schema
 }
 fn inspect_scene_actor_schema() -> Value {
     object(
@@ -234,7 +246,7 @@ const TOOLS: [ToolSpec; 19] = [
         description: "Pause the owned game once and decode Hype's selected AI fields, active inventory, selected magic and laser through the verified OpenSpace reader.",
         read_only: true,
         destructive: false,
-        schema: inspect_main_actor_schema,
+        schema: inspect_combat_schema,
     },
     ToolSpec {
         name: "inspect_scene_tail",
@@ -615,10 +627,25 @@ fn validate_steps(raw: &Value) -> Result<Vec<Step>> {
             "inspect_main_actor" | "inspect_combat" => {
                 allowed(
                     map,
-                    &["action", "delay_ms", "label", "actions", "designer_values"],
+                    &[
+                        "action",
+                        "delay_ms",
+                        "label",
+                        "actions",
+                        "designer_values",
+                        "include_camera",
+                    ],
                 )?;
                 inspect_actions(map)?;
                 inspect_designer_values(map)?;
+                ensure!(
+                    map.get("include_camera").is_none_or(Value::is_boolean),
+                    "include_camera must be Boolean"
+                );
+                ensure!(
+                    action != "inspect_combat" || !map.contains_key("include_camera"),
+                    "include_camera is only valid for inspect_main_actor"
+                );
                 budget += 2_500;
             }
             "inspect_scene_tail" => {
@@ -859,7 +886,13 @@ fn execute_step(controller: &mut NativeController, step: &Step) -> Result<Value>
         "inspect_main_actor" => {
             let actions = inspect_actions(map)?;
             let designer_values = inspect_designer_values(map)?;
-            game.inspect_main_actor(&actions, designer_values.as_deref())
+            game.inspect_main_actor_with_camera(
+                &actions,
+                designer_values.as_deref(),
+                map.get("include_camera")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
+            )
         }
         "inspect_combat" => {
             let actions = inspect_actions(map)?;
@@ -957,13 +990,22 @@ fn call_tool(
         "screenshot" => single_action(controller, json!({"action":"screenshot"})),
         "list_bindings" => single_action(controller, json!({"action":"bindings"})),
         "inspect_main_actor" => {
-            allowed(map, &["actions", "designer_values"])?;
+            allowed(map, &["actions", "designer_values", "include_camera"])?;
+            ensure!(
+                map.get("include_camera").is_none_or(Value::is_boolean),
+                "include_camera must be Boolean"
+            );
             let actions = inspect_actions(map)?;
             let designer_values = inspect_designer_values(map)?;
-            Ok(ToolOutput::ok(controller.game()?.inspect_main_actor(
-                &actions,
-                designer_values.as_deref(),
-            )?))
+            Ok(ToolOutput::ok(
+                controller.game()?.inspect_main_actor_with_camera(
+                    &actions,
+                    designer_values.as_deref(),
+                    map.get("include_camera")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false),
+                )?,
+            ))
         }
         "inspect_combat" => {
             allowed(map, &["actions", "designer_values"])?;

@@ -402,20 +402,33 @@ func source_collide_with_ground() -> bool:
 func source_collide_with_nothing() -> Variant:
     return null
 
+## Resolve a compiled Perso identity in the active level's saved actor graph.
+func source_actor_node(actor_asset: String) -> Node3D:
+    var level: Node = self
+    while level.get_parent() != null and level.get_parent() != get_tree().root:
+        level = level.get_parent()
+    var actors: Dictionary = level.get_meta("source_actor_nodes", {})
+    if not actors.has(actor_asset): return null
+    return level.get_node_or_null(actors[actor_asset]) as Node3D
+
+## Source type-11 Perso lists append without deduplication and cannot grow
+## beyond their declared capacity. The compiled AI owns the decision to add.
+func source_list_add(list: Array[Node3D], capacity: int, actor: Node3D) -> bool:
+    if not is_instance_valid(actor) or capacity < 0 or list.size() >= capacity:
+        return false
+    list.append(actor)
+    return true
+
 ## Procedure 160 stores the target Perso on the referenced camera actor.
 ## Follow movement, viewport selection and its other reset fields are separate.
 func source_camera_change_targeted_perso(camera_asset: String, target: Node3D) -> bool:
     if not is_instance_valid(target):
         push_error("Camera target is invalid for " + camera_asset)
         return false
-    var level: Node = self
-    while level.get_parent() != null and level.get_parent() != get_tree().root:
-        level = level.get_parent()
-    var actors: Dictionary = level.get_meta("source_actor_nodes", {})
-    if not actors.has(camera_asset):
+    var camera_actor := source_actor_node(camera_asset)
+    if camera_actor == null:
         push_error("Camera actor is not bound: " + camera_asset)
         return false
-    var camera_actor := level.get_node_or_null(actors[camera_asset])
     var camera := camera_actor.get_node_or_null("SourceCamera") if camera_actor != null else null
     if camera == null or not camera.has_method("source_change_targeted_perso"):
         push_error("Camera actor has no native camera: " + camera_asset)

@@ -426,3 +426,15 @@ generated actors now would be a support-side gameplay guess. Resolve the
 source template identity and creation/movement contract first; if a generic
 API or exported initial-property mapping then proves wrong, fix that contract
 and record its remaining fidelity limits here.
+
+A further verified-build decompilation trace found that actor update
+`0x004442e0` enters the wrapper handler at `0x004440e0`. That handler reads
+the mechanics-list card pointer at `list + 0x24 + 4 * slot`, retains the last
+nonnull card, and enters the dispatch at `0x00443f00` only when a card exists.
+This explains why the sampled Fire list's null card matters more than its
+cached candidate card. Fire's actor stamp advanced while the sampled list
+slot was null at both ends of the BDD interval. Orrery currently captures
+stopped bytes, not the effective card pointer during the update; the list may
+be transiently populated and consumed. A generic native motion gate based on
+the effective card remains a candidate, not an implemented rule. This gap is
+explicit native support fidelity debt, not a reason for a Fire-specific patch.

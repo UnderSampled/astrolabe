@@ -187,6 +187,12 @@ pub enum Statement {
         camera: AssetRef<Perso>,
         target: ActorKeyword,
     },
+    /// Source Proc_AddPersoInList appends the referenced Perso to a bounded
+    /// designer list. The script decides when to call it.
+    ActorListAdd {
+        list: u16,
+        actor: AssetRef<Perso>,
+    },
     /// Hype Proc_ActivateChannel / Proc_DeactivateChannel select an existing
     /// character channel by its source channel number.
     SetChannelActive {
@@ -265,6 +271,11 @@ pub enum Expression {
         target: ActorKeyword,
     },
     Variable(u16),
+    /// Source Cond_IsPersoInList scans the active prefix of a designer list.
+    ActorListContains {
+        list: u16,
+        actor: Box<Expression>,
+    },
     Action(Option<StateRef>),
     IsInAction(Box<Expression>),
     ActionFinished,
@@ -384,6 +395,9 @@ pub enum DesignerValue {
     IntegerArray(DesignerArray<i32>),
     RealArray(DesignerArray<f32>),
     VectorArray(DesignerArray<[f32; 3]>),
+    /// A bounded source list whose verified camera use stores Perso identities.
+    /// Inactive slots remain present because source removal can leave stale data.
+    ActorList(DesignerActorList),
     Action(Option<StateRef>),
     ActionArray(DesignerArray<Option<StateRef>>),
     Actor(Option<AssetRef<Perso>>),
@@ -392,6 +406,31 @@ pub enum DesignerValue {
     /// Source waypoint identity until the route/waypoint model is promoted.
     SourceWaypoint(Option<SourceObjectIdentity>),
     SourceWaypointArray(DesignerArray<Option<SourceObjectIdentity>>),
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DesignerActorList {
+    pub active_len: u8,
+    pub header_unknown: [u8; 2],
+    pub slots: Vec<Option<DesignerActorListEntry>>,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum DesignerActorListEntry {
+    Actor(AssetRef<Perso>),
+    /// Preserved source identity when an entry is outside the imported actor graph.
+    Source(SourceObjectIdentity),
+}
+impl DesignerActorList {
+    pub fn validate(&self) -> Result<()> {
+        ensure!(
+            self.slots.len() <= 255,
+            "designer list capacity exceeds byte range"
+        );
+        ensure!(
+            usize::from(self.active_len) <= self.slots.len(),
+            "designer list active length exceeds capacity"
+        );
+        Ok(())
+    }
 }
 /// A fixed-size designer array. Unresolved source fields are preserved explicitly;
 /// they have no effect on the array's useful values or Godot's native arrays.
@@ -629,7 +668,8 @@ impl AiModel {
                 | Expression::Negate(v)
                 | Expression::IsInAction(v)
                 | Expression::InventoryQuantity(v)
-                | Expression::MagicRemovePoints(v) => expression(v, out),
+                | Expression::MagicRemovePoints(v)
+                | Expression::ActorListContains { actor: v, .. } => expression(v, out),
                 Expression::Vector(values) => {
                     for value in values.iter() {
                         expression(value, out);
@@ -810,6 +850,7 @@ impl DesignerValue {
             Self::IntegerArray(v) => v.validate()?,
             Self::ActionArray(v) => v.validate()?,
             Self::SourceWaypointArray(v) => v.validate()?,
+            Self::ActorList(v) => v.validate()?,
             Self::RealArray(v) => {
                 v.validate()?;
                 ensure!(
@@ -842,6 +883,7 @@ impl DesignerValue {
             (Self::SourceWaypointArray(a), Self::SourceWaypointArray(b)) => {
                 a.values.len() == b.values.len()
             }
+            (Self::ActorList(a), Self::ActorList(b)) => a.slots.len() == b.slots.len(),
             _ => std::mem::discriminant(self) == std::mem::discriminant(other),
         }
     }
@@ -877,7 +919,8 @@ impl Script {
                 Expression::Not(v)
                 | Expression::Negate(v)
                 | Expression::IsInAction(v)
-                | Expression::MagicRemovePoints(v) => expression(v, out),
+                | Expression::MagicRemovePoints(v)
+                | Expression::ActorListContains { actor: v, .. } => expression(v, out),
                 Expression::Vector(values) => {
                     for value in values.iter() {
                         expression(value, out);
@@ -963,6 +1006,10 @@ impl Script {
                 Expression::Real(v) => ensure!(v.is_finite(), "nonfinite AI real"),
                 Expression::Variable(id) => {
                     ensure!(usize::from(*id) < variables, "AI variable out of range")
+                }
+                Expression::ActorListContains { list, actor } => {
+                    ensure!(usize::from(*list) < variables, "AI list out of range");
+                    expression(actor, variables, depth + 1, count)?;
                 }
                 Expression::ActorFieldRead { actor, variable } => {
                     ensure!(
@@ -1084,6 +1131,10 @@ impl Script {
                     Statement::MainActorFieldAssign { variable, value } => {
                         ensure!(*variable < 255, "main actor designer field out of range");
                         expression(value, variables, depth + 1, count)?;
+                    }
+                    Statement::ActorListAdd { list, actor } => {
+                        ensure!(usize::from(*list) < variables, "AI list out of range");
+                        ensure!(actor.path.member().is_none(), "list actor is a member");
                     }
                     Statement::Increment { target } | Statement::Decrement { target } => {
                         match target {

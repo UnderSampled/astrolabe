@@ -36,6 +36,19 @@ distinguish them. The time series is in the second Orrery run at
 These are stopped-byte observations, and their screenshots were independent
 captures, so exact frame pairing is not yet verified.
 
+Orrery now has an optional typed active-viewport camera observation captured
+in the same process pause as MainActor. A fresh supplied-save idle sample
+(`TestResults/camera-runtime-2026-09-24.json`) measured Hype at
+`[-74.37856, 27.48479, 4.55084]` and camera at
+`[-74.37771, 24.14157, 7.38519]` in source axes, with offset about 3.34322
+behind and 2.83435 above. Projection was 1.5 rad horizontal / 69.8838°
+vertical, near 0.25, far 10000. The source update counter was 1354 and source
+clock 69597 ms; capture took 56.2 ms. This is one coherent stopped-byte sample,
+not a proven completed-update frame. The bounded walk/turn recapture did not
+reach the save after a controller restart, so the earlier unsynchronized
+distance series retains its stated uncertainty. The game and Orrery service
+were stopped without modifying the installation or save.
+
 A temporary Godot calibration used the measured 4:3 projection and stationary
 pose. Its visible focused BDD rerun passed both movement scenarios in one
 process with complete cleanup (`TestResults/behavior-suite-1790230476038639185.json`).
@@ -67,20 +80,22 @@ checked-in decompilation does not establish follow smoothing or obstruction
 behavior. Raymap's 116-byte `CameraInfo` reader belongs to a separate ROM
 format, so its unnamed fields must not be applied to this Hype allocation.
 
-The current imported `StdCamer` has a rooted scene transform, but its Perso
-asset omits both its source camera link and Brain. An older local Rete fixture
+Before the native camera slice, the imported `StdCamer` had a rooted scene
+transform, but its Perso asset omitted both its source camera link and Brain.
+The Brain was still unimported after the first camera slice: its raw link
+reaches Fix AI model 437, which the importer then rejected because designer
+value type 11 was unsupported. The list slice below resolves that gate.
+Model 733 belongs to the arrow and is a separate AI dependency. An older local Rete fixture
 places it and Hype at different world coordinates from the supplied save; its
 relative initial placement is not proof of the saved runtime camera pose.
 The live horizontal 1.5-radian FoV, near/far planes and measured follow offsets
 are observation targets, not portable export constants. The Montreal Perso's
 camera slot at `+20` has a real relocated link on rooted `StdCamer` and is
 null on the ordinary actor checked. The linked allocation is pointer-rich
-and its Hype field meanings remain unknown. The camera slice should first
-preserve that source association and Brain, add a native
-`Camera3D` bound to that actor, then implement the verified target and follow
-API. Camera assertions stay separate from movement/contact scenarios. No
-camera-specific Godot support behavior is added until those source contracts
-are established.
+and its Hype field meanings remain unknown. The first slice preserves the
+association and adds a native `Camera3D` bound to that actor. Importing the
+camera Brain and implementing verified follow behavior were separate work.
+Camera assertions stay separate from movement/contact scenarios.
 
 The verified executable's procedure 160 stores its resolved target Perso
 pointer in the camera actor's runtime data at `+0x10`. Procedure 163 restores
@@ -109,3 +124,54 @@ scene and the exact `level:/persos/world/0/2` actor-to-node binding in the
 level scene. Godot's headless editor scan loaded the generated project without
 scene or GDScript parse errors. This validates the saved structure and target
 lookup, but does not establish that this camera produces the source view.
+The compiled AI remains responsible for calling the camera API; this slice
+adds only the target-state surface and prevents Godot from selecting an
+unfinished camera by default. No support-side camera follow, FOV correction or
+gameplay decision is used to make another scenario pass. Any future temporary
+support approximation must be identified as fidelity debt before use.
+
+## Camera Brain and list gate
+
+The rooted `StdCamer` Brain links Fix AI model 437. Import previously dropped
+that Brain because its designer field 27 used unsupported type 11. Raymap identifies
+Hype type 11 as a list, and the installed build's size function at `0x005236a0`
+reports `4 + 4 × capacity` bytes. The model's field has offset 68, capacity
+one, current length zero, two zero header bytes and one zero slot in default,
+initial and current memory. The slot has no relocation in those buffers.
+Model 437's original scripts call `Cond_IsPersoInList` on that field and
+`Proc_AddPersoInList` with an actor operand. Its useful values are therefore
+ordered Perso references with bounded capacity, not an integer standing in
+for an unexplained pointer. Populated source-slot reconstruction beyond the
+observed empty case remains a separate validation limit.
+
+The installed handlers establish the reached list operations: condition 53
+compares actor identities in the active prefix, while procedure 69 appends
+without deduplication and reports source error `0x0e` when at capacity. Source
+removal can leave stale inactive entries, so the full capacity-sized slot array
+is retained through Rete. The `manoir` import now restores model 437 and the
+rooted `StdCamer` Brain. A focused local test checked the empty capacity-one
+field in default and current memory, typed membership/add AST nodes, and Rete
+round trip. A fresh full manor export and Godot editor scan passed. The saved
+`StdCamer` scene has `SourceCamera` and `Brain` children, and the generated
+model-437 script uses native list membership and append calls. The current
+runtime projection of a populated source list is an explicit gap.
+
+Source update `0x005200a0` reaches target computation `0x0051d330`, which
+reads selected actor translation and rotates a camera dynamics vector by
+actor basis. Viewport camera selection is a distinct call at `0x00485380`.
+Neither trace yet maps the linked 224-byte source allocation to projection,
+offset or smoothing fields; measured idle FoV/pose cannot serve as a general
+export rule. The ordinary model-437 update path remains blocked by a separate
+compiled-AI gap: `normal_0_rule_0` reaches `Proc_SetActionReturn` (category 4,
+ID 6) with scalar zero before zero-argument `Proc_Camera_UpdatePosition`
+(category 4, ID 135). The compiler currently recognizes procedure 6
+only as a locomotion yield paired with behavior request 209/210, so this
+camera use becomes `fail_unsupported`. `normal_11_schedule` has the same gate.
+The source handler's observable flow must be established before normalizing
+this pair. Raymap provides the operation names, but the checked-in
+decompilation has no handler body at the cataloged `0x0053fc30` entry, so
+the meaning of action-return zero remains unresolved. Editor parsing and the
+attached Brain do not establish a working
+follow camera. The camera allocation behind the source link also needs
+useful-field mapping and explicit unknown preservation beyond the current
+association flag.

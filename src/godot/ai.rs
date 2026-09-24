@@ -11,6 +11,14 @@ pub(super) fn export_program(
     written: &mut BTreeSet<AssetPath>,
 ) -> Result<String> {
     model.validate()?;
+    for variable in &model.variables {
+        if let DesignerValue::ActorList(list) = &variable.default {
+            ensure!(
+                list.active_len == 0,
+                "populated source actor-list defaults need scene actor binding"
+            );
+        }
+    }
     for (actor, field) in model.actor_field_writes() {
         let target = source.load(&actor)?;
         let brain = target
@@ -288,6 +296,7 @@ fn value_type(v: &DesignerValue) -> &'static str {
         DesignerValue::IntegerArray(_) | DesignerValue::ActionArray(_) => "PackedInt32Array",
         DesignerValue::RealArray(_) => "PackedFloat32Array",
         DesignerValue::VectorArray(_) => "PackedVector3Array",
+        DesignerValue::ActorList(_) => "Array[Node3D]",
         DesignerValue::Actor(_) | DesignerValue::SourceActor(_) => "Node3D",
         DesignerValue::SourceWaypoint(_) | DesignerValue::SourceWaypointArray(_) => "Variant",
     }
@@ -332,6 +341,7 @@ fn literal(v: &DesignerValue) -> String {
         DesignerValue::SourceWaypointArray(v) => {
             format!("[{}]", vec!["null"; v.values.len()].join(", "))
         }
+        DesignerValue::ActorList(_) => "[]".into(),
     }
 }
 fn unresolved_variable(model: &AiModel, index: u16) -> bool {
@@ -361,6 +371,12 @@ fn actor_expression(e: &Expression, model: &AiModel) -> bool {
                 })
         }
         _ => false,
+    }
+}
+fn actor_list_capacity(model: &AiModel, index: u16) -> Result<usize> {
+    match model.variables.get(usize::from(index)).map(|v| &v.default) {
+        Some(DesignerValue::ActorList(list)) => Ok(list.slots.len()),
+        _ => anyhow::bail!("AI field {index} is not a source actor list"),
     }
 }
 fn comparison_code(
@@ -413,6 +429,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
             ..
         } => true,
         Expression::Variable(index) => unresolved_variable(model, *index),
+        Expression::ActorListContains { actor, .. } => needs_guard(actor, model),
         Expression::ActorFieldRead { .. } | Expression::MainActorFieldRead(_) => true,
         Expression::Vector(values) => values.iter().any(|value| needs_guard(value, model)),
         Expression::Multiply(a, b)
@@ -676,6 +693,13 @@ fn guarded_expression(
             guarded_expression(out, array, model, depth, flow)?,
             guarded_expression(out, index, model, depth, flow)?
         ),
+        Expression::ActorListContains { list, actor } => {
+            actor_list_capacity(model, *list)?;
+            format!(
+                "dsg_{list}.has({})",
+                guarded_expression(out, actor, model, depth, flow)?
+            )
+        }
         Expression::Compare {
             operation,
             left,
@@ -732,6 +756,10 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
                 "compiled AI reads unresolved source waypoint designer field {v}"
             );
             format!("dsg_{v}")
+        }
+        Expression::ActorListContains { list, actor } => {
+            actor_list_capacity(model, *list)?;
+            format!("dsg_{list}.has({})", expression(actor, model)?)
         }
         Expression::SelfFieldRead(v) => {
             ensure!(
@@ -1279,6 +1307,25 @@ fn statements(
                     quoted(&camera.path.to_string())
                 )?;
             }
+            Statement::ActorListAdd { list, actor } => {
+                let capacity = actor_list_capacity(model, *list)?;
+                let id = flow.local;
+                flow.local += 1;
+                let local = format!("list_actor_{id}");
+                let failure = quoted(&format!(
+                    "{} requires actor {} for designer list {list}",
+                    model.path, actor.path
+                ));
+                writeln!(
+                    out,
+                    "{pad}var {local} := character().source_actor_node({})\n{pad}if not is_instance_valid({local}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if not character().source_list_add(dsg_{list}, {capacity}, {local}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(actor.path.as_str()),
+                    quoted(&format!(
+                        "{} designer list {list} cannot append actor {}",
+                        model.path, actor.path
+                    ))
+                )?;
+            }
             Statement::SetChannelActive { channel, active } => {
                 writeln!(
                     out,
@@ -1471,6 +1518,12 @@ pub(super) fn component(
         .iter()
         .chain(brain.initial_variables.iter().flatten())
     {
+        if let DesignerValue::ActorList(list) = value {
+            ensure!(
+                list.active_len == 0,
+                "populated source actor-list memory needs scene actor binding"
+            );
+        }
         for action in value.state_references() {
             action.validate_family(&family)?;
         }
@@ -1485,6 +1538,13 @@ pub(super) fn component(
         quoted(&format!("res://{script}"))
     )?;
     for (i, v) in brain.variables.iter().enumerate() {
+        if matches!(v, DesignerValue::ActorList(_)) {
+            writeln!(
+                project.builder,
+                "    var {parent}_brain_list_{i}: Array[Node3D] = []\n    {parent}_brain.dsg_{i} = {parent}_brain_list_{i}"
+            )?;
+            continue;
+        }
         writeln!(
             project.builder,
             "    {parent}_brain.dsg_{i} = {}",

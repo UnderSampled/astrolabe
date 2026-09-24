@@ -368,6 +368,36 @@ impl Parser<'_> {
                         }
                     }
                 }
+                (4, 69) => {
+                    let (_, list) = self.take(indent + 1)?;
+                    ensure!(
+                        list.kind == 11,
+                        "AddPersoInList requires a designer list operand"
+                    );
+                    let list: u16 = list.parameter.try_into()?;
+                    let operand = self.at;
+                    let (_, actor) = self.take(indent + 1)?;
+                    let actor_kind = actor.kind;
+                    if actor_kind == 24 {
+                        if let Some(actor) = self.codec.actors.get(&operand) {
+                            Statement::ActorListAdd {
+                                list,
+                                actor: actor.clone(),
+                            }
+                        } else {
+                            Statement::Unsupported(
+                                self.unsupported(
+                                    at,
+                                    format!("unbound list actor at node {operand}"),
+                                )?,
+                            )
+                        }
+                    } else {
+                        Statement::Unsupported(
+                            self.unsupported(at, "AddPersoInList requires a source actor".into())?,
+                        )
+                    }
+                }
                 (4, 104 | 105) => {
                     let (_, channel) = self.take(indent + 1)?;
                     ensure!(
@@ -540,6 +570,18 @@ impl Parser<'_> {
                 self.expression(indent + 1)?,
             ])),
             (11, n) => Expression::Variable(n.try_into()?),
+            (1, 53) => {
+                let (_, list) = self.take(indent + 1)?;
+                ensure!(
+                    list.kind == 11,
+                    "IsPersoInList requires a designer list operand"
+                );
+                let list: u16 = list.parameter.try_into()?;
+                Expression::ActorListContains {
+                    list,
+                    actor: Box::new(self.expression(indent + 1)?),
+                }
+            }
             (2, 0) => Expression::Plus(
                 Box::new(self.expression(indent + 1)?),
                 Box::new(self.expression(indent + 1)?),
@@ -947,6 +989,18 @@ impl Writer<'_> {
                     self.node(24, handle, indent + 1);
                     self.node(0, 5, indent + 1);
                 }
+                Statement::ActorListAdd { list, actor } => {
+                    let handle = self
+                        .codec
+                        .actor_handles
+                        .iter()
+                        .find(|(reference, _)| reference == actor)
+                        .context("missing list actor handle")?
+                        .1;
+                    self.node(4, 69, indent);
+                    self.node(11, u32::from(*list), indent + 1);
+                    self.node(24, handle, indent + 1);
+                }
                 Statement::SetChannelActive { channel, active } => {
                     self.node(4, if *active { 104 } else { 105 }, indent);
                     self.node(18, *channel, indent + 1);
@@ -1095,6 +1149,11 @@ impl Writer<'_> {
                 }
             }
             Expression::Variable(v) => self.node(11, u32::from(*v), indent),
+            Expression::ActorListContains { list, actor } => {
+                self.node(1, 53, indent);
+                self.node(11, u32::from(*list), indent + 1);
+                self.expression(actor, indent + 1)?;
+            }
             Expression::SeePerso { receiver, target } => {
                 let inner = if *receiver == ActorKeyword::MainActor {
                     self.node(2, 24, indent);
@@ -1322,6 +1381,42 @@ impl Writer<'_> {
 #[cfg(test)]
 mod partial_tests {
     use super::*;
+
+    #[test]
+    fn source_actor_list_calls_decode_and_reconstruct() -> Result<()> {
+        let actor = AssetRef::new("level:/persos/world/0/2")?;
+        let (mut codec, bytes) = partial(&[
+            (0, 0, 1),
+            (1, 53, 2),
+            (11, 27, 3),
+            (11, 29, 3),
+            (0, 1, 1),
+            (4, 69, 2),
+            (11, 27, 3),
+            (24, 0x1234, 3),
+            (8, 0, 0),
+        ]);
+        codec.actors.insert(7, actor.clone());
+        codec.actor_handles.push((actor.clone(), 0x1234));
+        let script = codec.read(&bytes)?;
+        let Statement::If {
+            condition, then, ..
+        } = &script.statements[0]
+        else {
+            panic!("lost actor-list condition")
+        };
+        assert!(matches!(
+            condition,
+            Expression::ActorListContains { list: 27, actor }
+                if **actor == Expression::Variable(29)
+        ));
+        assert!(matches!(
+            &then[0],
+            Statement::ActorListAdd { list: 27, actor: target } if target == &actor
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
 
     fn partial(nodes: &[(u8, u32, u8)]) -> (AiScriptCodec, Vec<u8>) {
         let mut bytes = Cursor::new(Vec::new());

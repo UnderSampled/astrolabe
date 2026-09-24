@@ -245,7 +245,7 @@ where
         20..=23 | 25 => 8,
         0..=2 => 1,
         3..=4 => 2,
-        5..=8 | 10 | 14 => 4,
+        5..=8 | 10..=11 | 14 => 4,
         12 => 12,
         _ => anyhow::bail!("unsupported designer type {}", info.kind),
     };
@@ -289,6 +289,24 @@ where
                 .insert(0, Some(source.source_identity(target)?));
         } else {
             codec.actors.insert(0, mapped);
+        }
+    }
+    if info.kind == 11 {
+        let capacity = usize::from(bytes[1]);
+        for index in 0..capacity {
+            let operand = 4 + index * 4;
+            if u32_at(&bytes, operand)? == 0 {
+                continue;
+            }
+            let site = source.add(address, operand)?;
+            let target = source.required(site, 0)?;
+            if let Some(actor) = actor(Some(target))? {
+                codec.actors.insert(operand, Some(actor));
+            } else {
+                codec
+                    .source_actors
+                    .insert(operand, Some(source.source_identity(target)?));
+            }
         }
     }
     if matches!(info.kind, 8 | 23) {

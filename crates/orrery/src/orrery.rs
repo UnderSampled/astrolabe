@@ -359,6 +359,17 @@ impl GameSession {
         actions: &[u32],
         designer_values: Option<&[u32]>,
     ) -> Result<Value> {
+        self.inspect_main_actor_with_camera(actions, designer_values, false)
+    }
+
+    /// As `inspect_main_actor`, with the active viewport camera sampled in the
+    /// same stopped-byte capture when requested.
+    pub fn inspect_main_actor_with_camera(
+        &self,
+        actions: &[u32],
+        designer_values: Option<&[u32]>,
+        include_camera: bool,
+    ) -> Result<Value> {
         ensure!(
             (1..=64).contains(&actions.len()),
             "inspect_main_actor requires 1..64 action ids"
@@ -399,9 +410,14 @@ impl GameSession {
             // opt-in AI field is absent.
             serde_json::to_value(build.actor_with_actions(&mut capture, actions)?)?
         };
+        let camera = if include_camera {
+            Some(serde_json::to_value(build.active_camera(&mut capture)?)?)
+        } else {
+            None
+        };
         let snapshot = capture.finish()?;
         drop(pause);
-        Ok(json!({
+        let mut result = json!({
             "fixture": {
                 "executable_sha256": self.config.exe_sha256,
                 "save_sha256": self.config.save_sha256,
@@ -412,7 +428,11 @@ impl GameSession {
             "completed_update": false,
             "consistency_limit": "stopped-byte capture is coherent during this read but has no completed-update publication evidence",
             "observation": observation,
-        }))
+        });
+        if let Some(camera) = camera {
+            result["active_camera"] = camera;
+        }
+        Ok(result)
     }
 
     /// Observe Hype's selected AI fields, inventory, magic selection and laser
