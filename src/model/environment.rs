@@ -1,5 +1,5 @@
-//! Shared sector environments. Physical, acoustic and water components remain
-//! explicitly unresolved; visual environments and fog retain independent identity.
+//! Shared sector environments. Physical and visual components retain their
+//! independent identities; acoustic and water components remain unresolved.
 use super::{AssetPath, AssetRef, io::Content};
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
@@ -7,9 +7,19 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Environment {
     pub path: AssetPath,
+    pub physical: Option<AssetRef<PhysicalEnvironment>>,
     pub visual: Option<AssetRef<VisualEnvironment>>,
-    pub unresolved_mechanics: bool,
     pub unresolved_sound: bool,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PhysicalEnvironment {
+    pub path: AssetPath,
+    /// Magnitude in source units per second squared. Direction is `vertical`.
+    pub gravity: f32,
+    /// Source-coordinate vertical vector, retained without normalization.
+    pub vertical: [f32; 3],
+    /// Unpromoted source fields at +16..+47 of the 48-byte record.
+    pub retained: [u8; 32],
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct VisualEnvironment {
@@ -33,6 +43,19 @@ impl Content for Environment {
         Some(&self.path)
     }
     fn validate(&self) -> Result<()> {
+        Ok(())
+    }
+}
+impl Content for PhysicalEnvironment {
+    const KIND: &'static str = "physical_environment";
+    fn identity(&self) -> Option<&AssetPath> {
+        Some(&self.path)
+    }
+    fn validate(&self) -> Result<()> {
+        ensure!(
+            self.gravity.is_finite() && self.vertical.iter().all(|v| v.is_finite()),
+            "nonfinite physical environment value"
+        );
         Ok(())
     }
 }

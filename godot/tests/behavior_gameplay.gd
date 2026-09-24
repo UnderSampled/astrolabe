@@ -174,6 +174,7 @@ func observation() -> Dictionary:
         "godot_velocity": [actor.velocity.x, actor.velocity.y, actor.velocity.z],
         "root_motion_displacement": [root_motion.x, root_motion.y, root_motion.z],
         "external_velocity": [external_motion.x, external_motion.y, external_motion.z],
+        "generated_object_count": int(actor.get("source_generated_object_count")),
         "slide_collisions": actor.get_slide_collision_count(),
         "slide_normals": slide_normals,
         "slide_contacts": slide_contacts,
@@ -201,6 +202,7 @@ func handle(request: Dictionary) -> Dictionary:
                 "ArrowUp": event.physical_keycode = KEY_UP
                 "ArrowDown": event.physical_keycode = KEY_DOWN
                 "LeftShift": event.physical_keycode = KEY_SHIFT
+                "LeftControl": event.physical_keycode = KEY_CTRL
                 _: return {"error": "unknown physical key"}
             event.pressed = bool(request.get("pressed", false))
             Input.parse_input_event(event)

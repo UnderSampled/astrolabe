@@ -3,6 +3,26 @@ mod behavior_steps;
 const BACKEND: behavior_steps::Mode = behavior_steps::Mode::Synthetic;
 
 #[test]
+fn synthetic_stationary_jump_uses_shared_bdd_and_checks_height() -> anyhow::Result<()> {
+    let path = behavior_steps::run_scenario("Jumping from a standstill and landing")?;
+    let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
+    assert_eq!(report["result"]["status"], "passed");
+    assert_eq!(report["godot"]["status"], "pending");
+    use orrery::behavior::{self, Scenario};
+    let mut source =
+        behavior_steps::synthetic_result(behavior::recording(Scenario::StationaryJump))?;
+    source.backend = "openspace".into();
+    source.cleanup_complete = true;
+    let mut godot = source.clone();
+    godot.backend = "godot".into();
+    assert_eq!(behavior::compare_results(&source, &godot)?.status, "passed");
+    godot.samples[2].translation[2] += 2.0;
+    godot.assertions = behavior::assertions(godot.scenario, &godot.samples)?;
+    assert_eq!(behavior::compare_results(&source, &godot)?.status, "failed");
+    Ok(())
+}
+
+#[test]
 fn synthetic_movement_uses_shared_bdd_steps_and_report_pending_godot() -> anyhow::Result<()> {
     let shared = behavior_steps::run_scenarios_shared(&[
         "Turning while standing",

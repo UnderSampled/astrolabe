@@ -37,6 +37,34 @@ struct FogWire {
     color: [f32; 3],
     unknown: u32,
 }
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+struct PhysicalEnvironmentWire {
+    gravity: f32,
+    vertical: [f32; 3],
+    retained: [u8; 32],
+}
+
+pub fn read_physical_environment(bytes: &[u8], path: AssetPath) -> Result<PhysicalEnvironment> {
+    ensure!(bytes.len() == 48, "physical environment must have 48 bytes");
+    let h: PhysicalEnvironmentWire = wire(bytes)?;
+    let v = PhysicalEnvironment {
+        path,
+        gravity: h.gravity,
+        vertical: h.vertical,
+        retained: h.retained,
+    };
+    v.validate()?;
+    Ok(v)
+}
+pub fn write_physical_environment(v: &PhysicalEnvironment) -> Result<Vec<u8>> {
+    v.validate()?;
+    encoded(&PhysicalEnvironmentWire {
+        gravity: v.gravity,
+        vertical: v.vertical,
+        retained: v.retained,
+    })
+}
 
 pub fn read_fog(bytes: &[u8], path: AssetPath) -> Result<Fog> {
     let h: FogWire = wire(bytes)?;
@@ -76,6 +104,7 @@ fn path(s: &SourceSession, a: Address, kind: &str) -> Result<AssetPath> {
 #[derive(Default)]
 pub(super) struct Import {
     environments: BTreeMap<Address, Environment>,
+    physicals: BTreeMap<Address, PhysicalEnvironment>,
     visuals: BTreeMap<Address, VisualEnvironment>,
     fogs: BTreeMap<Address, Fog>,
 }
@@ -87,6 +116,21 @@ impl Import {
     ) -> Result<AssetRef<Environment>> {
         if let std::collections::btree_map::Entry::Vacant(entry) = self.environments.entry(a) {
             let h: EnvironmentWire = wire(s.bytes(a, 12)?)?;
+            ensure!(
+                (h.mechanics != 0) == s.pointer(a, 0)?.is_some(),
+                "physical environment relocation mismatch"
+            );
+            let physical = if let Some(p) = s.pointer(a, 0)? {
+                if let std::collections::btree_map::Entry::Vacant(entry) = self.physicals.entry(p) {
+                    entry.insert(read_physical_environment(
+                        s.bytes(p, 48)?,
+                        path(s, p, "physical-environments")?,
+                    )?);
+                }
+                Some(AssetRef::from_path(self.physicals[&p].path.clone()))
+            } else {
+                None
+            };
             ensure!(
                 (h.visual != 0) == s.pointer(a, 8)?.is_some(),
                 "visual environment relocation mismatch"
@@ -120,8 +164,8 @@ impl Import {
             };
             entry.insert(Environment {
                 path: path(s, a, "environments")?,
+                physical,
                 visual,
-                unresolved_mechanics: h.mechanics != 0,
                 unresolved_sound: h.sound != 0,
             });
         }
@@ -129,9 +173,9 @@ impl Import {
     }
     pub(super) fn finish(self, out: &mut SceneImport) {
         for v in self.environments.values() {
-            if v.unresolved_mechanics || v.unresolved_sound {
+            if v.unresolved_sound {
                 out.diagnostics.push(Diagnostic {code:"openspace.environment.coverage".into(), asset:Some(v.path.clone()), severity:Severity::Warning,
-                    message:format!("Environment components requiring codecs: mechanics={}, sound={}; visual/fog links are resolved",v.unresolved_mechanics,v.unresolved_sound)});
+                    message:"Environment sound component requires a codec; physical/visual/fog links are resolved".into()});
             }
         }
         for v in self.visuals.values() {
@@ -145,6 +189,7 @@ impl Import {
             }
         }
         out.environments = self.environments.into_values().collect();
+        out.physical_environments = self.physicals.into_values().collect();
         out.visual_environments = self.visuals.into_values().collect();
         out.fogs = self.fogs.into_values().collect();
     }
@@ -152,29 +197,20 @@ impl Import {
 
 #[cfg(test)]
 pub(super) fn check(s: &SourceSession, imported: &SceneImport) -> Result<()> {
+    assert!(!imported.environments.is_empty());
     assert_eq!(
-        (
-            imported.environments.len(),
-            imported.visual_environments.len(),
-            imported.fogs.len()
-        ),
-        (1, 1, 1)
-    );
-    let env = &imported.environments[0];
-    let visual = &imported.visual_environments[0];
-    let fog = &imported.fogs[0];
-    assert!(env.unresolved_mechanics && !env.unresolved_sound && !visual.unresolved_water);
-    assert_eq!(env.visual.as_ref().unwrap().path, visual.path);
-    assert_eq!(visual.fog.as_ref().unwrap().path, fog.path);
-    assert_eq!(
-        (fog.near, fog.far, fog.infinite, fog.color, fog.unknown),
-        (12.1, 3096., 5000., [0.744094; 3], 0)
+        imported.physical_environments.len(),
+        imported.environments.len()
     );
     for sector in imported.scene.nodes.iter().flat_map(|n| &n.sector) {
-        assert_eq!(
-            sector.environments,
-            vec![AssetRef::from_path(env.path.clone())]
-        );
+        for reference in &sector.environments {
+            assert!(
+                imported
+                    .environments
+                    .iter()
+                    .any(|env| env.path == reference.path)
+            );
+        }
     }
     let node = s
         .tree()?
@@ -183,31 +219,57 @@ pub(super) fn check(s: &SourceSession, imported: &SceneImport) -> Result<()> {
         .unwrap();
     let sector = s.required(node.address, 4)?;
     let e = s.required(super::sector::entries(s, sector, 4, 4)?[0], 0)?;
+    let p = s.required(e, 0)?;
+    let env = imported
+        .environments
+        .iter()
+        .find(|v| v.path == path(s, e, "environments").unwrap())
+        .unwrap();
+    let physical = imported
+        .physical_environments
+        .iter()
+        .find(|v| v.path == path(s, p, "physical-environments").unwrap())
+        .unwrap();
+    assert_eq!(env.physical.as_ref().unwrap().path, physical.path);
+    assert_eq!(write_physical_environment(physical)?, s.bytes(p, 48)?);
     let v = s.required(e, 8)?;
     let f = s.required(v, 4)?;
+    let visual = imported
+        .visual_environments
+        .iter()
+        .find(|candidate| candidate.path == path(s, v, "visual-environments").unwrap())
+        .unwrap();
+    let fog = imported
+        .fogs
+        .iter()
+        .find(|candidate| candidate.path == path(s, f, "fogs").unwrap())
+        .unwrap();
+    assert_eq!(env.visual.as_ref().unwrap().path, visual.path);
+    assert_eq!(visual.fog.as_ref().unwrap().path, fog.path);
     assert_eq!(write_fog(fog)?, s.bytes(f, 28)?);
     let normalized = super::write_environments(
         &imported.environments,
+        &imported.physical_environments,
         &imported.visual_environments,
         &imported.fogs,
-        &super::EnvironmentDependencies {
-            mechanics: BTreeMap::from([(
-                env.path.clone(),
-                super::ReferenceTarget {
-                    address: 0x4000,
-                    block: (6, 2),
-                },
-            )]),
-            ..Default::default()
-        },
+        &super::EnvironmentDependencies::default(),
         0x10000,
     )?;
-    assert_eq!((normalized.ranges.len(), normalized.pointer_count), (3, 3));
-    assert_eq!(&normalized.bytes[20..], s.bytes(f, 28)?);
-    for (source, range, pointers) in [
-        (e, &normalized.ranges[0], vec![0usize, 8]),
-        (v, &normalized.ranges[1], vec![4]),
-    ] {
+    assert_eq!(
+        normalized.ranges.len(),
+        imported.environments.len()
+            + imported.physical_environments.len()
+            + imported.visual_environments.len()
+            + imported.fogs.len()
+    );
+    for (source, asset_path, pointers) in
+        [(e, &env.path, vec![0usize, 8]), (v, &visual.path, vec![4])]
+    {
+        let range = normalized
+            .ranges
+            .iter()
+            .find(|r| r.name == asset_path.as_str())
+            .unwrap();
         let mut expected = s.bytes(source, range.length)?.to_vec();
         let mut actual = normalized.bytes[range.offset..range.offset + range.length].to_vec();
         for field in pointers {
@@ -217,7 +279,15 @@ pub(super) fn check(s: &SourceSession, imported: &SceneImport) -> Result<()> {
         assert_eq!(actual, expected);
     }
     eprintln!(
-        "Environment inventory: 17 sectors share one ENV, one VET and one 28-byte fog; fog byte parity and normalized ENV/VET pointers verified"
+        "Environment inventory: {} sectors, {} ENV and {} physical records; physical and fog byte parity verified",
+        imported
+            .scene
+            .nodes
+            .iter()
+            .filter(|n| n.sector.is_some())
+            .count(),
+        imported.environments.len(),
+        imported.physical_environments.len()
     );
     Ok(())
 }

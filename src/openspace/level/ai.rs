@@ -97,24 +97,6 @@ fn add(a: Address, n: usize) -> Address {
         ..a
     }
 }
-fn source_address(s: &SourceSession, source: &SourceObjectIdentity) -> Result<Address> {
-    let owner = match source.role {
-        SourceRole::Fix => Owner::Fix,
-        SourceRole::Level => Owner::Level,
-    };
-    let key = BlockKey(source.block[0], source.block[1]);
-    let (offset, _) = s
-        .allocation_indices(owner, key)?
-        .into_iter()
-        .find(|(_, index)| *index == source.allocation)
-        .with_context(|| format!("source identity {source:?} is not an allocation"))?;
-    let address = Address { owner, key, offset };
-    ensure!(
-        s.source_identity(address)? == *source,
-        "source identity lookup differs"
-    );
-    Ok(address)
-}
 fn path(s: &SourceSession, a: Address) -> Result<AssetPath> {
     AssetPath::new(format!(
         "{}:/ai/models/{}",
@@ -232,6 +214,85 @@ fn source_set(s: &SourceSession, model: Address, field: usize) -> Result<Option<
     };
     set.default = member(s, a, 8, &set)?;
     Ok(Some(set))
+}
+
+/// Find Perso definitions referenced by object-producing AI actions before
+/// character import is finalized. A template need not have a rooted scene node;
+/// it still owns a family, configuration and possibly a Brain. This scan reads
+/// only the typed operand position of the known Hype meta-action, so unrelated
+/// relocated words cannot become guessed Persos.
+pub(super) fn object_templates(
+    s: &SourceSession,
+    rooted: &BTreeMap<Address, AssetRef<Perso>>,
+) -> Result<Vec<Address>> {
+    let mut pending: Vec<_> = rooted.keys().copied().collect();
+    let mut seen_persos = BTreeSet::new();
+    let mut seen_models = BTreeSet::new();
+    let mut templates = Vec::new();
+    while let Some(perso) = pending.pop() {
+        if !seen_persos.insert(perso) {
+            continue;
+        }
+        ensure!(
+            seen_persos.len() <= 2048,
+            "AI object template graph is too large"
+        );
+        let header: PersoHeaderWire = wire(s.bytes(perso, 20)?)?;
+        if header.brain == 0 {
+            continue;
+        }
+        let Some(brain) = s.pointer(perso, 16)? else {
+            continue;
+        };
+        let mind = s.required(brain, 0)?;
+        let model = s.required(mind, 0)?;
+        if !seen_models.insert(model) {
+            continue;
+        }
+        for set in [source_set(s, model, 0)?, source_set(s, model, 4)?]
+            .into_iter()
+            .flatten()
+        {
+            for behavior in set.behaviors {
+                for script in behavior
+                    .rules
+                    .iter()
+                    .flatten()
+                    .chain(behavior.schedule.iter())
+                {
+                    let nodes: Vec<NodeWire> = script
+                        .bytes
+                        .as_chunks::<8>()
+                        .0
+                        .iter()
+                        .map(|bytes| wire(bytes))
+                        .collect::<Result<_>>()?;
+                    for (i, pair) in nodes.windows(2).enumerate() {
+                        let [action, operand] = pair else {
+                            unreachable!()
+                        };
+                        if action.kind != 5
+                            || action.parameter != 15
+                            || operand.kind != 24
+                            || operand.indent != action.indent + 1
+                        {
+                            continue;
+                        }
+                        let Some(target) = s.pointer(add(script.address, (i + 1) * 8), 0)? else {
+                            continue;
+                        };
+                        let _: PersoHeaderWire = wire(s.bytes(target, 20)?)?;
+                        source_view::perso_parts(&mut source_view::FileView(s), target)?;
+                        if !rooted.contains_key(&target) && !templates.contains(&target) {
+                            templates.push(target);
+                        }
+                        pending.push(target);
+                    }
+                }
+            }
+        }
+    }
+    Ok(templates)
 }
 fn behavior_bindings(
     path: &AssetPath,
@@ -569,6 +630,7 @@ pub(super) fn import(
     game: &Path,
     selection_value: &Selection,
     states: &BTreeMap<Address, StateRef>,
+    actors: &BTreeMap<Address, AssetRef<Perso>>,
     result: &mut SceneImport,
 ) -> Result<()> {
     if u32_at(&s.gpt, 0x2ae0)? != 0 {
@@ -582,28 +644,9 @@ pub(super) fn import(
             .context("main actor outside rooted scene")?;
         result.scene.main_actor = Some(AssetRef::new(format!("level:/persos/{}", node.path))?);
     }
-    let mut actors = BTreeMap::new();
-    let mut brain_targets = Vec::new();
-    for node in s.tree()? {
-        if u32_at(s.bytes(node.address, 4)?, 0)? == 4 {
-            let perso = s.required(node.address, 4)?;
-            let reference = AssetRef::new(format!("level:/persos/{}", node.path))?;
-            actors.insert(perso, reference.clone());
-            brain_targets.push((perso, reference));
-        }
-    }
-    for global in &result.scene.global_actors {
-        let address = source_address(s, &global.source)?;
-        ensure!(
-            address.owner == Owner::Fix,
-            "global actor source is not Fix-owned"
-        );
-        actors.insert(address, global.perso.clone());
-        brain_targets.push((address, global.perso.clone()));
-    }
     let sounds = SoundSites::open(game, selection_value, s)?;
     let mut cache: BTreeMap<Address, CachedModel> = BTreeMap::new();
-    for (p, perso_reference) in brain_targets {
+    for (&p, perso_reference) in actors {
         let header: PersoHeaderWire = wire(s.bytes(p, 20)?)?;
         if header.brain == 0 {
             continue;
@@ -646,7 +689,7 @@ pub(super) fn import(
                         values(
                             s,
                             states,
-                            &actors,
+                            actors,
                             s.required(*a, 0)?,
                             infos,
                             h.length as usize,
@@ -659,11 +702,11 @@ pub(super) fn import(
                     name: perso.name.clone(),
                     normal: sets[0]
                         .as_ref()
-                        .map(|set| decode_set(s, &sounds, states, &actors, &behaviors, set))
+                        .map(|set| decode_set(s, &sounds, states, actors, &behaviors, set))
                         .transpose()?,
                     reflex: sets[1]
                         .as_ref()
-                        .map(|set| decode_set(s, &sounds, states, &actors, &behaviors, set))
+                        .map(|set| decode_set(s, &sounds, states, actors, &behaviors, set))
                         .transpose()?,
                     variables: infos
                         .iter()
@@ -728,11 +771,11 @@ pub(super) fn import(
                 "designer memory refers to another definition"
             );
             if let Some(a) = s.pointer(mem, 8)? {
-                memory = values(s, states, &actors, a, infos, h.length as usize)?;
+                memory = values(s, states, actors, a, infos, h.length as usize)?;
             }
             initial = s
                 .pointer(mem, 4)?
-                .map(|a| values(s, states, &actors, a, infos, h.length as usize))
+                .map(|a| values(s, states, actors, a, infos, h.length as usize))
                 .transpose()?;
         }
         let brain = Brain {

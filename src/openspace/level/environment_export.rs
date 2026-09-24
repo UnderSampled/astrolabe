@@ -1,8 +1,9 @@
-//! Controlled ENV/VET/fog reconstruction with explicit external component layout.
+//! Controlled ENV/physical/VET/fog reconstruction with explicit external layout
+//! only for still-unpromoted components.
 use super::{
     GeometryExport, ReferenceTarget,
     container::{emit_relocations, encoded},
-    environment::{EnvironmentWire, VisualEnvironmentWire, write_fog},
+    environment::{EnvironmentWire, VisualEnvironmentWire, write_fog, write_physical_environment},
     geometry::Layout,
     records::BlockKey,
 };
@@ -11,15 +12,15 @@ use anyhow::{Context, Result, ensure};
 use std::collections::BTreeMap;
 
 /// Unpromoted components must have caller-resolved placements. Keys are the
-/// owning environment (mechanics/sound) or visual environment (water) asset.
+/// owning environment (sound) or visual environment (water) asset.
 #[derive(Default)]
 pub struct EnvironmentDependencies {
-    pub mechanics: BTreeMap<AssetPath, ReferenceTarget>,
     pub sound: BTreeMap<AssetPath, ReferenceTarget>,
     pub water: BTreeMap<AssetPath, ReferenceTarget>,
 }
 pub fn write_environments(
     environments: &[Environment],
+    physicals: &[PhysicalEnvironment],
     visuals: &[VisualEnvironment],
     fogs: &[Fog],
     dependencies: &EnvironmentDependencies,
@@ -40,6 +41,7 @@ pub fn write_environments(
     let mut env_offsets = Vec::new();
     let mut visual_offsets = BTreeMap::new();
     let mut fog_offsets = BTreeMap::new();
+    let mut physical_offsets = BTreeMap::new();
     for v in environments {
         v.validate()?;
         ensure!(
@@ -79,19 +81,33 @@ pub fn write_environments(
             out.allocate(v.path.as_str(), &write_fog(v)?)?,
         );
     }
+    for v in physicals {
+        v.validate()?;
+        ensure!(
+            paths.insert(&v.path),
+            "duplicate physical environment asset identity"
+        );
+        physical_offsets.insert(
+            v.path.clone(),
+            out.allocate(v.path.as_str(), &write_physical_environment(v)?)?,
+        );
+    }
     for (v, p) in environments.iter().zip(env_offsets) {
-        for (field, present, layout) in [
-            (0, v.unresolved_mechanics, &dependencies.mechanics),
-            (4, v.unresolved_sound, &dependencies.sound),
-        ] {
-            ensure!(
-                present == layout.contains_key(&v.path),
-                "environment component/layout mismatch for {} at field {field}",
-                v.path
-            );
-            if present {
-                out.external_pointer(p + field, layout[&v.path])?;
-            }
+        if let Some(reference) = &v.physical {
+            out.pointer(
+                p,
+                *physical_offsets
+                    .get(&reference.path)
+                    .context("missing physical environment in export graph")?,
+            )?;
+        }
+        ensure!(
+            v.unresolved_sound == dependencies.sound.contains_key(&v.path),
+            "environment sound/layout mismatch for {}",
+            v.path
+        );
+        if v.unresolved_sound {
+            out.external_pointer(p + 4, dependencies.sound[&v.path])?;
         }
         if let Some(reference) = &v.visual {
             out.pointer(
@@ -123,5 +139,5 @@ pub fn write_environments(
     }
     out.rows.sort_by_key(|r| r.value);
     Ok(GeometryExport {rtb:emit_relocations(out.block,&out.rows)?,pointer_count:out.rows.len(),bytes:out.bytes,ranges:out.ranges,
-        coverage:vec!["Shared ENV, VET and fog records rebuilt with derived pointers; mechanics, sound and water targets require explicit caller layouts and their content codecs remain separate.".into()]})
+        coverage:vec!["Shared ENV, physical, VET and fog records rebuilt with derived pointers; sound and water targets still require explicit caller layouts.".into()]})
 }

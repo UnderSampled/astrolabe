@@ -50,6 +50,9 @@ pub(super) fn size(kind: u32) -> Result<usize> {
         3 => 16,
         7 => 52,
         9 | 19 => 8,
+        // Source case 0xb allocates a pointer-free 0x14-byte card. Its fields
+        // are retained until their gameplay meaning is established.
+        11 => 20,
         _ => anyhow::bail!("unsupported Hype mechanics kind {kind}"),
     })
 }

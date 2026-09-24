@@ -4,6 +4,19 @@ const BACKEND: behavior_steps::Mode = behavior_steps::Mode::Godot;
 
 #[test]
 #[ignore = "requires local Hype manor data and Godot; selected by --local"]
+fn godot_stationary_jump_and_landing() -> anyhow::Result<()> {
+    let path = behavior_steps::run_scenario("Jumping from a standstill and landing")?;
+    let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
+    anyhow::ensure!(
+        report["godot"]["status"] == "passed",
+        "Godot jump did not pass"
+    );
+    println!("Godot jump BDD evidence: {}", path.display());
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires local Hype manor data and Godot; selected by --local"]
 fn godot_movement_scenarios_share_saved_scene_and_brain() -> anyhow::Result<()> {
     let evidence = behavior_steps::run_scenarios_shared(&[
         "Turning while standing",

@@ -26,9 +26,37 @@ pub(super) fn export_program(
             actor.path
         );
     }
+    for (actor, field) in model.actor_field_reads() {
+        let target = source.load(&actor)?;
+        let Some(brain) = &target.brain else {
+            project.diagnostic(format!(
+                "{} actor field read {}.{} has no saved Brain; a reached read will fail explicitly",
+                model.path, actor.path, field
+            ));
+            continue;
+        };
+        let target_model = source.load(&brain.model)?;
+        brain.validate_model(&target_model)?;
+        if usize::from(field) >= target_model.variables.len() {
+            project.diagnostic(format!(
+                "{} actor field read {}.{} is absent from the target Brain; a reached read will fail explicitly",
+                model.path, actor.path, field
+            ));
+        }
+    }
     let path = disk_path(&project.selection, &model.path, "gd");
-    if project.generated.contains(&path) {
+    if project.generated.contains(&path) || !written.insert(model.path.clone()) {
         return Ok(path);
+    }
+    let mut templates = Vec::new();
+    for reference in model.object_templates() {
+        let perso = source.load(&reference)?;
+        perso.validate_reference(&reference.path)?;
+        super::character::export_perso(project, source, &perso, written)?;
+        templates.push((
+            reference,
+            format!("res://{}", super::character::perso_path(project, &perso)),
+        ));
     }
     let mut events = Vec::new();
     for event in model.sound_events() {
@@ -43,7 +71,7 @@ pub(super) fn export_program(
         .first()
         .map(|r| source.load(&r.family))
         .transpose()?;
-    let script = compile_for_family(model, &events, family.as_deref())?;
+    let script = compile_with_templates(model, &events, family.as_deref(), &templates)?;
     project.write(path.clone(), script.as_bytes())?;
     Ok(path)
 }
@@ -60,6 +88,14 @@ pub fn compile_for_family(
     events: &[(crate::model::audio::SoundEventLink, String)],
     family: Option<&crate::model::character::Family>,
 ) -> Result<String> {
+    compile_with_templates(model, events, family, &[])
+}
+fn compile_with_templates(
+    model: &AiModel,
+    events: &[(crate::model::audio::SoundEventLink, String)],
+    family: Option<&crate::model::character::Family>,
+    templates: &[(crate::model::AssetRef<Perso>, String)],
+) -> Result<String> {
     model.validate()?;
     for action in model.state_references() {
         action.validate_family(
@@ -72,6 +108,13 @@ pub fn compile_for_family(
     );
     for (i, _) in model.actor_field_targets().iter().enumerate() {
         writeln!(out, "@export var actor_brain_{i}_path: NodePath")?;
+    }
+    for (i, reference) in model.object_templates().iter().enumerate() {
+        let path = templates
+            .iter()
+            .find(|(target, _)| target == reference)
+            .map_or("", |(_, path)| path.as_str());
+        writeln!(out, "const object_template_{i}_path = {}", quoted(path))?;
     }
     for (i, (_, path)) in events.iter().enumerate() {
         ensure!(
@@ -332,7 +375,16 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
     match e {
         Expression::Unsupported(_) => true,
         Expression::Variable(index) => unresolved_variable(model, *index),
+        Expression::ActorFieldRead { .. } | Expression::MainActorFieldRead(_) => true,
+        Expression::Vector(values) => values.iter().any(|value| needs_guard(value, model)),
         Expression::Multiply(a, b)
+        | Expression::Plus(a, b)
+        | Expression::Minus(a, b)
+        | Expression::Divide(a, b)
+        | Expression::TimeElapsed {
+            start: a,
+            duration: b,
+        }
         | Expression::RandomInt { lower: a, upper: b }
         | Expression::ArrayElement { array: a, index: b }
         | Expression::And(a, b)
@@ -390,6 +442,41 @@ fn guarded_expression(
             )?;
             local
         }
+        Expression::ActorFieldRead { actor, variable } => {
+            let index = model
+                .actor_field_targets()
+                .iter()
+                .position(|target| target == actor)
+                .ok_or_else(|| anyhow::anyhow!("actor field read target was not declared"))?;
+            let id = flow.local;
+            flow.local += 1;
+            let node = format!("actor_brain_{index}_read_{id}");
+            let local = format!("partial_expr_{id}");
+            let failure = quoted(&format!(
+                "{} requires actor {} Brain field {variable}",
+                model.path, actor.path
+            ));
+            writeln!(
+                out,
+                "{pad}if actor_brain_{index}_path.is_empty():\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {node} := get_node_or_null(actor_brain_{index}_path)\n{pad}if not is_instance_valid({node}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {local} = {node}.get(\"dsg_{variable}\")"
+            )?;
+            local
+        }
+        Expression::MainActorFieldRead(variable) => {
+            let id = flow.local;
+            flow.local += 1;
+            let node = format!("main_actor_brain_{id}");
+            let local = format!("partial_expr_{id}");
+            let failure = quoted(&format!(
+                "{} requires main actor Brain field {variable}",
+                model.path
+            ));
+            writeln!(
+                out,
+                "{pad}if not is_instance_valid(main_actor):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {node} := main_actor.get_node_or_null(\"Brain\")\n{pad}if not is_instance_valid({node}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {local} = {node}.get(\"dsg_{variable}\")"
+            )?;
+            local
+        }
         Expression::And(left, right) | Expression::Or(left, right) => {
             let left = guarded_expression(out, left, model, depth, flow)?;
             let id = flow.local;
@@ -413,6 +500,31 @@ fn guarded_expression(
             "(float({}) * float({}))",
             guarded_expression(out, left, model, depth, flow)?,
             guarded_expression(out, right, model, depth, flow)?
+        ),
+        Expression::TimeElapsed { start, duration } => format!(
+            "source_time_elapsed(int({}), int({}))",
+            guarded_expression(out, start, model, depth, flow)?,
+            guarded_expression(out, duration, model, depth, flow)?
+        ),
+        Expression::Plus(left, right)
+        | Expression::Minus(left, right)
+        | Expression::Divide(left, right) => {
+            let operator = match e {
+                Expression::Plus(..) => "+",
+                Expression::Minus(..) => "-",
+                _ => "/",
+            };
+            format!(
+                "(float({}) {operator} float({}))",
+                guarded_expression(out, left, model, depth, flow)?,
+                guarded_expression(out, right, model, depth, flow)?
+            )
+        }
+        Expression::Vector(values) => format!(
+            "Vector3(float({}), float({}), float({}))",
+            guarded_expression(out, &values[0], model, depth, flow)?,
+            guarded_expression(out, &values[1], model, depth, flow)?,
+            guarded_expression(out, &values[2], model, depth, flow)?
         ),
         Expression::RandomInt { lower, upper } => format!(
             "random_int(int({}), int({}))",
@@ -465,6 +577,19 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         Expression::Nobody | Expression::Nowhere => "null".into(),
         Expression::Integer(v) => v.to_string(),
         Expression::Real(v) => format!("{v:?}"),
+        Expression::SelfPosition => "character().source_position()".into(),
+        Expression::GameTime => "character().source_game_time()".into(),
+        Expression::TimeElapsed { start, duration } => format!(
+            "source_time_elapsed(int({}), int({}))",
+            expression(start, model)?,
+            expression(duration, model)?
+        ),
+        Expression::Vector(values) => format!(
+            "Vector3(float({}), float({}), float({}))",
+            expression(&values[0], model)?,
+            expression(&values[1], model)?,
+            expression(&values[2], model)?
+        ),
         Expression::Variable(v) => {
             ensure!(
                 usize::from(*v) < model.variables.len(),
@@ -476,6 +601,13 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             );
             format!("dsg_{v}")
         }
+        Expression::SelfFieldRead(v) => {
+            ensure!(
+                usize::from(*v) < model.variables.len(),
+                "AI own field missing"
+            );
+            format!("dsg_{v}")
+        }
         Expression::Action(v) => v.as_ref().map_or(-1, |r| i64::from(r.state)).to_string(),
         Expression::IsInAction(action) => format!(
             "character().is_in_action(int({}))",
@@ -484,6 +616,10 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         Expression::ActionFinished => "character().action_complete".into(),
         Expression::CollideWithGround => "character().source_collide_with_ground()".into(),
         Expression::CollideWithSlope => "character().source_collide_with_slope()".into(),
+        Expression::IsTypeOfGmtCollide(kind) => {
+            format!("character().source_is_type_of_gmt_collide({kind})")
+        }
+        Expression::InTopOfJump => "character().source_in_top_of_jump()".into(),
         Expression::IsInBehavior(target) => format!(
             "(current_{} == {})",
             group_name(target.group),
@@ -515,6 +651,21 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             expression(a, model)?,
             expression(b, model)?
         ),
+        Expression::ActorFieldRead { .. } | Expression::MainActorFieldRead(_) => {
+            anyhow::bail!("actor field reads require guarded compilation")
+        }
+        Expression::Plus(a, b) | Expression::Minus(a, b) | Expression::Divide(a, b) => {
+            let operator = match e {
+                Expression::Plus(..) => "+",
+                Expression::Minus(..) => "-",
+                _ => "/",
+            };
+            format!(
+                "(float({}) {operator} float({}))",
+                expression(a, model)?,
+                expression(b, model)?
+            )
+        }
         Expression::Negate(v) => format!("(-float({}))", expression(v, model)?),
         Expression::Compare {
             operation,
@@ -586,7 +737,15 @@ fn blocking(
         Statement::WaitFrames(frames) | Statement::ExecuteAction(frames) => {
             Some(guarded_expression(out, frames, model, depth, flow)?)
         }
+        Statement::ExecuteActionAndGenerateObject { action, .. } => {
+            Some(guarded_expression(out, action, model, depth, flow)?)
+        }
         _ => None,
+    };
+    let vector = if let Statement::ExecuteActionAndGenerateObject { vector, .. } = statement {
+        Some(guarded_expression(out, vector, model, depth, flow)?)
+    } else {
+        None
     };
     if flow.rule {
         writeln!(
@@ -626,6 +785,26 @@ fn blocking(
             )?;
             format!(
                 "not accepted_{id} or not character().is_in_action(requested_{id}) or character().action_complete"
+            )
+        }
+        Statement::ExecuteActionAndGenerateObject { template, .. } => {
+            let index = model
+                .object_templates()
+                .iter()
+                .position(|reference| reference == template)
+                .ok_or_else(|| anyhow::anyhow!("AI object template was not declared"))?;
+            writeln!(
+                out,
+                "{pad}    var requested_{id} := int({})\n{pad}    var spawn_result_{id} := character().source_execute_action_and_generate_object(object_template_{index}_path, requested_{id}, {})\n{pad}    if spawn_result_{id} < 0:\n{pad}        fail_unsupported({})\n{pad}        {exit}",
+                operand.as_deref().expect("action operand prepared"),
+                vector.as_deref().expect("vector operand prepared"),
+                quoted(&format!(
+                    "{} requires native action and object generation for {}",
+                    model.path, template.path
+                ))
+            )?;
+            format!(
+                "spawn_result_{id} == 0 or not character().is_in_action(requested_{id}) or character().action_complete"
             )
         }
         Statement::WaitEndOfAction => "character().action_complete".into(),
@@ -786,6 +965,10 @@ fn statements(
                     value
                 )?;
             }
+            Statement::AddAssign { variable, value } => {
+                let value = guarded_expression(out, value, model, depth, flow)?;
+                writeln!(out, "{pad}dsg_{variable} = dsg_{variable} + ({value})")?;
+            }
             Statement::Increment { variable } => {
                 let kind = &model.variables[usize::from(*variable)].default;
                 ensure!(
@@ -808,6 +991,30 @@ fn statements(
                     out,
                     "{pad}character().turn(float({}), frame_seconds)",
                     value
+                )?;
+            }
+            Statement::SetVectorSpeed(value) | Statement::SetImpulse(value) => {
+                let value = guarded_expression(out, value, model, depth, flow)?;
+                let method = if matches!(statement, Statement::SetVectorSpeed(_)) {
+                    "source_set_vector_speed"
+                } else {
+                    "source_set_impulse"
+                };
+                writeln!(out, "{pad}character().{method}({value})")?;
+            }
+            Statement::GoRelative => {
+                writeln!(out, "{pad}character().source_go_relative()")?;
+            }
+            Statement::JumpAbsolute => {
+                writeln!(out, "{pad}character().source_jump_absolute()")?;
+            }
+            Statement::JumpWithoutAddingSpeed => {
+                writeln!(out, "{pad}character().source_jump_without_adding_speed()")?;
+            }
+            Statement::SetParticleGeneratorEnabled(enabled) => {
+                writeln!(
+                    out,
+                    "{pad}character().source_set_particle_generator_enabled({enabled})"
                 )?;
             }
             Statement::ArrayAssign {
@@ -844,6 +1051,7 @@ fn statements(
             Statement::Wait { .. }
             | Statement::WaitFrames(_)
             | Statement::ExecuteAction(_)
+            | Statement::ExecuteActionAndGenerateObject { .. }
             | Statement::WaitEndOfAction
             | Statement::WaitEndOfAnimation => {
                 blocking(out, statement, model, depth, flow)?;

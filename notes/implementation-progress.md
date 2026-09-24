@@ -16,7 +16,13 @@ for turn, walk, run-versus-walk and wall contact pass independently on the
 original game and a fresh Godot export in shared sessions; all four
 cross-backend comparisons pass. The wall contact matches within about 0.02
 source units at its held samples. See the [comparison record](./run-comparison-2026-09-24.md)
-and [wall evidence](./wall-contact-2026-09-24.md). Jump, combat, magick,
+and [wall evidence](./wall-contact-2026-09-24.md). The stationary jump and
+landing BDD now passes independently in the original game and Godot, including
+native contact and one generated object on Godot's landing route. A
+pause-compensated comparison passes 29 of 30 functional checks; Godot enters
+action 3 by the 800 ms sample while the source is still in action 2. Moving
+jump and wall contact remain before jump acceptance. See the
+[jump checkpoint](./jump-comparison-2026-09-24.md). Combat, magick,
 cliff/death and a real follow camera remain open. A playable combined demo
 has not yet been accepted.
 The focused supervised movement gate passed 56 selected checks in 389.53

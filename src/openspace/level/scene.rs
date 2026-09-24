@@ -60,6 +60,7 @@ fn global_perso_source(session: &SourceSession) -> Result<Option<(Address, Sourc
 pub struct SceneImport {
     pub ai_models: Vec<crate::model::ai::AiModel>,
     pub environments: Vec<crate::model::environment::Environment>,
+    pub physical_environments: Vec<crate::model::environment::PhysicalEnvironment>,
     pub visual_environments: Vec<crate::model::environment::VisualEnvironment>,
     pub fogs: Vec<crate::model::environment::Fog>,
     pub collision_profiles: Vec<crate::model::character::CollisionProfile>,
@@ -89,6 +90,7 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
     let mut result = SceneImport {
         ai_models: Vec::new(),
         environments: Vec::new(),
+        physical_environments: Vec::new(),
         visual_environments: Vec::new(),
         fogs: Vec::new(),
         collision_profiles: Vec::new(),
@@ -254,14 +256,18 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
         &mut material_ids,
     )?;
     let mut perso_refs = Vec::new();
+    let mut actor_refs = BTreeMap::new();
     for (i, node) in tree.iter().enumerate() {
         if u32_at(session.bytes(node.address, 4)?, 0)? == 4 {
-            perso_refs.push((
-                i,
-                characters
-                    .perso(node.address, &node.path)
-                    .with_context(|| format!("perso {}", node.path))?,
-            ));
+            let perso = session.required(node.address, SuperObjectWire::DATA)?;
+            let reference = characters
+                .perso(node.address, &node.path)
+                .with_context(|| format!("perso {}", node.path))?;
+            ensure!(
+                actor_refs.insert(perso, reference.clone()).is_none(),
+                "rooted Perso occurs more than once"
+            );
+            perso_refs.push((i, reference));
         }
     }
     let mut global_actor = None;
@@ -271,7 +277,22 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
             AssetPath::new(format!("fix:/persos/{GLOBAL_PERSO_ALLOCATION}"))?,
             "Global",
         )?;
+        actor_refs.insert(address, perso.clone());
         global_actor = Some(crate::model::scene::GlobalActor { source, perso });
+    }
+    for template in super::ai::object_templates(&session, &actor_refs)? {
+        let identity = session.source_identity(template)?;
+        let role = if identity.role == SourceRole::Fix {
+            "fix"
+        } else {
+            "level"
+        };
+        let path = AssetPath::new(format!(
+            "{role}:/persos/{}-{}-{}",
+            identity.block[0], identity.block[1], identity.allocation
+        ))?;
+        let reference = characters.perso_at(template, path, "Object template")?;
+        actor_refs.insert(template, reference);
     }
     let mut bounds = Vec::new();
     for (i, node) in tree.iter().enumerate() {
@@ -302,7 +323,14 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
         result.scene.nodes[i].perso = Some(reference);
     }
     super::lighting::import(&session, &tree, &mut result)?;
-    super::ai::import(&session, game, selection, &state_references, &mut result)?;
+    super::ai::import(
+        &session,
+        game,
+        selection,
+        &state_references,
+        &actor_refs,
+        &mut result,
+    )?;
     result.scene.validate()?;
     Ok(result)
 }

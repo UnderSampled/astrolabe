@@ -374,14 +374,21 @@ impl GameSession {
     /// A typed functional observation. Each call is one coherent stopped-byte
     /// capture; it does not claim a completed gameplay update.
     pub fn observe_main_actor(&self) -> Result<ActorObservation> {
+        self.observe_main_actor_timed().map(|(actor, _)| actor)
+    }
+
+    /// Include the interval spent with the source process suspended so a
+    /// behavior recording can distinguish game-running time from wall time.
+    pub fn observe_main_actor_timed(&self) -> Result<(ActorObservation, Duration)> {
         self.check()?;
         let build = HypeBuild::verified(&self.config.exe_sha256)?;
         let pause = self.process.pause(Duration::from_secs(1))?;
+        let paused_at = Instant::now();
         let mut capture = pause.capture()?;
         let actor = build.actor_with_actions(&mut capture, &[47])?;
         capture.finish()?;
         drop(pause);
-        Ok(actor)
+        Ok((actor, paused_at.elapsed()))
     }
 
     /// Focus once before a functional input schedule. Gameplay events use the

@@ -13,6 +13,7 @@ use std::{
 };
 
 pub mod godot;
+mod jump;
 mod wall;
 
 #[cfg(target_os = "linux")]
@@ -35,6 +36,7 @@ pub enum Scenario {
     WalkReleaseStop,
     RunVsWalk,
     WallContact,
+    StationaryJump,
 }
 impl Scenario {
     pub fn slug(self) -> &'static str {
@@ -43,6 +45,7 @@ impl Scenario {
             Self::WalkReleaseStop => "walk-release-stop",
             Self::RunVsWalk => "run-vs-walk",
             Self::WallContact => "wall-contact",
+            Self::StationaryJump => "stationary-jump",
         }
     }
 }
@@ -89,6 +92,7 @@ impl FunctionalRecording {
                 "manoir-clear-route-after-physical-left-turn"
             }
             Scenario::WallContact => "manoir-corner-after-physical-left-turn",
+            Scenario::StationaryJump => "manoir-clear-ground-after-physical-down",
         };
         ensure!(
             self.ready_state == expected_ready_state,
@@ -96,6 +100,9 @@ impl FunctionalRecording {
         );
         if self.scenario == Scenario::WallContact {
             return wall::validate(self);
+        }
+        if self.scenario == Scenario::StationaryJump {
+            return jump::validate(self);
         }
         if self.scenario == Scenario::RunVsWalk {
             let walk = self
@@ -165,6 +172,9 @@ impl FunctionalRecording {
 }
 
 pub fn recording(scenario: Scenario) -> FunctionalRecording {
+    if scenario == Scenario::StationaryJump {
+        return jump::recording();
+    }
     if scenario == Scenario::WallContact {
         return wall::recording();
     }
@@ -216,6 +226,7 @@ pub fn recording(scenario: Scenario) -> FunctionalRecording {
         Scenario::WalkReleaseStop => (Key::ArrowUp, 450, 900, 2_200, 2_600),
         Scenario::RunVsWalk => unreachable!(),
         Scenario::WallContact => unreachable!(),
+        Scenario::StationaryJump => unreachable!(),
     };
     FunctionalRecording {
         schema: 1,
@@ -225,6 +236,7 @@ pub fn recording(scenario: Scenario) -> FunctionalRecording {
             Scenario::WalkReleaseStop => "manoir-clear-route-after-physical-left-turn",
             Scenario::RunVsWalk => unreachable!(),
             Scenario::WallContact => unreachable!(),
+            Scenario::StationaryJump => unreachable!(),
         }
         .into(),
         inputs: vec![
@@ -429,6 +441,9 @@ fn running_action_is_active(sample: &ActorSample) -> f64 {
 /// observation saw about 80 degrees/500 ms Left and 4.1 source units/1.8 s Up.
 /// These broad limits classify motion without claiming timing or pixel parity.
 pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Assertion>> {
+    if scenario == Scenario::StationaryJump {
+        return jump::assertions(samples);
+    }
     if scenario == Scenario::WallContact {
         return wall::assertions(samples);
     }
@@ -466,6 +481,7 @@ pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Ass
                 Scenario::WalkReleaseStop => walking_action_is_active(held),
                 Scenario::RunVsWalk => unreachable!(),
                 Scenario::WallContact => unreachable!(),
+                Scenario::StationaryJump => unreachable!(),
             },
             Some(1.),
             Some(1.),
@@ -553,6 +569,7 @@ pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Ass
         }
         Scenario::RunVsWalk => unreachable!(),
         Scenario::WallContact => unreachable!(),
+        Scenario::StationaryJump => unreachable!(),
     }
     Ok(checks)
 }
@@ -762,6 +779,7 @@ pub fn compare_results(
         Scenario::TurnReleaseIdle | Scenario::WalkReleaseStop => 5,
         Scenario::RunVsWalk => 10,
         Scenario::WallContact => 7,
+        Scenario::StationaryJump => 7,
     };
     ensure!(
         openspace.samples.len() == godot.samples.len()
@@ -821,6 +839,17 @@ pub fn compare_results(
             Some(1.0),
             "functional path tolerance; source-relative positions in canonical units",
         ));
+        if openspace.scenario == Scenario::StationaryJump {
+            let source_height = source.translation[2] - openspace.samples[origin].translation[2];
+            let target_height = target.translation[2] - godot.samples[origin].translation[2];
+            checks.push(bound(
+                &format!("{}_relative_height_error", source.name),
+                f64::from((source_height - target_height).abs()),
+                None,
+                Some(1.0),
+                "coarse sampled jump height; apex and timing are not established",
+            ));
+        }
         let source_yaw = source.heading_rad - openspace.samples[origin].heading_rad;
         let target_yaw = target.heading_rad - godot.samples[origin].heading_rad;
         let yaw_difference = source_yaw - target_yaw;
@@ -945,7 +974,9 @@ impl BackendResult {
                 "backend sample contains nonfinite coordinates"
             );
         }
-        let settled_windows: &[(usize, usize)] = if self.scenario == Scenario::WallContact {
+        let settled_windows: &[(usize, usize)] = if self.scenario == Scenario::StationaryJump {
+            &[(5, 6)]
+        } else if self.scenario == Scenario::WallContact {
             &[(5, 6)]
         } else if self.scenario == Scenario::RunVsWalk {
             &[(3, 4), (8, 9)]
@@ -1003,6 +1034,7 @@ enum OriginalReadyState {
     FreshSave,
     ClearRoute,
     WallRoute,
+    JumpStart,
     TurnedLeft {
         settled: ActorSample,
         recording_sha256: String,
@@ -1012,6 +1044,64 @@ enum OriginalReadyState {
 
 #[cfg(target_os = "linux")]
 impl OriginalBackend {
+    pub fn prepare_stationary_jump(&mut self) -> Result<()> {
+        let reload = if matches!(self.ready_state, OriginalReadyState::Finished) {
+            Some(self.reload_saved_state()?)
+        } else {
+            None
+        };
+        ensure!(
+            matches!(self.ready_state, OriginalReadyState::FreshSave),
+            "jump setup requires supplied save"
+        );
+        self.setup_interventions.clear();
+        if let Some(reload) = reload {
+            self.setup_interventions.push(reload);
+        }
+        let before = ActorSample::from_actor(
+            "jump_setup_before".into(),
+            0,
+            0,
+            0,
+            self.controller.game()?.observe_main_actor()?,
+        )?;
+        self.controller.game()?.prepare_physical_input()?;
+        let started = Instant::now();
+        self.controller.game()?.physical_events(&[Event {
+            keyboard: 0,
+            key: Key::ArrowDown,
+            edge: Edge::Press,
+        }])?;
+        thread::sleep(Duration::from_millis(800));
+        self.controller.game()?.physical_events(&[Event {
+            keyboard: 0,
+            key: Key::ArrowDown,
+            edge: Edge::Release,
+        }])?;
+        let release_ms = started.elapsed().as_millis() as u64;
+        thread::sleep(Duration::from_millis(700));
+        let after = ActorSample::from_actor(
+            "jump_setup_after".into(),
+            0,
+            0,
+            0,
+            self.controller.game()?.observe_main_actor()?,
+        )?;
+        let moved = distance_xy(&before, &after);
+        ensure!(
+            after.action == Some(IDLE_ACTION)
+                && (0.5..=3.5).contains(&moved)
+                && heading_delta(&before, &after) < 0.1
+                && (after.translation[2] - before.translation[2]).abs() < 0.15,
+            "physical Down setup did not reach clear grounded idle: {after:?}"
+        );
+        self.setup_interventions.push(serde_json::json!({
+            "method":"physical_down_to_clear_jump_start", "planned_hold_ms":800,
+            "release_ms":release_ms,"settle_ms":700,"before":before,"after":after,
+        }));
+        self.ready_state = OriginalReadyState::JumpStart;
+        Ok(())
+    }
     pub fn start(config_path: &Path, runs: &Path) -> Result<Self> {
         Self::start_with_bridge(config_path, runs, None)
     }
@@ -1444,6 +1534,7 @@ impl OriginalBackend {
         points: &[SamplePoint],
         prefix: &str,
         screenshot_at: Option<&str>,
+        pause_compensated: bool,
     ) -> Result<(
         Vec<DeliveredInput>,
         Vec<ActorSample>,
@@ -1451,6 +1542,7 @@ impl OriginalBackend {
     )> {
         self.controller.game()?.prepare_physical_input()?;
         let origin = Instant::now();
+        let mut paused_total = Duration::ZERO;
         let mut delivered = vec![];
         let mut samples = vec![];
         let mut held_screenshot = None;
@@ -1461,7 +1553,13 @@ impl OriginalBackend {
             .collect::<Vec<_>>();
         actions.sort_by_key(|(at, order, _)| (*at, *order));
         for (at_ms, order, name) in actions {
-            let due = origin + Duration::from_millis(at_ms);
+            let due = origin
+                + Duration::from_millis(at_ms)
+                + if pause_compensated {
+                    paused_total
+                } else {
+                    Duration::ZERO
+                };
             if let Some(remaining) = due.checked_duration_since(Instant::now()) {
                 thread::sleep(remaining);
             }
@@ -1470,7 +1568,7 @@ impl OriginalBackend {
                     .iter()
                     .find(|i| i.id == name)
                     .context("missing input")?;
-                let actual_ms = origin.elapsed().as_millis() as u64;
+                let actual_ms = origin.elapsed().saturating_sub(paused_total).as_millis() as u64;
                 ensure!(
                     actual_ms <= at_ms + 250,
                     "physical input {} missed functional deadline by {} ms",
@@ -1487,21 +1585,33 @@ impl OriginalBackend {
                     event: input.event.clone(),
                 });
             } else {
-                let capture_start_ms = origin.elapsed().as_millis() as u64;
-                let actor = self.controller.game()?.observe_main_actor()?;
+                let capture_start_ms =
+                    origin.elapsed().saturating_sub(paused_total).as_millis() as u64;
+                let (actor, paused) = self.controller.game()?.observe_main_actor_timed()?;
+                if pause_compensated {
+                    paused_total += paused;
+                }
                 let state = self.controller.game()?.state()?;
                 ensure!(
                     state["phase"] == 9 && state["level"] == "manoir",
                     "game left the scenario level: {state}"
                 );
-                let capture_end_ms = origin.elapsed().as_millis() as u64;
-                samples.push(ActorSample::from_actor(
+                let capture_end_ms =
+                    origin.elapsed().saturating_sub(paused_total).as_millis() as u64;
+                let mut sample = ActorSample::from_actor(
                     format!("{prefix}{name}"),
                     at_ms,
                     capture_start_ms,
                     capture_end_ms,
                     actor,
-                )?);
+                )?;
+                if pause_compensated {
+                    sample.raw_observation["capture_pause_micros"] =
+                        serde_json::json!(paused.as_micros());
+                    sample.raw_observation["time_basis"] =
+                        serde_json::json!("wall_elapsed_minus_stopped_capture");
+                }
+                samples.push(sample);
                 if screenshot_at == Some(name) {
                     held_screenshot = Some(self.controller.game()?.screenshot()?);
                 }
@@ -1523,11 +1633,18 @@ impl OriginalBackend {
                 (&self.ready_state, recording.scenario),
                 (OriginalReadyState::FreshSave, Scenario::TurnReleaseIdle)
                     | (OriginalReadyState::ClearRoute, Scenario::WalkReleaseStop)
+                    | (OriginalReadyState::JumpStart, Scenario::StationaryJump)
             ),
             "the selected scenario's Given setup was not established"
         );
-        let (delivered, samples, _) =
-            self.execute_trial(&recording.inputs, &recording.samples, "", None)?;
+        let pause_compensated = recording.scenario == Scenario::StationaryJump;
+        let (delivered, samples, _) = self.execute_trial(
+            &recording.inputs,
+            &recording.samples,
+            "",
+            None,
+            pause_compensated,
+        )?;
         let screenshot = self.controller.game()?.screenshot()?;
         let checks = assertions(recording.scenario, &samples)?;
         let status = if checks.iter().all(|c| c.passed) {
@@ -1546,7 +1663,12 @@ impl OriginalBackend {
             loaded_level: Some("manoir".into()),
             setup_interventions: self.setup_interventions.clone(),
             input_delivery: "private_x11_xtest_physical_edges".into(),
-            observation_consistency: "stopped_bytes_no_completed_update_claim".into(),
+            observation_consistency: if pause_compensated {
+                "stopped_bytes_pause_compensated_elapsed_no_completed_update_claim"
+            } else {
+                "stopped_bytes_no_completed_update_claim"
+            }
+            .into(),
             completed_update: false,
             delivered,
             samples,
@@ -1575,7 +1697,7 @@ impl OriginalBackend {
         let walk = recording.preparatory_trial.as_ref().unwrap();
         let initial_setup = self.setup_interventions.clone();
         let (mut delivered, mut samples, _) =
-            self.execute_trial(&walk.inputs, &walk.samples, "walk_", None)?;
+            self.execute_trial(&walk.inputs, &walk.samples, "walk_", None, false)?;
         let walk_screenshot = self.controller.game()?.screenshot()?;
         let reload = self.reload_saved_state()?;
         self.face_clear_path()?;
@@ -1588,7 +1710,7 @@ impl OriginalBackend {
         setup_interventions.push(reload);
         setup_interventions.extend(self.setup_interventions.clone());
         let (run_delivered, run_samples, _) =
-            self.execute_trial(&recording.inputs, &recording.samples, "run_", None)?;
+            self.execute_trial(&recording.inputs, &recording.samples, "run_", None, false)?;
         delivered.extend(run_delivered);
         samples.extend(run_samples);
         let screenshot = self.controller.game()?.screenshot()?;
@@ -1632,6 +1754,7 @@ impl OriginalBackend {
             &recording.samples,
             "",
             Some("contact_end"),
+            false,
         )?;
         let checks = assertions(recording.scenario, &samples)?;
         let status = if checks.iter().all(|check| check.passed) {

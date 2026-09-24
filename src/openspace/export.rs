@@ -95,6 +95,13 @@ pub fn export<R: ContentSource>(
             Asset::Environment(_) | Asset::VisualEnvironment(_) => {
                 anyhow::bail!("environment export requires its scene dependency layout")
             }
+            Asset::PhysicalEnvironment(value) => {
+                files.write(
+                    &value.path,
+                    fragment_path(&value.path, "bin"),
+                    &super::level::write_physical_environment(&value)?,
+                )?;
+            }
             Asset::Fog(value) => {
                 files.write(
                     &value.path,
@@ -133,6 +140,15 @@ pub fn export<R: ContentSource>(
                 {
                     let env = source.load(reference)?;
                     env.validate_reference(&reference.path)?;
+                    if let Some(reference) = &env.physical {
+                        let physical = source.load(reference)?;
+                        physical.validate_reference(&reference.path)?;
+                        files.write(
+                            &physical.path,
+                            fragment_path(&physical.path, "bin"),
+                            &super::level::write_physical_environment(&physical)?,
+                        )?;
+                    }
                     if let Some(reference) = &env.visual {
                         let visual = source.load(reference)?;
                         visual.validate_reference(&reference.path)?;

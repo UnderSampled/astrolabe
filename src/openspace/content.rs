@@ -114,6 +114,9 @@ pub fn import_scene(game: &Path, selection: Selection) -> Result<Imported> {
     for value in std::mem::take(&mut scene.environments) {
         imported.put(&AssetRef::from_path(value.path.clone()), value, false)?;
     }
+    for value in std::mem::take(&mut scene.physical_environments) {
+        imported.put(&AssetRef::from_path(value.path.clone()), value, false)?;
+    }
     for value in std::mem::take(&mut scene.visual_environments) {
         imported.put(&AssetRef::from_path(value.path.clone()), value, false)?;
     }

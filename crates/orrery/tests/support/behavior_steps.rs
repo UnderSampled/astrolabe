@@ -41,6 +41,12 @@ impl SessionBackend {
             Self::Godot(backend) => backend.face_wall(),
         }
     }
+    fn prepare_stationary_jump(&mut self) -> Result<()> {
+        match self {
+            Self::Original(backend) => backend.prepare_stationary_jump(),
+            Self::Godot(backend) => backend.prepare_stationary_jump(),
+        }
+    }
     fn run(&mut self, recording: behavior::FunctionalRecording) -> Result<BackendResult> {
         match self {
             Self::Original(backend) => backend.run(recording),
@@ -296,6 +302,59 @@ pub fn synthetic_result(recording: behavior::FunctionalRecording) -> Result<Back
                 error: None,
             });
         }
+        Scenario::StationaryJump => {
+            let positions = [
+                ([0.0, 0.0, 4.55], 47),
+                ([0.0, 0.0, 5.35], 2),
+                ([0.0, 0.0, 6.75], 2),
+                ([0.0, 0.0, 5.85], 4),
+                ([0.0, 0.0, 4.55], 0),
+                ([0.0, 0.0, 4.55], 47),
+                ([0.0, 0.0, 4.55], 47),
+            ];
+            let samples = positions.into_iter().zip(&recording.samples)
+                .map(|((position, action), point)| {
+                    let mut sample = ActorSample::from_actor(point.name.clone(), point.at_ms, point.at_ms, point.at_ms + 1, synthetic_actor(action, position, 0.))?;
+                    sample.raw_observation = serde_json::json!({"on_floor": point.name == "floor" || point.name.starts_with("settled")});
+                    Ok(sample)
+                }).collect::<Result<Vec<_>>>()?;
+            let checks = behavior::assertions(scenario, &samples)?;
+            let delivered = recording
+                .inputs
+                .iter()
+                .map(|input| behavior::DeliveredInput {
+                    id: input.id.clone(),
+                    planned_ms: input.at_ms,
+                    actual_ms: input.at_ms,
+                    event: input.event.clone(),
+                })
+                .collect();
+            return Ok(BackendResult {
+                backend: "synthetic".into(),
+                scenario,
+                status: if checks.iter().all(|check| check.passed) {
+                    "passed"
+                } else {
+                    "failed"
+                }
+                .into(),
+                recording_sha256: recording.sha256()?,
+                recording,
+                executable_sha256: None,
+                save_sha256: None,
+                loaded_level: Some("synthetic_manoir".into()),
+                input_delivery: "synthetic_fixture".into(),
+                observation_consistency: "synthetic".into(),
+                completed_update: false,
+                setup_interventions: vec![],
+                delivered,
+                samples,
+                assertions: checks,
+                screenshot: None,
+                cleanup_complete: true,
+                error: None,
+            });
+        }
     };
     let samples = recording
         .samples
@@ -384,6 +443,21 @@ fn wall_path(world: &mut BehaviorWorld) {
     }
 }
 
+#[given("Hype has backed into a clear grounded jump start")]
+fn clear_jump_start(world: &mut BehaviorWorld) {
+    if crate::BACKEND != Mode::Synthetic {
+        let result = world
+            .backend
+            .as_mut()
+            .context("behavior backend not started")
+            .and_then(SessionBackend::prepare_stationary_jump);
+        if let Err(err) = result {
+            world.failure = Some(err.to_string());
+            panic!("jump setup failed: {err}");
+        }
+    }
+}
+
 #[given("Hype is ready to move in a clear part of the manor")]
 fn ready(world: &mut BehaviorWorld) {
     if crate::BACKEND != Mode::Synthetic && world.backend.is_none() {
@@ -462,6 +536,42 @@ fn run_vs_walk(world: &mut BehaviorWorld) {
 #[when("the player keeps walking into the corner")]
 fn wall_contact(world: &mut BehaviorWorld) {
     perform(world, Scenario::WallContact);
+}
+
+#[when("the player presses and releases jump while standing")]
+fn stationary_jump(world: &mut BehaviorWorld) {
+    perform(world, Scenario::StationaryJump);
+}
+
+#[then("Hype rises above the floor during the jump")]
+fn jump_rises(world: &mut BehaviorWorld) {
+    require_checks(
+        world,
+        &[
+            "jump_baseline_idle",
+            "jump_rise_action",
+            "jump_rise_height",
+            "jump_sampled_gain",
+            "jump_stationary_xy",
+        ],
+    );
+}
+
+#[then("Hype returns to the starting floor and settles")]
+fn jump_lands(world: &mut BehaviorWorld) {
+    require_checks(
+        world,
+        &[
+            "jump_floor_return",
+            "jump_settled_height",
+            "jump_settled_idle_start",
+            "jump_settled_idle_end",
+            "jump_post_landing_drift",
+        ],
+    );
+    if crate::BACKEND == Mode::Godot {
+        require_checks(world, &["jump_native_floor_contact"]);
+    }
 }
 
 fn require_checks(world: &mut BehaviorWorld, names: &[&str]) {
@@ -598,6 +708,7 @@ fn selected_scenario(name: &str) -> Result<Scenario> {
         "Walking and stopping" => Scenario::WalkReleaseStop,
         "Running instead of walking" => Scenario::RunVsWalk,
         "A wall blocks movement" => Scenario::WallContact,
+        "Jumping from a standstill and landing" => Scenario::StationaryJump,
         _ => anyhow::bail!("unknown BDD scenario: {name}"),
     })
 }
@@ -645,6 +756,14 @@ fn run_selected(names: &[&'static str], shared_session: bool) -> Result<SessionE
         let before_launch_count = Rc::clone(&launch_count);
         let after_session = Rc::clone(&session);
         let writer = runtime.block_on(async {
+            let feature = if scenario == Scenario::StationaryJump {
+                concat!(env!("CARGO_MANIFEST_DIR"), "/tests/features/jump.feature")
+            } else {
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/tests/features/movement.feature"
+                )
+            };
             BehaviorWorld::cucumber()
                 .with_writer(cucumber::writer::Basic::stdout().summarized())
                 .fail_on_skipped()
@@ -673,17 +792,16 @@ fn run_selected(names: &[&'static str], shared_session: bool) -> Result<SessionE
                     Box::pin(async {})
                 })
                 .with_default_cli()
-                .filter_run(
-                    concat!(
-                        env!("CARGO_MANIFEST_DIR"),
-                        "/tests/features/movement.feature"
-                    ),
-                    move |_, _, candidate| candidate.name == name,
-                )
+                .filter_run(feature, move |_, _, candidate| candidate.name == name)
                 .await
         });
         if writer.passed_steps()
-            < if matches!(name, "Walking and stopping" | "A wall blocks movement") {
+            < if matches!(
+                name,
+                "Walking and stopping"
+                    | "A wall blocks movement"
+                    | "Jumping from a standstill and landing"
+            ) {
                 5
             } else {
                 4

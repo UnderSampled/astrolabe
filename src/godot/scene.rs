@@ -36,6 +36,7 @@ impl Project {
             quoted(&scene.name)
         )?;
         self.scene_environment(scene, source, &scene_id)?;
+        let physical_environment = self.scene_physical_environment(scene, source, &scene_id)?;
         let mut names: BTreeMap<String, String> = BTreeMap::new();
         let mut lights = std::collections::BTreeSet::new();
         for node in &scene.nodes {
@@ -156,21 +157,43 @@ impl Project {
             let perso = source.load(reference)?;
             let Some(brain) = &perso.brain else { continue };
             let model = source.load(&brain.model)?;
+            let field_writes = model.actor_field_writes();
             for (i, target) in model.actor_field_targets().iter().enumerate() {
+                let required_write = field_writes.iter().any(|(written, _)| written == target);
+                let target_perso = source.load(target)?;
+                if target_perso.brain.is_none() {
+                    anyhow::ensure!(
+                        !required_write,
+                        "{} actor field write target {} lacks a Brain",
+                        perso.path,
+                        target.path
+                    );
+                    self.diagnostic(format!(
+                        "{} actor field read target {} lacks a saved Brain; a reached read will fail explicitly",
+                        perso.path, target.path
+                    ));
+                    continue;
+                }
                 let target_name = if let Some(name) = global_names.get(&target.path) {
                     name.clone()
                 } else {
-                    let target_node = scene
+                    let Some(target_node) = scene
                         .nodes
                         .iter()
                         .find(|candidate| candidate.perso.as_ref() == Some(target))
-                        .ok_or_else(|| {
-                            anyhow::anyhow!(
-                                "{} AI actor target {} is absent from saved scene",
-                                perso.path,
-                                target.path
-                            )
-                        })?;
+                    else {
+                        anyhow::ensure!(
+                            !required_write,
+                            "{} AI actor write target {} is absent from saved scene",
+                            perso.path,
+                            target.path
+                        );
+                        self.diagnostic(format!(
+                            "{} actor field read target {} is absent from saved scene; a reached read will fail explicitly",
+                            perso.path, target.path
+                        ));
+                        continue;
+                    };
                     format!("{}_character", names[&target_node.id])
                 };
                 let character = format!("{}_character", names[&node.id]);
@@ -216,6 +239,9 @@ impl Project {
                 self.builder,
                 "    {scene_id}.set_editable_instance({main}, true)\n    {main}.motion_enabled = true"
             )?;
+            if let Some(physical) = &physical_environment {
+                writeln!(self.builder, "    {main}.physical_environment = {physical}")?;
+            }
             for node in &scene.nodes {
                 let Some(reference) = &node.perso else {
                     continue;

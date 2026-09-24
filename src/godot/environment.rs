@@ -1,10 +1,62 @@
 //! Preview fog for scenes whose sectors all resolve to the same fog value.
 //! Mixed sector environments require per-draw routing, as in Hype's 004df0e0.
-use super::{Project, quoted};
+use super::{Project, quoted, vec3, vector};
 use crate::model::{content::ContentSource, environment::*, io::Content, scene::Scene};
 use anyhow::Result;
 use std::{collections::BTreeMap, fmt::Write as _};
 impl Project {
+    /// Project the common first physical environment as a native level
+    /// resource. Additional entries still require source sector selection.
+    pub(super) fn scene_physical_environment(
+        &mut self,
+        scene: &Scene,
+        source: &mut impl ContentSource,
+        name: &str,
+    ) -> Result<Option<String>> {
+        let mut selected: Option<PhysicalEnvironment> = None;
+        let mut sector_count = 0;
+        let mut additional = false;
+        for sector in scene.nodes.iter().flat_map(|node| &node.sector) {
+            sector_count += 1;
+            additional |= sector.environments.len() > 1;
+            let Some(reference) = sector.environments.first() else {
+                self.diagnostic(format!("{}: sector {} has no physical environment; level gravity remains project-owned", scene.path, sector.name));
+                return Ok(None);
+            };
+            let env = source.load(reference)?;
+            env.validate_reference(&reference.path)?;
+            let Some(reference) = &env.physical else {
+                self.diagnostic(format!("{}: sector {} has no physical environment; level gravity remains project-owned", scene.path, sector.name));
+                return Ok(None);
+            };
+            let physical = source.load(reference)?;
+            physical.validate_reference(&reference.path)?;
+            if let Some(first) = &selected {
+                if first.gravity != physical.gravity || first.vertical != physical.vertical {
+                    self.diagnostic(format!("{}: first sector physical environments differ; native level gravity needs sector selection", scene.path));
+                    return Ok(None);
+                }
+            } else {
+                selected = Some((*physical).clone());
+            }
+        }
+        let Some(physical) = selected else {
+            return Ok(None);
+        };
+        let variable = format!("{name}_physical_environment");
+        writeln!(
+            self.builder,
+            "    var {variable} = Resource.new()\n    {variable}.set_script(load(\"res://addons/astrolabe/character/physical_environment.gd\"))\n    {variable}.gravity = {}\n    {variable}.vertical = {}",
+            physical.gravity,
+            vec3(vector(physical.vertical)),
+        )?;
+        self.diagnostic(format!("{}: {} sectors share first physical environment gravity {} and vertical {:?}; exported as a native level Resource", scene.path, sector_count, physical.gravity, physical.vertical));
+        if additional {
+            self.diagnostic(format!("{}: additional sector environments require dynamic selection; the common first physical environment is the level gameplay default", scene.path));
+        }
+        Ok(Some(variable))
+    }
+
     pub(super) fn native_environment(&mut self, root: &str) -> Result<()> {
         let color = self.scene_ambient.unwrap_or([1.; 3]);
         let energy = if self.scene_ambient.is_some() {

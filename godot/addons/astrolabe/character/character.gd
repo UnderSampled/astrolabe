@@ -6,6 +6,7 @@ signal action_finished(action: int)
 @export var initial_state: int = -1
 @export var current_state: int = -1
 @export var current_mechanics: Resource
+@export var physical_environment: Resource
 @export var autoplay: bool = true
 ## Gameplay uses physics ticks; ordinary editor/pose inspection stays stationary.
 @export var motion_enabled: bool = false
@@ -13,6 +14,13 @@ signal action_finished(action: int)
 @export var gravity: Vector3 = Vector3.ZERO
 ## Velocity from forces/impulses, separate from the next animation displacement.
 var external_velocity: Vector3 = Vector3.ZERO
+## AI movement requests are applied once when a jump procedure commits them.
+var source_vector_speed: Vector3 = Vector3.ZERO
+var source_impulse: Vector3 = Vector3.ZERO
+var source_relative_motion: bool = false
+var source_airborne: bool = false
+var source_particle_generator_enabled: bool = false
+var source_generated_object_count: int = 0
 ## Last evaluated local displacement, including every native substep and loop.
 var root_motion_displacement: Vector3 = Vector3.ZERO
 var restored_configuration: bool = false
@@ -45,7 +53,12 @@ func _ready() -> void:
         # The source actor rounds shallow contacts at finite wall edges.
         # Godot's default 15-degree minimum stops Hype at the manoir wall end.
         wall_min_slide_angle = 0.0
-    if motion_enabled and gravity == Vector3.ZERO:
+    if motion_enabled and physical_environment != null:
+        var vertical: Vector3 = physical_environment.vertical
+        assert(vertical.length_squared() > 0.0)
+        up_direction = vertical.normalized()
+        gravity = -vertical * float(physical_environment.gravity)
+    elif motion_enabled and gravity == Vector3.ZERO:
         # The first gameplay slice uses Godot's project gravity until the
         # source level's acceleration is measured against a live trajectory.
         gravity = Vector3.DOWN * float(ProjectSettings.get_setting("physics/3d/default_gravity"))
@@ -64,7 +77,10 @@ func _physics_process(delta: float) -> void:
     var motion := global_basis.orthonormalized() * root_motion_displacement / delta
     # Apply gravity to this contact step. Floor response must not turn that
     # downward acceleration into retained sideways momentum on a slight slope.
-    external_velocity += gravity * delta
+    var gravity_ratio := 1.0
+    if current_mechanics != null:
+        gravity_ratio = float(current_mechanics.ratio)
+    external_velocity += gravity * gravity_ratio * delta
     velocity = motion + external_velocity
     move_and_slide()
     for i in get_slide_collision_count():
@@ -75,12 +91,112 @@ func _physics_process(delta: float) -> void:
             external_velocity = external_velocity.slide(normal)
     if is_on_floor() and external_velocity.dot(up_direction) < 0.0:
         external_velocity -= up_direction * external_velocity.dot(up_direction)
+    if is_on_floor(): source_airborne = false
+    elif external_velocity.dot(up_direction) > 0.0: source_airborne = true
 
 func turn(degrees_per_second: float, seconds: float) -> void:
     # Proc_Turn requests a rate about the actor's local up axis. Source +Z maps
     # to Godot +Y; the native transform composes the rotation around that axis.
     assert(is_finite(degrees_per_second) and is_finite(seconds) and seconds >= 0.0)
     rotate_object_local(Vector3.UP, deg_to_rad(degrees_per_second) * seconds)
+
+func _source_motion_vector(value: Vector3) -> Vector3:
+    var converted := Vector3(value.x, value.z, -value.y)
+    return global_basis.orthonormalized() * converted if source_relative_motion else converted
+
+func source_set_vector_speed(value: Vector3) -> void:
+    assert(value.is_finite())
+    source_vector_speed = value
+
+func source_go_relative() -> void:
+    source_relative_motion = true
+
+func source_set_impulse(value: Vector3) -> void:
+    assert(value.is_finite())
+    source_impulse = value
+
+func source_jump_absolute() -> void:
+    external_velocity = _source_motion_vector(source_vector_speed + source_impulse)
+    source_impulse = Vector3.ZERO
+    source_relative_motion = false
+    source_airborne = true
+
+func source_jump_without_adding_speed() -> void:
+    external_velocity += _source_motion_vector(source_impulse)
+    source_impulse = Vector3.ZERO
+    source_relative_motion = false
+    source_airborne = true
+
+func source_position() -> Vector3:
+    return Vector3(global_position.x, -global_position.z, global_position.y)
+
+func source_game_time() -> int:
+    var brain := get_node_or_null("Brain")
+    assert(brain != null)
+    return int(brain.get("clock_milliseconds"))
+
+func source_is_type_of_gmt_collide(kind: int) -> bool:
+    var bit := 1 << (kind & 31)
+    for index in get_slide_collision_count():
+        var hit := get_slide_collision(index)
+        var collider := hit.get_collider() as CollisionObject3D
+        if collider == null: continue
+        var owner_id := collider.shape_find_owner(hit.get_collider_shape_index())
+        var shape := collider.shape_owner_get_owner(owner_id) as CollisionShape3D
+        if shape != null and int(shape.get_meta("source_collision_identifier", 0)) & bit != 0:
+            return true
+    return false
+
+func source_in_top_of_jump() -> bool:
+    return source_airborne and not is_on_floor() and external_velocity.dot(up_direction) <= 0.0
+
+func source_set_particle_generator_enabled(enabled: bool) -> void:
+    source_particle_generator_enabled = enabled
+    for particle in find_children("*", "GPUParticles3D", true, false):
+        var emitter := particle as GPUParticles3D
+        emitter.emitting = enabled
+    for particle in find_children("*", "CPUParticles3D", true, false):
+        var emitter := particle as CPUParticles3D
+        emitter.emitting = enabled
+
+## Execute an action and instantiate its converted Perso template once. A
+## nonzero source vector still needs its placement/velocity contract established.
+## Return -1 for an unsupported request, 0 for a rejected action, 1 when started.
+func source_execute_action_and_generate_object(template_path: String, action: int, vector: Vector3) -> int:
+    if template_path.is_empty():
+        push_error("Action/object request has no converted Perso template path")
+        return -1
+    var template := load(template_path) as PackedScene
+    if template == null:
+        push_error("Action/object request has no converted Perso template")
+        return -1
+    if vector != Vector3.ZERO:
+        push_error("Action/object request with a nonzero vector is unsupported")
+        return -1
+    var destination := get_tree().current_scene as Node3D
+    if destination == null:
+        # Embedded and test-run scenes may be added directly under the root.
+        var ancestor: Node = self
+        while ancestor.get_parent() != null and ancestor.get_parent() != get_tree().root:
+            ancestor = ancestor.get_parent()
+        destination = ancestor as Node3D
+    if destination == null:
+        push_error("Action/object request has no active level scene")
+        return -1
+    var generated := template.instantiate() as Node3D
+    if generated == null:
+        push_error("Action/object template is not a Node3D scene")
+        return -1
+    if not request_action(action, true):
+        generated.free()
+        return 0
+    destination.add_child(generated)
+    # Placement is provisional until the source object's initial transform is
+    # observed. The saved template itself remains reusable and unplaced.
+    generated.global_transform = global_transform
+    generated.set_meta("astrolabe_generated_template", template_path)
+    source_generated_object_count += 1
+    return 1
 
 ## Func_GetPersoSighting reads the current actor's world-space negative
 ## source-Y basis column. The exported Basis stores that direction in +Z;

@@ -39,7 +39,7 @@ fn mechanics_fields_survive_rete_edits_and_unknown_variants_remain_explicit() ->
     };
     settings.mass = f32::NAN;
     assert!(write_mechanics(&loaded).is_err());
-    for (kind, length) in [(3u32, 16), (6, 92), (7, 52), (9, 8), (19, 8)] {
+    for (kind, length) in [(3u32, 16), (6, 92), (7, 52), (9, 8), (11, 20), (19, 8)] {
         let mut record = vec![0; length];
         record[..4].copy_from_slice(&kind.to_le_bytes());
         record[4..8].copy_from_slice(&17f32.to_le_bytes());

@@ -22,6 +22,7 @@ pub fn export<R: ContentSource>(
     for root in roots {
         match Asset::load(source, root)? {
             Asset::Environment(_)
+            | Asset::PhysicalEnvironment(_)
             | Asset::VisualEnvironment(_)
             | Asset::Fog(_)
             | Asset::Light(_)

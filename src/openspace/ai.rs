@@ -246,6 +246,30 @@ impl Parser<'_> {
                         value: self.expression(indent + 1)?,
                     }
                 }
+                (2, 5) => {
+                    if !self
+                        .nodes
+                        .get(self.at)
+                        .is_some_and(|target| target.kind == 11)
+                    {
+                        out.push(Statement::Unsupported(self.unsupported(
+                            at,
+                            format!(
+                                "add assignment target is not a designer variable at node {at}"
+                            ),
+                        )?));
+                        continue;
+                    }
+                    let (_, target) = self.take(indent + 1)?;
+                    ensure!(
+                        target.kind == 11,
+                        "add assignment requires a designer variable at node {at}"
+                    );
+                    Statement::AddAssign {
+                        variable: target.parameter.try_into()?,
+                        value: self.expression(indent + 1)?,
+                    }
+                }
                 (2, 9) => {
                     if !self
                         .nodes
@@ -270,6 +294,13 @@ impl Parser<'_> {
                 (4, 214) => Statement::Turn {
                     degrees_per_second: self.expression(indent + 1)?,
                 },
+                (4, 29) => Statement::SetVectorSpeed(self.expression(indent + 1)?),
+                (4, 34) => Statement::GoRelative,
+                (4, 23) => Statement::SetImpulse(self.expression(indent + 1)?),
+                (4, 47) => Statement::JumpAbsolute,
+                (4, 48) => Statement::JumpWithoutAddingSpeed,
+                (4, 192) => Statement::SetParticleGeneratorEnabled(true),
+                (4, 193) => Statement::SetParticleGeneratorEnabled(false),
                 (5, 68) => Statement::WaitFrames(self.expression(indent + 1)?),
                 (4, 209 | 210) => self.change_behavior(id, indent, false, at)?,
                 (4, 6) => {
@@ -300,6 +331,27 @@ impl Parser<'_> {
                 }
                 (4, 218) => Statement::ChangeAction(self.expression(indent + 1)?),
                 (5, 4) => Statement::ExecuteAction(self.expression(indent + 1)?),
+                (5, 15) => {
+                    let operand = self.at;
+                    if !self
+                        .nodes
+                        .get(operand)
+                        .is_some_and(|child| child.kind == 24 && child.indent == indent + 1)
+                        || !self.codec.actors.contains_key(&operand)
+                    {
+                        out.push(Statement::Unsupported(self.unsupported(
+                            at,
+                            format!("unbound object template at node {operand}"),
+                        )?));
+                        continue;
+                    }
+                    self.take(indent + 1)?;
+                    Statement::ExecuteActionAndGenerateObject {
+                        template: self.codec.actors[&operand].clone(),
+                        action: self.expression(indent + 1)?,
+                        vector: self.expression(indent + 1)?,
+                    }
+                }
                 (5, 6) => Statement::WaitEndOfAction,
                 (5, 8) => Statement::WaitEndOfAnimation,
                 (4, 127) => {
@@ -394,11 +446,70 @@ impl Parser<'_> {
             (0, 8) => Expression::Nowhere,
             (12, n) => Expression::Integer(n as i32),
             (13, n) => Expression::Real(f32::from_bits(n)),
+            (16, 0) => Expression::Vector(Box::new([
+                self.expression(indent + 1)?,
+                self.expression(indent + 1)?,
+                self.expression(indent + 1)?,
+            ])),
             (11, n) => Expression::Variable(n.try_into()?),
+            (2, 0) => Expression::Plus(
+                Box::new(self.expression(indent + 1)?),
+                Box::new(self.expression(indent + 1)?),
+            ),
+            (2, 1) => Expression::Minus(
+                Box::new(self.expression(indent + 1)?),
+                Box::new(self.expression(indent + 1)?),
+            ),
             (2, 2) => Expression::Multiply(
                 Box::new(self.expression(indent + 1)?),
                 Box::new(self.expression(indent + 1)?),
             ),
+            (2, 3) => Expression::Divide(
+                Box::new(self.expression(indent + 1)?),
+                Box::new(self.expression(indent + 1)?),
+            ),
+            (2, 12) => {
+                let actor_at = self.at;
+                if !self.nodes.get(actor_at).is_some_and(|actor| {
+                    actor.indent == indent + 1
+                        && (actor.kind == 24
+                            || (actor.kind == 0 && matches!(actor.parameter, 4 | 5)))
+                }) || !self
+                    .nodes
+                    .get(actor_at + 1)
+                    .is_some_and(|field| field.indent == indent + 1 && field.kind == 11)
+                {
+                    return Ok(Expression::Unsupported(self.unsupported(
+                        at,
+                        format!("unsupported actor field receiver or field at node {at}"),
+                    )?));
+                }
+                let (_, actor) = self.take(indent + 1)?;
+                let receiver = (actor.kind, actor.parameter);
+                let (_, field) = self.take(indent + 1)?;
+                let variable = field.parameter.try_into()?;
+                match receiver {
+                    (0, 4) => Expression::SelfFieldRead(variable),
+                    (0, 5) => Expression::MainActorFieldRead(variable),
+                    (24, _) => {
+                        if let Some(actor) = self.codec.actors.get(&actor_at) {
+                            Expression::ActorFieldRead {
+                                actor: actor.clone(),
+                                variable,
+                            }
+                        } else {
+                            Expression::Unsupported(self.unsupported(
+                                at,
+                                format!("unbound actor field read at node {actor_at}"),
+                            )?)
+                        }
+                    }
+                    _ => Expression::Unsupported(self.unsupported(
+                        at,
+                        format!("unsupported actor field receiver at node {actor_at}"),
+                    )?),
+                }
+            }
             (2, 4) => Expression::Negate(Box::new(self.expression(indent + 1)?)),
             (25, _) => Expression::Action(
                 self.codec
@@ -411,6 +522,19 @@ impl Parser<'_> {
             (1, 123) => Expression::ActionFinished,
             (1, 31) => Expression::CollideWithGround,
             (1, 34) => Expression::CollideWithSlope,
+            (1, 60) => {
+                let (_, material_type) = self.take(indent + 1)?;
+                ensure!(
+                    material_type.kind == 17,
+                    "GMT collision query lacks a material type at node {at}"
+                );
+                Expression::IsTypeOfGmtCollide(material_type.parameter)
+            }
+            (1, 69) => Expression::InTopOfJump,
+            (1, 55) => Expression::TimeElapsed {
+                start: Box::new(self.expression(indent + 1)?),
+                duration: Box::new(self.expression(indent + 1)?),
+            },
             (1, 56 | 57) => {
                 let (_, actor) = self.take(indent + 1)?;
                 if actor.kind != 0 || actor.parameter != 4 {
@@ -507,6 +631,8 @@ impl Parser<'_> {
                 Expression::MainActorDistance
             }
             (3, 164) => Expression::SelfSighting,
+            (3, 0) => Expression::SelfPosition,
+            (3, 41) => Expression::GameTime,
             (3, 27) => Expression::RandomInt {
                 lower: Box::new(self.expression(indent + 1)?),
                 upper: Box::new(self.expression(indent + 1)?),
@@ -586,6 +712,11 @@ impl Writer<'_> {
                     self.node(11, u32::from(*variable), indent + 1);
                     self.expression(value, indent + 1)?;
                 }
+                Statement::AddAssign { variable, value } => {
+                    self.node(2, 5, indent);
+                    self.node(11, u32::from(*variable), indent + 1);
+                    self.expression(value, indent + 1)?;
+                }
                 Statement::Increment { variable } => {
                     self.node(2, 9, indent);
                     self.node(11, u32::from(*variable), indent + 1);
@@ -593,6 +724,20 @@ impl Writer<'_> {
                 Statement::Turn { degrees_per_second } => {
                     self.node(4, 214, indent);
                     self.expression(degrees_per_second, indent + 1)?;
+                }
+                Statement::SetVectorSpeed(value) => {
+                    self.node(4, 29, indent);
+                    self.expression(value, indent + 1)?;
+                }
+                Statement::GoRelative => self.node(4, 34, indent),
+                Statement::SetImpulse(value) => {
+                    self.node(4, 23, indent);
+                    self.expression(value, indent + 1)?;
+                }
+                Statement::JumpAbsolute => self.node(4, 47, indent),
+                Statement::JumpWithoutAddingSpeed => self.node(4, 48, indent),
+                Statement::SetParticleGeneratorEnabled(enabled) => {
+                    self.node(4, if *enabled { 192 } else { 193 }, indent)
                 }
                 Statement::ArrayAssign {
                     array,
@@ -640,6 +785,23 @@ impl Writer<'_> {
                     self.node(kind, id, indent);
                     self.expression(action, indent + 1)?;
                 }
+                Statement::ExecuteActionAndGenerateObject {
+                    template,
+                    action,
+                    vector,
+                } => {
+                    self.node(5, 15, indent);
+                    let handle = self
+                        .codec
+                        .actor_handles
+                        .iter()
+                        .find(|(reference, _)| reference == template)
+                        .context("missing AI object template handle")?
+                        .1;
+                    self.node(24, handle, indent + 1);
+                    self.expression(action, indent + 1)?;
+                    self.expression(vector, indent + 1)?;
+                }
                 Statement::WaitEndOfAction => self.node(5, 6, indent),
                 Statement::WaitEndOfAnimation => self.node(5, 8, indent),
                 Statement::Sound { event } => {
@@ -682,11 +844,55 @@ impl Writer<'_> {
             Expression::Nowhere => self.node(0, 8, indent),
             Expression::Integer(v) => self.node(12, *v as u32, indent),
             Expression::Real(v) => self.node(13, v.to_bits(), indent),
+            Expression::Vector(values) => {
+                self.node(16, 0, indent);
+                for value in values.iter() {
+                    self.expression(value, indent + 1)?;
+                }
+            }
             Expression::Variable(v) => self.node(11, u32::from(*v), indent),
+            Expression::Plus(a, b) | Expression::Minus(a, b) | Expression::Divide(a, b) => {
+                self.node(
+                    2,
+                    match e {
+                        Expression::Plus(..) => 0,
+                        Expression::Minus(..) => 1,
+                        _ => 3,
+                    },
+                    indent,
+                );
+                self.expression(a, indent + 1)?;
+                self.expression(b, indent + 1)?;
+            }
             Expression::Multiply(a, b) => {
                 self.node(2, 2, indent);
                 self.expression(a, indent + 1)?;
                 self.expression(b, indent + 1)?;
+            }
+            Expression::ActorFieldRead { actor, variable } => {
+                self.node(2, 12, indent);
+                let handle = self
+                    .codec
+                    .actor_handles
+                    .iter()
+                    .find(|(reference, _)| reference == actor)
+                    .context("missing AI actor field read handle")?
+                    .1;
+                self.node(24, handle, indent + 1);
+                self.node(11, u32::from(*variable), indent + 1);
+            }
+            Expression::SelfFieldRead(variable) | Expression::MainActorFieldRead(variable) => {
+                self.node(2, 12, indent);
+                self.node(
+                    0,
+                    if matches!(e, Expression::SelfFieldRead(_)) {
+                        4
+                    } else {
+                        5
+                    },
+                    indent + 1,
+                );
+                self.node(11, u32::from(*variable), indent + 1);
             }
             Expression::Negate(v) => {
                 self.node(2, 4, indent);
@@ -709,6 +915,16 @@ impl Writer<'_> {
             Expression::ActionFinished => self.node(1, 123, indent),
             Expression::CollideWithGround => self.node(1, 31, indent),
             Expression::CollideWithSlope => self.node(1, 34, indent),
+            Expression::IsTypeOfGmtCollide(kind) => {
+                self.node(1, 60, indent);
+                self.node(17, *kind, indent + 1);
+            }
+            Expression::InTopOfJump => self.node(1, 69, indent),
+            Expression::TimeElapsed { start, duration } => {
+                self.node(1, 55, indent);
+                self.expression(start, indent + 1)?;
+                self.expression(duration, indent + 1)?;
+            }
             Expression::IsInBehavior(target) => {
                 self.node(
                     1,
@@ -764,6 +980,8 @@ impl Writer<'_> {
                 self.node(0, 5, indent + 1);
             }
             Expression::SelfSighting => self.node(3, 164, indent),
+            Expression::SelfPosition => self.node(3, 0, indent),
+            Expression::GameTime => self.node(3, 41, indent),
             Expression::RandomInt { lower, upper } => {
                 self.node(3, 27, indent);
                 self.expression(lower, indent + 1)?;
@@ -971,6 +1189,121 @@ mod partial_tests {
     }
 
     #[test]
+    fn jump_motion_requests_reconstruct_source_nodes() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (4, 29, 1),
+            (16, 0, 2),
+            (13, 0, 3),
+            (13, 0, 3),
+            (13, 0, 3),
+            (4, 34, 1),
+            (4, 23, 1),
+            (16, 0, 2),
+            (2, 2, 3),
+            (11, 151, 4),
+            (13, 1.5_f32.to_bits(), 4),
+            (2, 2, 3),
+            (11, 152, 4),
+            (13, 1.5_f32.to_bits(), 4),
+            (13, 9.5_f32.to_bits(), 3),
+            (4, 47, 1),
+            (4, 48, 1),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[0],
+            Statement::SetVectorSpeed(Expression::Vector(_))
+        ));
+        assert!(matches!(&script.statements[1], Statement::GoRelative));
+        assert!(matches!(
+            &script.statements[2],
+            Statement::SetImpulse(Expression::Vector(_))
+        ));
+        assert!(matches!(&script.statements[3], Statement::JumpAbsolute));
+        assert!(matches!(
+            &script.statements[4],
+            Statement::JumpWithoutAddingSpeed
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn jump_queries_and_arithmetic_reconstruct_source_nodes() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (2, 11, 1),
+            (11, 98, 2),
+            (3, 41, 2),
+            (2, 11, 1),
+            (11, 167, 2),
+            (3, 0, 2),
+            (2, 11, 1),
+            (11, 145, 2),
+            (2, 3, 2),
+            (2, 1, 3),
+            (3, 41, 4),
+            (11, 98, 4),
+            (13, 1.5_f32.to_bits(), 3),
+            (2, 5, 1),
+            (11, 141, 2),
+            (12, 1, 2),
+            (0, 0, 1),
+            (1, 60, 2),
+            (17, 128, 3),
+            (0, 1, 1),
+            (4, 206, 2),
+            (0, 0, 1),
+            (1, 69, 2),
+            (0, 1, 1),
+            (4, 206, 2),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[0],
+            Statement::Assign {
+                value: Expression::GameTime,
+                ..
+            }
+        ));
+        assert!(matches!(
+            &script.statements[1],
+            Statement::Assign {
+                value: Expression::SelfPosition,
+                ..
+            }
+        ));
+        assert!(matches!(
+            &script.statements[2],
+            Statement::Assign {
+                value: Expression::Divide(..),
+                ..
+            }
+        ));
+        assert!(matches!(
+            &script.statements[3],
+            Statement::AddAssign { variable: 141, .. }
+        ));
+        assert!(matches!(
+            &script.statements[4],
+            Statement::If {
+                condition: Expression::IsTypeOfGmtCollide(128),
+                ..
+            }
+        ));
+        assert!(matches!(
+            &script.statements[5],
+            Statement::If {
+                condition: Expression::InTopOfJump,
+                ..
+            }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
     fn actor_designer_assignment_reconstructs_dot_target() -> Result<()> {
         let (mut codec, bytes) = partial(&[
             (2, 11, 1),
@@ -991,6 +1324,155 @@ mod partial_tests {
                 variable: 17,
                 value: Expression::Integer(1)
             } if *target == actor
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn actor_designer_read_reconstructs_dot_expression() -> Result<()> {
+        let (mut codec, bytes) = partial(&[
+            (2, 11, 1),
+            (11, 0, 2),
+            (2, 12, 2),
+            (24, 1234, 3),
+            (11, 201, 3),
+            (8, 0, 0),
+        ]);
+        let actor = AssetRef::<Perso>::new("fix:/persos/15")?;
+        codec.actors.insert(3, actor.clone());
+        codec.actor_handles.push((actor.clone(), 1234));
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[0],
+            Statement::Assign {
+                value: Expression::ActorFieldRead { actor: target, variable: 201 },
+                ..
+            } if *target == actor
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn main_actor_designer_read_reconstructs_dot_expression() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (2, 11, 1),
+            (11, 0, 2),
+            (2, 12, 2),
+            (0, 5, 3),
+            (11, 56, 3),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[0],
+            Statement::Assign {
+                value: Expression::MainActorFieldRead(56),
+                ..
+            }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn unrelated_dot_receiver_remains_a_partial_expression() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (2, 11, 1),
+            (11, 0, 2),
+            (2, 12, 2),
+            (3, 99, 3),
+            (11, 56, 3),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        let Statement::Assign {
+            value: Expression::Unsupported(fragment),
+            ..
+        } = &script.statements[0]
+        else {
+            panic!("unknown Dot receiver was not preserved")
+        };
+        assert_eq!(fragment.start, 2);
+        assert_eq!(fragment.nodes.len(), 3);
+        assert!(
+            codec
+                .write(&script)
+                .unwrap_err()
+                .to_string()
+                .contains("unsupported AI script cannot be reconstructed")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn elapsed_clock_query_reconstructs_source_nodes() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (0, 0, 1),
+            (1, 55, 2),
+            (11, 98, 3),
+            (12, 1600, 3),
+            (0, 1, 1),
+            (4, 206, 2),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[0],
+            Statement::If {
+                condition: Expression::TimeElapsed { .. },
+                ..
+            }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn particle_generator_switch_reconstructs_source_nodes() -> Result<()> {
+        let (codec, bytes) = partial(&[(4, 192, 1), (4, 193, 1), (8, 0, 0)]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[..],
+            [
+                Statement::SetParticleGeneratorEnabled(true),
+                Statement::SetParticleGeneratorEnabled(false)
+            ]
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn object_action_retains_template_action_and_vector() -> Result<()> {
+        let (mut codec, bytes) = partial(&[
+            (5, 15, 1),
+            (24, 1234, 2),
+            (25, 5678, 2),
+            (16, 0, 2),
+            (13, 0, 3),
+            (13, 0, 3),
+            (13, 0, 3),
+            (8, 0, 0),
+        ]);
+        let template = AssetRef::<Perso>::new("fix:/persos/5-0-24656")?;
+        let action = crate::model::character::StateRef {
+            family: AssetRef::new("fix:/families/1")?,
+            state: 0,
+        };
+        codec.actors.insert(1, template.clone());
+        codec.actor_handles.push((template.clone(), 1234));
+        codec.actions.insert(2, Some(action.clone()));
+        codec.action_handles.push((Some(action), 5678));
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[0],
+            Statement::ExecuteActionAndGenerateObject {
+                template: target,
+                action: Expression::Action(Some(_)),
+                vector: Expression::Vector(_),
+            } if *target == template
         ));
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())

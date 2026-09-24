@@ -13,7 +13,7 @@ use std::{
     sync::Arc,
 };
 
-pub const SCHEMA: u32 = 30;
+pub const SCHEMA: u32 = 32;
 const MAGIC: &str = "astrolabe-rete";
 const MAX_ASSET_BYTES: u64 = 256 * 1024 * 1024;
 
@@ -251,6 +251,9 @@ impl Store {
             Asset::Environment(value) => {
                 self.save(&AssetRef::from_path(path.clone()), value.as_ref())
             }
+            Asset::PhysicalEnvironment(value) => {
+                self.save(&AssetRef::from_path(path.clone()), value.as_ref())
+            }
             Asset::VisualEnvironment(value) => {
                 self.save(&AssetRef::from_path(path.clone()), value.as_ref())
             }
@@ -299,6 +302,7 @@ impl Store {
             Asset::SoundBank(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::SoundDefinitions(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::Environment(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::PhysicalEnvironment(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::VisualEnvironment(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::Fog(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::Light(value) => serde_json::to_string_pretty(value.as_ref())?,

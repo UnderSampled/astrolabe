@@ -1,6 +1,6 @@
 //! Content kinds and in-memory session loading shared by all adapters.
 use super::ai::AiModel;
-use super::environment::{Environment, Fog, VisualEnvironment};
+use super::environment::{Environment, Fog, PhysicalEnvironment, VisualEnvironment};
 use super::mechanics::Mechanics;
 use super::{
     AssetPath, AssetRef,
@@ -75,6 +75,7 @@ pub trait ContentSource:
     + Load<Collision>
     + Load<CollisionProfile>
     + Load<Environment>
+    + Load<PhysicalEnvironment>
     + Load<VisualEnvironment>
     + Load<Fog>
     + Load<Light>
@@ -102,6 +103,7 @@ impl<T> ContentSource for T where
         + Load<Collision>
         + Load<CollisionProfile>
         + Load<Environment>
+        + Load<PhysicalEnvironment>
         + Load<VisualEnvironment>
         + Load<Fog>
         + Load<Light>
@@ -115,6 +117,7 @@ impl<T> ContentSource for T where
 pub enum Asset {
     AiModel(Arc<AiModel>),
     Environment(Arc<Environment>),
+    PhysicalEnvironment(Arc<PhysicalEnvironment>),
     VisualEnvironment(Arc<VisualEnvironment>),
     Fog(Arc<Fog>),
     Light(Arc<Light>),
@@ -149,6 +152,7 @@ impl Asset {
         Ok(match root.kind.as_str() {
             AiModel::KIND => Self::AiModel(load(source, &root.reference)?),
             Environment::KIND => Self::Environment(load(source, &root.reference)?),
+            PhysicalEnvironment::KIND => Self::PhysicalEnvironment(load(source, &root.reference)?),
             VisualEnvironment::KIND => Self::VisualEnvironment(load(source, &root.reference)?),
             Fog::KIND => Self::Fog(load(source, &root.reference)?),
             Light::KIND => Self::Light(load(source, &root.reference)?),

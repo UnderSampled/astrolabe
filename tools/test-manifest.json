@@ -9,11 +9,16 @@
     "animation",
     "ai",
     "movement",
+    "jump",
     "runtime",
     "comparison"
   ],
   "dependencies": {
     "movement": [
+      "ai",
+      "animation"
+    ],
+    "jump": [
       "ai",
       "animation"
     ],
@@ -1579,6 +1584,17 @@
       "release": true
     },
     {
+      "binary": "orrery::behavior_synthetic",
+      "test": "synthetic_stationary_jump_uses_shared_bdd_and_checks_height",
+      "areas": ["jump", "comparison"],
+      "kind": "contract",
+      "prerequisites": [],
+      "fixture": "synthetic stationary jump actor",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
       "binary": "orrery::behavior_original",
       "test": "original_movement_scenarios_share_one_game_session",
       "areas": ["movement", "comparison"],
@@ -1586,6 +1602,28 @@
       "prerequisites": ["original"],
       "fixture": "pinned Hype executable and supplied English SaveGame0",
       "timeout_seconds": 180,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "orrery::behavior_original",
+      "test": "original_stationary_jump_and_landing",
+      "areas": ["jump", "comparison"],
+      "kind": "original-engine",
+      "prerequisites": ["original"],
+      "fixture": "pinned Hype executable and supplied English SaveGame0",
+      "timeout_seconds": 140,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "orrery::behavior_godot",
+      "test": "godot_stationary_jump_and_landing",
+      "areas": ["jump", "comparison"],
+      "kind": "gameplay",
+      "prerequisites": ["disc", "godot"],
+      "fixture": "normal Hype manoir export with saved Brain",
+      "timeout_seconds": 360,
       "ignored": true,
       "release": true
     },

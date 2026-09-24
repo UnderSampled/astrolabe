@@ -83,7 +83,7 @@ pub use sector_export::write_sectors;
 mod sound;
 
 mod environment;
-pub use environment::{read_fog, write_fog};
+pub use environment::{read_fog, read_physical_environment, write_fog, write_physical_environment};
 mod environment_export;
 pub use environment_export::{EnvironmentDependencies, write_environments};
 

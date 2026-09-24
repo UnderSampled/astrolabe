@@ -32,7 +32,7 @@ fn fixture() -> Result<(Environment, VisualEnvironment, Fog, Scene)> {
     let env = Environment {
         path: AssetPath::new("level:/environments/air")?,
         visual: Some(AssetRef::from_path(visual.path.clone())),
-        unresolved_mechanics: false,
+        physical: None,
         unresolved_sound: false,
     };
     let mut scene = Scene {
@@ -98,6 +98,7 @@ fn shared_environment_rete_edits_and_relocated_source_records() -> Result<()> {
     let dependencies = EnvironmentDependencies::default();
     let graph = write_environments(
         &[env.clone(), second],
+        &[],
         std::slice::from_ref(&visual),
         std::slice::from_ref(&edited),
         &dependencies,
@@ -140,11 +141,19 @@ fn shared_environment_rete_edits_and_relocated_source_records() -> Result<()> {
         )
         .is_err()
     );
-    let mut unresolved = env.clone();
-    unresolved.unresolved_mechanics = true;
+    let mut with_physical = env.clone();
+    let mut physical = PhysicalEnvironment {
+        path: AssetPath::new("level:/physical-environments/air")?,
+        gravity: 17.0,
+        vertical: [0.0, 0.0, 1.0],
+        retained: [0; 32],
+    };
+    physical.retained[8] = 0xa5;
+    with_physical.physical = Some(AssetRef::from_path(physical.path.clone()));
     assert!(
         write_environments(
-            std::slice::from_ref(&unresolved),
+            std::slice::from_ref(&with_physical),
+            &[],
             std::slice::from_ref(&visual),
             std::slice::from_ref(&fog),
             &dependencies,
@@ -152,27 +161,31 @@ fn shared_environment_rete_edits_and_relocated_source_records() -> Result<()> {
         )
         .is_err()
     );
-    let deps = EnvironmentDependencies {
-        mechanics: BTreeMap::from([(
-            env.path.clone(),
-            ReferenceTarget {
-                address: 0x45600,
-                block: (5, 0),
-            },
-        )]),
-        ..Default::default()
-    };
+    store.save(&AssetRef::from_path(physical.path.clone()), &physical)?;
+    let restored: std::sync::Arc<PhysicalEnvironment> =
+        store.load(&AssetRef::from_path(physical.path.clone()))?;
+    assert_eq!(*restored, physical);
+    physical.gravity = 19.5;
+    physical.vertical = [0.0, 1.0, 0.0];
+    store.save(&AssetRef::from_path(physical.path.clone()), &physical)?;
     let rebuilt = write_environments(
-        &[unresolved],
+        &[with_physical],
+        std::slice::from_ref(&physical),
         std::slice::from_ref(&visual),
         std::slice::from_ref(&fog),
-        &deps,
+        &dependencies,
         0x20000,
     )?;
-    assert_eq!(u32_at(&rebuilt.bytes, 0), 0x45600);
+    assert_eq!(rebuilt.ranges.len(), 4);
+    assert_eq!(rebuilt.pointer_count, 3);
+    assert_eq!(u32_at(&rebuilt.bytes, 0), 0x20030);
+    assert_eq!(u32_at(&rebuilt.bytes, 48), 19.5f32.to_bits());
+    assert_eq!(u32_at(&rebuilt.bytes, 56), 1.0f32.to_bits());
+    assert_eq!(rebuilt.bytes[64 + 8], 0xa5);
     assert!(
         write_environments(
             std::slice::from_ref(&env),
+            &[],
             &[],
             std::slice::from_ref(&fog),
             &dependencies,
@@ -183,6 +196,7 @@ fn shared_environment_rete_edits_and_relocated_source_records() -> Result<()> {
     assert!(
         write_environments(
             std::slice::from_ref(&env),
+            &[],
             &[visual],
             &[],
             &dependencies,

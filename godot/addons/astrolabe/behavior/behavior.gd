@@ -128,6 +128,10 @@ func advance(seconds: float) -> void:
 	_step_reflex()
 	if running and not reflex_controls_tick: _step_normal()
 
+func source_time_elapsed(start_ms: int, duration_ms: int) -> bool:
+	assert(duration_ms >= 0)
+	return clock_milliseconds - float(start_ms) >= float(duration_ms)
+
 func distance_to_main_actor() -> float:
 	assert(is_instance_valid(main_actor))
 	return global_position.distance_to(main_actor.global_position)

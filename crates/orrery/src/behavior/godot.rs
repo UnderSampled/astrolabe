@@ -38,6 +38,7 @@ enum ReadyState {
     Fresh,
     ClearRoute,
     WallRoute,
+    JumpStart,
     TurnedLeft { settled: ActorSample, hash: String },
     Finished,
 }
@@ -56,6 +57,51 @@ pub struct GodotBackend {
 }
 
 impl GodotBackend {
+    pub fn prepare_stationary_jump(&mut self) -> Result<()> {
+        let reload = if matches!(self.ready_state, ReadyState::Finished) {
+            Some(self.reload_saved_state()?)
+        } else {
+            None
+        };
+        ensure!(
+            matches!(self.ready_state, ReadyState::Fresh),
+            "Godot jump setup requires supplied save"
+        );
+        self.setup_interventions = vec![self.fixture_intervention.clone()];
+        if let Some(reload) = reload {
+            self.setup_interventions.push(reload);
+        }
+        let origin = Instant::now();
+        let before = self.observe("jump_setup_before", 0, origin)?;
+        self.physical_event(&Event {
+            keyboard: 0,
+            key: Key::ArrowDown,
+            edge: Edge::Press,
+        })?;
+        thread::sleep(Duration::from_millis(800));
+        self.physical_event(&Event {
+            keyboard: 0,
+            key: Key::ArrowDown,
+            edge: Edge::Release,
+        })?;
+        let release_ms = origin.elapsed().as_millis() as u64;
+        thread::sleep(Duration::from_millis(700));
+        let after = self.observe("jump_setup_after", 0, origin)?;
+        let moved = distance_xy(&before, &after);
+        ensure!(
+            after.action == Some(IDLE_ACTION)
+                && (0.5..=3.5).contains(&moved)
+                && heading_delta(&before, &after) < 0.1
+                && (after.translation[2] - before.translation[2]).abs() < 0.15,
+            "Godot physical Down setup did not reach clear grounded idle: {after:?}"
+        );
+        self.setup_interventions.push(json!({
+            "method":"physical_down_to_clear_jump_start", "planned_hold_ms":800,
+            "release_ms":release_ms,"settle_ms":700,"before":before,"after":after,
+        }));
+        self.ready_state = ReadyState::JumpStart;
+        Ok(())
+    }
     pub fn start(runs: &Path) -> Result<Self> {
         fs::create_dir_all(runs)?;
         let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
@@ -275,6 +321,7 @@ impl GodotBackend {
                 Key::ArrowLeft => "ArrowLeft", Key::ArrowRight => "ArrowRight",
                 Key::ArrowUp => "ArrowUp", Key::ArrowDown => "ArrowDown",
                 Key::LeftShift => "LeftShift",
+                Key::LeftControl => "LeftControl",
             }, "pressed": event.edge == Edge::Press}),
             Duration::from_secs(5),
         )?;
@@ -615,6 +662,7 @@ impl GodotBackend {
                 (&self.ready_state, recording.scenario),
                 (ReadyState::Fresh, Scenario::TurnReleaseIdle)
                     | (ReadyState::ClearRoute, Scenario::WalkReleaseStop)
+                    | (ReadyState::JumpStart, Scenario::StationaryJump)
             ),
             "Godot Given setup is not established"
         );

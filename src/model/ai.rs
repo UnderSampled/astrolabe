@@ -128,6 +128,10 @@ pub enum Statement {
         variable: u16,
         value: Expression,
     },
+    AddAssign {
+        variable: u16,
+        value: Expression,
+    },
     Increment {
         variable: u16,
     },
@@ -150,7 +154,22 @@ pub enum Statement {
     Turn {
         degrees_per_second: Expression,
     },
+    /// Source motion requests retain their order in the AI schedule. The
+    /// character component owns their runtime effects.
+    SetVectorSpeed(Expression),
+    GoRelative,
+    SetImpulse(Expression),
+    JumpAbsolute,
+    JumpWithoutAddingSpeed,
+    SetParticleGeneratorEnabled(bool),
     ExecuteAction(Expression),
+    /// Play an action while requesting an independently stored Perso template.
+    /// Runtime generation/timing is owned by the target character component.
+    ExecuteActionAndGenerateObject {
+        template: AssetRef<Perso>,
+        action: Expression,
+        vector: Expression,
+    },
     WaitEndOfAction,
     WaitEndOfAnimation,
     Sound {
@@ -173,6 +192,18 @@ pub enum Expression {
     Nowhere,
     Integer(i32),
     Real(f32),
+    /// Source vector literal (category 16); components remain source-space.
+    Vector(Box<[Expression; 3]>),
+    /// Current actor's world position in source coordinates.
+    SelfPosition,
+    /// Source gameplay clock value; its target implementation is owned by Godot.
+    GameTime,
+    /// Cond_IsTimeElapsed checks the shared gameplay clock against a saved
+    /// timestamp and duration (the reached Hype case uses 1600 ms).
+    TimeElapsed {
+        start: Box<Expression>,
+        duration: Box<Expression>,
+    },
     Variable(u16),
     Action(Option<StateRef>),
     IsInAction(Box<Expression>),
@@ -181,6 +212,15 @@ pub enum Expression {
     CollideWithGround,
     /// Current actor's nonlevel upward contact.
     CollideWithSlope,
+    IsTypeOfGmtCollide(u32),
+    InTopOfJump,
+    /// Read a designer field from a bound actor Brain (Operator_Dot).
+    ActorFieldRead {
+        actor: AssetRef<Perso>,
+        variable: u16,
+    },
+    SelfFieldRead(u16),
+    MainActorFieldRead(u16),
     IsInBehavior(BehaviorRef),
     Button {
         action: String,
@@ -203,6 +243,9 @@ pub enum Expression {
         upper: Box<Expression>,
     },
     Multiply(Box<Expression>, Box<Expression>),
+    Plus(Box<Expression>, Box<Expression>),
+    Minus(Box<Expression>, Box<Expression>),
+    Divide(Box<Expression>, Box<Expression>),
     Negate(Box<Expression>),
     Compare {
         operation: Comparison,
@@ -349,6 +392,42 @@ impl Content for AiModel {
     }
 }
 impl AiModel {
+    pub fn object_templates(&self) -> Vec<AssetRef<Perso>> {
+        fn visit(statements: &[Statement], out: &mut Vec<AssetRef<Perso>>) {
+            for statement in statements {
+                match statement {
+                    Statement::ExecuteActionAndGenerateObject { template, .. } => {
+                        if !out.contains(template) {
+                            out.push(template.clone());
+                        }
+                    }
+                    Statement::If {
+                        then, otherwise, ..
+                    } => {
+                        visit(then, out);
+                        if let Some(otherwise) = otherwise {
+                            visit(otherwise, out);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let mut out = Vec::new();
+        for set in [&self.normal, &self.reflex].into_iter().flatten() {
+            for behavior in &set.behaviors {
+                for script in behavior
+                    .rules
+                    .iter()
+                    .flatten()
+                    .chain(behavior.schedule.iter())
+                {
+                    visit(&script.statements, &mut out);
+                }
+            }
+        }
+        out
+    }
     pub fn actor_field_writes(&self) -> Vec<(AssetRef<Perso>, u16)> {
         fn visit(statements: &[Statement], out: &mut Vec<(AssetRef<Perso>, u16)>) {
             for statement in statements {
@@ -390,9 +469,30 @@ impl AiModel {
     }
     pub fn actor_field_targets(&self) -> Vec<AssetRef<Perso>> {
         let mut out = Vec::new();
-        for (actor, _) in self.actor_field_writes() {
+        for (actor, _) in self.actor_field_accesses() {
             if !out.contains(&actor) {
                 out.push(actor);
+            }
+        }
+        out
+    }
+    pub fn actor_field_accesses(&self) -> Vec<(AssetRef<Perso>, u16)> {
+        let mut out = self.actor_field_writes();
+        for entry in self.actor_field_reads() {
+            if !out.contains(&entry) {
+                out.push(entry);
+            }
+        }
+        out
+    }
+    pub fn actor_field_reads(&self) -> Vec<(AssetRef<Perso>, u16)> {
+        let mut out = Vec::new();
+        for expression in self.expressions() {
+            if let Expression::ActorFieldRead { actor, variable } = expression {
+                let entry = (actor.clone(), *variable);
+                if !out.contains(&entry) {
+                    out.push(entry);
+                }
             }
         }
         out
@@ -405,6 +505,13 @@ impl AiModel {
                 | Expression::And(left, right)
                 | Expression::Or(left, right)
                 | Expression::Multiply(left, right)
+                | Expression::Plus(left, right)
+                | Expression::Minus(left, right)
+                | Expression::Divide(left, right)
+                | Expression::TimeElapsed {
+                    start: left,
+                    duration: right,
+                }
                 | Expression::RandomInt {
                     lower: left,
                     upper: right,
@@ -414,6 +521,11 @@ impl AiModel {
                 }
                 Expression::Not(v) | Expression::Negate(v) | Expression::IsInAction(v) => {
                     expression(v, out)
+                }
+                Expression::Vector(values) => {
+                    for value in values.iter() {
+                        expression(value, out);
+                    }
                 }
                 Expression::VectorComponent { vector, .. } => expression(vector, out),
                 Expression::ArrayElement { array, index } => {
@@ -440,9 +552,12 @@ impl AiModel {
                     Statement::Assign { value, .. }
                     | Statement::ActorFieldAssign { value, .. }
                     | Statement::SubtractAssign { value, .. }
+                    | Statement::AddAssign { value, .. }
                     | Statement::Turn {
                         degrees_per_second: value,
-                    } => expression(value, out),
+                    }
+                    | Statement::SetVectorSpeed(value)
+                    | Statement::SetImpulse(value) => expression(value, out),
                     Statement::ArrayAssign {
                         array,
                         index,
@@ -455,6 +570,10 @@ impl AiModel {
                     Statement::Wait { milliseconds } => expression(milliseconds, out),
                     Statement::WaitFrames(frames) => expression(frames, out),
                     Statement::ChangeAction(a) | Statement::ExecuteAction(a) => expression(a, out),
+                    Statement::ExecuteActionAndGenerateObject { action, vector, .. } => {
+                        expression(action, out);
+                        expression(vector, out);
+                    }
                     Statement::SoundFadeMusic { arg0, arg1 } => {
                         expression(arg0, out);
                         expression(arg1, out);
@@ -624,6 +743,13 @@ impl Script {
                 | Expression::And(left, right)
                 | Expression::Or(left, right)
                 | Expression::Multiply(left, right)
+                | Expression::Plus(left, right)
+                | Expression::Minus(left, right)
+                | Expression::Divide(left, right)
+                | Expression::TimeElapsed {
+                    start: left,
+                    duration: right,
+                }
                 | Expression::RandomInt {
                     lower: left,
                     upper: right,
@@ -633,6 +759,11 @@ impl Script {
                 }
                 Expression::Not(v) | Expression::Negate(v) | Expression::IsInAction(v) => {
                     expression(v, out)
+                }
+                Expression::Vector(values) => {
+                    for value in values.iter() {
+                        expression(value, out);
+                    }
                 }
                 Expression::VectorComponent { vector, .. } => expression(vector, out),
                 Expression::ArrayElement { array, index } => {
@@ -660,15 +791,22 @@ impl Script {
                     Statement::Assign { value, .. }
                     | Statement::ActorFieldAssign { value, .. }
                     | Statement::SubtractAssign { value, .. }
+                    | Statement::AddAssign { value, .. }
                     | Statement::ChangeAction(value)
                     | Statement::ExecuteAction(value)
                     | Statement::WaitFrames(value)
                     | Statement::Turn {
                         degrees_per_second: value,
                     }
+                    | Statement::SetVectorSpeed(value)
+                    | Statement::SetImpulse(value)
                     | Statement::Wait {
                         milliseconds: value,
                     } => expression(value, out),
+                    Statement::ExecuteActionAndGenerateObject { action, vector, .. } => {
+                        expression(action, out);
+                        expression(vector, out);
+                    }
                     Statement::ArrayAssign {
                         array,
                         index,
@@ -705,10 +843,33 @@ impl Script {
                 Expression::Variable(id) => {
                     ensure!(usize::from(*id) < variables, "AI variable out of range")
                 }
+                Expression::ActorFieldRead { actor, variable } => {
+                    ensure!(
+                        actor.path.member().is_none(),
+                        "actor field read is a member"
+                    );
+                    ensure!(*variable < 255, "actor designer field out of range");
+                }
+                Expression::SelfFieldRead(variable) => {
+                    ensure!(
+                        usize::from(*variable) < variables,
+                        "own designer field out of range"
+                    );
+                }
+                Expression::MainActorFieldRead(variable) => {
+                    ensure!(*variable < 255, "main actor designer field out of range");
+                }
                 Expression::Compare { left, right, .. }
                 | Expression::And(left, right)
                 | Expression::Or(left, right)
                 | Expression::Multiply(left, right)
+                | Expression::Plus(left, right)
+                | Expression::Minus(left, right)
+                | Expression::Divide(left, right)
+                | Expression::TimeElapsed {
+                    start: left,
+                    duration: right,
+                }
                 | Expression::RandomInt {
                     lower: left,
                     upper: right,
@@ -721,6 +882,11 @@ impl Script {
                 | Expression::IsInAction(value)
                 | Expression::VectorComponent { vector: value, .. } => {
                     expression(value, variables, depth + 1, count)?
+                }
+                Expression::Vector(values) => {
+                    for value in values.iter() {
+                        expression(value, variables, depth + 1, count)?;
+                    }
                 }
                 Expression::ArrayElement { array, index } => {
                     expression(array, variables, depth + 1, count)?;
@@ -760,7 +926,8 @@ impl Script {
                         }
                     }
                     Statement::Assign { variable, value }
-                    | Statement::SubtractAssign { variable, value } => {
+                    | Statement::SubtractAssign { variable, value }
+                    | Statement::AddAssign { variable, value } => {
                         ensure!(
                             usize::from(*variable) < variables,
                             "AI assignment out of range"
@@ -792,6 +959,9 @@ impl Script {
                     Statement::Turn { degrees_per_second } => {
                         expression(degrees_per_second, variables, depth + 1, count)?
                     }
+                    Statement::SetVectorSpeed(value) | Statement::SetImpulse(value) => {
+                        expression(value, variables, depth + 1, count)?
+                    }
                     Statement::ArrayAssign {
                         array,
                         index,
@@ -803,6 +973,18 @@ impl Script {
                     }
                     Statement::ChangeAction(action) | Statement::ExecuteAction(action) => {
                         expression(action, variables, depth + 1, count)?
+                    }
+                    Statement::ExecuteActionAndGenerateObject {
+                        template,
+                        action,
+                        vector,
+                    } => {
+                        ensure!(
+                            template.path.member().is_none(),
+                            "object template is a member"
+                        );
+                        expression(action, variables, depth + 1, count)?;
+                        expression(vector, variables, depth + 1, count)?;
                     }
                     Statement::SoundFadeMusic { arg0, arg1 } => {
                         expression(arg0, variables, depth + 1, count)?;
