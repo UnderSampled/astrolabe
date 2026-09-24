@@ -11,9 +11,17 @@ python3 tools/test.py --area source --area rete --offline
 python3 tools/test.py --local --offline
 python3 tools/test.py --release --offline
 python3 tools/test.py --area movement --local --offline --list
+python3 tools/test.py --area movement --local --offline --no-headless
 ```
 
 Area runs include declared dependencies and mandatory safeguards. `--local` enables tests that need ignored local game data; without an area it selects the full existing converter inventory. `--release` selects the complete declared matrix. `--list` discovers the selected tests and reports `not_run`, never a pass. See `python3 tools/test.py --help` for fixture and budget options.
+
+Godot runs headless by default. `--no-headless` shows rendered gameplay launches
+on the current desktop and records that choice in the suite report. Import,
+editor validation, and short script checks stay headless because they do not
+render the game. Use visible mode for interactive movement development; the
+test supervisor still owns process deadlines and cleanup. `--headless` restores
+the default explicitly.
 
 The `movement` selection includes Cucumber functional scenarios in Orrery. The
 synthetic backend exercises the shared steps and mismatch reporting offline.

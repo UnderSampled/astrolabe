@@ -90,6 +90,8 @@ def main():
     parser.add_argument('--offline', action='store_true')
     parser.add_argument('--game', type=Path)
     parser.add_argument('--godot')
+    parser.add_argument('--headless', action=argparse.BooleanOptionalAction, default=True,
+                        help='run Godot gameplay headless (use --no-headless to show rendered gameplay)')
     parser.add_argument('--original-config', type=Path, help='existing private Hype fixture configuration')
     parser.add_argument('--nextest', default=os.environ.get('ASTROLABE_NEXTEST'))
     parser.add_argument('--timeout', type=float, help='job budget including build and cleanup; no universal cap')
@@ -111,6 +113,7 @@ def main():
     evidence.mkdir()
     environment = os.environ.copy()
     environment.update(PYTHONDONTWRITEBYTECODE='1', CARGO_TERM_COLOR='never')
+    environment['ASTROLABE_GODOT_HEADLESS'] = '1' if args.headless else '0'
     environment.setdefault('RUST_BACKTRACE', '1')
     if args.game:
         environment['ASTROLABE_GAME_DIR'] = str(args.game.resolve())
@@ -133,6 +136,7 @@ def main():
     environment['TMPDIR'] = str(temporary)
     handlers = {sig: signal.signal(sig, interrupted) for sig in (signal.SIGINT, signal.SIGTERM)}
     report = {'schema': 1, 'status': 'failed', 'suite': suite, 'areas': args.area,
+              'godot_headless': args.headless,
               'job_budget_seconds': budget, 'source_revision': None,
               'manifest_sha256': hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
               'selected': [], 'excluded': [], 'stages': [], 'results': {}, 'error': None}
@@ -152,7 +156,8 @@ def main():
         return result, stage_log
 
     try:
-        print(f'{suite}: budget {budget:g}s including build and cleanup; evidence {evidence}', flush=True)
+        print(f'{suite}: budget {budget:g}s including build and cleanup; '
+              f'Godot gameplay {"headless" if args.headless else "visible"}; evidence {evidence}', flush=True)
         if not tool:
             raise RuntimeError('cargo-nextest 0.9.145 is required; set ASTROLABE_NEXTEST or --nextest')
         result, version_log = stage('tool-version', [tool, 'nextest', '--version'], 5, False)

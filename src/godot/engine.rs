@@ -126,13 +126,48 @@ pub(super) fn strip_uids(text: &str) -> String {
     value
 }
 
-/// Bounded engine process. Redirected output avoids pipe deadlocks for verbose imports.
+/// Whether a gameplay launch should show its rendered window.
+pub fn gameplay_headless() -> Result<bool> {
+    Ok(match std::env::var("ASTROLABE_GODOT_HEADLESS").as_deref() {
+        Ok("0") => false,
+        Ok("1") | Err(std::env::VarError::NotPresent) => true,
+        _ => anyhow::bail!("ASTROLABE_GODOT_HEADLESS must be 0 or 1"),
+    })
+}
+
+/// Bounded editor, import, and script validation. These checks do not render gameplay.
 pub fn run_godot(godot: &str, project: &Path, args: &[&str], timeout: Duration) -> Result<String> {
+    run_godot_with_display(godot, project, args, timeout, false)
+}
+
+/// Bounded gameplay launch. `--no-headless` shows the exported scene.
+pub fn run_godot_gameplay(
+    godot: &str,
+    project: &Path,
+    args: &[&str],
+    timeout: Duration,
+) -> Result<String> {
+    run_godot_with_display(godot, project, args, timeout, true)
+}
+
+fn run_godot_with_display(
+    godot: &str,
+    project: &Path,
+    args: &[&str],
+    timeout: Duration,
+    gameplay: bool,
+) -> Result<String> {
+    let headless = !gameplay || gameplay_headless()?;
+    let effective_args = args
+        .iter()
+        .copied()
+        .filter(|arg| headless || *arg != "--headless")
+        .collect::<Vec<_>>();
     let log = tempfile::tempfile()?;
     let mut child = Command::new(godot)
         .arg("--path")
         .arg(project)
-        .args(args)
+        .args(&effective_args)
         .stdout(Stdio::from(log.try_clone()?))
         .stderr(Stdio::from(log.try_clone()?))
         .spawn()
@@ -154,7 +189,7 @@ pub fn run_godot(godot: &str, project: &Path, args: &[&str], timeout: Duration) 
                 anyhow::bail!("Godot exceeded 8MiB diagnostic limit (truncated): {output}");
             }
             anyhow::bail!(
-                "Godot {args:?} in {} exceeded {}s deadline (log capped at 64KiB): {output}",
+                "Godot {effective_args:?} in {} exceeded {}s deadline (log capped at 64KiB): {output}",
                 project.display(),
                 timeout.as_secs()
             );

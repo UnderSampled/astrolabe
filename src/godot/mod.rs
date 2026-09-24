@@ -13,7 +13,7 @@ mod publication;
 mod resources;
 mod scene;
 pub mod support;
-pub use engine::run_godot;
+pub use engine::{gameplay_headless, run_godot, run_godot_gameplay};
 pub use project::Project;
 
 /// Godot is Y-up and right-handed. Canonical Hype values remain untouched.
