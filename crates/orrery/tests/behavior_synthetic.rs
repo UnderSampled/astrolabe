@@ -8,11 +8,12 @@ fn synthetic_movement_uses_shared_bdd_steps_and_report_pending_godot() -> anyhow
         "Turning while standing",
         "Walking and stopping",
         "Running instead of walking",
+        "A wall blocks movement",
     ])?;
     let suite: serde_json::Value = serde_json::from_slice(&std::fs::read(&shared.suite_report)?)?;
     assert_eq!(suite["status"], "passed");
     assert_eq!(suite["launch_count"], 0);
-    assert_eq!(suite["completed_reports"].as_array().map(Vec::len), Some(3));
+    assert_eq!(suite["completed_reports"].as_array().map(Vec::len), Some(4));
     let shared_turn: serde_json::Value =
         serde_json::from_slice(&std::fs::read(&shared.scenario_reports[0])?)?;
     let shared_walk: serde_json::Value =
@@ -22,6 +23,7 @@ fn synthetic_movement_uses_shared_bdd_steps_and_report_pending_godot() -> anyhow
         "Turning while standing",
         "Walking and stopping",
         "Running instead of walking",
+        "A wall blocks movement",
     ] {
         let path = behavior_steps::run_scenario(scenario)?;
         let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
@@ -37,6 +39,18 @@ fn synthetic_movement_uses_shared_bdd_steps_and_report_pending_godot() -> anyhow
     let mut godot = source.clone();
     godot.backend = "godot".into();
     assert_eq!(behavior::compare_results(&source, &godot)?.status, "passed");
+    source.samples[1].action = Some(78);
+    source.assertions = behavior::assertions(source.scenario, &source.samples)?;
+    godot.samples[1].action = Some(32);
+    godot.assertions = behavior::assertions(godot.scenario, &godot.samples)?;
+    let walk_phase_comparison = behavior::compare_results(&source, &godot)?;
+    assert_eq!(walk_phase_comparison.status, "passed");
+    assert!(
+        walk_phase_comparison
+            .checks
+            .iter()
+            .any(|check| check.name == "held_walk_phase_compatible" && check.passed)
+    );
     let mut run_source =
         behavior_steps::synthetic_result(behavior::recording(Scenario::RunVsWalk))?;
     run_source.backend = "openspace".into();
@@ -45,6 +59,28 @@ fn synthetic_movement_uses_shared_bdd_steps_and_report_pending_godot() -> anyhow
     run_godot.backend = "godot".into();
     assert_eq!(
         behavior::compare_results(&run_source, &run_godot)?.status,
+        "passed"
+    );
+    run_source.samples[1].action = Some(78);
+    run_source.assertions = behavior::assertions(run_source.scenario, &run_source.samples)?;
+    run_godot.samples[1].action = Some(32);
+    run_godot.assertions = behavior::assertions(run_godot.scenario, &run_godot.samples)?;
+    let run_phase_comparison = behavior::compare_results(&run_source, &run_godot)?;
+    assert_eq!(run_phase_comparison.status, "passed");
+    assert!(
+        run_phase_comparison
+            .checks
+            .iter()
+            .any(|check| check.name == "walk_held_phase_compatible" && check.passed)
+    );
+    let mut wall_source =
+        behavior_steps::synthetic_result(behavior::recording(Scenario::WallContact))?;
+    wall_source.backend = "openspace".into();
+    wall_source.cleanup_complete = true;
+    let mut wall_godot = wall_source.clone();
+    wall_godot.backend = "godot".into();
+    assert_eq!(
+        behavior::compare_results(&wall_source, &wall_godot)?.status,
         "passed"
     );
     let mut turn_source =

@@ -102,6 +102,9 @@ through a different input/focus schedule and is not the BDD result.
 
 ## Wall-contact candidate and remaining debt
 
+The finite-face oracle, source and Godot corner probes, and first wall BDD
+result are tracked in [the wall-contact note](./wall-contact-2026-09-24.md).
+
 A disposable Godot geometry probe from the supplied-save pose followed the
 measured clear-route direction, approximately `(-0.965, 0, -0.263)` in Godot
 coordinates. Middle and upper rays hit the saved static body
@@ -134,12 +137,17 @@ and sustained blockage, but segmented input and stopped-byte capture do not
 prove an uninterrupted contact interval. The original screenshot is
 `/home/stephen/Projects/hype-harness/local/orrery-runs/run-1790234371304234345/screen-1790234438957593297.png`.
 
-The next contact test needs source-owned identification of the blocking faces
-and actor shape, signed actor-to-surface clearance, and a
-held-contact trace with floor and lateral checks. A screenshot while holding
-Up should corroborate the trace. The current camera wrapper is a presentation
-aid for gameplay observation; camera FoV and placement belong to the separate
-post-magick camera slice.
+The subsequent wall scenario identifies the two finite source faces and
+Hype's movement spheres, checks sphere-to-face clearance and held-contact
+stability, and corroborates contact through Godot's native collision report.
+A fresh exported Godot wall run passed all 18 assertions after setting the
+native character's minimum wall slide angle to zero
+(`/tmp/astrolabe-wall-contact-bdd-fresh/behavior-wall-contact-1790236718344678055.json`).
+The original fixed-duration Given once turned too far and missed the corner;
+the [wall-contact note](./wall-contact-2026-09-24.md) records the physical
+heading corrections now under original-game validation. The current camera
+wrapper is a presentation aid for gameplay observation; camera FoV and
+placement belong to the separate camera slice.
 
 The shared recording still encodes paired trials as an optional preparatory
 trial inside a functional recording, and the original menu reload uses
@@ -164,3 +172,47 @@ original suite (`1790234256118531807`) passed all checks: 17/17 turn,
 artifacts retain the exact checks and matching recording hashes. These are
 functional elapsed-time comparisons; input-consumer timing and completed
 render pairing remain pending.
+
+A later four-scenario original run passed turn and walk but failed the paired
+run setup's `equivalent_heading_rad` check: two separate physical 500 ms Left
+turns from the same supplied-save pose settled at -1.73695 and -1.86262
+radians, 0.12566 apart versus the 0.08 bound. A prior passing pair settled
+at -1.77046 and -1.76767. The clear-route Given now targets -1.77 ±0.035
+by reading the settled heading and applying bounded physical turn pulses when
+needed. It records every correction. The full original four-scenario rerun
+passed in 115.16 seconds with one shared game launch and complete cleanup
+(`TestResults/original-four-movement-20260924/behavior-suite-1790237298354606540.json`).
+The paired walk/run headings were -1.77325 and -1.77884, only about 0.0056
+radians apart; run-versus-walk passed all 17 assertions. Turn, walk and wall
+contact passed 7/7, 10/10 and 16/16 assertions respectively. The full
+fresh-export Godot four-scenario suite also passed in one engine launch with
+complete cleanup (`TestResults/fresh-four-movement-20260924`, session
+`1790237492624866771`). Its test body took 256.21 seconds, including import,
+export, startup, scenarios and cleanup; the manifest's Godot per-test timeout
+was raised from 240 to 360 seconds to cover this observed run with reserve.
+
+In the first comparison of these complete suites, turn, run-versus-walk and
+wall contact passed 17/17, 36/36 and 23/23 checks. Walk-and-stop matched
+positions and heading but its 450 ms held sample caught original walk-entry
+action 78 and Godot sustained walk action 32. The source scripts use 78 in
+normal 4 to enter walking, then 32 in normal 5; the independent walk scenario
+already accepts both as active walking. The comparator now checks that same
+source-backed walking phase at held-walk checkpoints in both walk-and-stop
+and the preparatory walk of run-versus-walk. All other action checkpoints
+remain exact and raw IDs remain in the reports.
+The refreshed four-pair comparison passed with matching recording hashes:
+17/17 turn, 17/17 walk, 36/36 run-versus-walk and 23/23 wall-contact
+checks. Exact action IDs and both elapsed-time captures remain available in
+their independent backend reports; this is functional comparison, not an
+input-consumer frame or completed-render parity claim.
+The four comparison JSON files are retained locally under
+`TestResults/comparisons-20260924/`.
+
+The supervised focused movement gate selected 56 checks and passed all 56
+in 389.53 seconds, including both four-scenario engine BDD tests and mandatory
+safeguards (`TestResults/20260924T082252.694345Z-development.log.json`). It
+excluded 88 unrelated checks and reported 33 inventory skips. Its original
+and Godot BDD tests took 113.048 and 160.001 seconds, each with one launch
+and complete cleanup; the overall run stayed within its 480-second budget.
+The supervised run's fresh comparison reports are also under
+`TestResults/comparisons-20260924/`.

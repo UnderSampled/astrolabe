@@ -13,6 +13,7 @@ use std::{
 };
 
 pub mod godot;
+mod wall;
 
 #[cfg(target_os = "linux")]
 use crate::{config::Config, orrery::NativeController};
@@ -24,6 +25,8 @@ pub const WALK_START_ACTION: u32 = 78;
 pub const RUN_FORWARD_ACTION: u32 = 33;
 pub const RUN_START_ACTION: u32 = 79;
 pub const ORIGINAL_STARTUP_SETTLE_MS: u64 = 2_500;
+const CLEAR_ROUTE_TARGET_HEADING_RAD: f64 = -1.77;
+const CLEAR_ROUTE_HEADING_TOLERANCE_RAD: f64 = 0.035;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -31,6 +34,7 @@ pub enum Scenario {
     TurnReleaseIdle,
     WalkReleaseStop,
     RunVsWalk,
+    WallContact,
 }
 impl Scenario {
     pub fn slug(self) -> &'static str {
@@ -38,11 +42,12 @@ impl Scenario {
             Self::TurnReleaseIdle => "turn-release-idle",
             Self::WalkReleaseStop => "walk-release-stop",
             Self::RunVsWalk => "run-vs-walk",
+            Self::WallContact => "wall-contact",
         }
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TimedInput {
     pub at_ms: u64,
@@ -50,7 +55,7 @@ pub struct TimedInput {
     pub event: Event,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SamplePoint {
     pub at_ms: u64,
@@ -83,11 +88,15 @@ impl FunctionalRecording {
             Scenario::WalkReleaseStop | Scenario::RunVsWalk => {
                 "manoir-clear-route-after-physical-left-turn"
             }
+            Scenario::WallContact => "manoir-corner-after-physical-left-turn",
         };
         ensure!(
             self.ready_state == expected_ready_state,
             "unknown ready state"
         );
+        if self.scenario == Scenario::WallContact {
+            return wall::validate(self);
+        }
         if self.scenario == Scenario::RunVsWalk {
             let walk = self
                 .preparatory_trial
@@ -156,6 +165,9 @@ impl FunctionalRecording {
 }
 
 pub fn recording(scenario: Scenario) -> FunctionalRecording {
+    if scenario == Scenario::WallContact {
+        return wall::recording();
+    }
     if scenario == Scenario::RunVsWalk {
         let samples = [
             (0, "baseline"),
@@ -203,6 +215,7 @@ pub fn recording(scenario: Scenario) -> FunctionalRecording {
         Scenario::TurnReleaseIdle => (Key::ArrowLeft, 600, 700, 2_500, 2_900),
         Scenario::WalkReleaseStop => (Key::ArrowUp, 450, 900, 2_200, 2_600),
         Scenario::RunVsWalk => unreachable!(),
+        Scenario::WallContact => unreachable!(),
     };
     FunctionalRecording {
         schema: 1,
@@ -211,6 +224,7 @@ pub fn recording(scenario: Scenario) -> FunctionalRecording {
             Scenario::TurnReleaseIdle => "supplied-english-save-manoir",
             Scenario::WalkReleaseStop => "manoir-clear-route-after-physical-left-turn",
             Scenario::RunVsWalk => unreachable!(),
+            Scenario::WallContact => unreachable!(),
         }
         .into(),
         inputs: vec![
@@ -383,6 +397,13 @@ fn heading_delta(a: &ActorSample, b: &ActorSample) -> f64 {
     let difference = b.heading_rad - a.heading_rad;
     difference.sin().atan2(difference.cos()).abs()
 }
+fn heading_error_to(target: f64, actual: f64) -> f64 {
+    let difference = target - actual;
+    difference.sin().atan2(difference.cos())
+}
+fn correction_hold_ms(error: f64) -> u64 {
+    ((error.abs() / 3.0) * 1_000.0).round().clamp(50.0, 100.0) as u64
+}
 fn action_is(sample: &ActorSample, action: u32) -> f64 {
     f64::from(u8::from(sample.action == Some(action)))
 }
@@ -408,6 +429,9 @@ fn running_action_is_active(sample: &ActorSample) -> f64 {
 /// observation saw about 80 degrees/500 ms Left and 4.1 source units/1.8 s Up.
 /// These broad limits classify motion without claiming timing or pixel parity.
 pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Assertion>> {
+    if scenario == Scenario::WallContact {
+        return wall::assertions(samples);
+    }
     if scenario == Scenario::RunVsWalk {
         return run_comparison_assertions(samples);
     }
@@ -441,6 +465,7 @@ pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Ass
                 Scenario::TurnReleaseIdle => action_is(held, TURN_LEFT_ACTION),
                 Scenario::WalkReleaseStop => walking_action_is_active(held),
                 Scenario::RunVsWalk => unreachable!(),
+                Scenario::WallContact => unreachable!(),
             },
             Some(1.),
             Some(1.),
@@ -527,6 +552,7 @@ pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Ass
             ]);
         }
         Scenario::RunVsWalk => unreachable!(),
+        Scenario::WallContact => unreachable!(),
     }
     Ok(checks)
 }
@@ -732,10 +758,10 @@ pub fn compare_results(
     );
     openspace.require_pass()?;
     godot.require_pass()?;
-    let expected_samples = if openspace.scenario == Scenario::RunVsWalk {
-        10
-    } else {
-        5
+    let expected_samples = match openspace.scenario {
+        Scenario::TurnReleaseIdle | Scenario::WalkReleaseStop => 5,
+        Scenario::RunVsWalk => 10,
+        Scenario::WallContact => 7,
     };
     ensure!(
         openspace.samples.len() == godot.samples.len()
@@ -748,13 +774,36 @@ pub fn compare_results(
             source.name == target.name,
             "comparison sample order differs"
         );
-        checks.push(bound(
-            &format!("{}_action_match", source.name),
-            f64::from(u8::from(source.action == target.action)),
-            Some(1.),
-            Some(1.),
-            "canonical action identity at the same named checkpoint",
-        ));
+        let held_walk_phase = match openspace.scenario {
+            Scenario::WalkReleaseStop => source.name == "held",
+            Scenario::RunVsWalk => source.name == "walk_held",
+            _ => false,
+        };
+        if held_walk_phase {
+            // The source 78 entry action and 32 sustained action are both
+            // active walking at this elapsed-time checkpoint. Exact IDs stay
+            // in the backend reports; consumption-frame parity is not claimed.
+            let check_name = if openspace.scenario == Scenario::RunVsWalk {
+                "walk_held_phase_compatible"
+            } else {
+                "held_walk_phase_compatible"
+            };
+            checks.push(bound(
+                check_name,
+                walking_action_is_active(source) * walking_action_is_active(target),
+                Some(1.),
+                Some(1.),
+                "source normal 4 walk entry (78) leads to normal 5 walk (32)",
+            ));
+        } else {
+            checks.push(bound(
+                &format!("{}_action_match", source.name),
+                f64::from(u8::from(source.action == target.action)),
+                Some(1.),
+                Some(1.),
+                "canonical action identity at the same named checkpoint",
+            ));
+        }
         let origin = if openspace.scenario == Scenario::RunVsWalk && index >= 5 {
             5
         } else {
@@ -896,11 +945,18 @@ impl BackendResult {
                 "backend sample contains nonfinite coordinates"
             );
         }
-        for offset in (0..self.samples.len()).step_by(5) {
+        let settled_windows: &[(usize, usize)] = if self.scenario == Scenario::WallContact {
+            &[(5, 6)]
+        } else if self.scenario == Scenario::RunVsWalk {
+            &[(3, 4), (8, 9)]
+        } else {
+            &[(3, 4)]
+        };
+        for &(start, end) in settled_windows {
             ensure!(
-                self.samples[offset + 4]
+                self.samples[end]
                     .capture_start_ms
-                    .saturating_sub(self.samples[offset + 3].capture_end_ms)
+                    .saturating_sub(self.samples[start].capture_end_ms)
                     >= 300,
                 "settled observation window was shortened by late sampling"
             );
@@ -946,6 +1002,7 @@ pub struct OriginalBackend {
 enum OriginalReadyState {
     FreshSave,
     ClearRoute,
+    WallRoute,
     TurnedLeft {
         settled: ActorSample,
         recording_sha256: String,
@@ -1195,23 +1252,189 @@ impl OriginalBackend {
         thread::sleep(Duration::from_millis(1_800));
         let after = self.controller.game()?.observe_main_actor()?;
         let before = ActorSample::from_actor("setup_before".into(), 0, 0, 0, before)?;
-        let after = ActorSample::from_actor("setup_after".into(), 0, 0, 0, after)?;
+        let mut after = ActorSample::from_actor("setup_after".into(), 0, 0, 0, after)?;
+        let mut corrections = Vec::new();
+        for _ in 0..6 {
+            let error = heading_error_to(CLEAR_ROUTE_TARGET_HEADING_RAD, after.heading_rad);
+            if error.abs() <= CLEAR_ROUTE_HEADING_TOLERANCE_RAD {
+                break;
+            }
+            let (key, direction) = if error > 0.0 {
+                (Key::ArrowLeft, "left")
+            } else {
+                (Key::ArrowRight, "right")
+            };
+            let hold_ms = correction_hold_ms(error);
+            let heading_before = after.heading_rad;
+            let pulse = Instant::now();
+            self.controller.game()?.physical_events(&[Event {
+                keyboard: 0,
+                key,
+                edge: Edge::Press,
+            }])?;
+            thread::sleep(Duration::from_millis(hold_ms));
+            self.controller.game()?.physical_events(&[Event {
+                keyboard: 0,
+                key,
+                edge: Edge::Release,
+            }])?;
+            let actual_hold_ms = pulse.elapsed().as_millis() as u64;
+            thread::sleep(Duration::from_millis(1_800));
+            after = ActorSample::from_actor(
+                "setup_corrected".into(),
+                0,
+                0,
+                0,
+                self.controller.game()?.observe_main_actor()?,
+            )?;
+            corrections.push(serde_json::json!({
+                "direction": direction,
+                "planned_hold_ms": hold_ms,
+                "actual_hold_ms": actual_hold_ms,
+                "settle_ms": 1_800,
+                "heading_before_rad": heading_before,
+                "heading_after_rad": after.heading_rad,
+            }));
+        }
         let heading_change = heading_delta(&before, &after);
         let translation = distance_xy(&before, &after);
         ensure!(
-            after.action == Some(IDLE_ACTION) && heading_change > 0.6 && translation < 0.4,
-            "clear-path setup did not produce stationary idle turn: action {:?}, heading {heading_change}, translation {translation}",
-            after.action
+            after.action == Some(IDLE_ACTION)
+                && heading_error_to(CLEAR_ROUTE_TARGET_HEADING_RAD, after.heading_rad).abs()
+                    <= CLEAR_ROUTE_HEADING_TOLERANCE_RAD
+                && heading_change > 0.6
+                && translation < 0.4,
+            "clear-path setup did not produce target idle turn: action {:?}, heading {heading_change}, final yaw {}, target {}, translation {translation}",
+            after.action,
+            after.heading_rad,
+            CLEAR_ROUTE_TARGET_HEADING_RAD,
         );
         self.setup_interventions.push(serde_json::json!({
             "reason": "supplied manor save faces a barred gate; orient toward measured clear route",
             "method": "private XTest physical ArrowLeft press and release",
             "press_ms": press_ms, "release_ms": release_ms,
             "settle_ms": 1_800, "heading_change_rad": heading_change,
+            "heading_target_rad": CLEAR_ROUTE_TARGET_HEADING_RAD,
+            "heading_tolerance_rad": CLEAR_ROUTE_HEADING_TOLERANCE_RAD,
+            "corrections": corrections,
             "translation_xy": translation,
             "before": before, "after": after,
         }));
         self.ready_state = OriginalReadyState::ClearRoute;
+        Ok(())
+    }
+
+    pub fn face_wall(&mut self) -> Result<()> {
+        let reload = if matches!(self.ready_state, OriginalReadyState::Finished) {
+            Some(self.reload_saved_state()?)
+        } else {
+            None
+        };
+        ensure!(
+            matches!(self.ready_state, OriginalReadyState::FreshSave),
+            "corner setup requires the supplied save"
+        );
+        self.setup_interventions.clear();
+        if let Some(reload) = reload {
+            self.setup_interventions.push(reload);
+        }
+        self.setup_interventions.push(wall::oracle());
+        let before = ActorSample::from_actor(
+            "wall_setup_before".into(),
+            0,
+            0,
+            0,
+            self.controller.game()?.observe_main_actor()?,
+        )?;
+        self.controller.game()?.prepare_physical_input()?;
+        let origin = Instant::now();
+        self.controller.game()?.physical_events(&[Event {
+            keyboard: 0,
+            key: Key::ArrowLeft,
+            edge: Edge::Press,
+        }])?;
+        thread::sleep(Duration::from_millis(250));
+        self.controller.game()?.physical_events(&[Event {
+            keyboard: 0,
+            key: Key::ArrowLeft,
+            edge: Edge::Release,
+        }])?;
+        let release_ms = origin.elapsed().as_millis() as u64;
+        thread::sleep(Duration::from_millis(1_800));
+        let mut after = ActorSample::from_actor(
+            "wall_setup_after".into(),
+            0,
+            0,
+            0,
+            self.controller.game()?.observe_main_actor()?,
+        )?;
+        let mut corrections = Vec::new();
+        for _ in 0..6 {
+            let error = wall::heading_error(after.heading_rad);
+            if error.abs() <= wall::HEADING_TOLERANCE_RAD {
+                break;
+            }
+            let (key, direction) = if error > 0.0 {
+                (Key::ArrowLeft, "left")
+            } else {
+                (Key::ArrowRight, "right")
+            };
+            let hold_ms = correction_hold_ms(error);
+            let heading_before = after.heading_rad;
+            let pulse = Instant::now();
+            self.controller.game()?.physical_events(&[Event {
+                keyboard: 0,
+                key,
+                edge: Edge::Press,
+            }])?;
+            thread::sleep(Duration::from_millis(hold_ms));
+            self.controller.game()?.physical_events(&[Event {
+                keyboard: 0,
+                key,
+                edge: Edge::Release,
+            }])?;
+            let actual_hold_ms = pulse.elapsed().as_millis() as u64;
+            thread::sleep(Duration::from_millis(1_800));
+            after = ActorSample::from_actor(
+                "wall_setup_corrected".into(),
+                0,
+                0,
+                0,
+                self.controller.game()?.observe_main_actor()?,
+            )?;
+            corrections.push(serde_json::json!({
+                "direction": direction,
+                "planned_hold_ms": hold_ms,
+                "actual_hold_ms": actual_hold_ms,
+                "settle_ms": 1_800,
+                "heading_before_rad": heading_before,
+                "heading_after_rad": after.heading_rad,
+            }));
+        }
+        let heading = heading_delta(&before, &after);
+        let distance = distance_xy(&before, &after);
+        ensure!(
+            after.action == Some(IDLE_ACTION)
+                && wall::heading_error(after.heading_rad).abs() <= wall::HEADING_TOLERANCE_RAD
+                && (0.25..=1.4).contains(&heading)
+                && distance < 0.4,
+            "corner setup did not reach the source route: heading {heading}, final yaw {}, target {}, distance {distance}, action {:?}",
+            after.heading_rad,
+            wall::TARGET_HEADING_RAD,
+            after.action
+        );
+        self.setup_interventions.push(serde_json::json!({
+            "method": "physical_left_turn_to_manor_corner",
+            "planned_hold_ms": 250,
+            "release_ms": release_ms,
+            "settle_ms": 1_800,
+            "heading_target_rad": wall::TARGET_HEADING_RAD,
+            "heading_tolerance_rad": wall::HEADING_TOLERANCE_RAD,
+            "corrections": corrections,
+            "before": before,
+            "after": after,
+        }));
+        self.ready_state = OriginalReadyState::WallRoute;
         Ok(())
     }
 
@@ -1220,11 +1443,17 @@ impl OriginalBackend {
         inputs: &[TimedInput],
         points: &[SamplePoint],
         prefix: &str,
-    ) -> Result<(Vec<DeliveredInput>, Vec<ActorSample>)> {
+        screenshot_at: Option<&str>,
+    ) -> Result<(
+        Vec<DeliveredInput>,
+        Vec<ActorSample>,
+        Option<serde_json::Value>,
+    )> {
         self.controller.game()?.prepare_physical_input()?;
         let origin = Instant::now();
         let mut delivered = vec![];
         let mut samples = vec![];
+        let mut held_screenshot = None;
         let mut actions = inputs
             .iter()
             .map(|v| (v.at_ms, 0_u8, v.id.as_str()))
@@ -1273,15 +1502,21 @@ impl OriginalBackend {
                     capture_end_ms,
                     actor,
                 )?);
+                if screenshot_at == Some(name) {
+                    held_screenshot = Some(self.controller.game()?.screenshot()?);
+                }
             }
         }
-        Ok((delivered, samples))
+        Ok((delivered, samples, held_screenshot))
     }
 
     pub fn run(&mut self, recording: FunctionalRecording) -> Result<BackendResult> {
         recording.validate()?;
         if recording.scenario == Scenario::RunVsWalk {
             return self.run_comparison(recording);
+        }
+        if recording.scenario == Scenario::WallContact {
+            return self.run_wall_contact(recording);
         }
         ensure!(
             matches!(
@@ -1291,7 +1526,8 @@ impl OriginalBackend {
             ),
             "the selected scenario's Given setup was not established"
         );
-        let (delivered, samples) = self.execute_trial(&recording.inputs, &recording.samples, "")?;
+        let (delivered, samples, _) =
+            self.execute_trial(&recording.inputs, &recording.samples, "", None)?;
         let screenshot = self.controller.game()?.screenshot()?;
         let checks = assertions(recording.scenario, &samples)?;
         let status = if checks.iter().all(|c| c.passed) {
@@ -1338,8 +1574,8 @@ impl OriginalBackend {
         );
         let walk = recording.preparatory_trial.as_ref().unwrap();
         let initial_setup = self.setup_interventions.clone();
-        let (mut delivered, mut samples) =
-            self.execute_trial(&walk.inputs, &walk.samples, "walk_")?;
+        let (mut delivered, mut samples, _) =
+            self.execute_trial(&walk.inputs, &walk.samples, "walk_", None)?;
         let walk_screenshot = self.controller.game()?.screenshot()?;
         let reload = self.reload_saved_state()?;
         self.face_clear_path()?;
@@ -1351,8 +1587,8 @@ impl OriginalBackend {
         }));
         setup_interventions.push(reload);
         setup_interventions.extend(self.setup_interventions.clone());
-        let (run_delivered, run_samples) =
-            self.execute_trial(&recording.inputs, &recording.samples, "run_")?;
+        let (run_delivered, run_samples, _) =
+            self.execute_trial(&recording.inputs, &recording.samples, "run_", None)?;
         delivered.extend(run_delivered);
         samples.extend(run_samples);
         let screenshot = self.controller.game()?.screenshot()?;
@@ -1379,6 +1615,47 @@ impl OriginalBackend {
             samples,
             assertions: checks,
             screenshot: Some(screenshot),
+            cleanup_complete: false,
+            error: None,
+        };
+        self.ready_state = OriginalReadyState::Finished;
+        Ok(result)
+    }
+
+    fn run_wall_contact(&mut self, recording: FunctionalRecording) -> Result<BackendResult> {
+        ensure!(
+            matches!(self.ready_state, OriginalReadyState::WallRoute),
+            "wall recording needs the verified manor corner route"
+        );
+        let (delivered, samples, screenshot) = self.execute_trial(
+            &recording.inputs,
+            &recording.samples,
+            "",
+            Some("contact_end"),
+        )?;
+        let checks = assertions(recording.scenario, &samples)?;
+        let status = if checks.iter().all(|check| check.passed) {
+            "passed"
+        } else {
+            "failed"
+        };
+        let result = BackendResult {
+            backend: "openspace".into(),
+            scenario: recording.scenario,
+            status: status.into(),
+            recording_sha256: recording.sha256()?,
+            recording,
+            executable_sha256: Some(self.config.exe_sha256.clone()),
+            save_sha256: Some(self.config.save_sha256.clone()),
+            loaded_level: Some("manoir".into()),
+            setup_interventions: self.setup_interventions.clone(),
+            input_delivery: "private_x11_xtest_physical_edges".into(),
+            observation_consistency: "stopped_bytes_no_completed_update_claim".into(),
+            completed_update: false,
+            delivered,
+            samples,
+            assertions: checks,
+            screenshot,
             cleanup_complete: false,
             error: None,
         };

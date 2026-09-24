@@ -9,10 +9,11 @@ fn godot_movement_scenarios_share_saved_scene_and_brain() -> anyhow::Result<()> 
         "Turning while standing",
         "Walking and stopping",
         "Running instead of walking",
+        "A wall blocks movement",
     ])?;
     anyhow::ensure!(
-        evidence.scenario_reports.len() == 3,
-        "three Godot scenarios required"
+        evidence.scenario_reports.len() == 4,
+        "four Godot scenarios required"
     );
     let turn: serde_json::Value =
         serde_json::from_slice(&std::fs::read(&evidence.scenario_reports[0])?)?;
@@ -20,6 +21,8 @@ fn godot_movement_scenarios_share_saved_scene_and_brain() -> anyhow::Result<()> 
         serde_json::from_slice(&std::fs::read(&evidence.scenario_reports[1])?)?;
     let run: serde_json::Value =
         serde_json::from_slice(&std::fs::read(&evidence.scenario_reports[2])?)?;
+    let wall: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&evidence.scenario_reports[3])?)?;
     anyhow::ensure!(
         turn["session"]["id"] == walk["session"]["id"],
         "game session changed"
@@ -30,6 +33,11 @@ fn godot_movement_scenarios_share_saved_scene_and_brain() -> anyhow::Result<()> 
         "run Godot session changed"
     );
     anyhow::ensure!(run["session"]["launch_count"] == 1, "run restarted Godot");
+    anyhow::ensure!(
+        wall["session"]["id"] == turn["session"]["id"],
+        "wall Godot session changed"
+    );
+    anyhow::ensure!(wall["session"]["launch_count"] == 1, "wall restarted Godot");
     anyhow::ensure!(
         walk["result"]["setup_interventions"]
             .as_array()

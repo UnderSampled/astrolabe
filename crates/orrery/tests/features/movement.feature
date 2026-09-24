@@ -18,3 +18,9 @@ Feature: Moving through the manor
     Given a clear path is ahead of Hype
     When the player walks and runs from equivalent starts
     Then running moves Hype faster than walking
+
+  Scenario: A wall blocks movement
+    Given the manor corner is ahead of Hype
+    When the player keeps walking into the corner
+    Then Hype reaches the source wall without passing through it
+    And Hype stops at the corner and returns to standing after release

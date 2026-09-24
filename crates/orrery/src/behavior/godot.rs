@@ -1,8 +1,9 @@
 //! One persistent Godot process for the shared functional movement scenarios.
 //! The test wrapper sends physical key edges to the saved, compiled Hype Brain.
 use super::{
-    ActorSample, BackendResult, DeliveredInput, FunctionalRecording, IDLE_ACTION, SamplePoint,
-    Scenario, TimedInput, assertions, distance_xy, heading_delta,
+    ActorSample, BackendResult, CLEAR_ROUTE_HEADING_TOLERANCE_RAD, CLEAR_ROUTE_TARGET_HEADING_RAD,
+    DeliveredInput, FunctionalRecording, IDLE_ACTION, SamplePoint, Scenario, TimedInput,
+    assertions, correction_hold_ms, distance_xy, heading_delta, heading_error_to, wall,
 };
 use crate::replay::{Edge, Event, Key};
 use anyhow::{Context, Result, ensure};
@@ -36,6 +37,7 @@ const FIXTURE_BYTES: &[u8] =
 enum ReadyState {
     Fresh,
     ClearRoute,
+    WallRoute,
     TurnedLeft { settled: ActorSample, hash: String },
     Finished,
 }
@@ -368,20 +370,161 @@ impl GodotBackend {
             edge: Edge::Release,
         })?;
         thread::sleep(Duration::from_millis(1_800));
-        let after = self.observe("setup_after", 0, origin)?;
+        let mut after = self.observe("setup_after", 0, origin)?;
+        let mut corrections = Vec::new();
+        for _ in 0..6 {
+            let error = heading_error_to(CLEAR_ROUTE_TARGET_HEADING_RAD, after.heading_rad);
+            if error.abs() <= CLEAR_ROUTE_HEADING_TOLERANCE_RAD {
+                break;
+            }
+            let (key, direction) = if error > 0.0 {
+                (Key::ArrowLeft, "left")
+            } else {
+                (Key::ArrowRight, "right")
+            };
+            let hold_ms = correction_hold_ms(error);
+            let heading_before = after.heading_rad;
+            let pulse = Instant::now();
+            self.physical_event(&Event {
+                keyboard: 0,
+                key,
+                edge: Edge::Press,
+            })?;
+            thread::sleep(Duration::from_millis(hold_ms));
+            self.physical_event(&Event {
+                keyboard: 0,
+                key,
+                edge: Edge::Release,
+            })?;
+            let actual_hold_ms = pulse.elapsed().as_millis() as u64;
+            thread::sleep(Duration::from_millis(1_800));
+            after = self.observe("setup_corrected", 0, origin)?;
+            corrections.push(json!({
+                "direction": direction,
+                "planned_hold_ms": hold_ms,
+                "actual_hold_ms": actual_hold_ms,
+                "settle_ms": 1_800,
+                "heading_before_rad": heading_before,
+                "heading_after_rad": after.heading_rad,
+            }));
+        }
         let heading_change = heading_delta(&before, &after);
         let translation = distance_xy(&before, &after);
         ensure!(
-            after.action == Some(IDLE_ACTION) && heading_change > 0.6 && translation < 0.4,
-            "Godot clear-path turn did not reach the clear idle direction: {after:?}"
+            after.action == Some(IDLE_ACTION)
+                && heading_error_to(CLEAR_ROUTE_TARGET_HEADING_RAD, after.heading_rad).abs()
+                    <= CLEAR_ROUTE_HEADING_TOLERANCE_RAD
+                && heading_change > 0.6
+                && translation < 0.4,
+            "Godot clear-path turn did not reach the target idle direction {} ± {}: {after:?}",
+            CLEAR_ROUTE_TARGET_HEADING_RAD,
+            CLEAR_ROUTE_HEADING_TOLERANCE_RAD,
         );
         self.setup_interventions.push(json!({
             "method": "Godot physical ArrowLeft press and release",
             "press_ms": 0, "release_ms": 500, "settle_ms": 1_800,
+            "heading_target_rad": CLEAR_ROUTE_TARGET_HEADING_RAD,
+            "heading_tolerance_rad": CLEAR_ROUTE_HEADING_TOLERANCE_RAD,
+            "corrections": corrections,
             "heading_change_rad": heading_change, "translation_xy": translation,
             "before": before, "after": after,
         }));
         self.ready_state = ReadyState::ClearRoute;
+        Ok(())
+    }
+
+    pub fn face_wall(&mut self) -> Result<()> {
+        let reload = if matches!(self.ready_state, ReadyState::Finished) {
+            Some(self.reload_saved_state()?)
+        } else {
+            None
+        };
+        ensure!(
+            matches!(self.ready_state, ReadyState::Fresh),
+            "corner setup requires the supplied save"
+        );
+        self.setup_interventions = vec![self.fixture_intervention.clone()];
+        if let Some(reload) = reload {
+            self.setup_interventions.push(reload);
+        }
+        self.setup_interventions.push(wall::oracle());
+        let origin = Instant::now();
+        let before = self.observe("wall_setup_before", 0, origin)?;
+        self.physical_event(&Event {
+            keyboard: 0,
+            key: Key::ArrowLeft,
+            edge: Edge::Press,
+        })?;
+        thread::sleep(Duration::from_millis(250));
+        self.physical_event(&Event {
+            keyboard: 0,
+            key: Key::ArrowLeft,
+            edge: Edge::Release,
+        })?;
+        let release_ms = origin.elapsed().as_millis() as u64;
+        thread::sleep(Duration::from_millis(1_800));
+        let mut after = self.observe("wall_setup_after", 0, origin)?;
+        let mut corrections = Vec::new();
+        for _ in 0..6 {
+            let error = wall::heading_error(after.heading_rad);
+            if error.abs() <= wall::HEADING_TOLERANCE_RAD {
+                break;
+            }
+            let (key, direction) = if error > 0.0 {
+                (Key::ArrowLeft, "left")
+            } else {
+                (Key::ArrowRight, "right")
+            };
+            let hold_ms = correction_hold_ms(error);
+            let heading_before = after.heading_rad;
+            let pulse = Instant::now();
+            self.physical_event(&Event {
+                keyboard: 0,
+                key,
+                edge: Edge::Press,
+            })?;
+            thread::sleep(Duration::from_millis(hold_ms));
+            self.physical_event(&Event {
+                keyboard: 0,
+                key,
+                edge: Edge::Release,
+            })?;
+            let actual_hold_ms = pulse.elapsed().as_millis() as u64;
+            thread::sleep(Duration::from_millis(1_800));
+            after = self.observe("wall_setup_corrected", 0, origin)?;
+            corrections.push(json!({
+                "direction": direction,
+                "planned_hold_ms": hold_ms,
+                "actual_hold_ms": actual_hold_ms,
+                "settle_ms": 1_800,
+                "heading_before_rad": heading_before,
+                "heading_after_rad": after.heading_rad,
+            }));
+        }
+        let heading = heading_delta(&before, &after);
+        let distance = distance_xy(&before, &after);
+        ensure!(
+            after.action == Some(IDLE_ACTION)
+                && wall::heading_error(after.heading_rad).abs() <= wall::HEADING_TOLERANCE_RAD
+                && (0.25..=1.4).contains(&heading)
+                && distance < 0.4,
+            "Godot corner setup did not reach the source route: heading {heading}, final yaw {}, target {}, distance {distance}, action {:?}",
+            after.heading_rad,
+            wall::TARGET_HEADING_RAD,
+            after.action
+        );
+        self.setup_interventions.push(json!({
+            "method": "physical_left_turn_to_manor_corner",
+            "planned_hold_ms": 250,
+            "release_ms": release_ms,
+            "settle_ms": 1_800,
+            "heading_target_rad": wall::TARGET_HEADING_RAD,
+            "heading_tolerance_rad": wall::HEADING_TOLERANCE_RAD,
+            "corrections": corrections,
+            "before": before,
+            "after": after,
+        }));
+        self.ready_state = ReadyState::WallRoute;
         Ok(())
     }
 
@@ -390,10 +533,12 @@ impl GodotBackend {
         inputs: &[TimedInput],
         points: &[SamplePoint],
         prefix: &str,
-    ) -> Result<(Vec<DeliveredInput>, Vec<ActorSample>)> {
+        screenshot_at: Option<&str>,
+    ) -> Result<(Vec<DeliveredInput>, Vec<ActorSample>, Option<Value>)> {
         let origin = Instant::now();
         let mut delivered = vec![];
         let mut samples = vec![];
+        let mut held_screenshot = None;
         let mut actions = inputs
             .iter()
             .map(|v| (v.at_ms, 0_u8, v.id.as_str()))
@@ -425,9 +570,12 @@ impl GodotBackend {
                 });
             } else {
                 samples.push(self.observe(&format!("{prefix}{name}"), at_ms, origin)?);
+                if screenshot_at == Some(name) {
+                    held_screenshot = Some(self.screenshot("wall-contact-held")?);
+                }
             }
         }
-        Ok((delivered, samples))
+        Ok((delivered, samples, held_screenshot))
     }
 
     fn screenshot(&mut self, slug: &str) -> Result<Value> {
@@ -459,6 +607,9 @@ impl GodotBackend {
         if recording.scenario == Scenario::RunVsWalk {
             return self.run_comparison(recording);
         }
+        if recording.scenario == Scenario::WallContact {
+            return self.run_wall_contact(recording);
+        }
         ensure!(
             matches!(
                 (&self.ready_state, recording.scenario),
@@ -467,7 +618,8 @@ impl GodotBackend {
             ),
             "Godot Given setup is not established"
         );
-        let (delivered, samples) = self.execute_trial(&recording.inputs, &recording.samples, "")?;
+        let (delivered, samples, _) =
+            self.execute_trial(&recording.inputs, &recording.samples, "", None)?;
         let screenshot = self.screenshot(recording.scenario.slug())?;
         let checks = assertions(recording.scenario, &samples)?;
         let status = if checks.iter().all(|c| c.passed) {
@@ -516,8 +668,8 @@ impl GodotBackend {
         );
         let walk = recording.preparatory_trial.as_ref().unwrap();
         let initial_setup = self.setup_interventions.clone();
-        let (mut delivered, mut samples) =
-            self.execute_trial(&walk.inputs, &walk.samples, "walk_")?;
+        let (mut delivered, mut samples, _) =
+            self.execute_trial(&walk.inputs, &walk.samples, "walk_", None)?;
         let walk_screenshot = self.screenshot("run-comparison-walk")?;
         let reload = self.reload_saved_state()?;
         self.face_clear_path()?;
@@ -529,8 +681,8 @@ impl GodotBackend {
         }));
         setup_interventions.push(reload);
         setup_interventions.extend(self.setup_interventions.clone());
-        let (run_delivered, run_samples) =
-            self.execute_trial(&recording.inputs, &recording.samples, "run_")?;
+        let (run_delivered, run_samples, _) =
+            self.execute_trial(&recording.inputs, &recording.samples, "run_", None)?;
         delivered.extend(run_delivered);
         samples.extend(run_samples);
         let screenshot = self.screenshot("run-comparison-run")?;
@@ -559,6 +711,49 @@ impl GodotBackend {
             samples,
             assertions: checks,
             screenshot: Some(screenshot),
+            cleanup_complete: false,
+            error: None,
+        };
+        self.ready_state = ReadyState::Finished;
+        Ok(result)
+    }
+
+    fn run_wall_contact(&mut self, recording: FunctionalRecording) -> Result<BackendResult> {
+        ensure!(
+            matches!(self.ready_state, ReadyState::WallRoute),
+            "Godot wall recording needs the verified manor corner route"
+        );
+        let (delivered, samples, screenshot) = self.execute_trial(
+            &recording.inputs,
+            &recording.samples,
+            "",
+            Some("contact_end"),
+        )?;
+        let checks = assertions(recording.scenario, &samples)?;
+        let status = if checks.iter().all(|check| check.passed) {
+            "passed"
+        } else {
+            "failed"
+        };
+        let result = BackendResult {
+            backend: "godot".into(),
+            scenario: recording.scenario,
+            status: status.into(),
+            recording_sha256: recording.sha256()?,
+            recording,
+            executable_sha256: Some(self.project_sha256.clone()),
+            save_sha256: self.fixture_intervention["source_archive_sha256"]
+                .as_str()
+                .map(str::to_owned),
+            loaded_level: Some("manoir".into()),
+            setup_interventions: self.setup_interventions.clone(),
+            input_delivery: "godot_inputeventkey_physical_edges".into(),
+            observation_consistency: "rendered_frame_scene_observation".into(),
+            completed_update: false,
+            delivered,
+            samples,
+            assertions: checks,
+            screenshot,
             cleanup_complete: false,
             error: None,
         };

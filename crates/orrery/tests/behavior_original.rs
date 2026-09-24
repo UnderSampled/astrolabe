@@ -10,10 +10,11 @@ fn original_movement_scenarios_share_one_game_session() -> anyhow::Result<()> {
         "Turning while standing",
         "Walking and stopping",
         "Running instead of walking",
+        "A wall blocks movement",
     ])?;
     anyhow::ensure!(
-        evidence.scenario_reports.len() == 3,
-        "three scenario results required"
+        evidence.scenario_reports.len() == 4,
+        "four scenario results required"
     );
     let turn: serde_json::Value =
         serde_json::from_slice(&std::fs::read(&evidence.scenario_reports[0])?)?;
@@ -21,6 +22,8 @@ fn original_movement_scenarios_share_one_game_session() -> anyhow::Result<()> {
         serde_json::from_slice(&std::fs::read(&evidence.scenario_reports[1])?)?;
     let run: serde_json::Value =
         serde_json::from_slice(&std::fs::read(&evidence.scenario_reports[2])?)?;
+    let wall: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&evidence.scenario_reports[3])?)?;
     anyhow::ensure!(
         turn["session"]["id"] == walk["session"]["id"],
         "game session changed"
@@ -33,6 +36,14 @@ fn original_movement_scenarios_share_one_game_session() -> anyhow::Result<()> {
     anyhow::ensure!(
         run["session"]["launch_count"] == 1,
         "run restarted the game"
+    );
+    anyhow::ensure!(
+        wall["session"]["id"] == turn["session"]["id"],
+        "wall game session changed"
+    );
+    anyhow::ensure!(
+        wall["session"]["launch_count"] == 1,
+        "wall restarted the game"
     );
     anyhow::ensure!(
         walk["result"]["setup_interventions"][0]["method"] == "compatible_previous_scenario",

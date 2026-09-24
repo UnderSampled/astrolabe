@@ -35,6 +35,12 @@ impl SessionBackend {
             Self::Godot(backend) => backend.face_clear_path(),
         }
     }
+    fn face_wall(&mut self) -> Result<()> {
+        match self {
+            Self::Original(backend) => backend.face_wall(),
+            Self::Godot(backend) => backend.face_wall(),
+        }
+    }
     fn run(&mut self, recording: behavior::FunctionalRecording) -> Result<BackendResult> {
         match self {
             Self::Original(backend) => backend.run(recording),
@@ -223,6 +229,73 @@ pub fn synthetic_result(recording: behavior::FunctionalRecording) -> Result<Back
                 error: None,
             });
         }
+        Scenario::WallContact => {
+            let positions = [
+                ([-74.37866, 27.48651, 4.55087], 47),
+                ([-76.4, 29.5, 4.7], 32),
+                ([-79.82, 32.034, 5.007], 32),
+                ([-79.823, 32.034, 5.007], 32),
+                ([-79.823, 32.034, 5.007], 37),
+                ([-79.823, 32.034, 5.007], 47),
+                ([-79.823, 32.034, 5.007], 47),
+            ];
+            let samples = positions
+                .into_iter()
+                .zip(&recording.samples)
+                .map(|((position, action), point)| {
+                    let mut sample = ActorSample::from_actor(
+                        point.name.clone(),
+                        point.at_ms,
+                        point.at_ms,
+                        point.at_ms + 1,
+                        synthetic_actor(action, position, 0.),
+                    )?;
+                    sample.raw_observation = serde_json::json!({
+                        "on_floor": true,
+                        "slide_contacts": if point.name.starts_with("contact") {
+                            serde_json::json!([{"source_node_id": "world/1/5/0"}])
+                        } else { serde_json::json!([]) },
+                    });
+                    Ok(sample)
+                })
+                .collect::<Result<Vec<_>>>()?;
+            let checks = behavior::assertions(scenario, &samples)?;
+            let delivered = recording
+                .inputs
+                .iter()
+                .map(|input| behavior::DeliveredInput {
+                    id: input.id.clone(),
+                    planned_ms: input.at_ms,
+                    actual_ms: input.at_ms,
+                    event: input.event.clone(),
+                })
+                .collect();
+            return Ok(BackendResult {
+                backend: "synthetic".into(),
+                scenario,
+                status: if checks.iter().all(|check| check.passed) {
+                    "passed"
+                } else {
+                    "failed"
+                }
+                .into(),
+                recording_sha256: recording.sha256()?,
+                recording,
+                executable_sha256: None,
+                save_sha256: None,
+                loaded_level: Some("synthetic_manoir".into()),
+                input_delivery: "synthetic_fixture".into(),
+                observation_consistency: "synthetic".into(),
+                completed_update: false,
+                setup_interventions: vec![],
+                delivered,
+                samples,
+                assertions: checks,
+                screenshot: None,
+                cleanup_complete: true,
+                error: None,
+            });
+        }
     };
     let samples = recording
         .samples
@@ -292,6 +365,21 @@ fn clear_path(world: &mut BehaviorWorld) {
         if let Err(err) = result {
             world.failure = Some(err.to_string());
             panic!("clear-path setup failed: {err}")
+        }
+    }
+}
+
+#[given("the manor corner is ahead of Hype")]
+fn wall_path(world: &mut BehaviorWorld) {
+    if crate::BACKEND != Mode::Synthetic {
+        let result = world
+            .backend
+            .as_mut()
+            .context("behavior backend not started")
+            .and_then(SessionBackend::face_wall);
+        if let Err(err) = result {
+            world.failure = Some(err.to_string());
+            panic!("corner setup failed: {err}")
         }
     }
 }
@@ -369,6 +457,11 @@ fn walk(world: &mut BehaviorWorld) {
 #[when("the player walks and runs from equivalent starts")]
 fn run_vs_walk(world: &mut BehaviorWorld) {
     perform(world, Scenario::RunVsWalk);
+}
+
+#[when("the player keeps walking into the corner")]
+fn wall_contact(world: &mut BehaviorWorld) {
+    perform(world, Scenario::WallContact);
 }
 
 fn require_checks(world: &mut BehaviorWorld, names: &[&str]) {
@@ -459,11 +552,52 @@ fn ran_faster(world: &mut BehaviorWorld) {
     );
 }
 
+#[then("Hype reaches the source wall without passing through it")]
+fn reached_wall(world: &mut BehaviorWorld) {
+    require_checks(
+        world,
+        &[
+            "wall_approach_active",
+            "wall_approach_distance_xy",
+            "wall_cross_approach_clearance_change",
+            "wall_cross_contact_start_clearance",
+            "wall_cross_contact_end_clearance",
+            "wall_angled_contact_start_clearance",
+            "wall_angled_contact_end_clearance",
+            "wall_cross_sampled_min_clearance",
+            "wall_angled_sampled_min_clearance",
+        ],
+    );
+    if crate::BACKEND != Mode::Original {
+        require_checks(
+            world,
+            &["wall_native_named_contact", "wall_native_floor_contact"],
+        );
+    }
+}
+
+#[then("Hype stops at the corner and returns to standing after release")]
+fn stopped_at_wall(world: &mut BehaviorWorld) {
+    require_checks(
+        world,
+        &[
+            "wall_baseline_idle",
+            "wall_contact_start_active",
+            "wall_contact_end_active",
+            "wall_held_translation_xy",
+            "wall_held_height_change",
+            "wall_post_release_drift",
+            "wall_settled_idle",
+        ],
+    );
+}
+
 fn selected_scenario(name: &str) -> Result<Scenario> {
     Ok(match name {
         "Turning while standing" => Scenario::TurnReleaseIdle,
         "Walking and stopping" => Scenario::WalkReleaseStop,
         "Running instead of walking" => Scenario::RunVsWalk,
+        "A wall blocks movement" => Scenario::WallContact,
         _ => anyhow::bail!("unknown BDD scenario: {name}"),
     })
 }
@@ -548,7 +682,12 @@ fn run_selected(names: &[&'static str], shared_session: bool) -> Result<SessionE
                 )
                 .await
         });
-        if writer.passed_steps() < if name == "Walking and stopping" { 5 } else { 4 }
+        if writer.passed_steps()
+            < if matches!(name, "Walking and stopping" | "A wall blocks movement") {
+                5
+            } else {
+                4
+            }
             || writer.failed_steps() != 0
             || writer.skipped_steps() != 0
             || writer.parsing_errors() != 0

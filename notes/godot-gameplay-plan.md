@@ -2,9 +2,18 @@
 
 Direction after the 2026-09-14 rollback. This refines milestone 8 of
 [the main plan](../plan.md), within the existing [adapter architecture](../docs/astrolabe/rust-architecture.md)
-and [project ownership contract](../docs/astrolabe/godot-project.md). It is a plan, not completed
-player control. The archived whole-runtime implementation remains paused; the
+and [project ownership contract](../docs/astrolabe/godot-project.md). The archived
+whole-runtime implementation remains paused; the
 main plan's broad, runnable scaffolding rule still applies.
+
+2026-09-24 movement checkpoint: turn, walk, run-versus-walk and two-face wall
+contact pass independently in the original game and a fresh normal Godot
+export, each in one shared engine session. Their four functional cross-engine
+comparisons pass; the source wall contact differs by about 0.02 units at the
+held samples. The Godot gameplay camera is still a presentation wrapper, and
+render pairing, exact input-consumer timing and later gameplay slices remain
+open. See [run comparison](./run-comparison-2026-09-24.md) and
+[wall evidence](./wall-contact-2026-09-24.md).
 
 2026-09-22 planning update: use the preserved component/source-rule checkpoint,
 then build the runnable framework for the

@@ -1596,7 +1596,7 @@
       "kind": "gameplay",
       "prerequisites": ["disc", "godot"],
       "fixture": "normal Hype manoir export with saved Brain",
-      "timeout_seconds": 240,
+      "timeout_seconds": 360,
       "ignored": true,
       "release": true
     },

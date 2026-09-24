@@ -41,6 +41,10 @@ var playing: bool:
         else: animation_player.pause()
 
 func _ready() -> void:
+    if motion_enabled:
+        # The source actor rounds shallow contacts at finite wall edges.
+        # Godot's default 15-degree minimum stops Hype at the manoir wall end.
+        wall_min_slide_angle = 0.0
     if motion_enabled and gravity == Vector3.ZERO:
         # The first gameplay slice uses Godot's project gravity until the
         # source level's acceleration is measured against a live trajectory.

@@ -23,19 +23,21 @@ render the game. Use visible mode for interactive movement development; the
 test supervisor still owns process deadlines and cleanup. `--headless` restores
 the default explicitly.
 
-The `movement` selection includes Cucumber functional scenarios in Orrery. The
-synthetic backend exercises the shared steps and mismatch reporting offline.
+The `movement` selection includes four Cucumber functional scenarios in
+Orrery: turn and stop, walk and stop, run versus walk, and wall contact. The
+synthetic backend exercises their shared steps and mismatch reporting offline.
 With `--local` and the prepared original-game fixture, one ignored test runs
-turn–release–idle and walk–release–stop in order on one Hype process. A second
-ignored test runs those same scenarios on one normally exported Godot `manoir`
-scene with its saved Hype Brain and a labeled English-save state fixture. Each
-Cucumber scenario has independent assertions and a `behavior-*.json` result;
-its suite file links both results, records one launch and final cleanup. The
-walk verifies and uses the position and heading left by the successful turn.
-Single-scenario execution remains available through the same step runner.
-Backend results can be compared only after each passes independently. See the
-[dated design and evidence note](../../notes/behavior-suite-2026-09-23.md)
-for the declared setup, bounds and limits.
+all four in one Hype process. A second ignored test uses one Godot process with
+a normal `manoir` export, its saved Hype Brain, and a labeled English-save
+state fixture. Each scenario has independent assertions and a
+`behavior-*.json` result; the suite file links all four, records one launch,
+and verifies cleanup. Walk may inherit the successful turn's compatible state;
+run and wall restore the supplied save within the same process and establish
+their start with physical input. Single-scenario execution remains available
+through the same step runner. Backend reports are compared only after both
+pass independently. See the [run comparison](../../notes/run-comparison-2026-09-24.md)
+and [wall contact evidence](../../notes/wall-contact-2026-09-24.md) for bounds,
+results, and remaining visual/timing limits.
 
 Pair matching scenario reports with:
 

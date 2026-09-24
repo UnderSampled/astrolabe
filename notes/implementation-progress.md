@@ -5,19 +5,31 @@ on `codex/archive-openspace-runtime-20260914`. Active production code was restor
 to `d8d0375`; the coverage below describes that baseline. The retained
 [API research](./ai-api-assessment.md) informs the new [gameplay plan](./godot-gameplay-plan.md).
 **We MUST NOT reimplement the OpenSpace engine within Godot; implement the AI
-script API using native Godot facilities.** Player movement/combat is still
-unimplemented at this boundary. Existing local generated files were preserved
-and may use newer interfaces; validate fresh output in a disposable project.
+script API using native Godot facilities.** Player movement/combat was still
+unimplemented at that restoration boundary. Existing local generated files
+were preserved and may use newer interfaces; validate fresh output in a
+disposable project.
 
-Current work after that restoration is tracked in
-[Hype control progress](./hype-control-progress.md): native root motion/contact,
-action completion, typed action arrays and input bindings are implemented and
-tested. Native rule/reflex flow and behavior transitions are now implemented;
-Hype's full initialization and the remaining calls in its movement rules still
-need conversion. The playable walk/run checkpoint remains open. Current work
-uses Rete schema 25 and support interface 17. The 2026-09-20 checkpoint also
-preserves source turn/walk rule probes and character collision-profile work.
-Gameplay expansion is paused for improved testing/comparison infrastructure.
+As of 2026-09-24, the normal `manoir` export has saved Hype player movement
+through compiled AI, native root motion and contact. Four functional scenarios
+for turn, walk, run-versus-walk and wall contact pass independently on the
+original game and a fresh Godot export in shared sessions; all four
+cross-backend comparisons pass. The wall contact matches within about 0.02
+source units at its held samples. See the [comparison record](./run-comparison-2026-09-24.md)
+and [wall evidence](./wall-contact-2026-09-24.md). Jump, combat, magick,
+cliff/death and a real follow camera remain open. A playable combined demo
+has not yet been accepted.
+The focused supervised movement gate passed 56 selected checks in 389.53
+seconds with complete engine cleanup
+(`TestResults/20260924T082252.694345Z-development.log.json`).
+
+The earlier [Hype control progress](./hype-control-progress.md) checkpoint
+implemented and tested native root motion/contact, action completion, typed
+action arrays, input bindings, rule/reflex flow and behavior transitions.
+Hype's full initialization and remaining movement calls still needed
+conversion then. That checkpoint used Rete schema 25 and support interface
+17, preserved source turn/walk rule probes and character collision-profile
+work, and paused gameplay expansion for testing/comparison infrastructure.
 The rule probe now exports the transitive closure of its 14 required states,
 preserving its complete source-rule assertions and the separate full-family
 conversion tests. It passes within the existing Godot deadlines. A second probe
@@ -27,7 +39,7 @@ component checks, not complete player acceptance. The focused movement job
 passed 28 tests in 210.554 seconds; the strengthened reopened-Rete runtime
 safeguards passed eight tests in 70.549 seconds. The new exact-inventory runner
 and cleanup controls are documented in [testing](../docs/astrolabe/testing.md). The native original
-runtime and comparison scenarios remain in progress. Retain the failed historical
+runtime and comparison scenarios were still in progress. Retain the failed historical
 [checkpoint record](./hype-control-progress.md#paused-implementation-checkpoint--2026-09-20).
 The historical coverage below describes the restored baseline unless updated.
 
