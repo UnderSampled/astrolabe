@@ -3,9 +3,9 @@ use super::{
     session::SourceSession,
     *,
 };
-use crate::model::{Selection, character::Perso};
+use crate::model::Selection;
 use anyhow::Result;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 fn list(session: &SourceSession, header: Address) -> Result<Vec<Address>> {
     let h: ListWire = wire(session.bytes(header, 12)?)?;
@@ -57,7 +57,11 @@ fn compare(
 #[test]
 #[ignore = "requires local game data; included by tools/test.py --local"]
 fn source_character_collisions_reconstruct_and_hype_movement_matches_live_shapes() -> Result<()> {
-    use crate::model::{AssetPath, character::CollisionProfile};
+    use crate::model::{
+        AssetPath, AssetRef,
+        ai::SourceRole,
+        character::{CollisionProfile, Perso},
+    };
     let game = std::env::var_os("ASTROLABE_GAME_DIR")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| "disc".into());
@@ -75,27 +79,75 @@ fn source_character_collisions_reconstruct_and_hype_movement_matches_live_shapes
         .collect::<Result<BTreeMap<_, _>>>()?;
     let mut sources = BTreeMap::<AssetPath, BTreeMap<String, Address>>::new();
     let mut geometry_targets = BTreeMap::new();
-    let mut sets = BTreeMap::new();
+    let mut sets = BTreeMap::<Address, Perso>::new();
     let mut uses = 0;
-    for node in session.tree()? {
-        if u32_at(session.bytes(node.address, 4)?, 0)? != 4 {
-            continue;
+    let tree = session.tree()?;
+    assert_eq!(tree.len(), imported.scene.nodes.len());
+    let mut actor_refs = BTreeMap::<Address, AssetRef<Perso>>::new();
+    let mut all_refs = Vec::<(Address, AssetRef<Perso>)>::new();
+    for (source, node) in tree.iter().zip(&imported.scene.nodes) {
+        if u32_at(session.bytes(source.address, 4)?, 0)? == 4 {
+            let source_perso = session.required(source.address, 4)?;
+            let reference = node.perso.as_ref().unwrap();
+            assert!(actor_refs.insert(source_perso, reference.clone()).is_none());
+            all_refs.push((source_perso, reference.clone()));
+        } else {
+            assert!(node.perso.is_none());
         }
-        let source_perso = session.required(node.address, 4)?;
-        let Some(address) = session.pointer(source_perso, 24)? else {
-            continue;
+    }
+    if let Some((source_perso, source)) = super::scene::global_perso_source(&session)? {
+        let reference = imported
+            .scene
+            .global_actors
+            .iter()
+            .find(|actor| actor.source == source)
+            .expect("imported Global Perso missing")
+            .perso
+            .clone();
+        actor_refs.insert(source_perso, reference.clone());
+        all_refs.push((source_perso, reference));
+    }
+    let mut template_refs = Vec::new();
+    for source_perso in super::ai::object_templates(&session, &actor_refs)? {
+        let identity = session.source_identity(source_perso)?;
+        let role = if identity.role == SourceRole::Fix {
+            "fix"
+        } else {
+            "level"
         };
+        let path = AssetPath::new(format!(
+            "{role}:/persos/{}-{}-{}",
+            identity.block[0], identity.block[1], identity.allocation
+        ))?;
+        let reference = AssetRef::from_path(path);
+        assert!(actor_refs.insert(source_perso, reference.clone()).is_none());
+        all_refs.push((source_perso, reference));
+        template_refs.push(source_perso);
+    }
+    let mut template_collision_count = 0;
+    let mut covered_persos = BTreeSet::new();
+    for (source_perso, reference) in &all_refs {
         let perso = imported
             .persos
             .iter()
-            .find(|p| p.path.file() == format!("persos/{}", node.path))
-            .unwrap();
+            .find(|p| p.path == reference.path)
+            .expect("source Perso missing from import");
         let restored: Perso = crate::rete::decode(&crate::rete::encode(perso)?)?;
         assert_eq!(&restored, perso);
-        assert!(
-            sets.insert(address, restored.clone()).is_none(),
-            "instance collision set unexpectedly shared"
-        );
+        let Some(address) = session.pointer(*source_perso, 24)? else {
+            assert!(restored.collisions.is_none());
+            continue;
+        };
+        if template_refs.contains(source_perso) {
+            template_collision_count += 1;
+        }
+        assert!(restored.collisions.is_some());
+        assert!(covered_persos.insert(restored.path.clone()));
+        if let Some(previous) = sets.get(&address) {
+            assert_eq!(previous.collisions, restored.collisions);
+            continue;
+        }
+        sets.insert(address, restored.clone());
         for (i, group) in restored
             .collisions
             .as_ref()
@@ -121,13 +173,19 @@ fn source_character_collisions_reconstruct_and_hype_movement_matches_live_shapes
                             .unwrap()
                             .path
                             .clone();
-                        geometry_targets.insert(
+                        if let Some(previous) = geometry_targets.insert(
                             path,
                             ReferenceTarget {
                                 address: session.block(geometry)?.base + geometry.offset as u32,
                                 block: (geometry.key.0, geometry.key.1),
                             },
-                        );
+                        ) {
+                            assert_eq!(
+                                previous.address,
+                                session.block(geometry)?.base + geometry.offset as u32
+                            );
+                            assert_eq!(previous.block, (geometry.key.0, geometry.key.1));
+                        }
                     }
                 }
             }
@@ -157,6 +215,44 @@ fn source_character_collisions_reconstruct_and_hype_movement_matches_live_shapes
         }
     }
     let count = sets.len();
+    assert!(
+        template_collision_count > 0,
+        "fixture must exercise an unrooted AI template with collisions"
+    );
+    assert_eq!(
+        covered_persos,
+        imported
+            .persos
+            .iter()
+            .filter(|perso| perso.collisions.is_some())
+            .map(|perso| perso.path.clone())
+            .collect(),
+        "every imported collision Perso needs a source actor"
+    );
+    assert_eq!(
+        sources.len(),
+        profiles.len(),
+        "every imported collision profile needs a source definition"
+    );
+    for profile in profiles.values() {
+        if let Some(geometry) = &profile.geometry {
+            for reference in geometry.slots.iter().flatten() {
+                assert!(
+                    geometry_targets.contains_key(&reference.path),
+                    "missing source geometry for {}",
+                    reference.path
+                );
+                assert!(
+                    imported
+                        .collisions
+                        .iter()
+                        .any(|geometry| geometry.path == reference.path),
+                    "imported collision geometry missing for {}",
+                    reference.path
+                );
+            }
+        }
+    }
     assert!(
         count > 10 && uses > profiles.len(),
         "fixture must exercise shared profiles"

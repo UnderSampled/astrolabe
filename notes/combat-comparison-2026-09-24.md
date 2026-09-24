@@ -126,8 +126,9 @@ Remaining fidelity work is explicit. The current native sight query uses first e
 centers and Godot's static collision layer. The original engine tests visual
 geometry in selected sectors, so occlusion equivalence is unproven. The exact
 `GoRelative` update timing and deletion timing also require a live comparison.
-The save fixture does not restore source channel activation state; animation
-part visibility alone cannot establish that state. Static disassembly found
+At the first beam checkpoint, the save fixture did not yet restore source
+channel activation state; animation part visibility alone could not establish
+that state. Static disassembly found
 operations 104/105 setting/clearing bit 23 on a source channel record at
 `+0x2c` while updating a per-actor byte-keyed list at `+0x158`; its rendering
 interpretation needs a typed live read before the crossbow state can be fixed
@@ -161,7 +162,47 @@ matrix. The vector operand is written into the generated actor's motion state
 after creation, not added to its origin. Godot's current transform copy thus
 matches the source API for this zero-vector case; the user's observed visual
 launch discrepancy remains to be traced through exported beam geometry,
-animation or timing. No sword-specific offset is warranted. The crossbow
-channel baseline has not been established. Godot's current sight test uses
+animation or timing. No sword-specific offset is warranted. Godot's current sight test uses
 static collision geometry, while the source tests selected sector visuals, so
 occlusion parity remains a native-support fidelity debt pending comparison.
+
+A later fresh Orrery run (`run-1790258146193747690`) established the saved
+channel baseline before any input. At Hype Data3D `+0x158`, the persistent
+deactivation list is the sorted byte IDs `[28, 71, 80]`. Each selected channel
+record's `+0x2c` bit 23 agrees: 28, 71 and 80 are clear; 72, 116 and 136 are
+set. After a short physical Up walk, the same IDs and bits remained. The source
+build and save hashes match the fixture hashes above. The test fixture now
+deactivates those three channel parents through the maintained channel API
+after attaching the exported scene; original script calls can subsequently
+toggle them. Movement and sword BDD checks assert this measured baseline and
+its preservation during walking. This is save-state restoration, not an
+exporter rule or a weapon-specific rendering workaround. The original reads
+combined one stopped Hype actor capture with subsequent bounded memory reads;
+they were not one atomic broad channel snapshot, so a typed Orrery channel
+inspector remains useful for reusable cross-engine assertions.
+
+The follow-up focused movement selection passed **69/69** tests in 371.84
+seconds (`TestResults/20260924T142900.711323Z-development.log.json`). The
+combat selection passed **67/67** in 252.67 seconds
+(`TestResults/20260924T143534.289462Z-development.log.json`). Both included
+their original-game and Godot BDD cases, the mandatory safeguards, source
+integrity and process cleanup. A collision reconstruction probe initially
+missed the newly imported sword-beam template's Fix collision profile and
+geometry slot 1. Its source enumeration now includes rooted Persos, Global and
+AI object templates; all imported collision profiles still reconstruct and
+compare against source bytes. This corrected test discovery, not the collision
+exporter or gameplay behavior.
+
+## Native API fidelity debt
+
+The current `SeePerso` implementation uses first exported family-bound centers
+and a Godot static-collision ray. Source visibility uses selected sector visual
+geometry, so the two can disagree near occluders. `GoRelative` commits speed on
+a Godot physics step; its exact original-engine update timing and deletion
+timing have not yet been compared. Channel activation maps the source request
+to native channel-parent visibility, while the original also keeps a persistent
+deactivation list and bit flag. The supplied save's measured baseline is now
+restored, but rendered crossbow presentation still needs visual comparison.
+These are native AI API fidelity items, not replacement gameplay rules. The
+crossbow's nonzero generated-object vector and projectile contact API remain
+explicitly unsupported until their source behavior is measured and implemented.

@@ -8,6 +8,7 @@
   "expected_action": 47,
   "normal_behavior": 4,
   "reflex_behavior": 3,
+  "deactivated_channels": [28, 71, 80],
   "designer_overrides": {
     "24": true,
     "49": false,

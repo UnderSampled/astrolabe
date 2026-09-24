@@ -37,6 +37,17 @@ The focused supervised movement gate passed 56 selected checks in 389.53
 seconds with complete engine cleanup
 (`TestResults/20260924T082252.694345Z-development.log.json`).
 
+Later on 2026-09-24, the original-game and Godot sword-selection BDD cases
+passed with the same sampled action sequence. The generated sword beam now
+runs its compiled AI, moves through `GoRelative`, and exits at its scripted
+100 ms clock in Godot. The supplied save's measured channel deactivations are
+restored in the test fixture and asserted during movement and sword cases.
+The focused movement and combat selections passed 69/69 and 67/67 tests,
+respectively, with mandatory safeguards and complete cleanup. These do not
+establish sword hit/damage, visual launch parity, crossbow shooting, or full
+combat acceptance. See the [combat comparison](./combat-comparison-2026-09-24.md)
+for source evidence, reports and native API fidelity debt.
+
 The earlier [Hype control progress](./hype-control-progress.md) checkpoint
 implemented and tested native root motion/contact, action completion, typed
 action arrays, input bindings, rule/reflex flow and behavior transitions.

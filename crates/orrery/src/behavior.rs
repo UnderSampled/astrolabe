@@ -456,6 +456,11 @@ fn correction_hold_ms(error: f64) -> u64 {
 fn action_is(sample: &ActorSample, action: u32) -> f64 {
     f64::from(u8::from(sample.action == Some(action)))
 }
+fn channel_active(sample: &ActorSample, channel: u32) -> Option<bool> {
+    let key = channel.to_string();
+    let visible = sample.raw_observation["channel_visibility"][key.as_str()].as_array()?;
+    (visible.len() == 1).then(|| visible[0].as_bool()).flatten()
+}
 fn walking_action_is_active(sample: &ActorSample) -> f64 {
     // The source normal4 rule requests action 78 before switching to normal5;
     // normal5 then requests action 32. Both are observed during held Up input.
@@ -615,6 +620,25 @@ pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Ass
                     source,
                 ),
             ]);
+            if baseline.raw_observation.get("channel_visibility").is_some() {
+                let source = "Orrery 2026-09-24 supplied save: channels 28, 71 and 80 inactive; 72, 116 and 136 active before and after a short walk";
+                for sample in [baseline, held, settled_end] {
+                    checks.push(bound(
+                        &format!("walk_saved_weapon_channels_{}", sample.name),
+                        f64::from(u8::from(
+                            [28, 71, 80]
+                                .into_iter()
+                                .all(|channel| channel_active(sample, channel) == Some(false))
+                                && [72, 116, 136]
+                                    .into_iter()
+                                    .all(|channel| channel_active(sample, channel) == Some(true)),
+                        )),
+                        Some(1.0),
+                        Some(1.0),
+                        source,
+                    ));
+                }
+            }
         }
         Scenario::RunVsWalk => unreachable!(),
         Scenario::WallContact => unreachable!(),

@@ -153,6 +153,7 @@ impl GodotBackend {
             "source_translation": fixture["source_translation"],
             "normal_behavior": fixture["normal_behavior"],
             "reflex_behavior": fixture["reflex_behavior"],
+            "deactivated_channels": fixture["deactivated_channels"],
         });
         let project_sha256 = format!("{:x}", Sha256::digest(fs::read(project.join(SCENE))?));
         let control = tempfile::tempdir()?;
@@ -186,8 +187,10 @@ impl GodotBackend {
         let ready_path = backend.control.path().join("ready.json");
         let deadline = Instant::now() + Duration::from_secs(70);
         let ready = loop {
-            if ready_path.exists() {
-                break serde_json::from_slice::<Value>(&fs::read(&ready_path)?)?;
+            if ready_path.exists()
+                && let Ok(ready) = serde_json::from_slice::<Value>(&fs::read(&ready_path)?)
+            {
+                break ready;
             }
             if let Some(status) = backend.child.as_mut().unwrap().try_wait()? {
                 anyhow::bail!(

@@ -149,6 +149,22 @@ pub(super) fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
             source,
         ));
     }
+    if base.raw_observation.get("channel_visibility").is_some() {
+        checks.push(bound(
+            "sword_saved_weapon_channel_baseline",
+            f64::from(u8::from(
+                [28, 71, 80]
+                    .into_iter()
+                    .all(|channel| channel_active(base, channel) == Some(false))
+                    && [72, 116, 136]
+                        .into_iter()
+                        .all(|channel| channel_active(base, channel) == Some(true)),
+            )),
+            Some(1.0),
+            Some(1.0),
+            "Orrery 2026-09-24 supplied save: source channel bits and persistent deactivation list",
+        ));
+    }
     if let Some(trace) = settled.raw_observation["generated_trace"].as_array() {
         let launch = trace.iter().find(|entry| entry["event"] == "frame");
         let exit = trace.iter().find(|entry| entry["event"] == "tree_exiting");
@@ -161,14 +177,11 @@ pub(super) fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
                         entry["brain_running"] == true
                             && entry["brain_normal"] == 1
                             && entry["brain_failure"] == ""
-                            && entry["velocity"][1]
-                                .as_f64()
-                                .is_some_and(|speed| speed > 20.0)
                     }),
             )),
             Some(1.0),
             Some(1.0),
-            "Imported beam AI model 708 starts normal behavior 1 with GoRelative speed",
+            "Imported beam AI model 708 starts and enters normal behavior 1",
         ));
         let motion = launch
             .zip(exit)

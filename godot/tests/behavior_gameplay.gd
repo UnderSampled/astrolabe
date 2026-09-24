@@ -211,6 +211,17 @@ func restore_save_fixture() -> String:
     brain.set("current_reflex", int(fixture["reflex_behavior"]))
     for index in fixture["designer_overrides"]:
         brain.set("dsg_" + str(index), fixture["designer_overrides"][index])
+    var deactivated: Array = fixture.get("deactivated_channels", [])
+    var seen: Dictionary = {}
+    for value in deactivated:
+        if not (value is int or value is float):
+            return "saved Hype deactivated channel list is malformed"
+        var channel := int(value)
+        if float(channel) != float(value) or channel < 0 or channel > 255 or seen.has(channel):
+            return "saved Hype deactivated channel list is malformed"
+        seen[channel] = true
+        if not bool(actor.call("source_set_channel_active", channel, false)):
+            return "saved Hype channel " + str(channel) + " is missing"
     var arrays: Dictionary = fixture.get("designer_arrays", {})
     for index in [162, 164]:
         var key := str(index)
