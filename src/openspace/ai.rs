@@ -238,6 +238,17 @@ impl Parser<'_> {
                                 index: *index,
                                 value,
                             },
+                            Expression::VectorComponent { vector, axis } => match *vector {
+                                Expression::Variable(vector) => Statement::VectorComponentAssign {
+                                    vector,
+                                    axis,
+                                    value,
+                                },
+                                _ => Statement::Unsupported(self.unsupported(
+                                    at,
+                                    format!("unsupported vector component target at node {at}"),
+                                )?),
+                            },
                             _ => Statement::Unsupported(self.unsupported(
                                 at,
                                 format!("unsupported AI assignment target at node {at}"),
@@ -283,25 +294,27 @@ impl Parser<'_> {
                         value: self.expression(indent + 1)?,
                     }
                 }
-                (2, 9) => {
-                    if !self
-                        .nodes
-                        .get(self.at)
-                        .is_some_and(|target| target.kind == 11)
-                    {
-                        out.push(Statement::Unsupported(self.unsupported(
-                            at,
-                            format!("increment target is not a designer variable at node {at}"),
-                        )?));
-                        continue;
-                    }
-                    let (_, target) = self.take(indent + 1)?;
-                    ensure!(
-                        target.kind == 11,
-                        "increment requires a designer variable at node {at}"
-                    );
-                    Statement::Increment {
-                        variable: target.parameter.try_into()?,
+                (2, 9 | 10) => {
+                    let target = match self.expression(indent + 1)? {
+                        Expression::Variable(variable) => FieldTarget::Variable(variable),
+                        Expression::ActorFieldRead { actor, variable } => {
+                            FieldTarget::ActorField { actor, variable }
+                        }
+                        Expression::MainActorFieldRead(variable) => {
+                            FieldTarget::MainActorField(variable)
+                        }
+                        _ => {
+                            out.push(Statement::Unsupported(self.unsupported(
+                                at,
+                                format!("unsupported field adjustment target at node {at}"),
+                            )?));
+                            continue;
+                        }
+                    };
+                    if id == 9 {
+                        Statement::Increment { target }
+                    } else {
+                        Statement::Decrement { target }
                     }
                 }
                 (4, 214) => Statement::Turn {
@@ -713,6 +726,12 @@ impl Parser<'_> {
                 }
                 Expression::MainActorDistance
             }
+            (3, 201) => Expression::InventoryWeapon,
+            (3, 208) => Expression::InventoryQuantity(Box::new(self.expression(indent + 1)?)),
+            (3, 209) => Expression::InventoryRemove {
+                item: Box::new(self.expression(indent + 1)?),
+                count: Box::new(self.expression(indent + 1)?),
+            },
             (3, 164) => Expression::SelfSighting,
             (3, 0) => Expression::SelfPosition,
             (3, 41) => Expression::GameTime,
@@ -807,9 +826,38 @@ impl Writer<'_> {
                     self.node(11, u32::from(*variable), indent + 1);
                     self.expression(value, indent + 1)?;
                 }
-                Statement::Increment { variable } => {
-                    self.node(2, 9, indent);
-                    self.node(11, u32::from(*variable), indent + 1);
+                Statement::Increment { target } | Statement::Decrement { target } => {
+                    self.node(
+                        2,
+                        if matches!(s, Statement::Increment { .. }) {
+                            9
+                        } else {
+                            10
+                        },
+                        indent,
+                    );
+                    match target {
+                        FieldTarget::Variable(variable) => {
+                            self.node(11, u32::from(*variable), indent + 1);
+                        }
+                        FieldTarget::ActorField { actor, variable } => {
+                            self.node(2, 12, indent + 1);
+                            let handle = self
+                                .codec
+                                .actor_handles
+                                .iter()
+                                .find(|(reference, _)| reference == actor)
+                                .context("missing adjusted AI actor handle")?
+                                .1;
+                            self.node(24, handle, indent + 2);
+                            self.node(11, u32::from(*variable), indent + 2);
+                        }
+                        FieldTarget::MainActorField(variable) => {
+                            self.node(2, 12, indent + 1);
+                            self.node(0, 5, indent + 2);
+                            self.node(11, u32::from(*variable), indent + 2);
+                        }
+                    }
                 }
                 Statement::Turn { degrees_per_second } => {
                     self.node(4, 214, indent);
@@ -860,6 +908,24 @@ impl Writer<'_> {
                     self.node(2, 26, indent + 1);
                     self.expression(array, indent + 2)?;
                     self.expression(index, indent + 2)?;
+                    self.expression(value, indent + 1)?;
+                }
+                Statement::VectorComponentAssign {
+                    vector,
+                    axis,
+                    value,
+                } => {
+                    self.node(2, 11, indent);
+                    self.node(
+                        2,
+                        match axis {
+                            VectorAxis::X => 13,
+                            VectorAxis::Y => 14,
+                            VectorAxis::Z => 15,
+                        },
+                        indent + 1,
+                    );
+                    self.node(11, u32::from(*vector), indent + 2);
                     self.expression(value, indent + 1)?;
                 }
                 Statement::Wait { milliseconds } => {
@@ -1110,6 +1176,16 @@ impl Writer<'_> {
                 self.node(3, 4, indent);
                 self.node(0, 5, indent + 1);
             }
+            Expression::InventoryWeapon => self.node(3, 201, indent),
+            Expression::InventoryQuantity(item) => {
+                self.node(3, 208, indent);
+                self.expression(item, indent + 1)?;
+            }
+            Expression::InventoryRemove { item, count } => {
+                self.node(3, 209, indent);
+                self.expression(item, indent + 1)?;
+                self.expression(count, indent + 1)?;
+            }
             Expression::SelfSighting => self.node(3, 164, indent),
             Expression::SelfPosition => self.node(3, 0, indent),
             Expression::GameTime => self.node(3, 41, indent),
@@ -1343,7 +1419,9 @@ mod partial_tests {
         ));
         assert!(matches!(
             &script.statements[4],
-            Statement::Increment { variable: 132 }
+            Statement::Increment {
+                target: FieldTarget::Variable(132)
+            }
         ));
         assert!(matches!(
             &script.statements[5],
@@ -1351,6 +1429,113 @@ mod partial_tests {
                 variable: 131,
                 value: Expression::RandomInt { .. }
             }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn main_actor_field_adjustments_reconstruct_exact_script() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (2, 9, 1),
+            (2, 12, 2),
+            (0, 5, 3),
+            (11, 17, 3),
+            (2, 10, 1),
+            (2, 12, 2),
+            (0, 5, 3),
+            (11, 17, 3),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[0],
+            Statement::Increment {
+                target: FieldTarget::MainActorField(17)
+            }
+        ));
+        assert!(matches!(
+            &script.statements[1],
+            Statement::Decrement {
+                target: FieldTarget::MainActorField(17)
+            }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn vector_component_assignments_reconstruct_exact_script() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (2, 11, 1),
+            (2, 15, 2),
+            (11, 2, 3),
+            (12, 0, 2),
+            (2, 11, 1),
+            (2, 15, 2),
+            (11, 2, 3),
+            (11, 3, 2),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[0],
+            Statement::VectorComponentAssign {
+                vector: 2,
+                axis: VectorAxis::Z,
+                value: Expression::Integer(0),
+            }
+        ));
+        assert!(matches!(
+            &script.statements[1],
+            Statement::VectorComponentAssign {
+                vector: 2,
+                axis: VectorAxis::Z,
+                value: Expression::Variable(3),
+            }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn inventory_functions_reconstruct_exact_script() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (2, 11, 1),
+            (11, 0, 2),
+            (3, 201, 2),
+            (2, 11, 1),
+            (11, 1, 2),
+            (3, 208, 2),
+            (12, 80, 3),
+            (2, 11, 1),
+            (11, 2, 2),
+            (3, 209, 2),
+            (12, 80, 3),
+            (12, 1, 3),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[0],
+            Statement::Assign {
+                value: Expression::InventoryWeapon,
+                ..
+            }
+        ));
+        assert!(matches!(
+            &script.statements[1],
+            Statement::Assign {
+                value: Expression::InventoryQuantity(item),
+                ..
+            } if **item == Expression::Integer(80)
+        ));
+        assert!(matches!(
+            &script.statements[2],
+            Statement::Assign {
+                value: Expression::InventoryRemove { item, count },
+                ..
+            } if **item == Expression::Integer(80) && **count == Expression::Integer(1)
         ));
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())

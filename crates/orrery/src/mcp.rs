@@ -145,7 +145,7 @@ fn write_schema() -> Value {
     )
 }
 
-const TOOLS: [ToolSpec; 17] = [
+const TOOLS: [ToolSpec; 18] = [
     ToolSpec {
         name: "status",
         description: "Report the Orrery MCP service and exact owned game status without opening a game window.",
@@ -224,6 +224,13 @@ const TOOLS: [ToolSpec; 17] = [
         schema: inspect_main_actor_schema,
     },
     ToolSpec {
+        name: "inspect_combat",
+        description: "Pause the owned game once and decode Hype's selected AI fields and active inventory through the verified OpenSpace reader.",
+        read_only: true,
+        destructive: false,
+        schema: inspect_main_actor_schema,
+    },
+    ToolSpec {
         name: "inspect_scene_actor",
         description: "Pause the owned game and inspect one source-rooted Perso by a checked child path and object types; all addresses are capture-local.",
         read_only: true,
@@ -288,6 +295,7 @@ fn tool_models() -> Vec<Tool> {
                             | "get_mana"
                             | "list_bindings"
                             | "inspect_main_actor"
+                            | "inspect_combat"
                             | "inspect_scene_actor"
                             | "read_memory"
                             | "memory_maps"
@@ -590,7 +598,7 @@ fn validate_steps(raw: &Value) -> Result<Vec<Step>> {
             "state" | "mana" | "bindings" => {
                 allowed(map, &["action", "delay_ms", "label"])?;
             }
-            "inspect_main_actor" => {
+            "inspect_main_actor" | "inspect_combat" => {
                 allowed(
                     map,
                     &["action", "delay_ms", "label", "actions", "designer_values"],
@@ -834,6 +842,11 @@ fn execute_step(controller: &mut NativeController, step: &Step) -> Result<Value>
             let designer_values = inspect_designer_values(map)?;
             game.inspect_main_actor(&actions, designer_values.as_deref())
         }
+        "inspect_combat" => {
+            let actions = inspect_actions(map)?;
+            let designer_values = inspect_designer_values(map)?.unwrap_or_default();
+            game.inspect_combat(&actions, &designer_values)
+        }
         "inspect_scene_actor" => {
             let (level, path, object_types) = scene_selector(map)?;
             let actions = inspect_actions(map)?;
@@ -931,6 +944,16 @@ fn call_tool(
                 &actions,
                 designer_values.as_deref(),
             )?))
+        }
+        "inspect_combat" => {
+            allowed(map, &["actions", "designer_values"])?;
+            let actions = inspect_actions(map)?;
+            let designer_values = inspect_designer_values(map)?.unwrap_or_default();
+            Ok(ToolOutput::ok(
+                controller
+                    .game()?
+                    .inspect_combat(&actions, &designer_values)?,
+            ))
         }
         "inspect_scene_actor" => {
             allowed(
@@ -1228,6 +1251,7 @@ mod tests {
                 "screenshot",
                 "list_bindings",
                 "inspect_main_actor",
+                "inspect_combat",
                 "inspect_scene_actor",
                 "read_memory",
                 "write_memory",

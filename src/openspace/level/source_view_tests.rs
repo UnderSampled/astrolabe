@@ -1,4 +1,5 @@
 use super::super::{
+    hype_runtime,
     live::{self, HypeBuild, ReadMemory},
     records::{Block, BlockKey, Owner},
 };
@@ -23,6 +24,53 @@ impl ReadMemory for Memory {
 }
 fn word(data: &mut [u8], offset: usize, value: u32) {
     data[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+}
+#[test]
+fn verified_live_inventory_filters_inactive_members_and_rejects_cycles() -> Result<()> {
+    let build = HypeBuild::verified(live::HYPE_EXECUTABLE_SHA256)?;
+    let mut ranges = BTreeMap::new();
+    let mut status = vec![0; 261];
+    status[0] = 9;
+    status[1..7].copy_from_slice(b"manoir");
+    ranges.insert(hype_runtime::STATUS, status);
+    ranges.insert(0x6107b0, 0x1000_u32.to_le_bytes().to_vec());
+    let mut root = vec![0; 12];
+    word(&mut root, 8, 0x1100);
+    ranges.insert(0x1000, root);
+    let mut first = vec![0; 24];
+    word(&mut first, 4, 0x1200);
+    word(&mut first, 20, 0x1140);
+    ranges.insert(0x1100, first);
+    let mut second = vec![0; 24];
+    word(&mut second, 4, 0x1240);
+    ranges.insert(0x1140, second);
+    let mut active = vec![0; 9];
+    word(&mut active, 0, 0x1300);
+    active[8] = 1;
+    ranges.insert(0x1200, active);
+    ranges.insert(0x1240, vec![0; 9]);
+    let mut member = vec![0; 30];
+    word(&mut member, 12, 0x1400);
+    member[28..30].copy_from_slice(&80_i16.to_le_bytes());
+    ranges.insert(0x1300, member);
+    ranges.insert(0x1400, b"Weapon\0".to_vec());
+    let mut memory = Memory { ranges };
+    let observed = build.inventory(&mut memory)?;
+    assert_eq!(observed.total_entries, 2);
+    assert_eq!(observed.active.len(), 1);
+    assert_eq!(observed.active[0].kind, "Weapon");
+    assert_eq!(observed.active[0].id, 80);
+    assert_eq!(observed.active[0].quantity, 0);
+    assert_eq!(observed.selected_weapon, 80);
+    word(memory.ranges.get_mut(&0x1140).unwrap(), 20, 0x1100);
+    assert!(
+        build
+            .inventory(&mut memory)
+            .unwrap_err()
+            .to_string()
+            .contains("cycle")
+    );
+    Ok(())
 }
 fn fixture(base: u32) -> (Memory, SourceSession) {
     // Independent known-byte fixture. These locations are not derived by the

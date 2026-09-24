@@ -371,6 +371,59 @@ impl GameSession {
         }))
     }
 
+    /// Observe Hype's selected AI fields and the verified inventory list in
+    /// one stopped capture so a short combat phase cannot change between reads.
+    pub fn inspect_combat(&self, actions: &[u32], designer_values: &[u32]) -> Result<Value> {
+        ensure!(
+            (1..=64).contains(&actions.len()),
+            "combat inspection needs 1..64 actions"
+        );
+        ensure!(
+            designer_values.len() <= 64,
+            "combat inspection needs at most 64 designer values"
+        );
+        ensure!(
+            actions
+                .iter()
+                .copied()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                == actions.len(),
+            "duplicate combat action"
+        );
+        ensure!(
+            designer_values
+                .iter()
+                .copied()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                == designer_values.len(),
+            "duplicate combat designer value"
+        );
+        self.check()?;
+        let build = HypeBuild::verified(&self.config.exe_sha256)?;
+        let pause = self.process.pause(Duration::from_secs(1))?;
+        let mut capture = pause.capture()?;
+        let status = build.status(&mut capture)?;
+        let actor = build.actor_with_ai(&mut capture, actions, designer_values)?;
+        let inventory = build.inventory(&mut capture)?;
+        let snapshot = capture.finish()?;
+        drop(pause);
+        Ok(json!({
+            "fixture": {
+                "executable_sha256": self.config.exe_sha256,
+                "save_sha256": self.config.save_sha256,
+            },
+            "run": self.run,
+            "status": status,
+            "capture": snapshot,
+            "completed_update": false,
+            "consistency_limit": "stopped-byte capture is coherent during this read but has no completed-update publication evidence",
+            "actor": actor,
+            "inventory": inventory,
+        }))
+    }
+
     /// Inspect a source-rooted Perso during one stopped capture. The path is
     /// resolved afresh, then checked against its source object-type identity.
     pub fn inspect_scene_actor(

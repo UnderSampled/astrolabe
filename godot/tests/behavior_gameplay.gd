@@ -222,6 +222,25 @@ func restore_save_fixture() -> String:
         seen[channel] = true
         if not bool(actor.call("source_set_channel_active", channel, false)):
             return "saved Hype channel " + str(channel) + " is missing"
+    var inventory: Dictionary = fixture.get("inventory", {})
+    var native_inventory: Resource = actor.get("source_inventory")
+    if native_inventory == null or not inventory.has("selected_weapon") or not inventory.has("quantities"):
+        return "saved Hype inventory fixture is missing"
+    var selected = inventory["selected_weapon"]
+    if not (selected is int or selected is float) or float(int(selected)) != float(selected) or int(selected) < -1 or int(selected) > 32767:
+        return "saved Hype selected weapon is malformed"
+    var quantities: Dictionary = inventory["quantities"]
+    var restored_quantities: Dictionary = {}
+    for key in quantities:
+        if not str(key).is_valid_int():
+            return "saved Hype inventory item is malformed"
+        var item := int(key)
+        var amount = quantities[key]
+        if item < 0 or item > 32767 or not (amount is int or amount is float) or float(int(amount)) != float(amount):
+            return "saved Hype inventory quantity is malformed"
+        restored_quantities[item] = int(amount)
+    native_inventory.set("selected_weapon", int(selected))
+    native_inventory.set("quantities", restored_quantities)
     var arrays: Dictionary = fixture.get("designer_arrays", {})
     for index in [162, 164]:
         var key := str(index)

@@ -326,6 +326,39 @@
     },
     {
       "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::inventory_functions_reconstruct_exact_script",
+      "areas": ["ai", "source", "combat"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::main_actor_field_adjustments_reconstruct_exact_script",
+      "areas": ["ai", "source", "combat"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::vector_component_assignments_reconstruct_exact_script",
+      "areas": ["ai", "source", "combat"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "openspace::audio::bnm::allocation_tests::repeated_pcm_and_apm_descriptors_share_one_bank_decode_budget",
       "areas": [
         "media"
@@ -1995,6 +2028,17 @@
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic relocated scene memory",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::source_view::tests::verified_live_inventory_filters_inactive_members_and_rejects_cycles",
+      "areas": ["source", "ai", "runtime", "combat"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic relocated inventory memory",
       "timeout_seconds": 5,
       "ignored": false,
       "release": true

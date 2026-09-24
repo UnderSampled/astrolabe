@@ -386,15 +386,17 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
             duration: b,
         }
         | Expression::RandomInt { lower: a, upper: b }
+        | Expression::InventoryRemove { item: a, count: b }
         | Expression::ArrayElement { array: a, index: b }
         | Expression::And(a, b)
         | Expression::Or(a, b) => needs_guard(a, model) || needs_guard(b, model),
         Expression::Compare { left, right, .. } => {
             needs_guard(left, model) || needs_guard(right, model)
         }
-        Expression::Negate(value) | Expression::IsInAction(value) | Expression::Not(value) => {
-            needs_guard(value, model)
-        }
+        Expression::Negate(value)
+        | Expression::IsInAction(value)
+        | Expression::Not(value)
+        | Expression::InventoryQuantity(value) => needs_guard(value, model),
         Expression::VectorComponent { vector, .. } => needs_guard(vector, model),
         _ => false,
     }
@@ -541,6 +543,15 @@ fn guarded_expression(
             guarded_expression(out, lower, model, depth, flow)?,
             guarded_expression(out, upper, model, depth, flow)?
         ),
+        Expression::InventoryQuantity(item) => format!(
+            "character().source_inventory_quantity(int({}))",
+            guarded_expression(out, item, model, depth, flow)?
+        ),
+        Expression::InventoryRemove { item, count } => format!(
+            "character().source_inventory_remove(int({}), int({}))",
+            guarded_expression(out, item, model, depth, flow)?,
+            guarded_expression(out, count, model, depth, flow)?
+        ),
         Expression::Negate(value) => format!(
             "(-float({}))",
             guarded_expression(out, value, model, depth, flow)?
@@ -650,6 +661,16 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             }
         }
         Expression::MainActorDistance => "distance_to_main_actor()".into(),
+        Expression::InventoryWeapon => "character().source_inventory_weapon()".into(),
+        Expression::InventoryQuantity(item) => format!(
+            "character().source_inventory_quantity(int({}))",
+            expression(item, model)?
+        ),
+        Expression::InventoryRemove { item, count } => format!(
+            "character().source_inventory_remove(int({}), int({}))",
+            expression(item, model)?,
+            expression(count, model)?
+        ),
         Expression::SeePerso { receiver, target } => {
             let actor = |keyword| match keyword {
                 ActorKeyword::SelfActor => "character()",
@@ -1005,21 +1026,63 @@ fn statements(
                 let value = guarded_expression(out, value, model, depth, flow)?;
                 writeln!(out, "{pad}dsg_{variable} = dsg_{variable} + ({value})")?;
             }
-            Statement::Increment { variable } => {
-                let kind = &model.variables[usize::from(*variable)].default;
-                ensure!(
-                    matches!(
-                        kind,
-                        DesignerValue::Byte(_)
-                            | DesignerValue::UnsignedByte(_)
-                            | DesignerValue::Short(_)
-                            | DesignerValue::UnsignedShort(_)
-                            | DesignerValue::Integer(_)
-                            | DesignerValue::UnsignedInteger(_)
-                    ),
-                    "increment requires an integer designer property"
-                );
-                writeln!(out, "{pad}dsg_{variable} += 1")?;
+            Statement::Increment { target } | Statement::Decrement { target } => {
+                let delta = if matches!(statement, Statement::Increment { .. }) {
+                    1
+                } else {
+                    -1
+                };
+                match target {
+                    FieldTarget::Variable(variable) => {
+                        let kind = &model.variables[usize::from(*variable)].default;
+                        ensure!(
+                            matches!(
+                                kind,
+                                DesignerValue::Byte(_)
+                                    | DesignerValue::UnsignedByte(_)
+                                    | DesignerValue::Short(_)
+                                    | DesignerValue::UnsignedShort(_)
+                                    | DesignerValue::Integer(_)
+                                    | DesignerValue::UnsignedInteger(_)
+                            ),
+                            "field adjustment requires an integer designer property"
+                        );
+                        writeln!(out, "{pad}dsg_{variable} += {delta}")?;
+                    }
+                    FieldTarget::ActorField { actor, variable } => {
+                        let index = model
+                            .actor_field_targets()
+                            .iter()
+                            .position(|target| target == actor)
+                            .ok_or_else(|| {
+                                anyhow::anyhow!("actor field target was not declared")
+                            })?;
+                        let id = flow.local;
+                        flow.local += 1;
+                        let node = format!("actor_brain_{index}_adjust_{id}");
+                        let failure = quoted(&format!(
+                            "{} requires actor {} Brain field {variable}",
+                            model.path, actor.path
+                        ));
+                        writeln!(
+                            out,
+                            "{pad}if actor_brain_{index}_path.is_empty():\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {node} := get_node_or_null(actor_brain_{index}_path)\n{pad}if not is_instance_valid({node}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}{node}.set(\"dsg_{variable}\", int({node}.get(\"dsg_{variable}\")) + ({delta}))"
+                        )?;
+                    }
+                    FieldTarget::MainActorField(variable) => {
+                        let id = flow.local;
+                        flow.local += 1;
+                        let node = format!("main_actor_brain_adjust_{id}");
+                        let failure = quoted(&format!(
+                            "{} requires main actor Brain field {variable}",
+                            model.path
+                        ));
+                        writeln!(
+                            out,
+                            "{pad}if not is_instance_valid(main_actor):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {node} := main_actor.get_node_or_null(\"Brain\")\n{pad}if not is_instance_valid({node}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}{node}.set(\"dsg_{variable}\", int({node}.get(\"dsg_{variable}\")) + ({delta}))"
+                        )?;
+                    }
+                }
             }
             Statement::Turn { degrees_per_second } => {
                 let value = guarded_expression(out, degrees_per_second, model, depth, flow)?;
@@ -1110,6 +1173,31 @@ fn statements(
                     out,
                     "{pad}dsg_{variable}[int({})] = {kind}({})",
                     index, value
+                )?;
+            }
+            Statement::VectorComponentAssign {
+                vector,
+                axis,
+                value,
+            } => {
+                ensure!(
+                    matches!(
+                        &model.variables[usize::from(*vector)].default,
+                        DesignerValue::Vector(_)
+                    ),
+                    "vector component assignment requires a vector designer property"
+                );
+                let value = guarded_expression(out, value, model, depth, flow)?;
+                let component = match axis {
+                    VectorAxis::X => "x",
+                    VectorAxis::Y => "y",
+                    VectorAxis::Z => "z",
+                };
+                let id = flow.local;
+                flow.local += 1;
+                writeln!(
+                    out,
+                    "{pad}var vector_component_{id}: Vector3 = dsg_{vector}\n{pad}vector_component_{id}.{component} = float({value})\n{pad}dsg_{vector} = vector_component_{id}"
                 )?;
             }
             Statement::Wait { .. }

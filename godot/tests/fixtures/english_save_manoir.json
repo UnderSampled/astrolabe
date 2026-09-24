@@ -9,6 +9,10 @@
   "normal_behavior": 4,
   "reflex_behavior": 3,
   "deactivated_channels": [28, 71, 80],
+  "inventory": {
+    "selected_weapon": 80,
+    "quantities": {"21": 0, "61": 0, "80": 0}
+  },
   "designer_overrides": {
     "24": true,
     "49": false,

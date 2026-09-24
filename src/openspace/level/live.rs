@@ -74,6 +74,69 @@ impl HypeBuild {
             level: std::str::from_utf8(&bytes[1..1 + end])?.to_owned(),
         })
     }
+    /// Read the active inventory list used by functions 201, 208 and 209 in
+    /// this verified build. The list is capture-local; no source address is
+    /// persisted as gameplay state.
+    pub fn inventory(&self, memory: &mut impl ReadMemory) -> Result<InventoryObservation> {
+        let status = self.status(memory)?;
+        ensure!(
+            status.phase == 9,
+            "inventory requires loaded gameplay phase"
+        );
+        let mut source = MemoryView(memory);
+        let mut entries = Vec::new();
+        let mut visited = BTreeSet::new();
+        let mut next = if let Some(root) = source.pointer(0x6107b0, 0)? {
+            source.pointer(root, 8)?
+        } else {
+            None
+        };
+        while let Some(entry) = next {
+            ensure!(visited.len() < 256, "inventory list exceeds 256 entries");
+            ensure!(visited.insert(entry), "inventory list cycle");
+            let handle = source.required(entry, 4)?;
+            let handle_bytes = source.bytes(handle, 9)?;
+            if handle_bytes[8] != 0 {
+                let member = u32_at(&handle_bytes, 0)?;
+                ensure!(member != 0, "active inventory handle has no member");
+                let (name_pointer, id, quantity) = {
+                    let record = source.bytes(member, 30)?;
+                    (
+                        u32_at(&record, 12)?,
+                        i16::from_le_bytes(record[28..30].try_into()?),
+                        i16::from_le_bytes(record[10..12].try_into()?),
+                    )
+                };
+                ensure!(name_pointer != 0, "active inventory member has no kind");
+                let mut name = Vec::new();
+                for offset in 0..64 {
+                    let address = source.add(name_pointer, offset)?;
+                    let byte = source.bytes(address, 1)?[0];
+                    if byte == 0 {
+                        break;
+                    }
+                    ensure!(byte.is_ascii(), "inventory kind is not ASCII");
+                    name.push(byte);
+                }
+                ensure!(name.len() < 64, "unterminated inventory kind");
+                entries.push(InventoryItemObservation {
+                    kind: String::from_utf8(name)?,
+                    id,
+                    quantity,
+                });
+            }
+            next = source.pointer(entry, 20)?;
+        }
+        let selected_weapon = entries
+            .iter()
+            .find(|item| item.kind == "Weapon")
+            .map_or(-1, |item| item.id);
+        Ok(InventoryObservation {
+            total_entries: visited.len(),
+            active: entries,
+            selected_weapon,
+        })
+    }
     pub fn actor(&self, memory: &mut impl ReadMemory) -> Result<ActorObservation> {
         self.actor_with_actions(memory, &[47])
     }
@@ -351,6 +414,23 @@ pub fn source_fingerprint(
         files,
     })
 }
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct InventoryItemObservation {
+    pub kind: String,
+    pub id: i16,
+    pub quantity: i16,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct InventoryObservation {
+    pub total_entries: usize,
+    pub active: Vec<InventoryItemObservation>,
+    /// Function 201 returns -1 when the active Weapon entry is absent.
+    pub selected_weapon: i16,
+}
+
 /// Source-local locators are evidence within this capture only. Equal values do
 /// not merge locators; reuse of an address across captures requires generation
 /// and replacement evidence from the controller, which is not supplied here.

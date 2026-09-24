@@ -206,3 +206,47 @@ restored, but rendered crossbow presentation still needs visual comparison.
 These are native AI API fidelity items, not replacement gameplay rules. The
 crossbow's nonzero generated-object vector and projectile contact API remain
 explicitly unsupported until their source behavior is measured and implemented.
+
+## Crossbow AI and inventory boundary
+
+Hype's existing model 28 selects the ranged path through its own action and
+weapon conditions. Its generated arrow template uses model 733 for projectile
+behavior. The current increment, decrement, vector-component assignment and
+inventory-function work extends the typed AI AST, source codec and GDScript
+compiler so those source rules can execute. The native `inventory.gd` Resource
+only supplies inventory queries and mutation requested by compiled AI; it
+contains no weapon selection, attack timing, projectile motion or display rule.
+The English-save test fixture restores its measured selected weapon and item
+quantities after scene attachment. This is a test starting state, not an export
+constant. Orrery's typed combat inspector reads Hype and the active inventory
+from one stopped source capture for a direct check of that state. The refreshed
+local service verified that read in the original manor; its byte capture is
+coherent while stopped but does not prove a completed engine update.
+The run was `run-1790263016370512003` under the private Orrery run tree, using
+executable SHA-256 `048ff4f4f0447a1f54a5a73ff588df78b484015c78df99a8f2d7acd3469df7da`
+and supplied-save archive SHA-256
+`877576b5867b5ad44b41dc4b72f6b70bc89dbe5e202c86817f2858948a1d634c`.
+The original session and refreshed Orrery service were both stopped afterward.
+
+The verified executable's functions 201, 208 and 209 traverse active inventory
+handles: 201 returns the first active `Weapon` ID, 208 returns the first active
+matching ID's quantity, and 209 returns the remaining quantity while only
+writing it when nonnegative. The supplied save had weapon ID 80 selected and
+active item IDs 21, 61 and 80, all with quantity zero. This does not establish
+an ammunition-enabled crossbow shot. The cheat-controller's blue/red-arrow
+branches call inventory addition, but their item operands and runtime effects
+are not yet verified. In the live manor run, both `youngelf` and `oldelf` were
+recognized bindings but left the active inventory unchanged through a further
+two-second wait; no crossbow shot or ammunition consumption was claimed. Hype
+model 28 requests arrow template
+`fix:/persos/5-0-24728` with source vector `(0,-45,0)` in its firing paths;
+the verified generation API's handling of this nonzero vector is still under
+investigation. A source-game input and follow-up inventory capture are needed
+before treating a shot or consumption as behavior evidence.
+
+Any implementation that chooses a weapon or moves an arrow in Godot support
+without a corresponding compiled AI request would be a replacement gameplay
+rule and a material fidelity debt. Keep that boundary visible in review. Native
+support approximations already listed above remain API-fidelity debt; the
+crossbow's launch-vector, laser and contact calls are pending source-backed
+implementation rather than a support-side attack script.

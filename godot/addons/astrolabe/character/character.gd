@@ -5,10 +5,12 @@ signal cue_triggered(action: Resource, frame: int, channel: int, configuration_s
 signal action_finished(action: int)
 signal action_request_traced(requested: int, restart: bool, previous: int, selected: int, accepted: bool)
 signal hud_visibility_requested(indicator: String, visible: bool)
+const SOURCE_INVENTORY = preload("res://addons/astrolabe/character/inventory.gd")
 @export var initial_state: int = -1
 @export var current_state: int = -1
 @export var current_mechanics: Resource
 @export var physical_environment: Resource
+@export var source_inventory: Resource
 @export var autoplay: bool = true
 ## Gameplay uses physics ticks; ordinary editor/pose inspection stays stationary.
 @export var motion_enabled: bool = false
@@ -53,6 +55,8 @@ var playing: bool:
         else: animation_player.pause()
 
 func _ready() -> void:
+    if source_inventory == null:
+        source_inventory = SOURCE_INVENTORY.new()
     if motion_enabled:
         # The source actor rounds shallow contacts at finite wall edges.
         # Godot's default 15-degree minimum stops Hype at the manoir wall end.
@@ -158,6 +162,18 @@ func source_game_time() -> int:
     assert(brain != null)
     return int(brain.get("clock_milliseconds"))
 
+func source_inventory_weapon() -> int:
+    assert(source_inventory != null)
+    return int(source_inventory.get("selected_weapon"))
+
+func source_inventory_quantity(item: int) -> int:
+    assert(source_inventory != null)
+    return int(source_inventory.call("quantity", item))
+
+func source_inventory_remove(item: int, count: int) -> int:
+    assert(source_inventory != null)
+    return int(source_inventory.call("remove", item, count))
+
 func source_is_type_of_gmt_collide(kind: int) -> bool:
     var bit := 1 << (kind & 31)
     for index in get_slide_collision_count():
@@ -236,6 +252,7 @@ func source_execute_action_and_generate_object(template_path: String, action: in
     if generated is CharacterBody3D:
         generated.set("motion_enabled", true)
         generated.set("physical_environment", physical_environment)
+        generated.set("source_inventory", source_inventory)
     # The source helper copies the caller's global SuperObject transform.
     # Initialize it before attachment: the compiled Brain can start in _ready.
     generated.transform = destination.global_transform.affine_inverse() * global_transform

@@ -1,4 +1,4 @@
-# Astrolabe support, interface 27
+# Astrolabe support, interface 28
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -60,6 +60,13 @@ The compiled `Proc_ActivateChannel` and `Proc_DeactivateChannel` calls use
 `source_set_channel_active(channel, active)`. It sets visibility on every
 exported channel parent whose `source_channel` metadata matches the script's
 typed channel operand; native animation tracks continue to select child parts.
+Compiled inventory functions read and update `character/inventory.gd`, a shared
+native Resource holding the selected weapon and item quantities. Generated
+Persos share the spawning character's inventory reference. The Resource
+implements AI-requested inventory operations only; attack selection, arrow
+creation, motion and lifetime must come from compiled source AI. The current
+manor behavior fixture restores inventory values observed in the supplied
+English save; exported content does not hardcode those values.
 The compiled `Stats_DisplayMainActor*` calls retain their requested Boolean
 visibility in `source_hud_display` and emit `hud_visibility_requested`. An
 authored HUD can bind that signal to its native `Control` nodes. The current

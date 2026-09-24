@@ -138,11 +138,19 @@ pub enum Statement {
         value: Expression,
     },
     Increment {
-        variable: u16,
+        target: FieldTarget,
+    },
+    Decrement {
+        target: FieldTarget,
     },
     ArrayAssign {
         array: Expression,
         index: Expression,
+        value: Expression,
+    },
+    VectorComponentAssign {
+        vector: u16,
+        axis: VectorAxis,
         value: Expression,
     },
     Wait {
@@ -209,6 +217,16 @@ pub enum HudIndicator {
     SelectedObject,
     Weapon,
 }
+/// Writable designer field selected by a source AI arithmetic operator.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum FieldTarget {
+    Variable(u16),
+    ActorField {
+        actor: AssetRef<Perso>,
+        variable: u16,
+    },
+    MainActorField(u16),
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Expression {
     Unsupported(UnsupportedFragment),
@@ -268,6 +286,14 @@ pub enum Expression {
         axis: VectorAxis,
     },
     MainActorDistance,
+    /// Source inventory functions operate on the game inventory, not on a
+    /// projectile's own designer fields.
+    InventoryWeapon,
+    InventoryQuantity(Box<Expression>),
+    InventoryRemove {
+        item: Box<Expression>,
+        count: Box<Expression>,
+    },
     /// Func_GetPersoSighting: current actor's source-coordinate sighting
     /// direction, confirmed from Hype's own perso context.
     SelfSighting,
@@ -478,6 +504,17 @@ impl AiModel {
                             out.push(entry);
                         }
                     }
+                    Statement::Increment {
+                        target: FieldTarget::ActorField { actor, variable },
+                    }
+                    | Statement::Decrement {
+                        target: FieldTarget::ActorField { actor, variable },
+                    } => {
+                        let entry = (actor.clone(), *variable);
+                        if !out.contains(&entry) {
+                            out.push(entry);
+                        }
+                    }
                     Statement::If {
                         then, otherwise, ..
                     } => {
@@ -553,13 +590,18 @@ impl AiModel {
                 | Expression::RandomInt {
                     lower: left,
                     upper: right,
+                }
+                | Expression::InventoryRemove {
+                    item: left,
+                    count: right,
                 } => {
                     expression(left, out);
                     expression(right, out);
                 }
-                Expression::Not(v) | Expression::Negate(v) | Expression::IsInAction(v) => {
-                    expression(v, out)
-                }
+                Expression::Not(v)
+                | Expression::Negate(v)
+                | Expression::IsInAction(v)
+                | Expression::InventoryQuantity(v) => expression(v, out),
                 Expression::Vector(values) => {
                     for value in values.iter() {
                         expression(value, out);
@@ -590,6 +632,7 @@ impl AiModel {
                     Statement::Assign { value, .. }
                     | Statement::ActorFieldAssign { value, .. }
                     | Statement::MainActorFieldAssign { value, .. }
+                    | Statement::VectorComponentAssign { value, .. }
                     | Statement::SubtractAssign { value, .. }
                     | Statement::AddAssign { value, .. }
                     | Statement::Turn {
@@ -793,6 +836,10 @@ impl Script {
                 | Expression::RandomInt {
                     lower: left,
                     upper: right,
+                }
+                | Expression::InventoryRemove {
+                    item: left,
+                    count: right,
                 } => {
                     expression(left, out);
                     expression(right, out);
@@ -922,6 +969,7 @@ impl Script {
                 Expression::Not(value)
                 | Expression::Negate(value)
                 | Expression::IsInAction(value)
+                | Expression::InventoryQuantity(value)
                 | Expression::VectorComponent { vector: value, .. } => {
                     expression(value, variables, depth + 1, count)?
                 }
@@ -976,6 +1024,13 @@ impl Script {
                         );
                         expression(value, variables, depth + 1, count)?;
                     }
+                    Statement::VectorComponentAssign { vector, value, .. } => {
+                        ensure!(
+                            usize::from(*vector) < variables,
+                            "AI vector assignment out of range"
+                        );
+                        expression(value, variables, depth + 1, count)?;
+                    }
                     Statement::ActorFieldAssign {
                         actor,
                         variable,
@@ -992,10 +1047,24 @@ impl Script {
                         ensure!(*variable < 255, "main actor designer field out of range");
                         expression(value, variables, depth + 1, count)?;
                     }
-                    Statement::Increment { variable } => ensure!(
-                        usize::from(*variable) < variables,
-                        "AI increment out of range"
-                    ),
+                    Statement::Increment { target } | Statement::Decrement { target } => {
+                        match target {
+                            FieldTarget::Variable(variable) => ensure!(
+                                usize::from(*variable) < variables,
+                                "AI field adjustment out of range"
+                            ),
+                            FieldTarget::ActorField { actor, variable } => {
+                                ensure!(
+                                    actor.path.member().is_none(),
+                                    "actor field target is a member"
+                                );
+                                ensure!(*variable < 255, "actor designer field out of range");
+                            }
+                            FieldTarget::MainActorField(variable) => {
+                                ensure!(*variable < 255, "main actor designer field out of range");
+                            }
+                        }
+                    }
                     Statement::Wait { milliseconds } => {
                         expression(milliseconds, variables, depth + 1, count)?
                     }
