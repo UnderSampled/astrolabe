@@ -664,12 +664,16 @@ impl Parser<'_> {
             }
             (1, 56 | 57) => {
                 let (_, actor) = self.take(indent + 1)?;
-                if actor.kind != 0 || actor.parameter != 4 {
-                    return Ok(Expression::Unsupported(self.unsupported(
-                        at,
-                        "behavior query requires an unsupported actor expression".into(),
-                    )?));
-                }
+                let actor = match (actor.kind, actor.parameter) {
+                    (0, 4) => ActorKeyword::SelfActor,
+                    (0, 5) => ActorKeyword::MainActor,
+                    _ => {
+                        return Ok(Expression::Unsupported(self.unsupported(
+                            at,
+                            "behavior query requires an unsupported actor expression".into(),
+                        )?));
+                    }
+                };
                 if !self.codec.behaviors.contains_key(&self.at)
                     && self.nodes.get(self.at).is_some_and(|n| n.kind == 32)
                 {
@@ -688,7 +692,7 @@ impl Parser<'_> {
                         },
                     "behavior query/owning group differs"
                 );
-                Expression::IsInBehavior(target)
+                Expression::IsInBehavior { actor, target }
             }
             (1, 9..=12) => {
                 let (operand, child) = self.take(indent + 1)?;
@@ -1185,7 +1189,7 @@ impl Writer<'_> {
                 self.expression(start, indent + 1)?;
                 self.expression(duration, indent + 1)?;
             }
-            Expression::IsInBehavior(target) => {
+            Expression::IsInBehavior { actor, target } => {
                 self.node(
                     1,
                     if target.group == BehaviorGroup::Normal {
@@ -1195,7 +1199,14 @@ impl Writer<'_> {
                     },
                     indent,
                 );
-                self.node(0, 4, indent + 1);
+                self.node(
+                    0,
+                    match actor {
+                        ActorKeyword::SelfActor => 4,
+                        ActorKeyword::MainActor => 5,
+                    },
+                    indent + 1,
+                );
                 self.behavior(target, indent + 1)?;
             }
             Expression::Button { action, query } => {
@@ -1685,6 +1696,39 @@ mod partial_tests {
                 camera: bound,
                 target: ActorKeyword::MainActor,
             } if bound == &camera
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn external_main_actor_behavior_query_reconstructs_exact_script() -> Result<()> {
+        let (mut codec, bytes) = partial(&[
+            (0, 0, 1),
+            (1, 56, 2),
+            (0, 5, 3),
+            (32, 43_270_544, 3),
+            (0, 1, 1),
+            (4, 206, 2),
+            (8, 0, 0),
+        ]);
+        let target = BehaviorRef {
+            model: AssetRef::new("fix:/ai/models/28")?,
+            group: BehaviorGroup::Normal,
+            behavior: 94,
+        };
+        codec.behaviors.insert(3, target.clone());
+        codec.behavior_handles.push((target.clone(), 43_270_544));
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[0],
+            Statement::If {
+                condition: Expression::IsInBehavior {
+                    actor: ActorKeyword::MainActor,
+                    target: bound,
+                },
+                ..
+            } if bound == &target
         ));
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())

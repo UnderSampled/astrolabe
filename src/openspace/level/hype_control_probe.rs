@@ -12,7 +12,7 @@ fn source_hype_idle_rule_preserves_deferred_behavior_entry() -> Result<()> {
     let model = s.required(s.required(s.required(perso, 16)?, 0)?, 0)?;
     let sets = [source_set(&s, model, 0)?, source_set(&s, model, 4)?];
     let fixture_path = AssetPath::new("level:/ai/hype-idle-rule-fixture")?;
-    let bindings = behavior_bindings(&fixture_path, &sets);
+    let bindings = behavior_bindings(&fixture_path, &sets)?;
     let source = sets[0].as_ref().unwrap().behaviors[4].rules[0]
         .as_ref()
         .unwrap();

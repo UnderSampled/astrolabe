@@ -44,6 +44,12 @@ pub(super) fn export_program(
             ));
         }
     }
+    for reference in model.behavior_references() {
+        if reference.model.path != model.path {
+            let target = source.load(&reference.model)?;
+            reference.validate_model(&target)?;
+        }
+    }
     let path = disk_path(&project.selection, &model.path, "gd");
     if project.generated.contains(&path) || !written.insert(model.path.clone()) {
         return Ok(path);
@@ -106,6 +112,11 @@ fn compile_with_templates(
         "extends \"res://addons/astrolabe/behavior/behavior.gd\"\n## Compiled from {}. Edit the useful AI asset and regenerate.\n",
         model.path.as_str().replace(['\n', '\r'], " ")
     );
+    writeln!(
+        out,
+        "@export var source_model_path: String = {}",
+        quoted(model.path.as_str())
+    )?;
     for (i, _) in model.actor_field_targets().iter().enumerate() {
         writeln!(out, "@export var actor_brain_{i}_path: NodePath")?;
     }
@@ -379,6 +390,10 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::MagicCurrentSpell
         | Expression::MagicPoints
         | Expression::MagicRemovePoints(_) => true,
+        Expression::IsInBehavior {
+            actor: ActorKeyword::MainActor,
+            ..
+        } => true,
         Expression::Variable(index) => unresolved_variable(model, *index),
         Expression::ActorFieldRead { .. } | Expression::MainActorFieldRead(_) => true,
         Expression::Vector(values) => values.iter().any(|value| needs_guard(value, model)),
@@ -581,6 +596,28 @@ fn guarded_expression(
             )?;
             format!("character().source_magic_remove_points(int({amount}))")
         }
+        Expression::IsInBehavior {
+            actor: ActorKeyword::MainActor,
+            target,
+        } => {
+            let id = flow.local;
+            flow.local += 1;
+            let brain = format!("behavior_brain_{id}");
+            let failure = quoted(&format!(
+                "{} requires MainActor Brain model {} for behavior query",
+                model.path, target.model.path
+            ));
+            writeln!(
+                out,
+                "{pad}if not is_instance_valid(main_actor):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {brain} := main_actor.get_node_or_null(\"Brain\")\n{pad}if not is_instance_valid({brain}) or str({brain}.get(\"source_model_path\")) != {}:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}",
+                quoted(target.model.path.as_str())
+            )?;
+            format!(
+                "(int({brain}.get(\"current_{}\")) == {})",
+                group_name(target.group),
+                target.behavior
+            )
+        }
         Expression::CollideWithNothing => {
             let id = flow.local;
             flow.local += 1;
@@ -698,11 +735,17 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             format!("character().source_is_type_of_gmt_collide({kind})")
         }
         Expression::InTopOfJump => "character().source_in_top_of_jump()".into(),
-        Expression::IsInBehavior(target) => format!(
-            "(current_{} == {})",
-            group_name(target.group),
-            target.behavior
-        ),
+        Expression::IsInBehavior { actor, target } => {
+            ensure!(
+                *actor == ActorKeyword::SelfActor && target.model.path == model.path,
+                "external behavior query requires a guarded actor binding"
+            );
+            format!(
+                "(current_{} == {})",
+                group_name(target.group),
+                target.behavior
+            )
+        }
         Expression::ArrayElement { array, index } => format!(
             "{}[int({})]",
             expression(array, model)?,
@@ -1315,6 +1358,10 @@ fn statements(
                 target,
                 pause_after,
             } => {
+                ensure!(
+                    target.model.path == model.path,
+                    "change behavior target belongs to another AI model"
+                );
                 let target_group = group_name(target.group);
                 let same_group = target_group == group;
                 writeln!(

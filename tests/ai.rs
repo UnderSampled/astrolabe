@@ -79,6 +79,46 @@ fn camera_target_call_keeps_source_actor_and_main_actor() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn external_behavior_query_checks_main_actor_brain_identity_before_branch() -> Result<()> {
+    let mut model = model()?;
+    model.normal.as_mut().unwrap().behaviors[0]
+        .schedule
+        .as_mut()
+        .unwrap()
+        .statements = vec![Statement::If {
+        condition: Expression::IsInBehavior {
+            actor: ActorKeyword::MainActor,
+            target: BehaviorRef {
+                model: AssetRef::new("fix:/ai/models/28")?,
+                group: BehaviorGroup::Normal,
+                behavior: 94,
+            },
+        },
+        then: vec![Statement::Assign {
+            variable: 0,
+            value: Expression::Integer(1),
+        }],
+        otherwise: None,
+    }];
+    model.validate()?;
+    let reopened = rete::decode::<AiModel>(&rete::encode(&model)?)?;
+    assert_eq!(reopened, model);
+    let code = godot::ai::compile(&reopened, &[])?;
+    let guard = code
+        .find("requires MainActor Brain model fix:/ai/models/28")
+        .unwrap();
+    let model_identity = code
+        .find("str(behavior_brain_0.get(\"source_model_path\")) != \"fix:/ai/models/28\"")
+        .unwrap();
+    let query = code
+        .find("int(behavior_brain_0.get(\"current_normal\")) == 94")
+        .unwrap();
+    assert!(guard < model_identity && model_identity < query, "{code}");
+    assert!(code.contains("@export var source_model_path: String = \"level:/ai/proximity\""));
+    Ok(())
+}
+
 fn model() -> Result<AiModel> {
     Ok(AiModel {
         path: AssetPath::new("level:/ai/proximity")?,

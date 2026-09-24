@@ -72,3 +72,37 @@ this selected item and predicts raw function-232 code **61**. This is a
 source-derived result from one coherent stopped capture, not a direct call to
 the original function during that capture. The game and Orrery service were
 stopped afterward, with the save archive intact.
+
+A later bounded Orrery Enter attempt reached the same supplied manor save and
+waited ten seconds after loading. The current reader still reported a null
+`source_code` because the running Orrery binary predated the prefix fix. A
+single 100 ms physical Enter pulse left action 47, mana 30/50, and the scene's
+176-child count unchanged through roughly 1.5 seconds after the pulse; no
+spell effect was visible in the captured screenshot. Enter is the verified
+`Button_Magic` binding, but this run did not capture the source AI gate fields
+or prove the game sampled that edge. Model 28's normal-4 cast transition needs
+`dsg_10 == 0`, `dsg_59 == 1`, and either `dsg_0 == 0` or a companion Brain's
+`dsg_2 == 1`; an earlier rule can leave normal 4 when `dsg_56 == 1`. The
+failed pulse cannot yet be attributed to one of those gates or to input
+delivery. It does not overturn the earlier observed 30-to-20 cast.
+
+An in-memory import of the current spell template found a separate Godot
+blocker. Model 817's normal-0 rule 0 queries whether `MainActor` is in normal
+behavior 94 of `fix:/ai/models/28`. Its source operand points to an interior
+behavior member in that other model. Import now indexes the active session's
+Brain models before decoding scripts, retains the actor-qualified behavior
+reference in Rete, and compiles the query against the main actor's Brain. The
+compiled guard requires the referenced model identity before reading normal
+behavior 94, so a missing or mismatched Brain fails visibly. The in-memory
+import confirms this rule contains no unsupported source AI node, and the
+generated model-817 script passes Godot's parse-only check. The spell's own
+compiled schedule still calls `Magic_RemoveMagicPoints(10)` and writes its
+result to `level:/persos/world/0/29` Brain field 2. This is typed source AI
+wiring; it has not yet demonstrated a complete cast in Godot.
+
+The boundary for the remaining work is the same: source script calls,
+parameters and branch decisions stay in compiled AI, including the spell's
+cost and object creation. Godot support implements the native operations
+those calls require. Any spell-specific decision added to support would be a
+fidelity debt that needs an explicit source rationale and a follow-up to move
+it back to source AI compilation.

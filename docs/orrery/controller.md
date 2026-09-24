@@ -63,6 +63,9 @@ and level `manoir` before inspecting gameplay. Send and verify each menu key
 separately when diagnosing a failed load; a successful input-delivery result
 alone does not prove that the save loaded. Allow several seconds after the
 level appears for its startup stutter to settle.
+The verified menu setup uses each key for 55 ms followed by an 800 ms release
+gap. A shorter gap can leave the next screenshot before the menu visibly
+updates.
 
 After verification, this is the Codex entry to add manually. Replace the sample
 value with the exact contents of the token file. Do not include angle brackets.

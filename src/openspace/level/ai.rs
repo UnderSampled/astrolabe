@@ -297,25 +297,27 @@ pub(super) fn object_templates(
 fn behavior_bindings(
     path: &AssetPath,
     sets: &[Option<SourceSet>; 2],
-) -> BTreeMap<Address, BehaviorRef> {
-    [BehaviorGroup::Normal, BehaviorGroup::Reflex]
+) -> Result<BTreeMap<Address, BehaviorRef>> {
+    let mut bindings = BTreeMap::new();
+    for (group, set) in [BehaviorGroup::Normal, BehaviorGroup::Reflex]
         .into_iter()
         .zip(sets)
-        .flat_map(|(group, set)| {
-            set.iter().flat_map(move |s| {
-                s.behaviors.iter().enumerate().map(move |(i, b)| {
-                    (
-                        b.address,
-                        BehaviorRef {
-                            model: AssetRef::from_path(path.clone()),
-                            group,
-                            behavior: i as u32,
-                        },
-                    )
-                })
-            })
-        })
-        .collect()
+    {
+        for (index, behavior) in set.iter().flat_map(|set| &set.behaviors).enumerate() {
+            let reference = BehaviorRef {
+                model: AssetRef::from_path(path.clone()),
+                group,
+                behavior: index as u32,
+            };
+            ensure!(
+                bindings.insert(behavior.address, reference).is_none(),
+                "duplicate source AI behavior address {:?} within {}",
+                behavior.address,
+                path
+            );
+        }
+    }
+    Ok(bindings)
 }
 fn preserve_script(
     s: &SourceSession,
@@ -645,6 +647,43 @@ pub(super) fn import(
         result.scene.main_actor = Some(AssetRef::new(format!("level:/persos/{}", node.path))?);
     }
     let sounds = SoundSites::open(game, selection_value, s)?;
+    // Resolve kind-32 references against every Brain model in the active
+    // rooted/template actor graph before decoding scripts. A behavior member
+    // is an interior address in its owning model's allocation, so source
+    // allocation identity alone cannot identify an external behavior target.
+    let mut source_sets: BTreeMap<Address, [Option<SourceSet>; 2]> = BTreeMap::new();
+    for &perso in actors.keys() {
+        let header: PersoHeaderWire = wire(s.bytes(perso, 20)?)?;
+        if header.brain == 0 {
+            continue;
+        }
+        let Some(brain) = s.pointer(perso, 16)? else {
+            continue;
+        };
+        let _: BrainWire = wire(allocated(s, brain, 8)?)?;
+        let mind = s.required(brain, 0)?;
+        let _: MindWire = wire(allocated(s, mind, 20)?)?;
+        let model = s.required(mind, 0)?;
+        if let std::collections::btree_map::Entry::Vacant(entry) = source_sets.entry(model) {
+            entry.insert([source_set(s, model, 0)?, source_set(s, model, 4)?]);
+        }
+    }
+    let mut behavior_index: BTreeMap<Address, BehaviorRef> = BTreeMap::new();
+    for (&model, sets) in &source_sets {
+        let model_path = path(s, model)?;
+        for (address, reference) in behavior_bindings(&model_path, sets)? {
+            if let Some(previous) = behavior_index.get(&address) {
+                ensure!(
+                    previous == &reference,
+                    "ambiguous source AI behavior address {address:?}: {} and {}",
+                    previous.model.path,
+                    reference.model.path
+                );
+            } else {
+                behavior_index.insert(address, reference);
+            }
+        }
+    }
     let mut cache: BTreeMap<Address, CachedModel> = BTreeMap::new();
     for (&p, perso_reference) in actors {
         let header: PersoHeaderWire = wire(s.bytes(p, 20)?)?;
@@ -669,8 +708,9 @@ pub(super) fn import(
         if let std::collections::btree_map::Entry::Vacant(entry) = cache.entry(model) {
             let path = path(s, model)?;
             let h: ModelWire = wire(allocated(s, model, 16)?)?;
-            let sets = [source_set(s, model, 0)?, source_set(s, model, 4)?];
-            let behaviors = behavior_bindings(&path, &sets);
+            let sets = source_sets
+                .remove(&model)
+                .context("AI model absent from active actor pre-index")?;
             let mut missing = BTreeSet::new();
             let designer = designer_layout(s, model)?;
             let DesignerLayout {
@@ -702,11 +742,11 @@ pub(super) fn import(
                     name: perso.name.clone(),
                     normal: sets[0]
                         .as_ref()
-                        .map(|set| decode_set(s, &sounds, states, actors, &behaviors, set))
+                        .map(|set| decode_set(s, &sounds, states, actors, &behavior_index, set))
                         .transpose()?,
                     reflex: sets[1]
                         .as_ref()
-                        .map(|set| decode_set(s, &sounds, states, actors, &behaviors, set))
+                        .map(|set| decode_set(s, &sounds, states, actors, &behavior_index, set))
                         .transpose()?,
                     variables: infos
                         .iter()

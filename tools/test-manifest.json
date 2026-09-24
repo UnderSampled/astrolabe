@@ -386,6 +386,17 @@
     },
     {
       "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::external_main_actor_behavior_query_reconstructs_exact_script",
+      "areas": ["source", "ai", "magick"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic external behavior member operand",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::main_actor_field_adjustments_reconstruct_exact_script",
       "areas": ["ai", "source", "combat"],
       "kind": "unit",
@@ -795,6 +806,17 @@
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic StdCamer source reference",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
+      "test": "external_behavior_query_checks_main_actor_brain_identity_before_branch",
+      "areas": ["ai", "magick"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic spell actor querying MainActor behavior",
       "timeout_seconds": 5,
       "ignored": false,
       "release": true

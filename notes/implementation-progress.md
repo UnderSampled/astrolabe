@@ -48,6 +48,13 @@ establish sword hit/damage, visual launch parity, crossbow shooting, or full
 combat acceptance. See the [combat comparison](./combat-comparison-2026-09-24.md)
 for source evidence, reports and native API fidelity debt.
 
+For the default spell, source AI model 817's external behavior condition now
+resolves to Hype's model 28 normal behavior 94 and compiles to a guarded Brain
+query. The generated script parses in Godot, and the cost remains a source
+script call to the implemented native magick API. A full cast, effect and
+cross-engine magick scenario is still pending. See the
+[magick comparison](./magick-comparison-2026-09-24.md).
+
 The earlier [Hype control progress](./hype-control-progress.md) checkpoint
 implemented and tested native root motion/contact, action completion, typed
 action arrays, input bindings, rule/reflex flow and behavior transitions.

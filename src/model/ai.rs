@@ -285,7 +285,10 @@ pub enum Expression {
     },
     SelfFieldRead(u16),
     MainActorFieldRead(u16),
-    IsInBehavior(BehaviorRef),
+    IsInBehavior {
+        actor: ActorKeyword,
+        target: BehaviorRef,
+    },
     Button {
         action: String,
         query: ButtonQuery,
@@ -469,7 +472,11 @@ impl Content for AiModel {
             }
         }
         for reference in self.behavior_references() {
-            reference.validate_model(self)?;
+            // A query may name a behavior in another actor's AI model. Its
+            // owning model is resolved by the content adapter, not by `self`.
+            if reference.model.path == self.path {
+                reference.validate_model(self)?;
+            }
         }
         Ok(())
     }
@@ -748,7 +755,7 @@ impl AiModel {
             }
         }
         out.extend(self.expressions().into_iter().filter_map(|e| match e {
-            Expression::IsInBehavior(r) => Some(r),
+            Expression::IsInBehavior { target, .. } => Some(target),
             _ => None,
         }));
         out

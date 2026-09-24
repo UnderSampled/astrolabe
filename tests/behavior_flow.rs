@@ -169,7 +169,10 @@ fn behavior_references_and_yield_pairs_reconstruct_and_validate_ownership() -> R
             pause_after: true,
         },
         Statement::If {
-            condition: Expression::IsInBehavior(target.clone()),
+            condition: Expression::IsInBehavior {
+                actor: ActorKeyword::SelfActor,
+                target: target.clone(),
+            },
             then: vec![Statement::WaitFrames(Expression::Integer(1))],
             otherwise: None,
         },
