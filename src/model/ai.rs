@@ -162,6 +162,17 @@ pub enum Statement {
     JumpAbsolute,
     JumpWithoutAddingSpeed,
     SetParticleGeneratorEnabled(bool),
+    /// Hype Proc_ActivateChannel / Proc_DeactivateChannel select an existing
+    /// character channel by its source channel number.
+    SetChannelActive {
+        channel: u32,
+        active: bool,
+    },
+    /// Source HUD visibility request; Godot owns the presentation component.
+    SetHudVisible {
+        indicator: HudIndicator,
+        visible: Expression,
+    },
     ExecuteAction(Expression),
     /// Play an action while requesting an independently stored Perso template.
     /// Runtime generation/timing is owned by the target character component.
@@ -182,6 +193,14 @@ pub enum Statement {
         arg1: Expression,
     },
     Noop,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HudIndicator {
+    Life,
+    Armor,
+    Magic,
+    SelectedObject,
+    Weapon,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Expression {
@@ -578,6 +597,7 @@ impl AiModel {
                         expression(arg0, out);
                         expression(arg1, out);
                     }
+                    Statement::SetHudVisible { visible, .. } => expression(visible, out),
                     _ => {}
                 }
             }
@@ -820,6 +840,7 @@ impl Script {
                         expression(arg0, out);
                         expression(arg1, out);
                     }
+                    Statement::SetHudVisible { visible, .. } => expression(visible, out),
                     _ => {}
                 }
             }

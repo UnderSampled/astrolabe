@@ -1,4 +1,4 @@
-# Astrolabe support, interface 23
+# Astrolabe support, interface 27
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -53,6 +53,18 @@ action unless `restart` is true. `requested_action_state` differs from
 `current_state` while a transition is playing. `animation_complete` describes a
 completed cycle; `action_complete` and `action_finished(id)` describe the end of
 the action chain. `select_state()` is still a direct, looping inspection override.
+`action_request_traced` reports each native action request and its resolved
+selection for gameplay diagnostics.
+
+The compiled `Proc_ActivateChannel` and `Proc_DeactivateChannel` calls use
+`source_set_channel_active(channel, active)`. It sets visibility on every
+exported channel parent whose `source_channel` metadata matches the script's
+typed channel operand; native animation tracks continue to select child parts.
+The compiled `Stats_DisplayMainActor*` calls retain their requested Boolean
+visibility in `source_hud_display` and emit `hud_visibility_requested`. An
+authored HUD can bind that signal to its native `Control` nodes. The current
+manor gameplay test scene has no HUD composition, so the signal alone does not
+establish visual HUD parity.
 
 `character/mechanics.gd` exposes promoted mechanics parameters for inspection;
 it does not simulate the original dynamics. Family bounds are saved hidden

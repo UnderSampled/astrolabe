@@ -4,7 +4,7 @@ use super::{
     *,
 };
 use crate::model::{AssetPath, PackageRole, io::Content};
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use std::collections::BTreeMap;
 
 pub(super) fn check(session: &SourceSession, value: &SceneImport) -> Result<()> {
@@ -90,8 +90,9 @@ pub(super) fn check(session: &SourceSession, value: &SceneImport) -> Result<()> 
         6,
     )?;
     let mechanics = collect(value.mechanics.iter().map(|v| v.path.clone()).collect(), 6)?;
-    assert_eq!(bounds.len(), 18);
-    assert_eq!(mechanics.len(), 10);
+    // Action-generated Perso templates expand the imported family closure.
+    assert_eq!(bounds.len(), 32);
+    assert_eq!(mechanics.len(), 11);
     for profile in &value.mechanics {
         let a = address(&profile.path, 6)?;
         let length = u32_at(&session.block(a)?.data, a.offset - 4)? as usize * 4 - 4;
@@ -106,13 +107,46 @@ pub(super) fn check(session: &SourceSession, value: &SceneImport) -> Result<()> 
         );
     }
     let mut source_families = BTreeMap::new();
-    for node in session.tree()? {
-        if u32_at(session.bytes(node.address, 4)?, 0)? != 4 {
-            continue;
+    let mut record_family = |perso: Address| -> Result<()> {
+        let family = session.required(session.required(perso, 0)?, 20)?;
+        let header: FamilyWire = wire(session.bytes(family, 56)?)?;
+        let role = if family.owner == Owner::Fix {
+            "fix"
+        } else {
+            "level"
+        };
+        let path = AssetPath::new(format!("{role}:/families/{}", header.index))?;
+        let previous = source_families.insert(path.clone(), family);
+        ensure!(
+            previous.is_none_or(|address| address == family),
+            "distinct source families share {path}"
+        );
+        Ok(())
+    };
+    let mut actor_refs = BTreeMap::new();
+    for (source, node) in session.tree()?.iter().zip(&value.scene.nodes) {
+        if let Some(reference) = &node.perso {
+            let perso = session.required(source.address, 4)?;
+            record_family(perso)?;
+            actor_refs.insert(perso, reference.clone());
         }
-        let a = session.required(session.required(session.required(node.address, 4)?, 0)?, 20)?;
-        source_families.insert(u32_at(session.bytes(a, 16)?, 12)?, a);
     }
+    if let Some((perso, source)) = super::scene::global_perso_source(session)? {
+        record_family(perso)?;
+        let reference = value
+            .scene
+            .global_actors
+            .iter()
+            .find(|actor| actor.source == source)
+            .context("imported Global Perso missing")?
+            .perso
+            .clone();
+        actor_refs.insert(perso, reference);
+    }
+    for perso in super::ai::object_templates(session, &actor_refs)? {
+        record_family(perso)?;
+    }
+    drop(record_family);
     let mut state_count = 0;
     let mut transition_count = 0;
     for role in [PackageRole::Fix, PackageRole::Level] {
@@ -150,7 +184,9 @@ pub(super) fn check(session: &SourceSession, value: &SceneImport) -> Result<()> 
         assert_eq!(list(&out.fragment.bytes, 0, base)?.len(), families.len());
         for family in &families {
             family.validate()?;
-            let a = source_families[&family.object_type];
+            let a = *source_families
+                .get(&family.path)
+                .with_context(|| format!("missing source family {}", family.path))?;
             let src: FamilyWire = wire(session.bytes(a, 56)?)?;
             let root = (out.families[&family.path].address - base) as usize;
             let written: FamilyWire = wire(&out.fragment.bytes[root..root + 56])?;
@@ -227,9 +263,14 @@ pub(super) fn check(session: &SourceSession, value: &SceneImport) -> Result<()> 
             assert!(source_state.is_none());
         }
     }
-    assert_eq!(state_count, 585);
+    assert_eq!(value.families.len(), 39);
+    assert_eq!(state_count, 660);
+    assert_eq!(transition_count, 133);
     eprintln!(
-        "Family reconstruction: 21 families, {state_count} states, {transition_count} transitions, 18 shared bounds, 10 mechanics cards (5 typed and 5 explicitly unpromoted)"
+        "Family reconstruction: {} families, {state_count} states, {transition_count} transitions, {} shared bounds, {} mechanics cards",
+        value.families.len(),
+        bounds.len(),
+        mechanics.len()
     );
     Ok(())
 }

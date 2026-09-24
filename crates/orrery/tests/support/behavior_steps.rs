@@ -439,6 +439,58 @@ pub fn synthetic_result(recording: behavior::FunctionalRecording) -> Result<Back
                 error: None,
             });
         }
+        Scenario::SwordAttack => {
+            let actions = [47, 45, 134, 134, 48, 48];
+            let samples = actions
+                .into_iter()
+                .zip(&recording.samples)
+                .map(|(action, point)| {
+                    ActorSample::from_actor(
+                        point.name.clone(),
+                        point.at_ms,
+                        point.at_ms,
+                        point.at_ms + 1,
+                        synthetic_actor(action, [0.0, 0.0, 4.55], 0.0),
+                    )
+                })
+                .collect::<Result<Vec<_>>>()?;
+            let checks = behavior::assertions(scenario, &samples)?;
+            let delivered = recording
+                .inputs
+                .iter()
+                .map(|input| behavior::DeliveredInput {
+                    id: input.id.clone(),
+                    planned_ms: input.at_ms,
+                    actual_ms: input.at_ms,
+                    event: input.event.clone(),
+                })
+                .collect();
+            return Ok(BackendResult {
+                backend: "synthetic".into(),
+                scenario,
+                status: if checks.iter().all(|check| check.passed) {
+                    "passed"
+                } else {
+                    "failed"
+                }
+                .into(),
+                recording_sha256: recording.sha256()?,
+                recording,
+                executable_sha256: None,
+                save_sha256: None,
+                loaded_level: Some("synthetic_manoir".into()),
+                input_delivery: "synthetic_fixture".into(),
+                observation_consistency: "synthetic".into(),
+                completed_update: false,
+                setup_interventions: vec![],
+                delivered,
+                samples,
+                assertions: checks,
+                screenshot: None,
+                cleanup_complete: true,
+                error: None,
+            });
+        }
     };
     let samples = recording
         .samples
@@ -557,6 +609,11 @@ fn clear_jump_start(world: &mut BehaviorWorld) {
     }
 }
 
+#[given("Hype is grounded away from the manor save point")]
+fn clear_sword_start(world: &mut BehaviorWorld) {
+    clear_jump_start(world);
+}
+
 #[given("Hype is ready to move in a clear part of the manor")]
 fn ready(world: &mut BehaviorWorld) {
     if crate::BACKEND != Mode::Synthetic && world.backend.is_none() {
@@ -650,6 +707,40 @@ fn moving_jump(world: &mut BehaviorWorld) {
 #[when("the player jumps forward toward the wall")]
 fn wall_jump(world: &mut BehaviorWorld) {
     perform(world, Scenario::WallJump);
+}
+
+#[when("the player selects the sword and presses attack once")]
+fn sword_attack(world: &mut BehaviorWorld) {
+    perform(world, Scenario::SwordAttack);
+}
+
+#[then("Hype equips the sword and performs an attack action")]
+fn sword_attack_action(world: &mut BehaviorWorld) {
+    require_checks(
+        world,
+        &[
+            "sword_baseline_idle",
+            "sword_equipping_action",
+            "sword_attack_early_phase",
+            "sword_attack_late_phase",
+        ],
+    );
+    if crate::BACKEND == Mode::Godot {
+        require_checks(world, &["sword_native_floor_contact"]);
+    }
+}
+
+#[then("Hype returns to armed idle without moving away")]
+fn sword_attack_recovered(world: &mut BehaviorWorld) {
+    require_checks(
+        world,
+        &[
+            "sword_recovered_idle",
+            "sword_settled_idle",
+            "sword_stationary_xy",
+            "sword_post_attack_drift",
+        ],
+    );
 }
 
 #[then("Hype meets the wall while airborne without passing through")]
@@ -892,6 +983,7 @@ fn selected_scenario(name: &str) -> Result<Scenario> {
         "Jumping from a standstill and landing" => Scenario::StationaryJump,
         "Jumping from a walk and landing" => Scenario::MovingJump,
         "A moving jump meets the wall and lands" => Scenario::WallJump,
+        "Selecting the sword and attacking once" => Scenario::SwordAttack,
         _ => anyhow::bail!("unknown BDD scenario: {name}"),
     })
 }
@@ -939,7 +1031,9 @@ fn run_selected(names: &[&'static str], shared_session: bool) -> Result<SessionE
         let before_launch_count = Rc::clone(&launch_count);
         let after_session = Rc::clone(&session);
         let writer = runtime.block_on(async {
-            let feature = if matches!(
+            let feature = if scenario == Scenario::SwordAttack {
+                concat!(env!("CARGO_MANIFEST_DIR"), "/tests/features/combat.feature")
+            } else if matches!(
                 scenario,
                 Scenario::StationaryJump | Scenario::MovingJump | Scenario::WallJump
             ) {

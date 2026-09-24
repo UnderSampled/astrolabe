@@ -301,6 +301,27 @@ impl Parser<'_> {
                 (4, 48) => Statement::JumpWithoutAddingSpeed,
                 (4, 192) => Statement::SetParticleGeneratorEnabled(true),
                 (4, 193) => Statement::SetParticleGeneratorEnabled(false),
+                (4, 104 | 105) => {
+                    let (_, channel) = self.take(indent + 1)?;
+                    ensure!(
+                        channel.kind == 18,
+                        "channel request lacks channel operand at node {at}"
+                    );
+                    Statement::SetChannelActive {
+                        channel: channel.parameter,
+                        active: id == 104,
+                    }
+                }
+                (4, 422..=426) => Statement::SetHudVisible {
+                    indicator: match id {
+                        422 => HudIndicator::Life,
+                        423 => HudIndicator::Armor,
+                        424 => HudIndicator::Magic,
+                        425 => HudIndicator::SelectedObject,
+                        _ => HudIndicator::Weapon,
+                    },
+                    visible: self.expression(indent + 1)?,
+                },
                 (5, 68) => Statement::WaitFrames(self.expression(indent + 1)?),
                 (4, 209 | 210) => self.change_behavior(id, indent, false, at)?,
                 (4, 6) => {
@@ -739,6 +760,24 @@ impl Writer<'_> {
                 Statement::SetParticleGeneratorEnabled(enabled) => {
                     self.node(4, if *enabled { 192 } else { 193 }, indent)
                 }
+                Statement::SetChannelActive { channel, active } => {
+                    self.node(4, if *active { 104 } else { 105 }, indent);
+                    self.node(18, *channel, indent + 1);
+                }
+                Statement::SetHudVisible { indicator, visible } => {
+                    self.node(
+                        4,
+                        match indicator {
+                            HudIndicator::Life => 422,
+                            HudIndicator::Armor => 423,
+                            HudIndicator::Magic => 424,
+                            HudIndicator::SelectedObject => 425,
+                            HudIndicator::Weapon => 426,
+                        },
+                        indent,
+                    );
+                    self.expression(visible, indent + 1)?;
+                }
                 Statement::ArrayAssign {
                     array,
                     index,
@@ -1056,6 +1095,43 @@ mod partial_tests {
             },
             bytes.into_inner(),
         )
+    }
+
+    #[test]
+    fn channel_and_hud_requests_decode_and_reconstruct() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (4, 105, 1),
+            (18, 72, 2),
+            (4, 104, 1),
+            (18, 28, 2),
+            (4, 426, 1),
+            (12, 1, 2),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            script.statements[0],
+            Statement::SetChannelActive {
+                channel: 72,
+                active: false
+            }
+        ));
+        assert!(matches!(
+            script.statements[1],
+            Statement::SetChannelActive {
+                channel: 28,
+                active: true
+            }
+        ));
+        assert!(matches!(
+            script.statements[2],
+            Statement::SetHudVisible {
+                indicator: HudIndicator::Weapon,
+                visible: Expression::Integer(1)
+            }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
     }
 
     #[test]

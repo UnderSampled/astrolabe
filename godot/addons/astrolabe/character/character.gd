@@ -3,6 +3,8 @@ extends CharacterBody3D
 ## No frame tables, transform pools or object configurations are consumed here.
 signal cue_triggered(action: Resource, frame: int, channel: int, configuration_slot: int)
 signal action_finished(action: int)
+signal action_request_traced(requested: int, restart: bool, previous: int, selected: int, accepted: bool)
+signal hud_visibility_requested(indicator: String, visible: bool)
 @export var initial_state: int = -1
 @export var current_state: int = -1
 @export var current_mechanics: Resource
@@ -21,6 +23,7 @@ var source_relative_motion: bool = false
 var source_airborne: bool = false
 var source_particle_generator_enabled: bool = false
 var source_generated_object_count: int = 0
+var source_hud_display: Dictionary = {}
 ## Last evaluated local displacement, including every native substep and loop.
 var root_motion_displacement: Vector3 = Vector3.ZERO
 var restored_configuration: bool = false
@@ -165,6 +168,25 @@ func source_set_particle_generator_enabled(enabled: bool) -> void:
         var emitter := particle as CPUParticles3D
         emitter.emitting = enabled
 
+## The exported rig retains source channel IDs on native Node3D parents.
+## Set the parent visibility so animation tracks can still select child parts.
+func source_set_channel_active(channel: int, active: bool) -> bool:
+    var channels := get_node_or_null("Channels")
+    if channels == null: return false
+    var found := false
+    for candidate in channels.get_children():
+        if int(candidate.get_meta("source_channel", -1)) == channel:
+            (candidate as Node3D).visible = active
+            found = true
+    return found
+
+## The authored HUD can bind this signal to its native Control nodes. Keep the
+## requested state when the current test scene has no HUD composition yet.
+func source_set_hud_indicator_visible(indicator: String, visible: bool) -> void:
+    assert(indicator in ["life", "armor", "magic", "selected_object", "weapon"])
+    source_hud_display[indicator] = visible
+    hud_visibility_requested.emit(indicator, visible)
+
 ## Execute an action and instantiate its converted Perso template once. A
 ## nonzero source vector still needs its placement/velocity contract established.
 ## Return -1 for an unsupported request, 0 for a rejected action, 1 when started.
@@ -295,13 +317,21 @@ func is_in_action(id: int) -> bool:
     return (requested_action_state if action_controlled else current_state) == id
 
 func request_action(id: int, restart: bool = false) -> bool:
-    if not animation_player.has_animation(StringName("state_%d" % id)): return false
-    if not restart and action_controlled and requested_action_state == id: return true
-    var selected := _transition_target(pending_state if pending_state >= 0 else current_state, id)
-    if selected < 0: return false
+    var previous := pending_state if pending_state >= 0 else current_state
+    if not animation_player.has_animation(StringName("state_%d" % id)):
+        action_request_traced.emit(id, restart, previous, -1, false)
+        return false
+    if not restart and action_controlled and requested_action_state == id:
+        action_request_traced.emit(id, restart, previous, previous, true)
+        return true
+    var selected := _transition_target(previous, id)
+    if selected < 0:
+        action_request_traced.emit(id, restart, previous, selected, false)
+        return false
     requested_action_state = id
     animation_complete = false
     _play_action_state(selected)
+    action_request_traced.emit(id, restart, previous, selected, true)
     return true
 
 func _play_action_state(id: int) -> void:

@@ -17,7 +17,9 @@ use std::{collections::BTreeMap, path::Path};
 
 const GLOBAL_PERSO_ALLOCATION: u32 = 15;
 
-fn global_perso_source(session: &SourceSession) -> Result<Option<(Address, SourceObjectIdentity)>> {
+pub(super) fn global_perso_source(
+    session: &SourceSession,
+) -> Result<Option<(Address, SourceObjectIdentity)>> {
     let block = BlockKey(5, 0);
     if !session
         .blocks

@@ -44,6 +44,19 @@ fn original_wall_jump_and_landing() -> anyhow::Result<()> {
 
 #[test]
 #[ignore = "requires prepared Hype save and private Wine/Gamescope; selected by --local"]
+fn original_sword_attack_and_recovery() -> anyhow::Result<()> {
+    let path = behavior_steps::run_scenario("Selecting the sword and attacking once")?;
+    let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
+    anyhow::ensure!(
+        report["openspace"]["status"] == "passed",
+        "source sword attack did not pass"
+    );
+    println!("OpenSpace sword attack BDD evidence: {}", path.display());
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires prepared Hype save and private Wine/Gamescope; selected by --local"]
 fn original_movement_scenarios_share_one_game_session() -> anyhow::Result<()> {
     let evidence = behavior_steps::run_scenarios_shared(&[
         "Turning while standing",

@@ -16,6 +16,7 @@ use std::{
 pub mod godot;
 mod jump;
 mod moving_jump;
+mod sword;
 mod wall;
 mod wall_jump;
 
@@ -42,6 +43,7 @@ pub enum Scenario {
     StationaryJump,
     MovingJump,
     WallJump,
+    SwordAttack,
 }
 impl Scenario {
     pub fn slug(self) -> &'static str {
@@ -53,6 +55,7 @@ impl Scenario {
             Self::StationaryJump => "stationary-jump",
             Self::MovingJump => "moving-jump",
             Self::WallJump => "wall-jump",
+            Self::SwordAttack => "sword-attack",
         }
     }
 }
@@ -100,7 +103,9 @@ impl FunctionalRecording {
             }
             Scenario::WallContact => "manoir-corner-after-physical-left-turn",
             Scenario::WallJump => "manoir-grounded-near-verified-corner-wall",
-            Scenario::StationaryJump => "manoir-clear-ground-after-physical-down",
+            Scenario::StationaryJump | Scenario::SwordAttack => {
+                "manoir-clear-ground-after-physical-down"
+            }
         };
         ensure!(
             self.ready_state == expected_ready_state,
@@ -117,6 +122,9 @@ impl FunctionalRecording {
         }
         if self.scenario == Scenario::WallJump {
             return wall_jump::validate(self);
+        }
+        if self.scenario == Scenario::SwordAttack {
+            return sword::validate(self);
         }
         if self.scenario == Scenario::RunVsWalk {
             let walk = self
@@ -195,6 +203,9 @@ pub fn recording(scenario: Scenario) -> FunctionalRecording {
     if scenario == Scenario::WallJump {
         return wall_jump::recording();
     }
+    if scenario == Scenario::SwordAttack {
+        return sword::recording();
+    }
     if scenario == Scenario::WallContact {
         return wall::recording();
     }
@@ -249,6 +260,7 @@ pub fn recording(scenario: Scenario) -> FunctionalRecording {
         Scenario::StationaryJump => unreachable!(),
         Scenario::MovingJump => unreachable!(),
         Scenario::WallJump => unreachable!(),
+        Scenario::SwordAttack => unreachable!(),
     };
     FunctionalRecording {
         schema: 1,
@@ -261,6 +273,7 @@ pub fn recording(scenario: Scenario) -> FunctionalRecording {
             Scenario::StationaryJump => unreachable!(),
             Scenario::MovingJump => unreachable!(),
             Scenario::WallJump => unreachable!(),
+            Scenario::SwordAttack => unreachable!(),
         }
         .into(),
         inputs: vec![
@@ -474,6 +487,9 @@ pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Ass
     if scenario == Scenario::WallJump {
         return wall_jump::assertions(samples);
     }
+    if scenario == Scenario::SwordAttack {
+        return sword::assertions(samples);
+    }
     if scenario == Scenario::WallContact {
         return wall::assertions(samples);
     }
@@ -514,6 +530,7 @@ pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Ass
                 Scenario::StationaryJump => unreachable!(),
                 Scenario::MovingJump => unreachable!(),
                 Scenario::WallJump => unreachable!(),
+                Scenario::SwordAttack => unreachable!(),
             },
             Some(1.),
             Some(1.),
@@ -604,6 +621,7 @@ pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Ass
         Scenario::StationaryJump => unreachable!(),
         Scenario::MovingJump => unreachable!(),
         Scenario::WallJump => unreachable!(),
+        Scenario::SwordAttack => unreachable!(),
     }
     Ok(checks)
 }
@@ -816,6 +834,7 @@ pub fn compare_results(
         Scenario::StationaryJump => 7,
         Scenario::MovingJump => 8,
         Scenario::WallJump => 8,
+        Scenario::SwordAttack => 6,
     };
     ensure!(
         openspace.samples.len() == godot.samples.len()
@@ -834,7 +853,29 @@ pub fn compare_results(
             Scenario::MovingJump | Scenario::WallJump => source.name == "walking",
             _ => false,
         };
-        if held_walk_phase {
+        if openspace.scenario == Scenario::SwordAttack && source.name == "attack_early" {
+            checks.push(bound(
+                "sword_attack_early_phase_compatible",
+                f64::from(u8::from(
+                    matches!(source.action, Some(135 | 134))
+                        && matches!(target.action, Some(135 | 134)),
+                )),
+                Some(1.),
+                Some(1.),
+                "Hype normal 29 executes consecutive sword actions 135 then 134",
+            ));
+        } else if openspace.scenario == Scenario::SwordAttack && source.name == "attack_late" {
+            checks.push(bound(
+                "sword_attack_late_phase_compatible",
+                f64::from(u8::from(
+                    matches!(source.action, Some(134 | 135 | 48))
+                        && matches!(target.action, Some(134 | 135 | 48)),
+                )),
+                Some(1.),
+                Some(1.),
+                "the source swing may still play or finish at this sampled transition",
+            ));
+        } else if held_walk_phase {
             // The source 78 entry action and 32 sustained action are both
             // active walking at this elapsed-time checkpoint. Exact IDs stay
             // in the backend reports; consumption-frame parity is not claimed.
@@ -931,7 +972,10 @@ pub fn compare_results(
         visual_status: "pending_completed_render_pairing".into(),
         timing_profile: if matches!(
             openspace.scenario,
-            Scenario::StationaryJump | Scenario::MovingJump | Scenario::WallJump
+            Scenario::StationaryJump
+                | Scenario::MovingJump
+                | Scenario::WallJump
+                | Scenario::SwordAttack
         ) {
             "pause_compensated_functional_elapsed_ms_no_wall_or_consumption_parity"
         } else {
@@ -1022,18 +1066,19 @@ impl BackendResult {
                 "backend sample contains nonfinite coordinates"
             );
         }
-        let settled_windows: &[(usize, usize)] =
-            if matches!(self.scenario, Scenario::MovingJump | Scenario::WallJump) {
-                &[(6, 7)]
-            } else if self.scenario == Scenario::StationaryJump {
-                &[(5, 6)]
-            } else if self.scenario == Scenario::WallContact {
-                &[(5, 6)]
-            } else if self.scenario == Scenario::RunVsWalk {
-                &[(3, 4), (8, 9)]
-            } else {
-                &[(3, 4)]
-            };
+        let settled_windows: &[(usize, usize)] = if self.scenario == Scenario::SwordAttack {
+            &[(4, 5)]
+        } else if matches!(self.scenario, Scenario::MovingJump | Scenario::WallJump) {
+            &[(6, 7)]
+        } else if self.scenario == Scenario::StationaryJump {
+            &[(5, 6)]
+        } else if self.scenario == Scenario::WallContact {
+            &[(5, 6)]
+        } else if self.scenario == Scenario::RunVsWalk {
+            &[(3, 4), (8, 9)]
+        } else {
+            &[(3, 4)]
+        };
         for &(start, end) in settled_windows {
             ensure!(
                 self.samples[end]
@@ -1744,12 +1789,16 @@ impl OriginalBackend {
                     | (OriginalReadyState::JumpStart, Scenario::StationaryJump)
                     | (OriginalReadyState::ClearRoute, Scenario::MovingJump)
                     | (OriginalReadyState::WallJumpStart, Scenario::WallJump)
+                    | (OriginalReadyState::JumpStart, Scenario::SwordAttack)
             ),
             "the selected scenario's Given setup was not established"
         );
         let pause_compensated = matches!(
             recording.scenario,
-            Scenario::StationaryJump | Scenario::MovingJump | Scenario::WallJump
+            Scenario::StationaryJump
+                | Scenario::MovingJump
+                | Scenario::WallJump
+                | Scenario::SwordAttack
         );
         let (delivered, samples, _) = self.execute_trial(
             &recording.inputs,

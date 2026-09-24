@@ -10,6 +10,7 @@
     "ai",
     "movement",
     "jump",
+    "combat",
     "runtime",
     "comparison"
   ],
@@ -19,6 +20,10 @@
       "animation"
     ],
     "jump": [
+      "ai",
+      "animation"
+    ],
+    "combat": [
       "ai",
       "animation"
     ],
@@ -120,6 +125,17 @@
       "ignored": false,
       "release": true,
       "safeguard": "always"
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::channel_and_hud_requests_decode_and_reconstruct",
+      "areas": ["ai", "source", "combat"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic source AI nodes",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
     },
     {
       "binary": "astrolabe",
@@ -1705,6 +1721,17 @@
       "release": true
     },
     {
+      "binary": "orrery::behavior_synthetic",
+      "test": "synthetic_sword_attack_requires_selection_attack_and_recovery",
+      "areas": ["combat", "comparison"],
+      "kind": "contract",
+      "prerequisites": [],
+      "fixture": "synthetic manor actor with sword",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
       "binary": "orrery::behavior_original",
       "test": "original_movement_scenarios_share_one_game_session",
       "areas": ["movement", "comparison"],
@@ -1749,6 +1776,17 @@
       "release": true
     },
     {
+      "binary": "orrery::behavior_original",
+      "test": "original_sword_attack_and_recovery",
+      "areas": ["combat", "comparison"],
+      "kind": "original-engine",
+      "prerequisites": ["original"],
+      "fixture": "pinned Hype executable and supplied English SaveGame0",
+      "timeout_seconds": 140,
+      "ignored": true,
+      "release": true
+    },
+    {
       "binary": "orrery::behavior_godot",
       "test": "godot_stationary_jump_and_landing",
       "areas": ["jump", "comparison"],
@@ -1774,6 +1812,17 @@
       "binary": "orrery::behavior_godot",
       "test": "godot_wall_jump_and_landing",
       "areas": ["jump", "comparison"],
+      "kind": "gameplay",
+      "prerequisites": ["disc", "godot"],
+      "fixture": "normal Hype manoir export with saved Brain",
+      "timeout_seconds": 360,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "orrery::behavior_godot",
+      "test": "godot_sword_attack_and_recovery",
+      "areas": ["combat", "comparison"],
       "kind": "gameplay",
       "prerequisites": ["disc", "godot"],
       "fixture": "normal Hype manoir export with saved Brain",

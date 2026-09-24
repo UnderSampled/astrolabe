@@ -1017,6 +1017,31 @@ fn statements(
                     "{pad}character().source_set_particle_generator_enabled({enabled})"
                 )?;
             }
+            Statement::SetChannelActive { channel, active } => {
+                writeln!(
+                    out,
+                    "{pad}if not character().source_set_channel_active({channel}, {active}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} requires converted character channel {channel}",
+                        model.path
+                    ))
+                )?;
+            }
+            Statement::SetHudVisible { indicator, visible } => {
+                let visible = guarded_expression(out, visible, model, depth, flow)?;
+                let indicator = match indicator {
+                    crate::model::ai::HudIndicator::Life => "life",
+                    crate::model::ai::HudIndicator::Armor => "armor",
+                    crate::model::ai::HudIndicator::Magic => "magic",
+                    crate::model::ai::HudIndicator::SelectedObject => "selected_object",
+                    crate::model::ai::HudIndicator::Weapon => "weapon",
+                };
+                writeln!(
+                    out,
+                    "{pad}character().source_set_hud_indicator_visible({}, bool({visible}))",
+                    quoted(indicator)
+                )?;
+            }
             Statement::ArrayAssign {
                 array,
                 index,

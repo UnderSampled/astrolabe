@@ -37,6 +37,10 @@ fn physical_keysym(key: Key) -> u32 {
         Key::ArrowDown => 0xff54,
         Key::LeftShift => 0xffe1,
         Key::LeftControl => 0xffe3,
+        Key::X => 0x0078,
+        Key::Z => 0x007a,
+        Key::Space => 0x0020,
+        Key::Enter => 0xff0d,
     }
 }
 

@@ -13,6 +13,10 @@ var fixture: Dictionary
 var packed: PackedScene
 var scene: Node3D
 var setup_snapshots: Array = []
+var action_requests: Array = []
+var action_states: Array = []
+var key_inputs: Array = []
+var last_action_state: int = -1
 
 func _initialize() -> void:
     call_deferred("run")
@@ -49,6 +53,7 @@ func run() -> void:
         write_json(control_dir.path_join("ready.json"), {"error": "saved Hype actor or Brain is missing"})
         quit(1)
         return
+    actor.connect("action_request_traced", Callable(self, "record_action_request"))
     fixture = JSON.parse_string(FileAccess.get_file_as_string("res://tests/fixtures/english_save_manoir.json"))
     if int(fixture.get("schema", 0)) != 1 or str(fixture.get("name", "")) != "supplied-english-save-manoir":
         write_json(control_dir.path_join("ready.json"), {"error": "invalid English save fixture"})
@@ -79,8 +84,12 @@ func run() -> void:
         write_json(control_dir.path_join("ready.json"), {"error": "exported Hype action differs from save fixture"})
         quit(1)
         return
-    restore_save_fixture()
-    setup_snapshots.append({"phase": "fixture_restored", "state": observation()})
+    var restore_error := restore_save_fixture()
+    if not restore_error.is_empty():
+        write_json(control_dir.path_join("ready.json"), {"error": restore_error})
+        quit(1)
+        return
+    setup_snapshots.append({"phase": "fixture_restored", "state": observation(), "designer_arrays": designer_action_arrays()})
     camera = Camera3D.new()
     camera.name = "BehaviorCamera"
     camera.far = 10000.0
@@ -107,6 +116,7 @@ func run() -> void:
     write_json(control_dir.path_join("ready.json"), ready)
     while true:
         await process_frame
+        track_action_state()
         follow_actor()
         if not FileAccess.file_exists(request_path):
             continue
@@ -128,10 +138,47 @@ func follow_actor() -> void:
     camera.global_position = actor.global_position - forward * 7.0 + Vector3.UP * 3.5
     camera.look_at(actor.global_position + Vector3.UP * 1.4)
 
+func record_action_request(requested: int, restart: bool, previous: int, selected: int, accepted: bool) -> void:
+    var fields: Dictionary = {}
+    for index in [7, 19, 52, 59, 61, 124, 125]:
+        fields[str(index)] = brain.get("dsg_" + str(index))
+    action_requests.append({
+        "at_ms": Time.get_ticks_msec(),
+        "requested": requested,
+        "restart": restart,
+        "previous": previous,
+        "selected": selected,
+        "accepted": accepted,
+        "current_state": int(actor.get("current_state")),
+        "pending_state": int(actor.get("pending_state")),
+        "requested_action_state": int(actor.get("requested_action_state")),
+        "normal_behavior": int(brain.get("current_normal")),
+        "normal_action_revision": int(brain.get("normal_action_revision")),
+        "fields": fields,
+    })
+    if action_requests.size() > 100: action_requests.pop_front()
+
+func track_action_state() -> void:
+    if actor == null: return
+    var current := int(actor.get("current_state"))
+    if current == last_action_state: return
+    last_action_state = current
+    action_states.append({"at_ms": Time.get_ticks_msec(), "action": current})
+    if action_states.size() > 100: action_states.pop_front()
+
 func source_vector(values: Array) -> Vector3:
     return Vector3(float(values[0]), float(values[2]), -float(values[1]))
 
-func restore_save_fixture() -> void:
+func designer_action_arrays() -> Dictionary:
+    var result: Dictionary = {}
+    for index in [162, 164]:
+        var values: Array = []
+        for value in brain.get("dsg_" + str(index)):
+            values.append(int(value))
+        result[str(index)] = values
+    return result
+
+func restore_save_fixture() -> String:
     var rows: Array = fixture["source_basis"]
     var basis := Basis(
         source_vector(rows[0]),
@@ -142,6 +189,20 @@ func restore_save_fixture() -> void:
     brain.set("current_reflex", int(fixture["reflex_behavior"]))
     for index in fixture["designer_overrides"]:
         brain.set("dsg_" + str(index), fixture["designer_overrides"][index])
+    var arrays: Dictionary = fixture.get("designer_arrays", {})
+    for index in [162, 164]:
+        var key := str(index)
+        if not arrays.has(key):
+            return "saved Hype designer array " + key + " is missing"
+        var existing = brain.get("dsg_" + key)
+        var saved = arrays[key]
+        if not (existing is PackedInt32Array) or not (saved is Array) or existing.size() != saved.size():
+            return "saved Hype designer array " + key + " has the wrong type or length"
+        var restored := PackedInt32Array()
+        for value in saved:
+            restored.append(int(value))
+        brain.set("dsg_" + key, restored)
+    return ""
 
 func observation() -> Dictionary:
     if actor == null or brain == null:
@@ -152,6 +213,13 @@ func observation() -> Dictionary:
     var external_motion: Vector3 = actor.get("external_velocity")
     var slide_normals: Array = []
     var slide_contacts: Array = []
+    var channel_visibility: Dictionary = {}
+    var channels := actor.get_node_or_null("Channels")
+    if channels != null:
+        for channel in channels.get_children():
+            var source_id := str(channel.get_meta("source_channel", -1))
+            if not channel_visibility.has(source_id): channel_visibility[source_id] = []
+            channel_visibility[source_id].append((channel as Node3D).visible)
     for index in actor.get_slide_collision_count():
         var contact := actor.get_slide_collision(index)
         var normal := contact.get_normal()
@@ -175,6 +243,11 @@ func observation() -> Dictionary:
         "root_motion_displacement": [root_motion.x, root_motion.y, root_motion.z],
         "external_velocity": [external_motion.x, external_motion.y, external_motion.z],
         "generated_object_count": int(actor.get("source_generated_object_count")),
+        "channel_visibility": channel_visibility,
+        "hud_display": actor.get("source_hud_display"),
+        "action_requests": action_requests.duplicate(true),
+        "action_states": action_states.duplicate(true),
+        "key_inputs": key_inputs.duplicate(true),
         "slide_collisions": actor.get_slide_collision_count(),
         "slide_normals": slide_normals,
         "slide_contacts": slide_contacts,
@@ -205,8 +278,14 @@ func handle(request: Dictionary) -> Dictionary:
                 "ArrowDown": event.physical_keycode = KEY_DOWN
                 "LeftShift": event.physical_keycode = KEY_SHIFT
                 "LeftControl": event.physical_keycode = KEY_CTRL
+                "X": event.physical_keycode = KEY_X
+                "Z": event.physical_keycode = KEY_Z
+                "Space": event.physical_keycode = KEY_SPACE
+                "Enter": event.physical_keycode = KEY_ENTER
                 _: return {"error": "unknown physical key"}
             event.pressed = bool(request.get("pressed", false))
+            key_inputs.append({"at_ms": Time.get_ticks_msec(), "key": str(request.get("key", "")), "pressed": event.pressed})
+            if key_inputs.size() > 30: key_inputs.pop_front()
             Input.parse_input_event(event)
             Input.flush_buffered_events()
             return observation()
@@ -239,6 +318,11 @@ func reload_fixture() -> Dictionary:
     brain = actor.get_node_or_null("Brain") if actor != null else null
     if actor == null or brain == null:
         return {"error": "reloaded saved Hype actor or Brain is missing"}
+    action_requests.clear()
+    action_states.clear()
+    key_inputs.clear()
+    last_action_state = -1
+    actor.connect("action_request_traced", Callable(self, "record_action_request"))
     brain.set("automatic", false)
     actor.set_physics_process(false)
     root.add_child(scene)
@@ -246,7 +330,9 @@ func reload_fixture() -> Dictionary:
     global_brain = scene.get_node_or_null("Globals/Global/Brain")
     if global_brain == null or int(actor.get("current_state")) != int(fixture["expected_action"]):
         return {"error": "reloaded manor scene differs from the save fixture"}
-    restore_save_fixture()
+    var restore_error := restore_save_fixture()
+    if not restore_error.is_empty():
+        return {"error": restore_error}
     camera = Camera3D.new()
     camera.name = "BehaviorCamera"
     camera.current = true

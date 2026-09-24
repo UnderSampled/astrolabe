@@ -19,6 +19,10 @@ pub enum Key {
     ArrowDown,
     LeftShift,
     LeftControl,
+    X,
+    Z,
+    Space,
+    Enter,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

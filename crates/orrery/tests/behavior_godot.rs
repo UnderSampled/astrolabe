@@ -43,6 +43,19 @@ fn godot_wall_jump_and_landing() -> anyhow::Result<()> {
 
 #[test]
 #[ignore = "requires local Hype manor data and Godot; selected by --local"]
+fn godot_sword_attack_and_recovery() -> anyhow::Result<()> {
+    let path = behavior_steps::run_scenario("Selecting the sword and attacking once")?;
+    let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
+    anyhow::ensure!(
+        report["godot"]["status"] == "passed",
+        "Godot sword attack did not pass"
+    );
+    println!("Godot sword attack BDD evidence: {}", path.display());
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires local Hype manor data and Godot; selected by --local"]
 fn godot_movement_scenarios_share_saved_scene_and_brain() -> anyhow::Result<()> {
     let evidence = behavior_steps::run_scenarios_shared(&[
         "Turning while standing",

@@ -323,6 +323,10 @@ impl GodotBackend {
                 Key::ArrowUp => "ArrowUp", Key::ArrowDown => "ArrowDown",
                 Key::LeftShift => "LeftShift",
                 Key::LeftControl => "LeftControl",
+                Key::X => "X",
+                Key::Z => "Z",
+                Key::Space => "Space",
+                Key::Enter => "Enter",
             }, "pressed": event.edge == Edge::Press}),
             Duration::from_secs(5),
         )?;
@@ -709,6 +713,7 @@ impl GodotBackend {
                     | (ReadyState::JumpStart, Scenario::StationaryJump)
                     | (ReadyState::ClearRoute, Scenario::MovingJump)
                     | (ReadyState::WallJumpStart, Scenario::WallJump)
+                    | (ReadyState::JumpStart, Scenario::SwordAttack)
             ),
             "Godot Given setup is not established"
         );

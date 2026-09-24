@@ -60,6 +60,28 @@ fn synthetic_wall_jump_checks_source_faces_and_landing() -> anyhow::Result<()> {
 }
 
 #[test]
+fn synthetic_sword_attack_requires_selection_attack_and_recovery() -> anyhow::Result<()> {
+    let path = behavior_steps::run_scenario("Selecting the sword and attacking once")?;
+    let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
+    assert_eq!(report["result"]["status"], "passed");
+    assert_eq!(report["openspace"]["status"], "not_run");
+    assert_eq!(report["godot"]["status"], "pending");
+    use orrery::behavior::{self, Scenario};
+    let mut source = behavior_steps::synthetic_result(behavior::recording(Scenario::SwordAttack))?;
+    source.backend = "openspace".into();
+    let mut godot = source.clone();
+    godot.backend = "godot".into();
+    godot.samples[3].action = Some(48);
+    godot.assertions = behavior::assertions(godot.scenario, &godot.samples)?;
+    assert_eq!(behavior::compare_results(&source, &godot)?.status, "passed");
+    godot.samples[2].action = Some(47);
+    godot.assertions = behavior::assertions(godot.scenario, &godot.samples)?;
+    assert_eq!(godot.status, "passed");
+    assert!(behavior::compare_results(&source, &godot).is_err());
+    Ok(())
+}
+
+#[test]
 fn synthetic_movement_uses_shared_bdd_steps_and_report_pending_godot() -> anyhow::Result<()> {
     let shared = behavior_steps::run_scenarios_shared(&[
         "Turning while standing",

@@ -207,12 +207,13 @@ fn source_character_inventory_and_compact_matrix_reconstruction() -> anyhow::Res
             value.transform_pools.len(),
             value.models.len()
         ),
-        // 108 rooted level persos plus the Fix-owned Global Brain actor.
-        (109, 21, 17, 492, 2, 436)
+        // Rooted actors, the Fix-owned Global Brain actor and action-generated
+        // Perso templates discovered from source AI script operands.
+        (134, 39, 35, 551, 2, 502)
     );
     assert_eq!(
         value.animations.iter().map(|a| a.cues.len()).sum::<usize>(),
-        593
+        611
     );
     assert_eq!(
         value
@@ -220,7 +221,7 @@ fn source_character_inventory_and_compact_matrix_reconstruction() -> anyhow::Res
             .iter()
             .filter(|a| !a.cues.is_empty())
             .count(),
-        304
+        322
     );
     assert_eq!(
         value
@@ -229,7 +230,7 @@ fn source_character_inventory_and_compact_matrix_reconstruction() -> anyhow::Res
             .flat_map(|c| &c.parts)
             .filter(|p| p.action.is_some())
             .count(),
-        145
+        204
     );
     let action_paths: std::collections::BTreeSet<_> =
         value.actions.iter().map(|a| &a.path).collect();
@@ -243,7 +244,7 @@ fn source_character_inventory_and_compact_matrix_reconstruction() -> anyhow::Res
         }
     }
     eprintln!(
-        "Animation actions: {} shared descriptors, 593 cues, 145 configuration action slots",
+        "Animation actions: {} shared descriptors, 611 cues, 204 configuration action slots",
         value.actions.len()
     );
     let hero = value.families.iter().find(|f| f.name == "hype").unwrap();
@@ -422,14 +423,14 @@ fn source_character_inventory_and_compact_matrix_reconstruction() -> anyhow::Res
         "Compact matrices: {exact} byte-exact; derived-form changes {changed:?}; source forms {types:?}"
     );
     assert_eq!(types.len(), 6);
-    assert_eq!(types.values().sum::<usize>(), 204927);
-    assert_eq!(exact, 204474);
+    assert_eq!(types.values().sum::<usize>(), 217077);
+    assert_eq!(exact, 216550);
     assert_eq!(
         changed,
         std::collections::BTreeMap::from([
             ((0x33, None), 24),
-            ((0x33, Some(0x11)), 294),
-            ((0x33, Some(0x22)), 112),
+            ((0x33, Some(0x11)), 334),
+            ((0x33, Some(0x22)), 146),
             ((0x77, Some(0x33)), 23)
         ])
     );
