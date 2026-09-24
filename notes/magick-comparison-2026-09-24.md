@@ -39,8 +39,15 @@ and checks for the native stub's missing result before the designer-field
 assignment. This is static conversion evidence, not a passing spell scenario.
 
 The original game's selected spell *index* 0 and the source script's case-1
-normalization imply raw function-232 code 47. This is an inference, not a
-measured function result. The support Resource leaves the raw code unset until
+normalization initially suggested raw function-232 code 47, but 61 also maps
+to case 1. A source trace shows function 232 searches the same inventory list
+Orrery reads, selecting a handle whose name equals the current spell table
+row, and returns that item's signed info field. Orrery already filters handles
+by the source selection byte; the saved selected set includes `MagicFire` ID
+61. Orrery now reads the selected table row, mana fields, and matching active
+inventory code from one stopped capture. Its focused test checks the decoder
+against synthetic `MagicFire` data; a fresh original-game read is still needed
+to establish the actual row and returned code. The support Resource leaves the raw code unset until
 it can be checked and restored through a behavior starting state. It also does
 not invent a mana pool for normal exported content. The default spell cannot
 yet pass the planned Godot behavior test. Next evidence should establish the

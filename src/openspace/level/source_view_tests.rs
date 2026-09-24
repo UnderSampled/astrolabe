@@ -1,6 +1,6 @@
 use super::super::{
     hype_runtime,
-    live::{self, HypeBuild, ReadMemory},
+    live::{self, HypeBuild, ReadMemory, SceneTailAi},
     records::{Block, BlockKey, Owner},
 };
 use super::*;
@@ -73,6 +73,59 @@ fn verified_live_inventory_filters_inactive_members_and_rejects_cycles() -> Resu
     Ok(())
 }
 #[test]
+fn verified_live_magic_selection_resolves_selected_inventory_code() -> Result<()> {
+    let build = HypeBuild::verified(live::HYPE_EXECUTABLE_SHA256)?;
+    let mut ranges = BTreeMap::new();
+    let mut status = vec![0; 261];
+    status[0] = 9;
+    status[1..7].copy_from_slice(b"manoir");
+    ranges.insert(hype_runtime::STATUS, status);
+    ranges.insert(0x6107b0, 0x1000_u32.to_le_bytes().to_vec());
+    let mut root = vec![0; 12];
+    word(&mut root, 8, 0x1100);
+    ranges.insert(0x1000, root);
+    let mut entry = vec![0; 24];
+    word(&mut entry, 4, 0x1200);
+    ranges.insert(0x1100, entry);
+    let mut handle = vec![0; 9];
+    word(&mut handle, 0, 0x1300);
+    handle[8] = 1;
+    ranges.insert(0x1200, handle);
+    let mut member = vec![0; 30];
+    word(&mut member, 12, 0x1400);
+    member[28..30].copy_from_slice(&61_i16.to_le_bytes());
+    ranges.insert(0x1300, member);
+    ranges.insert(0x1400, b"MagicFire\0".to_vec());
+    ranges.insert(0x610b98, 0x2000_u32.to_le_bytes().to_vec());
+    let mut magic = vec![0; 42];
+    magic[..10].copy_from_slice(b"MagicFire\0");
+    magic[10..14].copy_from_slice(b"Ice\0");
+    magic[36..38].copy_from_slice(&30_u16.to_le_bytes());
+    magic[38..40].copy_from_slice(&50_u16.to_le_bytes());
+    ranges.insert(0x2000, magic);
+    let mut memory = Memory { ranges };
+    let inventory = build.inventory(&mut memory)?;
+    let selected = build.magic_selection(&mut memory, &inventory)?;
+    assert_eq!(selected.current_points, 30);
+    assert_eq!(selected.maximum_points, 50);
+    assert_eq!(selected.selected_index, 0);
+    assert_eq!(selected.selected_name, "MagicFire");
+    assert_eq!(selected.source_code, Some(61));
+    memory.ranges.get_mut(&0x2000).unwrap()[40] = 1;
+    let unmatched = build.magic_selection(&mut memory, &inventory)?;
+    assert_eq!(unmatched.selected_name, "Ice");
+    assert_eq!(unmatched.source_code, None);
+    memory.ranges.get_mut(&0x2000).unwrap()[40] = 3;
+    assert!(
+        build
+            .magic_selection(&mut memory, &inventory)
+            .unwrap_err()
+            .to_string()
+            .contains("three name rows")
+    );
+    Ok(())
+}
+#[test]
 fn verified_live_laser_reads_target_independently_of_visibility() -> Result<()> {
     let build = HypeBuild::verified(live::HYPE_EXECUTABLE_SHA256)?;
     let mut ranges = BTreeMap::new();
@@ -126,6 +179,50 @@ fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
             .iter()
             .all(|child| child.object_types.is_none())
     );
+    assert!(tail.children.iter().all(|child| child.ai.is_none()));
+    let child = memory.ranges.get_mut(&0x2200).unwrap();
+    word(child, 0, 4);
+    word(child, 4, 0x3000);
+    word(child, 36, 0x3500);
+    let mut perso = vec![0; 20];
+    word(&mut perso, 0, 0x3100);
+    word(&mut perso, 4, 0x3200);
+    memory.ranges.insert(0x3000, perso);
+    let mut data3d = vec![0; 24];
+    word(&mut data3d, 20, 0x3400);
+    memory.ranges.insert(0x3100, data3d);
+    let mut standard = vec![0; 12];
+    word(&mut standard, 0, 8);
+    word(&mut standard, 4, 10);
+    word(&mut standard, 8, 65536);
+    memory.ranges.insert(0x3200, standard);
+    memory
+        .ranges
+        .insert(0x3500, vec![0x11, 0, 0, 0, 0, 0, 0, 0]);
+    let tail = build.scene_tail(&mut memory, 1)?;
+    assert_eq!(tail.children[0].object_types, Some([8, 10, 65536]));
+    assert_eq!(tail.children[0].ai, Some(SceneTailAi::BrainAbsent));
+    word(memory.ranges.get_mut(&0x3000).unwrap(), 16, 0x3300);
+    let mut brain = vec![0; 8];
+    word(&mut brain, 0, 0x3320);
+    memory.ranges.insert(0x3300, brain);
+    let mut mind = vec![0; 20];
+    word(&mut mind, 0, 0x3380);
+    memory.ranges.insert(0x3320, mind);
+    memory.ranges.insert(0x3380, vec![0; 16]);
+    let tail = build.scene_tail(&mut memory, 1)?;
+    assert_eq!(
+        tail.children[0].ai,
+        Some(SceneTailAi::Ready {
+            model_locator: "live:00003380".into()
+        })
+    );
+    word(memory.ranges.get_mut(&0x3300).unwrap(), 0, 0x3330);
+    let tail = build.scene_tail(&mut memory, 1)?;
+    assert!(matches!(
+        tail.children[0].ai,
+        Some(SceneTailAi::Unreadable { .. })
+    ));
     word(memory.ranges.get_mut(&0x2200).unwrap(), 28, 0x2200);
     assert!(
         build

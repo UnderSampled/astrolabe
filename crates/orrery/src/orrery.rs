@@ -371,8 +371,8 @@ impl GameSession {
         }))
     }
 
-    /// Observe Hype's selected AI fields and the verified inventory list in
-    /// one stopped capture so a short combat phase cannot change between reads.
+    /// Observe Hype's selected AI fields, inventory, magic selection and laser
+    /// in one stopped capture so a short combat phase cannot change between reads.
     pub fn inspect_combat(&self, actions: &[u32], designer_values: &[u32]) -> Result<Value> {
         ensure!(
             (1..=64).contains(&actions.len()),
@@ -407,6 +407,7 @@ impl GameSession {
         let status = build.status(&mut capture)?;
         let actor = build.actor_with_ai(&mut capture, actions, designer_values)?;
         let inventory = build.inventory(&mut capture)?;
+        let magic_selection = build.magic_selection(&mut capture, &inventory)?;
         let laser_pointer = build.laser_pointer(&mut capture)?;
         let snapshot = capture.finish()?;
         drop(pause);
@@ -422,6 +423,7 @@ impl GameSession {
             "consistency_limit": "stopped-byte capture is coherent during this read but has no completed-update publication evidence",
             "actor": actor,
             "inventory": inventory,
+            "magic_selection": magic_selection,
             "laser_pointer": laser_pointer,
         }))
     }

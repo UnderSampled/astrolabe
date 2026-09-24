@@ -1,7 +1,7 @@
 extends Resource
 ## Shared state read by the original magick AI functions. The selected spell
-## uses the AI function's source code. Orrery observes a menu selection index;
-## its mapping to this code is still unverified.
+## uses the AI function's source code. Orrery can read the selected magic-name
+## row and match it to the active inventory; the live result is still unverified.
 
 @export var current_points: int = 0
 @export var maximum_points: int = 0

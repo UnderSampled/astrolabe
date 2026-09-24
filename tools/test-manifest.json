@@ -2072,6 +2072,17 @@
     },
     {
       "binary": "astrolabe",
+      "test": "openspace::level::source_view::tests::verified_live_magic_selection_resolves_selected_inventory_code",
+      "areas": ["source", "ai", "runtime", "magick"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic selected inventory and magic-name rows",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "openspace::level::source_view::tests::verified_live_laser_reads_target_independently_of_visibility",
       "areas": ["source", "ai", "runtime", "combat"],
       "kind": "source",

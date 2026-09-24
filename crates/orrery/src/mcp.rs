@@ -231,14 +231,14 @@ const TOOLS: [ToolSpec; 19] = [
     },
     ToolSpec {
         name: "inspect_combat",
-        description: "Pause the owned game once and decode Hype's selected AI fields and active inventory through the verified OpenSpace reader.",
+        description: "Pause the owned game once and decode Hype's selected AI fields, active inventory, selected magic and laser through the verified OpenSpace reader.",
         read_only: true,
         destructive: false,
         schema: inspect_main_actor_schema,
     },
     ToolSpec {
         name: "inspect_scene_tail",
-        description: "Pause the owned game once and list the last 1–16 DynamicWorld children with checked kind, Perso object types and transforms, for observing generated actors.",
+        description: "Pause the owned game once and list the last 1–16 DynamicWorld children with checked kind, Perso object types, transforms and capture-local AI model links.",
         read_only: true,
         destructive: false,
         schema: inspect_scene_tail_schema,

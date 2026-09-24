@@ -81,8 +81,8 @@ The implementation deliberately does not edit `~/.codex/config.toml`.
 | `screenshot` | Owned X11 window only; path plus MCP `image/png` content, constrained to the run tree and 8 MiB |
 | `list_bindings` | Live action table, keyboard-layout inversion, action/code/address output |
 | `inspect_main_actor` | Bounded selected action definitions, state selections and transform decoded through Astrolabe from one stopped-byte capture; optional unique action IDs (1–64), default `[47]`; optional `designer_values` (0–64 unique indices) adds normal/reflex behavior selections and typed current values; not a completed-update observation |
-| `inspect_combat` | Hype's selected action/designer state, active inventory and laser target/visibility decoded from one stopped-byte capture; reports the selected Weapon ID and each active item's ID/quantity, with the same completed-update limit |
-| `inspect_scene_tail` | Last 1–16 DynamicWorld children with checked links, kinds, Perso object types and transforms; identifies a short-lived generated actor by capture-local ordinal |
+| `inspect_combat` | Hype's selected action/designer state, active inventory, selected magic name/index/mana and matched inventory code, and laser target/visibility decoded from one stopped-byte capture; reports the selected Weapon ID and each active item's ID/quantity, with the same completed-update limit |
+| `inspect_scene_tail` | Last 1–16 DynamicWorld children with checked links, kinds, Perso object types and transforms; reads each Perso's Brain model link when ready. Ordinals and `live:*` model locators are capture-local evidence, not imported asset identities |
 | `read_memory` | Numeric or hex read; MCP hex limit 64 KiB; readable mappings and 32-bit address validation |
 | `write_memory` | 4 KiB maximum, expected-old-value comparison while all threads are stopped, read-back before resume |
 | `memory_maps` | `/proc` maps for the pinned owned identity only |

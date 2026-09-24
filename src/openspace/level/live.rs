@@ -137,6 +137,48 @@ impl HypeBuild {
             selected_weapon,
         })
     }
+    /// Source function 232 selects one of three runtime magic-name rows, then
+    /// returns the matching selected inventory item's signed info field.
+    /// Preserve an unmatched row as None instead of inventing a spell code.
+    pub fn magic_selection(
+        &self,
+        memory: &mut impl ReadMemory,
+        inventory: &InventoryObservation,
+    ) -> Result<MagicSelectionObservation> {
+        ensure!(
+            self.status(memory)?.phase == 9,
+            "magic selection requires loaded gameplay phase"
+        );
+        let mut source = MemoryView(memory);
+        let table = source.required(0x610b98, 0)?;
+        let values = source.bytes(source.add(table, 0x24)?, 5)?;
+        let current_points = u16::from_le_bytes(values[0..2].try_into()?);
+        let maximum_points = u16::from_le_bytes(values[2..4].try_into()?);
+        let selected_index = values[4];
+        ensure!(
+            selected_index <= 2,
+            "magic selection outside three name rows"
+        );
+        let row = source.bytes(source.add(table, usize::from(selected_index) * 10)?, 10)?;
+        let end = row
+            .iter()
+            .position(|value| *value == 0)
+            .context("unterminated magic name")?;
+        ensure!(end > 0 && row[..end].is_ascii(), "invalid magic name");
+        let selected_name = String::from_utf8(row[..end].to_vec())?;
+        let source_code = inventory
+            .active
+            .iter()
+            .find(|item| item.kind == selected_name)
+            .map(|item| item.id);
+        Ok(MagicSelectionObservation {
+            current_points,
+            maximum_points,
+            selected_index,
+            selected_name,
+            source_code,
+        })
+    }
     /// The verified build keeps the laser target point and presentation flag
     /// in one small global record. The target remains readable while hidden.
     pub fn laser_pointer(&self, memory: &mut impl ReadMemory) -> Result<LaserPointerObservation> {
@@ -272,11 +314,24 @@ impl HypeBuild {
                 "scene tail parent link differs"
             );
             ensure!(child.next == following, "scene tail next link differs");
-            let object_types = if child.kind == 4 {
+            let (object_types, ai) = if child.kind == 4 {
                 let perso = source.required(address, SuperObjectWire::DATA)?;
-                Some(source_view::perso_parts(&mut source, perso)?.object_types)
+                let object_types = source_view::perso_parts(&mut source, perso)?.object_types;
+                let ai = if source.pointer(perso, 16)?.is_none() {
+                    SceneTailAi::BrainAbsent
+                } else {
+                    match source_view::ai_parts(&mut source, perso) {
+                        Ok(parts) => SceneTailAi::Ready {
+                            model_locator: format!("live:{:08x}", parts.model),
+                        },
+                        Err(error) => SceneTailAi::Unreadable {
+                            reason: error.to_string(),
+                        },
+                    }
+                };
+                (Some(object_types), Some(ai))
             } else {
-                None
+                (None, None)
             };
             let global_transform = if child.kind == 4 {
                 let transform = source.required(address, 36)?;
@@ -289,6 +344,7 @@ impl HypeBuild {
                 kind: child.kind,
                 object_types,
                 global_transform,
+                ai,
             });
             following = address;
             address = child.previous;
@@ -531,6 +587,16 @@ pub struct InventoryObservation {
     pub selected_weapon: i16,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MagicSelectionObservation {
+    pub current_points: u16,
+    pub maximum_points: u16,
+    pub selected_index: u8,
+    pub selected_name: String,
+    pub source_code: Option<i16>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LaserPointerObservation {
@@ -545,6 +611,17 @@ pub struct SceneTailChild {
     pub kind: u32,
     pub object_types: Option<[u32; 3]>,
     pub global_transform: Option<TransformValue>,
+    pub ai: Option<SceneTailAi>,
+}
+
+/// A validated live model link is capture-local evidence. Resolve it against
+/// source allocations before claiming any imported `ai/models/*` identity.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum SceneTailAi {
+    BrainAbsent,
+    Ready { model_locator: String },
+    Unreadable { reason: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

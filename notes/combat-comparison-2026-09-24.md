@@ -283,6 +283,14 @@ its AI/model identity, and the source frame/update timing need further checks
 before projectile behavior can be accepted. The original game/service were
 stopped and the save archive remained unchanged.
 
+The bounded scene-tail read now also follows each Perso's Brain-to-model link
+within that same stopped capture. It distinguishes a missing Brain, an
+unreadable partial link, and a validated capture-local `live:*` model locator.
+This prepares the next short-interval observation without reusing a process
+pointer after resumption. A locator is not yet `fix:/ai/models/733`: the live
+pointer-to-source-allocation address mapping must first be checked for an exact,
+unique match against Fix allocation 733.
+
 The arrow's compiled model 733 makes its own aiming decision. It reads the
 global laser target direction, compares vector cosine to Hype's sighting,
 optionally changes its orientation, and later checks contacts. Hype model 28
