@@ -318,6 +318,21 @@ kinds. Matching its camera ray and object filtering belongs to the later camera
 work; until then, a controlled target can exercise the arrow AI in a test, but
 normal Godot gameplay cannot acquire one.
 
+Further static inspection of model 733's normal behavior 2 shows its
+collision branch is `not Cond_CollideWithNothing()` with no operands. On
+contact, the original AI calls `Camera_ChangeTargetedPerso` with a Fix target
+and integer `5`, clears two MainActor designer fields if field 120 is zero,
+then kills itself. A separate rule kills it after its lifetime counter exceeds
+150. The verified executable's shared condition handler `0x533d20` reads the
+actor contact result at offset `+0x20`; descriptor alignment and switch entry
+for raw condition 33 support a bit-zero test, but the collision updater's
+production of that bit is not yet proven. Native support should expose the
+contact result needed by this compiled condition, rather than make an arrow
+specific lifetime or steering decision. Camera procedure 160 maps to handler
+`0x547f80`; its exact target-state side effects and the meaning of argument
+`5` remain unverified and belong with the later camera work. These calls remain
+explicitly unsupported in the current Godot compiler.
+
 Any implementation that chooses a weapon or moves an arrow in Godot support
 without a corresponding compiled AI request would be a replacement gameplay
 rule and a material fidelity debt. Keep that boundary visible in review. Native
