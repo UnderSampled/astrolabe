@@ -421,3 +421,28 @@ cleanup is a later case, because native `CollideWithNothing` and procedure
 select the weapon, schedule the shot or steer the arrow without the compiled
 AI request. The current spawn-vector basis conversion is a specific native
 API fidelity question to resolve before trajectory acceptance.
+
+A further bounded original-game run used the verified English save and a
+guarded current-process intervention to set the active Weapon 80 quantity
+from zero to three. Orrery confirmed that starting value before and after
+physical Z/Space input; it remained three. Hype was facing 180 degrees, which
+would distinguish world-space from actor-relative initial velocity if an
+identified arrow displacement were captured. One DynamicWorld child appeared
+at ordinal 176 with type triple `[8,10,65536]`, live AI model locator
+`live:0288e344`, and a partially published zero transform. A later read found
+it at Hype's position, then it disappeared before any displacement away from
+Hype was measured. The type differs from the imported arrow template
+`[8,10,65591]`. An offline scan of verified Fix block `(17,0)` places model
+733 at payload offset `0x4e324`; subtracting the corroborated live block base
+`0x02840020` from the captured model locator `0x0288e344` yields exactly that
+offset. The source model has three normal behaviors and no reflex set, matching
+the live observation. This strongly supports model-733 identity, though this
+run did not read the active block-table entry directly and the changed third
+type word remains unexplained. No displacement sample establishes the arrow's
+initial-motion frame or launch trajectory. The exact responses are in ignored
+`TestResults/arrow-vector-live-20260924.jsonl`; the game and Orrery service
+were stopped and the supplied save was unchanged. The offline mapping evidence
+is in `TestResults/fix-block-17-0-ai-allocation-scan-20260924.json` and
+`TestResults/fix-model-733-live-locator-crosscheck-20260924.json`. Do not
+change the shared Godot vector conversion or mark the crossbow launch case
+passing from these captures.
