@@ -15,6 +15,8 @@ var main_actor: Node3D
 var sound_emitter: Node3D
 var running: bool = false
 var unsupported_failure: String = ""
+var music_fade: Tween
+var random_source := RandomNumberGenerator.new()
 var revision: int = 0
 var clock_milliseconds: float = 0.0
 var frame_seconds: float = 0.0
@@ -98,11 +100,24 @@ func fail_unsupported(context: String) -> void:
 	push_error("Unsupported compiled behavior: " + context)
 	stop()
 
-# Hype's source call is known, but the two argument meanings and fade envelope
-# are still under investigation. Keep this native API entry explicit and fail
-# when reached until the audio component can implement the verified behavior.
-func sound_fade_music(arg0: int, arg1: int) -> void:
-	fail_unsupported("SND_FadeMusic(" + str(arg0) + ", " + str(arg1) + ")")
+## Proc_SND_FadeMusic(target 0..127, duration in milliseconds). The executable
+## passes source (target, duration) to its mixer helper in reversed stack order.
+func sound_fade_music(target: int, duration_ms: int) -> void:
+	assert(duration_ms >= 0)
+	var bus := AudioServer.get_bus_index(&"Astrolabe Music")
+	if bus < 0:
+		AudioServer.add_bus()
+		bus = AudioServer.bus_count - 1
+		AudioServer.set_bus_name(bus, &"Astrolabe Music")
+	if music_fade != null and music_fade.is_running(): music_fade.kill()
+	var goal := linear_to_db(maxf(float(clampi(target, 0, 127)) / 127.0, 0.000001))
+	if duration_ms <= 1:
+		AudioServer.set_bus_volume_db(bus, goal)
+	else:
+		music_fade = create_tween()
+		music_fade.tween_method(
+			func(value: float): AudioServer.set_bus_volume_db(bus, value),
+			AudioServer.get_bus_volume_db(bus), goal, float(duration_ms) / 1000.0)
 
 func advance(seconds: float) -> void:
 	assert(is_finite(seconds) and seconds >= 0.0)
@@ -116,6 +131,10 @@ func advance(seconds: float) -> void:
 func distance_to_main_actor() -> float:
 	assert(is_instance_valid(main_actor))
 	return global_position.distance_to(main_actor.global_position)
+
+func random_int(lower: int, upper: int) -> int:
+	assert(upper > lower)
+	return random_source.randi_range(lower, upper - 1)
 
 func send_sound(event: Resource) -> void:
 	if event == null: return

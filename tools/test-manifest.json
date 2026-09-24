@@ -23,7 +23,7 @@
     "runtime": []
   },
   "budgets_seconds": {
-    "development": 300,
+    "development": 480,
     "routine": 600,
     "local": 1800,
     "release": 2400,
@@ -118,6 +118,17 @@
     },
     {
       "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::actor_designer_assignment_reconstructs_dot_target",
+      "areas": ["ai", "source"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::partial_decode_still_rejects_malformed_known_trees",
       "areas": ["ai", "source"],
       "kind": "unit",
@@ -141,6 +152,28 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::partial_script_retains_branches_and_supported_siblings",
+      "areas": ["ai", "source"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::source_null_reference_keywords_reconstruct_exact_script",
+      "areas": ["ai", "source"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::vector_components_and_increment_reconstruct_exact_script",
       "areas": ["ai", "source"],
       "kind": "unit",
       "prerequisites": [],
@@ -501,6 +534,17 @@
     {
       "binary": "astrolabe::ai",
       "test": "hype_sound_fade_call_remains_typed_through_source_rete_and_godot",
+      "areas": ["ai", "rete"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
+      "test": "nowhere_clears_source_waypoint_without_enabling_unknown_writes",
       "areas": ["ai", "rete"],
       "kind": "unit",
       "prerequisites": [],
@@ -1288,6 +1332,23 @@
       "release": true
     },
     {
+      "binary": "astrolabe::global_ai_actor",
+      "test": "fix_global_actor_brain_and_source_identity_survive_rete",
+      "areas": [
+        "ai",
+        "scene",
+        "rete"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "supplied Hype en",
+      "timeout_seconds": 90,
+      "ignored": true,
+      "release": true
+    },
+    {
       "binary": "astrolabe::scene",
       "test": "scene_collision_roundtrip_edits_and_invalid_hierarchy",
       "areas": [
@@ -1525,6 +1586,17 @@
       "prerequisites": ["original"],
       "fixture": "pinned Hype executable and supplied English SaveGame0",
       "timeout_seconds": 180,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "orrery::behavior_godot",
+      "test": "godot_movement_scenarios_share_saved_scene_and_brain",
+      "areas": ["movement", "comparison"],
+      "kind": "gameplay",
+      "prerequisites": ["disc", "godot"],
+      "fixture": "normal Hype manoir export with saved Brain",
+      "timeout_seconds": 240,
       "ignored": true,
       "release": true
     },

@@ -12,12 +12,15 @@ use std::{
     time::{Duration, Instant},
 };
 
+pub mod godot;
+
 #[cfg(target_os = "linux")]
 use crate::{config::Config, orrery::NativeController};
 
 pub const IDLE_ACTION: u32 = 47;
 pub const TURN_LEFT_ACTION: u32 = 35;
 pub const WALK_FORWARD_ACTION: u32 = 32;
+pub const WALK_START_ACTION: u32 = 78;
 pub const ORIGINAL_STARTUP_SETTLE_MS: u64 = 2_500;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -253,6 +256,14 @@ fn heading_delta(a: &ActorSample, b: &ActorSample) -> f64 {
 fn action_is(sample: &ActorSample, action: u32) -> f64 {
     f64::from(u8::from(sample.action == Some(action)))
 }
+fn walking_action_is_active(sample: &ActorSample) -> f64 {
+    // The source normal4 rule requests action 78 before switching to normal5;
+    // normal5 then requests action 32. Both are observed during held Up input.
+    f64::from(u8::from(matches!(
+        sample.action,
+        Some(WALK_START_ACTION | WALK_FORWARD_ACTION)
+    )))
+}
 
 /// Independently sourced functional bounds. The 2026-09-23 Orrery manor
 /// observation saw about 80 degrees/500 ms Left and 4.1 source units/1.8 s Up.
@@ -284,13 +295,10 @@ pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Ass
         ),
         bound(
             "active_action",
-            action_is(
-                held,
-                match scenario {
-                    Scenario::TurnReleaseIdle => TURN_LEFT_ACTION,
-                    Scenario::WalkReleaseStop => WALK_FORWARD_ACTION,
-                },
-            ),
+            match scenario {
+                Scenario::TurnReleaseIdle => action_is(held, TURN_LEFT_ACTION),
+                Scenario::WalkReleaseStop => walking_action_is_active(held),
+            },
             Some(1.),
             Some(1.),
             source,

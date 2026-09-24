@@ -1,7 +1,7 @@
 //! Hype's eight-byte AI nodes map directly into useful typed trees.
 //! 005217d0 initializes reserved bytes; 00521780 counts through kind-8 sentinel.
 use super::codec::FormatCodec;
-use crate::model::{ai::*, audio::SoundEventLink, io::FormatSupport};
+use crate::model::{AssetRef, ai::*, audio::SoundEventLink, character::Perso, io::FormatSupport};
 use anyhow::{Context, Result, bail, ensure};
 use binrw::{BinRead, BinWrite};
 use std::{collections::BTreeMap, io::Cursor};
@@ -28,6 +28,8 @@ pub struct AiScriptCodec {
     pub button_handles: Vec<(String, u32)>,
     pub behaviors: BTreeMap<usize, BehaviorRef>,
     pub behavior_handles: Vec<(BehaviorRef, u32)>,
+    pub actors: BTreeMap<usize, AssetRef<Perso>>,
+    pub actor_handles: Vec<(AssetRef<Perso>, u32)>,
 }
 impl FormatCodec for AiScriptCodec {
     type Value = Script;
@@ -186,19 +188,48 @@ impl Parser<'_> {
                     }
                 }
                 (2, 11) => {
-                    let target = self.expression(indent + 1)?;
-                    let value = self.expression(indent + 1)?;
-                    match target {
-                        Expression::Variable(variable) => Statement::Assign { variable, value },
-                        Expression::ArrayElement { array, index } => Statement::ArrayAssign {
-                            array: *array,
-                            index: *index,
+                    if self
+                        .nodes
+                        .get(self.at)
+                        .is_some_and(|target| target.kind == 2 && target.parameter == 12)
+                    {
+                        let actor_at = self.at + 1;
+                        if !self.codec.actors.contains_key(&actor_at) {
+                            out.push(Statement::Unsupported(self.unsupported(
+                                at,
+                                format!("unbound actor field target at node {actor_at}"),
+                            )?));
+                            continue;
+                        }
+                        let (_, dot) = self.take(indent + 1)?;
+                        ensure!(dot.kind == 2 && dot.parameter == 12, "actor dot differs");
+                        let (actor_at, actor) = self.take(indent + 2)?;
+                        ensure!(actor.kind == 24, "actor dot lacks actor operand");
+                        let (_, field) = self.take(indent + 2)?;
+                        ensure!(field.kind == 11, "actor dot lacks designer field");
+                        let variable = field.parameter.try_into()?;
+                        let actor = self.codec.actors[&actor_at].clone();
+                        let value = self.expression(indent + 1)?;
+                        Statement::ActorFieldAssign {
+                            actor,
+                            variable,
                             value,
-                        },
-                        _ => Statement::Unsupported(self.unsupported(
-                            at,
-                            format!("unsupported AI assignment target at node {at}"),
-                        )?),
+                        }
+                    } else {
+                        let target = self.expression(indent + 1)?;
+                        let value = self.expression(indent + 1)?;
+                        match target {
+                            Expression::Variable(variable) => Statement::Assign { variable, value },
+                            Expression::ArrayElement { array, index } => Statement::ArrayAssign {
+                                array: *array,
+                                index: *index,
+                                value,
+                            },
+                            _ => Statement::Unsupported(self.unsupported(
+                                at,
+                                format!("unsupported AI assignment target at node {at}"),
+                            )?),
+                        }
                     }
                 }
                 (5, 37) => Statement::Wait {
@@ -213,6 +244,27 @@ impl Parser<'_> {
                     Statement::SubtractAssign {
                         variable: target.parameter.try_into()?,
                         value: self.expression(indent + 1)?,
+                    }
+                }
+                (2, 9) => {
+                    if !self
+                        .nodes
+                        .get(self.at)
+                        .is_some_and(|target| target.kind == 11)
+                    {
+                        out.push(Statement::Unsupported(self.unsupported(
+                            at,
+                            format!("increment target is not a designer variable at node {at}"),
+                        )?));
+                        continue;
+                    }
+                    let (_, target) = self.take(indent + 1)?;
+                    ensure!(
+                        target.kind == 11,
+                        "increment requires a designer variable at node {at}"
+                    );
+                    Statement::Increment {
+                        variable: target.parameter.try_into()?,
                     }
                 }
                 (4, 214) => Statement::Turn {
@@ -338,6 +390,8 @@ impl Parser<'_> {
             ));
         }
         let value = match (kind, id) {
+            (0, 7) => Expression::Nobody,
+            (0, 8) => Expression::Nowhere,
             (12, n) => Expression::Integer(n as i32),
             (13, n) => Expression::Real(f32::from_bits(n)),
             (11, n) => Expression::Variable(n.try_into()?),
@@ -355,6 +409,8 @@ impl Parser<'_> {
             ),
             (1, 59) => Expression::IsInAction(Box::new(self.expression(indent + 1)?)),
             (1, 123) => Expression::ActionFinished,
+            (1, 31) => Expression::CollideWithGround,
+            (1, 34) => Expression::CollideWithSlope,
             (1, 56 | 57) => {
                 let (_, actor) = self.take(indent + 1)?;
                 if actor.kind != 0 || actor.parameter != 4 {
@@ -410,6 +466,14 @@ impl Parser<'_> {
                 array: Box::new(self.expression(indent + 1)?),
                 index: Box::new(self.expression(indent + 1)?),
             },
+            (2, 13..=15) => Expression::VectorComponent {
+                vector: Box::new(self.expression(indent + 1)?),
+                axis: match id {
+                    13 => VectorAxis::X,
+                    14 => VectorAxis::Y,
+                    _ => VectorAxis::Z,
+                },
+            },
             (1, 0 | 1) => {
                 let a = Box::new(self.expression(indent + 1)?);
                 let b = Box::new(self.expression(indent + 1)?);
@@ -442,6 +506,11 @@ impl Parser<'_> {
                 }
                 Expression::MainActorDistance
             }
+            (3, 164) => Expression::SelfSighting,
+            (3, 27) => Expression::RandomInt {
+                lower: Box::new(self.expression(indent + 1)?),
+                upper: Box::new(self.expression(indent + 1)?),
+            },
             _ => Expression::Unsupported(self.unsupported(
                 at,
                 format!("unsupported AI expression category {kind} operation {id} at node {at}"),
@@ -494,10 +563,32 @@ impl Writer<'_> {
                     self.node(11, u32::from(*variable), indent + 1);
                     self.expression(value, indent + 1)?;
                 }
+                Statement::ActorFieldAssign {
+                    actor,
+                    variable,
+                    value,
+                } => {
+                    self.node(2, 11, indent);
+                    self.node(2, 12, indent + 1);
+                    let handle = self
+                        .codec
+                        .actor_handles
+                        .iter()
+                        .find(|(reference, _)| reference == actor)
+                        .context("missing assigned AI actor handle")?
+                        .1;
+                    self.node(24, handle, indent + 2);
+                    self.node(11, u32::from(*variable), indent + 2);
+                    self.expression(value, indent + 1)?;
+                }
                 Statement::SubtractAssign { variable, value } => {
                     self.node(2, 6, indent);
                     self.node(11, u32::from(*variable), indent + 1);
                     self.expression(value, indent + 1)?;
+                }
+                Statement::Increment { variable } => {
+                    self.node(2, 9, indent);
+                    self.node(11, u32::from(*variable), indent + 1);
                 }
                 Statement::Turn { degrees_per_second } => {
                     self.node(4, 214, indent);
@@ -587,6 +678,8 @@ impl Writer<'_> {
         ensure!(indent <= 64, "AI expression too deep to encode");
         match e {
             Expression::Unsupported(_) => bail!("unsupported AI fragment cannot be reconstructed"),
+            Expression::Nobody => self.node(0, 7, indent),
+            Expression::Nowhere => self.node(0, 8, indent),
             Expression::Integer(v) => self.node(12, *v as u32, indent),
             Expression::Real(v) => self.node(13, v.to_bits(), indent),
             Expression::Variable(v) => self.node(11, u32::from(*v), indent),
@@ -614,6 +707,8 @@ impl Writer<'_> {
                 self.expression(action, indent + 1)?;
             }
             Expression::ActionFinished => self.node(1, 123, indent),
+            Expression::CollideWithGround => self.node(1, 31, indent),
+            Expression::CollideWithSlope => self.node(1, 34, indent),
             Expression::IsInBehavior(target) => {
                 self.node(
                     1,
@@ -652,9 +747,27 @@ impl Writer<'_> {
                 self.expression(array, indent + 1)?;
                 self.expression(index, indent + 1)?;
             }
+            Expression::VectorComponent { vector, axis } => {
+                self.node(
+                    2,
+                    match axis {
+                        VectorAxis::X => 13,
+                        VectorAxis::Y => 14,
+                        VectorAxis::Z => 15,
+                    },
+                    indent,
+                );
+                self.expression(vector, indent + 1)?;
+            }
             Expression::MainActorDistance => {
                 self.node(3, 4, indent);
                 self.node(0, 5, indent + 1);
+            }
+            Expression::SelfSighting => self.node(3, 164, indent),
+            Expression::RandomInt { lower, upper } => {
+                self.node(3, 27, indent);
+                self.expression(lower, indent + 1)?;
+                self.expression(upper, indent + 1)?;
             }
             Expression::Compare {
                 operation,
@@ -772,6 +885,114 @@ mod partial_tests {
         ));
         assert_eq!(script.unsupported_fragments().len(), 1);
         assert!(codec.write(&script).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn source_null_reference_keywords_reconstruct_exact_script() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (2, 11, 1),
+            (11, 176, 2),
+            (0, 8, 2),
+            (2, 11, 1),
+            (11, 175, 2),
+            (0, 8, 2),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[..],
+            [
+                Statement::Assign {
+                    variable: 176,
+                    value: Expression::Nowhere
+                },
+                Statement::Assign {
+                    variable: 175,
+                    value: Expression::Nowhere
+                }
+            ]
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn vector_components_and_increment_reconstruct_exact_script() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (2, 11, 1),
+            (11, 168, 2),
+            (3, 164, 2),
+            (2, 11, 1),
+            (11, 153, 2),
+            (2, 13, 2),
+            (11, 168, 3),
+            (2, 11, 1),
+            (11, 154, 2),
+            (2, 14, 2),
+            (11, 168, 3),
+            (2, 11, 1),
+            (11, 155, 2),
+            (2, 15, 2),
+            (11, 168, 3),
+            (2, 9, 1),
+            (11, 132, 2),
+            (2, 11, 1),
+            (11, 131, 2),
+            (3, 27, 2),
+            (12, 1800, 3),
+            (12, 2500, 3),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[1],
+            Statement::Assign {
+                variable: 153,
+                value: Expression::VectorComponent {
+                    axis: VectorAxis::X,
+                    ..
+                }
+            }
+        ));
+        assert!(matches!(
+            &script.statements[4],
+            Statement::Increment { variable: 132 }
+        ));
+        assert!(matches!(
+            &script.statements[5],
+            Statement::Assign {
+                variable: 131,
+                value: Expression::RandomInt { .. }
+            }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn actor_designer_assignment_reconstructs_dot_target() -> Result<()> {
+        let (mut codec, bytes) = partial(&[
+            (2, 11, 1),
+            (2, 12, 2),
+            (24, 1234, 3),
+            (11, 17, 3),
+            (12, 1, 2),
+            (8, 0, 0),
+        ]);
+        let actor = AssetRef::<Perso>::new("fix:/persos/15")?;
+        codec.actors.insert(2, actor.clone());
+        codec.actor_handles.push((actor.clone(), 1234));
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[0],
+            Statement::ActorFieldAssign {
+                actor: target,
+                variable: 17,
+                value: Expression::Integer(1)
+            } if *target == actor
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
         Ok(())
     }
 

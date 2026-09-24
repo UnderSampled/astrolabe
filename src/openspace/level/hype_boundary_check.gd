@@ -91,8 +91,10 @@ func require(ok: bool, message: String) -> bool:
 func setup() -> void:
     actor = load("res://" + OS.get_cmdline_user_args()[0]).instantiate()
     actor.autoplay = false
-    actor.motion_enabled = true
     root.add_child(actor)
+    # This isolated input-boundary probe has no floor. Enable native physics
+    # after _ready so it tests turning without the gameplay gravity default.
+    actor.motion_enabled = true
     actor.select_state(47)
     # Explicit source-rule Given fixture, matching hype_turn_check.gd. No test
     # method advances gameplay, chooses an outcome action or forces movement.

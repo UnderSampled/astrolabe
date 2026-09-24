@@ -207,7 +207,8 @@ fn source_character_inventory_and_compact_matrix_reconstruction() -> anyhow::Res
             value.transform_pools.len(),
             value.models.len()
         ),
-        (108, 21, 17, 492, 2, 436)
+        // 108 rooted level persos plus the Fix-owned Global Brain actor.
+        (109, 21, 17, 492, 2, 436)
     );
     assert_eq!(
         value.animations.iter().map(|a| a.cues.len()).sum::<usize>(),

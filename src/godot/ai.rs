@@ -11,6 +11,21 @@ pub(super) fn export_program(
     written: &mut BTreeSet<AssetPath>,
 ) -> Result<String> {
     model.validate()?;
+    for (actor, field) in model.actor_field_writes() {
+        let target = source.load(&actor)?;
+        let brain = target
+            .brain
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("{} actor field target lacks a Brain", actor.path))?;
+        let target_model = source.load(&brain.model)?;
+        brain.validate_model(&target_model)?;
+        ensure!(
+            usize::from(field) < target_model.variables.len(),
+            "{} actor field {field} is absent from {}",
+            model.path,
+            actor.path
+        );
+    }
     let path = disk_path(&project.selection, &model.path, "gd");
     if project.generated.contains(&path) {
         return Ok(path);
@@ -55,6 +70,9 @@ pub fn compile_for_family(
         "extends \"res://addons/astrolabe/behavior/behavior.gd\"\n## Compiled from {}. Edit the useful AI asset and regenerate.\n",
         model.path.as_str().replace(['\n', '\r'], " ")
     );
+    for (i, _) in model.actor_field_targets().iter().enumerate() {
+        writeln!(out, "@export var actor_brain_{i}_path: NodePath")?;
+    }
     for (i, (_, path)) in events.iter().enumerate() {
         ensure!(
             path.starts_with("res://"),
@@ -290,7 +308,10 @@ fn comparison_code(
         Comparison::GreaterOrEqual => ">=",
     };
     if matches!(operation, Comparison::Equal | Comparison::Different)
-        && (actor_expression(left, model) || actor_expression(right, model))
+        && (actor_expression(left, model)
+            || actor_expression(right, model)
+            || matches!(left, Expression::Nobody | Expression::Nowhere)
+            || matches!(right, Expression::Nobody | Expression::Nowhere))
     {
         let left_code = if matches!(left, Expression::Integer(0)) {
             "null".into()
@@ -312,6 +333,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         Expression::Unsupported(_) => true,
         Expression::Variable(index) => unresolved_variable(model, *index),
         Expression::Multiply(a, b)
+        | Expression::RandomInt { lower: a, upper: b }
         | Expression::ArrayElement { array: a, index: b }
         | Expression::And(a, b)
         | Expression::Or(a, b) => needs_guard(a, model) || needs_guard(b, model),
@@ -321,6 +343,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         Expression::Negate(value) | Expression::IsInAction(value) | Expression::Not(value) => {
             needs_guard(value, model)
         }
+        Expression::VectorComponent { vector, .. } => needs_guard(vector, model),
         _ => false,
     }
 }
@@ -391,6 +414,11 @@ fn guarded_expression(
             guarded_expression(out, left, model, depth, flow)?,
             guarded_expression(out, right, model, depth, flow)?
         ),
+        Expression::RandomInt { lower, upper } => format!(
+            "random_int(int({}), int({}))",
+            guarded_expression(out, lower, model, depth, flow)?,
+            guarded_expression(out, upper, model, depth, flow)?
+        ),
         Expression::Negate(value) => format!(
             "(-float({}))",
             guarded_expression(out, value, model, depth, flow)?
@@ -420,11 +448,21 @@ fn guarded_expression(
             "(not bool({}))",
             guarded_expression(out, value, model, depth, flow)?
         ),
+        Expression::VectorComponent { vector, axis } => format!(
+            "({}).{}",
+            guarded_expression(out, vector, model, depth, flow)?,
+            match axis {
+                VectorAxis::X => "x",
+                VectorAxis::Y => "y",
+                VectorAxis::Z => "z",
+            }
+        ),
         _ => expression(e, model)?,
     })
 }
 fn expression(e: &Expression, model: &AiModel) -> Result<String> {
     Ok(match e {
+        Expression::Nobody | Expression::Nowhere => "null".into(),
         Expression::Integer(v) => v.to_string(),
         Expression::Real(v) => format!("{v:?}"),
         Expression::Variable(v) => {
@@ -444,6 +482,8 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             expression(action, model)?
         ),
         Expression::ActionFinished => "character().action_complete".into(),
+        Expression::CollideWithGround => "character().source_collide_with_ground()".into(),
+        Expression::CollideWithSlope => "character().source_collide_with_slope()".into(),
         Expression::IsInBehavior(target) => format!(
             "(current_{} == {})",
             group_name(target.group),
@@ -464,6 +504,12 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             }
         }
         Expression::MainActorDistance => "distance_to_main_actor()".into(),
+        Expression::SelfSighting => "character().source_sighting()".into(),
+        Expression::RandomInt { lower, upper } => format!(
+            "random_int(int({}), int({}))",
+            expression(lower, model)?,
+            expression(upper, model)?
+        ),
         Expression::Multiply(a, b) => format!(
             "(float({}) * float({}))",
             expression(a, model)?,
@@ -493,6 +539,15 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             expression(b, model)?
         ),
         Expression::Not(v) => format!("(not bool({}))", expression(v, model)?),
+        Expression::VectorComponent { vector, axis } => format!(
+            "({}).{}",
+            expression(vector, model)?,
+            match axis {
+                VectorAxis::X => "x",
+                VectorAxis::Y => "y",
+                VectorAxis::Z => "z",
+            }
+        ),
         Expression::Unsupported(_) => {
             anyhow::bail!("unsupported AI expression requires guarded lowering")
         }
@@ -651,7 +706,13 @@ fn statements(
                 }
             }
             Statement::Assign { variable, value } => {
-                if unresolved_variable(model, *variable) {
+                let kind = &model.variables[usize::from(*variable)].default;
+                let clears_source_reference = matches!(
+                    (kind, value),
+                    (DesignerValue::SourceWaypoint(_), Expression::Nowhere)
+                        | (DesignerValue::SourceActor(_), Expression::Nobody)
+                );
+                if unresolved_variable(model, *variable) && !clears_source_reference {
                     writeln!(
                         out,
                         "{pad}fail_unsupported({})\n{pad}{exit}",
@@ -662,7 +723,10 @@ fn statements(
                     )?;
                     continue;
                 }
-                let kind = &model.variables[usize::from(*variable)].default;
+                if clears_source_reference {
+                    writeln!(out, "{pad}dsg_{variable} = null")?;
+                    continue;
+                }
                 let value = guarded_expression(out, value, model, depth, flow)?;
                 let value = if matches!(kind, DesignerValue::Actor(_)) {
                     value
@@ -670,6 +734,34 @@ fn statements(
                     format!("{}({value})", value_type(kind))
                 };
                 writeln!(out, "{pad}dsg_{variable} = {value}")?;
+            }
+            Statement::ActorFieldAssign {
+                actor,
+                variable,
+                value,
+            } => {
+                let index = model
+                    .actor_field_targets()
+                    .iter()
+                    .position(|target| target == actor)
+                    .ok_or_else(|| anyhow::anyhow!("actor field target was not declared"))?;
+                let local = flow.local;
+                flow.local += 1;
+                let node = format!("actor_brain_{index}_target_{local}");
+                writeln!(
+                    out,
+                    "{pad}if actor_brain_{index}_path.is_empty():\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var {node} := get_node_or_null(actor_brain_{index}_path)\n{pad}if not is_instance_valid({node}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} requires actor {} Brain field {variable}",
+                        model.path, actor.path
+                    )),
+                    quoted(&format!(
+                        "{} requires actor {} Brain field {variable}",
+                        model.path, actor.path
+                    ))
+                )?;
+                let value = guarded_expression(out, value, model, depth, flow)?;
+                writeln!(out, "{pad}{node}.set(\"dsg_{variable}\", {value})")?;
             }
             Statement::SubtractAssign { variable, value } => {
                 let kind = &model.variables[usize::from(*variable)].default;
@@ -693,6 +785,22 @@ fn statements(
                     value_type(kind),
                     value
                 )?;
+            }
+            Statement::Increment { variable } => {
+                let kind = &model.variables[usize::from(*variable)].default;
+                ensure!(
+                    matches!(
+                        kind,
+                        DesignerValue::Byte(_)
+                            | DesignerValue::UnsignedByte(_)
+                            | DesignerValue::Short(_)
+                            | DesignerValue::UnsignedShort(_)
+                            | DesignerValue::Integer(_)
+                            | DesignerValue::UnsignedInteger(_)
+                    ),
+                    "increment requires an integer designer property"
+                );
+                writeln!(out, "{pad}dsg_{variable} += 1")?;
             }
             Statement::Turn { degrees_per_second } => {
                 let value = guarded_expression(out, degrees_per_second, model, depth, flow)?;

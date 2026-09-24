@@ -122,12 +122,63 @@ impl Project {
             names.insert(node.id.clone(), name);
         }
         self.native_environment(&scene_id)?;
+        // Fix-owned actors with no rooted SuperObject still carry useful Brain
+        // state. Instance them once as native, nonvisual scene nodes so ordinary
+        // compiled actor references can reach their saved designer properties.
+        let mut global_names = BTreeMap::new();
+        if !scene.global_actors.is_empty() {
+            let globals = format!("{scene_id}_globals");
+            writeln!(
+                self.builder,
+                "    var {globals} = Node3D.new()\n    {globals}.name = \"Globals\"\n    {scene_id}.add_child({globals})\n    {globals}.owner = {scene_id}"
+            )?;
+            for (i, global) in scene.global_actors.iter().enumerate() {
+                let actor = source.load(&global.perso)?;
+                let name = format!("{scene_id}_global_{i}");
+                writeln!(
+                    self.builder,
+                    "    var {name} = Node3D.new()\n    {name}.name = {}\n    {globals}.add_child({name})\n    {name}.owner = {scene_id}",
+                    quoted(&actor.name)
+                )?;
+                let mut written = std::collections::BTreeSet::new();
+                super::ai::component(self, source, &actor, &name, &mut written)?;
+                writeln!(
+                    self.builder,
+                    "    {name}.get_node(\"Brain\").owner = {scene_id}\n    {name}.get_node(\"Brain\").set(\"automatic\", false)"
+                )?;
+                global_names.insert(global.perso.path.clone(), name);
+            }
+        }
         for node in &scene.nodes {
             let Some(reference) = &node.perso else {
                 continue;
             };
             let perso = source.load(reference)?;
             let Some(brain) = &perso.brain else { continue };
+            let model = source.load(&brain.model)?;
+            for (i, target) in model.actor_field_targets().iter().enumerate() {
+                let target_name = if let Some(name) = global_names.get(&target.path) {
+                    name.clone()
+                } else {
+                    let target_node = scene
+                        .nodes
+                        .iter()
+                        .find(|candidate| candidate.perso.as_ref() == Some(target))
+                        .ok_or_else(|| {
+                            anyhow::anyhow!(
+                                "{} AI actor target {} is absent from saved scene",
+                                perso.path,
+                                target.path
+                            )
+                        })?;
+                    format!("{}_character", names[&target_node.id])
+                };
+                let character = format!("{}_character", names[&node.id]);
+                writeln!(
+                    self.builder,
+                    "    {scene_id}.set_editable_instance({character}, true)\n    {character}.get_node(\"Brain\").set(\"actor_brain_{i}_path\", {character}.get_node(\"Brain\").get_path_to({target_name}.get_node(\"Brain\")))"
+                )?;
+            }
             for (i, value) in brain.variables.iter().enumerate() {
                 let crate::model::ai::DesignerValue::Actor(Some(target)) = value else {
                     continue;
@@ -158,6 +209,13 @@ impl Project {
                 .find(|n| n.perso.as_ref() == Some(actor))
                 .unwrap();
             let main = format!("{}_character", names[&actor_node.id]);
+            // The normally saved level, not a test wrapper, owns gameplay
+            // motion for the selected player. Other persos retain their
+            // inspection pose until their own behavior path is supported.
+            writeln!(
+                self.builder,
+                "    {scene_id}.set_editable_instance({main}, true)\n    {main}.motion_enabled = true"
+            )?;
             for node in &scene.nodes {
                 let Some(reference) = &node.perso else {
                     continue;

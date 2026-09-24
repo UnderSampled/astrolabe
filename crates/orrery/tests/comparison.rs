@@ -51,6 +51,7 @@ fn fixture() -> Result<(Scene, Perso, Family, ActorObservation)> {
         path: AssetPath::new("level:/scene")?,
         name: "fixture".into(),
         main_actor: Some(AssetRef::from_path(actor.path.clone())),
+        global_actors: vec![],
         nodes: vec![SceneNode {
             properties: Default::default(),
             id: "explicit-instance".into(),

@@ -41,6 +41,10 @@ var playing: bool:
         else: animation_player.pause()
 
 func _ready() -> void:
+    if motion_enabled and gravity == Vector3.ZERO:
+        # The first gameplay slice uses Godot's project gravity until the
+        # source level's acceleration is measured against a live trajectory.
+        gravity = Vector3.DOWN * float(ProjectSettings.get_setting("physics/3d/default_gravity"))
     # Selection only; the saved initial pose is usable without this callback.
     if autoplay and initial_state >= 0:
         select_state(initial_state)
@@ -54,19 +58,42 @@ func _physics_process(delta: float) -> void:
     # The animation never changes this body's position. Apply its local motion
     # once, through native contact resolution. Forces/impulses persist independently.
     var motion := global_basis.orthonormalized() * root_motion_displacement / delta
+    # Apply gravity to this contact step. Floor response must not turn that
+    # downward acceleration into retained sideways momentum on a slight slope.
     external_velocity += gravity * delta
     velocity = motion + external_velocity
     move_and_slide()
     for i in get_slide_collision_count():
         var normal := get_slide_collision(i).get_normal()
+        if is_on_floor() and normal.dot(up_direction) >= cos(floor_max_angle):
+            continue
         if external_velocity.dot(normal) < 0.0:
             external_velocity = external_velocity.slide(normal)
+    if is_on_floor() and external_velocity.dot(up_direction) < 0.0:
+        external_velocity -= up_direction * external_velocity.dot(up_direction)
 
 func turn(degrees_per_second: float, seconds: float) -> void:
     # Proc_Turn requests a rate about the actor's local up axis. Source +Z maps
     # to Godot +Y; the native transform composes the rotation around that axis.
     assert(is_finite(degrees_per_second) and is_finite(seconds) and seconds >= 0.0)
     rotate_object_local(Vector3.UP, deg_to_rad(degrees_per_second) * seconds)
+
+## Func_GetPersoSighting reads the current actor's world-space negative
+## source-Y basis column. The exported Basis stores that direction in +Z;
+## AI vectors remain in source coordinates until an engine operation uses them.
+func source_sighting() -> Vector3:
+    var direction := global_basis.z
+    return Vector3(direction.x, -direction.z, direction.y)
+
+func source_collide_with_ground() -> bool:
+    return is_on_floor()
+
+func source_collide_with_slope() -> bool:
+    for index in get_slide_collision_count():
+        var normal := get_slide_collision(index).get_normal()
+        if normal.y > 0.0 and normal.y < 0.999:
+            return true
+    return false
 
 func advance(seconds: float) -> void:
     # Godot folds a large advance to one loop. Bound its native playback at

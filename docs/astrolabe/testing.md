@@ -26,13 +26,27 @@ the default explicitly.
 The `movement` selection includes Cucumber functional scenarios in Orrery. The
 synthetic backend exercises the shared steps and mismatch reporting offline.
 With `--local` and the prepared original-game fixture, one ignored test runs
-turn–release–idle and walk–release–stop in order on one Hype process. Each
+turn–release–idle and walk–release–stop in order on one Hype process. A second
+ignored test runs those same scenarios on one normally exported Godot `manoir`
+scene with its saved Hype Brain and a labeled English-save state fixture. Each
 Cucumber scenario has independent assertions and a `behavior-*.json` result;
-the suite file links both results, records one launch and final cleanup. The
+its suite file links both results, records one launch and final cleanup. The
 walk verifies and uses the position and heading left by the successful turn.
 Single-scenario execution remains available through the same step runner.
-Godot remains a pending slot in each result. See the [dated design and evidence note](../../notes/behavior-suite-2026-09-23.md)
+Backend results can be compared only after each passes independently. See the
+[dated design and evidence note](../../notes/behavior-suite-2026-09-23.md)
 for the declared setup, bounds and limits.
+
+Pair matching scenario reports with:
+
+```sh
+cargo run --locked --offline -p orrery -- compare-behavior --openspace SOURCE.json --godot GODOT.json --output COMPARISON.json
+```
+
+The command checks cleanup, individual passes, scenario and
+recording identity, then writes named action, relative path, heading, and input
+delivery checks. It returns failure if any comparison check fails. The JSON
+keeps timing and rendered-image pairing limits visible.
 
 Each run owns a temporary workspace and tracks its process tree through cleanup. It does not install tools or proprietary game data. Independent jobs must not share one original-game installation. New reports do not overwrite older reports. The current selection, exclusions, tool versions, run times, and outcomes are captured in the generated JSON and supporting evidence directory.
 

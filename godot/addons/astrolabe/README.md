@@ -1,4 +1,4 @@
-# Astrolabe support, interface 20
+# Astrolabe support, interface 23
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -38,9 +38,13 @@ canonical reset configuration. Editing Rete and regenerating updates them.
 The character root is a `CharacterBody3D`. `motion_enabled` opts into physics
 playback, applying native root translation once through `move_and_slide`.
 `gravity` is an explicit world-space acceleration; `external_velocity` retains
-force/impulse motion independently of the current clip. Neither native seeking
+force/impulse motion independently of the current clip. Ground contact clears
+downward speed without retaining a sideways projection of gravity. Neither native seeking
 nor `advance()` alone moves the body's world position. Exported movement
 spheres/boxes and their compiled action selections provide contact geometry.
+The saved level enables motion for its main actor. When no custom gravity is
+supplied, active motion uses the Godot project's default gravity; that value
+is provisional until the original manor trajectory is measured.
 Other collision purposes and moving point/triangle shapes remain diagnosed.
 
 `request_action(id, restart)` selects compiled family transitions, prohibited
@@ -75,6 +79,9 @@ an integer millisecond duration or a frame count; the generated coroutine resume
 after that wait. A completed schedule starts again on its next allowed tick.
 `sound_requested(identity)`
 reports the executed native event. No source script data is loaded at runtime.
+`sound_fade_music(target, duration_ms)` controls a separate native music bus,
+using the source 0–127 level and millisecond duration confirmed in the Hype
+executable. Converted positional sound events continue to use their emitter bus.
 
 Interface 16 adds ordered rules, reflex priority and behavior transitions.
 Generated branches and native coroutine stacks retain a suspended rule's place;

@@ -20,7 +20,7 @@ use crate::{
     model::{
         AssetPath, AssetRef, Selection,
         ai::*,
-        character::StateRef,
+        character::{Perso, StateRef},
         io::{Content, Diagnostic, Severity},
     },
     openspace::{
@@ -96,6 +96,24 @@ fn add(a: Address, n: usize) -> Address {
         offset: a.offset + n,
         ..a
     }
+}
+fn source_address(s: &SourceSession, source: &SourceObjectIdentity) -> Result<Address> {
+    let owner = match source.role {
+        SourceRole::Fix => Owner::Fix,
+        SourceRole::Level => Owner::Level,
+    };
+    let key = BlockKey(source.block[0], source.block[1]);
+    let (offset, _) = s
+        .allocation_indices(owner, key)?
+        .into_iter()
+        .find(|(_, index)| *index == source.allocation)
+        .with_context(|| format!("source identity {source:?} is not an allocation"))?;
+    let address = Address { owner, key, offset };
+    ensure!(
+        s.source_identity(address)? == *source,
+        "source identity lookup differs"
+    );
+    Ok(address)
 }
 fn path(s: &SourceSession, a: Address) -> Result<AssetPath> {
     AssetPath::new(format!(
@@ -315,6 +333,7 @@ fn decode_script(
     s: &SourceSession,
     sounds: &SoundSites,
     states: &BTreeMap<Address, StateRef>,
+    actors: &BTreeMap<Address, AssetRef<Perso>>,
     behaviors: &BTreeMap<Address, BehaviorRef>,
     script: &SourceScript,
 ) -> Result<Script> {
@@ -337,12 +356,18 @@ fn decode_script(
                 .actions
                 .insert(i, state_reference(s, states, add(script.address, i * 8))?);
         }
-        if n.kind == 32 && !matches!(n.parameter, 0 | u32::MAX) {
-            if let Some(target) = s.pointer(add(script.address, i * 8), 0)? {
-                if let Some(reference) = behaviors.get(&target) {
-                    codec.behaviors.insert(i, reference.clone());
-                }
-            }
+        if n.kind == 24
+            && let Some(target) = s.pointer(add(script.address, i * 8), 0)?
+            && let Some(actor) = actors.get(&target)
+        {
+            codec.actors.insert(i, actor.clone());
+        }
+        if n.kind == 32
+            && !matches!(n.parameter, 0 | u32::MAX)
+            && let Some(target) = s.pointer(add(script.address, i * 8), 0)?
+            && let Some(reference) = behaviors.get(&target)
+        {
+            codec.behaviors.insert(i, reference.clone());
         }
         if n.kind == 34 {
             let event = sounds
@@ -358,6 +383,7 @@ fn decode_set(
     s: &SourceSession,
     sounds: &SoundSites,
     states: &BTreeMap<Address, StateRef>,
+    actors: &BTreeMap<Address, AssetRef<Perso>>,
     behaviors: &BTreeMap<Address, BehaviorRef>,
     set: &SourceSet,
 ) -> Result<BehaviorSet> {
@@ -374,14 +400,16 @@ fn decode_set(
                         .iter()
                         .map(|slot| {
                             slot.as_ref()
-                                .map(|script| decode_script(s, sounds, states, behaviors, script))
+                                .map(|script| {
+                                    decode_script(s, sounds, states, actors, behaviors, script)
+                                })
                                 .transpose()
                         })
                         .collect::<Result<_>>()?,
                     schedule: b
                         .schedule
                         .as_ref()
-                        .map(|script| decode_script(s, sounds, states, behaviors, script))
+                        .map(|script| decode_script(s, sounds, states, actors, behaviors, script))
                         .transpose()?,
                     unknown: b.unknown,
                 })
@@ -555,21 +583,27 @@ pub(super) fn import(
         result.scene.main_actor = Some(AssetRef::new(format!("level:/persos/{}", node.path))?);
     }
     let mut actors = BTreeMap::new();
+    let mut brain_targets = Vec::new();
     for node in s.tree()? {
         if u32_at(s.bytes(node.address, 4)?, 0)? == 4 {
-            actors.insert(
-                s.required(node.address, 4)?,
-                AssetRef::new(format!("level:/persos/{}", node.path))?,
-            );
+            let perso = s.required(node.address, 4)?;
+            let reference = AssetRef::new(format!("level:/persos/{}", node.path))?;
+            actors.insert(perso, reference.clone());
+            brain_targets.push((perso, reference));
         }
+    }
+    for global in &result.scene.global_actors {
+        let address = source_address(s, &global.source)?;
+        ensure!(
+            address.owner == Owner::Fix,
+            "global actor source is not Fix-owned"
+        );
+        actors.insert(address, global.perso.clone());
+        brain_targets.push((address, global.perso.clone()));
     }
     let sounds = SoundSites::open(game, selection_value, s)?;
     let mut cache: BTreeMap<Address, CachedModel> = BTreeMap::new();
-    for node in s.tree()? {
-        if u32_at(s.bytes(node.address, 4)?, 0)? != 4 {
-            continue;
-        }
-        let p = s.required(node.address, 4)?;
+    for (p, perso_reference) in brain_targets {
         let header: PersoHeaderWire = wire(s.bytes(p, 20)?)?;
         if header.brain == 0 {
             continue;
@@ -582,8 +616,13 @@ pub(super) fn import(
         let perso = result
             .persos
             .iter_mut()
-            .find(|p| p.path.file() == format!("persos/{}", node.path))
-            .context("AI perso missing from scene")?;
+            .find(|p| p.path == perso_reference.path)
+            .with_context(|| {
+                format!(
+                    "AI perso {} missing from imported content",
+                    perso_reference.path
+                )
+            })?;
         if let std::collections::btree_map::Entry::Vacant(entry) = cache.entry(model) {
             let path = path(s, model)?;
             let h: ModelWire = wire(allocated(s, model, 16)?)?;
@@ -620,11 +659,11 @@ pub(super) fn import(
                     name: perso.name.clone(),
                     normal: sets[0]
                         .as_ref()
-                        .map(|set| decode_set(s, &sounds, states, &behaviors, set))
+                        .map(|set| decode_set(s, &sounds, states, &actors, &behaviors, set))
                         .transpose()?,
                     reflex: sets[1]
                         .as_ref()
-                        .map(|set| decode_set(s, &sounds, states, &behaviors, set))
+                        .map(|set| decode_set(s, &sounds, states, &actors, &behaviors, set))
                         .transpose()?,
                     variables: infos
                         .iter()

@@ -130,6 +130,18 @@ impl<'a> Importer<'a> {
     }
     pub fn perso(&mut self, so: Address, node: &str) -> Result<AssetRef<Perso>> {
         let perso = self.session.required(so, 4)?;
+        self.perso_at(
+            perso,
+            AssetPath::new(format!("level:/persos/{node}"))?,
+            node,
+        )
+    }
+    pub(super) fn perso_at(
+        &mut self,
+        perso: Address,
+        path: AssetPath,
+        fallback_name: &str,
+    ) -> Result<AssetRef<Perso>> {
         let parts = super::source_view::perso_parts(
             &mut super::source_view::FileView(self.session),
             perso,
@@ -147,13 +159,12 @@ impl<'a> Importer<'a> {
             .pointer(data, 16)?
             .map(|a| self.configuration(a))
             .transpose()?;
-        let path = AssetPath::new(format!("level:/persos/{node}"))?;
         let value = Perso {
             path: path.clone(),
             name: self.names[2]
                 .get(types[2] as usize)
                 .cloned()
-                .unwrap_or_else(|| node.into()),
+                .unwrap_or_else(|| fallback_name.into()),
             family,
             initial_state: self.state_index(data, 0)?,
             current_state: self.state_index(data, 4)?,

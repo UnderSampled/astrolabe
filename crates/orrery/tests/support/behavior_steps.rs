@@ -4,7 +4,9 @@ use astrolabe::{
     openspace::level::live::ActorObservation,
 };
 use cucumber::{World as _, WriterExt as _, given, then, when, writer::Stats as _};
-use orrery::behavior::{self, ActorSample, BackendResult, OriginalBackend, Scenario};
+use orrery::behavior::{
+    self, ActorSample, BackendResult, OriginalBackend, Scenario, godot::GodotBackend,
+};
 use std::{
     cell::{Cell, RefCell},
     fs,
@@ -19,6 +21,32 @@ use std::{
 pub enum Mode {
     Synthetic,
     Original,
+    Godot,
+}
+
+enum SessionBackend {
+    Original(Box<OriginalBackend>),
+    Godot(Box<GodotBackend>),
+}
+impl SessionBackend {
+    fn face_clear_path(&mut self) -> Result<()> {
+        match self {
+            Self::Original(backend) => backend.face_clear_path(),
+            Self::Godot(backend) => backend.face_clear_path(),
+        }
+    }
+    fn run(&mut self, recording: behavior::FunctionalRecording) -> Result<BackendResult> {
+        match self {
+            Self::Original(backend) => backend.run(recording),
+            Self::Godot(backend) => backend.run(recording),
+        }
+    }
+    fn stop(&mut self) -> Result<()> {
+        match self {
+            Self::Original(backend) => backend.stop(),
+            Self::Godot(backend) => backend.stop(),
+        }
+    }
 }
 
 struct ScenarioOutcome {
@@ -52,7 +80,7 @@ fn source_provenance() -> serde_json::Value {
 
 #[derive(cucumber::World, Default)]
 pub struct BehaviorWorld {
-    backend: Option<OriginalBackend>,
+    backend: Option<SessionBackend>,
     result: Option<BackendResult>,
     scenario: Option<Scenario>,
     failure: Option<String>,
@@ -69,7 +97,7 @@ impl std::fmt::Debug for BehaviorWorld {
 }
 impl Drop for BehaviorWorld {
     fn drop(&mut self) {
-        let cleanup = self.backend.as_mut().map(OriginalBackend::stop).transpose();
+        let cleanup = self.backend.as_mut().map(SessionBackend::stop).transpose();
         if let (Some(scenario), Some(outcomes)) = (self.scenario, &self.outcomes) {
             outcomes.borrow_mut().push(ScenarioOutcome {
                 scenario,
@@ -186,12 +214,12 @@ pub fn synthetic_result(recording: behavior::FunctionalRecording) -> Result<Back
 
 #[given("a clear path is ahead of Hype")]
 fn clear_path(world: &mut BehaviorWorld) {
-    if crate::BACKEND == Mode::Original {
+    if crate::BACKEND != Mode::Synthetic {
         let result = world
             .backend
             .as_mut()
-            .context("OpenSpace backend not started")
-            .and_then(OriginalBackend::face_clear_path);
+            .context("behavior backend not started")
+            .and_then(SessionBackend::face_clear_path);
         if let Err(err) = result {
             world.failure = Some(err.to_string());
             panic!("clear-path setup failed: {err}")
@@ -201,23 +229,29 @@ fn clear_path(world: &mut BehaviorWorld) {
 
 #[given("Hype is ready to move in a clear part of the manor")]
 fn ready(world: &mut BehaviorWorld) {
-    if crate::BACKEND == Mode::Original && world.backend.is_none() {
-        let result = (|| -> Result<OriginalBackend> {
-            let config = PathBuf::from(
-                std::env::var_os("ASTROLABE_HYPE_CONFIG")
-                    .context("ASTROLABE_HYPE_CONFIG missing")?,
-            );
+    if crate::BACKEND != Mode::Synthetic && world.backend.is_none() {
+        let result = (|| -> Result<SessionBackend> {
             let runs = std::env::var_os("ASTROLABE_EVIDENCE_DIR")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| {
                     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../TestResults")
                 })
                 .join("behavior-runs");
-            OriginalBackend::start_with_bridge(
-                &config,
-                &runs,
-                Some(std::path::Path::new(env!("CARGO_BIN_EXE_orrery"))),
-            )
+            Ok(match crate::BACKEND {
+                Mode::Original => {
+                    let config = PathBuf::from(
+                        std::env::var_os("ASTROLABE_HYPE_CONFIG")
+                            .context("ASTROLABE_HYPE_CONFIG missing")?,
+                    );
+                    SessionBackend::Original(Box::new(OriginalBackend::start_with_bridge(
+                        &config,
+                        &runs,
+                        Some(std::path::Path::new(env!("CARGO_BIN_EXE_orrery"))),
+                    )?))
+                }
+                Mode::Godot => SessionBackend::Godot(Box::new(GodotBackend::start(&runs)?)),
+                Mode::Synthetic => unreachable!(),
+            })
         })();
         match result {
             Ok(backend) => {
@@ -228,7 +262,7 @@ fn ready(world: &mut BehaviorWorld) {
             }
             Err(err) => {
                 world.failure = Some(err.to_string());
-                panic!("OpenSpace setup failed: {err}")
+                panic!("behavior setup failed: {err}")
             }
         }
     }
@@ -238,10 +272,10 @@ fn perform(world: &mut BehaviorWorld, scenario: Scenario) {
     let tape = behavior::recording(scenario);
     let result = match crate::BACKEND {
         Mode::Synthetic => synthetic_result(tape),
-        Mode::Original => world
+        Mode::Original | Mode::Godot => world
             .backend
             .as_mut()
-            .context("OpenSpace backend not started")
+            .context("behavior backend not started")
             .and_then(|backend| backend.run(tape)),
     };
     match result {
@@ -365,7 +399,7 @@ fn run_selected(names: &[&'static str], shared_session: bool) -> Result<SessionE
         .duration_since(UNIX_EPOCH)?
         .as_nanos()
         .to_string();
-    let session = Rc::new(RefCell::new(None::<OriginalBackend>));
+    let session = Rc::new(RefCell::new(None::<SessionBackend>));
     let outcomes = Rc::new(RefCell::new(Vec::<ScenarioOutcome>::new()));
     let launch_count = Rc::new(Cell::new(0_u32));
     let runtime = tokio::runtime::Runtime::new()?;
@@ -456,8 +490,9 @@ fn run_selected(names: &[&'static str], shared_session: bool) -> Result<SessionE
         let selected_backend = match crate::BACKEND {
             Mode::Synthetic => "synthetic",
             Mode::Original => "openspace",
+            Mode::Godot => "godot",
         };
-        let openspace_status = outcome
+        let selected_status = outcome
             .result
             .as_ref()
             .map(|r| r.status.as_str())
@@ -467,11 +502,11 @@ fn run_selected(names: &[&'static str], shared_session: bool) -> Result<SessionE
             "selected_backend": selected_backend,
             "source": source_provenance(),
             "session": {"id": session_id, "shared": shared_session, "launch_count": launch_count.get(),
-                "startup_settle_ms": if crate::BACKEND == Mode::Original { Some(behavior::ORIGINAL_STARTUP_SETTLE_MS) } else { None }},
+                "startup_settle_ms": match crate::BACKEND { Mode::Original => Some(behavior::ORIGINAL_STARTUP_SETTLE_MS), Mode::Godot => Some(5_000), Mode::Synthetic => None }},
             "result": outcome.result,
-            "openspace": if crate::BACKEND == Mode::Original { serde_json::json!({"status": openspace_status}) } else { serde_json::json!({"status": "not_run"}) },
-            "godot": BackendResult::pending_godot(outcome.scenario),
-            "cross_backend": {"status": "not_run", "reason": "Godot backend is pending"},
+            "openspace": if crate::BACKEND == Mode::Original { serde_json::json!({"status": selected_status}) } else { serde_json::json!({"status": "not_run"}) },
+            "godot": if crate::BACKEND == Mode::Godot { serde_json::json!({"status": selected_status}) } else { BackendResult::pending_godot(outcome.scenario) },
+            "cross_backend": {"status": "not_run", "reason": "independent backend result must be paired by recording hash"},
             "cleanup_complete": cleanup_complete && local_cleanup_complete,
             "error": error,
         });
@@ -492,8 +527,13 @@ fn run_selected(names: &[&'static str], shared_session: bool) -> Result<SessionE
                     stored["openspace"]["status"] == "passed",
                     "OpenSpace result missing"
                 );
+                ensure!(stored["godot"]["status"] == "pending", "Godot slot missing");
+            } else if crate::BACKEND == Mode::Godot {
+                ensure!(
+                    stored["godot"]["status"] == "passed",
+                    "Godot result missing"
+                );
             }
-            ensure!(stored["godot"]["status"] == "pending", "Godot slot missing");
             Ok(())
         })();
         if let Err(err) = validation {
@@ -505,7 +545,7 @@ fn run_selected(names: &[&'static str], shared_session: bool) -> Result<SessionE
     if !not_run.is_empty() {
         run_error.get_or_insert_with(|| "BDD scenario report missing".into());
     }
-    if crate::BACKEND == Mode::Original && shared_session && launch_count.get() != 1 {
+    if crate::BACKEND != Mode::Synthetic && shared_session && launch_count.get() != 1 {
         run_error.get_or_insert_with(|| "shared run restarted the game".into());
     }
     let suite_report = directory.join(format!("behavior-suite-{session_id}.json"));
@@ -519,7 +559,7 @@ fn run_selected(names: &[&'static str], shared_session: bool) -> Result<SessionE
             "not_run": not_run,
             "shared_session": shared_session,
             "launch_count": launch_count.get(),
-            "startup_settle_ms": if crate::BACKEND == Mode::Original { Some(behavior::ORIGINAL_STARTUP_SETTLE_MS) } else { None },
+            "startup_settle_ms": match crate::BACKEND { Mode::Original => Some(behavior::ORIGINAL_STARTUP_SETTLE_MS), Mode::Godot => Some(5_000), Mode::Synthetic => None },
             "cleanup_complete": cleanup_complete,
             "status": if run_error.is_none() && not_run.is_empty() { "passed" } else { "failed" },
             "error": run_error,

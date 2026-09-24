@@ -14,8 +14,18 @@ pub struct Scene {
     pub name: String,
     /// Explicit actor role, independent of a perso's display name or tree order.
     pub main_actor: Option<AssetRef<super::character::Perso>>,
+    /// Shared source actors referenced by AI but not rooted in this level's scene tree.
+    /// These are useful assets with source identity, not fabricated scene nodes.
+    #[serde(default)]
+    pub global_actors: Vec<GlobalActor>,
     /// Parents precede their children. IDs are stable within this asset.
     pub nodes: Vec<SceneNode>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GlobalActor {
+    pub source: super::ai::SourceObjectIdentity,
+    pub perso: AssetRef<super::character::Perso>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -129,6 +139,23 @@ impl Content for Scene {
                     .count()
                     == 1,
                 "main actor must resolve to one scene perso"
+            );
+        }
+        let mut global_sources = Vec::new();
+        let mut global_persos = BTreeSet::new();
+        for actor in &self.global_actors {
+            ensure!(
+                actor.source.role == super::ai::SourceRole::Fix,
+                "global actor source must be Fix-owned"
+            );
+            ensure!(
+                !global_sources.contains(&actor.source),
+                "duplicate global actor source identity"
+            );
+            global_sources.push(actor.source.clone());
+            ensure!(
+                global_persos.insert(actor.perso.path.clone()),
+                "duplicate global actor perso reference"
             );
         }
         ensure!(

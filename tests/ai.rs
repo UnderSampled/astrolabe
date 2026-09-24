@@ -199,6 +199,32 @@ fn hype_sound_fade_call_remains_typed_through_source_rete_and_godot() -> Result<
 }
 
 #[test]
+fn nowhere_clears_source_waypoint_without_enabling_unknown_writes() -> Result<()> {
+    let mut model = model()?;
+    model.variables.push(DesignerVariable {
+        default: DesignerValue::SourceWaypoint(None),
+        save: 0,
+        initialize: 1,
+    });
+    model.normal.as_mut().unwrap().behaviors[0].schedule = Some(Script {
+        statements: vec![
+            Statement::Assign {
+                variable: 2,
+                value: Expression::Nowhere,
+            },
+            Statement::Assign {
+                variable: 2,
+                value: Expression::Integer(1),
+            },
+        ],
+    });
+    let compiled = godot::ai::compile(&model, &[])?;
+    assert!(compiled.contains("dsg_2 = null"));
+    assert!(compiled.contains("writes unresolved source designer field 2"));
+    Ok(())
+}
+
+#[test]
 fn partial_compiled_script_runs_supported_branch_and_stops_at_reached_fragment() -> Result<()> {
     let mut model = model()?;
     model.variables.push(DesignerVariable {

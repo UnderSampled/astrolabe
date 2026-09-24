@@ -7,12 +7,55 @@ use super::{
 };
 use crate::model::{
     AssetPath, AssetRef, Selection,
+    ai::{SourceObjectIdentity, SourceRole},
     geometry::{Material, Model, ModelInstance},
     io::{Content, Diagnostic, Severity},
     scene::{NodeKind, Scene, SceneNode},
 };
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use std::{collections::BTreeMap, path::Path};
+
+const GLOBAL_PERSO_ALLOCATION: u32 = 15;
+
+fn global_perso_source(session: &SourceSession) -> Result<Option<(Address, SourceObjectIdentity)>> {
+    let block = BlockKey(5, 0);
+    if !session
+        .blocks
+        .get(&Owner::Fix)
+        .is_some_and(|blocks| blocks.contains_key(&block))
+    {
+        return Ok(None);
+    }
+    let Some((offset, _)) = session
+        .allocation_indices(Owner::Fix, block)?
+        .into_iter()
+        .find(|(_, allocation)| *allocation == GLOBAL_PERSO_ALLOCATION)
+    else {
+        return Ok(None);
+    };
+    let address = Address {
+        owner: Owner::Fix,
+        key: block,
+        offset,
+    };
+    let identity = session.source_identity(address)?;
+    ensure!(
+        identity
+            == SourceObjectIdentity {
+                role: SourceRole::Fix,
+                block: [5, 0],
+                allocation: GLOBAL_PERSO_ALLOCATION,
+            },
+        "Fix Global Perso allocation identity differs"
+    );
+    let header: PersoHeaderWire = wire(session.bytes(address, 20)?)?;
+    ensure!(header.brain != 0, "Fix Global Perso has no Brain");
+    let parts =
+        super::source_view::perso_parts(&mut super::source_view::FileView(session), address)?;
+    let family: FamilyWire = wire(session.bytes(parts.family, 56)?)?;
+    ensure!(family.index == 0, "Fix Global Perso family index differs");
+    Ok(Some((address, identity)))
+}
 
 pub struct SceneImport {
     pub ai_models: Vec<crate::model::ai::AiModel>,
@@ -63,6 +106,7 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
             path: AssetPath::new("level:/scene")?,
             name: selection.level.clone(),
             main_actor: None,
+            global_actors: Vec::new(),
             nodes: Vec::new(),
         },
         collisions: Vec::new(),
@@ -220,6 +264,15 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
             ));
         }
     }
+    let mut global_actor = None;
+    if let Some((address, source)) = global_perso_source(&session)? {
+        let perso = characters.perso_at(
+            address,
+            AssetPath::new(format!("fix:/persos/{GLOBAL_PERSO_ALLOCATION}"))?,
+            "Global",
+        )?;
+        global_actor = Some(crate::model::scene::GlobalActor { source, perso });
+    }
     let mut bounds = Vec::new();
     for (i, node) in tree.iter().enumerate() {
         if let Some(a) = session.pointer(node.address, 52)? {
@@ -238,6 +291,9 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
         }
     }
     let state_references = characters.finish()?;
+    if let Some(actor) = global_actor {
+        result.scene.global_actors.push(actor);
+    }
     for (i, bound) in bounds {
         result.scene.nodes[i].properties.bounding_geometry = Some(bound);
     }

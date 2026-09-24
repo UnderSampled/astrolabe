@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 #[derive(Parser)]
@@ -31,6 +31,15 @@ enum Commands {
     },
     /// Write the exact provisional physical-input recording shared by adapters.
     RecordBoundary {
+        #[arg(long)]
+        output: PathBuf,
+    },
+    /// Pair independent OpenSpace and Godot scenario reports by recording hash.
+    CompareBehavior {
+        #[arg(long)]
+        openspace: PathBuf,
+        #[arg(long)]
+        godot: PathBuf,
         #[arg(long)]
         output: PathBuf,
     },
@@ -195,6 +204,49 @@ fn main() -> Result<()> {
                     "updates": prepared.recording().updates.len(),
                 })
             );
+            Ok(())
+        }
+        Commands::CompareBehavior {
+            openspace,
+            godot,
+            output,
+        } => {
+            fn load_result(
+                path: &std::path::Path,
+                backend: &str,
+            ) -> Result<orrery::behavior::BackendResult> {
+                let report: serde_json::Value = serde_json::from_slice(
+                    &std::fs::read(path).with_context(|| format!("read {}", path.display()))?,
+                )?;
+                ensure!(report["schema"] == 1, "unsupported scenario report schema");
+                ensure!(
+                    report["cleanup_complete"] == true,
+                    "scenario cleanup incomplete"
+                );
+                ensure!(
+                    report["selected_backend"] == backend,
+                    "scenario report backend differs"
+                );
+                let result: orrery::behavior::BackendResult =
+                    serde_json::from_value(report["result"].clone())?;
+                result.require_pass()?;
+                Ok(result)
+            }
+            let source = load_result(&openspace, "openspace")?;
+            let target = load_result(&godot, "godot")?;
+            let comparison = orrery::behavior::compare_results(&source, &target)?;
+            let passed = comparison.status == "passed";
+            std::fs::write(
+                &output,
+                serde_json::to_vec_pretty(&serde_json::json!({
+                    "schema": 1,
+                    "openspace_report": openspace,
+                    "godot_report": godot,
+                    "comparison": comparison,
+                }))?,
+            )?;
+            println!("{}", output.display());
+            ensure!(passed, "functional behavior comparison failed");
             Ok(())
         }
         Commands::InspectOriginal {

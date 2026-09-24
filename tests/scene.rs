@@ -42,6 +42,7 @@ fn fixture() -> Result<(Scene, Collision, Material)> {
     };
     let mut scene = Scene {
         main_actor: None,
+        global_actors: vec![],
         path: AssetPath::new("level:/scene")?,
         name: "SyntheticScene".into(),
         nodes: vec![SceneNode {
@@ -168,6 +169,24 @@ fn source_scene_rete_routes_preserve_hierarchy_collision_and_model_sharing() -> 
     let mut imported = openspace::content::import_scene(&game, selection)?;
     let root = AssetRef::<Scene>::new("level:/scene")?;
     let scene = imported.load(&root)?;
+    assert_eq!(scene.global_actors.len(), 1);
+    let global = &scene.global_actors[0];
+    assert_eq!(global.source.role, astrolabe::model::ai::SourceRole::Fix);
+    assert_eq!(global.source.block, [5, 0]);
+    assert_eq!(global.source.allocation, 15);
+    assert_eq!(global.perso.path.as_str(), "fix:/persos/15");
+    let global_perso: std::sync::Arc<astrolabe::model::character::Perso> =
+        imported.load(&global.perso)?;
+    assert_eq!(global_perso.name, "Global");
+    let global_brain = global_perso.brain.as_ref().expect("global Brain imported");
+    let global_model: std::sync::Arc<astrolabe::model::ai::AiModel> =
+        imported.load(&global_brain.model)?;
+    assert_eq!(global_model.name, "Global");
+    assert_eq!(global_model.variables.len(), 238);
+    assert!(matches!(
+        global_model.variables[17].default,
+        astrolabe::model::ai::DesignerValue::Boolean(true)
+    ));
     assert_eq!(scene.nodes.len(), 150);
     assert_eq!(
         scene.nodes.iter().filter(|n| n.instance.is_some()).count(),

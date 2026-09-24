@@ -54,6 +54,7 @@ fn fixture() -> Result<Scene> {
     .collect();
     Ok(Scene {
         main_actor: None,
+        global_actors: vec![],
         path: AssetPath::new("level:/scene")?,
         name: "Graph".into(),
         nodes,
