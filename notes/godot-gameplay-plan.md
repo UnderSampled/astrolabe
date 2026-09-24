@@ -217,7 +217,7 @@ memory intervention used to reach a test state.
 
 The 2026-09-24 source-camera probe measured the active `manoir` view at idle,
 after turning and after walking. Keep its transform, projection and screenshots
-in the [movement BDD evidence](./godot-movement-bdd-2026-09-23.md#camera-research-for-a-separate-development-slice).
+in the [movement BDD evidence](./camera-research-2026-09-24.md).
 After the magick slice, implement a native Godot gameplay camera as its own
 development slice. Determine where camera selection and authored camera
 objects belong, then calibrate the view and its follow behavior against the
