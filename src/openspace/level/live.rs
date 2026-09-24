@@ -322,10 +322,35 @@ impl HypeBuild {
                 let ai = if source.pointer(perso, 16)?.is_none() {
                     SceneTailAi::BrainAbsent
                 } else {
-                    match source_view::ai_parts(&mut source, perso) {
-                        Ok(parts) => SceneTailAi::Ready {
+                    match (|| {
+                        let parts = source_view::ai_parts(&mut source, perso)?;
+                        let normal_set = source_view::behavior_set(&mut source, parts.model, 0)?;
+                        let reflex_set = source_view::behavior_set(&mut source, parts.model, 4)?;
+                        let normal = source_view::behavior_selection(
+                            &mut source,
+                            parts.mind,
+                            4,
+                            normal_set.as_ref(),
+                        )?;
+                        let reflex = source_view::behavior_selection(
+                            &mut source,
+                            parts.mind,
+                            8,
+                            reflex_set.as_ref(),
+                        )?;
+                        let designer_field_count =
+                            source_view::designer_view(&mut source, parts.model, parts.mind)?
+                                .map_or(0, |view| view.fields.len());
+                        Ok::<_, anyhow::Error>(SceneTailAi::Ready {
                             model_locator: format!("live:{:08x}", parts.model),
-                        },
+                            normal_count: normal_set.as_ref().map_or(0, |set| set.members.len()),
+                            reflex_count: reflex_set.as_ref().map_or(0, |set| set.members.len()),
+                            designer_field_count,
+                            normal,
+                            reflex,
+                        })
+                    })() {
+                        Ok(ai) => ai,
                         Err(error) => SceneTailAi::Unreadable {
                             reason: error.to_string(),
                         },
@@ -622,8 +647,17 @@ pub struct SceneTailChild {
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum SceneTailAi {
     BrainAbsent,
-    Ready { model_locator: String },
-    Unreadable { reason: String },
+    Ready {
+        model_locator: String,
+        normal_count: usize,
+        reflex_count: usize,
+        designer_field_count: usize,
+        normal: Option<BehaviorSelection>,
+        reflex: Option<BehaviorSelection>,
+    },
+    Unreadable {
+        reason: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

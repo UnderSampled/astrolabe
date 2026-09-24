@@ -229,6 +229,15 @@ motion contract. The imported Fire template `fix:/persos/5-0-25549` uses
 AI model 817 but declares object types `[13, 15, 65596]`; mapping the live
 child's AI locator to that template requires another source identity check.
 
+Orrery now reads that bounded child's behavior selection and model shape in
+the same stopped capture. A fresh original Fire BDD pass
+(`TestResults/behavior-fire-cast-1790279417734372838.json`) observed child 176
+at `spent` and `settled` with one normal behavior selected at 0, no reflex
+behavior, and zero designer fields. These traits match imported model 817,
+and the child stayed at `[-74.378, 27.584, 5.777]` in those two samples.
+The live model locator remained `live:02890df4`; the traits are corroborating
+evidence, not a unique pointer-to-Fix allocation resolution.
+
 The Godot cast report counted one generated actor, but its detailed observation
 was `{}`. A standalone Godot probe reproduced the test-harness error: model
 817 has no designer variable 0, and converting its missing `dsg_0` value to

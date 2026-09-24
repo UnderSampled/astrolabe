@@ -214,7 +214,12 @@ fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
     assert_eq!(
         tail.children[0].ai,
         Some(SceneTailAi::Ready {
-            model_locator: "live:00003380".into()
+            model_locator: "live:00003380".into(),
+            normal_count: 0,
+            reflex_count: 0,
+            designer_field_count: 0,
+            normal: None,
+            reflex: None,
         })
     );
     word(memory.ranges.get_mut(&0x3300).unwrap(), 0, 0x3330);
