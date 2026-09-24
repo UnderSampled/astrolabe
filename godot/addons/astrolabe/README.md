@@ -1,4 +1,4 @@
-# Astrolabe support, interface 31
+# Astrolabe support, interface 32
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -76,11 +76,11 @@ manor behavior fixture restores inventory values observed in the supplied
 English save; exported content does not hardcode those values.
 Compiled magick reads use `character/magick.gd`, another Resource shared with
 generated Persos. It holds current/maximum points and the raw AI selected-spell
-code, whose mapping from the saved menu index is not yet established. Its function-230
-deduction is an explicit native stub: the source script supplies the observed
-ten-point argument, but the function's return semantics still need verification.
-The compiled call fails explicitly when the stub returns no result. No spell
-cost is hardcoded into the Godot support package.
+code. Its function-230 deduction follows the verified source dispatch: it
+subtracts when enough points remain, clamps to the maximum, and returns `1`
+for success or `0` for insufficient points. The compiled script supplies the
+ten-point argument and decides when to invoke it; no spell cost is hardcoded
+into support. The saved menu selection's live raw code remains unverified.
 The compiled laser-pointer calls use `character/laser_pointer.gd`, a native
 Resource shared with generated Persos. Hiding its presentation preserves the
 last target, which the arrow's original AI reads for aiming. Target acquisition

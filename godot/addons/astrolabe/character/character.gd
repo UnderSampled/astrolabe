@@ -207,7 +207,7 @@ func source_magic_points() -> int:
     assert(source_magic_ready())
     return int(source_magick.get("current_points"))
 
-func source_magic_remove_points(amount: int) -> Variant:
+func source_magic_remove_points(amount: int) -> int:
     assert(source_magic_ready() and amount >= 0)
     return source_magick.call("remove_points", amount)
 

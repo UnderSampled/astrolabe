@@ -570,22 +570,15 @@ fn guarded_expression(
         }
         Expression::MagicRemovePoints(amount) => {
             let amount = guarded_expression(out, amount, model, depth, flow)?;
-            let id = flow.local;
-            flow.local += 1;
-            let local = format!("magic_result_{id}");
             writeln!(
                 out,
-                "{pad}if not character().source_magic_ready():\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var {local} = character().source_magic_remove_points(int({amount}))\n{pad}if {local} == null:\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                "{pad}if not character().source_magic_ready():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
                 quoted(&format!(
                     "{} requires restored source magick state",
                     model.path
                 )),
-                quoted(&format!(
-                    "{} requires verified Magic_RemoveMagicPoints return semantics",
-                    model.path
-                ))
             )?;
-            local
+            format!("character().source_magic_remove_points(int({amount}))")
         }
         Expression::LaserDirection => {
             writeln!(

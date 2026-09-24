@@ -10,7 +10,11 @@ extends Resource
 func ready() -> bool:
     return maximum_points > 0 and current_points >= 0 and current_points <= maximum_points and selected_spell_code >= 0
 
-## Function 230's argument is decoded, but its return semantics still need a
-## source observation. Returning null makes compiled AI fail at its call site.
-func remove_points(_amount: int) -> Variant:
-    return null
+## Function 230 subtracts when enough mana remains, then returns UInt success.
+## The verified original handler clamps the written total to the maximum.
+func remove_points(amount: int) -> int:
+    assert(amount >= 0 and current_points >= 0 and maximum_points >= 0)
+    if amount > current_points:
+        return 0
+    current_points = mini(current_points - amount, maximum_points)
+    return 1

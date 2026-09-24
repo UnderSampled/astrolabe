@@ -13,6 +13,26 @@ use astrolabe::{
 };
 use std::{fs, time::Duration};
 
+#[test]
+fn native_magick_service_follows_verified_remove_points_contract() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    let project = temp.path().join("godot");
+    godot::support::initialize(&project)?;
+    fs::write(
+        project.join("check_magick.gd"),
+        include_bytes!("check_magick.gd"),
+    )?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    let evidence = godot::run_godot(
+        &engine,
+        &project,
+        &["--headless", "--script", "res://check_magick.gd"],
+        Duration::from_secs(20),
+    )?;
+    assert!(evidence.contains("MAGICK_SERVICE_OK"), "{evidence}");
+    Ok(())
+}
+
 fn model() -> Result<AiModel> {
     Ok(AiModel {
         path: AssetPath::new("level:/ai/proximity")?,

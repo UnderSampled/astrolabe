@@ -746,6 +746,17 @@
     },
     {
       "binary": "astrolabe::ai",
+      "test": "native_magick_service_follows_verified_remove_points_contract",
+      "areas": ["ai", "magick"],
+      "kind": "engine",
+      "prerequisites": ["godot"],
+      "fixture": "synthetic source mana state",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
       "test": "nowhere_clears_source_waypoint_without_enabling_unknown_writes",
       "areas": ["ai", "rete"],
       "kind": "unit",
