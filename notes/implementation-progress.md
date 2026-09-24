@@ -55,7 +55,13 @@ script call to the implemented native magick API. The bounded Fire-cast
 scenario now passes independently in the original game and a fresh Godot
 manor export. The same recording passes Orrery's 26-check cross-engine
 comparison, including spell code, cast gate, action sequence and mana cost.
-The generated effect's identity, trajectory and contact remain open. See the
+The generated effect's AI locator strongly matches imported Fire model 817
+under the verified Fix block rebasing rule. Orrery now reads its dynamic actor
+links, card candidates and internal motion in the same stopped capture. A
+fresh original Fire run passed with the effect stationary while its update
+stamp advanced; Godot's effect falls under generic spawned-character gravity.
+The effective source callback input, visual trajectory, contact and lifetime
+parity remain open. No Fire-specific Godot behavior rule was added. See the
 [magick comparison](./magick-comparison-2026-09-24.md).
 The spawned spell's external actor field references now bind through a
 scene-local source actor map before its Brain starts. An isolated Godot test

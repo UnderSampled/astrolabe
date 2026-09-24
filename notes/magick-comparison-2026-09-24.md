@@ -411,9 +411,12 @@ dynamics mode or initial velocity. This does not rule out runtime allocation
 of a dynamics object; Orrery has directly observed one for spawned Fire.
 Because both templates lack the nested record, that field alone cannot
 distinguish stationary Fire from the moving arrow. The Fire AI passes a zero
-spawn vector, while the arrow's source AI supplies a nonzero vector; the
-native creation handler's interpretation of that difference is the next
-contract to verify.
+spawn vector, while the arrow's source AI supplies a nonzero vector. The
+installed-build handler investigation recorded in
+the combat comparison supports the vector as an initial motion seed written
+separately from the copied world transform. It does not establish that a zero
+seed disables later dynamics updates or gravity. The Fire AI's zero vector
+therefore cannot by itself justify turning native physics off.
 
 Godot's generic generation path enables native motion on every spawned
 `CharacterBody3D`, and that component applies gravity each physics tick.
