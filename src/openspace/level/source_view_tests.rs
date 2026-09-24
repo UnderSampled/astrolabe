@@ -1,6 +1,6 @@
 use super::super::{
     hype_runtime,
-    live::{self, HypeBuild, ReadMemory, SceneTailAi},
+    live::{self, HypeBuild, ReadMemory, SceneTailAi, SceneTailDynamics},
     records::{Block, BlockKey, Owner},
 };
 use super::*;
@@ -174,6 +174,10 @@ fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
     assert_eq!(tail.children.len(), 2);
     assert_eq!(tail.children[0].index, 0);
     assert_eq!(tail.children[1].index, 1);
+    assert_eq!(tail.children[0].node_locator, "live:00002100");
+    assert_eq!(tail.children[1].node_locator, "live:00002200");
+    assert_eq!(tail.children[1].perso_locator, None);
+    assert_eq!(tail.children[1].dynamics, None);
     assert!(
         tail.children
             .iter()
@@ -201,7 +205,29 @@ fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
         .insert(0x3500, vec![0x11, 0, 0, 0, 0, 0, 0, 0]);
     let tail = build.scene_tail(&mut memory, 1)?;
     assert_eq!(tail.children[0].object_types, Some([8, 10, 65536]));
+    assert_eq!(tail.children[0].node_locator, "live:00002200");
+    assert_eq!(
+        tail.children[0].perso_locator.as_deref(),
+        Some("live:00003000")
+    );
+    assert_eq!(tail.children[0].dynamics, Some(SceneTailDynamics::Absent));
     assert_eq!(tail.children[0].ai, Some(SceneTailAi::BrainAbsent));
+    word(memory.ranges.get_mut(&0x3000).unwrap(), 8, 0x3600);
+    let mut wrapper = vec![0; 20];
+    word(&mut wrapper, 16, 0x3700);
+    memory.ranges.insert(0x3600, wrapper);
+    let mut dynamics = vec![0; 0x349];
+    dynamics[0x348] = 1;
+    memory.ranges.insert(0x3700, dynamics);
+    let tail = build.scene_tail(&mut memory, 1)?;
+    assert_eq!(
+        tail.children[0].dynamics,
+        Some(SceneTailDynamics::Ready {
+            wrapper_locator: "live:00003600".into(),
+            object_locator: "live:00003700".into(),
+            override_flag: 1,
+        })
+    );
     word(memory.ranges.get_mut(&0x3000).unwrap(), 16, 0x3300);
     let mut brain = vec![0; 8];
     word(&mut brain, 0, 0x3320);

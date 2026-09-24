@@ -267,6 +267,88 @@ sample or an execution trace. The arrow's imported and live third object-type
 values also differ while its first two match, suggesting a generic runtime
 type change, but neither case proves the Fire child's exact template identity.
 
+An offline Fix allocation probe narrows the identity. Imported AI models 28
+and 817 occupy payload offsets `0x1f58` and `0x50dd4` in source Fix block
+`(17,0)`, whose SNA base is `0x02940020`. Their offset difference is
+`0x4ee7c`, exactly the difference between the stopped Hype AI locator
+`live:02841f78` and the spawned child's `live:02890df4`. Both live locators
+imply the same block base, `0x02840020`. The source loader in
+`reference/decompilation/functions/004e8ad0_FUN_004e8ad0.c` retrieves the
+active module-block base and applies its difference from the SNA base to
+addresses inside the block. The active block is allocated at runtime by
+`004ae2a0_Mmg_fn_vInitBlock.c`. This loader rule explains the observed
+one-megabyte base shift while preserving model offsets. The capture did not
+independently read the active block-table entry, so this remains a strongly
+corroborated model-817 mapping rather than a separately proven allocation
+provenance. Its differing third object-type value still needs explanation.
+
+An offline import of the Fire template shows family initial state 0 and two
+states with no mechanics cards. The template has a character collision-zone
+profile but no movement collision group. Raymap's state and mechanics readers
+show that states may carry gravity-related mechanics settings; these Fire
+states do not. Godot's generic spawn path currently enables motion for every
+generated character, then supplies scene or project gravity in the support
+component. That default is not derived from the Fire template. The missing
+mechanics and movement profile warrant a source integration check before
+changing shared spawn physics; they do not by themselves prove that the
+original actor lacks gravity.
+
+The first source integration trace rules out a simple no-mechanics/no-ZDM
+gravity switch. Raymap identifies ZDM as a separate collision slot. The
+original dynamics integrator in
+`reference/decompilation/functions/005a1948_FUN_005a1948.c` calculates gravity
+from the position-selected physical environment and a current mechanics ratio;
+it does not test for a ZDM profile there. The ratio getter
+`00595a02_DNM_fn_dfIdentityCardGetRatio.c` returns `1.0` for an invalid card,
+although Fire's exact active-card path remains untraced. The integrator also
+checks a transient actor byte at `+0x348` before applying gravity. The next
+useful observation is that flag and active environment/card for the live Fire
+child. A missing ZDM may affect contact, but disabling Fire gravity from the
+template alone would be an unsupported support-side rule.
+
+Static inspection of the imported scripts further narrows the movement
+question. Model 28's Fire generation call passes the literal zero vector.
+Model 817 has no position, velocity, gravity or mechanics operation: its
+schedule selects family 13 states 0 and 1, updates other actors' designer
+fields and mana, waits 1000 ms, then calls `KillSelf`. Its normal rule can
+also call `KillSelf` under the original guarded condition. The state changes
+do not select a mechanics card in the imported Fire family. Therefore any
+Fire displacement between creation and death must come from the native
+generation/action/dynamics path, not an explicit motion decision in its AI.
+
+A bounded fresh Orrery run repeated the original Fire spawn. Its new child
+briefly appeared at DynamicWorld index 176 with the same model locator and
+type triple, then disappeared before a second tail capture roughly 1.5 seconds
+later. The inspector previously exposed the model locator but not the child
+SuperObject or Perso address, so reading a dynamics offset from that locator
+would have targeted the wrong allocation. The scene-tail observation now
+includes capture-local locators obtained directly from the validated dynamic
+links.
+
+The decompiled call chain now supplies that path for this build:
+`00443f00_FUN_00443f00.c` follows SuperObject `+4` to Perso and Perso `+8`
+to a dynamics wrapper; `0044d2c0_FUN_0044d2c0.c` reads the dynamics object at
+wrapper `+0x10`; the mechanics callback passes that object unchanged through
+`00585d51_FUN_00585d51.c` to the integrator. Orrery's scene-tail reader now
+reports the wrapper and object locators and the raw integrator override byte
+from object `+0x348`, with absent/unreadable results kept distinct. This byte
+is cleared by the integrator after use, so a sampled zero does not prove it
+was zero throughout the spell lifetime.
+
+The exact original Fire BDD rerun passed with the new reader
+(`TestResults/behavior-fire-cast-1790281145388216885.json`). Child 176 was
+absent through `cast_late`, then present at both `spent` and `settled`. Its
+node `live:03e0fe34`, Perso `live:04606c4c`, dynamics wrapper
+`live:04606e98`, dynamics object `live:04606fc0` and AI model
+`live:02890df4` were the same in both stopped captures. The dynamics reader
+was ready and its raw override byte was `0` both times. Its source position
+stayed `[-74.377876, 27.536543, 5.776759]` across the 800 ms sample gap.
+The matching executable and save hashes, scenario cleanup and process-exit
+check were verified. These samples do not show whether the one-update flag was
+set between captures or whether this dynamics object was scheduled for
+integration. The stationary result still needs a source-backed mechanism
+before changing Godot's generated-actor motion.
+
 Godot's generic generation path enables native motion on every spawned
 `CharacterBody3D`, and that component applies gravity each physics tick.
 Whether the source Fire actor has gravity, stays attached, or is repositioned

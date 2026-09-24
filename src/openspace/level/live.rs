@@ -316,9 +316,31 @@ impl HypeBuild {
                 "scene tail parent link differs"
             );
             ensure!(child.next == following, "scene tail next link differs");
-            let (object_types, ai) = if child.kind == 4 {
+            let (object_types, ai, perso_locator, dynamics) = if child.kind == 4 {
                 let perso = source.required(address, SuperObjectWire::DATA)?;
                 let object_types = source_view::perso_parts(&mut source, perso)?.object_types;
+                let dynamics = match (|| {
+                    let Some(wrapper) = source.pointer(perso, 8)? else {
+                        return Ok::<_, anyhow::Error>(SceneTailDynamics::Absent);
+                    };
+                    let Some(object) = source.pointer(wrapper, 16)? else {
+                        return Ok(SceneTailDynamics::Absent);
+                    };
+                    // The verified Hype dynamics integrator reads this byte at
+                    // object +0x348, then clears it after its override step.
+                    let flag_address = source.add(object, 0x348)?;
+                    let override_flag = source.bytes(flag_address, 1)?[0];
+                    Ok(SceneTailDynamics::Ready {
+                        wrapper_locator: format!("live:{wrapper:08x}"),
+                        object_locator: format!("live:{object:08x}"),
+                        override_flag,
+                    })
+                })() {
+                    Ok(dynamics) => dynamics,
+                    Err(error) => SceneTailDynamics::Unreadable {
+                        reason: error.to_string(),
+                    },
+                };
                 let ai = if source.pointer(perso, 16)?.is_none() {
                     SceneTailAi::BrainAbsent
                 } else {
@@ -356,9 +378,14 @@ impl HypeBuild {
                         },
                     }
                 };
-                (Some(object_types), Some(ai))
+                (
+                    Some(object_types),
+                    Some(ai),
+                    Some(format!("live:{perso:08x}")),
+                    Some(dynamics),
+                )
             } else {
-                (None, None)
+                (None, None, None, None)
             };
             let global_transform = if child.kind == 4 {
                 let transform = source.required(address, 36)?;
@@ -369,6 +396,9 @@ impl HypeBuild {
             children.push(SceneTailChild {
                 index: u32::try_from(index)?,
                 kind: child.kind,
+                node_locator: format!("live:{address:08x}"),
+                perso_locator,
+                dynamics,
                 object_types,
                 global_transform,
                 ai,
@@ -636,9 +666,31 @@ pub struct LaserPointerObservation {
 pub struct SceneTailChild {
     pub index: u32,
     pub kind: u32,
+    /// Capture-local addresses obtained from validated DynamicWorld links.
+    /// They are observation evidence, not persistent asset identities.
+    pub node_locator: String,
+    pub perso_locator: Option<String>,
+    pub dynamics: Option<SceneTailDynamics>,
     pub object_types: Option<[u32; 3]>,
     pub global_transform: Option<TransformValue>,
     pub ai: Option<SceneTailAi>,
+}
+
+/// Source integrator state read from the validated SuperObject → Perso →
+/// dynamics-wrapper → dynamics-object chain. The flag is a sampled raw value;
+/// it does not describe whether a previous or later update applied gravity.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum SceneTailDynamics {
+    Absent,
+    Ready {
+        wrapper_locator: String,
+        object_locator: String,
+        override_flag: u8,
+    },
+    Unreadable {
+        reason: String,
+    },
 }
 
 /// A validated live model link is capture-local evidence. Resolve it against
