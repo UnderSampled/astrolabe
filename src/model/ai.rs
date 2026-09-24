@@ -177,6 +177,10 @@ pub enum Statement {
     JumpAbsolute,
     JumpWithoutAddingSpeed,
     SetParticleGeneratorEnabled(bool),
+    /// Original laser-pointer presentation is global; aiming reads its last
+    /// target independently of whether the pointer is visible.
+    SetLaserPointerActive(bool),
+    ChangeSighting(Expression),
     /// Hype Proc_ActivateChannel / Proc_DeactivateChannel select an existing
     /// character channel by its source channel number.
     SetChannelActive {
@@ -294,6 +298,8 @@ pub enum Expression {
         item: Box<Expression>,
         count: Box<Expression>,
     },
+    LaserDirection,
+    VectorCos(Box<Expression>, Box<Expression>),
     /// Func_GetPersoSighting: current actor's source-coordinate sighting
     /// direction, confirmed from Hype's own perso context.
     SelfSighting,
@@ -594,7 +600,8 @@ impl AiModel {
                 | Expression::InventoryRemove {
                     item: left,
                     count: right,
-                } => {
+                }
+                | Expression::VectorCos(left, right) => {
                     expression(left, out);
                     expression(right, out);
                 }
@@ -638,6 +645,7 @@ impl AiModel {
                     | Statement::Turn {
                         degrees_per_second: value,
                     }
+                    | Statement::ChangeSighting(value)
                     | Statement::SetVectorSpeed(value)
                     | Statement::SetImpulse(value) => expression(value, out),
                     Statement::ArrayAssign {
@@ -840,7 +848,8 @@ impl Script {
                 | Expression::InventoryRemove {
                     item: left,
                     count: right,
-                } => {
+                }
+                | Expression::VectorCos(left, right) => {
                     expression(left, out);
                     expression(right, out);
                 }
@@ -886,6 +895,7 @@ impl Script {
                     | Statement::Turn {
                         degrees_per_second: value,
                     }
+                    | Statement::ChangeSighting(value)
                     | Statement::SetVectorSpeed(value)
                     | Statement::SetImpulse(value)
                     | Statement::Wait {
@@ -962,7 +972,12 @@ impl Script {
                 | Expression::RandomInt {
                     lower: left,
                     upper: right,
-                } => {
+                }
+                | Expression::InventoryRemove {
+                    item: left,
+                    count: right,
+                }
+                | Expression::VectorCos(left, right) => {
                     expression(left, variables, depth + 1, count)?;
                     expression(right, variables, depth + 1, count)?;
                 }
@@ -1074,7 +1089,9 @@ impl Script {
                     Statement::Turn { degrees_per_second } => {
                         expression(degrees_per_second, variables, depth + 1, count)?
                     }
-                    Statement::SetVectorSpeed(value) | Statement::SetImpulse(value) => {
+                    Statement::SetVectorSpeed(value)
+                    | Statement::SetImpulse(value)
+                    | Statement::ChangeSighting(value) => {
                         expression(value, variables, depth + 1, count)?
                     }
                     Statement::ArrayAssign {

@@ -337,6 +337,17 @@
     },
     {
       "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::laser_aim_calls_reconstruct_exact_script",
+      "areas": ["ai", "source", "combat"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::main_actor_field_adjustments_reconstruct_exact_script",
       "areas": ["ai", "source", "combat"],
       "kind": "unit",
@@ -2039,6 +2050,28 @@
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic relocated inventory memory",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::source_view::tests::verified_live_laser_reads_target_independently_of_visibility",
+      "areas": ["source", "ai", "runtime", "combat"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic live laser record",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::source_view::tests::verified_live_scene_tail_checks_reverse_links_and_bounds",
+      "areas": ["source", "runtime", "combat"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic relocated scene memory",
       "timeout_seconds": 5,
       "ignored": false,
       "release": true

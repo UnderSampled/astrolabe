@@ -407,6 +407,7 @@ impl GameSession {
         let status = build.status(&mut capture)?;
         let actor = build.actor_with_ai(&mut capture, actions, designer_values)?;
         let inventory = build.inventory(&mut capture)?;
+        let laser_pointer = build.laser_pointer(&mut capture)?;
         let snapshot = capture.finish()?;
         drop(pause);
         Ok(json!({
@@ -421,6 +422,32 @@ impl GameSession {
             "consistency_limit": "stopped-byte capture is coherent during this read but has no completed-update publication evidence",
             "actor": actor,
             "inventory": inventory,
+            "laser_pointer": laser_pointer,
+        }))
+    }
+
+    /// List a bounded tail of DynamicWorld children in one stopped capture.
+    /// The returned transform can track a generated Perso while it lives.
+    pub fn inspect_scene_tail(&self, limit: usize) -> Result<Value> {
+        self.check()?;
+        let build = HypeBuild::verified(&self.config.exe_sha256)?;
+        let pause = self.process.pause(Duration::from_secs(1))?;
+        let mut capture = pause.capture()?;
+        let status = build.status(&mut capture)?;
+        let scene = build.scene_tail(&mut capture, limit)?;
+        let snapshot = capture.finish()?;
+        drop(pause);
+        Ok(json!({
+            "fixture": {
+                "executable_sha256": self.config.exe_sha256,
+                "save_sha256": self.config.save_sha256,
+            },
+            "run": self.run,
+            "status": status,
+            "capture": snapshot,
+            "completed_update": false,
+            "consistency_limit": "stopped-byte capture is coherent during this read but has no completed-update publication evidence",
+            "scene": scene,
         }))
     }
 

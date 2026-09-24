@@ -72,6 +72,70 @@ fn verified_live_inventory_filters_inactive_members_and_rejects_cycles() -> Resu
     );
     Ok(())
 }
+#[test]
+fn verified_live_laser_reads_target_independently_of_visibility() -> Result<()> {
+    let build = HypeBuild::verified(live::HYPE_EXECUTABLE_SHA256)?;
+    let mut ranges = BTreeMap::new();
+    let mut status = vec![0; 261];
+    status[0] = 9;
+    status[1..7].copy_from_slice(b"manoir");
+    ranges.insert(hype_runtime::STATUS, status);
+    let mut laser = vec![0; 22];
+    for (i, value) in [12.0_f32, -45.0, 3.5].iter().enumerate() {
+        laser[i * 4..i * 4 + 4].copy_from_slice(&value.to_le_bytes());
+    }
+    ranges.insert(0x74b310, laser);
+    let mut memory = Memory { ranges };
+    let observed = build.laser_pointer(&mut memory)?;
+    assert_eq!(observed.point, [12.0, -45.0, 3.5]);
+    assert!(!observed.active);
+    memory.ranges.get_mut(&0x74b310).unwrap()[20] = 1;
+    assert!(build.laser_pointer(&mut memory)?.active);
+    Ok(())
+}
+#[test]
+fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
+    let build = HypeBuild::verified(live::HYPE_EXECUTABLE_SHA256)?;
+    let mut ranges = BTreeMap::new();
+    let mut status = vec![0; 261];
+    status[0] = 9;
+    status[1..7].copy_from_slice(b"manoir");
+    ranges.insert(hype_runtime::STATUS, status);
+    ranges.insert(0x75701c, 0x2000_u32.to_le_bytes().to_vec());
+    let mut root = vec![0; 64];
+    word(&mut root, 8, 0x2100);
+    word(&mut root, 12, 0x2200);
+    word(&mut root, 16, 2);
+    ranges.insert(0x2000, root);
+    let mut first = vec![0; 64];
+    word(&mut first, 20, 0x2200);
+    word(&mut first, 28, 0x2000);
+    ranges.insert(0x2100, first);
+    let mut second = vec![0; 64];
+    word(&mut second, 24, 0x2100);
+    word(&mut second, 28, 0x2000);
+    ranges.insert(0x2200, second);
+    let mut memory = Memory { ranges };
+    let tail = build.scene_tail(&mut memory, 2)?;
+    assert_eq!(tail.child_count, 2);
+    assert_eq!(tail.children.len(), 2);
+    assert_eq!(tail.children[0].index, 0);
+    assert_eq!(tail.children[1].index, 1);
+    assert!(
+        tail.children
+            .iter()
+            .all(|child| child.object_types.is_none())
+    );
+    word(memory.ranges.get_mut(&0x2200).unwrap(), 28, 0x2200);
+    assert!(
+        build
+            .scene_tail(&mut memory, 2)
+            .unwrap_err()
+            .to_string()
+            .contains("parent link")
+    );
+    Ok(())
+}
 fn fixture(base: u32) -> (Memory, SourceSession) {
     // Independent known-byte fixture. These locations are not derived by the
     // codec's writer: two distinct members with equal timing properties.

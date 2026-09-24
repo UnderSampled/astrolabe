@@ -124,6 +124,12 @@ fn inspect_scene_actor_schema() -> Value {
         &["level", "child_path", "object_types", "actions"],
     )
 }
+fn inspect_scene_tail_schema() -> Value {
+    object(
+        json!({"limit":{"type":"integer","minimum":1,"maximum":16,"default":8}}),
+        &[],
+    )
+}
 fn read_schema() -> Value {
     object(
         json!({
@@ -145,7 +151,7 @@ fn write_schema() -> Value {
     )
 }
 
-const TOOLS: [ToolSpec; 18] = [
+const TOOLS: [ToolSpec; 19] = [
     ToolSpec {
         name: "status",
         description: "Report the Orrery MCP service and exact owned game status without opening a game window.",
@@ -231,6 +237,13 @@ const TOOLS: [ToolSpec; 18] = [
         schema: inspect_main_actor_schema,
     },
     ToolSpec {
+        name: "inspect_scene_tail",
+        description: "Pause the owned game once and list the last 1–16 DynamicWorld children with checked kind, Perso object types and transforms, for observing generated actors.",
+        read_only: true,
+        destructive: false,
+        schema: inspect_scene_tail_schema,
+    },
+    ToolSpec {
         name: "inspect_scene_actor",
         description: "Pause the owned game and inspect one source-rooted Perso by a checked child path and object types; all addresses are capture-local.",
         read_only: true,
@@ -296,6 +309,7 @@ fn tool_models() -> Vec<Tool> {
                             | "list_bindings"
                             | "inspect_main_actor"
                             | "inspect_combat"
+                            | "inspect_scene_tail"
                             | "inspect_scene_actor"
                             | "read_memory"
                             | "memory_maps"
@@ -607,6 +621,11 @@ fn validate_steps(raw: &Value) -> Result<Vec<Step>> {
                 inspect_designer_values(map)?;
                 budget += 2_500;
             }
+            "inspect_scene_tail" => {
+                allowed(map, &["action", "delay_ms", "label", "limit"])?;
+                integer(map, "limit", 8, 1, 16)?;
+                budget += 2_500;
+            }
             "inspect_scene_actor" => {
                 allowed(
                     map,
@@ -847,6 +866,7 @@ fn execute_step(controller: &mut NativeController, step: &Step) -> Result<Value>
             let designer_values = inspect_designer_values(map)?.unwrap_or_default();
             game.inspect_combat(&actions, &designer_values)
         }
+        "inspect_scene_tail" => game.inspect_scene_tail(integer(map, "limit", 8, 1, 16)? as usize),
         "inspect_scene_actor" => {
             let (level, path, object_types) = scene_selector(map)?;
             let actions = inspect_actions(map)?;
@@ -954,6 +974,12 @@ fn call_tool(
                     .game()?
                     .inspect_combat(&actions, &designer_values)?,
             ))
+        }
+        "inspect_scene_tail" => {
+            allowed(map, &["limit"])?;
+            Ok(ToolOutput::ok(controller.game()?.inspect_scene_tail(
+                integer(map, "limit", 8, 1, 16)? as usize,
+            )?))
         }
         "inspect_scene_actor" => {
             allowed(
@@ -1252,6 +1278,7 @@ mod tests {
                 "list_bindings",
                 "inspect_main_actor",
                 "inspect_combat",
+                "inspect_scene_tail",
                 "inspect_scene_actor",
                 "read_memory",
                 "write_memory",

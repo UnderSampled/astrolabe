@@ -1,4 +1,4 @@
-# Astrolabe support, interface 28
+# Astrolabe support, interface 30
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -37,6 +37,13 @@ canonical reset configuration. Editing Rete and regenerating updates them.
 
 The character root is a `CharacterBody3D`. `motion_enabled` opts into physics
 playback, applying native root translation once through `move_and_slide`.
+The source object-generation API copies the caller's transform and initializes
+the spawned Perso's native motion from the AI vector operand. Ordinary Godot
+physics integrates that initial velocity; the projectile's compiled AI decides
+its aiming, contact response and lifetime. The source vector's final movement
+frame and exact collision timing still need a live cross-engine comparison; the
+initial conversion uses the spawning actor's basis, as indicated by a bounded
+original-game displacement observation.
 `gravity` is an explicit world-space acceleration; `external_velocity` retains
 force/impulse motion independently of the current clip. Ground contact clears
 downward speed without retaining a sideways projection of gravity. Neither native seeking
@@ -67,6 +74,13 @@ implements AI-requested inventory operations only; attack selection, arrow
 creation, motion and lifetime must come from compiled source AI. The current
 manor behavior fixture restores inventory values observed in the supplied
 English save; exported content does not hardcode those values.
+The compiled laser-pointer calls use `character/laser_pointer.gd`, a native
+Resource shared with generated Persos. Hiding its presentation preserves the
+last target, which the arrow's original AI reads for aiming. Target acquisition
+is intentionally unset until a source-backed game/camera ray can supply it;
+scripts fail explicitly when the target is unavailable. The native sighting
+method rotates the actor from the source vector while preserving position and
+scale. Its up/roll choice and zero-vector behavior remain fidelity questions.
 The compiled `Stats_DisplayMainActor*` calls retain their requested Boolean
 visibility in `source_hud_display` and emit `hud_visibility_requested`. An
 authored HUD can bind that signal to its native `Control` nodes. The current

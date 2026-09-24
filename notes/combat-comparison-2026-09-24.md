@@ -204,8 +204,8 @@ to native channel-parent visibility, while the original also keeps a persistent
 deactivation list and bit flag. The supplied save's measured baseline is now
 restored, but rendered crossbow presentation still needs visual comparison.
 These are native AI API fidelity items, not replacement gameplay rules. The
-crossbow's nonzero generated-object vector and projectile contact API remain
-explicitly unsupported until their source behavior is measured and implemented.
+crossbow's projectile contact API remains explicitly unsupported until its
+source behavior is measured and implemented.
 
 ## Crossbow AI and inventory boundary
 
@@ -244,9 +244,90 @@ the verified generation API's handling of this nonzero vector is still under
 investigation. A source-game input and follow-up inventory capture are needed
 before treating a shot or consumption as behavior evidence.
 
+A separate bounded source run, `run-1790263609992610756`, used the same
+verified executable and supplied save. The active `Weapon` ID 80 member was
+resolved through the live inventory list; its 16-bit quantity was zero. A
+guarded volatile-memory write changed only that member's quantity to three,
+and the typed inspector confirmed it. This was a starting-state intervention,
+not native ammunition acquisition or a modification of the supplied save.
+After Z selection, one Space press reached Hype action 73 at 150 ms and
+returned to action 48 by 400 ms. Designer field 95 became 80. Quantity stayed
+three through captures at 150, 400 and 1,000 ms. The run therefore proves the
+source AI entered a crossbow firing action from that test state; it does not
+yet establish a spawned arrow or ammunition consumption. An independent
+screenshot is not used as proof. The game and temporary Orrery service were
+stopped, and the archive was left unchanged.
+
+The verified generation handler links its new SuperObject under the
+`DynamicWorld` root. The arrow template `fix:/persos/5-0-24728` has object
+types `[8,10,65591]`. Orrery now exposes a bounded, checked tail of that
+root's children, including each Perso's type triple and transform. The prior
+combat inspector reported only Hype and inventory, so this adds the scene
+evidence needed for a short-interval projectile comparison.
+
+That follow-up ran as `run-1790264925891228728` with the same verified game
+and save hashes. Before Z, DynamicWorld had 176 children; none of its last 16
+matched the arrow template type. The laser point was
+`[-73.77856,32.58957,6.05084]` and its presentation was inactive. Z made
+presentation active without moving the point. One Space created child 176,
+raising the count to 177. Its live type triple was `[8,10,65536]`, **different
+from the imported arrow template's `[8,10,65591]`**. At release its transform
+was still zero, consistent with a stopped snapshot before publication. At
+about +30 and +80 ms it matched Hype's position
+`[-74.37856,27.48474,4.55084]`; by +150 ms it had moved
+`[+0.47266,+0.97266,+1.54688]`. It was gone by +300 ms, when the laser was
+inactive at `[-73.77859,28.93899,6.05084]`, Hype action was 358, and weapon
+80 quantity remained three. These captures establish a transient moving
+DynamicWorld child but **do not identify it as the arrow**. The type change,
+its AI/model identity, and the source frame/update timing need further checks
+before projectile behavior can be accepted. The original game/service were
+stopped and the save archive remained unchanged.
+
+The arrow's compiled model 733 makes its own aiming decision. It reads the
+global laser target direction, compares vector cosine to Hype's sighting,
+optionally changes its orientation, and later checks contacts. Hype model 28
+hides the pointer before creating the arrow and reactivates it afterward, so
+visibility and target state must be separate. The typed AST/codec/compiler now
+cover laser activation, direction, vector cosine and change-sighting. Godot
+shares a native laser-target Resource with generated actors and retains its
+point while hidden. No camera or viewport ray has been guessed as the source
+target; the native target starts invalid, and compiled AI fails explicitly if
+it is read before a target is supplied. Orrery's combat read now includes the
+verified build's global laser point and visibility word. A bounded live capture
+observed its target and visibility across the original firing action, but did
+not establish how the engine chooses that target. Source inspection shows the
+target query refreshes the stored point before checking the presentation flag,
+so hiding the laser does not itself prevent a later query from updating the
+target. Its ray inputs and collision rules still need translation. A fresh Rete import and
+direct compilation of models 28 and 733 confirmed that model 28's firing
+schedule has no unsupported source AI nodes. Model 733 still has unsupported
+condition 33 (`CollideWithNothing`) and statement 160
+(`Camera_ChangeTargetedPerso`) in its later rule. The native orientation
+builder uses world up when constructing a basis; source roll and zero-vector
+details are unresolved fidelity debt. Collision conditions remain unsupported.
+The source target query is camera based and traverses several world object
+kinds. Matching its camera ray and object filtering belongs to the later camera
+work; until then, a controlled target can exercise the arrow AI in a test, but
+normal Godot gameplay cannot acquire one.
+
 Any implementation that chooses a weapon or moves an arrow in Godot support
 without a corresponding compiled AI request would be a replacement gameplay
 rule and a material fidelity debt. Keep that boundary visible in review. Native
 support approximations already listed above remain API-fidelity debt; the
-crossbow's launch-vector, laser and contact calls are pending source-backed
-implementation rather than a support-side attack script.
+crossbow's laser target acquisition and contact calls are pending source-backed
+implementation
+rather than a support-side attack script.
+
+The verified executable's object-generation handler copies the firing actor's
+world transform into the new actor and separately writes the evaluated vector
+to its movement state, caching its magnitude. The arrow's model 733 contains
+no `GoRelative` call. A generic source mechanics updater reads that movement
+state and integrates displacement through its ordinary collision path. The
+Godot generation API now initializes the new native CharacterBody's motion
+from the source vector immediately, so the compiled arrow AI can control its
+subsequent aiming and lifetime. This resolves the former blanket rejection of
+nonzero vectors; it does not establish arrow firing or motion parity. The
+source updater does not rotate its velocity through the actor's basis in the
+examined function, but the exact frame transfer from initial to active motion
+and timestep still require live comparison. Those limits are native API
+fidelity debt, not a weapon-specific gameplay rule.

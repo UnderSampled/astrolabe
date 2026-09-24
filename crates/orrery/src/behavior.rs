@@ -1094,9 +1094,10 @@ impl BackendResult {
             &[(4, 5)]
         } else if matches!(self.scenario, Scenario::MovingJump | Scenario::WallJump) {
             &[(6, 7)]
-        } else if self.scenario == Scenario::StationaryJump {
-            &[(5, 6)]
-        } else if self.scenario == Scenario::WallContact {
+        } else if matches!(
+            self.scenario,
+            Scenario::StationaryJump | Scenario::WallContact
+        ) {
             &[(5, 6)]
         } else if self.scenario == Scenario::RunVsWalk {
             &[(3, 4), (8, 9)]

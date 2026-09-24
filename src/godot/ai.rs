@@ -373,7 +373,7 @@ fn comparison_code(
 }
 fn needs_guard(e: &Expression, model: &AiModel) -> bool {
     match e {
-        Expression::Unsupported(_) => true,
+        Expression::Unsupported(_) | Expression::LaserDirection => true,
         Expression::Variable(index) => unresolved_variable(model, *index),
         Expression::ActorFieldRead { .. } | Expression::MainActorFieldRead(_) => true,
         Expression::Vector(values) => values.iter().any(|value| needs_guard(value, model)),
@@ -387,6 +387,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         }
         | Expression::RandomInt { lower: a, upper: b }
         | Expression::InventoryRemove { item: a, count: b }
+        | Expression::VectorCos(a, b)
         | Expression::ArrayElement { array: a, index: b }
         | Expression::And(a, b)
         | Expression::Or(a, b) => needs_guard(a, model) || needs_guard(b, model),
@@ -552,6 +553,19 @@ fn guarded_expression(
             guarded_expression(out, item, model, depth, flow)?,
             guarded_expression(out, count, model, depth, flow)?
         ),
+        Expression::LaserDirection => {
+            writeln!(
+                out,
+                "{pad}if not character().source_laser_pointer_ready():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                quoted(&format!("{} requires a native laser target", model.path))
+            )?;
+            "character().source_laser_pointer_direction()".into()
+        }
+        Expression::VectorCos(a, b) => format!(
+            "character().source_vector_cos({}, {})",
+            guarded_expression(out, a, model, depth, flow)?,
+            guarded_expression(out, b, model, depth, flow)?
+        ),
         Expression::Negate(value) => format!(
             "(-float({}))",
             guarded_expression(out, value, model, depth, flow)?
@@ -670,6 +684,14 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             "character().source_inventory_remove(int({}), int({}))",
             expression(item, model)?,
             expression(count, model)?
+        ),
+        Expression::LaserDirection => {
+            anyhow::bail!("laser direction requires guarded compilation")
+        }
+        Expression::VectorCos(a, b) => format!(
+            "character().source_vector_cos({}, {})",
+            expression(a, model)?,
+            expression(b, model)?
         ),
         Expression::SeePerso { receiver, target } => {
             let actor = |keyword| match keyword {
@@ -1117,6 +1139,23 @@ fn statements(
                 writeln!(
                     out,
                     "{pad}character().source_set_particle_generator_enabled({enabled})"
+                )?;
+            }
+            Statement::SetLaserPointerActive(active) => {
+                writeln!(
+                    out,
+                    "{pad}character().source_set_laser_pointer_active({active})"
+                )?;
+            }
+            Statement::ChangeSighting(direction) => {
+                let value = guarded_expression(out, direction, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if not character().source_change_sighting({value}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} received invalid sighting direction",
+                        model.path
+                    ))
                 )?;
             }
             Statement::SetChannelActive { channel, active } => {

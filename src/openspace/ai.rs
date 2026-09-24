@@ -338,6 +338,9 @@ impl Parser<'_> {
                 (4, 48) => Statement::JumpWithoutAddingSpeed,
                 (4, 192) => Statement::SetParticleGeneratorEnabled(true),
                 (4, 193) => Statement::SetParticleGeneratorEnabled(false),
+                (4, 337) => Statement::SetLaserPointerActive(true),
+                (4, 338) => Statement::SetLaserPointerActive(false),
+                (4, 445) => Statement::ChangeSighting(self.expression(indent + 1)?),
                 (4, 104 | 105) => {
                     let (_, channel) = self.take(indent + 1)?;
                     ensure!(
@@ -732,6 +735,11 @@ impl Parser<'_> {
                 item: Box::new(self.expression(indent + 1)?),
                 count: Box::new(self.expression(indent + 1)?),
             },
+            (3, 211) => Expression::LaserDirection,
+            (3, 172) => Expression::VectorCos(
+                Box::new(self.expression(indent + 1)?),
+                Box::new(self.expression(indent + 1)?),
+            ),
             (3, 164) => Expression::SelfSighting,
             (3, 0) => Expression::SelfPosition,
             (3, 41) => Expression::GameTime,
@@ -880,6 +888,13 @@ impl Writer<'_> {
                 Statement::JumpWithoutAddingSpeed => self.node(4, 48, indent),
                 Statement::SetParticleGeneratorEnabled(enabled) => {
                     self.node(4, if *enabled { 192 } else { 193 }, indent)
+                }
+                Statement::SetLaserPointerActive(active) => {
+                    self.node(4, if *active { 337 } else { 338 }, indent)
+                }
+                Statement::ChangeSighting(direction) => {
+                    self.node(4, 445, indent);
+                    self.expression(direction, indent + 1)?;
                 }
                 Statement::SetChannelActive { channel, active } => {
                     self.node(4, if *active { 104 } else { 105 }, indent);
@@ -1185,6 +1200,12 @@ impl Writer<'_> {
                 self.node(3, 209, indent);
                 self.expression(item, indent + 1)?;
                 self.expression(count, indent + 1)?;
+            }
+            Expression::LaserDirection => self.node(3, 211, indent),
+            Expression::VectorCos(a, b) => {
+                self.node(3, 172, indent);
+                self.expression(a, indent + 1)?;
+                self.expression(b, indent + 1)?;
             }
             Expression::SelfSighting => self.node(3, 164, indent),
             Expression::SelfPosition => self.node(3, 0, indent),
@@ -1536,6 +1557,55 @@ mod partial_tests {
                 value: Expression::InventoryRemove { item, count },
                 ..
             } if **item == Expression::Integer(80) && **count == Expression::Integer(1)
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn laser_aim_calls_reconstruct_exact_script() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (4, 338, 1),
+            (2, 11, 1),
+            (11, 2, 2),
+            (3, 211, 2),
+            (2, 11, 1),
+            (11, 3, 2),
+            (3, 172, 2),
+            (11, 2, 3),
+            (3, 164, 3),
+            (4, 445, 1),
+            (11, 2, 2),
+            (4, 337, 1),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert_eq!(script.statements.len(), 5);
+        assert!(matches!(
+            script.statements[0],
+            Statement::SetLaserPointerActive(false)
+        ));
+        assert!(matches!(
+            script.statements[1],
+            Statement::Assign {
+                value: Expression::LaserDirection,
+                ..
+            }
+        ));
+        assert!(matches!(
+            script.statements[2],
+            Statement::Assign {
+                value: Expression::VectorCos(..),
+                ..
+            }
+        ));
+        assert!(matches!(
+            script.statements[3],
+            Statement::ChangeSighting(Expression::Variable(2))
+        ));
+        assert!(matches!(
+            script.statements[4],
+            Statement::SetLaserPointerActive(true)
         ));
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())

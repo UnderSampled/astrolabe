@@ -6,11 +6,13 @@ signal action_finished(action: int)
 signal action_request_traced(requested: int, restart: bool, previous: int, selected: int, accepted: bool)
 signal hud_visibility_requested(indicator: String, visible: bool)
 const SOURCE_INVENTORY = preload("res://addons/astrolabe/character/inventory.gd")
+const SOURCE_LASER_POINTER = preload("res://addons/astrolabe/character/laser_pointer.gd")
 @export var initial_state: int = -1
 @export var current_state: int = -1
 @export var current_mechanics: Resource
 @export var physical_environment: Resource
 @export var source_inventory: Resource
+@export var source_laser_pointer: Resource
 @export var autoplay: bool = true
 ## Gameplay uses physics ticks; ordinary editor/pose inspection stays stationary.
 @export var motion_enabled: bool = false
@@ -57,6 +59,8 @@ var playing: bool:
 func _ready() -> void:
     if source_inventory == null:
         source_inventory = SOURCE_INVENTORY.new()
+    if source_laser_pointer == null:
+        source_laser_pointer = SOURCE_LASER_POINTER.new()
     if motion_enabled:
         # The source actor rounds shallow contacts at finite wall edges.
         # Godot's default 15-degree minimum stops Hype at the manoir wall end.
@@ -125,6 +129,20 @@ func source_set_vector_speed(value: Vector3) -> void:
     assert(value.is_finite())
     source_vector_speed = value
 
+## The source object-generation call writes its vector into the new Perso's
+## motion state at creation. Keep that state and seed native world velocity;
+## ordinary physics integrates it without a projectile-specific script rule.
+func source_initialize_motion(value: Vector3, spawning_basis: Basis) -> void:
+    assert(value.is_finite())
+    source_vector_speed = value
+    source_relative_motion = false
+    # The evaluated vector is in the spawning actor's local source frame.
+    # The native body consumes a world velocity. Its destination-local
+    # transform is assigned before attachment, so its own global_basis is not
+    # reliable until add_child() runs.
+    var local_velocity := Vector3(value.x, value.z, -value.y)
+    external_velocity = spawning_basis.orthonormalized() * local_velocity
+
 func source_go_relative() -> void:
     source_relative_motion = true
 
@@ -174,6 +192,42 @@ func source_inventory_remove(item: int, count: int) -> int:
     assert(source_inventory != null)
     return int(source_inventory.call("remove", item, count))
 
+func source_set_laser_pointer_active(active: bool) -> void:
+    assert(source_laser_pointer != null)
+    source_laser_pointer.set("active", active)
+
+func source_laser_pointer_ready() -> bool:
+    return source_laser_pointer != null and bool(source_laser_pointer.get("target_valid"))
+
+## Func_GetLaserPointerDirection returns a source-coordinate vector from this
+## actor to the shared target, even while pointer presentation is hidden.
+func source_laser_pointer_direction() -> Vector3:
+    assert(source_laser_pointer_ready())
+    var target: Vector3 = source_laser_pointer.get("target_position")
+    var delta := target - global_position
+    return Vector3(delta.x, -delta.z, delta.y)
+
+## Func_VecteurCos returns the cosine of two source-coordinate vectors.
+func source_vector_cos(a: Vector3, b: Vector3) -> float:
+    var product := a.length_squared() * b.length_squared()
+    if product <= 0.0: return 0.0
+    return clampf(a.dot(b) / sqrt(product), -1.0, 1.0)
+
+## Proc_ChangePersoSighting rotates the actor so source forward faces the
+## requested world direction. The source proc negates the vector while building
+## its negative-Y forward column; the exported Godot basis uses positive Z.
+func source_change_sighting(source_direction: Vector3) -> bool:
+    if not source_direction.is_finite() or source_direction.length_squared() <= 0.0:
+        return false
+    var forward := Vector3(source_direction.x, source_direction.z, -source_direction.y).normalized()
+    var up := Vector3.UP
+    if absf(forward.dot(up)) > 0.999: up = Vector3.FORWARD
+    var right := up.cross(forward).normalized()
+    var corrected_up := forward.cross(right).normalized()
+    var scale := global_basis.get_scale()
+    global_basis = Basis(right, corrected_up, forward).scaled(scale)
+    return true
+
 func source_is_type_of_gmt_collide(kind: int) -> bool:
     var bit := 1 << (kind & 31)
     for index in get_slide_collision_count():
@@ -219,7 +273,7 @@ func source_set_hud_indicator_visible(indicator: String, visible: bool) -> void:
 
 ## Execute an action and instantiate its converted Perso template once. The
 ## source helper copies the caller's world transform, then passes its vector
-## operand into the spawned actor's motion state. Nonzero vectors remain open.
+## operand into the spawned actor's motion state.
 ## Return -1 for an unsupported request, 0 for a rejected action, 1 when started.
 func source_execute_action_and_generate_object(template_path: String, action: int, vector: Vector3) -> int:
     if template_path.is_empty():
@@ -229,8 +283,8 @@ func source_execute_action_and_generate_object(template_path: String, action: in
     if template == null:
         push_error("Action/object request has no converted Perso template")
         return -1
-    if vector != Vector3.ZERO:
-        push_error("Action/object request with a nonzero vector is unsupported")
+    if not vector.is_finite():
+        push_error("Action/object request has an invalid motion vector")
         return -1
     var destination := get_tree().current_scene as Node3D
     if destination == null:
@@ -246,6 +300,10 @@ func source_execute_action_and_generate_object(template_path: String, action: in
     if generated == null:
         push_error("Action/object template is not a Node3D scene")
         return -1
+    if vector != Vector3.ZERO and not (generated is CharacterBody3D):
+        generated.free()
+        push_error("Action/object motion requires a native character")
+        return -1
     if not request_action(action, true):
         generated.free()
         return 0
@@ -253,9 +311,12 @@ func source_execute_action_and_generate_object(template_path: String, action: in
         generated.set("motion_enabled", true)
         generated.set("physical_environment", physical_environment)
         generated.set("source_inventory", source_inventory)
+        generated.set("source_laser_pointer", source_laser_pointer)
     # The source helper copies the caller's global SuperObject transform.
     # Initialize it before attachment: the compiled Brain can start in _ready.
     generated.transform = destination.global_transform.affine_inverse() * global_transform
+    if generated is CharacterBody3D:
+        generated.call("source_initialize_motion", vector, global_basis)
     var generated_brain := generated.get_node_or_null("Brain")
     if generated_brain != null:
         # A generated Perso's compiled Brain reads the source main actor. Bind

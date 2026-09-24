@@ -137,6 +137,28 @@ impl HypeBuild {
             selected_weapon,
         })
     }
+    /// The verified build keeps the laser target point and presentation flag
+    /// in one small global record. The target remains readable while hidden.
+    pub fn laser_pointer(&self, memory: &mut impl ReadMemory) -> Result<LaserPointerObservation> {
+        let status = self.status(memory)?;
+        ensure!(
+            status.phase == 9,
+            "laser read requires loaded gameplay phase"
+        );
+        let mut source = MemoryView(memory);
+        let bytes = source.bytes(0x74b310, 22)?;
+        let mut point = [0.0; 3];
+        for (i, value) in point.iter_mut().enumerate() {
+            *value = f32::from_le_bytes(bytes[i * 4..i * 4 + 4].try_into()?);
+            ensure!(value.is_finite(), "nonfinite laser target component");
+        }
+        let active = u16::from_le_bytes(bytes[20..22].try_into()?);
+        ensure!(active <= 1, "laser presentation flag is not Boolean");
+        Ok(LaserPointerObservation {
+            point,
+            active: active != 0,
+        })
+    }
     pub fn actor(&self, memory: &mut impl ReadMemory) -> Result<ActorObservation> {
         self.actor_with_actions(memory, &[47])
     }
@@ -204,6 +226,84 @@ impl HypeBuild {
             "scene actor source object types differ"
         );
         Ok(observation)
+    }
+
+    /// Identify the newest DynamicWorld children, where source object creation
+    /// links generated Persos. Ordinals are capture-local, not asset IDs.
+    pub fn scene_tail(
+        &self,
+        memory: &mut impl ReadMemory,
+        limit: usize,
+    ) -> Result<SceneTailObservation> {
+        ensure!((1..=16).contains(&limit), "scene tail limit outside 1..16");
+        let status = self.status(memory)?;
+        ensure!(
+            status.phase == 9,
+            "scene tail requires loaded gameplay phase"
+        );
+        let mut source = MemoryView(memory);
+        let root_address = source.required(0x75701c, 0)?;
+        let root: SuperObjectWire = wire(&source.bytes(root_address, 64)?)?;
+        ensure!(root.kind == 0, "DynamicWorld root is not a world node");
+        ensure!(
+            root.child_count <= 100_000,
+            "scene child count exceeds bound"
+        );
+        let count = usize::try_from(root.child_count)?;
+        if count == 0 {
+            ensure!(
+                root.first_child == 0 && root.last_child == 0,
+                "empty scene root has child endpoints"
+            );
+        } else {
+            ensure!(
+                root.first_child != 0 && root.last_child != 0,
+                "scene root lacks child endpoints"
+            );
+        }
+        let mut address = root.last_child;
+        let mut following = 0;
+        let mut children = Vec::new();
+        for index in (count.saturating_sub(limit)..count).rev() {
+            ensure!(address != 0, "scene tail ended before child count");
+            let child: SuperObjectWire = wire(&source.bytes(address, 64)?)?;
+            ensure!(
+                child.parent == root_address,
+                "scene tail parent link differs"
+            );
+            ensure!(child.next == following, "scene tail next link differs");
+            let object_types = if child.kind == 4 {
+                let perso = source.required(address, SuperObjectWire::DATA)?;
+                Some(source_view::perso_parts(&mut source, perso)?.object_types)
+            } else {
+                None
+            };
+            let global_transform = if child.kind == 4 {
+                let transform = source.required(address, 36)?;
+                Some(source_view::transform(&mut source, transform)?)
+            } else {
+                None
+            };
+            children.push(SceneTailChild {
+                index: u32::try_from(index)?,
+                kind: child.kind,
+                object_types,
+                global_transform,
+            });
+            following = address;
+            address = child.previous;
+        }
+        if count <= limit {
+            ensure!(
+                address == 0 && following == root.first_child,
+                "scene root first child link differs"
+            );
+        }
+        children.reverse();
+        Ok(SceneTailObservation {
+            child_count: root.child_count,
+            children,
+        })
     }
 }
 
@@ -429,6 +529,29 @@ pub struct InventoryObservation {
     pub active: Vec<InventoryItemObservation>,
     /// Function 201 returns -1 when the active Weapon entry is absent.
     pub selected_weapon: i16,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LaserPointerObservation {
+    pub point: [f32; 3],
+    pub active: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneTailChild {
+    pub index: u32,
+    pub kind: u32,
+    pub object_types: Option<[u32; 3]>,
+    pub global_transform: Option<TransformValue>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneTailObservation {
+    pub child_count: u32,
+    pub children: Vec<SceneTailChild>,
 }
 
 /// Source-local locators are evidence within this capture only. Equal values do
