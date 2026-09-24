@@ -622,9 +622,31 @@ impl GameSession {
         actions: &[u32],
         designer_values: &[u32],
     ) -> Result<Value> {
+        self.inspect_scene_actor_with_camera(
+            level,
+            child_path,
+            object_types,
+            actions,
+            designer_values,
+            false,
+        )
+    }
+
+    /// Selected actor plus its source camera records and active viewport pose
+    /// from one stopped-byte capture when requested.
+    pub fn inspect_scene_actor_with_camera(
+        &self,
+        level: &str,
+        child_path: &[u32],
+        object_types: [u32; 3],
+        actions: &[u32],
+        designer_values: &[u32],
+        include_camera_records: bool,
+    ) -> Result<Value> {
         ensure!(
-            (1..=64).contains(&actions.len()),
-            "scene actor requires 1..64 actions"
+            actions.len() <= 64 && (include_camera_records || !actions.is_empty()),
+            "scene actor requires {}..64 actions",
+            if include_camera_records { 0 } else { 1 }
         );
         ensure!(
             designer_values.len() <= 64,
@@ -643,9 +665,22 @@ impl GameSession {
             actions,
             designer_values,
         )?;
+        let cameras = if include_camera_records {
+            Some((
+                serde_json::to_value(build.scene_camera_records(
+                    &mut capture,
+                    level,
+                    child_path,
+                    object_types,
+                )?)?,
+                serde_json::to_value(build.active_camera(&mut capture)?)?,
+            ))
+        } else {
+            None
+        };
         let snapshot = capture.finish()?;
         drop(pause);
-        Ok(json!({
+        let mut result = json!({
             "fixture": {
                 "executable_sha256": self.config.exe_sha256,
                 "save_sha256": self.config.save_sha256,
@@ -657,7 +692,12 @@ impl GameSession {
             "consistency_limit": "stopped-byte capture is coherent during this read but has no completed-update publication evidence",
             "selector": {"level": level, "child_path": child_path, "object_types": object_types},
             "observation": observation,
-        }))
+        });
+        if let Some((source_camera, active_camera)) = cameras {
+            result["source_camera_records"] = source_camera;
+            result["active_camera"] = active_camera;
+        }
+        Ok(result)
     }
 
     /// A typed functional observation. Each call is one coherent stopped-byte

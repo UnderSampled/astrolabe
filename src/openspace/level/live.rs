@@ -373,9 +373,40 @@ impl HypeBuild {
         let observation = actor_ai_at_node(&mut source, node, actions, designer_values)?;
         ensure!(
             observation.actor.object_types == expected_object_types,
-            "scene actor source object types differ"
+            "scene actor source object types differ: expected {:?}, observed {:?}",
+            expected_object_types,
+            observation.actor.object_types
         );
         Ok(observation)
+    }
+
+    /// Capture the four camera parameter records linked from a selected
+    /// source Perso. These are capture-local source words for research, not
+    /// reusable model fields or persisted virtual addresses.
+    pub fn scene_camera_records(
+        &self,
+        memory: &mut impl ReadMemory,
+        level: &str,
+        child_path: &[u32],
+        expected_object_types: [u32; 3],
+    ) -> Result<SourceCameraRecordsObservation> {
+        let status = self.status(memory)?;
+        ensure!(
+            status.phase == 9 && status.level == level,
+            "source camera inspection requires the selected loaded level"
+        );
+        let mut source = MemoryView(memory);
+        let node = scene_node(&mut source, child_path)?;
+        let perso = source.required(node, 4)?;
+        let parts = source_view::perso_parts(&mut source, perso)?;
+        ensure!(
+            parts.object_types == expected_object_types,
+            "source camera actor object types differ: expected {:?}, observed {:?}",
+            expected_object_types,
+            parts.object_types
+        );
+        let camera = source.required(perso, 20)?;
+        camera_records_at(&mut source, camera)
     }
 
     /// Identify the newest DynamicWorld children, where source object creation
@@ -803,6 +834,32 @@ mod active_camera_tests {
         assert_eq!(camera.source_update_counter, 123);
         assert_eq!(camera.source_clock_ms, 456);
     }
+
+    #[test]
+    fn camera_records_follow_four_checked_links_in_one_capture() {
+        let mut memory = Memory(BTreeMap::new());
+        let camera = 0x1234_0000u32;
+        let mut root = [0u8; 224];
+        root[0xac..0xb0].copy_from_slice(&103u32.to_le_bytes());
+        root[0xdc..0xe0].copy_from_slice(&42u32.to_le_bytes());
+        for index in 0..4usize {
+            let address = camera + 0x1000 + (index as u32) * 0x100;
+            root[index * 4..index * 4 + 4].copy_from_slice(&address.to_le_bytes());
+            let mut record = [0u8; 168];
+            record[0xa4..0xa8]
+                .copy_from_slice(&(if index == 3 { 14u32 } else { 42u32 }).to_le_bytes());
+            record[0x30..0x34].copy_from_slice(&(index as f32 + 3.5).to_le_bytes());
+            memory.put(address, &record);
+        }
+        memory.put(camera, &root);
+        let mut source = MemoryView(&mut memory);
+        let records = camera_records_at(&mut source, camera).unwrap();
+        assert_eq!(records.root_words.len(), 56);
+        assert_eq!(records.records.len(), 4);
+        assert_eq!(records.records[0].words[0x30 / 4], 3.5f32.to_bits());
+        assert_eq!(records.records[3].words[0xa4 / 4], 14);
+        assert_eq!(records.records[3].locator, "live:12341300");
+    }
 }
 
 fn scene_node(source: &mut MemoryView<'_, impl ReadMemory>, child_path: &[u32]) -> Result<u32> {
@@ -846,6 +903,47 @@ fn scene_node(source: &mut MemoryView<'_, impl ReadMemory>, child_path: &[u32]) 
     let terminal: SuperObjectWire = wire(&source.bytes(parent, 64)?)?;
     ensure!(terminal.kind == 4, "scene child path is not a perso");
     Ok(parent)
+}
+
+fn camera_records_at(
+    source: &mut MemoryView<'_, impl ReadMemory>,
+    camera: u32,
+) -> Result<SourceCameraRecordsObservation> {
+    let root = source.bytes(camera, 224)?.to_vec();
+    ensure!(
+        u32_at(&root, 0xac)? == 103 && u32_at(&root, 0xdc)? == 42,
+        "source camera root layout differs"
+    );
+    let mut records = Vec::with_capacity(4);
+    for index in 0..4 {
+        let address = source.required(camera, index * 4)?;
+        ensure!(address != camera, "source camera record aliases its root");
+        let bytes = source.bytes(address, 168)?;
+        let expected_tail = if index == 3 { 14 } else { 42 };
+        ensure!(
+            u32_at(&bytes, 0xa4)? == expected_tail,
+            "source camera record {index} layout differs"
+        );
+        records.push(SourceCameraRecordObservation {
+            locator: format!("live:{address:08x}"),
+            words: bytes
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .map(|word| u32::from_le_bytes(*word))
+                .collect(),
+        });
+    }
+    Ok(SourceCameraRecordsObservation {
+        root_locator: format!("live:{camera:08x}"),
+        root_words: root
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|word| u32::from_le_bytes(*word))
+            .collect(),
+        records,
+    })
 }
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -1066,6 +1164,23 @@ pub struct ActiveCameraObservation {
     /// not prove a completed-update publication boundary.
     pub source_update_counter: u32,
     pub source_clock_ms: u32,
+}
+
+/// Stopped-byte source camera content for research. Addresses and raw pointer
+/// words are capture-local provenance and must not enter Rete or Godot output.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SourceCameraRecordsObservation {
+    pub root_locator: String,
+    pub root_words: Vec<u32>,
+    pub records: Vec<SourceCameraRecordObservation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SourceCameraRecordObservation {
+    pub locator: String,
+    pub words: Vec<u32>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

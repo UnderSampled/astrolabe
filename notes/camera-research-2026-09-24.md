@@ -227,13 +227,19 @@ Offline disassembly of the pinned executable's full procedure-135 handler
 `+0x14` camera link, dereferences related records at allocation `+0x04` and
 `+0x0c`, builds temporary camera state through `CAM_fn_vInitCameraStructure`,
 and updates flags/scalars on the linked records. It writes root-allocation
-flags at `+0xce`, `+0xd0` and `+0xd2`, then sets a global update indicator via
-`0x005223b0(1)`. The four initial pointers in Fix allocation 23339 address
+flags at `+0xce`, `+0xd0` and `+0xd2`, then sets a global AI procedure-result
+byte via `0x005223b0(1)`. The procedure dispatch wrapper at `0x005223c0`
+clears that byte before the call and consumes it immediately afterward;
+downstream flag meaning is still untraced. It is not evidence of a deferred
+camera-update queue. The four initial pointers in Fix allocation 23339 address
 the same source block at base, base plus `0xa8`, base plus `0x150` and base
 plus `0x1f8`; the latter records' allocation boundaries and useful values
 remain unmapped. The handler does not directly select a viewport, write
 FoV/clip values, or publish the final camera pose. The separate `0x005200a0`
-update path derives target points from actor transforms and camera vectors.
+ordinary update derives target points from actor transforms and camera
+vectors. Its transient controller structure has current eye at `+0x18..0x20`,
+look target at `+0x24..0x2c`, and eye-to-target direction at `+0x48..0x50`;
+the final mapping into the active viewport camera remains untraced.
 A native `source_update_position()` that merely returns success or copies the
 observed idle offset would hide this missing contract, so it remains an
 explicit stub.
@@ -254,3 +260,16 @@ The verified executable initializes a related record's `+0x8c` field to
 in angle-based vector interpolation. No traced path takes it to viewport
 projection, so treating it as horizontal FoV would be unsupported despite the
 same numeric value. Values at `+0x2c`, `+0x30` and `+0x3c` are also unnamed.
+
+Orrery now offers an opt-in stopped-byte capture of a selected scene actor's
+four linked camera records and the active viewport camera. It accepts an empty
+action selection for camera actors without family actions and keeps raw words
+and live locators out of Rete. A first supplied-save run reached phase 9
+`manoir`, but `[0,2]` under live `ActualWorld` failed the checked
+`[2,2,2]` actor-type selector before any camera links were read. A fresh
+read-only retry with the improved error reported live type `[26,33,78]` at
+that ordinal. That failed
+capture supplies no camera parameter or viewport comparison. The error now
+reports the observed type triple to distinguish a live child-order change
+from a changed actor; resolve the selector before interpreting these records.
+No Godot camera pose or projection rule was introduced from this failed probe.

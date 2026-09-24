@@ -130,8 +130,9 @@ fn inspect_scene_actor_schema() -> Value {
             "level":{"type":"string","pattern":"^[a-z0-9_]{1,30}$"},
             "child_path":{"type":"array","minItems":1,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":99999}},
             "object_types":{"type":"array","minItems":3,"maxItems":3,"items":{"type":"integer","minimum":0,"maximum":4294967295_u64}},
-            "actions":{"type":"array","minItems":1,"maxItems":64,"uniqueItems":true,"items":{"type":"integer","minimum":0,"maximum":4294967295_u64}},
-            "designer_values":{"type":"array","maxItems":64,"uniqueItems":true,"items":{"type":"integer","minimum":0,"maximum":4294967295_u64}}
+            "actions":{"type":"array","minItems":0,"maxItems":64,"uniqueItems":true,"items":{"type":"integer","minimum":0,"maximum":4294967295_u64}},
+            "designer_values":{"type":"array","maxItems":64,"uniqueItems":true,"items":{"type":"integer","minimum":0,"maximum":4294967295_u64}},
+            "include_camera_records":{"type":"boolean","default":false,"description":"Capture this actor's four linked source camera records and the active viewport camera within the same process pause."}
         }),
         &["level", "child_path", "object_types", "actions"],
     )
@@ -421,13 +422,17 @@ fn allowed(map: &Map<String, Value>, fields: &[&str]) -> Result<()> {
     Ok(())
 }
 fn inspect_actions(map: &Map<String, Value>) -> Result<Vec<u32>> {
+    inspect_actions_allow_empty(map, false)
+}
+fn inspect_actions_allow_empty(map: &Map<String, Value>, allow_empty: bool) -> Result<Vec<u32>> {
     let Some(values) = map.get("actions") else {
-        return Ok(vec![47]);
+        return Ok(if allow_empty { vec![] } else { vec![47] });
     };
     let values = values.as_array().context("actions must be an array")?;
     ensure!(
-        (1..=64).contains(&values.len()),
-        "actions must have 1..64 items"
+        values.len() <= 64 && (allow_empty || !values.is_empty()),
+        "actions must have {}..64 items",
+        if allow_empty { 0 } else { 1 }
     );
     let actions = values
         .iter()
@@ -665,11 +670,22 @@ fn validate_steps(raw: &Value) -> Result<Vec<Step>> {
                         "object_types",
                         "actions",
                         "designer_values",
+                        "include_camera_records",
                     ],
                 )?;
                 scene_selector(map)?;
-                inspect_actions(map)?;
+                inspect_actions_allow_empty(
+                    map,
+                    map.get("include_camera_records")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false),
+                )?;
                 inspect_designer_values(map)?;
+                ensure!(
+                    map.get("include_camera_records")
+                        .is_none_or(Value::is_boolean),
+                    "include_camera_records must be Boolean"
+                );
                 budget += 2_500;
             }
             "screenshot" => {
@@ -902,9 +918,23 @@ fn execute_step(controller: &mut NativeController, step: &Step) -> Result<Value>
         "inspect_scene_tail" => game.inspect_scene_tail(integer(map, "limit", 8, 1, 16)? as usize),
         "inspect_scene_actor" => {
             let (level, path, object_types) = scene_selector(map)?;
-            let actions = inspect_actions(map)?;
+            let actions = inspect_actions_allow_empty(
+                map,
+                map.get("include_camera_records")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
+            )?;
             let designer_values = inspect_designer_values(map)?.unwrap_or_default();
-            game.inspect_scene_actor(&level, &path, object_types, &actions, &designer_values)
+            game.inspect_scene_actor_with_camera(
+                &level,
+                &path,
+                object_types,
+                &actions,
+                &designer_values,
+                map.get("include_camera_records")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
+            )
         }
         "level" => game.navigate_level(string(map, "name")?),
         "read" => game.read_memory(
@@ -1032,18 +1062,34 @@ fn call_tool(
                     "object_types",
                     "actions",
                     "designer_values",
+                    "include_camera_records",
                 ],
             )?;
+            ensure!(
+                map.get("include_camera_records")
+                    .is_none_or(Value::is_boolean),
+                "include_camera_records must be Boolean"
+            );
             let (level, path, object_types) = scene_selector(map)?;
-            let actions = inspect_actions(map)?;
+            let actions = inspect_actions_allow_empty(
+                map,
+                map.get("include_camera_records")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
+            )?;
             let designer_values = inspect_designer_values(map)?.unwrap_or_default();
-            Ok(ToolOutput::ok(controller.game()?.inspect_scene_actor(
-                &level,
-                &path,
-                object_types,
-                &actions,
-                &designer_values,
-            )?))
+            Ok(ToolOutput::ok(
+                controller.game()?.inspect_scene_actor_with_camera(
+                    &level,
+                    &path,
+                    object_types,
+                    &actions,
+                    &designer_values,
+                    map.get("include_camera_records")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false),
+                )?,
+            ))
         }
         "navigate_level" => {
             allowed(map, &["name"])?;
@@ -1376,10 +1422,16 @@ mod tests {
         assert_eq!(inspect_actions(&Map::new()).unwrap(), vec![47]);
         let valid_scene = json!([{"action":"inspect_scene_actor","level":"manoir","child_path":[0,153],"object_types":[39,62,180],"actions":[0]}]);
         assert!(validate_steps(&valid_scene).is_ok());
+        let valid_camera = json!([{"action":"inspect_scene_actor","level":"manoir","child_path":[0,2],"object_types":[2,2,2],"actions":[],"include_camera_records":true}]);
+        assert!(validate_steps(&valid_camera).is_ok());
+        let default_camera = json!([{"action":"inspect_scene_actor","level":"manoir","child_path":[0,2],"object_types":[2,2,2],"include_camera_records":true}]);
+        assert!(validate_steps(&default_camera).is_ok());
         for invalid in [
+            json!([{"action":"inspect_scene_actor","level":"manoir","child_path":[0,2],"object_types":[2,2,2],"actions":[]}]),
             json!([{"action":"inspect_scene_actor","level":"manoir","child_path":[],"object_types":[39,62,180],"actions":[0]}]),
             json!([{"action":"inspect_scene_actor","level":"manoir","child_path":[0,100000],"object_types":[39,62,180],"actions":[0]}]),
             json!([{"action":"inspect_scene_actor","level":"manoir","child_path":[0],"object_types":[39,62],"actions":[0]}]),
+            json!([{"action":"inspect_scene_actor","level":"manoir","child_path":[0,2],"object_types":[2,2,2],"actions":[0],"include_camera_records":"yes"}]),
         ] {
             assert!(validate_steps(&invalid).is_err());
         }
