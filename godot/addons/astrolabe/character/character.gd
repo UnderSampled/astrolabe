@@ -16,7 +16,8 @@ signal hud_visibility_requested(indicator: String, visible: bool)
 @export var gravity: Vector3 = Vector3.ZERO
 ## Velocity from forces/impulses, separate from the next animation displacement.
 var external_velocity: Vector3 = Vector3.ZERO
-## AI movement requests are applied once when a jump procedure commits them.
+## AI speed is committed by GoRelative or a jump procedure, then moved by
+## CharacterBody3D with the current native animation and contact state.
 var source_vector_speed: Vector3 = Vector3.ZERO
 var source_impulse: Vector3 = Vector3.ZERO
 var source_relative_motion: bool = false
@@ -78,6 +79,9 @@ func _physics_process(delta: float) -> void:
     # The animation never changes this body's position. Apply its local motion
     # once, through native contact resolution. Forces/impulses persist independently.
     var motion := global_basis.orthonormalized() * root_motion_displacement / delta
+    if source_relative_motion:
+        external_velocity = _source_motion_vector(source_vector_speed)
+        source_relative_motion = false
     # Apply gravity to this contact step. Floor response must not turn that
     # downward acceleration into retained sideways momentum on a slight slope.
     var gravity_ratio := 1.0
@@ -119,6 +123,16 @@ func source_set_vector_speed(value: Vector3) -> void:
 
 func source_go_relative() -> void:
     source_relative_motion = true
+
+func source_kill() -> void:
+    var brain := get_node_or_null("Brain")
+    if brain != null: brain.call("stop")
+    visible = false
+    collision_layer = 0
+    collision_mask = 0
+    set_physics_process(false)
+    set_process(false)
+    queue_free()
 
 func source_set_impulse(value: Vector3) -> void:
     assert(value.is_finite())
@@ -187,8 +201,9 @@ func source_set_hud_indicator_visible(indicator: String, visible: bool) -> void:
     source_hud_display[indicator] = visible
     hud_visibility_requested.emit(indicator, visible)
 
-## Execute an action and instantiate its converted Perso template once. A
-## nonzero source vector still needs its placement/velocity contract established.
+## Execute an action and instantiate its converted Perso template once. The
+## source helper copies the caller's world transform, then passes its vector
+## operand into the spawned actor's motion state. Nonzero vectors remain open.
 ## Return -1 for an unsupported request, 0 for a rejected action, 1 when started.
 func source_execute_action_and_generate_object(template_path: String, action: int, vector: Vector3) -> int:
     if template_path.is_empty():
@@ -218,10 +233,20 @@ func source_execute_action_and_generate_object(template_path: String, action: in
     if not request_action(action, true):
         generated.free()
         return 0
+    if generated is CharacterBody3D:
+        generated.set("motion_enabled", true)
+        generated.set("physical_environment", physical_environment)
+    # The source helper copies the caller's global SuperObject transform.
+    # Initialize it before attachment: the compiled Brain can start in _ready.
+    generated.transform = destination.global_transform.affine_inverse() * global_transform
+    var generated_brain := generated.get_node_or_null("Brain")
+    if generated_brain != null:
+        # A generated Perso's compiled Brain reads the source main actor. Bind
+        # that ordinary scene reference before _ready schedules its first tick.
+        generated_brain.set("main_actor", self)
     destination.add_child(generated)
-    # Placement is provisional until the source object's initial transform is
-    # observed. The saved template itself remains reusable and unplaced.
-    generated.global_transform = global_transform
+    if generated_brain != null:
+        generated_brain.set("main_actor_path", generated_brain.get_path_to(self))
     generated.set_meta("astrolabe_generated_template", template_path)
     source_generated_object_count += 1
     return 1
@@ -232,6 +257,23 @@ func source_execute_action_and_generate_object(template_path: String, action: in
 func source_sighting() -> Vector3:
     var direction := global_basis.z
     return Vector3(direction.x, -direction.z, direction.y)
+
+func _source_sight_point(actor: Node3D) -> Vector3:
+    var bounds := actor.get_node_or_null("FamilyBounds")
+    if bounds != null:
+        var first := bounds.get_node_or_null("Bound_0") as Node3D
+        if first != null: return first.global_position
+    return actor.global_position
+
+## Cond_SeePerso tests a segment between the actors' first bounding centers.
+## Converted static collision geometry supplies the current occluder set.
+func source_see_perso(receiver: Node3D, target: Node3D) -> bool:
+    assert(is_instance_valid(receiver) and is_instance_valid(target))
+    var origin := _source_sight_point(receiver)
+    var endpoint := _source_sight_point(target)
+    if origin.is_equal_approx(endpoint): return true
+    var query := PhysicsRayQueryParameters3D.create(origin, endpoint, 1)
+    return get_world_3d().direct_space_state.intersect_ray(query).is_empty()
 
 func source_collide_with_ground() -> bool:
     return is_on_floor()

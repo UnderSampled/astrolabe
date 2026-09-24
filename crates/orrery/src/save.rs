@@ -419,6 +419,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "requires supplied English save fixture; selected by --local"]
     fn supplied_english_save_parses_without_record_loss() -> Result<()> {
         let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../reference/Savefile_EN.zip");
         let report = inspect(&fixture)?;

@@ -107,46 +107,47 @@ pub(super) fn check(session: &SourceSession, value: &SceneImport) -> Result<()> 
         );
     }
     let mut source_families = BTreeMap::new();
-    let mut record_family = |perso: Address| -> Result<()> {
-        let family = session.required(session.required(perso, 0)?, 20)?;
-        let header: FamilyWire = wire(session.bytes(family, 56)?)?;
-        let role = if family.owner == Owner::Fix {
-            "fix"
-        } else {
-            "level"
+    {
+        let mut record_family = |perso: Address| -> Result<()> {
+            let family = session.required(session.required(perso, 0)?, 20)?;
+            let header: FamilyWire = wire(session.bytes(family, 56)?)?;
+            let role = if family.owner == Owner::Fix {
+                "fix"
+            } else {
+                "level"
+            };
+            let path = AssetPath::new(format!("{role}:/families/{}", header.index))?;
+            let previous = source_families.insert(path.clone(), family);
+            ensure!(
+                previous.is_none_or(|address| address == family),
+                "distinct source families share {path}"
+            );
+            Ok(())
         };
-        let path = AssetPath::new(format!("{role}:/families/{}", header.index))?;
-        let previous = source_families.insert(path.clone(), family);
-        ensure!(
-            previous.is_none_or(|address| address == family),
-            "distinct source families share {path}"
-        );
-        Ok(())
-    };
-    let mut actor_refs = BTreeMap::new();
-    for (source, node) in session.tree()?.iter().zip(&value.scene.nodes) {
-        if let Some(reference) = &node.perso {
-            let perso = session.required(source.address, 4)?;
+        let mut actor_refs = BTreeMap::new();
+        for (source, node) in session.tree()?.iter().zip(&value.scene.nodes) {
+            if let Some(reference) = &node.perso {
+                let perso = session.required(source.address, 4)?;
+                record_family(perso)?;
+                actor_refs.insert(perso, reference.clone());
+            }
+        }
+        if let Some((perso, source)) = super::scene::global_perso_source(session)? {
             record_family(perso)?;
-            actor_refs.insert(perso, reference.clone());
+            let reference = value
+                .scene
+                .global_actors
+                .iter()
+                .find(|actor| actor.source == source)
+                .context("imported Global Perso missing")?
+                .perso
+                .clone();
+            actor_refs.insert(perso, reference);
+        }
+        for perso in super::ai::object_templates(session, &actor_refs)? {
+            record_family(perso)?;
         }
     }
-    if let Some((perso, source)) = super::scene::global_perso_source(session)? {
-        record_family(perso)?;
-        let reference = value
-            .scene
-            .global_actors
-            .iter()
-            .find(|actor| actor.source == source)
-            .context("imported Global Perso missing")?
-            .perso
-            .clone();
-        actor_refs.insert(perso, reference);
-    }
-    for perso in super::ai::object_templates(session, &actor_refs)? {
-        record_family(perso)?;
-    }
-    drop(record_family);
     let mut state_count = 0;
     let mut transition_count = 0;
     for role in [PackageRole::Fix, PackageRole::Level] {

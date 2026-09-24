@@ -371,6 +371,54 @@ impl GameSession {
         }))
     }
 
+    /// Inspect a source-rooted Perso during one stopped capture. The path is
+    /// resolved afresh, then checked against its source object-type identity.
+    pub fn inspect_scene_actor(
+        &self,
+        level: &str,
+        child_path: &[u32],
+        object_types: [u32; 3],
+        actions: &[u32],
+        designer_values: &[u32],
+    ) -> Result<Value> {
+        ensure!(
+            (1..=64).contains(&actions.len()),
+            "scene actor requires 1..64 actions"
+        );
+        ensure!(
+            designer_values.len() <= 64,
+            "scene actor requires at most 64 designer values"
+        );
+        self.check()?;
+        let build = HypeBuild::verified(&self.config.exe_sha256)?;
+        let pause = self.process.pause(Duration::from_secs(1))?;
+        let mut capture = pause.capture()?;
+        let status = build.status(&mut capture)?;
+        let observation = build.scene_actor_with_ai(
+            &mut capture,
+            level,
+            child_path,
+            object_types,
+            actions,
+            designer_values,
+        )?;
+        let snapshot = capture.finish()?;
+        drop(pause);
+        Ok(json!({
+            "fixture": {
+                "executable_sha256": self.config.exe_sha256,
+                "save_sha256": self.config.save_sha256,
+            },
+            "run": self.run,
+            "status": status,
+            "capture": snapshot,
+            "completed_update": false,
+            "consistency_limit": "stopped-byte capture is coherent during this read but has no completed-update publication evidence",
+            "selector": {"level": level, "child_path": child_path, "object_types": object_types},
+            "observation": observation,
+        }))
+    }
+
     /// A typed functional observation. Each call is one coherent stopped-byte
     /// capture; it does not claim a completed gameplay update.
     pub fn observe_main_actor(&self) -> Result<ActorObservation> {

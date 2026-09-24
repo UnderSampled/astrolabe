@@ -112,6 +112,18 @@ fn inspect_main_actor_schema() -> Value {
         &[],
     )
 }
+fn inspect_scene_actor_schema() -> Value {
+    object(
+        json!({
+            "level":{"type":"string","pattern":"^[a-z0-9_]{1,30}$"},
+            "child_path":{"type":"array","minItems":1,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":99999}},
+            "object_types":{"type":"array","minItems":3,"maxItems":3,"items":{"type":"integer","minimum":0,"maximum":4294967295_u64}},
+            "actions":{"type":"array","minItems":1,"maxItems":64,"uniqueItems":true,"items":{"type":"integer","minimum":0,"maximum":4294967295_u64}},
+            "designer_values":{"type":"array","maxItems":64,"uniqueItems":true,"items":{"type":"integer","minimum":0,"maximum":4294967295_u64}}
+        }),
+        &["level", "child_path", "object_types", "actions"],
+    )
+}
 fn read_schema() -> Value {
     object(
         json!({
@@ -133,7 +145,7 @@ fn write_schema() -> Value {
     )
 }
 
-const TOOLS: [ToolSpec; 16] = [
+const TOOLS: [ToolSpec; 17] = [
     ToolSpec {
         name: "status",
         description: "Report the Orrery MCP service and exact owned game status without opening a game window.",
@@ -212,6 +224,13 @@ const TOOLS: [ToolSpec; 16] = [
         schema: inspect_main_actor_schema,
     },
     ToolSpec {
+        name: "inspect_scene_actor",
+        description: "Pause the owned game and inspect one source-rooted Perso by a checked child path and object types; all addresses are capture-local.",
+        read_only: true,
+        destructive: false,
+        schema: inspect_scene_actor_schema,
+    },
+    ToolSpec {
         name: "read_memory",
         description: "Read at most 64 KiB from readable mappings of the exact owned 32-bit game.",
         read_only: true,
@@ -269,6 +288,7 @@ fn tool_models() -> Vec<Tool> {
                             | "get_mana"
                             | "list_bindings"
                             | "inspect_main_actor"
+                            | "inspect_scene_actor"
                             | "read_memory"
                             | "memory_maps"
                     ))
@@ -394,6 +414,32 @@ fn inspect_actions(map: &Map<String, Value>) -> Result<Vec<u32>> {
         "duplicate action id"
     );
     Ok(actions)
+}
+
+fn scene_selector(map: &Map<String, Value>) -> Result<(String, Vec<u32>, [u32; 3])> {
+    let level = string(map, "level")?;
+    ensure!(
+        (1..=30).contains(&level.len())
+            && level
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_'),
+        "invalid scene actor level"
+    );
+    let path: Vec<u32> = serde_json::from_value(
+        map.get("child_path")
+            .context("missing scene child path")?
+            .clone(),
+    )?;
+    ensure!(
+        (1..=32).contains(&path.len()) && path.iter().all(|index| *index < 100_000),
+        "invalid scene child path"
+    );
+    let object_types: [u32; 3] = serde_json::from_value(
+        map.get("object_types")
+            .context("missing scene object types")?
+            .clone(),
+    )?;
+    Ok((level.to_owned(), path, object_types))
 }
 
 fn inspect_designer_values(map: &Map<String, Value>) -> Result<Option<Vec<u32>>> {
@@ -549,6 +595,25 @@ fn validate_steps(raw: &Value) -> Result<Vec<Step>> {
                     map,
                     &["action", "delay_ms", "label", "actions", "designer_values"],
                 )?;
+                inspect_actions(map)?;
+                inspect_designer_values(map)?;
+                budget += 2_500;
+            }
+            "inspect_scene_actor" => {
+                allowed(
+                    map,
+                    &[
+                        "action",
+                        "delay_ms",
+                        "label",
+                        "level",
+                        "child_path",
+                        "object_types",
+                        "actions",
+                        "designer_values",
+                    ],
+                )?;
+                scene_selector(map)?;
                 inspect_actions(map)?;
                 inspect_designer_values(map)?;
                 budget += 2_500;
@@ -769,6 +834,12 @@ fn execute_step(controller: &mut NativeController, step: &Step) -> Result<Value>
             let designer_values = inspect_designer_values(map)?;
             game.inspect_main_actor(&actions, designer_values.as_deref())
         }
+        "inspect_scene_actor" => {
+            let (level, path, object_types) = scene_selector(map)?;
+            let actions = inspect_actions(map)?;
+            let designer_values = inspect_designer_values(map)?.unwrap_or_default();
+            game.inspect_scene_actor(&level, &path, object_types, &actions, &designer_values)
+        }
         "level" => game.navigate_level(string(map, "name")?),
         "read" => game.read_memory(
             address(string(map, "address")?)?,
@@ -859,6 +930,28 @@ fn call_tool(
             Ok(ToolOutput::ok(controller.game()?.inspect_main_actor(
                 &actions,
                 designer_values.as_deref(),
+            )?))
+        }
+        "inspect_scene_actor" => {
+            allowed(
+                map,
+                &[
+                    "level",
+                    "child_path",
+                    "object_types",
+                    "actions",
+                    "designer_values",
+                ],
+            )?;
+            let (level, path, object_types) = scene_selector(map)?;
+            let actions = inspect_actions(map)?;
+            let designer_values = inspect_designer_values(map)?.unwrap_or_default();
+            Ok(ToolOutput::ok(controller.game()?.inspect_scene_actor(
+                &level,
+                &path,
+                object_types,
+                &actions,
+                &designer_values,
             )?))
         }
         "navigate_level" => {
@@ -1135,6 +1228,7 @@ mod tests {
                 "screenshot",
                 "list_bindings",
                 "inspect_main_actor",
+                "inspect_scene_actor",
                 "read_memory",
                 "write_memory",
                 "memory_maps",
@@ -1162,6 +1256,11 @@ mod tests {
         assert_eq!(schema["properties"]["designer_values"]["maxItems"], 64);
         assert_eq!(schema["properties"]["designer_values"]["uniqueItems"], true);
         assert_eq!(schema["properties"]["designer_values"]["minItems"], 0);
+        let scene = TOOLS
+            .iter()
+            .find(|tool| tool.name == "inspect_scene_actor")
+            .unwrap();
+        assert!(scene.read_only && !scene.destructive);
     }
     #[test]
     fn entire_sequence_is_rejected_before_execution() {
@@ -1182,6 +1281,15 @@ mod tests {
                 .is_err()
         );
         assert_eq!(inspect_actions(&Map::new()).unwrap(), vec![47]);
+        let valid_scene = json!([{"action":"inspect_scene_actor","level":"manoir","child_path":[0,153],"object_types":[39,62,180],"actions":[0]}]);
+        assert!(validate_steps(&valid_scene).is_ok());
+        for invalid in [
+            json!([{"action":"inspect_scene_actor","level":"manoir","child_path":[],"object_types":[39,62,180],"actions":[0]}]),
+            json!([{"action":"inspect_scene_actor","level":"manoir","child_path":[0,100000],"object_types":[39,62,180],"actions":[0]}]),
+            json!([{"action":"inspect_scene_actor","level":"manoir","child_path":[0],"object_types":[39,62],"actions":[0]}]),
+        ] {
+            assert!(validate_steps(&invalid).is_err());
+        }
     }
     #[test]
     fn designer_value_inspection_is_opt_in_bounded_and_prevalidated() {
@@ -1273,7 +1381,7 @@ mod tests {
         );
         let client = ().serve(transport).await.unwrap();
         let listed = client.peer().list_tools(None).await.unwrap();
-        assert_eq!(listed.tools.len(), 16);
+        assert_eq!(listed.tools.len(), TOOLS.len());
         assert_eq!(listed.tools[0].name, "status");
         assert!(
             listed
@@ -1297,7 +1405,7 @@ mod tests {
         let (_temp, state) = state(18766);
         let handler = OrreryMcp { state };
         assert_eq!(handler.get_info().server_info.name, "Orrery");
-        assert_eq!(tool_models().len(), 16);
+        assert_eq!(tool_models().len(), TOOLS.len());
         assert!(constant_time_equal(b"Bearer secret", b"Bearer secret"));
         assert!(!constant_time_equal(b"Bearer secret", b"Bearer wrong"));
     }

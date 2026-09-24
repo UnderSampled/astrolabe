@@ -93,3 +93,75 @@ zero at the named checkpoints. Godot's starting height differs by roughly
 0.068 source units. The comparison does not establish wall-clock or
 input-consumption timing parity; Godot ran headless, so visual pairing remains
 pending.
+
+## Sword beam and weapon presentation follow-up
+
+The visible Godot demo exposed two defects outside the first sword action
+assertions: a beam lingered at the wrong origin without moving, and Hype's
+crossbow appeared and disappeared during movement. The first sword assertion
+set therefore remains an action-selection checkpoint, not an accepted combat
+effect or visual comparison.
+
+The generated beam is the Fix Perso `fix:/persos/5-0-24465`, object types
+`[6, 8, 65589]`, with its own Brain model `fix:/ai/models/708`. Its original
+normal behavior 0 writes Hype's designer fields 55, 17 and 114, requests
+action 0, sets source vector speed according to Hype's designer state, then
+enters behavior 1. Behavior 1 calls `GoRelative` while active and requests
+`KillPerso(Me)` after 100 ms or when
+`Operator_Ultra(MainActor, Cond_SeePerso(Me))` becomes false. The latter
+evaluates visibility from Hype toward the beam; operation 76 is `SeePerso`,
+not `SeePositionWithOffset` (operation 78). The script supplies motion and
+lifetime, but does not specify the launch transform.
+
+The importer previously left symbolic MainActor assignments unsupported, so
+the compiled projectile Brain stopped before speed or motion. Typed AST,
+OpenSpace codec and Godot compilation now cover these assignments, the reached
+Ultra/SeePerso expression and self-kill. The spawning character binds the
+projectile's Brain to Hype before it starts. `GoRelative` commits source vector
+speed to native CharacterBody3D motion. These are shared AI API operations,
+not a projectile-specific rule. Orrery has a checked scene-child actor
+inspector so short-lived Persos can be observed within an input sequence.
+
+Remaining fidelity work is explicit. The current native sight query uses first exported family bounds
+centers and Godot's static collision layer. The original engine tests visual
+geometry in selected sectors, so occlusion equivalence is unproven. The exact
+`GoRelative` update timing and deletion timing also require a live comparison.
+The save fixture does not restore source channel activation state; animation
+part visibility alone cannot establish that state. Static disassembly found
+operations 104/105 setting/clearing bit 23 on a source channel record at
+`+0x2c` while updating a per-actor byte-keyed list at `+0x158`; its rendering
+interpretation needs a typed live read before the crossbow state can be fixed
+with evidence. No combat hit or damage parity is claimed by this follow-up.
+
+The next focused Godot run instrumented each generated Perso's exit in the
+test harness. The same beam instance was observed running compiled normal
+behavior 1, with source velocity about +35 along Y, and moving 2.33 source
+units before `tree_exiting` at Brain clock 100 ms. The sight query was true in
+the first captured frame and false at exit. The elapsed-time condition is
+reached at exit, although the trace cannot establish when sight changed.
+The report is `TestResults/behavior-sword-attack-1790256812405448354.json`.
+The generator now initializes its transform before adding the
+template to the scene, so its Brain cannot start while the actor is still at
+the template transform. A fresh headless run passes new Godot-only assertions
+for the compiled Brain, beam displacement and scripted lifetime; its report is
+`TestResults/behavior-sword-attack-1790257007086710213.json`. That run
+observed 1.75 source units of motion from its first frame until cleanup at
+Brain clock 100 ms. These checks catch the former false green in which Hype's
+action sequence passed while the beam's Brain stopped immediately.
+
+A bounded original-game poll saw the dynamic scene child count increase from
+176 to 177 during the Space attack, then return to 176 soon afterward. The
+new node was not yet validated against the beam's Perso identity or sampled
+for a transform during its short lifetime. Static disassembly of the exact
+installed executable (SHA-256 above) does establish the generic creation
+rule: handler `0x54a5d0` passes the caller SuperObject global-transform pointer
+at `+0x24` to helper `0x43eb60`; helper `0x4425e0` copies the full matrix into
+the new actor. For this Hype invocation, the copied transform is Hype's world
+matrix. The vector operand is written into the generated actor's motion state
+after creation, not added to its origin. Godot's current transform copy thus
+matches the source API for this zero-vector case; the user's observed visual
+launch discrepancy remains to be traced through exported beam geometry,
+animation or timing. No sword-specific offset is warranted. The crossbow
+channel baseline has not been established. Godot's current sight test uses
+static collision geometry, while the source tests selected sector visuals, so
+occlusion parity remains a native-support fidelity debt pending comparison.

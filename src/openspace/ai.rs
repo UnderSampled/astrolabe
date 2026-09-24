@@ -194,7 +194,13 @@ impl Parser<'_> {
                         .is_some_and(|target| target.kind == 2 && target.parameter == 12)
                     {
                         let actor_at = self.at + 1;
-                        if !self.codec.actors.contains_key(&actor_at) {
+                        let receiver = self
+                            .nodes
+                            .get(actor_at)
+                            .map(|node| (node.kind, node.parameter));
+                        if !matches!(receiver, Some((0, 5)))
+                            && !self.codec.actors.contains_key(&actor_at)
+                        {
                             out.push(Statement::Unsupported(self.unsupported(
                                 at,
                                 format!("unbound actor field target at node {actor_at}"),
@@ -204,16 +210,23 @@ impl Parser<'_> {
                         let (_, dot) = self.take(indent + 1)?;
                         ensure!(dot.kind == 2 && dot.parameter == 12, "actor dot differs");
                         let (actor_at, actor) = self.take(indent + 2)?;
-                        ensure!(actor.kind == 24, "actor dot lacks actor operand");
+                        ensure!(
+                            actor.kind == 24 || (actor.kind == 0 && actor.parameter == 5),
+                            "actor dot lacks actor operand"
+                        );
+                        let main_actor = actor.kind == 0;
                         let (_, field) = self.take(indent + 2)?;
                         ensure!(field.kind == 11, "actor dot lacks designer field");
                         let variable = field.parameter.try_into()?;
-                        let actor = self.codec.actors[&actor_at].clone();
                         let value = self.expression(indent + 1)?;
-                        Statement::ActorFieldAssign {
-                            actor,
-                            variable,
-                            value,
+                        if main_actor {
+                            Statement::MainActorFieldAssign { variable, value }
+                        } else {
+                            Statement::ActorFieldAssign {
+                                actor: self.codec.actors[&actor_at].clone(),
+                                variable,
+                                value,
+                            }
                         }
                     } else {
                         let target = self.expression(indent + 1)?;
@@ -296,6 +309,17 @@ impl Parser<'_> {
                 },
                 (4, 29) => Statement::SetVectorSpeed(self.expression(indent + 1)?),
                 (4, 34) => Statement::GoRelative,
+                (4, 226) => {
+                    let (_, actor) = self.take(indent + 1)?;
+                    if actor.kind == 0 && actor.parameter == 4 {
+                        Statement::KillSelf
+                    } else {
+                        Statement::Unsupported(self.unsupported(
+                            at,
+                            "KillPerso requires an unsupported actor target".into(),
+                        )?)
+                    }
+                }
                 (4, 23) => Statement::SetImpulse(self.expression(indent + 1)?),
                 (4, 47) => Statement::JumpAbsolute,
                 (4, 48) => Statement::JumpWithoutAddingSpeed,
@@ -556,6 +580,44 @@ impl Parser<'_> {
                 start: Box::new(self.expression(indent + 1)?),
                 duration: Box::new(self.expression(indent + 1)?),
             },
+            (1, 76) => {
+                let (_, actor) = self.take(indent + 1)?;
+                let target = match (actor.kind, actor.parameter) {
+                    (0, 4) => ActorKeyword::SelfActor,
+                    (0, 5) => ActorKeyword::MainActor,
+                    _ => {
+                        return Ok(Expression::Unsupported(self.unsupported(
+                            at,
+                            "SeePerso requires an unsupported target actor".into(),
+                        )?));
+                    }
+                };
+                Expression::SeePerso {
+                    receiver: ActorKeyword::SelfActor,
+                    target,
+                }
+            }
+            (2, 24) => {
+                let (_, actor) = self.take(indent + 1)?;
+                let receiver = match (actor.kind, actor.parameter) {
+                    (0, 5) => ActorKeyword::MainActor,
+                    _ => {
+                        return Ok(Expression::Unsupported(self.unsupported(
+                            at,
+                            "Ultra requires an unsupported receiver actor".into(),
+                        )?));
+                    }
+                };
+                match self.expression(indent + 1)? {
+                    Expression::SeePerso { target, .. } => {
+                        Expression::SeePerso { receiver, target }
+                    }
+                    _ => Expression::Unsupported(self.unsupported(
+                        at,
+                        "Ultra operation is unsupported for this receiver".into(),
+                    )?),
+                }
+            }
             (1, 56 | 57) => {
                 let (_, actor) = self.take(indent + 1)?;
                 if actor.kind != 0 || actor.parameter != 4 {
@@ -728,6 +790,13 @@ impl Writer<'_> {
                     self.node(11, u32::from(*variable), indent + 2);
                     self.expression(value, indent + 1)?;
                 }
+                Statement::MainActorFieldAssign { variable, value } => {
+                    self.node(2, 11, indent);
+                    self.node(2, 12, indent + 1);
+                    self.node(0, 5, indent + 2);
+                    self.node(11, u32::from(*variable), indent + 2);
+                    self.expression(value, indent + 1)?;
+                }
                 Statement::SubtractAssign { variable, value } => {
                     self.node(2, 6, indent);
                     self.node(11, u32::from(*variable), indent + 1);
@@ -751,6 +820,10 @@ impl Writer<'_> {
                     self.expression(value, indent + 1)?;
                 }
                 Statement::GoRelative => self.node(4, 34, indent),
+                Statement::KillSelf => {
+                    self.node(4, 226, indent);
+                    self.node(0, 4, indent + 1);
+                }
                 Statement::SetImpulse(value) => {
                     self.node(4, 23, indent);
                     self.expression(value, indent + 1)?;
@@ -890,6 +963,25 @@ impl Writer<'_> {
                 }
             }
             Expression::Variable(v) => self.node(11, u32::from(*v), indent),
+            Expression::SeePerso { receiver, target } => {
+                let inner = if *receiver == ActorKeyword::MainActor {
+                    self.node(2, 24, indent);
+                    self.node(0, 5, indent + 1);
+                    indent + 1
+                } else {
+                    indent
+                };
+                self.node(1, 76, inner);
+                self.node(
+                    0,
+                    if *target == ActorKeyword::SelfActor {
+                        4
+                    } else {
+                        5
+                    },
+                    inner + 1,
+                );
+            }
             Expression::Plus(a, b) | Expression::Minus(a, b) | Expression::Divide(a, b) => {
                 self.node(
                     2,
@@ -1446,6 +1538,63 @@ mod partial_tests {
             Statement::Assign {
                 value: Expression::MainActorFieldRead(56),
                 ..
+            }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn main_actor_designer_assignment_reconstructs_dot_target() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (2, 11, 1),
+            (2, 12, 2),
+            (0, 5, 3),
+            (11, 55, 3),
+            (12, 1, 2),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[0],
+            Statement::MainActorFieldAssign {
+                variable: 55,
+                value: Expression::Integer(1)
+            }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn kill_self_reconstructs_actor_operand() -> Result<()> {
+        let (codec, bytes) = partial(&[(4, 226, 1), (0, 4, 2), (8, 0, 0)]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(script.statements[0], Statement::KillSelf));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn ultra_see_perso_preserves_receiver_and_lexical_target() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (2, 11, 1),
+            (11, 0, 2),
+            (2, 24, 2),
+            (0, 5, 3),
+            (1, 76, 3),
+            (0, 4, 4),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            script.statements[0],
+            Statement::Assign {
+                variable: 0,
+                value: Expression::SeePerso {
+                    receiver: ActorKeyword::MainActor,
+                    target: ActorKeyword::SelfActor
+                }
             }
         ));
         assert_eq!(codec.write(&script)?, bytes);

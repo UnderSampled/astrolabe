@@ -181,6 +181,39 @@ fn live_ai_reader_resolves_behavior_and_requested_designer_values() -> Result<()
 }
 
 #[test]
+fn live_scene_actor_path_checks_source_identity() -> Result<()> {
+    let build = HypeBuild::verified(live::HYPE_EXECUTABLE_SHA256)?;
+    let (mut memory, _) = fixture(0x1000);
+    let data = memory.ranges.get_mut(&0x1000).unwrap();
+    // A world with one existing Perso child, using independent fixture bytes.
+    word(data, 0x800, 0);
+    word(data, 0x808, 0x1100);
+    word(data, 0x810, 1);
+    word(data, 0x11c, 0x1800);
+    memory
+        .ranges
+        .insert(0x75ec6c, 0x1800_u32.to_le_bytes().to_vec());
+    let actor = build.scene_actor_with_ai(&mut memory, "manoir", &[0], [5, 9, 42], &[1], &[0])?;
+    assert_eq!(actor.actor.current_action, Some(1));
+    assert!(
+        build
+            .scene_actor_with_ai(&mut memory, "other", &[0], [5, 9, 42], &[1], &[])
+            .is_err()
+    );
+    assert!(
+        build
+            .scene_actor_with_ai(&mut memory, "manoir", &[1], [5, 9, 42], &[1], &[])
+            .is_err()
+    );
+    assert!(
+        build
+            .scene_actor_with_ai(&mut memory, "manoir", &[0], [5, 9, 41], &[1], &[])
+            .is_err()
+    );
+    Ok(())
+}
+
+#[test]
 fn live_ai_reader_rejects_malformed_truncated_and_foreign_references() -> Result<()> {
     let build = HypeBuild::verified(live::HYPE_EXECUTABLE_SHA256)?;
     for (offset, value, expected) in [

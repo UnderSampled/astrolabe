@@ -124,6 +124,11 @@ pub enum Statement {
         variable: u16,
         value: Expression,
     },
+    /// Source Keyword_MainActor is resolved from the active scene at runtime.
+    MainActorFieldAssign {
+        variable: u16,
+        value: Expression,
+    },
     SubtractAssign {
         variable: u16,
         value: Expression,
@@ -158,6 +163,8 @@ pub enum Statement {
     /// character component owns their runtime effects.
     SetVectorSpeed(Expression),
     GoRelative,
+    /// Proc_KillPerso(Me): remove the current generated Perso.
+    KillSelf,
     SetImpulse(Expression),
     JumpAbsolute,
     JumpWithoutAddingSpeed,
@@ -223,13 +230,20 @@ pub enum Expression {
         start: Box<Expression>,
         duration: Box<Expression>,
     },
+    /// Source Cond_SeePerso, optionally evaluated on another receiver through
+    /// Operator_Ultra. The target keyword remains relative to the script owner.
+    SeePerso {
+        receiver: ActorKeyword,
+        target: ActorKeyword,
+    },
     Variable(u16),
     Action(Option<StateRef>),
     IsInAction(Box<Expression>),
     ActionFinished,
     /// Current actor's native floor contact.
     CollideWithGround,
-    /// Current actor's nonlevel upward contact.
+    /// Source collision-category bit 0x4; Godot currently maps it to native
+    /// inclined floor contact while the full source classification is studied.
     CollideWithSlope,
     IsTypeOfGmtCollide(u32),
     InTopOfJump,
@@ -274,6 +288,11 @@ pub enum Expression {
     And(Box<Expression>, Box<Expression>),
     Or(Box<Expression>, Box<Expression>),
     Not(Box<Expression>),
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ActorKeyword {
+    SelfActor,
+    MainActor,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ButtonQuery {
@@ -570,6 +589,7 @@ impl AiModel {
                     }
                     Statement::Assign { value, .. }
                     | Statement::ActorFieldAssign { value, .. }
+                    | Statement::MainActorFieldAssign { value, .. }
                     | Statement::SubtractAssign { value, .. }
                     | Statement::AddAssign { value, .. }
                     | Statement::Turn {
@@ -810,6 +830,7 @@ impl Script {
                     }
                     Statement::Assign { value, .. }
                     | Statement::ActorFieldAssign { value, .. }
+                    | Statement::MainActorFieldAssign { value, .. }
                     | Statement::SubtractAssign { value, .. }
                     | Statement::AddAssign { value, .. }
                     | Statement::ChangeAction(value)
@@ -965,6 +986,10 @@ impl Script {
                             "actor field target is a member"
                         );
                         ensure!(*variable < 255, "actor designer field out of range");
+                        expression(value, variables, depth + 1, count)?;
+                    }
+                    Statement::MainActorFieldAssign { variable, value } => {
+                        ensure!(*variable < 255, "main actor designer field out of range");
                         expression(value, variables, depth + 1, count)?;
                     }
                     Statement::Increment { variable } => ensure!(

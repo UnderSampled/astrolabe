@@ -16,6 +16,7 @@ var setup_snapshots: Array = []
 var action_requests: Array = []
 var action_states: Array = []
 var key_inputs: Array = []
+var generated_trace: Array = []
 var last_action_state: int = -1
 
 func _initialize() -> void:
@@ -117,6 +118,7 @@ func run() -> void:
     while true:
         await process_frame
         track_action_state()
+        track_generated_objects()
         follow_actor()
         if not FileAccess.file_exists(request_path):
             continue
@@ -166,6 +168,26 @@ func track_action_state() -> void:
     action_states.append({"at_ms": Time.get_ticks_msec(), "action": current})
     if action_states.size() > 100: action_states.pop_front()
 
+func track_generated_objects() -> void:
+    for candidate in root.find_children("*", "CharacterBody3D", true, false):
+        if not candidate.has_meta("astrolabe_generated_template"): continue
+        var spawned := candidate as CharacterBody3D
+        if not spawned.has_meta("astrolabe_behavior_exit_traced"):
+            spawned.set_meta("astrolabe_behavior_exit_traced", true)
+            spawned.tree_exiting.connect(Callable(self, "record_generated_exit").bind(spawned))
+        var entry := generated_object_snapshot(spawned)
+        entry["event"] = "frame"
+        entry["at_ms"] = Time.get_ticks_msec()
+        generated_trace.append(entry)
+    if generated_trace.size() > 120: generated_trace.pop_front()
+
+func record_generated_exit(spawned: CharacterBody3D) -> void:
+    var entry := generated_object_snapshot(spawned)
+    entry["event"] = "tree_exiting"
+    entry["at_ms"] = Time.get_ticks_msec()
+    generated_trace.append(entry)
+    if generated_trace.size() > 120: generated_trace.pop_front()
+
 func source_vector(values: Array) -> Vector3:
     return Vector3(float(values[0]), float(values[2]), -float(values[1]))
 
@@ -203,6 +225,31 @@ func restore_save_fixture() -> String:
             restored.append(int(value))
         brain.set("dsg_" + key, restored)
     return ""
+
+func generated_objects() -> Array:
+    var result: Array = []
+    for candidate in root.find_children("*", "CharacterBody3D", true, false):
+        if not candidate.has_meta("astrolabe_generated_template"): continue
+        result.append(generated_object_snapshot(candidate as CharacterBody3D))
+    return result
+
+func generated_object_snapshot(spawned: CharacterBody3D) -> Dictionary:
+    var position := spawned.global_position
+    var velocity: Vector3 = spawned.get("external_velocity")
+    var spawned_brain := spawned.get_node_or_null("Brain")
+    return {
+        "instance_id": spawned.get_instance_id(),
+        "template": str(spawned.get_meta("astrolabe_generated_template")),
+        "translation": [position.x, -position.z, position.y],
+        "velocity": [velocity.x, -velocity.z, velocity.y],
+        "action": int(spawned.get("current_state")),
+        "brain_running": bool(spawned_brain.get("running")) if spawned_brain != null else false,
+        "brain_normal": int(spawned_brain.get("current_normal")) if spawned_brain != null else -1,
+        "brain_clock_ms": float(spawned_brain.get("clock_milliseconds")) if spawned_brain != null else 0.0,
+        "brain_start_ms": int(spawned_brain.get("dsg_0")) if spawned_brain != null else 0,
+        "brain_failure": str(spawned_brain.get("unsupported_failure")) if spawned_brain != null else "",
+        "visible_from_hype": bool(spawned.call("source_see_perso", actor, spawned)),
+    }
 
 func observation() -> Dictionary:
     if actor == null or brain == null:
@@ -243,6 +290,8 @@ func observation() -> Dictionary:
         "root_motion_displacement": [root_motion.x, root_motion.y, root_motion.z],
         "external_velocity": [external_motion.x, external_motion.y, external_motion.z],
         "generated_object_count": int(actor.get("source_generated_object_count")),
+        "generated_objects": generated_objects(),
+        "generated_trace": generated_trace.duplicate(true),
         "channel_visibility": channel_visibility,
         "hud_display": actor.get("source_hud_display"),
         "action_requests": action_requests.duplicate(true),
@@ -321,6 +370,7 @@ func reload_fixture() -> Dictionary:
     action_requests.clear()
     action_states.clear()
     key_inputs.clear()
+    generated_trace.clear()
     last_action_state = -1
     actor.connect("action_request_traced", Callable(self, "record_action_request"))
     brain.set("automatic", false)

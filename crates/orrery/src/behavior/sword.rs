@@ -149,5 +149,50 @@ pub(super) fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
             source,
         ));
     }
+    if let Some(trace) = settled.raw_observation["generated_trace"].as_array() {
+        let launch = trace.iter().find(|entry| entry["event"] == "frame");
+        let exit = trace.iter().find(|entry| entry["event"] == "tree_exiting");
+        let generated = &settled.raw_observation["generated_object_count"];
+        checks.push(bound(
+            "sword_beam_compiled_brain_runs",
+            f64::from(u8::from(
+                generated.as_u64() == Some(1)
+                    && launch.is_some_and(|entry| {
+                        entry["brain_running"] == true
+                            && entry["brain_normal"] == 1
+                            && entry["brain_failure"] == ""
+                            && entry["velocity"][1]
+                                .as_f64()
+                                .is_some_and(|speed| speed > 20.0)
+                    }),
+            )),
+            Some(1.0),
+            Some(1.0),
+            "Imported beam AI model 708 starts normal behavior 1 with GoRelative speed",
+        ));
+        let motion = launch
+            .zip(exit)
+            .and_then(|(first, last)| {
+                let first_y = first["translation"][1].as_f64()?;
+                let last_y = last["translation"][1].as_f64()?;
+                (first["instance_id"] == last["instance_id"]).then_some(last_y - first_y)
+            })
+            .unwrap_or(f64::NAN);
+        checks.push(bound(
+            "sword_beam_moves_before_cleanup",
+            motion,
+            Some(0.5),
+            Some(4.0),
+            "Imported beam AI model 708 calls GoRelative before its 100 ms lifetime ends",
+        ));
+        checks.push(bound(
+            "sword_beam_scripted_lifetime",
+            exit.and_then(|entry| entry["brain_clock_ms"].as_f64())
+                .unwrap_or(f64::NAN),
+            Some(90.0),
+            Some(120.0),
+            "Imported beam AI model 708 calls KillPerso after TimeElapsed(100)",
+        ));
+    }
     Ok(checks)
 }

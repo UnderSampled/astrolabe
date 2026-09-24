@@ -462,6 +462,16 @@ fn guarded_expression(
             )?;
             local
         }
+        Expression::SeePerso { receiver, target }
+            if *receiver == ActorKeyword::MainActor || *target == ActorKeyword::MainActor =>
+        {
+            writeln!(
+                out,
+                "{pad}if not is_instance_valid(main_actor):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                quoted(&format!("{} SeePerso requires the main actor", model.path))
+            )?;
+            expression(e, model)?
+        }
         Expression::MainActorFieldRead(variable) => {
             let id = flow.local;
             flow.local += 1;
@@ -640,6 +650,17 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             }
         }
         Expression::MainActorDistance => "distance_to_main_actor()".into(),
+        Expression::SeePerso { receiver, target } => {
+            let actor = |keyword| match keyword {
+                ActorKeyword::SelfActor => "character()",
+                ActorKeyword::MainActor => "main_actor",
+            };
+            format!(
+                "character().source_see_perso({}, {})",
+                actor(*receiver),
+                actor(*target)
+            )
+        }
         Expression::SelfSighting => "character().source_sighting()".into(),
         Expression::RandomInt { lower, upper } => format!(
             "random_int(int({}), int({}))",
@@ -942,6 +963,21 @@ fn statements(
                 let value = guarded_expression(out, value, model, depth, flow)?;
                 writeln!(out, "{pad}{node}.set(\"dsg_{variable}\", {value})")?;
             }
+            Statement::MainActorFieldAssign { variable, value } => {
+                let local = flow.local;
+                flow.local += 1;
+                let node = format!("main_actor_brain_target_{local}");
+                let failure = quoted(&format!(
+                    "{} requires main actor Brain field {variable}",
+                    model.path
+                ));
+                writeln!(
+                    out,
+                    "{pad}if not is_instance_valid(main_actor):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {node} := main_actor.get_node_or_null(\"Brain\")\n{pad}if not is_instance_valid({node}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
+                )?;
+                let value = guarded_expression(out, value, model, depth, flow)?;
+                writeln!(out, "{pad}{node}.set(\"dsg_{variable}\", {value})")?;
+            }
             Statement::SubtractAssign { variable, value } => {
                 let kind = &model.variables[usize::from(*variable)].default;
                 ensure!(
@@ -1004,6 +1040,9 @@ fn statements(
             }
             Statement::GoRelative => {
                 writeln!(out, "{pad}character().source_go_relative()")?;
+            }
+            Statement::KillSelf => {
+                writeln!(out, "{pad}character().source_kill()\n{pad}{exit}")?;
             }
             Statement::JumpAbsolute => {
                 writeln!(out, "{pad}character().source_jump_absolute()")?;

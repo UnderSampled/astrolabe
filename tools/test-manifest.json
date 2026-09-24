@@ -205,6 +205,39 @@
     },
     {
       "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::main_actor_designer_assignment_reconstructs_dot_target",
+      "areas": ["ai", "source", "combat"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic source AI nodes",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::kill_self_reconstructs_actor_operand",
+      "areas": ["ai", "source", "combat"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic source AI nodes",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::ultra_see_perso_preserves_receiver_and_lexical_target",
+      "areas": ["ai", "source", "combat"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic source AI nodes",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::object_action_retains_template_action_and_vector",
       "areas": ["ai", "source", "jump"],
       "kind": "unit",
@@ -1957,6 +1990,17 @@
     },
     {
       "binary": "astrolabe",
+      "test": "openspace::level::source_view::tests::live_scene_actor_path_checks_source_identity",
+      "areas": ["source", "ai", "runtime", "combat"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic relocated scene memory",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "openspace::level::source_view::tests::shared_actor_reader_matches_useful_file_import_for_both_levels",
       "areas": [
         "source",
@@ -2137,6 +2181,17 @@
       "ignored": false,
       "release": true,
       "safeguard": "always"
+    },
+    {
+      "binary": "orrery",
+      "test": "save::tests::supplied_english_save_parses_without_record_loss",
+      "areas": ["source", "runtime", "comparison"],
+      "kind": "source",
+      "prerequisites": ["original"],
+      "fixture": "supplied English Savefile_EN.zip",
+      "timeout_seconds": 5,
+      "ignored": true,
+      "release": true
     },
     {
       "binary": "orrery",
