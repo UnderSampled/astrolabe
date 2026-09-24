@@ -101,6 +101,15 @@ spell. Compile those decisions into readable GDScript. Implement the requested
 movement, animation, contact, spawning and game rules with Godot facilities.
 Do not substitute a separately hand-authored approximation of Hype's controller.
 
+For each remaining behavior, first establish the reached source AI call and
+compile its decision path. Add the narrow native Godot method that the call
+requires, with source-derived parameters and ordinary node/resource state.
+If a temporary Godot-side rule is needed to demonstrate a behavior whose AI
+path is still unsupported, identify it as fidelity debt in the slice report
+and keep its test result separate from source-AI-backed acceptance. An explicit
+unsupported call is preferable to a silent support-side decision that makes a
+scenario pass for the wrong reason.
+
 The script API is mixed: behavior requests, queries, game services and direct
 property changes. Executing an action is a gameplay request; setting an impulse
 followed by jumping is a procedural composition of gameplay requests. Neither

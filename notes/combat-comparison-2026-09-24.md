@@ -400,3 +400,24 @@ and the examined updater does not show that basis rotation. The conversion is
 unverified for arrows and should be compared against a live moving arrow
 before accepting it. The sword beam's generation vector is zero, so this
 question does not explain its visible launch offset.
+
+## Next crossbow behavior case
+
+The next BDD case will use physical Z/Space from a declared quantity-three
+starting state, then require a positively identified model-733 arrow and its
+initial published displacement. The original backend must resolve the spawned
+child's Brain/model identity; the prior child-count increase and differing
+`[8,10,65536]` type triple are insufficient. Godot must show compiled model 28
+requesting creation and compiled model 733 running during the claimed motion
+interval. Projectile evidence is required for a pass, even if optional trace
+fields are absent. The recorded source quantity remained three, so the case
+will not invent ammunition use.
+
+A controlled laser target may be supplied as an explicit test input for the
+initial-motion case while normal camera-based target acquisition is
+unsupported. Its exclusion must be visible in the comparison result. Contact
+cleanup is a later case, because native `CollideWithNothing` and procedure
+160's reset effects have not been mapped. No Godot support method should
+select the weapon, schedule the shot or steer the arrow without the compiled
+AI request. The current spawn-vector basis conversion is a specific native
+API fidelity question to resolve before trajectory acceptance.

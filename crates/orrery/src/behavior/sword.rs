@@ -165,9 +165,15 @@ pub(super) fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
             "Orrery 2026-09-24 supplied save: source channel bits and persistent deactivation list",
         ));
     }
-    if let Some(trace) = settled.raw_observation["generated_trace"].as_array() {
-        let launch = trace.iter().find(|entry| entry["event"] == "frame");
-        let exit = trace.iter().find(|entry| entry["event"] == "tree_exiting");
+    if equipped.raw_observation.get("on_floor").is_some() {
+        let trace = settled.raw_observation["generated_trace"].as_array();
+        let launch =
+            trace.and_then(|entries| entries.iter().find(|entry| entry["event"] == "frame"));
+        let exit = trace.and_then(|entries| {
+            entries
+                .iter()
+                .find(|entry| entry["event"] == "tree_exiting")
+        });
         let generated = &settled.raw_observation["generated_object_count"];
         checks.push(bound(
             "sword_beam_compiled_brain_runs",
@@ -190,7 +196,7 @@ pub(super) fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
                 let last_y = last["translation"][1].as_f64()?;
                 (first["instance_id"] == last["instance_id"]).then_some(last_y - first_y)
             })
-            .unwrap_or(f64::NAN);
+            .unwrap_or(-1.0);
         checks.push(bound(
             "sword_beam_moves_before_cleanup",
             motion,
@@ -201,11 +207,50 @@ pub(super) fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
         checks.push(bound(
             "sword_beam_scripted_lifetime",
             exit.and_then(|entry| entry["brain_clock_ms"].as_f64())
-                .unwrap_or(f64::NAN),
+                .unwrap_or(-1.0),
             Some(90.0),
             Some(120.0),
             "Imported beam AI model 708 calls KillPerso after TimeElapsed(100)",
         ));
     }
     Ok(checks)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_godot_beam_trace_fails_the_sword_case() {
+        let samples = recording()
+            .samples
+            .into_iter()
+            .enumerate()
+            .map(|(index, point)| ActorSample {
+                name: point.name,
+                planned_ms: point.at_ms,
+                capture_start_ms: point.at_ms,
+                capture_end_ms: point.at_ms,
+                action: Some([47, 45, 134, 48, 48, 48][index]),
+                translation: [0.0; 3],
+                heading_rad: 0.0,
+                raw_observation: if index == 1 {
+                    serde_json::json!({"on_floor": true})
+                } else {
+                    serde_json::json!({})
+                },
+            })
+            .collect::<Vec<_>>();
+        let checks = assertions(&samples).unwrap();
+        assert!(
+            checks
+                .iter()
+                .any(|check| check.name == "sword_beam_compiled_brain_runs" && !check.passed)
+        );
+        assert!(
+            checks
+                .iter()
+                .any(|check| check.name == "sword_beam_moves_before_cleanup" && !check.passed)
+        );
+    }
 }
