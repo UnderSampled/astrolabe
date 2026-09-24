@@ -60,6 +60,9 @@ confirms direct binding and invalidation after target removal. The supplied
 save begins with the Enter gate field false; the original game's clear-ground
 Down then X sequence sets it true, giving the magick scenario a measured
 starting routine. The full spell path remains unaccepted.
+From that routine, one original-game Enter pulse reached actions 290 then 271,
+spent 10 mana (30 to 20), and added one scene child. The child's identity and
+effect lifetime remain to be established before a Godot comparison claim.
 
 The earlier [Hype control progress](./hype-control-progress.md) checkpoint
 implemented and tested native root motion/contact, action completion, typed
