@@ -381,6 +381,12 @@ func source_collide_with_ground() -> bool:
 func source_collide_with_nothing() -> Variant:
     return null
 
+## Procedure 160 receives the source StdCamer actor and MainActor. Its
+## camera-target state change is pending the native camera slice. The identity
+## argument does not instantiate or select a camera at runtime.
+func source_camera_change_targeted_perso(_camera_asset: String, _target: Node3D) -> bool:
+    return false
+
 func source_collide_with_slope() -> bool:
     if not is_on_floor(): return false
     # A steep wall can have a positive vertical component. Use the native

@@ -1207,6 +1207,21 @@ fn statements(
                     ))
                 )?;
             }
+            Statement::CameraChangeTargetedPerso { camera, target } => {
+                ensure!(
+                    *target == ActorKeyword::MainActor,
+                    "camera targeting requires MainActor"
+                );
+                let failure = quoted(&format!(
+                    "{} requires camera target state for {}",
+                    model.path, camera.path
+                ));
+                writeln!(
+                    out,
+                    "{pad}if not is_instance_valid(main_actor):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if not character().source_camera_change_targeted_perso({}, main_actor):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}",
+                    quoted(&camera.path.to_string())
+                )?;
+            }
             Statement::SetChannelActive { channel, active } => {
                 writeln!(
                     out,

@@ -328,15 +328,29 @@ actor contact result at offset `+0x20`; descriptor alignment and switch entry
 for raw condition 33 support a bit-zero test, but the collision updater's
 production of that bit is not yet proven. Native support should expose the
 contact result needed by this compiled condition, rather than make an arrow
-specific lifetime or steering decision. Camera procedure 160 maps to handler
-`0x547f80`; its exact target-state side effects and the role of the Fix actor
+specific lifetime or steering decision. Camera procedure 160's exact
+target-state side effects and the role of the Fix actor
 reference remain unverified and belong with the later camera work. The raw
 second operand is category 0, parameter 5: the `MainActor` keyword, not the
 integer five. Condition 33 now has a typed source round trip and a compiled
 Godot call guarded against an unknown native contact result. Its support API
 returns unknown until the collision updater mapping is verified; a negated
-condition cannot silently become true. Camera procedure 160 remains an
-unsupported source AI node.
+condition cannot silently become true. A direct static Fix probe identified
+the first camera operand, allocation 23322, as the valid `StdCamer` Perso:
+object types `[2,2,2]`, family Fix allocation 23331 and Brain model Fix
+allocation 437. The current in-memory import binds that source address to its
+rooted level occurrence `level:/persos/world/0/2`, also named `StdCamer`; no
+separate Fix Perso asset is expected. It decodes model 733's nested camera call
+as a typed statement with this actor reference and `MainActor`. The Godot
+camera API receives that identity but remains an explicit unsupported stub;
+it cannot silently redirect the camera. Binding it to the live camera node and
+implementing the target-state change belong to the later camera slice. The
+rooted `StdCamer` asset currently has no imported Brain even though the raw
+source Perso has a Brain link; camera behavior needs that dependency reviewed.
+The verified contact handler reads actor runtime offset `+0xf8`, whose producer
+ORs fields `+0xf0` and `+0xf4`. Bit zero's exact contact meaning and update
+order relative to the AI tick remain unresolved, so the native contact result
+is still unknown.
 
 Any implementation that chooses a weapon or moves an arrow in Godot support
 without a corresponding compiled AI request would be a replacement gameplay

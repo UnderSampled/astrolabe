@@ -58,6 +58,27 @@ fn unknown_contact_stops_compiled_ai_before_negated_branch() -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn camera_target_call_keeps_source_actor_and_main_actor() -> Result<()> {
+    let mut model = model()?;
+    model.normal.as_mut().unwrap().behaviors[0]
+        .schedule
+        .as_mut()
+        .unwrap()
+        .statements = vec![Statement::CameraChangeTargetedPerso {
+        camera: AssetRef::new("level:/persos/world/0/2")?,
+        target: ActorKeyword::MainActor,
+    }];
+    let code = godot::ai::compile(&model, &[])?;
+    assert!(
+        code.contains(
+            "source_camera_change_targeted_perso(\"level:/persos/world/0/2\", main_actor)"
+        )
+    );
+    assert!(code.contains("requires camera target state"));
+    Ok(())
+}
+
 fn model() -> Result<AiModel> {
     Ok(AiModel {
         path: AssetPath::new("level:/ai/proximity")?,

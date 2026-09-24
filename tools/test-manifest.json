@@ -375,6 +375,17 @@
     },
     {
       "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::camera_target_call_preserves_actor_and_main_actor_keyword",
+      "areas": ["source", "ai", "combat"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic camera actor operand",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::main_actor_field_adjustments_reconstruct_exact_script",
       "areas": ["ai", "source", "combat"],
       "kind": "unit",
@@ -773,6 +784,17 @@
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic arrow contact branch",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
+      "test": "camera_target_call_keeps_source_actor_and_main_actor",
+      "areas": ["ai", "combat"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic StdCamer source reference",
       "timeout_seconds": 5,
       "ignored": false,
       "release": true

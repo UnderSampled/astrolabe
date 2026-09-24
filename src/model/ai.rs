@@ -181,6 +181,12 @@ pub enum Statement {
     /// target independently of whether the pointer is visible.
     SetLaserPointerActive(bool),
     ChangeSighting(Expression),
+    /// Camera procedure 160 receives an AI-referenced camera Perso and the
+    /// source MainActor keyword. Its native target-state effect is unfinished.
+    CameraChangeTargetedPerso {
+        camera: AssetRef<Perso>,
+        target: ActorKeyword,
+    },
     /// Hype Proc_ActivateChannel / Proc_DeactivateChannel select an existing
     /// character channel by its source channel number.
     SetChannelActive {

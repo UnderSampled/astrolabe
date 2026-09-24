@@ -341,6 +341,33 @@ impl Parser<'_> {
                 (4, 337) => Statement::SetLaserPointerActive(true),
                 (4, 338) => Statement::SetLaserPointerActive(false),
                 (4, 445) => Statement::ChangeSighting(self.expression(indent + 1)?),
+                (4, 160) => {
+                    let operand = self.at;
+                    if !self
+                        .nodes
+                        .get(operand)
+                        .is_some_and(|child| child.kind == 24 && child.indent == indent + 1)
+                        || !self.codec.actors.contains_key(&operand)
+                    {
+                        out.push(Statement::Unsupported(self.unsupported(
+                            at,
+                            format!("unbound camera actor at node {operand}"),
+                        )?));
+                        continue;
+                    }
+                    self.take(indent + 1)?;
+                    let (_, target) = self.take(indent + 1)?;
+                    if target.kind != 0 || target.parameter != 5 {
+                        Statement::Unsupported(
+                            self.unsupported(at, "camera targeting requires MainActor".into())?,
+                        )
+                    } else {
+                        Statement::CameraChangeTargetedPerso {
+                            camera: self.codec.actors[&operand].clone(),
+                            target: ActorKeyword::MainActor,
+                        }
+                    }
+                }
                 (4, 104 | 105) => {
                     let (_, channel) = self.take(indent + 1)?;
                     ensure!(
@@ -899,6 +926,22 @@ impl Writer<'_> {
                 Statement::ChangeSighting(direction) => {
                     self.node(4, 445, indent);
                     self.expression(direction, indent + 1)?;
+                }
+                Statement::CameraChangeTargetedPerso { camera, target } => {
+                    ensure!(
+                        *target == ActorKeyword::MainActor,
+                        "camera targeting requires MainActor"
+                    );
+                    let handle = self
+                        .codec
+                        .actor_handles
+                        .iter()
+                        .find(|(reference, _)| reference == camera)
+                        .context("missing camera actor handle")?
+                        .1;
+                    self.node(4, 160, indent);
+                    self.node(24, handle, indent + 1);
+                    self.node(0, 5, indent + 1);
                 }
                 Statement::SetChannelActive { channel, active } => {
                     self.node(4, if *active { 104 } else { 105 }, indent);
@@ -1624,6 +1667,24 @@ mod partial_tests {
                 value: Expression::CollideWithNothing,
                 ..
             }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn camera_target_call_preserves_actor_and_main_actor_keyword() -> Result<()> {
+        let (mut codec, bytes) = partial(&[(4, 160, 1), (24, 1234, 2), (0, 5, 2), (8, 0, 0)]);
+        let camera = AssetRef::<Perso>::new("level:/persos/world/0/2")?;
+        codec.actors.insert(1, camera.clone());
+        codec.actor_handles.push((camera.clone(), 1234));
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[0],
+            Statement::CameraChangeTargetedPerso {
+                camera: bound,
+                target: ActorKeyword::MainActor,
+            } if bound == &camera
         ));
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())
