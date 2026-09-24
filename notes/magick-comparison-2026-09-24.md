@@ -171,3 +171,50 @@ cost and object creation. Godot support implements the native operations
 those calls require. Any spell-specific decision added to support would be a
 fidelity debt that needs an explicit source rationale and a follow-up to move
 it back to source AI compilation.
+
+## Fire cast behavior scenario
+
+The first Fire scenario uses the same supplied-save clear-ground setup as the
+sword scenario, then sends one 120 ms X selection and one 100 ms Enter pulse.
+The shared recording checks the selected Fire code 61, the script's cast-ready
+designer field 59, action 290, the 30-to-20 mana cost, and action 271. Orrery
+now reads actor AI, inventory-derived spell selection, mana, and a bounded
+dynamic scene tail from one stopped capture at each checkpoint. The scene tail
+is retained as evidence but is not an effect identity or contact assertion.
+
+The named original-game BDD test passed on the verified executable and save:
+`TestResults/behavior-fire-cast-1790277786792726218.json`. Its actions were
+47 at baseline, 45 at the armed checkpoint, 290 and 271 during the cast, 271
+after mana was spent, and 48 after settling. All nine checks passed; the
+reported fixture cleanup completed. The armed checkpoint permits action 45 or
+48 because field 59 was true during the observed selection action 45. This is
+a source-observed transition, not a Godot-specific allowance. The test does
+not establish the spawned effect's motion or contact.
+
+The same recording passed independently in a fresh normal manor Godot export:
+`TestResults/behavior-fire-cast-1790277843359059514.json`. The single named
+scenario and all nine checks passed; the report records complete cleanup.
+Both reports carry recording SHA-256
+`0b76975d9857f6ea2e78055a35068daa3177a8a9a6151027bbcefeb43dd97b84`.
+Godot observed the same action IDs at all six checkpoints, cast-ready field 59,
+spell code 61, and mana 30 before and 20 after the cast. It spent mana at the
+late-cast checkpoint while the source still read 30; both read 20 at the next
+checkpoint. The source and Godot actor positions differed by a few tenths of
+a source unit during the effect, so this independent pass does not imply timing
+or trajectory parity. Orrery's `compare-behavior` command applies the declared
+cross-engine bounds to these reports.
+
+That pairing passed all 26 declared checks with no failures:
+`TestResults/fire-cast-cross-backend-20260924.json`. It compares the functional
+cast path and named checkpoints, not projectile damage, animation frames or
+pixel parity. The mana deduction occurs within a different 200 ms sample
+window, so a tighter timing claim needs completed-update observations.
+
+This scenario adds no spell-specific decision to the Godot support package.
+The converted model-28 and model-817 scripts still own the state transitions,
+cost request and actor creation. The existing native API fidelity debt remains
+in the generic support operations, especially the unverified spawned-motion
+frame/timing, `SeePerso` visibility approximation and channel presentation
+listed in the combat comparison note. A failing Godot cast must be traced to a
+source call, binding or missing API operation before considering any support
+side behavior rule; such a rule must be recorded here as new fidelity debt.

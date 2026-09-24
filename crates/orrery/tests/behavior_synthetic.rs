@@ -82,6 +82,38 @@ fn synthetic_sword_attack_requires_selection_attack_and_recovery() -> anyhow::Re
 }
 
 #[test]
+fn synthetic_fire_cast_requires_action_order_and_mana_cost() -> anyhow::Result<()> {
+    let path = behavior_steps::run_scenario("Casting the selected Fire spell once")?;
+    let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
+    assert_eq!(report["result"]["status"], "passed");
+    assert_eq!(report["godot"]["status"], "pending");
+    use orrery::behavior::{self, Scenario};
+    let mut source = behavior_steps::synthetic_result(behavior::recording(Scenario::FireCast))?;
+    source.backend = "openspace".into();
+    source.samples[1].action = Some(45);
+    source.samples[5].action = Some(48);
+    source.assertions = behavior::assertions(source.scenario, &source.samples)?;
+    let mut target = source.clone();
+    target.backend = "godot".into();
+    target.samples[1].action = Some(48);
+    target.samples[5].action = Some(271);
+    target.assertions = behavior::assertions(target.scenario, &target.samples)?;
+    assert_eq!(
+        behavior::compare_results(&source, &target)?.status,
+        "passed"
+    );
+    source.samples[4].raw_observation["magick"]["current_points"] = serde_json::json!(30);
+    source.assertions = behavior::assertions(source.scenario, &source.samples)?;
+    assert!(
+        source
+            .assertions
+            .iter()
+            .any(|check| check.name == "fire_mana_spent" && !check.passed)
+    );
+    Ok(())
+}
+
+#[test]
 fn synthetic_movement_uses_shared_bdd_steps_and_report_pending_godot() -> anyhow::Result<()> {
     let shared = behavior_steps::run_scenarios_shared(&[
         "Turning while standing",

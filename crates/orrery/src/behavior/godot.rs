@@ -717,6 +717,7 @@ impl GodotBackend {
                     | (ReadyState::ClearRoute, Scenario::MovingJump)
                     | (ReadyState::WallJumpStart, Scenario::WallJump)
                     | (ReadyState::JumpStart, Scenario::SwordAttack)
+                    | (ReadyState::JumpStart, Scenario::FireCast)
             ),
             "Godot Given setup is not established"
         );

@@ -51,18 +51,20 @@ for source evidence, reports and native API fidelity debt.
 For the default spell, source AI model 817's external behavior condition now
 resolves to Hype's model 28 normal behavior 94 and compiles to a guarded Brain
 query. The generated script parses in Godot, and the cost remains a source
-script call to the implemented native magick API. A full cast, effect and
-cross-engine magick scenario is still pending. See the
+script call to the implemented native magick API. The bounded Fire-cast
+scenario now passes independently in the original game and a fresh Godot
+manor export. The same recording passes Orrery's 26-check cross-engine
+comparison, including spell code, cast gate, action sequence and mana cost.
+The generated effect's identity, trajectory and contact remain open. See the
 [magick comparison](./magick-comparison-2026-09-24.md).
 The spawned spell's external actor field references now bind through a
 scene-local source actor map before its Brain starts. An isolated Godot test
 confirms direct binding and invalidation after target removal. The supplied
 save begins with the Enter gate field false; the original game's clear-ground
 Down then X sequence sets it true, giving the magick scenario a measured
-starting routine. The full spell path remains unaccepted.
-From that routine, one original-game Enter pulse reached actions 290 then 271,
-spent 10 mana (30 to 20), and added one scene child. The child's identity and
-effect lifetime remain to be established before a Godot comparison claim.
+starting routine. From that routine, both engines entered actions 290 then
+271 and spent 10 mana (30 to 20). The original run added one scene child; its
+identity, motion, contact and lifetime remain outside the current comparison.
 
 The earlier [Hype control progress](./hype-control-progress.md) checkpoint
 implemented and tested native root motion/contact, action completion, typed

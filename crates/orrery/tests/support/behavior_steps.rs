@@ -491,6 +491,71 @@ pub fn synthetic_result(recording: behavior::FunctionalRecording) -> Result<Back
                 error: None,
             });
         }
+        Scenario::FireCast => {
+            let actions = [47, 48, 290, 290, 271, 271];
+            let mana = [30, 30, 30, 30, 20, 20];
+            let samples = actions
+                .into_iter()
+                .zip(mana)
+                .zip(&recording.samples)
+                .map(|((action, mana), point)| {
+                    let mut sample = ActorSample::from_actor(
+                        point.name.clone(),
+                        point.at_ms,
+                        point.at_ms,
+                        point.at_ms + 1,
+                        synthetic_actor(action, [0.0, 0.0, 4.55], 0.0),
+                    )?;
+                    sample.raw_observation["magick"] = serde_json::json!({
+                        "selected_spell_code": 61,
+                        "current_points": mana,
+                        "maximum_points": 50,
+                    });
+                    sample.raw_observation["designer_fields"] =
+                        serde_json::json!({"59": action != 47});
+                    sample.raw_observation["action_states"] = serde_json::json!([
+                        {"action": 290}, {"action": 271}
+                    ]);
+                    Ok(sample)
+                })
+                .collect::<Result<Vec<_>>>()?;
+            let checks = behavior::assertions(scenario, &samples)?;
+            let delivered = recording
+                .inputs
+                .iter()
+                .map(|input| behavior::DeliveredInput {
+                    id: input.id.clone(),
+                    planned_ms: input.at_ms,
+                    actual_ms: input.at_ms,
+                    event: input.event.clone(),
+                })
+                .collect();
+            return Ok(BackendResult {
+                backend: "synthetic".into(),
+                scenario,
+                status: if checks.iter().all(|check| check.passed) {
+                    "passed"
+                } else {
+                    "failed"
+                }
+                .into(),
+                recording_sha256: recording.sha256()?,
+                recording,
+                executable_sha256: None,
+                save_sha256: None,
+                loaded_level: Some("synthetic_manoir".into()),
+                input_delivery: "synthetic_fixture".into(),
+                observation_consistency: "synthetic".into(),
+                completed_update: false,
+                setup_interventions: vec![],
+                delivered,
+                samples,
+                assertions: checks,
+                screenshot: None,
+                cleanup_complete: true,
+                error: None,
+            });
+        }
     };
     let samples = recording
         .samples
@@ -712,6 +777,32 @@ fn wall_jump(world: &mut BehaviorWorld) {
 #[when("the player selects the sword and presses attack once")]
 fn sword_attack(world: &mut BehaviorWorld) {
     perform(world, Scenario::SwordAttack);
+}
+
+#[when("the player selects the sword and casts Fire once")]
+fn fire_cast(world: &mut BehaviorWorld) {
+    perform(world, Scenario::FireCast);
+}
+
+#[then("Hype enters the Fire cast and spends ten magic points")]
+fn fire_cast_cost(world: &mut BehaviorWorld) {
+    require_checks(
+        world,
+        &[
+            "fire_baseline_idle",
+            "fire_baseline_mana",
+            "fire_selected_code",
+            "fire_armed_selection_phase",
+            "fire_cast_gate_ready",
+            "fire_cast_action",
+            "fire_mana_spent",
+        ],
+    );
+}
+
+#[then("Hype reaches the Fire follow-through action")]
+fn fire_cast_follow_through(world: &mut BehaviorWorld) {
+    require_checks(world, &["fire_follow_through", "fire_settled_mana"]);
 }
 
 #[then("Hype equips the sword and performs an attack action")]
@@ -984,6 +1075,7 @@ fn selected_scenario(name: &str) -> Result<Scenario> {
         "Jumping from a walk and landing" => Scenario::MovingJump,
         "A moving jump meets the wall and lands" => Scenario::WallJump,
         "Selecting the sword and attacking once" => Scenario::SwordAttack,
+        "Casting the selected Fire spell once" => Scenario::FireCast,
         _ => anyhow::bail!("unknown BDD scenario: {name}"),
     })
 }
@@ -1033,6 +1125,8 @@ fn run_selected(names: &[&'static str], shared_session: bool) -> Result<SessionE
         let writer = runtime.block_on(async {
             let feature = if scenario == Scenario::SwordAttack {
                 concat!(env!("CARGO_MANIFEST_DIR"), "/tests/features/combat.feature")
+            } else if scenario == Scenario::FireCast {
+                concat!(env!("CARGO_MANIFEST_DIR"), "/tests/features/magick.feature")
             } else if matches!(
                 scenario,
                 Scenario::StationaryJump | Scenario::MovingJump | Scenario::WallJump

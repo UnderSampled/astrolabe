@@ -10,8 +10,12 @@ use crate::{
 use anyhow::{Context, Result, bail, ensure};
 use astrolabe::openspace::level::{
     hype_runtime,
-    live::{ActorObservation, HypeBuild, ReadMemory},
+    live::{
+        ActorAiObservation, ActorObservation, HypeBuild, InventoryObservation,
+        MagicSelectionObservation, ReadMemory, SceneTailObservation, Status,
+    },
 };
+use serde::Serialize;
 use serde_json::{Value, json};
 use std::{
     collections::BTreeMap,
@@ -28,6 +32,46 @@ impl ReadMemory for Running<'_> {
     fn read(&mut self, address: u32, size: usize) -> Result<Vec<u8>> {
         self.0.read_running(address as usize, size)
     }
+}
+
+/// One coherent stopped-byte sample for magick behavior comparisons.
+#[derive(Debug, Serialize)]
+pub struct MagickBehaviorObservation {
+    pub fixture: MagickFixtureProvenance,
+    pub run: PathBuf,
+    pub status: Status,
+    pub actor: ActorAiObservation,
+    pub inventory: InventoryObservation,
+    pub magic_selection: MagicSelectionObservation,
+    pub scene_tail: Option<SceneTailObservation>,
+    pub capture: StoppedCaptureProvenance,
+    pub pause: PauseProvenance,
+    pub completed_update: bool,
+    pub consistency_limit: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MagickFixtureProvenance {
+    pub executable_sha256: String,
+    pub save_sha256: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct StoppedCaptureProvenance {
+    pub process: Identity,
+    pub consistency: crate::linux::Consistency,
+    pub capture_micros: u128,
+    pub stopped_threads: usize,
+    pub page_reads: usize,
+    pub copied_source_bytes: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PauseProvenance {
+    /// Time from confirmed stop until capture completion, before SIGCONT.
+    pub pause_duration_micros: u128,
+    pub stopped_threads: usize,
+    pub preserved_existing_stop: bool,
 }
 
 fn wait(duration: Duration) -> Result<()> {
@@ -426,6 +470,101 @@ impl GameSession {
             "magic_selection": magic_selection,
             "laser_pointer": laser_pointer,
         }))
+    }
+
+    /// Capture the actor AI, selected inventory-derived spell and an optional
+    /// short DynamicWorld tail while the original process is stopped once.
+    /// This is source memory evidence, not a completed-update observation.
+    pub fn observe_magick_behavior(
+        &self,
+        actions: &[u32],
+        designer_values: &[u32],
+        scene_tail_limit: Option<usize>,
+    ) -> Result<MagickBehaviorObservation> {
+        ensure!(
+            (1..=64).contains(&actions.len()),
+            "magick observation needs 1..64 actions"
+        );
+        ensure!(
+            designer_values.len() <= 64,
+            "magick observation needs at most 64 designer values"
+        );
+        ensure!(
+            actions
+                .iter()
+                .copied()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                == actions.len(),
+            "duplicate magick observation action"
+        );
+        ensure!(
+            designer_values
+                .iter()
+                .copied()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                == designer_values.len(),
+            "duplicate magick observation designer value"
+        );
+        if let Some(limit) = scene_tail_limit {
+            ensure!(
+                (1..=4).contains(&limit),
+                "magick scene tail limit outside 1..4"
+            );
+        }
+
+        self.check()?;
+        let build = HypeBuild::verified(&self.config.exe_sha256)?;
+        let pause_guard = self.process.pause(Duration::from_secs(1))?;
+        let pause_started = Instant::now();
+        let stopped_threads = pause_guard.stopped_threads();
+        let preserved_existing_stop = pause_guard.preserved_existing_stop();
+        let mut capture = pause_guard.capture()?;
+        let status = build.status(&mut capture)?;
+        ensure!(
+            status.phase == 9 && !status.level.is_empty(),
+            "magick observation requires loaded gameplay"
+        );
+        let actor = build.actor_with_ai(&mut capture, actions, designer_values)?;
+        let inventory = build.inventory(&mut capture)?;
+        let magic_selection = build.magic_selection(&mut capture, &inventory)?;
+        let scene_tail = scene_tail_limit
+            .map(|limit| build.scene_tail(&mut capture, limit))
+            .transpose()?;
+        let snapshot = capture.finish()?;
+        let pause_duration_micros = pause_started.elapsed().as_micros();
+        let pause_provenance = PauseProvenance {
+            pause_duration_micros,
+            stopped_threads,
+            preserved_existing_stop,
+        };
+        let capture = StoppedCaptureProvenance {
+            process: snapshot.process,
+            consistency: snapshot.consistency,
+            capture_micros: snapshot.capture_micros,
+            stopped_threads: snapshot.stopped_threads,
+            page_reads: snapshot.page_reads,
+            copied_source_bytes: snapshot.copied_source_bytes,
+        };
+        drop(pause_guard);
+
+        Ok(MagickBehaviorObservation {
+            fixture: MagickFixtureProvenance {
+                executable_sha256: self.config.exe_sha256.clone(),
+                save_sha256: self.config.save_sha256.clone(),
+            },
+            run: self.run.clone(),
+            status,
+            actor,
+            inventory,
+            magic_selection,
+            scene_tail,
+            capture,
+            pause: pause_provenance,
+            completed_update: false,
+            consistency_limit: "one coherent stopped-byte capture; no completed-update publication evidence",
+        })
     }
 
     /// List a bounded tail of DynamicWorld children in one stopped capture.

@@ -1924,6 +1924,17 @@
       "release": true
     },
     {
+      "binary": "orrery::behavior_synthetic",
+      "test": "synthetic_fire_cast_requires_action_order_and_mana_cost",
+      "areas": ["magick", "comparison"],
+      "kind": "contract",
+      "prerequisites": [],
+      "fixture": "synthetic manor actor with selected Fire spell",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
       "binary": "orrery::behavior_original",
       "test": "original_movement_scenarios_share_one_game_session",
       "areas": ["movement", "comparison"],
@@ -1979,6 +1990,17 @@
       "release": true
     },
     {
+      "binary": "orrery::behavior_original",
+      "test": "original_fire_cast_and_mana_cost",
+      "areas": ["magick", "comparison"],
+      "kind": "original-engine",
+      "prerequisites": ["original"],
+      "fixture": "pinned Hype executable and supplied English SaveGame0",
+      "timeout_seconds": 140,
+      "ignored": true,
+      "release": true
+    },
+    {
       "binary": "orrery::behavior_godot",
       "test": "godot_stationary_jump_and_landing",
       "areas": ["jump", "comparison"],
@@ -2015,6 +2037,17 @@
       "binary": "orrery::behavior_godot",
       "test": "godot_sword_attack_and_recovery",
       "areas": ["combat", "comparison"],
+      "kind": "gameplay",
+      "prerequisites": ["disc", "godot"],
+      "fixture": "normal Hype manoir export with saved Brain",
+      "timeout_seconds": 360,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "orrery::behavior_godot",
+      "test": "godot_fire_cast_and_mana_cost",
+      "areas": ["magick", "comparison"],
       "kind": "gameplay",
       "prerequisites": ["disc", "godot"],
       "fixture": "normal Hype manoir export with saved Brain",

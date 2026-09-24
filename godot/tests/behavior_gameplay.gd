@@ -346,6 +346,7 @@ func observation() -> Dictionary:
             "current_points": int(actor.call("source_magic_points")) if magick_ready else null,
             "maximum_points": int(native_magick.get("maximum_points")) if native_magick != null else null,
         },
+        "designer_fields": {"59": bool(brain.get("dsg_59"))},
         "action_requests": action_requests.duplicate(true),
         "action_states": action_states.duplicate(true),
         "key_inputs": key_inputs.duplicate(true),

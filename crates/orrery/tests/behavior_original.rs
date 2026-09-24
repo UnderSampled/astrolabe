@@ -57,6 +57,19 @@ fn original_sword_attack_and_recovery() -> anyhow::Result<()> {
 
 #[test]
 #[ignore = "requires prepared Hype save and private Wine/Gamescope; selected by --local"]
+fn original_fire_cast_and_mana_cost() -> anyhow::Result<()> {
+    let path = behavior_steps::run_scenario("Casting the selected Fire spell once")?;
+    let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
+    anyhow::ensure!(
+        report["openspace"]["status"] == "passed",
+        "source Fire cast did not pass"
+    );
+    println!("OpenSpace Fire cast BDD evidence: {}", path.display());
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires prepared Hype save and private Wine/Gamescope; selected by --local"]
 fn original_movement_scenarios_share_one_game_session() -> anyhow::Result<()> {
     let evidence = behavior_steps::run_scenarios_shared(&[
         "Turning while standing",

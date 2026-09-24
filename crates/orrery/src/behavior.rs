@@ -4,7 +4,10 @@
 //! subtract measured stopped-capture intervals from that elapsed time.
 use crate::replay::{Edge, Event, Key};
 use anyhow::{Context, Result, ensure};
-use astrolabe::openspace::level::live::ActorObservation;
+use astrolabe::{
+    model::ai::DesignerValue,
+    openspace::level::live::{ActorObservation, ObservedDesignerValue},
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -15,6 +18,7 @@ use std::{
 
 pub mod godot;
 mod jump;
+mod magick;
 mod moving_jump;
 mod sword;
 mod wall;
@@ -44,6 +48,7 @@ pub enum Scenario {
     MovingJump,
     WallJump,
     SwordAttack,
+    FireCast,
 }
 impl Scenario {
     pub fn slug(self) -> &'static str {
@@ -56,6 +61,7 @@ impl Scenario {
             Self::MovingJump => "moving-jump",
             Self::WallJump => "wall-jump",
             Self::SwordAttack => "sword-attack",
+            Self::FireCast => "fire-cast",
         }
     }
 }
@@ -103,7 +109,7 @@ impl FunctionalRecording {
             }
             Scenario::WallContact => "manoir-corner-after-physical-left-turn",
             Scenario::WallJump => "manoir-grounded-near-verified-corner-wall",
-            Scenario::StationaryJump | Scenario::SwordAttack => {
+            Scenario::StationaryJump | Scenario::SwordAttack | Scenario::FireCast => {
                 "manoir-clear-ground-after-physical-down"
             }
         };
@@ -125,6 +131,9 @@ impl FunctionalRecording {
         }
         if self.scenario == Scenario::SwordAttack {
             return sword::validate(self);
+        }
+        if self.scenario == Scenario::FireCast {
+            return magick::validate(self);
         }
         if self.scenario == Scenario::RunVsWalk {
             let walk = self
@@ -206,6 +215,9 @@ pub fn recording(scenario: Scenario) -> FunctionalRecording {
     if scenario == Scenario::SwordAttack {
         return sword::recording();
     }
+    if scenario == Scenario::FireCast {
+        return magick::recording();
+    }
     if scenario == Scenario::WallContact {
         return wall::recording();
     }
@@ -261,6 +273,7 @@ pub fn recording(scenario: Scenario) -> FunctionalRecording {
         Scenario::MovingJump => unreachable!(),
         Scenario::WallJump => unreachable!(),
         Scenario::SwordAttack => unreachable!(),
+        Scenario::FireCast => unreachable!(),
     };
     FunctionalRecording {
         schema: 1,
@@ -274,6 +287,7 @@ pub fn recording(scenario: Scenario) -> FunctionalRecording {
             Scenario::MovingJump => unreachable!(),
             Scenario::WallJump => unreachable!(),
             Scenario::SwordAttack => unreachable!(),
+            Scenario::FireCast => unreachable!(),
         }
         .into(),
         inputs: vec![
@@ -495,6 +509,9 @@ pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Ass
     if scenario == Scenario::SwordAttack {
         return sword::assertions(samples);
     }
+    if scenario == Scenario::FireCast {
+        return magick::assertions(samples);
+    }
     if scenario == Scenario::WallContact {
         return wall::assertions(samples);
     }
@@ -536,6 +553,7 @@ pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Ass
                 Scenario::MovingJump => unreachable!(),
                 Scenario::WallJump => unreachable!(),
                 Scenario::SwordAttack => unreachable!(),
+                Scenario::FireCast => unreachable!(),
             },
             Some(1.),
             Some(1.),
@@ -646,6 +664,7 @@ pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Ass
         Scenario::MovingJump => unreachable!(),
         Scenario::WallJump => unreachable!(),
         Scenario::SwordAttack => unreachable!(),
+        Scenario::FireCast => unreachable!(),
     }
     Ok(checks)
 }
@@ -859,6 +878,7 @@ pub fn compare_results(
         Scenario::MovingJump => 8,
         Scenario::WallJump => 8,
         Scenario::SwordAttack => 6,
+        Scenario::FireCast => 6,
     };
     ensure!(
         openspace.samples.len() == godot.samples.len()
@@ -899,6 +919,41 @@ pub fn compare_results(
                 Some(1.),
                 "the source swing may still play or finish at this sampled transition",
             ));
+        } else if openspace.scenario == Scenario::FireCast && source.name == "armed" {
+            checks.push(bound(
+                "armed_selection_phase_compatible",
+                f64::from(u8::from(
+                    matches!(source.action, Some(45 | 48))
+                        && matches!(target.action, Some(45 | 48)),
+                )),
+                Some(1.),
+                Some(1.),
+                "source sword selection is action 45 or armed idle 48 at this checkpoint",
+            ));
+        } else if openspace.scenario == Scenario::FireCast
+            && matches!(source.name.as_str(), "cast_early" | "cast_late")
+        {
+            checks.push(bound(
+                &format!("{}_phase_compatible", source.name),
+                f64::from(u8::from(
+                    matches!(source.action, Some(48 | 290 | 271))
+                        && matches!(target.action, Some(48 | 290 | 271)),
+                )),
+                Some(1.),
+                Some(1.),
+                "the cast action may enter between the bounded samples; both backends must independently observe it",
+            ));
+        } else if openspace.scenario == Scenario::FireCast && source.name == "settled" {
+            checks.push(bound(
+                "settled_cast_phase_compatible",
+                f64::from(u8::from(
+                    matches!(source.action, Some(48 | 271))
+                        && matches!(target.action, Some(48 | 271)),
+                )),
+                Some(1.),
+                Some(1.),
+                "source cast follow-through 271 may end in armed idle 48 by the settled checkpoint",
+            ));
         } else if held_walk_phase {
             // The source 78 entry action and 32 sustained action are both
             // active walking at this elapsed-time checkpoint. Exact IDs stay
@@ -922,6 +977,24 @@ pub fn compare_results(
                 Some(1.),
                 Some(1.),
                 "canonical action identity at the same named checkpoint",
+            ));
+        }
+        if openspace.scenario == Scenario::FireCast
+            && matches!(
+                source.name.as_str(),
+                "baseline" | "armed" | "spent" | "settled"
+            )
+        {
+            let source_mana = source.raw_observation["magick"]["current_points"].as_i64();
+            let target_mana = target.raw_observation["magick"]["current_points"].as_i64();
+            checks.push(bound(
+                &format!("{}_mana_match", source.name),
+                f64::from(u8::from(
+                    source_mana.is_some() && source_mana == target_mana,
+                )),
+                Some(1.),
+                Some(1.),
+                "source and Godot mana at the named cast checkpoint",
             ));
         }
         let origin = if openspace.scenario == Scenario::RunVsWalk && index >= 5 {
@@ -1000,6 +1073,7 @@ pub fn compare_results(
                 | Scenario::MovingJump
                 | Scenario::WallJump
                 | Scenario::SwordAttack
+                | Scenario::FireCast
         ) {
             "pause_compensated_functional_elapsed_ms_no_wall_or_consumption_parity"
         } else {
@@ -1090,20 +1164,21 @@ impl BackendResult {
                 "backend sample contains nonfinite coordinates"
             );
         }
-        let settled_windows: &[(usize, usize)] = if self.scenario == Scenario::SwordAttack {
-            &[(4, 5)]
-        } else if matches!(self.scenario, Scenario::MovingJump | Scenario::WallJump) {
-            &[(6, 7)]
-        } else if matches!(
-            self.scenario,
-            Scenario::StationaryJump | Scenario::WallContact
-        ) {
-            &[(5, 6)]
-        } else if self.scenario == Scenario::RunVsWalk {
-            &[(3, 4), (8, 9)]
-        } else {
-            &[(3, 4)]
-        };
+        let settled_windows: &[(usize, usize)] =
+            if matches!(self.scenario, Scenario::SwordAttack | Scenario::FireCast) {
+                &[(4, 5)]
+            } else if matches!(self.scenario, Scenario::MovingJump | Scenario::WallJump) {
+                &[(6, 7)]
+            } else if matches!(
+                self.scenario,
+                Scenario::StationaryJump | Scenario::WallContact
+            ) {
+                &[(5, 6)]
+            } else if self.scenario == Scenario::RunVsWalk {
+                &[(3, 4), (8, 9)]
+            } else {
+                &[(3, 4)]
+            };
         for &(start, end) in settled_windows {
             ensure!(
                 self.samples[end]
@@ -1713,6 +1788,7 @@ impl OriginalBackend {
         prefix: &str,
         screenshot_at: Option<&str>,
         pause_compensated: bool,
+        observe_magick: bool,
     ) -> Result<(
         Vec<DeliveredInput>,
         Vec<ActorSample>,
@@ -1765,7 +1841,42 @@ impl OriginalBackend {
             } else {
                 let capture_start_ms =
                     origin.elapsed().saturating_sub(paused_total).as_millis() as u64;
-                let (actor, paused) = self.controller.game()?.observe_main_actor_timed()?;
+                let (actor, paused, magick_capture) = if observe_magick {
+                    let observation = self.controller.game()?.observe_magick_behavior(
+                        &[47, 48, 290, 271],
+                        &[59],
+                        Some(2),
+                    )?;
+                    let paused = Duration::from_micros(u64::try_from(
+                        observation.pause.pause_duration_micros,
+                    )?);
+                    let ready = observation
+                        .actor
+                        .designer_values
+                        .iter()
+                        .find(|value| value.index == 59)
+                        .and_then(|value| match &value.value {
+                            ObservedDesignerValue::Value(DesignerValue::Boolean(ready)) => {
+                                Some(*ready)
+                            }
+                            _ => None,
+                        });
+                    let raw = serde_json::json!({
+                        "magick": {
+                            "selected_spell_code": observation.magic_selection.source_code,
+                            "current_points": observation.magic_selection.current_points,
+                            "maximum_points": observation.magic_selection.maximum_points,
+                        },
+                        "designer_fields": {"59": ready},
+                        "source_ai": observation.actor,
+                        "source_scene_tail": observation.scene_tail,
+                        "source_capture": observation.capture,
+                    });
+                    (observation.actor.actor, paused, Some(raw))
+                } else {
+                    let (actor, paused) = self.controller.game()?.observe_main_actor_timed()?;
+                    (actor, paused, None)
+                };
                 if pause_compensated {
                     paused_total += paused;
                 }
@@ -1783,6 +1894,18 @@ impl OriginalBackend {
                     capture_end_ms,
                     actor,
                 )?;
+                if let Some(capture) = magick_capture {
+                    let source = sample
+                        .raw_observation
+                        .as_object_mut()
+                        .context("actor observation must serialize as object")?;
+                    source.extend(
+                        capture
+                            .as_object()
+                            .context("magick capture must serialize as object")?
+                            .clone(),
+                    );
+                }
                 if pause_compensated {
                     sample.raw_observation["capture_pause_micros"] =
                         serde_json::json!(paused.as_micros());
@@ -1815,6 +1938,7 @@ impl OriginalBackend {
                     | (OriginalReadyState::ClearRoute, Scenario::MovingJump)
                     | (OriginalReadyState::WallJumpStart, Scenario::WallJump)
                     | (OriginalReadyState::JumpStart, Scenario::SwordAttack)
+                    | (OriginalReadyState::JumpStart, Scenario::FireCast)
             ),
             "the selected scenario's Given setup was not established"
         );
@@ -1824,6 +1948,7 @@ impl OriginalBackend {
                 | Scenario::MovingJump
                 | Scenario::WallJump
                 | Scenario::SwordAttack
+                | Scenario::FireCast
         );
         let (delivered, samples, _) = self.execute_trial(
             &recording.inputs,
@@ -1831,6 +1956,7 @@ impl OriginalBackend {
             "",
             None,
             pause_compensated,
+            recording.scenario == Scenario::FireCast,
         )?;
         let screenshot = self.controller.game()?.screenshot()?;
         let checks = assertions(recording.scenario, &samples)?;
@@ -1884,7 +2010,7 @@ impl OriginalBackend {
         let walk = recording.preparatory_trial.as_ref().unwrap();
         let initial_setup = self.setup_interventions.clone();
         let (mut delivered, mut samples, _) =
-            self.execute_trial(&walk.inputs, &walk.samples, "walk_", None, false)?;
+            self.execute_trial(&walk.inputs, &walk.samples, "walk_", None, false, false)?;
         let walk_screenshot = self.controller.game()?.screenshot()?;
         let reload = self.reload_saved_state()?;
         self.face_clear_path()?;
@@ -1896,8 +2022,14 @@ impl OriginalBackend {
         }));
         setup_interventions.push(reload);
         setup_interventions.extend(self.setup_interventions.clone());
-        let (run_delivered, run_samples, _) =
-            self.execute_trial(&recording.inputs, &recording.samples, "run_", None, false)?;
+        let (run_delivered, run_samples, _) = self.execute_trial(
+            &recording.inputs,
+            &recording.samples,
+            "run_",
+            None,
+            false,
+            false,
+        )?;
         delivered.extend(run_delivered);
         samples.extend(run_samples);
         let screenshot = self.controller.game()?.screenshot()?;
@@ -1941,6 +2073,7 @@ impl OriginalBackend {
             &recording.samples,
             "",
             Some("contact_end"),
+            false,
             false,
         )?;
         let checks = assertions(recording.scenario, &samples)?;
