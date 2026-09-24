@@ -6,10 +6,10 @@ and Gamescope application identity are all named `orrery`. The converter does
 not depend on Orrery. The [[docs/orrery/comparison-model|comparison evidence model]] defines which claims its observations can support.
 
 The Python `hype` MCP bridge remains available for optional diagnosis. Orrery
-implements its 15 control tools and adds one read-only typed-inspection tool.
+implements its control tools and read-only typed-inspection tools.
 The controller exposes game launch, save loading, physical input, selected actor
-inspection, screenshots, and cleanup. A dated operation record is linked below. The 16th tool,
-`inspect_main_actor`, pauses the owned game and invokes Astrolabe's shared
+inspection, screenshots, and cleanup. A dated operation record is linked below.
+`inspect_main_actor` pauses the owned game and invokes Astrolabe's shared
 OpenSpace reader; Orrery does not maintain a second record decoder. Its result
 is a `StoppedBytes` capture with executable/save/process/capture provenance and
 capture-local locators. It is not a completed-update observation and must not be
@@ -96,6 +96,7 @@ The implementation deliberately does not edit `~/.codex/config.toml`.
 | `inspect_combat` | Hype's selected action/designer state, active inventory, selected magic name/index/mana and matched inventory code, and laser target/visibility decoded from one stopped-byte capture; reports the selected Weapon ID and each active item's ID/quantity, with the same completed-update limit |
 | `inspect_scene_tail` | Last 1–16 DynamicWorld children with checked links, kinds, Perso object types and transforms; reads each Perso's Brain model link when ready. Ordinals and `live:*` model locators are capture-local evidence, not imported asset identities |
 | `inspect_scene_actor` | Resolve a rooted scene actor by level/path and checked object types. Optional `include_camera_records` permits an empty action list for camera actors with no family actions, follows the camera link, and captures four bounded source records plus the active viewport camera during the same process pause. Raw words and `live:*` locators are transient research evidence, not Rete values or completed-update publication. |
+| `inspect_scene_camera` | Search live ActualWorld for one camera-bearing Perso with the requested type triple. Reject missing, ambiguous or malformed matches. Capture its Brain, linked records and active viewport in one pause. The returned live path is a capture-local search result, not a proven imported asset identity. |
 | `read_memory` | Numeric or hex read; MCP hex limit 64 KiB; readable mappings and 32-bit address validation |
 | `write_memory` | 4 KiB maximum, expected-old-value comparison while all threads are stopped, read-back before resume |
 | `memory_maps` | `/proc` maps for the pinned owned identity only |
@@ -103,7 +104,7 @@ The implementation deliberately does not edit `~/.codex/config.toml`.
 | `navigate_level` | Installed-level check, phase-9 check, guarded transition writes, 30-second completion deadline |
 
 `run_sequence` supports `keys`, `cheat`, `wait`, `wait_state`, `state`, `mana`,
-`screenshot`, `bindings`, `inspect_main_actor`, `inspect_combat`, `inspect_scene_tail`, `inspect_scene_actor`, `read`, `write`, and `level`. Runtime failure records
+`screenshot`, `bindings`, `inspect_main_actor`, `inspect_combat`, `inspect_scene_tail`, `inspect_scene_actor`, `inspect_scene_camera`, `read`, `write`, and `level`. Runtime failure records
 the completed prefix, stops later steps, reports the skipped count, marks the MCP
 result as an error, and releases injected keys. Completed effects are retained.
 A client timeout does not cancel a controller operation; inspect `status` or

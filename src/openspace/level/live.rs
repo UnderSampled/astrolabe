@@ -409,6 +409,39 @@ impl HypeBuild {
         camera_records_at(&mut source, camera)
     }
 
+    /// Find a unique camera-bearing Perso in the live ActualWorld hierarchy.
+    /// Saved child ordinals may change after loading a game, so the match is a
+    /// capture-local checked predicate rather than a persisted Perso identity.
+    pub fn scene_camera(
+        &self,
+        memory: &mut impl ReadMemory,
+        level: &str,
+        expected_object_types: [u32; 3],
+        designer_values: &[u32],
+    ) -> Result<SceneCameraObservation> {
+        let status = self.status(memory)?;
+        ensure!(
+            status.phase == 9 && status.level == level,
+            "source camera search requires the selected loaded level"
+        );
+        let (found, actor, records) = {
+            let mut source = MemoryView(memory);
+            let found = find_live_camera(&mut source, expected_object_types)?;
+            let actor = actor_ai_at_node(&mut source, found.node, &[], designer_values)?;
+            let camera = source.required(found.perso, 20)?;
+            let records = camera_records_at(&mut source, camera)?;
+            (found, actor, records)
+        };
+        let active_camera = self.active_camera(memory)?;
+        Ok(SceneCameraObservation {
+            live_child_path: found.path,
+            scanned_nodes: found.scanned_nodes,
+            actor,
+            source_camera_records: records,
+            active_camera,
+        })
+    }
+
     /// Identify the newest DynamicWorld children, where source object creation
     /// links generated Persos. Ordinals are capture-local, not asset IDs.
     pub fn scene_tail(
@@ -860,6 +893,63 @@ mod active_camera_tests {
         assert_eq!(records.records[3].words[0xa4 / 4], 14);
         assert_eq!(records.records[3].locator, "live:12341300");
     }
+
+    #[test]
+    fn live_camera_search_uses_checked_live_hierarchy_and_rejects_ambiguity() {
+        fn node(words: [u32; 8]) -> [u8; 64] {
+            let mut bytes = [0u8; 64];
+            for (index, word) in words.into_iter().enumerate() {
+                bytes[index * 4..index * 4 + 4].copy_from_slice(&word.to_le_bytes());
+            }
+            bytes
+        }
+        let mut memory = Memory(BTreeMap::new());
+        let (root, other, group, camera, perso, data3d, standard): (
+            u32,
+            u32,
+            u32,
+            u32,
+            u32,
+            u32,
+            u32,
+        ) = (0x1000, 0x1100, 0x1200, 0x1300, 0x2000, 0x2100, 0x2200);
+        memory.put(0x75ec6c, &root.to_le_bytes());
+        memory.put(root, &node([0, 0, other, group, 2, 0, 0, 0]));
+        memory.put(other, &node([0, 0, 0, 0, 0, group, 0, root]));
+        memory.put(group, &node([0, 0, camera, camera, 1, 0, other, root]));
+        memory.put(camera, &node([4, perso, 0, 0, 0, 0, 0, group]));
+        let mut perso_bytes = [0u8; 24];
+        perso_bytes[0..4].copy_from_slice(&data3d.to_le_bytes());
+        perso_bytes[4..8].copy_from_slice(&standard.to_le_bytes());
+        perso_bytes[20..24].copy_from_slice(&0x2300u32.to_le_bytes());
+        memory.put(perso, &perso_bytes);
+        let mut data3d_bytes = [0u8; 24];
+        data3d_bytes[20..24].copy_from_slice(&0x2400u32.to_le_bytes());
+        memory.put(data3d, &data3d_bytes);
+        memory.put(standard, &[2u32.to_le_bytes(); 3].concat());
+        let mut source = MemoryView(&mut memory);
+        let found = find_live_camera(&mut source, [2, 2, 2]).unwrap();
+        assert_eq!(found.path, [1, 0]);
+        assert_eq!(found.scanned_nodes, 4);
+
+        let (second_perso, second_data3d, second_standard): (u32, u32, u32) =
+            (0x3000, 0x3100, 0x3200);
+        memory.put(other, &node([4, second_perso, 0, 0, 0, group, 0, root]));
+        let mut second_perso_bytes = [0u8; 24];
+        second_perso_bytes[0..4].copy_from_slice(&second_data3d.to_le_bytes());
+        second_perso_bytes[4..8].copy_from_slice(&second_standard.to_le_bytes());
+        second_perso_bytes[20..24].copy_from_slice(&0x3300u32.to_le_bytes());
+        memory.put(second_perso, &second_perso_bytes);
+        memory.put(second_data3d, &data3d_bytes);
+        memory.put(second_standard, &[2u32.to_le_bytes(); 3].concat());
+        let mut source = MemoryView(&mut memory);
+        assert!(
+            find_live_camera(&mut source, [2, 2, 2])
+                .unwrap_err()
+                .to_string()
+                .contains("found 2")
+        );
+    }
 }
 
 fn scene_node(source: &mut MemoryView<'_, impl ReadMemory>, child_path: &[u32]) -> Result<u32> {
@@ -903,6 +993,108 @@ fn scene_node(source: &mut MemoryView<'_, impl ReadMemory>, child_path: &[u32]) 
     let terminal: SuperObjectWire = wire(&source.bytes(parent, 64)?)?;
     ensure!(terminal.kind == 4, "scene child path is not a perso");
     Ok(parent)
+}
+
+#[derive(Debug)]
+struct LiveCameraMatch {
+    node: u32,
+    perso: u32,
+    path: Vec<u32>,
+    scanned_nodes: usize,
+}
+
+fn find_live_camera(
+    source: &mut MemoryView<'_, impl ReadMemory>,
+    expected_object_types: [u32; 3],
+) -> Result<LiveCameraMatch> {
+    const MAX_NODES: usize = 4096;
+    const MAX_DEPTH: usize = 32;
+    let root = source.required(0x75ec6c, 0)?;
+    let mut stack = vec![(root, Vec::<u32>::new())];
+    let mut visited = BTreeSet::from([root]);
+    let mut found: Option<LiveCameraMatch> = None;
+    let mut matches = 0usize;
+    while let Some((node, path)) = stack.pop() {
+        let header: SuperObjectWire = wire(&source.bytes(node, 64)?)?;
+        if path.is_empty() {
+            ensure!(header.kind == 0, "ActualWorld root is not a world node");
+        }
+        if header.kind == 4 {
+            let perso = source.required(node, SuperObjectWire::DATA)?;
+            let parts = source_view::perso_parts(source, perso)?;
+            if parts.object_types == expected_object_types && source.pointer(perso, 20)?.is_some() {
+                matches += 1;
+                if found.is_none() {
+                    found = Some(LiveCameraMatch {
+                        node,
+                        perso,
+                        path: path.clone(),
+                        scanned_nodes: 0,
+                    });
+                }
+            }
+        }
+        let count = usize::try_from(header.child_count)?;
+        ensure!(
+            count <= MAX_NODES,
+            "live scene child count exceeds search bound"
+        );
+        if count == 0 {
+            ensure!(
+                header.first_child == 0 && header.last_child == 0,
+                "empty live scene node has child endpoints"
+            );
+            continue;
+        }
+        ensure!(path.len() < MAX_DEPTH, "live scene search depth exceeded");
+        ensure!(
+            visited.len().saturating_add(count) <= MAX_NODES,
+            "live scene search node budget exceeded"
+        );
+        ensure!(
+            header.first_child != 0 && header.last_child != 0,
+            "live scene node lacks child endpoints"
+        );
+        let mut child = header.first_child;
+        let mut previous = 0u32;
+        let mut children = Vec::with_capacity(count);
+        for index in 0..count {
+            ensure!(child != 0, "live scene sibling list ended early");
+            ensure!(visited.insert(child), "live scene cycle or repeated child");
+            let member: SuperObjectWire = wire(&source.bytes(child, 64)?)?;
+            ensure!(
+                member.parent == node,
+                "live scene child parent link differs"
+            );
+            ensure!(
+                member.previous == previous,
+                "live scene previous sibling link differs"
+            );
+            if index + 1 == count {
+                ensure!(
+                    child == header.last_child && member.next == 0,
+                    "live scene last child endpoint differs"
+                );
+            } else {
+                ensure!(member.next != 0, "live scene sibling list ended early");
+            }
+            let mut child_path = path.clone();
+            child_path.push(u32::try_from(index)?);
+            children.push((child, child_path));
+            previous = child;
+            child = member.next;
+        }
+        stack.extend(children.into_iter().rev());
+    }
+    ensure!(
+        matches == 1,
+        "live camera search expected one camera-bearing actor {:?}, found {matches} in {} nodes",
+        expected_object_types,
+        visited.len()
+    );
+    let mut result = found.context("live camera search lost its unique match")?;
+    result.scanned_nodes = visited.len();
+    Ok(result)
 }
 
 fn camera_records_at(
@@ -1181,6 +1373,16 @@ pub struct SourceCameraRecordsObservation {
 pub struct SourceCameraRecordObservation {
     pub locator: String,
     pub words: Vec<u32>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneCameraObservation {
+    pub live_child_path: Vec<u32>,
+    pub scanned_nodes: usize,
+    pub actor: ActorAiObservation,
+    pub source_camera_records: SourceCameraRecordsObservation,
+    pub active_camera: ActiveCameraObservation,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

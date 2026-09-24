@@ -273,3 +273,20 @@ capture supplies no camera parameter or viewport comparison. The error now
 reports the observed type triple to distinguish a live child-order change
 from a changed actor; resolve the selector before interpreting these records.
 No Godot camera pose or projection rule was introduced from this failed probe.
+
+A checked live-tree search resolves that selector gap without using the saved
+ordinal: after a 20-second post-load settle in the same verified `manoir`
+fixture, Orrery scanned 317 ActualWorld nodes and found one camera-bearing
+`[2,2,2]` Perso at capture-local path `[0,1]`. It read that actor's Brain,
+four linked records and active viewport in one stopped-byte capture. The Brain
+selected normal behavior 0, with no reflex selection. The active viewport
+origin was `[-74.37770,24.14139,7.38519]` in source axes, forward
+`[0,0.956546,-0.291583]`, horizontal/vertical FoV 1.5/1.21970 radians and
+near/far planes 0.25/10000. The first two linked records both held 1.8 at
+`+0x2c`, 3.5 at `+0x30`, 2.5 at `+0x3c` and 1.5 at `+0x8c`; the third held
+zero in these slots and the fourth repeated those values. Camera root bytes
+`+0xce/+0xd0/+0xd2` were all zero. These are correlated values in one pause,
+not proven field meanings or a completed-update publication. In particular,
+the 1.5 value at record `+0x8c` remains unsupported as a FoV mapping. The
+current live path is not persisted as the imported actor's identity. The game
+and Orrery service stopped, and the supplied save remained unchanged.

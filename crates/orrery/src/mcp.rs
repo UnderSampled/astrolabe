@@ -137,6 +137,16 @@ fn inspect_scene_actor_schema() -> Value {
         &["level", "child_path", "object_types", "actions"],
     )
 }
+fn inspect_scene_camera_schema() -> Value {
+    object(
+        json!({
+            "level":{"type":"string","pattern":"^[a-z0-9_]{1,30}$"},
+            "object_types":{"type":"array","minItems":3,"maxItems":3,"items":{"type":"integer","minimum":0,"maximum":4294967295_u64}},
+            "designer_values":{"type":"array","maxItems":64,"uniqueItems":true,"items":{"type":"integer","minimum":0,"maximum":4294967295_u64}}
+        }),
+        &["level", "object_types"],
+    )
+}
 fn inspect_scene_tail_schema() -> Value {
     object(
         json!({"limit":{"type":"integer","minimum":1,"maximum":16,"default":8}}),
@@ -164,7 +174,7 @@ fn write_schema() -> Value {
     )
 }
 
-const TOOLS: [ToolSpec; 19] = [
+const TOOLS: [ToolSpec; 20] = [
     ToolSpec {
         name: "status",
         description: "Report the Orrery MCP service and exact owned game status without opening a game window.",
@@ -264,6 +274,13 @@ const TOOLS: [ToolSpec; 19] = [
         schema: inspect_scene_actor_schema,
     },
     ToolSpec {
+        name: "inspect_scene_camera",
+        description: "Search the live ActualWorld tree for one checked camera-bearing Perso, then capture its AI, linked records and active viewport in one pause.",
+        read_only: true,
+        destructive: false,
+        schema: inspect_scene_camera_schema,
+    },
+    ToolSpec {
         name: "read_memory",
         description: "Read at most 64 KiB from readable mappings of the exact owned 32-bit game.",
         read_only: true,
@@ -324,6 +341,7 @@ fn tool_models() -> Vec<Tool> {
                             | "inspect_combat"
                             | "inspect_scene_tail"
                             | "inspect_scene_actor"
+                            | "inspect_scene_camera"
                             | "read_memory"
                             | "memory_maps"
                     ))
@@ -456,14 +474,7 @@ fn inspect_actions_allow_empty(map: &Map<String, Value>, allow_empty: bool) -> R
 }
 
 fn scene_selector(map: &Map<String, Value>) -> Result<(String, Vec<u32>, [u32; 3])> {
-    let level = string(map, "level")?;
-    ensure!(
-        (1..=30).contains(&level.len())
-            && level
-                .bytes()
-                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_'),
-        "invalid scene actor level"
-    );
+    let (level, object_types) = scene_camera_selector(map)?;
     let path: Vec<u32> = serde_json::from_value(
         map.get("child_path")
             .context("missing scene child path")?
@@ -473,12 +484,24 @@ fn scene_selector(map: &Map<String, Value>) -> Result<(String, Vec<u32>, [u32; 3
         (1..=32).contains(&path.len()) && path.iter().all(|index| *index < 100_000),
         "invalid scene child path"
     );
+    Ok((level, path, object_types))
+}
+
+fn scene_camera_selector(map: &Map<String, Value>) -> Result<(String, [u32; 3])> {
+    let level = string(map, "level")?;
+    ensure!(
+        (1..=30).contains(&level.len())
+            && level
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_'),
+        "invalid scene actor level"
+    );
     let object_types: [u32; 3] = serde_json::from_value(
         map.get("object_types")
             .context("missing scene object types")?
             .clone(),
     )?;
-    Ok((level.to_owned(), path, object_types))
+    Ok((level.to_owned(), object_types))
 }
 
 fn inspect_designer_values(map: &Map<String, Value>) -> Result<Option<Vec<u32>>> {
@@ -687,6 +710,22 @@ fn validate_steps(raw: &Value) -> Result<Vec<Step>> {
                     "include_camera_records must be Boolean"
                 );
                 budget += 2_500;
+            }
+            "inspect_scene_camera" => {
+                allowed(
+                    map,
+                    &[
+                        "action",
+                        "delay_ms",
+                        "label",
+                        "level",
+                        "object_types",
+                        "designer_values",
+                    ],
+                )?;
+                scene_camera_selector(map)?;
+                inspect_designer_values(map)?;
+                budget += 5_000;
             }
             "screenshot" => {
                 allowed(map, &["action", "delay_ms", "label"])?;
@@ -936,6 +975,11 @@ fn execute_step(controller: &mut NativeController, step: &Step) -> Result<Value>
                     .unwrap_or(false),
             )
         }
+        "inspect_scene_camera" => {
+            let (level, object_types) = scene_camera_selector(map)?;
+            let designer_values = inspect_designer_values(map)?.unwrap_or_default();
+            game.inspect_scene_camera(&level, object_types, &designer_values)
+        }
         "level" => game.navigate_level(string(map, "name")?),
         "read" => game.read_memory(
             address(string(map, "address")?)?,
@@ -1090,6 +1134,16 @@ fn call_tool(
                         .unwrap_or(false),
                 )?,
             ))
+        }
+        "inspect_scene_camera" => {
+            allowed(map, &["level", "object_types", "designer_values"])?;
+            let (level, object_types) = scene_camera_selector(map)?;
+            let designer_values = inspect_designer_values(map)?.unwrap_or_default();
+            Ok(ToolOutput::ok(controller.game()?.inspect_scene_camera(
+                &level,
+                object_types,
+                &designer_values,
+            )?))
         }
         "navigate_level" => {
             allowed(map, &["name"])?;
@@ -1368,6 +1422,7 @@ mod tests {
                 "inspect_combat",
                 "inspect_scene_tail",
                 "inspect_scene_actor",
+                "inspect_scene_camera",
                 "read_memory",
                 "write_memory",
                 "memory_maps",
@@ -1400,6 +1455,11 @@ mod tests {
             .find(|tool| tool.name == "inspect_scene_actor")
             .unwrap();
         assert!(scene.read_only && !scene.destructive);
+        let camera = TOOLS
+            .iter()
+            .find(|tool| tool.name == "inspect_scene_camera")
+            .unwrap();
+        assert!(camera.read_only && !camera.destructive);
     }
     #[test]
     fn entire_sequence_is_rejected_before_execution() {
@@ -1426,7 +1486,11 @@ mod tests {
         assert!(validate_steps(&valid_camera).is_ok());
         let default_camera = json!([{"action":"inspect_scene_actor","level":"manoir","child_path":[0,2],"object_types":[2,2,2],"include_camera_records":true}]);
         assert!(validate_steps(&default_camera).is_ok());
+        let searched_camera =
+            json!([{"action":"inspect_scene_camera","level":"manoir","object_types":[2,2,2]}]);
+        assert!(validate_steps(&searched_camera).is_ok());
         for invalid in [
+            json!([{"action":"inspect_scene_camera","level":"manoir","object_types":[2,2,2],"child_path":[0,2]}]),
             json!([{"action":"inspect_scene_actor","level":"manoir","child_path":[0,2],"object_types":[2,2,2],"actions":[]}]),
             json!([{"action":"inspect_scene_actor","level":"manoir","child_path":[],"object_types":[39,62,180],"actions":[0]}]),
             json!([{"action":"inspect_scene_actor","level":"manoir","child_path":[0,100000],"object_types":[39,62,180],"actions":[0]}]),
