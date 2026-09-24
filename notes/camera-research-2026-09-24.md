@@ -186,6 +186,16 @@ Brain/Rete test passed. A fresh release manor export completed in 86.14 s;
 Godot's headless editor scan found no parse errors. Generated model 437 has
 zero unsupported type-11 or action-return-policy diagnostics, while 133 other
 unsupported-script diagnostics remain, so this is not full camera-AI coverage.
+An import of model 437's actual AST found default normal behavior 0. Its first
+rule is an always-true `0 == 0` branch that sets designer field 30 to zero and
+requests `CameraUpdatePosition`; behavior 0 has no schedule. That rule and
+rule 2 have no unsupported fragments. Rules 1 and 3–5 contain other
+unsupported expressions/procedures, whose reachability needs separate
+evidence. The update API stub is therefore the immediate blocker on the
+default first-rule path. Normal behavior 11 has another update schedule,
+distinct from behavior 0. This is a static imported model observation, not a
+live assertion of the currently selected camera behavior.
+
 The game and Orrery service stopped, and source save
 hashes remained unchanged. That read-only run reached phase 9 / `manoir` under
 owned game PID 3241812 and LWP 3241970. The executable and supplied-save hashes
@@ -211,3 +221,36 @@ with sentinel floats at `+0xa4/+0xa8`, word 103 at `+0xac`, and word 42 at
 distance. The source payload is a distinct allocation from the live viewport
 record that Orrery samples. The current `has_camera` import preserves the
 association but does not yet preserve this payload or its six links.
+
+Offline disassembly of the pinned executable's full procedure-135 handler
+(`0x00545d80` through `0x00546073`) shows it follows the calling actor's
+`+0x14` camera link, dereferences related records at allocation `+0x04` and
+`+0x0c`, builds temporary camera state through `CAM_fn_vInitCameraStructure`,
+and updates flags/scalars on the linked records. It writes root-allocation
+flags at `+0xce`, `+0xd0` and `+0xd2`, then sets a global update indicator via
+`0x005223b0(1)`. The four initial pointers in Fix allocation 23339 address
+the same source block at base, base plus `0xa8`, base plus `0x150` and base
+plus `0x1f8`; the latter records' allocation boundaries and useful values
+remain unmapped. The handler does not directly select a viewport, write
+FoV/clip values, or publish the final camera pose. The separate `0x005200a0`
+update path derives target points from actor transforms and camera vectors.
+A native `source_update_position()` that merely returns success or copies the
+observed idle offset would hide this missing contract, so it remains an
+explicit stub.
+
+A second read-only allocator probe (`TestResults/camera-records-probe.json`)
+resolved the root's four pointers to separate 168-byte Fix allocations
+23340–23343; the other manor camera has corresponding Level allocations
+7890–7893. None of these eight records contains a relocation. StdCamer's
+first two records share the same nonzero parameter-like values, including
+1.8 at `+0x2c`, 3.5 at `+0x30`, 2.5 at `+0x3c` and 1.5 at `+0x8c`; its last
+two records are nearly empty. The observed live horizontal FoV is also 1.5,
+but equality alone does not identify `+0x8c` as FoV. An independent camera
+actor has different values in several of these slots, useful for tracing
+their effects. The native implementation still needs the corresponding
+read/use paths and source-to-Godot unit conversion.
+The verified executable initializes a related record's `+0x8c` field to
+1.5, reads/writes it through `0x00440f10/0x00440f30`, and one consumer uses it
+in angle-based vector interpolation. No traced path takes it to viewport
+projection, so treating it as horizontal FoV would be unsupported despite the
+same numeric value. Values at `+0x2c`, `+0x30` and `+0x3c` are also unnamed.
