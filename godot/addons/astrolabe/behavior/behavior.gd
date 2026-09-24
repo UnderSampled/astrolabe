@@ -14,6 +14,7 @@ signal sound_requested(identity: String)
 var main_actor: Node3D
 var sound_emitter: Node3D
 var running: bool = false
+var unsupported_failure: String = ""
 var revision: int = 0
 var clock_milliseconds: float = 0.0
 var frame_seconds: float = 0.0
@@ -72,6 +73,7 @@ func start() -> bool:
 		push_error("Compiled behavior requires main actor and sound emitter bindings")
 		return false
 	stop()
+	unsupported_failure = ""
 	clock_milliseconds = 0.0
 	running = true
 	_normal_pending = true
@@ -90,6 +92,17 @@ func stop() -> void:
 	reflex_tick.emit()
 	normal_schedule_tick.emit()
 	reflex_schedule_tick.emit()
+
+func fail_unsupported(context: String) -> void:
+	unsupported_failure = context
+	push_error("Unsupported compiled behavior: " + context)
+	stop()
+
+# Hype's source call is known, but the two argument meanings and fade envelope
+# are still under investigation. Keep this native API entry explicit and fail
+# when reached until the audio component can implement the verified behavior.
+func sound_fade_music(arg0: int, arg1: int) -> void:
+	fail_unsupported("SND_FadeMusic(" + str(arg0) + ", " + str(arg1) + ")")
 
 func advance(seconds: float) -> void:
 	assert(is_finite(seconds) and seconds >= 0.0)

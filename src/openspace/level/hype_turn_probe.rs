@@ -204,6 +204,10 @@ fn run_native_rule_fixture(check_source: &str, boundary: bool) -> Result<()> {
     actor.initial_state = Some(47);
     actor.current_state = Some(47);
     actor.secondary_state = None;
+    // This focused rule fixture installs its own compiled Brain in check.gd.
+    // The normal imported Brain now survives conversion; retaining it here
+    // would export unrelated full-model actions against the reduced family.
+    actor.brain = None;
     imported.assets.insert(actor_ref, actor)?;
     scene.nodes = vec![player];
     imported.assets.insert(&root, scene)?;

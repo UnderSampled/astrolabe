@@ -3,7 +3,11 @@ use super::container::{
     PointerMap, file, level_textures, merge_relocations, pointer_file, reloc, sna, u32_at, wire,
 };
 use super::records::*;
-use crate::model::{Selection, geometry::SourceTransform};
+use crate::model::{
+    Selection,
+    ai::{SourceObjectIdentity, SourceRole},
+    geometry::SourceTransform,
+};
 use anyhow::{Result, anyhow, ensure};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -214,6 +218,40 @@ impl SourceSession {
             return Ok(None);
         }
         Ok(Some(self.resolve(a.owner, key, value)?))
+    }
+    /// Whether this word is declared as a pointer by source relocation data.
+    /// Unknown AI operands use this before retaining any nonpointer bits.
+    pub(super) fn relocated(&self, site: Address) -> Result<bool> {
+        if self.fix_bindings.pointers.contains_key(&site) {
+            return Ok(true);
+        }
+        let address = self
+            .block(site)?
+            .base
+            .checked_add(site.offset.try_into()?)
+            .ok_or_else(|| anyhow!("source site overflow"))?;
+        Ok(self.pointers.contains_key(&(site.owner, site.key, address)))
+    }
+    pub(super) fn resembles_source_address(&self, value: u32) -> bool {
+        self.blocks
+            .values()
+            .flat_map(BTreeMap::values)
+            .any(|block| {
+                let start = u64::from(block.base);
+                let end = start + block.data.len() as u64;
+                let value = u64::from(value);
+                value >= start && value < end
+            })
+    }
+    pub(super) fn source_identity(&self, a: Address) -> Result<SourceObjectIdentity> {
+        Ok(SourceObjectIdentity {
+            role: match a.owner {
+                Owner::Fix => SourceRole::Fix,
+                Owner::Level => SourceRole::Level,
+            },
+            block: [a.key.0, a.key.1],
+            allocation: self.allocation_index(a)?,
+        })
     }
     pub(super) fn required(&self, a: Address, offset: usize) -> Result<Address> {
         self.pointer(a, offset)?

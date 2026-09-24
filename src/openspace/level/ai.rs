@@ -1,4 +1,4 @@
-//! Session-bound AI model/instance import. Unsupported programs are diagnosed whole.
+//! Session-bound AI model/instance import with preserved unsupported script slots.
 #[cfg(test)]
 #[path = "hype_control_probe.rs"]
 mod control_tests;
@@ -238,38 +238,79 @@ fn behavior_bindings(
         })
         .collect()
 }
-fn unsupported(sets: &[Option<SourceSet>; 2]) -> Result<BTreeSet<String>> {
-    let mut out = BTreeSet::new();
-    for set in sets.iter().flatten() {
-        for b in &set.behaviors {
-            for script in b.rules.iter().flatten().chain(b.schedule.iter()) {
-                for bytes in script.bytes.as_chunks::<8>().0 {
-                    let n: NodeWire = wire(bytes)?;
-                    let supported = match n.kind {
-                        0 => matches!(n.parameter, 0..=2 | 4 | 5),
-                        1 => matches!(n.parameter, 0..=12 | 56 | 57 | 59 | 123),
-                        2 => matches!(n.parameter, 2 | 4 | 6 | 11 | 26),
-                        3 => n.parameter == 4,
-                        4 => matches!(n.parameter, 6 | 127 | 206 | 209 | 210 | 214 | 218),
-                        5 => matches!(n.parameter, 4 | 6 | 8 | 37 | 68),
-                        8 | 11 | 12 | 13 | 14 | 25 | 32 | 34 => true,
-                        _ => false,
-                    };
-                    if !supported {
-                        // Reference operands contain source VM values. Keep those
-                        // out of diagnostics persisted with useful/Rete assets.
-                        out.insert(if n.kind <= 5 {
-                            format!("category {} operation {}", n.kind, n.parameter)
+fn preserve_script(
+    s: &SourceSession,
+    sounds: &SoundSites,
+    states: &BTreeMap<Address, StateRef>,
+    behaviors: &BTreeMap<Address, BehaviorRef>,
+    script: &SourceScript,
+) -> Result<Vec<PreservedAiNode>> {
+    let mut nodes = Vec::with_capacity(script.bytes.len() / 8);
+    for (i, bytes) in script.bytes.as_chunks::<8>().0.iter().enumerate() {
+        let n: NodeWire = wire(bytes)?;
+        let site = add(script.address, i * 8);
+        let operand = (|| -> Result<PreservedAiOperand> {
+            Ok(match n.kind {
+                14 if matches!(n.parameter, 0 | u32::MAX) => PreservedAiOperand::Source(None),
+                14 => match s.pointer(site, 0)? {
+                    Some(_) => PreservedAiOperand::Input(input_action(s, site)?),
+                    None => PreservedAiOperand::Source(None),
+                },
+                25 => PreservedAiOperand::Action(state_reference(s, states, site)?),
+                32 if matches!(n.parameter, 0 | u32::MAX) => PreservedAiOperand::Source(None),
+                32 => match s.pointer(site, 0)? {
+                    None => PreservedAiOperand::Source(None),
+                    Some(target) => {
+                        if let Some(reference) = behaviors.get(&target) {
+                            PreservedAiOperand::Behavior(reference.clone())
                         } else {
-                            format!("node category {}", n.kind)
-                        });
+                            match s.source_identity(target) {
+                                Ok(identity) => PreservedAiOperand::Source(Some(identity)),
+                                Err(_) => PreservedAiOperand::Incomplete(
+                                    "external behavior operand lacks a typed member identity"
+                                        .into(),
+                                ),
+                            }
+                        }
+                    }
+                },
+                34 => PreservedAiOperand::Sound(
+                    sounds
+                        .events
+                        .get(&site)
+                        .context("AI sound operand has no localized SND binding")?
+                        .clone(),
+                ),
+                _ if s.relocated(site)? => {
+                    let target = s.pointer(site, 0)?;
+                    match target {
+                        None => PreservedAiOperand::Source(None),
+                        Some(target) => match s.source_identity(target) {
+                            Ok(identity) => PreservedAiOperand::Source(Some(identity)),
+                            Err(_) => PreservedAiOperand::Incomplete(
+                                "relocated interior source reference lacks a typed member identity"
+                                    .into(),
+                            ),
+                        },
                     }
                 }
-            }
-        }
+                _ if s.resembles_source_address(n.parameter) => PreservedAiOperand::Incomplete(
+                    "unrelocated word resembles a source virtual address".into(),
+                ),
+                _ => PreservedAiOperand::NonRelocated(bytes[..4].try_into()?),
+            })
+        })()
+        .with_context(|| format!("preserving AI node {i} category {}", n.kind))?;
+        nodes.push(PreservedAiNode {
+            category: n.kind,
+            indent: n.indent,
+            reserved: n.reserved,
+            operand,
+        });
     }
-    Ok(out)
+    Ok(nodes)
 }
+
 fn decode_script(
     s: &SourceSession,
     sounds: &SoundSites,
@@ -277,10 +318,16 @@ fn decode_script(
     behaviors: &BTreeMap<Address, BehaviorRef>,
     script: &SourceScript,
 ) -> Result<Script> {
-    let mut codec = AiScriptCodec::default();
+    let mut codec = AiScriptCodec {
+        preserved_nodes: preserve_script(s, sounds, states, behaviors, script)?,
+        ..Default::default()
+    };
     for (i, bytes) in script.bytes.as_chunks::<8>().0.iter().enumerate() {
         let n: NodeWire = wire(bytes)?;
-        if n.kind == 14 {
+        if n.kind == 14
+            && !matches!(n.parameter, 0 | u32::MAX)
+            && s.pointer(add(script.address, i * 8), 0)?.is_some()
+        {
             codec
                 .buttons
                 .insert(i, input_action(s, add(script.address, i * 8))?);
@@ -290,15 +337,12 @@ fn decode_script(
                 .actions
                 .insert(i, state_reference(s, states, add(script.address, i * 8))?);
         }
-        if n.kind == 32 {
-            let target = s.required(add(script.address, i * 8), 0)?;
-            codec.behaviors.insert(
-                i,
-                behaviors
-                    .get(&target)
-                    .context("behavior operand is outside the receiving model")?
-                    .clone(),
-            );
+        if n.kind == 32 && !matches!(n.parameter, 0 | u32::MAX) {
+            if let Some(target) = s.pointer(add(script.address, i * 8), 0)? {
+                if let Some(reference) = behaviors.get(&target) {
+                    codec.behaviors.insert(i, reference.clone());
+                }
+            }
         }
         if n.kind == 34 {
             let event = sounds
@@ -347,6 +391,42 @@ fn decode_set(
         action_capacity: set.capacity,
         unknown: set.unknown,
     })
+}
+fn unsupported_script_diagnostics(model: &AiModel) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for (group, set) in [("normal", &model.normal), ("reflex", &model.reflex)] {
+        for behavior in set.iter().flat_map(|set| &set.behaviors) {
+            let scripts = behavior
+                .rules
+                .iter()
+                .enumerate()
+                .filter_map(|(slot, script)| {
+                    script
+                        .as_ref()
+                        .map(|script| (format!("rule {slot}"), script))
+                })
+                .chain(
+                    behavior
+                        .schedule
+                        .iter()
+                        .map(|script| ("schedule".into(), script)),
+                );
+            for (slot, script) in scripts {
+                for fragment in script.unsupported_fragments() {
+                    diagnostics.push(Diagnostic {
+                        code: "openspace.ai.unsupported_script".into(),
+                        asset: Some(model.path.clone()),
+                        severity: Severity::Warning,
+                        message: format!(
+                            "{group} behavior {} {slot} node {}: {}",
+                            behavior.id, fragment.start, fragment.reason
+                        ),
+                    });
+                }
+            }
+        }
+    }
+    diagnostics
 }
 struct DesignerLayout {
     definition: Option<(Address, DesignerWire)>,
@@ -409,16 +489,7 @@ fn values(
                     })
                     .transpose()
             },
-            |target| {
-                target
-                    .map(|target| {
-                        actors
-                            .get(&target)
-                            .cloned()
-                            .context("designer actor outside imported dependencies")
-                    })
-                    .transpose()
-            },
+            |target| Ok(target.and_then(|target| actors.get(&target).cloned())),
         )?;
         out.push(value);
         ranges.push((offset, size));
@@ -518,7 +589,7 @@ pub(super) fn import(
             let h: ModelWire = wire(allocated(s, model, 16)?)?;
             let sets = [source_set(s, model, 0)?, source_set(s, model, 4)?];
             let behaviors = behavior_bindings(&path, &sets);
-            let mut missing = unsupported(&sets)?;
+            let mut missing = BTreeSet::new();
             let designer = designer_layout(s, model)?;
             let DesignerLayout {
                 definition,
@@ -568,6 +639,9 @@ pub(super) fn import(
                     unknown: h.unknown,
                 };
                 value.validate()?;
+                result
+                    .diagnostics
+                    .extend(unsupported_script_diagnostics(&value));
                 let index = result.ai_models.len();
                 result.ai_models.push(value);
                 Some(index)

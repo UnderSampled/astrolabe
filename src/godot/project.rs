@@ -185,13 +185,28 @@ environment = SubResource("environment")
             &self.stage.path().join(self.level_path("preview.tscn")),
             b"[gd_scene format=3]\n\n[node name=\"Loading\" type=\"Node3D\"]\n",
         )?;
-        for path in self.generated.iter().filter(|p| p.ends_with(".gd")) {
+        let mut script_checks = String::new();
+        for (i, path) in self
+            .generated
+            .iter()
+            .filter(|p| p.ends_with(".gd"))
+            .enumerate()
+        {
             writeln!(
-                self.builder,
-                "    if not load({}).can_instantiate():\n        push_error(\"Generated script failed compilation\")\n        quit(1)\n        return",
-                quoted(&format!("res://{path}"))
+                script_checks,
+                "    var checked_script_{i} = load({}) as Script\n    if checked_script_{i} == null or not checked_script_{i}.can_instantiate():\n        push_error(\"Generated script failed compilation: {path}\")\n        quit(1)\n        return",
+                quoted(&format!("res://{path}")),
             )?;
         }
+        // Check scripts before building any dependent native resource. A failed
+        // load must not leave the builder traversing thousands of scene nodes.
+        let marker = "func build():\n";
+        let start = self
+            .builder
+            .find(marker)
+            .expect("maintained builder template has build function")
+            + marker.len();
+        self.builder.insert_str(start, &script_checks);
         for path in self
             .generated
             .iter()
@@ -241,7 +256,9 @@ environment = SubResource("environment")
             godot,
             self.stage.path(),
             &["--headless", "--script", "res://build.gd"],
-            Duration::from_secs(60),
+            // Whole levels build native meshes, animations and scenes here.
+            // The manoir builder exceeds one minute even in release mode.
+            Duration::from_secs(180),
         )?;
         self.reserve(&self.level_path("validation.json"))?;
         // Preserve path-derived resource/node identities across edits and cache rebuilds.

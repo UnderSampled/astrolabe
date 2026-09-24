@@ -36,6 +36,45 @@ pub struct Behavior {
 pub struct Script {
     pub statements: Vec<Statement>,
 }
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UnsupportedFragment {
+    pub reason: String,
+    /// Ordinal within the source script, never a virtual address.
+    pub start: u32,
+    pub nodes: Vec<PreservedAiNode>,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PreservedAiNode {
+    pub category: u8,
+    pub indent: u8,
+    pub reserved: [u8; 2],
+    pub operand: PreservedAiOperand,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum PreservedAiOperand {
+    /// The source relocation map has no entry and this word is outside all
+    /// source virtual-address ranges. Its meaning remains unclassified.
+    NonRelocated([u8; 4]),
+    Input(String),
+    Action(Option<StateRef>),
+    Behavior(BehaviorRef),
+    Sound(Option<SoundEventLink>),
+    Source(Option<SourceObjectIdentity>),
+    /// An unclassified operand that cannot safely be persisted as raw bits.
+    /// The source writer must reject this script until its meaning is known.
+    Incomplete(String),
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SourceObjectIdentity {
+    pub role: SourceRole,
+    pub block: [u8; 2],
+    pub allocation: u32,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SourceRole {
+    Fix,
+    Level,
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BehaviorGroup {
     Normal,
@@ -68,6 +107,7 @@ impl BehaviorRef {
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Statement {
+    Unsupported(UnsupportedFragment),
     If {
         condition: Expression,
         then: Vec<Statement>,
@@ -106,10 +146,17 @@ pub enum Statement {
     Sound {
         event: Option<SoundEventLink>,
     },
+    /// Hype Proc_SND_FadeMusic. The two source arguments are preserved until
+    /// their native audio meaning is verified.
+    SoundFadeMusic {
+        arg0: Expression,
+        arg1: Expression,
+    },
     Noop,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Expression {
+    Unsupported(UnsupportedFragment),
     Integer(i32),
     Real(f32),
     Variable(u16),
@@ -176,6 +223,11 @@ pub enum DesignerValue {
     Action(Option<StateRef>),
     ActionArray(DesignerArray<Option<StateRef>>),
     Actor(Option<AssetRef<Perso>>),
+    /// Actor reference outside the imported scene's useful perso graph.
+    SourceActor(Option<SourceObjectIdentity>),
+    /// Source waypoint identity until the route/waypoint model is promoted.
+    SourceWaypoint(Option<SourceObjectIdentity>),
+    SourceWaypointArray(DesignerArray<Option<SourceObjectIdentity>>),
 }
 /// A fixed-size designer array. Unresolved source fields are preserved explicitly;
 /// they have no effect on the array's useful values or Godot's native arrays.
@@ -314,6 +366,10 @@ impl AiModel {
                     Statement::Wait { milliseconds } => expression(milliseconds, out),
                     Statement::WaitFrames(frames) => expression(frames, out),
                     Statement::ChangeAction(a) | Statement::ExecuteAction(a) => expression(a, out),
+                    Statement::SoundFadeMusic { arg0, arg1 } => {
+                        expression(arg0, out);
+                        expression(arg1, out);
+                    }
                     _ => {}
                 }
             }
@@ -433,6 +489,7 @@ impl DesignerValue {
             }
             Self::IntegerArray(v) => v.validate()?,
             Self::ActionArray(v) => v.validate()?,
+            Self::SourceWaypointArray(v) => v.validate()?,
             Self::RealArray(v) => {
                 v.validate()?;
                 ensure!(
@@ -457,15 +514,87 @@ impl DesignerValue {
     }
     pub fn same_type(&self, other: &Self) -> bool {
         match (self, other) {
+            (Self::Actor(_), Self::SourceActor(_)) | (Self::SourceActor(_), Self::Actor(_)) => true,
             (Self::IntegerArray(a), Self::IntegerArray(b)) => a.values.len() == b.values.len(),
             (Self::RealArray(a), Self::RealArray(b)) => a.values.len() == b.values.len(),
             (Self::VectorArray(a), Self::VectorArray(b)) => a.values.len() == b.values.len(),
             (Self::ActionArray(a), Self::ActionArray(b)) => a.values.len() == b.values.len(),
+            (Self::SourceWaypointArray(a), Self::SourceWaypointArray(b)) => {
+                a.values.len() == b.values.len()
+            }
             _ => std::mem::discriminant(self) == std::mem::discriminant(other),
         }
     }
 }
 impl Script {
+    pub fn unsupported_fragments(&self) -> Vec<&UnsupportedFragment> {
+        fn expression<'a>(e: &'a Expression, out: &mut Vec<&'a UnsupportedFragment>) {
+            match e {
+                Expression::Unsupported(f) => out.push(f),
+                Expression::Compare { left, right, .. }
+                | Expression::And(left, right)
+                | Expression::Or(left, right)
+                | Expression::Multiply(left, right) => {
+                    expression(left, out);
+                    expression(right, out);
+                }
+                Expression::Not(v) | Expression::Negate(v) | Expression::IsInAction(v) => {
+                    expression(v, out)
+                }
+                Expression::ArrayElement { array, index } => {
+                    expression(array, out);
+                    expression(index, out);
+                }
+                _ => {}
+            }
+        }
+        fn block<'a>(statements: &'a [Statement], out: &mut Vec<&'a UnsupportedFragment>) {
+            for statement in statements {
+                match statement {
+                    Statement::Unsupported(f) => out.push(f),
+                    Statement::If {
+                        condition,
+                        then,
+                        otherwise,
+                    } => {
+                        expression(condition, out);
+                        block(then, out);
+                        if let Some(otherwise) = otherwise {
+                            block(otherwise, out);
+                        }
+                    }
+                    Statement::Assign { value, .. }
+                    | Statement::SubtractAssign { value, .. }
+                    | Statement::ChangeAction(value)
+                    | Statement::ExecuteAction(value)
+                    | Statement::WaitFrames(value)
+                    | Statement::Turn {
+                        degrees_per_second: value,
+                    }
+                    | Statement::Wait {
+                        milliseconds: value,
+                    } => expression(value, out),
+                    Statement::ArrayAssign {
+                        array,
+                        index,
+                        value,
+                    } => {
+                        expression(array, out);
+                        expression(index, out);
+                        expression(value, out);
+                    }
+                    Statement::SoundFadeMusic { arg0, arg1 } => {
+                        expression(arg0, out);
+                        expression(arg1, out);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let mut out = Vec::new();
+        block(&self.statements, &mut out);
+        out
+    }
     pub fn validate(&self, variables: usize) -> Result<()> {
         fn expression(
             e: &Expression,
@@ -476,6 +605,7 @@ impl Script {
             *count += 1;
             ensure!(depth <= 64 && *count <= 65535, "excessive AI tree");
             match e {
+                Expression::Unsupported(fragment) => fragment.validate()?,
                 Expression::Real(v) => ensure!(v.is_finite(), "nonfinite AI real"),
                 Expression::Variable(id) => {
                     ensure!(usize::from(*id) < variables, "AI variable out of range")
@@ -515,6 +645,7 @@ impl Script {
                 *count += 1;
                 ensure!(*count <= 65535, "excessive AI tree");
                 match s {
+                    Statement::Unsupported(fragment) => fragment.validate()?,
                     Statement::If {
                         condition,
                         then,
@@ -554,6 +685,10 @@ impl Script {
                     }
                     Statement::ChangeAction(action) | Statement::ExecuteAction(action) => {
                         expression(action, variables, depth + 1, count)?
+                    }
+                    Statement::SoundFadeMusic { arg0, arg1 } => {
+                        expression(arg0, variables, depth + 1, count)?;
+                        expression(arg1, variables, depth + 1, count)?;
                     }
                     _ => {}
                 }
@@ -595,6 +730,24 @@ impl Brain {
                 }
             }
         }
+        Ok(())
+    }
+}
+
+impl UnsupportedFragment {
+    fn validate(&self) -> Result<()> {
+        ensure!(
+            !self.reason.is_empty(),
+            "unsupported AI fragment lacks a reason"
+        );
+        ensure!(
+            !self.nodes.is_empty() && self.nodes.len() <= 65535,
+            "unsupported AI fragment extent differs"
+        );
+        ensure!(
+            self.start as usize + self.nodes.len() <= 65535,
+            "unsupported AI fragment source range differs"
+        );
         Ok(())
     }
 }

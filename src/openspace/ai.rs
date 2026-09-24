@@ -10,7 +10,6 @@ use std::{collections::BTreeMap, io::Cursor};
 #[brw(little)]
 pub(crate) struct NodeWire {
     pub parameter: u32,
-    #[br(assert(reserved == [0,0], "nonzero AI node reserved bytes are unsupported"))]
     pub reserved: [u8; 2],
     pub indent: u8,
     pub kind: u8,
@@ -19,6 +18,8 @@ pub(crate) struct NodeWire {
 /// supplied only at this adapter boundary, never retained in the model/Rete.
 #[derive(Default)]
 pub struct AiScriptCodec {
+    /// Normalized source operands enable partial decoding; empty keeps strict decoding.
+    pub preserved_nodes: Vec<PreservedAiNode>,
     pub sounds: BTreeMap<usize, Option<SoundEventLink>>,
     pub sound_handles: Vec<(Option<SoundEventLink>, u32)>,
     pub actions: BTreeMap<usize, Option<crate::model::character::StateRef>>,
@@ -54,10 +55,29 @@ impl FormatCodec for AiScriptCodec {
             "invalid AI sentinel"
         );
         ensure!(
+            end.reserved == [0; 2],
+            "nonzero AI sentinel reserved bytes are unsupported"
+        );
+        ensure!(
             nodes
                 .iter()
                 .all(|n| n.kind != 8 && n.indent > 0 && n.indent <= 64),
             "invalid AI node indentation/sentinel"
+        );
+        ensure!(
+            nodes.iter().all(|n| n.reserved == [0; 2]) || !self.preserved_nodes.is_empty(),
+            "nonzero AI node reserved bytes are unsupported"
+        );
+        for (i, node) in nodes.iter().enumerate() {
+            let previous = i.checked_sub(1).map_or(0, |i| nodes[i].indent);
+            ensure!(
+                node.indent <= previous + 1,
+                "AI indentation jump at node {i}"
+            );
+        }
+        ensure!(
+            self.preserved_nodes.is_empty() || self.preserved_nodes.len() == nodes.len() + 1,
+            "preserved AI node extent differs"
         );
         let mut parser = Parser {
             nodes: &nodes,
@@ -73,6 +93,10 @@ impl FormatCodec for AiScriptCodec {
     }
     fn write(&self, value: &Script) -> Result<Vec<u8>> {
         value.validate(255)?;
+        ensure!(
+            value.unsupported_fragments().is_empty(),
+            "unsupported AI script cannot be reconstructed"
+        );
         let mut writer = Writer {
             nodes: Vec::new(),
             codec: self,
@@ -93,6 +117,30 @@ struct Parser<'a> {
     codec: &'a AiScriptCodec,
 }
 impl Parser<'_> {
+    fn end(&self, at: usize) -> usize {
+        let indent = self.nodes[at].indent;
+        (at + 1..self.nodes.len())
+            .find(|&i| self.nodes[i].indent <= indent)
+            .unwrap_or(self.nodes.len())
+    }
+    fn unsupported(&mut self, at: usize, reason: String) -> Result<UnsupportedFragment> {
+        self.unsupported_range(at, self.end(at), reason)
+    }
+    fn unsupported_range(
+        &mut self,
+        at: usize,
+        end: usize,
+        reason: String,
+    ) -> Result<UnsupportedFragment> {
+        ensure!(!self.codec.preserved_nodes.is_empty(), "{reason}");
+        self.at = end;
+        Ok(UnsupportedFragment {
+            reason,
+            start: at as u32,
+            nodes: self.codec.preserved_nodes[at..end].to_vec(),
+        })
+    }
+
     fn take(&mut self, indent: u8) -> Result<(usize, &NodeWire)> {
         let at = self.at;
         let node = self.nodes.get(at).context("short AI tree")?;
@@ -109,6 +157,12 @@ impl Parser<'_> {
         while self.nodes.get(self.at).is_some_and(|n| n.indent >= indent) {
             let (at, node) = self.take(indent)?;
             let (kind, id) = (node.kind, node.parameter);
+            if node.reserved != [0; 2] {
+                out.push(Statement::Unsupported(
+                    self.unsupported(at, "nonzero AI node reserved bytes".into())?,
+                ));
+                continue;
+            }
             out.push(match (kind, id) {
                 (0, 0) => {
                     let condition = self.expression(indent + 1)?;
@@ -141,7 +195,10 @@ impl Parser<'_> {
                             index: *index,
                             value,
                         },
-                        _ => bail!("unsupported AI assignment target at node {at}"),
+                        _ => Statement::Unsupported(self.unsupported(
+                            at,
+                            format!("unsupported AI assignment target at node {at}"),
+                        )?),
                     }
                 }
                 (5, 37) => Statement::Wait {
@@ -162,23 +219,32 @@ impl Parser<'_> {
                     degrees_per_second: self.expression(indent + 1)?,
                 },
                 (5, 68) => Statement::WaitFrames(self.expression(indent + 1)?),
-                (4, 209 | 210) => self.change_behavior(id, indent, false)?,
+                (4, 209 | 210) => self.change_behavior(id, indent, false, at)?,
                 (4, 6) => {
                     // Hype's locomotion rules pair this one-operation yield with
                     // a behavior request. Normalize the pair into useful flow;
                     // never expose source return flags as a Godot API/property.
                     let (_, value) = self.take(indent + 1)?;
                     ensure!(
-                        value.kind == 12 && value.parameter == 1,
-                        "unsupported action-return policy at node {at}"
+                        value.kind == 12,
+                        "action-return policy lacks integer at node {at}"
                     );
+                    if value.parameter != 1
+                        || !self.nodes.get(self.at).is_some_and(|request| {
+                            request.indent == indent
+                                && request.kind == 4
+                                && matches!(request.parameter, 209 | 210)
+                        })
+                    {
+                        out.push(Statement::Unsupported(self.unsupported(
+                            at,
+                            format!("unsupported action-return policy at node {at}"),
+                        )?));
+                        continue;
+                    }
                     let (_, request) = self.take(indent)?;
-                    ensure!(
-                        request.kind == 4 && matches!(request.parameter, 209 | 210),
-                        "yield policy requires a supported behavior request at node {at}"
-                    );
                     let id = request.parameter;
-                    self.change_behavior(id, indent, true)?
+                    self.change_behavior(id, indent, true, at)?
                 }
                 (4, 218) => Statement::ChangeAction(self.expression(indent + 1)?),
                 (5, 4) => Statement::ExecuteAction(self.expression(indent + 1)?),
@@ -195,9 +261,21 @@ impl Parser<'_> {
                         .clone();
                     Statement::Sound { event }
                 }
+                (4, 408) => Statement::SoundFadeMusic {
+                    arg0: self.expression(indent + 1)?,
+                    arg1: self.expression(indent + 1)?,
+                },
                 (4, 206) => Statement::Noop,
-                _ => bail!("unsupported AI statement category {kind} operation {id} at node {at}"),
+                _ => Statement::Unsupported(self.unsupported(
+                    at,
+                    format!("unsupported AI statement category {kind} operation {id} at node {at}"),
+                )?),
             });
+            ensure!(
+                self.nodes.get(self.at).is_none_or(|n| n.indent <= indent),
+                "unexpected AI statement child at node {}",
+                self.at
+            );
         }
         Ok(out)
     }
@@ -210,7 +288,25 @@ impl Parser<'_> {
             .cloned()
             .with_context(|| format!("unbound behavior at node {at}"))
     }
-    fn change_behavior(&mut self, id: u32, indent: u8, pause_after: bool) -> Result<Statement> {
+    fn change_behavior(
+        &mut self,
+        id: u32,
+        indent: u8,
+        pause_after: bool,
+        start: usize,
+    ) -> Result<Statement> {
+        let operand = self.at;
+        if self
+            .nodes
+            .get(operand)
+            .is_some_and(|n| n.kind == 32 && !self.codec.behaviors.contains_key(&operand))
+        {
+            return Ok(Statement::Unsupported(self.unsupported_range(
+                start,
+                self.end(operand - 1),
+                format!("unbound behavior at node {operand}"),
+            )?));
+        }
         let target = self.behavior(indent + 1)?;
         let group = if id == 209 {
             BehaviorGroup::Normal
@@ -230,7 +326,18 @@ impl Parser<'_> {
         ensure!(indent <= 64, "AI expression too deep");
         let (at, node) = self.take(indent)?;
         let (kind, id) = (node.kind, node.parameter);
-        Ok(match (kind, id) {
+        if node.reserved != [0; 2] {
+            return Ok(Expression::Unsupported(
+                self.unsupported(at, "nonzero AI node reserved bytes".into())?,
+            ));
+        }
+        let end = self.end(at);
+        if kind == 25 && !self.codec.actions.contains_key(&at) {
+            return Ok(Expression::Unsupported(
+                self.unsupported(at, format!("unbound action at node {at}"))?,
+            ));
+        }
+        let value = match (kind, id) {
             (12, n) => Expression::Integer(n as i32),
             (13, n) => Expression::Real(f32::from_bits(n)),
             (11, n) => Expression::Variable(n.try_into()?),
@@ -250,10 +357,20 @@ impl Parser<'_> {
             (1, 123) => Expression::ActionFinished,
             (1, 56 | 57) => {
                 let (_, actor) = self.take(indent + 1)?;
-                ensure!(
-                    actor.kind == 0 && actor.parameter == 4,
-                    "behavior query currently requires the receiving actor"
-                );
+                if actor.kind != 0 || actor.parameter != 4 {
+                    return Ok(Expression::Unsupported(self.unsupported(
+                        at,
+                        "behavior query requires an unsupported actor expression".into(),
+                    )?));
+                }
+                if !self.codec.behaviors.contains_key(&self.at)
+                    && self.nodes.get(self.at).is_some_and(|n| n.kind == 32)
+                {
+                    return Ok(Expression::Unsupported(self.unsupported(
+                        at,
+                        format!("unbound behavior at node {}", self.at),
+                    )?));
+                }
                 let target = self.behavior(indent + 1)?;
                 ensure!(
                     target.group
@@ -269,6 +386,11 @@ impl Parser<'_> {
             (1, 9..=12) => {
                 let (operand, child) = self.take(indent + 1)?;
                 ensure!(child.kind == 14, "button query lacks logical input operand");
+                if !self.codec.buttons.contains_key(&operand) {
+                    return Ok(Expression::Unsupported(
+                        self.unsupported(at, format!("unbound input at node {operand}"))?,
+                    ));
+                }
                 Expression::Button {
                     action: self
                         .codec
@@ -312,14 +434,25 @@ impl Parser<'_> {
             },
             (3, 4) => {
                 let (_, actor) = self.take(indent + 1)?;
-                ensure!(
-                    actor.kind == 0 && actor.parameter == 5,
-                    "distance requires the main actor in this slice"
-                );
+                if actor.kind != 0 || actor.parameter != 5 {
+                    return Ok(Expression::Unsupported(self.unsupported(
+                        at,
+                        "distance requires an unsupported actor expression".into(),
+                    )?));
+                }
                 Expression::MainActorDistance
             }
-            _ => bail!("unsupported AI expression category {kind} operation {id} at node {at}"),
-        })
+            _ => Expression::Unsupported(self.unsupported(
+                at,
+                format!("unsupported AI expression category {kind} operation {id} at node {at}"),
+            )?),
+        };
+        ensure!(
+            self.at == end,
+            "unexpected AI expression child at node {}",
+            self.at
+        );
+        Ok(value)
     }
 }
 struct Writer<'a> {
@@ -339,6 +472,9 @@ impl Writer<'_> {
         ensure!(indent <= 64, "AI tree too deep to encode");
         for s in values {
             match s {
+                Statement::Unsupported(_) => {
+                    bail!("unsupported AI fragment cannot be reconstructed")
+                }
                 Statement::If {
                     condition,
                     then,
@@ -426,6 +562,11 @@ impl Writer<'_> {
                         .1;
                     self.node(34, handle, indent + 1);
                 }
+                Statement::SoundFadeMusic { arg0, arg1 } => {
+                    self.node(4, 408, indent);
+                    self.expression(arg0, indent + 1)?;
+                    self.expression(arg1, indent + 1)?;
+                }
                 Statement::Noop => self.node(4, 206, indent),
             }
         }
@@ -445,6 +586,7 @@ impl Writer<'_> {
     fn expression(&mut self, e: &Expression, indent: u8) -> Result<()> {
         ensure!(indent <= 64, "AI expression too deep to encode");
         match e {
+            Expression::Unsupported(_) => bail!("unsupported AI fragment cannot be reconstructed"),
             Expression::Integer(v) => self.node(12, *v as u32, indent),
             Expression::Real(v) => self.node(13, v.to_bits(), indent),
             Expression::Variable(v) => self.node(11, u32::from(*v), indent),
@@ -550,5 +692,126 @@ impl Writer<'_> {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod partial_tests {
+    use super::*;
+
+    fn partial(nodes: &[(u8, u32, u8)]) -> (AiScriptCodec, Vec<u8>) {
+        let mut bytes = Cursor::new(Vec::new());
+        let mut preserved_nodes = Vec::new();
+        for &(kind, parameter, indent) in nodes {
+            NodeWire {
+                kind,
+                parameter,
+                indent,
+                reserved: [0; 2],
+            }
+            .write(&mut bytes)
+            .unwrap();
+            preserved_nodes.push(PreservedAiNode {
+                category: kind,
+                indent,
+                reserved: [0; 2],
+                operand: PreservedAiOperand::NonRelocated(parameter.to_le_bytes()),
+            });
+        }
+        (
+            AiScriptCodec {
+                preserved_nodes,
+                ..Default::default()
+            },
+            bytes.into_inner(),
+        )
+    }
+
+    #[test]
+    fn partial_script_retains_branches_and_supported_siblings() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (0, 0, 1),
+            (12, 0, 2),
+            (0, 1, 1),
+            (4, 999, 2),
+            (12, 4, 3),
+            (0, 2, 1),
+            (2, 11, 2),
+            (11, 0, 3),
+            (12, 8, 3),
+            (2, 11, 1),
+            (11, 0, 2),
+            (12, 9, 2),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        let Statement::If {
+            then,
+            otherwise: Some(otherwise),
+            ..
+        } = &script.statements[0]
+        else {
+            panic!("lost branch")
+        };
+        assert!(
+            matches!(&then[0], Statement::Unsupported(fragment) if fragment.start == 3 && fragment.nodes.len() == 2)
+        );
+        assert!(matches!(
+            &otherwise[0],
+            Statement::Assign {
+                value: Expression::Integer(8),
+                ..
+            }
+        ));
+        assert!(matches!(
+            &script.statements[1],
+            Statement::Assign {
+                value: Expression::Integer(9),
+                ..
+            }
+        ));
+        assert_eq!(script.unsupported_fragments().len(), 1);
+        assert!(codec.write(&script).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn partial_expression_keeps_short_circuit_structure() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (0, 0, 1),
+            (1, 0, 2),
+            (12, 0, 3),
+            (3, 999, 3),
+            (12, 7, 4),
+            (0, 1, 1),
+            (4, 206, 2),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        let Statement::If {
+            condition: Expression::And(left, right),
+            ..
+        } = &script.statements[0]
+        else {
+            panic!("lost Boolean structure")
+        };
+        assert!(matches!(**left, Expression::Integer(0)));
+        assert!(
+            matches!(&**right, Expression::Unsupported(fragment) if fragment.start == 3 && fragment.nodes.len() == 2)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn partial_decode_still_rejects_malformed_known_trees() {
+        for nodes in [
+            vec![(0, 0, 1), (12, 0, 2), (4, 206, 1), (8, 0, 0)],
+            vec![(4, 999, 1), (12, 0, 3), (8, 0, 0)],
+            vec![(2, 11, 1), (11, 0, 2), (8, 0, 0)],
+            vec![(4, 214, 1), (12, 0, 2), (12, 1, 2), (8, 0, 0)],
+        ] {
+            let (codec, bytes) = partial(&nodes);
+            assert!(codec.read(&bytes).is_err());
+        }
     }
 }

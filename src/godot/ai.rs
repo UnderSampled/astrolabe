@@ -198,7 +198,8 @@ fn value_type(v: &DesignerValue) -> &'static str {
         DesignerValue::IntegerArray(_) | DesignerValue::ActionArray(_) => "PackedInt32Array",
         DesignerValue::RealArray(_) => "PackedFloat32Array",
         DesignerValue::VectorArray(_) => "PackedVector3Array",
-        DesignerValue::Actor(_) => "Node3D",
+        DesignerValue::Actor(_) | DesignerValue::SourceActor(_) => "Node3D",
+        DesignerValue::SourceWaypoint(_) | DesignerValue::SourceWaypointArray(_) => "Variant",
     }
 }
 fn literal(v: &DesignerValue) -> String {
@@ -236,8 +237,191 @@ fn literal(v: &DesignerValue) -> String {
                 .collect(),
         ),
         // Node references are assigned in the saved scene, after its actors exist.
-        DesignerValue::Actor(_) => "null".into(),
+        DesignerValue::Actor(_) | DesignerValue::SourceActor(_) => "null".into(),
+        DesignerValue::SourceWaypoint(_) => "null".into(),
+        DesignerValue::SourceWaypointArray(v) => {
+            format!("[{}]", vec!["null"; v.values.len()].join(", "))
+        }
     }
+}
+fn unresolved_variable(model: &AiModel, index: u16) -> bool {
+    model
+        .variables
+        .get(usize::from(index))
+        .is_some_and(|variable| {
+            matches!(
+                variable.default,
+                DesignerValue::SourceWaypoint(_)
+                    | DesignerValue::SourceWaypointArray(_)
+                    | DesignerValue::SourceActor(_)
+            )
+        })
+}
+fn actor_expression(e: &Expression, model: &AiModel) -> bool {
+    match e {
+        Expression::Variable(index) => {
+            model
+                .variables
+                .get(usize::from(*index))
+                .is_some_and(|variable| {
+                    matches!(
+                        variable.default,
+                        DesignerValue::Actor(_) | DesignerValue::SourceActor(_)
+                    )
+                })
+        }
+        _ => false,
+    }
+}
+fn comparison_code(
+    operation: Comparison,
+    left: &Expression,
+    right: &Expression,
+    left_code: String,
+    right_code: String,
+    model: &AiModel,
+) -> String {
+    let op = match operation {
+        Comparison::Equal => "==",
+        Comparison::Different => "!=",
+        Comparison::Less => "<",
+        Comparison::Greater => ">",
+        Comparison::LessOrEqual => "<=",
+        Comparison::GreaterOrEqual => ">=",
+    };
+    if matches!(operation, Comparison::Equal | Comparison::Different)
+        && (actor_expression(left, model) || actor_expression(right, model))
+    {
+        let left_code = if matches!(left, Expression::Integer(0)) {
+            "null".into()
+        } else {
+            left_code
+        };
+        let right_code = if matches!(right, Expression::Integer(0)) {
+            "null".into()
+        } else {
+            right_code
+        };
+        format!("({left_code} {op} {right_code})")
+    } else {
+        format!("(float({left_code}) {op} float({right_code}))")
+    }
+}
+fn needs_guard(e: &Expression, model: &AiModel) -> bool {
+    match e {
+        Expression::Unsupported(_) => true,
+        Expression::Variable(index) => unresolved_variable(model, *index),
+        Expression::Multiply(a, b)
+        | Expression::ArrayElement { array: a, index: b }
+        | Expression::And(a, b)
+        | Expression::Or(a, b) => needs_guard(a, model) || needs_guard(b, model),
+        Expression::Compare { left, right, .. } => {
+            needs_guard(left, model) || needs_guard(right, model)
+        }
+        Expression::Negate(value) | Expression::IsInAction(value) | Expression::Not(value) => {
+            needs_guard(value, model)
+        }
+        _ => false,
+    }
+}
+/// A fragment emits a failure and exits the enclosing coroutine before a
+/// branch, assignment, or action request can use a fabricated fallback value.
+fn guarded_expression(
+    out: &mut String,
+    e: &Expression,
+    model: &AiModel,
+    depth: usize,
+    flow: &mut Flow,
+) -> Result<String> {
+    if !needs_guard(e, model) {
+        return expression(e, model);
+    }
+    let pad = "    ".repeat(depth);
+    let exit = flow.exit();
+    Ok(match e {
+        Expression::Unsupported(fragment) => {
+            let id = flow.local;
+            flow.local += 1;
+            let local = format!("partial_expr_{id}");
+            writeln!(
+                out,
+                "{pad}var {local}\n{pad}fail_unsupported({})\n{pad}{exit}",
+                quoted(&format!(
+                    "{} source AI node {}: {}",
+                    model.path, fragment.start, fragment.reason
+                ))
+            )?;
+            local
+        }
+        Expression::Variable(index) if unresolved_variable(model, *index) => {
+            let id = flow.local;
+            flow.local += 1;
+            let local = format!("partial_expr_{id}");
+            writeln!(
+                out,
+                "{pad}var {local}\n{pad}fail_unsupported({})\n{pad}{exit}",
+                quoted(&format!(
+                    "{} unresolved source designer field {index}",
+                    model.path
+                ))
+            )?;
+            local
+        }
+        Expression::And(left, right) | Expression::Or(left, right) => {
+            let left = guarded_expression(out, left, model, depth, flow)?;
+            let id = flow.local;
+            flow.local += 1;
+            let local = format!("partial_expr_{id}");
+            writeln!(out, "{pad}var {local} := bool({left})")?;
+            writeln!(
+                out,
+                "{pad}if {}{local}:",
+                if matches!(e, Expression::Or(..)) {
+                    "not "
+                } else {
+                    ""
+                }
+            )?;
+            let right = guarded_expression(out, right, model, depth + 1, flow)?;
+            writeln!(out, "{pad}    {local} = bool({right})")?;
+            local
+        }
+        Expression::Multiply(left, right) => format!(
+            "(float({}) * float({}))",
+            guarded_expression(out, left, model, depth, flow)?,
+            guarded_expression(out, right, model, depth, flow)?
+        ),
+        Expression::Negate(value) => format!(
+            "(-float({}))",
+            guarded_expression(out, value, model, depth, flow)?
+        ),
+        Expression::IsInAction(action) => format!(
+            "character().is_in_action(int({}))",
+            guarded_expression(out, action, model, depth, flow)?
+        ),
+        Expression::ArrayElement { array, index } => format!(
+            "{}[int({})]",
+            guarded_expression(out, array, model, depth, flow)?,
+            guarded_expression(out, index, model, depth, flow)?
+        ),
+        Expression::Compare {
+            operation,
+            left,
+            right,
+        } => comparison_code(
+            *operation,
+            left,
+            right,
+            guarded_expression(out, left, model, depth, flow)?,
+            guarded_expression(out, right, model, depth, flow)?,
+            model,
+        ),
+        Expression::Not(value) => format!(
+            "(not bool({}))",
+            guarded_expression(out, value, model, depth, flow)?
+        ),
+        _ => expression(e, model)?,
+    })
 }
 fn expression(e: &Expression, model: &AiModel) -> Result<String> {
     Ok(match e {
@@ -247,6 +431,10 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             ensure!(
                 usize::from(*v) < model.variables.len(),
                 "AI variable missing"
+            );
+            ensure!(
+                !unresolved_variable(model, *v),
+                "compiled AI reads unresolved source waypoint designer field {v}"
             );
             format!("dsg_{v}")
         }
@@ -286,21 +474,14 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             operation,
             left,
             right,
-        } => {
-            let op = match operation {
-                Comparison::Equal => "==",
-                Comparison::Different => "!=",
-                Comparison::Less => "<",
-                Comparison::Greater => ">",
-                Comparison::LessOrEqual => "<=",
-                Comparison::GreaterOrEqual => ">=",
-            };
-            format!(
-                "(float({}) {op} float({}))",
-                expression(left, model)?,
-                expression(right, model)?
-            )
-        }
+        } => comparison_code(
+            *operation,
+            left,
+            right,
+            expression(left, model)?,
+            expression(right, model)?,
+            model,
+        ),
         Expression::And(a, b) => format!(
             "(bool({}) and bool({}))",
             expression(a, model)?,
@@ -312,6 +493,9 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             expression(b, model)?
         ),
         Expression::Not(v) => format!("(not bool({}))", expression(v, model)?),
+        Expression::Unsupported(_) => {
+            anyhow::bail!("unsupported AI expression requires guarded lowering")
+        }
     })
 }
 struct Flow {
@@ -340,6 +524,15 @@ fn blocking(
     let exit = flow.exit();
     let id = flow.local;
     flow.local += 1;
+    let operand = match statement {
+        Statement::Wait { milliseconds } => {
+            Some(guarded_expression(out, milliseconds, model, depth, flow)?)
+        }
+        Statement::WaitFrames(frames) | Statement::ExecuteAction(frames) => {
+            Some(guarded_expression(out, frames, model, depth, flow)?)
+        }
+        _ => None,
+    };
     if flow.rule {
         writeln!(
             out,
@@ -354,27 +547,27 @@ fn blocking(
         )?;
     }
     let complete = match statement {
-        Statement::Wait { milliseconds } => {
+        Statement::Wait { .. } => {
             writeln!(
                 out,
                 "{pad}    var duration_{id} := float({})\n{pad}    assert(is_finite(duration_{id}) and duration_{id} >= 0.0)\n{pad}    var deadline_{id} := clock_milliseconds + int(duration_{id})",
-                expression(milliseconds, model)?
+                operand.as_deref().expect("wait operand prepared")
             )?;
             format!("clock_milliseconds + 0.0000001 >= deadline_{id}")
         }
-        Statement::WaitFrames(frames) => {
+        Statement::WaitFrames(_) => {
             writeln!(
                 out,
                 "{pad}    var remaining_{id} := int({})",
-                expression(frames, model)?
+                operand.as_deref().expect("frame operand prepared")
             )?;
             format!("remaining_{id} <= 0")
         }
-        Statement::ExecuteAction(action) => {
+        Statement::ExecuteAction(_) => {
             writeln!(
                 out,
                 "{pad}    var requested_{id} := int({})\n{pad}    var accepted_{id} := character().request_action(requested_{id}, true)",
-                expression(action, model)?
+                operand.as_deref().expect("action operand prepared")
             )?;
             format!(
                 "not accepted_{id} or not character().is_in_action(requested_{id}) or character().action_complete"
@@ -449,7 +642,8 @@ fn statements(
                 then,
                 otherwise,
             } => {
-                writeln!(out, "{pad}if bool({}):", expression(condition, model)?)?;
+                let condition = guarded_expression(out, condition, model, depth, flow)?;
+                writeln!(out, "{pad}if bool({condition}):")?;
                 statements(out, then, model, events, depth + 1, flow)?;
                 if let Some(otherwise) = otherwise {
                     writeln!(out, "{pad}else:")?;
@@ -457,8 +651,19 @@ fn statements(
                 }
             }
             Statement::Assign { variable, value } => {
+                if unresolved_variable(model, *variable) {
+                    writeln!(
+                        out,
+                        "{pad}fail_unsupported({})\n{pad}{exit}",
+                        quoted(&format!(
+                            "{} writes unresolved source designer field {variable}",
+                            model.path
+                        ))
+                    )?;
+                    continue;
+                }
                 let kind = &model.variables[usize::from(*variable)].default;
-                let value = expression(value, model)?;
+                let value = guarded_expression(out, value, model, depth, flow)?;
                 let value = if matches!(kind, DesignerValue::Actor(_)) {
                     value
                 } else {
@@ -481,18 +686,20 @@ fn statements(
                     ),
                     "subtract assignment requires a numeric property"
                 );
+                let value = guarded_expression(out, value, model, depth, flow)?;
                 writeln!(
                     out,
                     "{pad}dsg_{variable} = {}(dsg_{variable} - float({}))",
                     value_type(kind),
-                    expression(value, model)?
+                    value
                 )?;
             }
             Statement::Turn { degrees_per_second } => {
+                let value = guarded_expression(out, degrees_per_second, model, depth, flow)?;
                 writeln!(
                     out,
                     "{pad}character().turn(float({}), frame_seconds)",
-                    expression(degrees_per_second, model)?
+                    value
                 )?;
             }
             Statement::ArrayAssign {
@@ -500,20 +707,30 @@ fn statements(
                 index,
                 value,
             } => {
-                let Expression::Variable(variable) = array else {
-                    anyhow::bail!("array assignment requires a native designer array property");
+                let variable = match array {
+                    Expression::Variable(variable) if !unresolved_variable(model, *variable) => {
+                        *variable
+                    }
+                    _ if needs_guard(array, model) => {
+                        guarded_expression(out, array, model, depth, flow)?;
+                        continue;
+                    }
+                    _ => {
+                        anyhow::bail!("array assignment requires a native designer array property")
+                    }
                 };
-                let kind = match &model.variables[usize::from(*variable)].default {
+                let kind = match &model.variables[usize::from(variable)].default {
                     DesignerValue::IntegerArray(_) | DesignerValue::ActionArray(_) => "int",
                     DesignerValue::RealArray(_) => "float",
                     DesignerValue::VectorArray(_) => "Vector3",
                     _ => anyhow::bail!("AI assignment target dsg_{variable} is not an array"),
                 };
+                let index = guarded_expression(out, index, model, depth, flow)?;
+                let value = guarded_expression(out, value, model, depth, flow)?;
                 writeln!(
                     out,
                     "{pad}dsg_{variable}[int({})] = {kind}({})",
-                    expression(index, model)?,
-                    expression(value, model)?
+                    index, value
                 )?;
             }
             Statement::Wait { .. }
@@ -555,7 +772,7 @@ fn statements(
                 }
             }
             Statement::ChangeAction(action) => {
-                let value = expression(action, model)?;
+                let value = guarded_expression(out, action, model, depth, flow)?;
                 if flow.rule {
                     // A refused procedure stops the rest of this rule pass, but
                     // permits the schedule. It does not acquire a blocking action.
@@ -581,7 +798,25 @@ fn statements(
                     "{pad}send_sound(sound_{i})\n{pad}if not active_{group}(token): {exit}"
                 )?;
             }
+            Statement::SoundFadeMusic { arg0, arg1 } => {
+                let arg0 = guarded_expression(out, arg0, model, depth, flow)?;
+                let arg1 = guarded_expression(out, arg1, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}sound_fade_music(int({arg0}), int({arg1}))\n{pad}if not active_{group}(token): {exit}"
+                )?;
+            }
             Statement::Sound { event: None } | Statement::Noop => writeln!(out, "{pad}pass")?,
+            Statement::Unsupported(fragment) => {
+                writeln!(
+                    out,
+                    "{pad}fail_unsupported({})\n{pad}{exit}",
+                    quoted(&format!(
+                        "{} source AI node {}: {}",
+                        model.path, fragment.start, fragment.reason
+                    ))
+                )?;
+            }
         }
     }
     Ok(())

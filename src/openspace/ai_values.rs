@@ -31,14 +31,18 @@ pub struct DesignerValueCodec {
         Option<crate::model::AssetRef<crate::model::character::Perso>>,
         u32,
     )>,
+    pub source_actors: std::collections::BTreeMap<usize, Option<SourceObjectIdentity>>,
+    /// Resolved source waypoint references, keyed by byte offset in the value.
+    pub source_objects: std::collections::BTreeMap<usize, Option<SourceObjectIdentity>>,
 }
 impl DesignerValueCodec {
     pub fn supports(kind: u32) -> bool {
-        matches!(kind, 0..=7 | 10 | 12 | 14 | 20..=22 | 25)
+        matches!(kind, 0..=8 | 10 | 12 | 14 | 20..=23 | 25)
     }
     pub fn kind(value: &DesignerValue) -> u32 {
         match value {
             DesignerValue::Actor(_) => 10,
+            DesignerValue::SourceActor(_) => 10,
             DesignerValue::Boolean(_) => 0,
             DesignerValue::Byte(_) => 1,
             DesignerValue::UnsignedByte(_) => 2,
@@ -53,6 +57,8 @@ impl DesignerValueCodec {
             DesignerValue::IntegerArray(_) => 22,
             DesignerValue::Action(_) => 14,
             DesignerValue::ActionArray(_) => 25,
+            DesignerValue::SourceWaypoint(_) => 8,
+            DesignerValue::SourceWaypointArray(_) => 23,
         }
     }
     /// Extent of one value, derived from its kind and array count, never cached.
@@ -60,9 +66,9 @@ impl DesignerValueCodec {
         Ok(match self.kind {
             0..=2 => 1,
             3..=4 => 2,
-            5..=7 | 10 | 14 => 4,
+            5..=8 | 10 | 14 => 4,
             12 => 12,
-            20..=22 | 25 => 8 + 12 * usize::from(ArrayHeader::read(&mut Cursor::new(bytes))?.count),
+            20..=23 | 25 => 8 + 12 * usize::from(ArrayHeader::read(&mut Cursor::new(bytes))?.count),
             _ => bail!("unsupported designer type {}", self.kind),
         })
     }
@@ -73,8 +79,8 @@ impl FormatCodec for DesignerValueCodec {
         FormatSupport {
             format: "Hype designer value",
             reads: true,
-            writes: true,
-            notes: "Exact scalars, vectors, family-owned actions and Montreal arrays; unknown array fields preserved",
+            writes: !matches!(self.kind, 8 | 23),
+            notes: "Exact scalars, vectors, family-owned actions and Montreal arrays; waypoint references remain source identities pending reconstruction",
         }
     }
     fn read(&self, bytes: &[u8]) -> Result<DesignerValue> {
@@ -100,18 +106,35 @@ impl FormatCodec for DesignerValueCodec {
             20 => DesignerValue::VectorArray(read_array(&mut c, 12, false)?),
             21 => DesignerValue::RealArray(read_array(&mut c, 7, true)?),
             22 => DesignerValue::IntegerArray(read_array(&mut c, 5, true)?),
-            10 => DesignerValue::Actor(
-                self.actors
-                    .get(&0)
-                    .cloned()
-                    .context("unbound designer actor")?,
-            ),
+            10 => {
+                if let Some(actor) = self.actors.get(&0) {
+                    DesignerValue::Actor(actor.clone())
+                } else {
+                    DesignerValue::SourceActor(
+                        self.source_actors
+                            .get(&0)
+                            .cloned()
+                            .context("unbound designer actor")?,
+                    )
+                }
+            }
             14 => DesignerValue::Action(self.action(0)?),
+            8 => DesignerValue::SourceWaypoint(self.source_object(0)?),
             25 => {
                 let raw: DesignerArray<u32> = read_array(&mut c, 14, true)?;
                 DesignerValue::ActionArray(DesignerArray {
                     values: (0..raw.values.len())
                         .map(|i| self.action(8 + i * 12))
+                        .collect::<Result<_>>()?,
+                    unknown: raw.unknown,
+                    element_unknown: raw.element_unknown,
+                })
+            }
+            23 => {
+                let raw: DesignerArray<u32> = read_array(&mut c, 8, true)?;
+                DesignerValue::SourceWaypointArray(DesignerArray {
+                    values: (0..raw.values.len())
+                        .map(|i| self.source_object(8 + i * 12))
                         .collect::<Result<_>>()?,
                     unknown: raw.unknown,
                     element_unknown: raw.element_unknown,
@@ -149,6 +172,9 @@ impl FormatCodec for DesignerValueCodec {
                 .map(|(_, h)| *h)
                 .context("missing assigned designer actor handle")?
                 .write_le(&mut c)?,
+            DesignerValue::SourceActor(_) => {
+                bail!("external source actor reconstruction is not implemented")
+            }
             DesignerValue::Action(v) => self.action_handle(v)?.write_le(&mut c)?,
             DesignerValue::ActionArray(v) => write_array(
                 &mut c,
@@ -164,6 +190,9 @@ impl FormatCodec for DesignerValueCodec {
                 14,
                 true,
             )?,
+            DesignerValue::SourceWaypoint(_) | DesignerValue::SourceWaypointArray(_) => {
+                bail!("source waypoint reconstruction is not implemented")
+            }
         }
         Ok(c.into_inner())
     }
@@ -181,6 +210,12 @@ impl DesignerValueCodec {
             .find(|(r, _)| r == value)
             .map(|(_, h)| *h)
             .context("missing assigned designer action handle")
+    }
+    fn source_object(&self, offset: usize) -> Result<Option<SourceObjectIdentity>> {
+        self.source_objects
+            .get(&offset)
+            .cloned()
+            .with_context(|| format!("unbound source waypoint at +{offset}"))
     }
 }
 fn read_array<T>(c: &mut Cursor<&[u8]>, kind: u32, scalar: bool) -> Result<DesignerArray<T>>

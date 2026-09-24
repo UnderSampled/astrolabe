@@ -10,25 +10,23 @@ fn source_ai_inventory_and_script_reconstruction() -> Result<()> {
         .unwrap_or_else(|| "disc".into());
     let selection = Selection::hype("astrolabe", "en")?;
     let imported = super::super::import_scene(&game, &selection)?;
-    assert_eq!(imported.ai_models.len(), 1);
-    assert_eq!(
-        imported.persos.iter().filter(|p| p.brain.is_some()).count(),
-        2
-    );
-    assert_eq!(
+    assert_eq!(imported.ai_models.len(), 32);
+    assert!(imported.persos.iter().filter(|p| p.brain.is_some()).count() > 2);
+    assert!(
         imported
             .diagnostics
             .iter()
-            .filter(|d| d.code == "openspace.ai.unsupported")
-            .count(),
-        53
+            .any(|d| d.code == "openspace.ai.unsupported_script")
     );
     assert_eq!(
         imported.scene.main_actor.as_ref().unwrap().path.as_str(),
         "level:/persos/world/0/0"
     );
-    let model = &imported.ai_models[0];
-    assert_eq!(model.path.as_str(), "level:/ai/models/824");
+    let model = imported
+        .ai_models
+        .iter()
+        .find(|model| model.path.as_str() == "level:/ai/models/824")
+        .context("sample torch AI model was not imported")?;
     assert_eq!(model.variables[0].default, DesignerValue::Boolean(false));
     let reopened = crate::rete::decode::<AiModel>(&crate::rete::encode(model)?)?;
     assert_eq!(&reopened, model);
@@ -139,7 +137,17 @@ fn source_ai_inventory_and_script_reconstruction() -> Result<()> {
             *script,
             "SND links define meaning, not assigned runtime handles"
         );
-        for perso in imported.persos.iter().filter(|p| p.brain.is_some()) {
+        let torch_persos = imported
+            .persos
+            .iter()
+            .filter(|p| {
+                p.brain
+                    .as_ref()
+                    .is_some_and(|brain| brain.model.path == reopened.path)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(torch_persos.len(), 2);
+        for perso in torch_persos {
             let brain = perso.brain.as_ref().unwrap();
             brain.validate_model(&reopened)?;
             assert_eq!(brain.variables, vec![DesignerValue::Boolean(false)]);

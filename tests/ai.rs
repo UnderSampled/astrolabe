@@ -144,6 +144,164 @@ fn typed_ai_codec_preserves_branches_values_and_rejects_unknown_or_malformed_nod
 }
 
 #[test]
+fn unsupported_source_script_survives_rete_without_becoming_executable() -> Result<()> {
+    let mut model = model()?;
+    let behavior = &mut model.normal.as_mut().unwrap().behaviors[0];
+    let supported = behavior.schedule.take().unwrap();
+    behavior.rules.push(Some(supported.clone()));
+    behavior.schedule = Some(Script {
+        statements: vec![Statement::Unsupported(UnsupportedFragment {
+            reason: "category 1 operation 99".into(),
+            start: 3,
+            nodes: vec![PreservedAiNode {
+                category: 1,
+                indent: 1,
+                reserved: [0; 2],
+                operand: PreservedAiOperand::NonRelocated(99u32.to_le_bytes()),
+            }],
+        })],
+    });
+    let reopened = rete::decode::<AiModel>(&rete::encode(&model)?)?;
+    assert_eq!(reopened, model);
+    let schedule = reopened.normal.as_ref().unwrap().behaviors[0]
+        .schedule
+        .as_ref()
+        .unwrap();
+    assert!(AiScriptCodec::default().write(schedule).is_err());
+    assert_eq!(
+        AiScriptCodec::default().read(&AiScriptCodec::default().write(&supported)?)?,
+        supported
+    );
+    let code = godot::ai::compile(&reopened, &[])?;
+    assert!(code.contains("normal_0_rule_0"));
+    assert!(code.contains("fail_unsupported"));
+    assert!(code.contains("source AI node 3: category 1 operation 99"));
+    Ok(())
+}
+
+#[test]
+fn hype_sound_fade_call_remains_typed_through_source_rete_and_godot() -> Result<()> {
+    let mut model = model()?;
+    let script = Script {
+        statements: vec![Statement::SoundFadeMusic {
+            arg0: Expression::Integer(127),
+            arg1: Expression::Integer(1),
+        }],
+    };
+    let bytes = AiScriptCodec::default().write(&script)?;
+    assert_eq!(AiScriptCodec::default().read(&bytes)?, script);
+    model.normal.as_mut().unwrap().behaviors[0].schedule = Some(script);
+    let reopened = rete::decode::<AiModel>(&rete::encode(&model)?)?;
+    assert_eq!(reopened, model);
+    let compiled = godot::ai::compile(&reopened, &[])?;
+    assert!(compiled.contains("sound_fade_music(int(127), int(1))"));
+    Ok(())
+}
+
+#[test]
+fn partial_compiled_script_runs_supported_branch_and_stops_at_reached_fragment() -> Result<()> {
+    let mut model = model()?;
+    model.variables.push(DesignerVariable {
+        default: DesignerValue::Actor(None),
+        save: 0,
+        initialize: 0,
+    });
+    let fragment = UnsupportedFragment {
+        reason: "procedure requires native API".into(),
+        start: 7,
+        nodes: vec![PreservedAiNode {
+            category: 4,
+            indent: 2,
+            reserved: [0; 2],
+            operand: PreservedAiOperand::NonRelocated(445u32.to_le_bytes()),
+        }],
+    };
+    let schedule = &mut model.normal.as_mut().unwrap().behaviors[0].schedule;
+    *schedule = Some(Script {
+        statements: vec![
+            Statement::Assign {
+                variable: 1,
+                value: Expression::Integer(1),
+            },
+            Statement::If {
+                condition: Expression::Variable(0),
+                then: vec![Statement::Unsupported(fragment.clone())],
+                otherwise: Some(vec![Statement::Assign {
+                    variable: 1,
+                    value: Expression::Integer(2),
+                }]),
+            },
+            Statement::Assign {
+                variable: 1,
+                value: Expression::Integer(3),
+            },
+        ],
+    });
+    let temp = tempfile::tempdir()?;
+    let selection = Selection::hype("synthetic", "en")?;
+    let reference = AssetRef::from_path(model.path.clone());
+    let roots = vec![ContentRoot {
+        kind: AiModel::KIND.into(),
+        reference: model.path.clone(),
+    }];
+    let mut source = Collection::default();
+    source.insert(&reference, model.clone())?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    let project = temp.path().join("godot");
+    godot::export(&mut source, &roots, selection, &project, &engine)?;
+    fs::write(
+        project.join("check_partial_ai.gd"),
+        include_bytes!("check_partial_ai.gd"),
+    )?;
+    let log = godot::run_godot(
+        &engine,
+        &project,
+        &["--headless", "--script", "res://check_partial_ai.gd"],
+        Duration::from_secs(30),
+    )
+    .expect_err("reached Godot stub must report an error")
+    .to_string();
+    assert!(log.contains("PARTIAL_AI_REACHED_FAILURE_OK"), "{log}");
+    assert!(log.contains("source AI node 7"), "{log}");
+
+    // The same script structure also guards an unsupported expression.
+    model.normal.as_mut().unwrap().behaviors[0]
+        .schedule
+        .as_mut()
+        .unwrap()
+        .statements[1] = Statement::If {
+        condition: Expression::And(
+            Box::new(Expression::Variable(0)),
+            Box::new(Expression::Compare {
+                operation: Comparison::Equal,
+                left: Box::new(Expression::Variable(2)),
+                right: Box::new(Expression::Unsupported(fragment)),
+            }),
+        ),
+        then: vec![Statement::Assign {
+            variable: 1,
+            value: Expression::Integer(2),
+        }],
+        otherwise: None,
+    };
+    fs::write(
+        project.join("generated/hype/levels/synthetic/ai/proximity.gd"),
+        godot::ai::compile(&model, &[])?,
+    )?;
+    let log = godot::run_godot(
+        &engine,
+        &project,
+        &["--headless", "--script", "res://check_partial_ai.gd"],
+        Duration::from_secs(30),
+    )
+    .expect_err("reached expression stub must report an error")
+    .to_string();
+    assert!(log.contains("PARTIAL_AI_REACHED_FAILURE_OK"), "{log}");
+    assert!(log.contains("source AI node 7"), "{log}");
+    Ok(())
+}
+
+#[test]
 fn generated_gdscript_runs_native_waits_branches_and_persistent_instance_variables() -> Result<()> {
     let temp = tempfile::tempdir()?;
     let selection = Selection::hype("synthetic", "en")?;

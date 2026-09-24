@@ -118,6 +118,39 @@
     },
     {
       "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::partial_decode_still_rejects_malformed_known_trees",
+      "areas": ["ai", "source"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::partial_expression_keeps_short_circuit_structure",
+      "areas": ["ai", "source"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::partial_script_retains_branches_and_supported_siblings",
+      "areas": ["ai", "source"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "openspace::audio::bnm::allocation_tests::repeated_pcm_and_apm_descriptors_share_one_bank_decode_budget",
       "areas": [
         "media"
@@ -467,10 +500,43 @@
     },
     {
       "binary": "astrolabe::ai",
+      "test": "hype_sound_fade_call_remains_typed_through_source_rete_and_godot",
+      "areas": ["ai", "rete"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
+      "test": "partial_compiled_script_runs_supported_branch_and_stops_at_reached_fragment",
+      "areas": ["ai"],
+      "kind": "engine",
+      "prerequisites": ["godot"],
+      "fixture": "synthetic",
+      "timeout_seconds": 60,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
       "test": "typed_ai_codec_preserves_branches_values_and_rejects_unknown_or_malformed_nodes",
       "areas": [
         "ai"
       ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
+      "test": "unsupported_source_script_survives_rete_without_becoming_executable",
+      "areas": ["ai", "rete"],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",

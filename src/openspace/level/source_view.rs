@@ -12,12 +12,12 @@ use super::{
 use crate::{
     model::{
         AssetRef,
-        ai::{BehaviorSelection, DesignerValue},
+        ai::{BehaviorSelection, DesignerValue, SourceObjectIdentity},
         character::{Perso, StateRef},
     },
     openspace::{ai_values::DesignerValueCodec, codec::FormatCodec},
 };
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use std::{borrow::Cow, collections::BTreeSet, fmt::Debug};
 
 pub(super) trait RecordSource {
@@ -26,6 +26,9 @@ pub(super) trait RecordSource {
     fn bytes(&mut self, address: Self::Location, size: usize) -> Result<Cow<'_, [u8]>>;
     fn pointer(&mut self, address: Self::Location, offset: usize)
     -> Result<Option<Self::Location>>;
+    fn source_identity(&mut self, _address: Self::Location) -> Result<SourceObjectIdentity> {
+        bail!("source object identity is unavailable in this view")
+    }
     fn required(&mut self, address: Self::Location, offset: usize) -> Result<Self::Location> {
         self.pointer(address, offset)?
             .with_context(|| format!("required null reference at {address:?}+{offset:x}"))
@@ -48,6 +51,9 @@ impl RecordSource for FileView<'_> {
     }
     fn pointer(&mut self, a: Address, offset: usize) -> Result<Option<Address>> {
         self.0.pointer(a, offset)
+    }
+    fn source_identity(&mut self, a: Address) -> Result<SourceObjectIdentity> {
+        self.0.source_identity(a)
     }
 }
 
@@ -236,10 +242,10 @@ where
         ..Default::default()
     };
     let prefix = match info.kind {
-        20..=22 | 25 => 8,
+        20..=23 | 25 => 8,
         0..=2 => 1,
         3..=4 => 2,
-        5..=7 | 10 | 14 => 4,
+        5..=8 | 10 | 14 => 4,
         12 => 12,
         _ => anyhow::bail!("unsupported designer type {}", info.kind),
     };
@@ -276,7 +282,31 @@ where
         } else {
             Some(source.required(address, 0)?)
         };
-        codec.actors.insert(0, actor(target)?);
+        let mapped = actor(target)?;
+        if let Some(target) = target.filter(|_| mapped.is_none()) {
+            codec
+                .source_actors
+                .insert(0, Some(source.source_identity(target)?));
+        } else {
+            codec.actors.insert(0, mapped);
+        }
+    }
+    if matches!(info.kind, 8 | 23) {
+        let operands: Vec<usize> = if info.kind == 8 {
+            vec![0]
+        } else {
+            (0..(extent - 8) / 12).map(|index| 8 + 12 * index).collect()
+        };
+        for operand in operands {
+            let site = source.add(address, operand)?;
+            let target = if matches!(u32_at(&source.bytes(site, 4)?, 0)?, 0 | u32::MAX) {
+                None
+            } else {
+                let target = source.required(site, 0)?;
+                Some(source.source_identity(target)?)
+            };
+            codec.source_objects.insert(operand, target);
+        }
     }
     Ok((codec.read(&bytes)?, extent))
 }
