@@ -138,7 +138,8 @@ impl HypeBuild {
         })
     }
     /// Source function 232 selects one of three runtime magic-name rows, then
-    /// returns the matching selected inventory item's signed info field.
+    /// looks up the selected inventory item named `Magic` plus that row and
+    /// returns its signed info field.
     /// Preserve an unmatched row as None instead of inventing a spell code.
     pub fn magic_selection(
         &self,
@@ -166,10 +167,11 @@ impl HypeBuild {
             .context("unterminated magic name")?;
         ensure!(end > 0 && row[..end].is_ascii(), "invalid magic name");
         let selected_name = String::from_utf8(row[..end].to_vec())?;
+        let inventory_kind = format!("Magic{selected_name}");
         let source_code = inventory
             .active
             .iter()
-            .find(|item| item.kind == selected_name)
+            .find(|item| item.kind == inventory_kind)
             .map(|item| item.id);
         Ok(MagicSelectionObservation {
             current_points,

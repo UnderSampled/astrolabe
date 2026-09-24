@@ -98,7 +98,7 @@ fn verified_live_magic_selection_resolves_selected_inventory_code() -> Result<()
     ranges.insert(0x1400, b"MagicFire\0".to_vec());
     ranges.insert(0x610b98, 0x2000_u32.to_le_bytes().to_vec());
     let mut magic = vec![0; 42];
-    magic[..10].copy_from_slice(b"MagicFire\0");
+    magic[..5].copy_from_slice(b"Fire\0");
     magic[10..14].copy_from_slice(b"Ice\0");
     magic[36..38].copy_from_slice(&30_u16.to_le_bytes());
     magic[38..40].copy_from_slice(&50_u16.to_le_bytes());
@@ -109,7 +109,7 @@ fn verified_live_magic_selection_resolves_selected_inventory_code() -> Result<()
     assert_eq!(selected.current_points, 30);
     assert_eq!(selected.maximum_points, 50);
     assert_eq!(selected.selected_index, 0);
-    assert_eq!(selected.selected_name, "MagicFire");
+    assert_eq!(selected.selected_name, "Fire");
     assert_eq!(selected.source_code, Some(61));
     memory.ranges.get_mut(&0x2000).unwrap()[40] = 1;
     let unmatched = build.magic_selection(&mut memory, &inventory)?;

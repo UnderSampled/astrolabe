@@ -13,6 +13,13 @@
     "selected_weapon": 80,
     "quantities": {"21": 0, "61": 0, "80": 0}
   },
+  "magick": {
+    "selected_index": 0,
+    "selected_name": "Fire",
+    "source_code": 61,
+    "current_points": 30,
+    "maximum_points": 50
+  },
   "designer_overrides": {
     "24": true,
     "49": false,

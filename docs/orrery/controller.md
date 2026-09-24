@@ -55,6 +55,15 @@ launching the game; `start_game` creates the private window and `stop_game`
 removes the full owned process tree. Dropping or terminating the server also
 cleans up its game session.
 
+Restart the MCP service after rebuilding Orrery. An older service can keep
+serving the previous binary and attempt to launch its now-deleted executable.
+For the supplied English save, allow the title menu to settle, select
+**Load game**, open the highlighted **Gogoud's Manoir I** slot, then verify phase 9
+and level `manoir` before inspecting gameplay. Send and verify each menu key
+separately when diagnosing a failed load; a successful input-delivery result
+alone does not prove that the save loaded. Allow several seconds after the
+level appears for its startup stutter to settle.
+
 After verification, this is the Codex entry to add manually. Replace the sample
 value with the exact contents of the token file. Do not include angle brackets.
 

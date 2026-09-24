@@ -49,18 +49,26 @@ conversion evidence, not a passing spell scenario.
 
 The original game's selected spell *index* 0 and the source script's case-1
 normalization initially suggested raw function-232 code 47, but 61 also maps
-to case 1. A source trace shows function 232 searches the same inventory list
-Orrery reads, selecting a handle whose name equals the current spell table
-row, and returns that item's signed info field. Orrery already filters handles
-by the source selection byte; the saved selected set includes `MagicFire` ID
-61. Orrery now reads the selected table row, mana fields, and matching active
-inventory code from one stopped capture. Its focused test checks the decoder
-against synthetic `MagicFire` data; a fresh original-game read is still needed
-to establish the actual row and returned code. The support Resource leaves the
-raw code unset until it can be checked and restored through a behavior starting
-state. It also does not invent a mana pool for normal exported content. The
-default spell cannot yet pass the planned Godot behavior test. Next evidence
-should establish the function-232 return for selected index 0, then compare
-function-230's observed side effects and the spawned spell's contact and
-lifetime. Camera-derived laser target
-acquisition remains in the later camera slice.
+to case 1. The verified executable's function-232 path takes the selected
+10-byte spell row, prefixes it with `Magic`, scans selected inventory handles,
+compares the resulting name with each item's Info2 string, and returns the
+matched item's signed 16-bit info field at offset `+0x1c` (or `-1` if none
+matches). The native inspector now implements that lookup. The supplied-save
+Godot behavior fixture restores raw code 61 and 30/50 mana to the shared
+support Resource; normal exported content still has no invented mana pool.
+This restores a starting state, not a spell decision. Next evidence should
+compare function-230's observed side effects and the spawned spell's contact
+and lifetime. Camera-derived laser target acquisition remains in the later
+camera slice.
+
+A fresh Orrery capture from the supplied save reached phase 9 in `manoir`
+after selecting **Load game** and **Gogoud's Manoir I** as separate menu steps
+and waiting ten seconds after the level appeared. The current build read
+selected index 0, selected name `Fire`, and 30/50 magic points in one stopped
+capture. The active inventory included `MagicFire` with ID 61 and quantity 0.
+The older Orrery reader reported a null `source_code` because it compared
+`Fire` directly with `MagicFire`. The verified source lookup instead matches
+this selected item and predicts raw function-232 code **61**. This is a
+source-derived result from one coherent stopped capture, not a direct call to
+the original function during that capture. The game and Orrery service were
+stopped afterward, with the save archive intact.

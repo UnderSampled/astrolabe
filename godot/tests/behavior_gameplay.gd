@@ -241,6 +241,21 @@ func restore_save_fixture() -> String:
         restored_quantities[item] = int(amount)
     native_inventory.set("selected_weapon", int(selected))
     native_inventory.set("quantities", restored_quantities)
+    var magick: Dictionary = fixture.get("magick", {})
+    var native_magick: Resource = actor.get("source_magick")
+    if native_magick == null or not magick.has("source_code") or not magick.has("current_points") or not magick.has("maximum_points"):
+        return "saved Hype magick fixture is missing"
+    var spell_code = magick["source_code"]
+    var current_points = magick["current_points"]
+    var maximum_points = magick["maximum_points"]
+    for value in [spell_code, current_points, maximum_points]:
+        if not (value is int or value is float) or float(int(value)) != float(value):
+            return "saved Hype magick value is malformed"
+    if int(spell_code) < 0 or int(spell_code) > 32767 or int(maximum_points) <= 0 or int(current_points) < 0 or int(current_points) > int(maximum_points):
+        return "saved Hype magick value is out of range"
+    native_magick.set("selected_spell_code", int(spell_code))
+    native_magick.set("current_points", int(current_points))
+    native_magick.set("maximum_points", int(maximum_points))
     var arrays: Dictionary = fixture.get("designer_arrays", {})
     for index in [162, 164]:
         var key := str(index)
@@ -311,6 +326,8 @@ func observation() -> Dictionary:
             "normal": [normal.x, normal.y, normal.z],
         })
     var floor_normal := actor.get_floor_normal() if actor.is_on_floor() else Vector3.ZERO
+    var native_magick: Resource = actor.get("source_magick")
+    var magick_ready := bool(actor.call("source_magic_ready"))
     return {
         "action": int(actor.get("current_state")),
         "translation": [position.x, -position.z, position.y],
@@ -324,6 +341,11 @@ func observation() -> Dictionary:
         "generated_trace": generated_trace.duplicate(true),
         "channel_visibility": channel_visibility,
         "hud_display": actor.get("source_hud_display"),
+        "magick": {
+            "selected_spell_code": int(actor.call("source_magic_current_spell")) if magick_ready else null,
+            "current_points": int(actor.call("source_magic_points")) if magick_ready else null,
+            "maximum_points": int(native_magick.get("maximum_points")) if native_magick != null else null,
+        },
         "action_requests": action_requests.duplicate(true),
         "action_states": action_states.duplicate(true),
         "key_inputs": key_inputs.duplicate(true),

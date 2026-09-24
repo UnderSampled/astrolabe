@@ -166,6 +166,13 @@ animation or timing. No sword-specific offset is warranted. Godot's current sigh
 static collision geometry, while the source tests selected sector visuals, so
 occlusion parity remains a native-support fidelity debt pending comparison.
 
+Static inspection of the beam's two model parts found no ModelInstance
+transform or action-0 animation offset. Their mesh vertices have asymmetric
+local bounds, which can put the visible beam away from the actor origin even
+when the source spawn copies Hype's transform exactly. This does not justify a
+hand-specific offset in Godot support; a visual comparison of those converted
+meshes and the source animation is still needed.
+
 A later fresh Orrery run (`run-1790258146193747690`) established the saved
 channel baseline before any input. At Hype Data3D `+0x158`, the persistent
 deactivation list is the sorted byte IDs `[28, 71, 80]`. Each selected channel
@@ -350,15 +357,28 @@ source Perso has a Brain link; camera behavior needs that dependency reviewed.
 The verified contact handler reads actor runtime offset `+0xf8`, whose producer
 ORs fields `+0xf0` and `+0xf4`. Bit zero's exact contact meaning and update
 order relative to the AI tick remain unresolved, so the native contact result
-is still unknown.
+is still unknown. A further static trace found one bit-zero producer: within
+a contact adjustment entered after a positive collision probe, a second probe
+with no result ORs bit zero into `+0xf4`. Another path clears `+0xf0/+0xf4`
+when its collision probe has no result, or writes a classified contact value
+when it does. The motion calculation copies the previous `+0xf4` to `+0xf0`
+before updating contact and position; a later routine publishes their union to
+`+0xf8`. The ordering of that publication against AI evaluation, and which
+producer governs the arrow, have not been established. This evidence does not
+yet justify mapping the condition to a Godot slide-collision count.
 
 Any implementation that chooses a weapon or moves an arrow in Godot support
 without a corresponding compiled AI request would be a replacement gameplay
 rule and a material fidelity debt. Keep that boundary visible in review. Native
-support approximations already listed above remain API-fidelity debt; the
+support approximations already listed above remain API fidelity debt; the
 crossbow's laser target acquisition and contact calls are pending source-backed
-implementation
-rather than a support-side attack script.
+implementation rather than a support-side attack script. The arrow's original
+contact branch calls the camera procedure before clearing MainActor fields and
+killing itself. The current strict unsupported-camera failure prevents those
+later source statements from running. A future contact/lifetime test may
+declare a narrow, recorded exclusion for this camera effect so the compiled
+cleanup still runs. The default must remain a visible failure, and such a test
+must report camera behavior as excluded until the native camera API exists.
 
 The verified executable's object-generation handler copies the firing actor's
 world transform into the new actor and separately writes the evaluated vector
@@ -373,3 +393,11 @@ source updater does not rotate its velocity through the actor's basis in the
 examined function, but the exact frame transfer from initial to active motion
 and timestep still require live comparison. Those limits are native API
 fidelity debt, not a weapon-specific gameplay rule.
+
+In particular, `source_initialize_motion` currently multiplies a nonzero
+generated vector by the spawning actor's basis. The verified generation
+handler writes the evaluated vector directly to the new actor's motion state,
+and the examined updater does not show that basis rotation. The conversion is
+unverified for arrows and should be compared against a live moving arrow
+before accepting it. The sword beam's generation vector is zero, so this
+question does not explain its visible launch offset.
