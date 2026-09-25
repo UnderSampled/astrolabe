@@ -290,3 +290,14 @@ not proven field meanings or a completed-update publication. In particular,
 the 1.5 value at record `+0x8c` remains unsupported as a FoV mapping. The
 current live path is not persisted as the imported actor's identity. The game
 and Orrery service stopped, and the supplied save remained unchanged.
+
+A bounded static trace of viewport publication found the GLI path at
+`0x0043dd80` and `0x0043dbd0`: it refreshes a dirty registered camera
+hierarchy, inverts a SuperObject matrix and updates or assigns the viewport
+camera. The selected viewport pointer sits at `+0x2264`; its pose block is
+`+0x0c..+0x63`, FoV fields `+0x64/+0x68`, and clip fields `+0x6c/+0x70`.
+The trace did not establish a caller/dependency edge from procedure 135 or
+ordinary controller update `0x005200a0` to that publisher. Procedure 135
+still has no demonstrated direct matrix, FoV or clip write. Therefore the
+native camera update contract and the meanings of linked-record fields remain
+unproven; the explicit Godot stub is preferable to copying one observed pose.
