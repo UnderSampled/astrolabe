@@ -180,10 +180,12 @@ impl HypeBuild {
             source_clock_ms,
         })
     }
-    /// Read the active inventory list used by functions 201, 208 and 209 in
-    /// this verified build. The list is capture-local; no source address is
-    /// persisted as gameplay state.
-    pub fn inventory(&self, memory: &mut impl ReadMemory) -> Result<InventoryObservation> {
+    /// Resolve active inventory members and their transient quantity locations
+    /// through the same checked list used by the typed observation.
+    fn inventory_members(
+        &self,
+        memory: &mut impl ReadMemory,
+    ) -> Result<(usize, Vec<(InventoryItemObservation, u32)>)> {
         let status = self.status(memory)?;
         ensure!(
             status.phase == 9,
@@ -225,23 +227,63 @@ impl HypeBuild {
                     name.push(byte);
                 }
                 ensure!(name.len() < 64, "unterminated inventory kind");
-                entries.push(InventoryItemObservation {
-                    kind: String::from_utf8(name)?,
-                    id,
-                    quantity,
-                });
+                entries.push((
+                    InventoryItemObservation {
+                        kind: String::from_utf8(name)?,
+                        id,
+                        quantity,
+                    },
+                    source.add(member, 10)?,
+                ));
             }
             next = source.pointer(entry, 20)?;
         }
+        Ok((visited.len(), entries))
+    }
+    /// Read the active inventory list used by functions 201, 208 and 209 in
+    /// this verified build. The list is capture-local; no source address is
+    /// persisted as gameplay state.
+    pub fn inventory(&self, memory: &mut impl ReadMemory) -> Result<InventoryObservation> {
+        let (total_entries, members) = self.inventory_members(memory)?;
+        let entries = members
+            .into_iter()
+            .map(|(item, _)| item)
+            .collect::<Vec<_>>();
         let selected_weapon = entries
             .iter()
             .find(|item| item.kind == "Weapon")
             .map_or(-1, |item| item.id);
         Ok(InventoryObservation {
-            total_entries: visited.len(),
+            total_entries,
             active: entries,
             selected_weapon,
         })
+    }
+    /// Return only a capture-local quantity address for a unique active item
+    /// whose prior value is exactly the declared starting-state value.
+    pub fn inventory_quantity_address(
+        &self,
+        memory: &mut impl ReadMemory,
+        kind: &str,
+        id: i16,
+        expected_quantity: i16,
+    ) -> Result<u32> {
+        let (_, members) = self.inventory_members(memory)?;
+        let mut matching = members
+            .into_iter()
+            .filter(|(item, _)| item.kind == kind && item.id == id);
+        let (item, address) = matching
+            .next()
+            .context("active inventory item is missing")?;
+        ensure!(
+            matching.next().is_none(),
+            "active inventory item is ambiguous"
+        );
+        ensure!(
+            item.quantity == expected_quantity,
+            "active inventory item has a different quantity"
+        );
+        Ok(address)
     }
     /// Source function 232 selects one of three runtime magic-name rows, then
     /// looks up the selected inventory item named `Magic` plus that row and
@@ -809,6 +851,44 @@ mod active_camera_tests {
                 })
                 .collect()
         }
+    }
+
+    #[test]
+    fn inventory_quantity_locator_requires_the_active_expected_item() {
+        let mut memory = Memory(BTreeMap::new());
+        let mut status = vec![0; 261];
+        status[0] = 9;
+        status[1..7].copy_from_slice(b"manoir");
+        memory.put(super::super::hype_runtime::STATUS, &status);
+        memory.put(0x6107b0, &0x2000u32.to_le_bytes());
+        let mut root = [0u8; 12];
+        root[8..12].copy_from_slice(&0x3000u32.to_le_bytes());
+        memory.put(0x2000, &root);
+        let mut entry = [0u8; 24];
+        entry[4..8].copy_from_slice(&0x4000u32.to_le_bytes());
+        memory.put(0x3000, &entry);
+        let mut handle = [0u8; 9];
+        handle[0..4].copy_from_slice(&0x5000u32.to_le_bytes());
+        handle[8] = 1;
+        memory.put(0x4000, &handle);
+        let mut member = [0u8; 30];
+        member[12..16].copy_from_slice(&0x6000u32.to_le_bytes());
+        member[28..30].copy_from_slice(&80_i16.to_le_bytes());
+        memory.put(0x5000, &member);
+        memory.put(0x6000, b"Weapon\0");
+        let build = HypeBuild::verified(HYPE_EXECUTABLE_SHA256).unwrap();
+        assert_eq!(
+            build
+                .inventory_quantity_address(&mut memory, "Weapon", 80, 0)
+                .unwrap(),
+            0x500a
+        );
+        assert_eq!(build.inventory(&mut memory).unwrap().selected_weapon, 80);
+        assert!(
+            build
+                .inventory_quantity_address(&mut memory, "Weapon", 80, 3)
+                .is_err()
+        );
     }
 
     #[test]

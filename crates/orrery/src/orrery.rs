@@ -945,6 +945,69 @@ impl GameSession {
             .guarded_write(address, &value, &expected)
     }
 
+    /// Declare a scenario starting state without changing the save fixture.
+    /// The source inventory list is resolved afresh in this stopped process;
+    /// no heap address is accepted from a test or reused across runs.
+    pub fn prepare_crossbow_quantity(&self) -> Result<Value> {
+        self.check()?;
+        let build = HypeBuild::verified(&self.config.exe_sha256)?;
+        let pause = self.process.pause(Duration::from_secs(1))?;
+        let mut capture = pause.capture()?;
+        let status = build.status(&mut capture)?;
+        ensure!(
+            status.phase == 9 && status.level == "manoir",
+            "crossbow quantity setup requires loaded manor gameplay"
+        );
+        let before = build.inventory(&mut capture)?;
+        ensure!(
+            before.selected_weapon == 80,
+            "supplied save has a different selected weapon"
+        );
+        let address = build.inventory_quantity_address(&mut capture, "Weapon", 80, 0)?;
+        let before_capture = capture.finish()?;
+        let write = pause.guarded_write(
+            usize::try_from(address)?,
+            &3_i16.to_le_bytes(),
+            &0_i16.to_le_bytes(),
+        )?;
+        let mut capture = pause.capture()?;
+        let after = build.inventory(&mut capture)?;
+        ensure!(
+            after.selected_weapon == 80
+                && after
+                    .active
+                    .iter()
+                    .filter(|item| item.kind == "Weapon" && item.id == 80)
+                    .count()
+                    == 1
+                && after
+                    .active
+                    .iter()
+                    .any(|item| item.kind == "Weapon" && item.id == 80 && item.quantity == 3),
+            "crossbow quantity did not reach the declared value"
+        );
+        let after_capture = capture.finish()?;
+        drop(pause);
+        Ok(json!({
+            "method": "guarded_current_process_inventory_starting_state",
+            "fixture": {
+                "executable_sha256": self.config.exe_sha256,
+                "save_sha256": self.config.save_sha256,
+            },
+            "status": status,
+            "item_kind": "Weapon",
+            "item_id": 80,
+            "expected_quantity": 0,
+            "declared_quantity": 3,
+            "before": before,
+            "after": after,
+            "guarded_write": write,
+            "before_capture": before_capture,
+            "after_capture": after_capture,
+            "save_files_modified": false,
+        }))
+    }
+
     pub fn memory_probe(&self) -> Result<Value> {
         self.check()?;
         let address = 0x754525;

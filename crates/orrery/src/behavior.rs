@@ -1228,6 +1228,7 @@ pub struct OriginalBackend {
 #[cfg(target_os = "linux")]
 enum OriginalReadyState {
     FreshSave,
+    CrossbowStart,
     ClearRoute,
     WallRoute,
     WallJumpStart,
@@ -1241,6 +1242,33 @@ enum OriginalReadyState {
 
 #[cfg(target_os = "linux")]
 impl OriginalBackend {
+    /// Leave Hype's saved AI state intact while establishing the same
+    /// quantity-three test input used by the Godot starting-state overlay.
+    pub fn prepare_crossbow(&mut self) -> Result<()> {
+        let reload = if matches!(self.ready_state, OriginalReadyState::Finished) {
+            Some(self.reload_saved_state()?)
+        } else {
+            None
+        };
+        ensure!(
+            matches!(self.ready_state, OriginalReadyState::FreshSave),
+            "crossbow setup requires supplied manor save"
+        );
+        self.setup_interventions.clear();
+        if let Some(reload) = reload {
+            self.setup_interventions.push(reload);
+        }
+        let intervention = self.controller.game()?.prepare_crossbow_quantity()?;
+        let actor = self.controller.game()?.observe_main_actor()?;
+        ensure!(
+            actor.current_action == Some(IDLE_ACTION),
+            "crossbow starting state changed Hype's saved idle action"
+        );
+        self.setup_interventions.push(intervention);
+        self.ready_state = OriginalReadyState::CrossbowStart;
+        Ok(())
+    }
+
     pub fn prepare_stationary_jump(&mut self) -> Result<()> {
         let reload = if matches!(self.ready_state, OriginalReadyState::Finished) {
             Some(self.reload_saved_state()?)

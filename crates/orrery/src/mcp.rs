@@ -174,7 +174,7 @@ fn write_schema() -> Value {
     )
 }
 
-const TOOLS: [ToolSpec; 20] = [
+const TOOLS: [ToolSpec; 21] = [
     ToolSpec {
         name: "status",
         description: "Report the Orrery MCP service and exact owned game status without opening a game window.",
@@ -258,6 +258,13 @@ const TOOLS: [ToolSpec; 20] = [
         read_only: true,
         destructive: false,
         schema: inspect_combat_schema,
+    },
+    ToolSpec {
+        name: "prepare_crossbow_quantity",
+        description: "For the verified manor save, resolve active Weapon 80 inside the paused owned game, guard quantity zero and set a volatile test starting value of three; do not alter save files.",
+        read_only: false,
+        destructive: true,
+        schema: empty,
     },
     ToolSpec {
         name: "inspect_scene_tail",
@@ -1026,6 +1033,12 @@ fn call_tool(
                 json!({"service_pid":service_pid,"transport":"streamable-http","endpoint":format!("http://127.0.0.1:{port}/mcp"),"controller":status}),
             ))
         }
+        "prepare_crossbow_quantity" => {
+            allowed(map, &[])?;
+            Ok(ToolOutput::ok(
+                controller.game()?.prepare_crossbow_quantity()?,
+            ))
+        }
         "start_game" => {
             allowed(map, &["duration_seconds"])?;
             Ok(ToolOutput::ok(controller.start(integer(
@@ -1420,6 +1433,7 @@ mod tests {
                 "list_bindings",
                 "inspect_main_actor",
                 "inspect_combat",
+                "prepare_crossbow_quantity",
                 "inspect_scene_tail",
                 "inspect_scene_actor",
                 "inspect_scene_camera",
@@ -1433,6 +1447,7 @@ mod tests {
         assert!(TOOLS.iter().all(|t| !t.description.is_empty()));
         assert!(TOOLS.iter().filter(|t| t.destructive).map(|t| t.name).eq([
             "run_sequence",
+            "prepare_crossbow_quantity",
             "write_memory",
             "memory_probe",
             "navigate_level"
