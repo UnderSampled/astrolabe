@@ -285,6 +285,36 @@ impl HypeBuild {
         );
         Ok(address)
     }
+
+    /// Resolve one live model pointer against the loaded Fix AI block. The
+    /// address table is runtime state for this verified executable; only the
+    /// block-relative offset may be compared with a source allocation.
+    fn fix_ai_block_offset(
+        &self,
+        source: &mut MemoryView<'_, impl ReadMemory>,
+        model: u32,
+    ) -> Result<Option<LiveBlockOffset>> {
+        let Some(table) = source.pointer(0x0088_0f64, 0)? else {
+            return Ok(None);
+        };
+        let record = source.bytes(table, 16)?;
+        let base = u32_at(&record, 0)?;
+        let end = u32_at(&record, 4)?;
+        ensure!(
+            base != 0 && end >= base && end - base < 64 * 1024 * 1024,
+            "active Fix AI block has invalid bounds"
+        );
+        if model < base || model > end {
+            return Ok(None);
+        }
+        Ok(Some(LiveBlockOffset {
+            module: 17,
+            block: 0,
+            payload_offset: model - base,
+            active_base_locator: format!("live:{base:08x}"),
+            active_end_locator: format!("live:{end:08x}"),
+        }))
+    }
     /// Source function 232 selects one of three runtime magic-name rows, then
     /// looks up the selected inventory item named `Magic` plus that row and
     /// returns its signed info field.
@@ -662,6 +692,7 @@ impl HypeBuild {
                                 .map_or(0, |view| view.fields.len());
                         Ok::<_, anyhow::Error>(SceneTailAi::Ready {
                             model_locator: format!("live:{:08x}", parts.model),
+                            fix_block_offset: self.fix_ai_block_offset(&mut source, parts.model)?,
                             normal_count: normal_set.as_ref().map_or(0, |set| set.members.len()),
                             reflex_count: reflex_set.as_ref().map_or(0, |set| set.members.len()),
                             designer_field_count,
@@ -1375,6 +1406,7 @@ pub enum SceneTailAi {
     BrainAbsent,
     Ready {
         model_locator: String,
+        fix_block_offset: Option<LiveBlockOffset>,
         normal_count: usize,
         reflex_count: usize,
         designer_field_count: usize,
@@ -1384,6 +1416,16 @@ pub enum SceneTailAi {
     Unreadable {
         reason: String,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LiveBlockOffset {
+    pub module: u16,
+    pub block: u16,
+    pub payload_offset: u32,
+    pub active_base_locator: String,
+    pub active_end_locator: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

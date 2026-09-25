@@ -168,6 +168,11 @@ fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
     word(&mut second, 24, 0x2100);
     word(&mut second, 28, 0x2000);
     ranges.insert(0x2200, second);
+    ranges.insert(0x0088_0f64, 0x2500u32.to_le_bytes().to_vec());
+    let mut fix_block = vec![0; 16];
+    word(&mut fix_block, 0, 0x3000);
+    word(&mut fix_block, 4, 0x4000);
+    ranges.insert(0x2500, fix_block);
     let mut memory = Memory { ranges };
     let tail = build.scene_tail(&mut memory, 2)?;
     assert_eq!(tail.child_count, 2);
@@ -289,6 +294,13 @@ fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
         tail.children[0].ai,
         Some(SceneTailAi::Ready {
             model_locator: "live:00003380".into(),
+            fix_block_offset: Some(live::LiveBlockOffset {
+                module: 17,
+                block: 0,
+                payload_offset: 0x380,
+                active_base_locator: "live:00003000".into(),
+                active_end_locator: "live:00004000".into(),
+            }),
             normal_count: 0,
             reflex_count: 0,
             designer_field_count: 0,

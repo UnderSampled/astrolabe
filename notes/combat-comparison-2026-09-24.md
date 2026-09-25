@@ -520,9 +520,17 @@ block 0's first two words are the active payload base and inclusive capacity
 end. Its loader applies the active-base minus SNA-base delta to addresses in
 that block. This gives Orrery a route to compare a live child Brain model
 pointer with model 733's source payload offset `0x4e324` without assuming a
-fixed heap address. The present trace has not read the active table entry in
-the running installation, whose executable hash differs from the patch image.
-Verify the table location and bounds against that exact build, then resolve
+fixed heap address. The installed executable has the same PE layout and
+identical block initializer, lookup and loader bytes at those addresses as
+the patch image, so the slot VA is valid for the hash-pinned live build. Its
+value is runtime zero-fill data; the present trace still has not read the
+active entry in a running installation. Verify its current base and bounds,
+then resolve
 the child pointer and block base within one checked capture. The earlier
 subtraction against an inferred base remains corroboration, not a repeatable
 BDD identity assertion.
+Orrery's scene-tail observation now carries the checked active `(17,0)`
+block-relative model offset when the model pointer falls inside that block.
+Synthetic coverage verifies the table and range calculation; a live capture
+must still confirm that model 733 reports `0x4e324` before the BDD case can
+use it as a passing identity assertion.
