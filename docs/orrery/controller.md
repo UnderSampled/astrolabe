@@ -61,8 +61,14 @@ For the supplied English save, allow the title menu to settle, select
 **Load game**, open the highlighted **Gogoud's Manoir I** slot, then verify phase 9
 and level `manoir` before inspecting gameplay. Send and verify each menu key
 separately when diagnosing a failed load; a successful input-delivery result
-alone does not prove that the save loaded. Allow several seconds after the
-level appears for its startup stutter to settle.
+alone does not prove that the save loaded. For a saved-state behavior probe,
+allow at least ten seconds of resumed game time after phase 9 appears, then
+verify the saved inventory and weapon before applying an intervention. One
+unverified menu sequence reached `manoir` with `selected_weapon=-1` and no
+active entries. A screenshot-guided sequence selected **Load Game**, then
+the highlighted **Gogoud's Manoir I** slot; after the settle, typed inspection
+confirmed selected Weapon 80 at quantity zero and Hype action 47. Phase 9 and
+level name alone must not be treated as proof that this slot loaded.
 The verified menu setup uses each key for 55 ms followed by an 800 ms release
 gap. A shorter gap can leave the next screenshot before the menu visibly
 updates.
