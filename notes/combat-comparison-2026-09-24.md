@@ -446,3 +446,31 @@ is in `TestResults/fix-block-17-0-ai-allocation-scan-20260924.json` and
 `TestResults/fix-model-733-live-locator-crosscheck-20260924.json`. Do not
 change the shared Godot vector conversion or mark the crossbow launch case
 passing from these captures.
+
+A subsequent single-request Orrery burst removed most MCP round-trip delay.
+After the same guarded quantity-three setup and Z/Space input, 18 checked
+scene-tail captures over about 69 ms all saw the same strongly identified
+model-733 child, but every transform remained the unpublished zero matrix and
+its integrated velocity was zero. The individual captures took roughly
+3–4 ms, leaving too little resumed time for a verified source update between
+them. This adds identity and sampling-cadence evidence, not a trajectory.
+The next bounded sample needs deliberate resumed intervals across source
+frames and at least two valid post-publication transforms; an unmodified
+zero-transform series cannot justify a Godot vector-space change.
+
+That delayed follow-up used 15 ms resumed intervals and captured a moving
+model-733-correlated child. At source update stamp 3234 it was at
+`[-73.86670,29.41665,6.08331]` with integrated velocity
+`[1.38605,0,-0.51021]`; at stamp 3235 it was at
+`[-73.77245,29.41665,6.04862]`. The displacement
+`[+0.09425,0,-0.03469]` agrees directionally with that velocity. Earlier
+stamp-zero or Hype-origin transforms were excluded as unpublished setup.
+The child had live model locator `live:0288e344`, three normal behaviors and
+the same unexplained runtime type triple `[8,10,65536]`. This is source
+evidence of a moving arrow, not yet a clean test of whether the generation
+vector `(0,-45,0)` is world-space or actor-relative: model 733 can reorient
+the shot before this sample. Weapon 80 quantity remained three. The raw
+capture is ignored `TestResults/arrow-vector-delayed-burst-20260924.json`;
+the game/service were stopped and the installed saves still matched the
+supplied archive. Leave the generic Godot vector conversion unchanged until
+its frame is independently resolved.
