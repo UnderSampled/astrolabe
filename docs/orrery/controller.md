@@ -86,6 +86,7 @@ The implementation deliberately does not edit `~/.codex/config.toml`.
 | `start_game` | Idempotent 60–43,200 second session; verified fixture and executable; private Gamescope display |
 | `stop_game` | Idempotent bounded cleanup of the owned process tree |
 | `press_keys` | 1–256 validated names/chords, 20–10,000 ms hold, 0–2,000 ms gap, 25-second action cap, unconditional key release |
+| `physical_key_sequence` | 1–64 typed `{key, hold_ms, gap_ms}` steps, 25-second aggregate cap; direct XTest edges with unconditional release and no game-state reads or process pauses |
 | `enter_cheat` | 1–64 lowercase letters/digits, unique live binding, ordinary OS input |
 | `run_sequence` | 1–64 actions, complete prevalidation, 120-second worst-case budget, four screenshots, 1 MiB read budget, no request interleaving, stop and release on failure |
 | `get_state` | Live phase/current/pending level from the exact owned process |

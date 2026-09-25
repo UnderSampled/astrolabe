@@ -1,7 +1,7 @@
 //! Orrery's persistent native controller for the private original-game copy.
 //! The process owner, memory identity guard, private Gamescope display and XTest
 //! input path are the same primitives used by the focused comparison probes.
-use crate::replay::Event;
+use crate::replay::{Edge, Event, Key};
 use crate::{
     config::Config,
     desktop::Desktop,
@@ -765,6 +765,66 @@ impl GameSession {
     pub fn physical_events(&mut self, events: &[Event]) -> Result<()> {
         self.check()?;
         self.desktop.physical_events(events)
+    }
+
+    /// Send timed physical taps without reading game state or pausing its
+    /// process. This is safe to use while an external debugger owns stops.
+    pub fn physical_key_sequence(&mut self, steps: &[(Key, Duration, Duration)]) -> Result<Value> {
+        ensure!(
+            (1..=64).contains(&steps.len()),
+            "key sequence must contain 1..64 steps"
+        );
+        let mut scheduled_ms = 0_u128;
+        for (_, hold, gap) in steps {
+            ensure!(
+                (20..=10_000).contains(&hold.as_millis()),
+                "hold outside 20..10000 ms"
+            );
+            ensure!(gap.as_millis() <= 2_000, "gap outside 0..2000 ms");
+            scheduled_ms += hold.as_millis() + gap.as_millis();
+        }
+        ensure!(scheduled_ms <= 25_000, "key sequence exceeds 25 seconds");
+
+        self.check()?;
+        self.desktop.focus()?;
+        wait(Duration::from_millis(200))?;
+        let result = (|| -> Result<()> {
+            for (key, hold, gap) in steps {
+                self.physical_events(&[Event {
+                    keyboard: 0,
+                    key: *key,
+                    edge: Edge::Press,
+                }])?;
+                let held = wait(*hold);
+                let released = self.physical_events(&[Event {
+                    keyboard: 0,
+                    key: *key,
+                    edge: Edge::Release,
+                }]);
+                held?;
+                released?;
+                wait(*gap)?;
+            }
+            Ok(())
+        })();
+        let released = self.desktop.release();
+        result?;
+        released?;
+        let reported_steps = steps
+            .iter()
+            .map(|(key, hold, gap)| {
+                json!({
+                    "key": key,
+                    "hold_ms": hold.as_millis(),
+                    "gap_ms": gap.as_millis()
+                })
+            })
+            .collect::<Vec<_>>();
+        Ok(json!({
+            "steps": reported_steps,
+            "pause_free": true,
+            "released": true
+        }))
     }
 
     pub fn keys(&mut self, keys: &[String], hold_ms: u64, gap_ms: u64) -> Result<Value> {

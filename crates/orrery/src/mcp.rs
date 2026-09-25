@@ -67,6 +67,18 @@ fn keys_schema() -> Value {
         &["keys"],
     )
 }
+fn physical_key_sequence_schema() -> Value {
+    object(
+        json!({
+            "steps":{"type":"array","minItems":1,"maxItems":64,"items":{"type":"object","properties":{
+                "key":{"type":"string","enum":["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","LeftShift","LeftControl","X","Z","Space","Enter"]},
+                "hold_ms":{"type":"integer","minimum":20,"maximum":10000},
+                "gap_ms":{"type":"integer","minimum":0,"maximum":2000}
+            },"required":["key","hold_ms","gap_ms"],"additionalProperties":false}}
+        }),
+        &["steps"],
+    )
+}
 fn cheat_schema() -> Value {
     object(
         json!({
@@ -174,7 +186,7 @@ fn write_schema() -> Value {
     )
 }
 
-const TOOLS: [ToolSpec; 21] = [
+const TOOLS: [ToolSpec; 22] = [
     ToolSpec {
         name: "status",
         description: "Report the Orrery MCP service and exact owned game status without opening a game window.",
@@ -202,6 +214,13 @@ const TOOLS: [ToolSpec; 21] = [
         read_only: false,
         destructive: false,
         schema: keys_schema,
+    },
+    ToolSpec {
+        name: "physical_key_sequence",
+        description: "Send bounded physical XTest key taps without reading game state or pausing the process; every key is released on success or failure.",
+        read_only: false,
+        destructive: false,
+        schema: physical_key_sequence_schema,
     },
     ToolSpec {
         name: "enter_cheat",
@@ -425,6 +444,34 @@ fn integer(map: &Map<String, Value>, name: &str, default: u64, lo: u64, hi: u64)
         .map_or(default, |v| v.as_u64().unwrap_or(u64::MAX));
     ensure!((lo..=hi).contains(&value), "{name} outside {lo}..{hi}");
     Ok(value)
+}
+fn physical_key_sequence_args(
+    map: &Map<String, Value>,
+) -> Result<Vec<(crate::replay::Key, Duration, Duration)>> {
+    let values = map
+        .get("steps")
+        .and_then(Value::as_array)
+        .context("steps must be an array")?;
+    ensure!(
+        (1..=64).contains(&values.len()),
+        "key sequence must contain 1..64 steps"
+    );
+    let mut total_ms = 0_u128;
+    let mut steps = Vec::with_capacity(values.len());
+    for value in values {
+        let fields = object_args(value)?;
+        allowed(fields, &["key", "hold_ms", "gap_ms"])?;
+        let key = serde_json::from_value::<crate::replay::Key>(
+            fields.get("key").context("missing key")?.clone(),
+        )
+        .context("key must be a supported physical key name")?;
+        let hold = integer(fields, "hold_ms", u64::MAX, 20, 10_000)?;
+        let gap = integer(fields, "gap_ms", u64::MAX, 0, 2_000)?;
+        total_ms += u128::from(hold) + u128::from(gap);
+        ensure!(total_ms <= 25_000, "key sequence exceeds 25 seconds");
+        steps.push((key, Duration::from_millis(hold), Duration::from_millis(gap)));
+    }
+    Ok(steps)
 }
 fn string<'a>(map: &'a Map<String, Value>, name: &str) -> Result<&'a str> {
     map.get(name)
@@ -1066,6 +1113,13 @@ fn call_tool(
             action["action"] = json!("keys");
             single_action(controller, action)
         }
+        "physical_key_sequence" => {
+            allowed(map, &["steps"])?;
+            let steps = physical_key_sequence_args(map)?;
+            Ok(ToolOutput::ok(
+                controller.game()?.physical_key_sequence(&steps)?,
+            ))
+        }
         "enter_cheat" => {
             allowed(map, &["text", "hold_ms", "gap_ms"])?;
             let mut action = args.clone();
@@ -1416,6 +1470,39 @@ mod tests {
         (temp, state)
     }
     #[test]
+    fn physical_key_sequence_arguments_are_ordered_and_bounded() {
+        let value = json!({"steps":[
+            {"key":"Z","hold_ms":55,"gap_ms":100},
+            {"key":"Space","hold_ms":80,"gap_ms":0}
+        ]});
+        let steps = physical_key_sequence_args(value.as_object().unwrap()).unwrap();
+        assert_eq!(
+            steps,
+            [
+                (
+                    crate::replay::Key::Z,
+                    Duration::from_millis(55),
+                    Duration::from_millis(100)
+                ),
+                (
+                    crate::replay::Key::Space,
+                    Duration::from_millis(80),
+                    Duration::ZERO
+                ),
+            ]
+        );
+
+        let oversized = json!({"steps":[
+            {"key":"Z","hold_ms":10000,"gap_ms":2000},
+            {"key":"Space","hold_ms":10000,"gap_ms":2000},
+            {"key":"Enter","hold_ms":10000,"gap_ms":2000}
+        ]});
+        assert!(physical_key_sequence_args(oversized.as_object().unwrap()).is_err());
+        let invalid_key = json!({"steps":[{"key":"z","hold_ms":55,"gap_ms":100}]});
+        assert!(physical_key_sequence_args(invalid_key.as_object().unwrap()).is_err());
+    }
+
+    #[test]
     fn parity_surface_is_exact_and_annotated() {
         let names = TOOLS.iter().map(|t| t.name).collect::<Vec<_>>();
         assert_eq!(
@@ -1425,6 +1512,7 @@ mod tests {
                 "start_game",
                 "stop_game",
                 "press_keys",
+                "physical_key_sequence",
                 "enter_cheat",
                 "run_sequence",
                 "get_state",
