@@ -837,3 +837,47 @@ the passing BDD's 898 ms, so timings are not paired. Ignored evidence:
 integers; an initial verbal summary misconverted them. Corrected caller
 evidence is ignored
 `TestResults/arrow-unlink-root-reinsert-static-20260925.txt`.
+
+## Shooting comparison leads (2026-09-25)
+
+The paired initial-launch reports show a real Weapon 80 quantity difference:
+the original remains three after the model-733 arrow appears and advances
+through update stamps 294 and 295, while Godot changes three to two. The
+compiled Hype model-28 firing path asks native inventory function 209 to
+remove one from the selected weapon only if `fix:/persos/15` Global Brain
+field 14 is zero. Both backends select Weapon 80, so checking a different
+item does not explain the difference. The original behavior capture does
+not read Global field 14; its live value and the branch taken remain unknown.
+The ignored read-only analysis is
+`TestResults/crossbow-quantity-discrepancy-analysis-20260925.md`. The Godot
+behavior harness now records Global field 14 in snapshots and generated-arrow
+frames as a diagnostic; compare it with a typed, source-identity-checked
+Orrery read before changing inventory semantics or fixture state.
+The focused headless Godot crossbow BDD passed 1/1 tests and all five steps
+with cleanup complete after this diagnostic change. Global field 14 stayed
+false in the baseline, selected, flight and all 15 retained arrow frames;
+Weapon 80 changed from three to two only during flight. Its ignored evidence
+is `TestResults/weapon-channel-field14-godot-20260925/`.
+
+Static inspection of the source `WaitFrames(2)` updater proves two continuing
+decrement callbacks and a third completion callback, but does not link its
+action context to the spawned arrow or establish whether the first callback
+occurs during activation. Two independent Luna static reviews stopped before
+a live breakpoint because a matching countdown or shared model code would
+not prove actor identity. The unresolved edge is the action-context owner
+chain from the verified model-733 Brain. Ignored evidence:
+`TestResults/waitframes-arrow-prereq-luna-20260925.txt`,
+`TestResults/waitframes-arrow-identity-review-luna-20260925.txt` and
+`TestResults/waitframes-action-context-trace-20260925.txt`. Godot's two
+native schedule ticks may already match the source's observable wait;
+do not add an extra tick without measuring invocation phase.
+
+For weapon presentation, existing source evidence covers the saved
+deactivated channels `[28,71,80]` and a short Up walk, while existing Godot
+crossbow evidence shows channel 71 switching false→true at selection.
+There is no paired source channel capture for selection, nor a verified
+channel-to-rendered-weapon mapping. A sequential original/Godot
+idle–walk–run–selection capture with channel IDs, active bits and owning
+rendered nodes is needed to reproduce the user's observed crossbow flicker.
+The ignored inventory is
+`TestResults/weapon-channel-visibility-analysis-20260925.md`.
