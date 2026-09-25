@@ -511,3 +511,18 @@ through physical Z. A subsequent plain fixture reload restored quantity zero,
 an invalid zero target and no overlay. The fixture file hash was unchanged;
 the ignored validation report is
 `TestResults/crossbow-overlay-reload-retry-20260924/result.json`.
+
+## Repeatable source model identity
+
+A static loader trace found the module-block table in the pinned patch/decomp
+image. Module 17's pointer slot at `0x00880f64` leads to 16-byte block records;
+block 0's first two words are the active payload base and inclusive capacity
+end. Its loader applies the active-base minus SNA-base delta to addresses in
+that block. This gives Orrery a route to compare a live child Brain model
+pointer with model 733's source payload offset `0x4e324` without assuming a
+fixed heap address. The present trace has not read the active table entry in
+the running installation, whose executable hash differs from the patch image.
+Verify the table location and bounds against that exact build, then resolve
+the child pointer and block base within one checked capture. The earlier
+subtraction against an inferred base remains corroboration, not a repeatable
+BDD identity assertion.

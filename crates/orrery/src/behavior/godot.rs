@@ -31,6 +31,7 @@ const SCENE: &str = "generated/hype/levels/manoir/level.tscn";
 const SCRIPT: &str = "tests/behavior_gameplay.gd";
 const FIXTURE: &str = "tests/fixtures/english_save_manoir.json";
 const STARTUP_SETTLE_MS: u64 = 5_000;
+const CROSSBOW_TARGET_SOURCE: [f64; 3] = [-73.77856, 32.58957, 6.05084];
 const FIXTURE_BYTES: &[u8] =
     include_bytes!("../../../../godot/tests/fixtures/english_save_manoir.json");
 
@@ -40,6 +41,7 @@ enum ReadyState {
     WallRoute,
     WallJumpStart,
     JumpStart,
+    CrossbowStart,
     TurnedLeft { settled: ActorSample, hash: String },
     Finished,
 }
@@ -58,6 +60,30 @@ pub struct GodotBackend {
 }
 
 impl GodotBackend {
+    /// Apply only a declared test starting state; physical Z and Space still
+    /// drive the saved Hype Brain's weapon selection and firing decisions.
+    pub fn prepare_crossbow(&mut self) -> Result<()> {
+        let overlay = json!({
+            "kind": "crossbow_launch",
+            "laser_target_source": CROSSBOW_TARGET_SOURCE,
+        });
+        let reload = self.reload_saved_state_with_overlay(overlay.clone())?;
+        let after = &reload["after"];
+        ensure!(
+            after["inventory"]["selected_weapon"] == 80
+                && after["inventory"]["weapon_80_quantity"] == 3
+                && after["laser"]["target_valid"] == true
+                && after["laser"]["active"] == false
+                && after["laser"]["target"] == overlay["laser_target_source"]
+                && after["designer_fields"]["59"] == false
+                && after["generated_object_count"] == 0,
+            "Godot crossbow starting-state overlay is not established: {after}"
+        );
+        self.setup_interventions = vec![self.fixture_intervention.clone(), reload];
+        self.ready_state = ReadyState::CrossbowStart;
+        Ok(())
+    }
+
     pub fn prepare_stationary_jump(&mut self) -> Result<()> {
         let reload = if matches!(self.ready_state, ReadyState::Finished) {
             Some(self.reload_saved_state()?)
@@ -349,8 +375,21 @@ impl GodotBackend {
     }
 
     fn reload_saved_state(&mut self) -> Result<Value> {
+        self.reload_saved_state_with_overlay(json!({}))
+    }
+
+    fn reload_saved_state_with_overlay(&mut self, overlay: Value) -> Result<Value> {
+        ensure!(
+            overlay.is_object(),
+            "Godot starting-state overlay must be an object"
+        );
         let before = self.observe("before_same_process_reload", 0, Instant::now())?;
-        let after = self.request(json!({"action": "reload_fixture"}), Duration::from_secs(15))?;
+        // Reinstantiating the full manor can take longer than the 15-second
+        // request timeout, even after the initial resource settle.
+        let after = self.request(
+            json!({"action": "reload_fixture", "overlay": overlay.clone()}),
+            Duration::from_secs(70),
+        )?;
         self.validate_observation(&after)?;
         let source_position = self.fixture_intervention["source_translation"]
             .as_array()
@@ -382,6 +421,7 @@ impl GodotBackend {
             "method": "same_process_packed_scene_reinstantiation",
             "before": before,
             "after": after,
+            "starting_state_overlay": overlay,
             "resource_settle_ms": STARTUP_SETTLE_MS,
         }))
     }
