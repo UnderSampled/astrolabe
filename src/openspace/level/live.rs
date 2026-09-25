@@ -605,10 +605,18 @@ impl HypeBuild {
                     ];
                     let mode_e0_address = source.add(object, 0xe0)?;
                     let mode_e0 = u32_at(&source.bytes(mode_e0_address, 4)?, 0)?;
-                    let mode_f0_address = source.add(object, 0xf0)?;
-                    let mode_f0 = u32_at(&source.bytes(mode_f0_address, 4)?, 0)?;
-                    let mode_f4_address = source.add(object, 0xf4)?;
-                    let mode_f4 = u32_at(&source.bytes(mode_f4_address, 4)?, 0)?;
+                    let contact_address = source.add(object, 0xf0)?;
+                    let contact_words = source.bytes(contact_address, 12)?;
+                    let previous = u32_at(&contact_words, 0)?;
+                    let current = u32_at(&contact_words, 4)?;
+                    let ai_visible = u32_at(&contact_words, 8)?;
+                    let contact_classes = SceneTailContactClasses {
+                        previous,
+                        current,
+                        ai_visible,
+                        selector_33_mask_0x2_set: ai_visible & 0x2 != 0,
+                        publication_consistent: ai_visible == (previous | current),
+                    };
                     let list = source.pointer(wrapper, 0xfc)?;
                     let mut card_slots = Vec::new();
                     if let Some(list_address) = list {
@@ -655,8 +663,7 @@ impl HypeBuild {
                         integrated_velocity,
                         pending_override_velocity,
                         mode_e0,
-                        mode_f0,
-                        mode_f4,
+                        contact_classes,
                         list_locator: list.map(|address| format!("live:{address:08x}")),
                         card_slots,
                         selected_card_locator,
@@ -1376,8 +1383,7 @@ pub enum SceneTailDynamics {
         integrated_velocity: [f32; 3],
         pending_override_velocity: [f32; 3],
         mode_e0: u32,
-        mode_f0: u32,
-        mode_f4: u32,
+        contact_classes: SceneTailContactClasses,
         list_locator: Option<String>,
         card_slots: Vec<SceneTailCardSlot>,
         /// Last nonnull card in the source selection walk, if any.
@@ -1387,6 +1393,19 @@ pub enum SceneTailDynamics {
     Unreadable {
         reason: String,
     },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneTailContactClasses {
+    /// Mechanics +0xf0 and +0xf4 are the carried and current class words.
+    pub previous: u32,
+    pub current: u32,
+    /// Mechanics +0xf8 is the class word read by the Hype condition handler.
+    pub ai_visible: u32,
+    pub selector_33_mask_0x2_set: bool,
+    /// A false value can be a stopped capture between the publisher's stores.
+    pub publication_consistent: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -233,6 +233,8 @@ fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
     word(&mut dynamics, 0x64, 1.0_f32.to_bits());
     word(&mut dynamics, 0xe0, 8);
     word(&mut dynamics, 0xf0, 1);
+    word(&mut dynamics, 0xf4, 2);
+    word(&mut dynamics, 0xf8, 3);
     memory.ranges.insert(0x4000, dynamics);
     let mut cards = vec![0; 0x2c];
     cards[0] = 2;
@@ -260,8 +262,13 @@ fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
             integrated_velocity: [1.0, 0.0, 0.0],
             pending_override_velocity: [0.0, 0.0, 0.0],
             mode_e0: 8,
-            mode_f0: 1,
-            mode_f4: 0,
+            contact_classes: live::SceneTailContactClasses {
+                previous: 1,
+                current: 2,
+                ai_visible: 3,
+                selector_33_mask_0x2_set: true,
+                publication_consistent: true,
+            },
             list_locator: Some("live:00005000".into()),
             card_slots: vec![
                 live::SceneTailCardSlot {

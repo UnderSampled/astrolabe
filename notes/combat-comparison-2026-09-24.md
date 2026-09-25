@@ -534,3 +534,31 @@ block-relative model offset when the model pointer falls inside that block.
 Synthetic coverage verifies the table and range calculation; a live capture
 must still confirm that model 733 reports `0x4e324` before the BDD case can
 use it as a passing identity assertion.
+
+A subsequent one-shot original-game probe verified the new Orrery
+`prepare_crossbow_quantity` operation in the hash-pinned `manoir` session.
+It resolved the active Weapon 80 quantity in one stopped capture, guarded its
+old value zero, set only the current process to three and confirmed that value
+through the typed inventory inspector. Physical Z/Space created a new
+DynamicWorld child 176, with runtime types `[8,10,65536]` and a Brain model
+locator matching the prior arrow candidate. Its captured update stamp was
+zero, so neither published motion nor the new block-relative model identity
+was checked in this sample. A debugger batch armed selector-33 breakpoints,
+but Orrery's input path paused the process for its own observations; GDB saw
+the attach-related `SIGSTOP` and detached before either breakpoint fired.
+There is no live condition Boolean or mechanics contact word from this run.
+The game, service and debugger were stopped; all installed save members still
+match the archive. Details are in ignored
+`TestResults/arrow-contact-debugger-20260924.md`. The next probe should read
+the actor's mechanics contact fields through a checked stopped-byte Orrery
+path while the input controller runs without a competing debugger.
+The source mechanics helper resolves the checked scene child through
+SuperObject `+0x04` to Perso, Perso `+0x08` to dynamics wrapper, and wrapper
+`+0x10` to dynamics object. Its returned base is object `+0xd8`, so the
+condition's `+0x20` word is object `+0xf8`. Orrery's existing scene-tail
+dynamics observation now reads object `+0xf0/+0xf4/+0xf8` together as previous,
+current and AI-visible contact-class words, along with the selector-33
+mask-`0x2` result and whether the published word equals their union. A stopped
+capture can land between stores; an inconsistent triple is recorded as such,
+not silently discarded. This is a read-only observation of source state and
+does not yet establish which value a prior AI evaluation consumed.
