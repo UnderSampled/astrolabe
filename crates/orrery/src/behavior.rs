@@ -16,6 +16,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod crossbow;
 pub mod godot;
 mod jump;
 mod magick;
@@ -48,6 +49,7 @@ pub enum Scenario {
     MovingJump,
     WallJump,
     SwordAttack,
+    CrossbowInitialLaunch,
     FireCast,
 }
 impl Scenario {
@@ -61,6 +63,7 @@ impl Scenario {
             Self::MovingJump => "moving-jump",
             Self::WallJump => "wall-jump",
             Self::SwordAttack => "sword-attack",
+            Self::CrossbowInitialLaunch => "crossbow-initial-launch",
             Self::FireCast => "fire-cast",
         }
     }
@@ -112,6 +115,7 @@ impl FunctionalRecording {
             Scenario::StationaryJump | Scenario::SwordAttack | Scenario::FireCast => {
                 "manoir-clear-ground-after-physical-down"
             }
+            Scenario::CrossbowInitialLaunch => "manoir-crossbow-quantity-three",
         };
         ensure!(
             self.ready_state == expected_ready_state,
@@ -131,6 +135,9 @@ impl FunctionalRecording {
         }
         if self.scenario == Scenario::SwordAttack {
             return sword::validate(self);
+        }
+        if self.scenario == Scenario::CrossbowInitialLaunch {
+            return crossbow::validate(self);
         }
         if self.scenario == Scenario::FireCast {
             return magick::validate(self);
@@ -215,6 +222,9 @@ pub fn recording(scenario: Scenario) -> FunctionalRecording {
     if scenario == Scenario::SwordAttack {
         return sword::recording();
     }
+    if scenario == Scenario::CrossbowInitialLaunch {
+        return crossbow::recording();
+    }
     if scenario == Scenario::FireCast {
         return magick::recording();
     }
@@ -273,6 +283,7 @@ pub fn recording(scenario: Scenario) -> FunctionalRecording {
         Scenario::MovingJump => unreachable!(),
         Scenario::WallJump => unreachable!(),
         Scenario::SwordAttack => unreachable!(),
+        Scenario::CrossbowInitialLaunch => unreachable!(),
         Scenario::FireCast => unreachable!(),
     };
     FunctionalRecording {
@@ -287,6 +298,7 @@ pub fn recording(scenario: Scenario) -> FunctionalRecording {
             Scenario::MovingJump => unreachable!(),
             Scenario::WallJump => unreachable!(),
             Scenario::SwordAttack => unreachable!(),
+            Scenario::CrossbowInitialLaunch => unreachable!(),
             Scenario::FireCast => unreachable!(),
         }
         .into(),
@@ -509,6 +521,9 @@ pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Ass
     if scenario == Scenario::SwordAttack {
         return sword::assertions(samples);
     }
+    if scenario == Scenario::CrossbowInitialLaunch {
+        return crossbow::assertions(samples);
+    }
     if scenario == Scenario::FireCast {
         return magick::assertions(samples);
     }
@@ -553,6 +568,7 @@ pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Ass
                 Scenario::MovingJump => unreachable!(),
                 Scenario::WallJump => unreachable!(),
                 Scenario::SwordAttack => unreachable!(),
+                Scenario::CrossbowInitialLaunch => unreachable!(),
                 Scenario::FireCast => unreachable!(),
             },
             Some(1.),
@@ -664,6 +680,7 @@ pub fn assertions(scenario: Scenario, samples: &[ActorSample]) -> Result<Vec<Ass
         Scenario::MovingJump => unreachable!(),
         Scenario::WallJump => unreachable!(),
         Scenario::SwordAttack => unreachable!(),
+        Scenario::CrossbowInitialLaunch => unreachable!(),
         Scenario::FireCast => unreachable!(),
     }
     Ok(checks)
@@ -870,6 +887,22 @@ pub fn compare_results(
     );
     openspace.require_pass()?;
     godot.require_pass()?;
+    if openspace.scenario == Scenario::CrossbowInitialLaunch {
+        return Ok(CrossBackendComparison {
+            status: "passed".into(),
+            scenario: openspace.scenario,
+            recording_sha256: openspace.recording_sha256.clone(),
+            checks: vec![bound(
+                "crossbow_initial_launch_both_backends",
+                1.0,
+                Some(1.0),
+                Some(1.0),
+                "Independent checked model-733 launch and displacement; impact, contact result, camera and ammunition parity are outside this initial-launch case",
+            )],
+            visual_status: "pending_completed_render_pairing".into(),
+            timing_profile: "pause_compensated_source_burst_vs_native_godot_frame_trace".into(),
+        });
+    }
     let expected_samples = match openspace.scenario {
         Scenario::TurnReleaseIdle | Scenario::WalkReleaseStop => 5,
         Scenario::RunVsWalk => 10,
@@ -878,6 +911,7 @@ pub fn compare_results(
         Scenario::MovingJump => 8,
         Scenario::WallJump => 8,
         Scenario::SwordAttack => 6,
+        Scenario::CrossbowInitialLaunch => unreachable!(),
         Scenario::FireCast => 6,
     };
     ensure!(
@@ -1164,21 +1198,23 @@ impl BackendResult {
                 "backend sample contains nonfinite coordinates"
             );
         }
-        let settled_windows: &[(usize, usize)] =
-            if matches!(self.scenario, Scenario::SwordAttack | Scenario::FireCast) {
-                &[(4, 5)]
-            } else if matches!(self.scenario, Scenario::MovingJump | Scenario::WallJump) {
-                &[(6, 7)]
-            } else if matches!(
-                self.scenario,
-                Scenario::StationaryJump | Scenario::WallContact
-            ) {
-                &[(5, 6)]
-            } else if self.scenario == Scenario::RunVsWalk {
-                &[(3, 4), (8, 9)]
-            } else {
-                &[(3, 4)]
-            };
+        let settled_windows: &[(usize, usize)] = if self.scenario == Scenario::CrossbowInitialLaunch
+        {
+            &[]
+        } else if matches!(self.scenario, Scenario::SwordAttack | Scenario::FireCast) {
+            &[(4, 5)]
+        } else if matches!(self.scenario, Scenario::MovingJump | Scenario::WallJump) {
+            &[(6, 7)]
+        } else if matches!(
+            self.scenario,
+            Scenario::StationaryJump | Scenario::WallContact
+        ) {
+            &[(5, 6)]
+        } else if self.scenario == Scenario::RunVsWalk {
+            &[(3, 4), (8, 9)]
+        } else {
+            &[(3, 4)]
+        };
         for &(start, end) in settled_windows {
             ensure!(
                 self.samples[end]
@@ -1223,6 +1259,23 @@ pub struct OriginalBackend {
     initial_actor: ActorSample,
     setup_interventions: Vec<serde_json::Value>,
     ready_state: OriginalReadyState,
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Clone, Copy)]
+struct TrialCapture {
+    pause_compensated: bool,
+    extended: bool,
+    projectile_burst: bool,
+}
+
+#[cfg(target_os = "linux")]
+impl TrialCapture {
+    const BASIC: Self = Self {
+        pause_compensated: false,
+        extended: false,
+        projectile_burst: false,
+    };
 }
 
 #[cfg(target_os = "linux")]
@@ -1815,19 +1868,24 @@ impl OriginalBackend {
         points: &[SamplePoint],
         prefix: &str,
         screenshot_at: Option<&str>,
-        pause_compensated: bool,
-        observe_magick: bool,
+        capture: TrialCapture,
     ) -> Result<(
         Vec<DeliveredInput>,
         Vec<ActorSample>,
         Option<serde_json::Value>,
     )> {
+        let TrialCapture {
+            pause_compensated,
+            extended: observe_magick,
+            projectile_burst: capture_projectile_burst,
+        } = capture;
         self.controller.game()?.prepare_physical_input()?;
         let origin = Instant::now();
         let mut paused_total = Duration::ZERO;
         let mut delivered = vec![];
         let mut samples = vec![];
         let mut held_screenshot = None;
+        let mut projectile_burst = vec![];
         let mut actions = inputs
             .iter()
             .map(|v| (v.at_ms, 0_u8, v.id.as_str()))
@@ -1866,6 +1924,37 @@ impl OriginalBackend {
                     actual_ms,
                     event: input.event.clone(),
                 });
+                if capture_projectile_burst && matches!(name, "attack_press" | "attack_release") {
+                    let (first, count) = if name == "attack_press" {
+                        (0, 4)
+                    } else {
+                        (4, 21)
+                    };
+                    for local_index in 0..count {
+                        if local_index > 0 {
+                            thread::sleep(Duration::from_millis(8));
+                        }
+                        let observation = self.controller.game()?.observe_magick_behavior(
+                            &[47, 48, 290, 271],
+                            &[59],
+                            Some(2),
+                        )?;
+                        ensure!(
+                            observation.status.phase == 9 && observation.status.level == "manoir",
+                            "game left the manor during arrow observation"
+                        );
+                        let paused = Duration::from_micros(u64::try_from(
+                            observation.pause.pause_duration_micros,
+                        )?);
+                        paused_total += paused;
+                        projectile_burst.push(serde_json::json!({
+                            "index": first + local_index,
+                            "elapsed_resumed_ms": origin.elapsed().saturating_sub(paused_total).as_millis(),
+                            "pause_micros": paused.as_micros(),
+                            "scene": observation.scene_tail,
+                        }));
+                    }
+                }
             } else {
                 let capture_start_ms =
                     origin.elapsed().saturating_sub(paused_total).as_millis() as u64;
@@ -1875,6 +1964,10 @@ impl OriginalBackend {
                         &[59],
                         Some(2),
                     )?;
+                    ensure!(
+                        observation.status.phase == 9 && observation.status.level == "manoir",
+                        "game left the scenario level during extended observation"
+                    );
                     let paused = Duration::from_micros(u64::try_from(
                         observation.pause.pause_duration_micros,
                     )?);
@@ -1896,6 +1989,8 @@ impl OriginalBackend {
                             "maximum_points": observation.magic_selection.maximum_points,
                         },
                         "designer_fields": {"59": ready},
+                        "inventory": observation.inventory,
+                        "source_status": observation.status,
                         "source_ai": observation.actor,
                         "source_scene_tail": observation.scene_tail,
                         "source_capture": observation.capture,
@@ -1908,11 +2003,13 @@ impl OriginalBackend {
                 if pause_compensated {
                     paused_total += paused;
                 }
-                let state = self.controller.game()?.state()?;
-                ensure!(
-                    state["phase"] == 9 && state["level"] == "manoir",
-                    "game left the scenario level: {state}"
-                );
+                if !observe_magick {
+                    let state = self.controller.game()?.state()?;
+                    ensure!(
+                        state["phase"] == 9 && state["level"] == "manoir",
+                        "game left the scenario level: {state}"
+                    );
+                }
                 let capture_end_ms =
                     origin.elapsed().saturating_sub(paused_total).as_millis() as u64;
                 let mut sample = ActorSample::from_actor(
@@ -1940,6 +2037,10 @@ impl OriginalBackend {
                     sample.raw_observation["time_basis"] =
                         serde_json::json!("wall_elapsed_minus_stopped_capture");
                 }
+                if capture_projectile_burst && name == "flight_recorded" {
+                    sample.raw_observation["source_projectile_burst"] =
+                        serde_json::json!(projectile_burst);
+                }
                 samples.push(sample);
                 if screenshot_at == Some(name) {
                     held_screenshot = Some(self.controller.game()?.screenshot()?);
@@ -1966,6 +2067,10 @@ impl OriginalBackend {
                     | (OriginalReadyState::ClearRoute, Scenario::MovingJump)
                     | (OriginalReadyState::WallJumpStart, Scenario::WallJump)
                     | (OriginalReadyState::JumpStart, Scenario::SwordAttack)
+                    | (
+                        OriginalReadyState::CrossbowStart,
+                        Scenario::CrossbowInitialLaunch
+                    )
                     | (OriginalReadyState::JumpStart, Scenario::FireCast)
             ),
             "the selected scenario's Given setup was not established"
@@ -1976,6 +2081,7 @@ impl OriginalBackend {
                 | Scenario::MovingJump
                 | Scenario::WallJump
                 | Scenario::SwordAttack
+                | Scenario::CrossbowInitialLaunch
                 | Scenario::FireCast
         );
         let (delivered, samples, _) = self.execute_trial(
@@ -1983,8 +2089,14 @@ impl OriginalBackend {
             &recording.samples,
             "",
             None,
-            pause_compensated,
-            recording.scenario == Scenario::FireCast,
+            TrialCapture {
+                pause_compensated,
+                extended: matches!(
+                    recording.scenario,
+                    Scenario::FireCast | Scenario::CrossbowInitialLaunch
+                ),
+                projectile_burst: recording.scenario == Scenario::CrossbowInitialLaunch,
+            },
         )?;
         let screenshot = self.controller.game()?.screenshot()?;
         let checks = assertions(recording.scenario, &samples)?;
@@ -2037,8 +2149,13 @@ impl OriginalBackend {
         );
         let walk = recording.preparatory_trial.as_ref().unwrap();
         let initial_setup = self.setup_interventions.clone();
-        let (mut delivered, mut samples, _) =
-            self.execute_trial(&walk.inputs, &walk.samples, "walk_", None, false, false)?;
+        let (mut delivered, mut samples, _) = self.execute_trial(
+            &walk.inputs,
+            &walk.samples,
+            "walk_",
+            None,
+            TrialCapture::BASIC,
+        )?;
         let walk_screenshot = self.controller.game()?.screenshot()?;
         let reload = self.reload_saved_state()?;
         self.face_clear_path()?;
@@ -2055,8 +2172,7 @@ impl OriginalBackend {
             &recording.samples,
             "run_",
             None,
-            false,
-            false,
+            TrialCapture::BASIC,
         )?;
         delivered.extend(run_delivered);
         samples.extend(run_samples);
@@ -2101,8 +2217,7 @@ impl OriginalBackend {
             &recording.samples,
             "",
             Some("contact_end"),
-            false,
-            false,
+            TrialCapture::BASIC,
         )?;
         let checks = assertions(recording.scenario, &samples)?;
         let status = if checks.iter().all(|check| check.passed) {

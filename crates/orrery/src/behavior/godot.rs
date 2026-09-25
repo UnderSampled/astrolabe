@@ -69,12 +69,25 @@ impl GodotBackend {
         });
         let reload = self.reload_saved_state_with_overlay(overlay.clone())?;
         let after = &reload["after"];
+        let target_matches = after["laser"]["target"]
+            .as_array()
+            .zip(overlay["laser_target_source"].as_array())
+            .is_some_and(|(actual, expected)| {
+                actual.len() == 3
+                    && expected.len() == 3
+                    && actual.iter().zip(expected).all(|(actual, expected)| {
+                        actual
+                            .as_f64()
+                            .zip(expected.as_f64())
+                            .is_some_and(|(actual, expected)| (actual - expected).abs() < 0.0001)
+                    })
+            });
         ensure!(
             after["inventory"]["selected_weapon"] == 80
                 && after["inventory"]["weapon_80_quantity"] == 3
                 && after["laser"]["target_valid"] == true
                 && after["laser"]["active"] == false
-                && after["laser"]["target"] == overlay["laser_target_source"]
+                && target_matches
                 && after["designer_fields"]["59"] == false
                 && after["generated_object_count"] == 0,
             "Godot crossbow starting-state overlay is not established: {after}"
@@ -769,6 +782,7 @@ impl GodotBackend {
                     | (ReadyState::ClearRoute, Scenario::MovingJump)
                     | (ReadyState::WallJumpStart, Scenario::WallJump)
                     | (ReadyState::JumpStart, Scenario::SwordAttack)
+                    | (ReadyState::CrossbowStart, Scenario::CrossbowInitialLaunch)
                     | (ReadyState::JumpStart, Scenario::FireCast)
             ),
             "Godot Given setup is not established"

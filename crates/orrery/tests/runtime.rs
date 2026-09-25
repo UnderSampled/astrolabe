@@ -90,6 +90,18 @@ fn stopped_capture_is_bounded_immutable_and_never_completed_update() -> Result<(
 }
 #[test]
 fn pause_preserves_existing_stop_and_unwinds_new_stop() -> Result<()> {
+    fn stopped_tasks(pid: i32) -> Result<Vec<(std::path::PathBuf, bool)>> {
+        let mut tasks = fs::read_dir(format!("/proc/{pid}/task"))?
+            .map(|entry| {
+                let path = entry?.path();
+                let status = fs::read_to_string(path.join("status"))?;
+                Ok((path, status.contains("State:\tT")))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        tasks.sort_by(|a, b| a.0.cmp(&b.0));
+        Ok(tasks)
+    }
+
     let temp = tempfile::tempdir()?;
     let output = temp.path().join("fixture.json");
     let mut owner = Owner::new()?;
@@ -99,10 +111,19 @@ fn pause_preserves_existing_stop_and_unwinds_new_stop() -> Result<()> {
     // SAFETY: this test owns the exact live fixture process and never exposes its PID to a shell.
     assert_eq!(unsafe { libc::kill(pid, libc::SIGSTOP) }, 0);
     let start = Instant::now();
-    while !fs::read_to_string(format!("/proc/{pid}/status"))?.contains("State:\tT") {
+    // Group-stop reaches threads separately; the leader's T state alone is
+    // not enough for pause() to preserve an already stopped process.
+    loop {
+        let tasks = stopped_tasks(pid)?;
+        if !tasks.is_empty()
+            && tasks.iter().all(|(_, stopped)| *stopped)
+            && stopped_tasks(pid)? == tasks
+        {
+            break;
+        }
         ensure!(
             start.elapsed() < Duration::from_secs(1),
-            "fixture did not stop"
+            "every fixture thread did not stop"
         );
         thread::sleep(Duration::from_millis(1));
     }

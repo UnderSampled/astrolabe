@@ -82,6 +82,26 @@ fn synthetic_sword_attack_requires_selection_attack_and_recovery() -> anyhow::Re
 }
 
 #[test]
+fn synthetic_crossbow_initial_launch_requires_two_positions() -> anyhow::Result<()> {
+    let path = behavior_steps::run_scenario("Launching one crossbow arrow initially")?;
+    let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
+    assert_eq!(report["result"]["status"], "passed");
+    use orrery::behavior::{self, Scenario};
+    let mut result =
+        behavior_steps::synthetic_result(behavior::recording(Scenario::CrossbowInitialLaunch))?;
+    result.samples[2].raw_observation["generated_trace_first"][1]["translation"] =
+        serde_json::json!([0.0, 0.0, 5.0]);
+    result.assertions = behavior::assertions(result.scenario, &result.samples)?;
+    assert!(
+        result
+            .assertions
+            .iter()
+            .any(|check| { check.name == "crossbow_initial_displacement" && !check.passed })
+    );
+    Ok(())
+}
+
+#[test]
 fn synthetic_fire_cast_requires_action_order_and_mana_cost() -> anyhow::Result<()> {
     let path = behavior_steps::run_scenario("Casting the selected Fire spell once")?;
     let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;

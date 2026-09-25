@@ -57,6 +57,19 @@ fn original_sword_attack_and_recovery() -> anyhow::Result<()> {
 
 #[test]
 #[ignore = "requires prepared Hype save and private Wine/Gamescope; selected by --local"]
+fn original_crossbow_initial_launch() -> anyhow::Result<()> {
+    let path = behavior_steps::run_scenario("Launching one crossbow arrow initially")?;
+    let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
+    anyhow::ensure!(
+        report["openspace"]["status"] == "passed",
+        "source initial crossbow launch did not pass"
+    );
+    println!("OpenSpace crossbow launch BDD evidence: {}", path.display());
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires prepared Hype save and private Wine/Gamescope; selected by --local"]
 fn original_fire_cast_and_mana_cost() -> anyhow::Result<()> {
     let path = behavior_steps::run_scenario("Casting the selected Fire spell once")?;
     let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;

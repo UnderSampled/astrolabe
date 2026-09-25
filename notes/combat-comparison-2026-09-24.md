@@ -600,3 +600,45 @@ cached type-11 card, whose dispatcher callback is `0x0058a43e`, rather than
 the examined generic callback. Its actual classifier vector, thresholds and
 path to the published `0x4` word remain unresolved. This static trace does
 not justify a Godot slide-count, floor or wall predicate for condition 33.
+
+## Initial crossbow launch BDD (2026-09-25)
+
+The new `Launching one crossbow arrow initially` Cucumber scenario uses a
+declared three-arrow starting state in both backends. Physical Z selects the
+crossbow; the recording observes armed action 48 before pressing Space. A
+shorter first recording pressed Space while the original was still in draw
+action 90 and correctly failed to find an arrow. The checked recording now
+samples armed idle at 1,000 ms and presses Space at 1,100–1,180 ms. Orrery
+captures a bounded, 25-stop scene-tail burst around the press and release;
+Godot retains its generated actor frame trace. Each backend requires the
+model-733 identity and two distinct positions of the same instance. The
+source assertion also requires increasing published update stamps.
+
+The original run passed all four assertions. Child 176 resolved to Fix module
+17, block 0, payload offset `0x4e324`; published stamps 294/295 moved from
+`[-73.82520,29.41665,6.06801]` to
+`[-73.71429,29.41665,6.02718]`, a distance of 0.118 source units. The
+supplied save remained unchanged and cleanup completed. Evidence:
+`TestResults/original-crossbow-retry-20260925-evidence/behavior-crossbow-initial-launch-1790305617632821672.json`.
+
+The Godot run passed the same recording. The generated model-733 Brain was
+running in its first retained frame and the arrow moved 5.25 source units by
+the next recorded frame. That next frame records the Brain stopping on the
+explicit unsupported contact result. This is evidence for initial launch and
+movement, not later AI behavior or trajectory parity. The Godot result is
+`TestResults/crossbow-godot-revised-20260925-evidence/behavior-crossbow-initial-launch-1790305744520811514.json`.
+The displacement magnitudes differ substantially over the sampled intervals;
+those intervals are not paired frame by frame, so this is an open trajectory
+fidelity issue, not a measured speed ratio.
+The recording hashes match, and `orrery compare-behavior` passed the paired
+initial-launch scope in `TestResults/crossbow-initial-comparison-20260925.json`.
+
+Weapon 80 quantity remained three in the original run but became two in the
+Godot run. The test deliberately has no cross-backend ammunition assertion.
+The Godot start still supplies a declared laser target because camera-based
+acquisition is unsupported. Contact evaluation and the arrow's subsequent
+cleanup remain unresolved, as does the source frame for its generation
+vector. The Godot test's first import took about 200 seconds; consider
+reusing the generated project for compatible scenarios while keeping
+fixture and runtime state explicit. None of these gaps should be hidden by
+support-side firing or projectile scripts.

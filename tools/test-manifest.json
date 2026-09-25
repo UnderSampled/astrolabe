@@ -1935,6 +1935,17 @@
       "release": true
     },
     {
+      "binary": "orrery::behavior_synthetic",
+      "test": "synthetic_crossbow_initial_launch_requires_two_positions",
+      "areas": ["combat", "comparison"],
+      "kind": "contract",
+      "prerequisites": [],
+      "fixture": "synthetic model-733 arrow trace",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
       "binary": "orrery::behavior_original",
       "test": "original_movement_scenarios_share_one_game_session",
       "areas": ["movement", "comparison"],
@@ -2001,6 +2012,17 @@
       "release": true
     },
     {
+      "binary": "orrery::behavior_original",
+      "test": "original_crossbow_initial_launch",
+      "areas": ["combat", "comparison"],
+      "kind": "original-engine",
+      "prerequisites": ["original"],
+      "fixture": "pinned Hype executable and supplied English SaveGame0 with test-owned arrows",
+      "timeout_seconds": 140,
+      "ignored": true,
+      "release": true
+    },
+    {
       "binary": "orrery::behavior_godot",
       "test": "godot_stationary_jump_and_landing",
       "areas": ["jump", "comparison"],
@@ -2051,6 +2073,17 @@
       "kind": "gameplay",
       "prerequisites": ["disc", "godot"],
       "fixture": "normal Hype manoir export with saved Brain",
+      "timeout_seconds": 360,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "orrery::behavior_godot",
+      "test": "godot_crossbow_initial_launch",
+      "areas": ["combat", "comparison"],
+      "kind": "gameplay",
+      "prerequisites": ["disc", "godot"],
+      "fixture": "normal Hype manoir export with saved Brain and test-owned arrows",
       "timeout_seconds": 360,
       "ignored": true,
       "release": true
@@ -2596,6 +2629,163 @@
       "kind": "process",
       "prerequisites": [],
       "fixture": "loopback HTTP socket",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::source_actor_list_calls_decode_and_reconstruct",
+      "areas": [
+        "ai",
+        "source"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic source actor-list calls",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::source_camera_update_return_zero_pair_round_trips",
+      "areas": [
+        "ai",
+        "source"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic source camera nodes",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai_values::list_tests::source_perso_list_round_trips_empty_and_edited_entries",
+      "areas": [
+        "ai",
+        "source"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic source Perso list",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::live::active_camera_tests::active_camera_decodes_checked_projection_from_one_source_pointer",
+      "areas": [
+        "source",
+        "scene"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic checked live memory",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::live::active_camera_tests::camera_records_follow_four_checked_links_in_one_capture",
+      "areas": [
+        "source",
+        "scene"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic checked camera links",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::live::active_camera_tests::inventory_quantity_locator_requires_the_active_expected_item",
+      "areas": [
+        "source",
+        "runtime"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic checked inventory memory",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::live::active_camera_tests::live_camera_search_uses_checked_live_hierarchy_and_rejects_ambiguity",
+      "areas": [
+        "source",
+        "scene"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic checked live hierarchy",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
+      "test": "native_camera_api_stores_the_compiled_target_actor",
+      "areas": [
+        "ai",
+        "scene"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "synthetic camera target actor",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::global_ai_actor",
+      "test": "rooted_source_camera_association_survives_rete",
+      "areas": [
+        "scene",
+        "rete"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "supplied Hype en",
+      "timeout_seconds": 90,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "behavior::sword::tests::missing_godot_beam_trace_fails_the_sword_case",
+      "areas": [
+        "combat",
+        "comparison"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic sword beam trace",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "mcp::tests::physical_key_sequence_arguments_are_ordered_and_bounded",
+      "areas": [
+        "runtime"
+      ],
+      "kind": "contract",
+      "prerequisites": [],
+      "fixture": "synthetic physical input sequence",
       "timeout_seconds": 5,
       "ignored": false,
       "release": true

@@ -516,10 +516,10 @@ impl Content for AiModel {
                 }
             }
         }
-        for reference in self.behavior_references() {
+        for (reference, requires_own_model) in self.behavior_references_with_owner() {
             // A query may name a behavior in another actor's AI model. Its
             // owning model is resolved by the content adapter, not by `self`.
-            if reference.model.path == self.path {
+            if requires_own_model || reference.model.path == self.path {
                 reference.validate_model(self)?;
             }
         }
@@ -771,10 +771,16 @@ impl AiModel {
         out
     }
     pub fn behavior_references(&self) -> Vec<&BehaviorRef> {
-        fn visit<'a>(statements: &'a [Statement], out: &mut Vec<&'a BehaviorRef>) {
+        self.behavior_references_with_owner()
+            .into_iter()
+            .map(|(reference, _)| reference)
+            .collect()
+    }
+    fn behavior_references_with_owner(&self) -> Vec<(&BehaviorRef, bool)> {
+        fn visit<'a>(statements: &'a [Statement], out: &mut Vec<(&'a BehaviorRef, bool)>) {
             for statement in statements {
                 match statement {
-                    Statement::ChangeBehavior { target, .. } => out.push(target),
+                    Statement::ChangeBehavior { target, .. } => out.push((target, true)),
                     Statement::If {
                         then, otherwise, ..
                     } => {
@@ -801,7 +807,7 @@ impl AiModel {
             }
         }
         out.extend(self.expressions().into_iter().filter_map(|e| match e {
-            Expression::IsInBehavior { target, .. } => Some(target),
+            Expression::IsInBehavior { target, .. } => Some((target, false)),
             _ => None,
         }));
         out

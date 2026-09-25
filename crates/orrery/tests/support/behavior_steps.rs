@@ -47,6 +47,12 @@ impl SessionBackend {
             Self::Godot(backend) => backend.prepare_stationary_jump(),
         }
     }
+    fn prepare_crossbow(&mut self) -> Result<()> {
+        match self {
+            Self::Original(backend) => backend.prepare_crossbow(),
+            Self::Godot(backend) => backend.prepare_crossbow(),
+        }
+    }
     fn prepare_wall_jump(&mut self) -> Result<()> {
         match self {
             Self::Original(backend) => backend.prepare_wall_jump(),
@@ -491,6 +497,66 @@ pub fn synthetic_result(recording: behavior::FunctionalRecording) -> Result<Back
                 error: None,
             });
         }
+        Scenario::CrossbowInitialLaunch => {
+            let mut samples = recording
+                .samples
+                .iter()
+                .map(|point| {
+                    ActorSample::from_actor(
+                        point.name.clone(),
+                        point.at_ms,
+                        point.at_ms,
+                        point.at_ms + 1,
+                        synthetic_actor(47, [0.0, 0.0, 4.55], 0.0),
+                    )
+                })
+                .collect::<Result<Vec<_>>>()?;
+            samples[0].raw_observation["inventory"] =
+                serde_json::json!({"selected_weapon": 80, "weapon_80_quantity": 3});
+            samples[1].action = Some(48);
+            samples[2].raw_observation["generated_trace_first"] = serde_json::json!([
+                {"event":"frame","instance_id":1,"source_model_path":"fix:/ai/models/733",
+                 "brain_running":true,"brain_failure":"","translation":[0.0,0.0,5.0]},
+                {"event":"frame","instance_id":1,"source_model_path":"fix:/ai/models/733",
+                 "brain_running":false,"brain_failure":"unsupported contact","translation":[0.0,0.0,5.5]}
+            ]);
+            let checks = behavior::assertions(scenario, &samples)?;
+            let delivered = recording
+                .inputs
+                .iter()
+                .map(|input| behavior::DeliveredInput {
+                    id: input.id.clone(),
+                    planned_ms: input.at_ms,
+                    actual_ms: input.at_ms,
+                    event: input.event.clone(),
+                })
+                .collect();
+            return Ok(BackendResult {
+                backend: "synthetic".into(),
+                scenario,
+                status: if checks.iter().all(|check| check.passed) {
+                    "passed"
+                } else {
+                    "failed"
+                }
+                .into(),
+                recording_sha256: recording.sha256()?,
+                recording,
+                executable_sha256: None,
+                save_sha256: None,
+                loaded_level: Some("synthetic_manoir".into()),
+                input_delivery: "synthetic_fixture".into(),
+                observation_consistency: "synthetic".into(),
+                completed_update: false,
+                setup_interventions: vec![],
+                delivered,
+                samples,
+                assertions: checks,
+                screenshot: None,
+                cleanup_complete: true,
+                error: None,
+            });
+        }
         Scenario::FireCast => {
             let actions = [47, 48, 290, 290, 271, 271];
             let mana = [30, 30, 30, 30, 20, 20];
@@ -679,6 +745,21 @@ fn clear_sword_start(world: &mut BehaviorWorld) {
     clear_jump_start(world);
 }
 
+#[given("Hype has three test arrows in the supplied manor state")]
+fn crossbow_start(world: &mut BehaviorWorld) {
+    if crate::BACKEND != Mode::Synthetic {
+        let result = world
+            .backend
+            .as_mut()
+            .context("behavior backend not started")
+            .and_then(SessionBackend::prepare_crossbow);
+        if let Err(err) = result {
+            world.failure = Some(err.to_string());
+            panic!("crossbow setup failed: {err}");
+        }
+    }
+}
+
 #[given("Hype is ready to move in a clear part of the manor")]
 fn ready(world: &mut BehaviorWorld) {
     if crate::BACKEND != Mode::Synthetic && world.backend.is_none() {
@@ -777,6 +858,32 @@ fn wall_jump(world: &mut BehaviorWorld) {
 #[when("the player selects the sword and presses attack once")]
 fn sword_attack(world: &mut BehaviorWorld) {
     perform(world, Scenario::SwordAttack);
+}
+
+#[when("the player selects the crossbow and presses attack once")]
+fn crossbow_launch(world: &mut BehaviorWorld) {
+    perform(world, Scenario::CrossbowInitialLaunch);
+}
+
+#[then("the compiled scripts spawn a model 733 arrow")]
+fn crossbow_arrow_spawned(world: &mut BehaviorWorld) {
+    require_checks(
+        world,
+        &[
+            "crossbow_quantity_three_start",
+            "crossbow_armed_before_attack",
+        ],
+    );
+    if crate::BACKEND == Mode::Original {
+        require_checks(world, &["crossbow_original_model733_spawned"]);
+    } else {
+        require_checks(world, &["crossbow_compiled_arrow_starts"]);
+    }
+}
+
+#[then("the arrow moves between two initial observations")]
+fn crossbow_arrow_moves(world: &mut BehaviorWorld) {
+    require_checks(world, &["crossbow_initial_displacement"]);
 }
 
 #[when("the player selects the sword and casts Fire once")]
@@ -1075,6 +1182,7 @@ fn selected_scenario(name: &str) -> Result<Scenario> {
         "Jumping from a walk and landing" => Scenario::MovingJump,
         "A moving jump meets the wall and lands" => Scenario::WallJump,
         "Selecting the sword and attacking once" => Scenario::SwordAttack,
+        "Launching one crossbow arrow initially" => Scenario::CrossbowInitialLaunch,
         "Casting the selected Fire spell once" => Scenario::FireCast,
         _ => anyhow::bail!("unknown BDD scenario: {name}"),
     })
@@ -1123,7 +1231,10 @@ fn run_selected(names: &[&'static str], shared_session: bool) -> Result<SessionE
         let before_launch_count = Rc::clone(&launch_count);
         let after_session = Rc::clone(&session);
         let writer = runtime.block_on(async {
-            let feature = if scenario == Scenario::SwordAttack {
+            let feature = if matches!(
+                scenario,
+                Scenario::SwordAttack | Scenario::CrossbowInitialLaunch
+            ) {
                 concat!(env!("CARGO_MANIFEST_DIR"), "/tests/features/combat.feature")
             } else if scenario == Scenario::FireCast {
                 concat!(env!("CARGO_MANIFEST_DIR"), "/tests/features/magick.feature")

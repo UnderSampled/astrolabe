@@ -39,6 +39,13 @@ pass independently. See the [run comparison](../../notes/run-comparison-2026-09-
 and [wall contact evidence](../../notes/wall-contact-2026-09-24.md) for bounds,
 results, and remaining visual/timing limits.
 
+The combat selection also includes an initial crossbow launch scenario. It
+uses a declared quantity-three start, physical weapon selection, an observed
+armed checkpoint, and a physical attack. Each backend must identify model 733
+and show the same arrow at two positions. The paired result covers initial
+launch only; subsequent contact behavior, trajectory and ammunition parity
+remain open. See the [combat comparison note](../../notes/combat-comparison-2026-09-24.md#initial-crossbow-launch-bdd-2026-09-25).
+
 Pair matching scenario reports with:
 
 ```sh
