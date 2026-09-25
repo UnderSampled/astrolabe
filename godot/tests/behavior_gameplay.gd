@@ -17,6 +17,9 @@ var action_requests: Array = []
 var action_states: Array = []
 var key_inputs: Array = []
 var generated_trace: Array = []
+var generated_trace_first: Array = []
+var generated_trace_first_overflow: bool = false
+var starting_state_overlay: Dictionary = {}
 var last_action_state: int = -1
 
 func _initialize() -> void:
@@ -179,6 +182,10 @@ func track_generated_objects() -> void:
         entry["event"] = "frame"
         entry["at_ms"] = Time.get_ticks_msec()
         generated_trace.append(entry)
+        if generated_trace_first.size() < 60:
+            generated_trace_first.append(entry)
+        else:
+            generated_trace_first_overflow = true
     if generated_trace.size() > 120: generated_trace.pop_front()
 
 func record_generated_exit(spawned: CharacterBody3D) -> void:
@@ -186,10 +193,17 @@ func record_generated_exit(spawned: CharacterBody3D) -> void:
     entry["event"] = "tree_exiting"
     entry["at_ms"] = Time.get_ticks_msec()
     generated_trace.append(entry)
+    if generated_trace_first.size() < 60:
+        generated_trace_first.append(entry)
+    else:
+        generated_trace_first_overflow = true
     if generated_trace.size() > 120: generated_trace.pop_front()
 
 func source_vector(values: Array) -> Vector3:
     return Vector3(float(values[0]), float(values[2]), -float(values[1]))
+
+func source_components(value: Vector3) -> Array:
+    return [value.x, -value.z, value.y]
 
 func designer_action_arrays() -> Dictionary:
     var result: Dictionary = {}
@@ -271,6 +285,39 @@ func restore_save_fixture() -> String:
         brain.set("dsg_" + key, restored)
     return ""
 
+func apply_starting_state_overlay(overlay: Dictionary) -> String:
+    starting_state_overlay = {}
+    if overlay.is_empty():
+        return ""
+    if overlay.size() != 2 or str(overlay.get("kind", "")) != "crossbow_launch":
+        return "unknown behavior starting-state overlay"
+    var source_target: Variant = overlay.get("laser_target_source")
+    if not source_target is Array or source_target.size() != 3:
+        return "crossbow laser target is malformed"
+    for component in source_target:
+        if not (component is float or component is int) or not is_finite(float(component)):
+            return "crossbow laser target is malformed"
+    var native_inventory: Resource = actor.get("source_inventory")
+    var native_laser: Resource = actor.get("source_laser_pointer")
+    if native_inventory == null or native_laser == null:
+        return "crossbow starting-state resources are missing"
+    if int(native_inventory.get("selected_weapon")) != 80 or int(native_inventory.call("quantity", 80)) != 0:
+        return "crossbow overlay requires the measured English save inventory"
+    var quantities: Dictionary = native_inventory.get("quantities")
+    quantities = quantities.duplicate(true)
+    quantities[80] = 3
+    native_inventory.set("quantities", quantities)
+    native_laser.set("target_position", source_vector(source_target))
+    native_laser.set("target_valid", true)
+    native_laser.set("active", false)
+    starting_state_overlay = {
+        "kind": "crossbow_launch",
+        "weapon_80_quantity": 3,
+        "laser_target_source": source_target.duplicate(),
+        "laser_target_provenance": "declared_test_starting_state",
+    }
+    return ""
+
 func generated_objects() -> Array:
     var result: Array = []
     for candidate in root.find_children("*", "CharacterBody3D", true, false):
@@ -283,11 +330,22 @@ func generated_object_snapshot(spawned: CharacterBody3D) -> Dictionary:
     var velocity: Vector3 = spawned.get("external_velocity")
     var spawned_brain := spawned.get_node_or_null("Brain")
     var start_value: Variant = spawned_brain.get("dsg_0") if spawned_brain != null else null
+    var spawned_laser: Resource = spawned.get("source_laser_pointer")
+    var spawned_inventory: Resource = spawned.get("source_inventory")
+    var target: Vector3 = spawned_laser.get("target_position") if spawned_laser != null else Vector3.ZERO
+    var basis := spawned.global_basis
     return {
         "instance_id": spawned.get_instance_id(),
         "template": str(spawned.get_meta("astrolabe_generated_template")),
+        "source_model_path": str(spawned_brain.get("source_model_path")) if spawned_brain != null else "",
+        "physics_frame": Engine.get_physics_frames(),
         "translation": [position.x, -position.z, position.y],
         "velocity": [velocity.x, -velocity.z, velocity.y],
+        "source_basis": [source_components(basis.x), source_components(-basis.z), source_components(basis.y)],
+        "sighting": source_components(basis.z),
+        "laser_target_valid": bool(spawned_laser.get("target_valid")) if spawned_laser != null else false,
+        "laser_target": source_components(target),
+        "weapon_80_quantity": int(spawned_inventory.call("quantity", 80)) if spawned_inventory != null else null,
         "action": int(spawned.get("current_state")),
         "brain_running": bool(spawned_brain.get("running")) if spawned_brain != null else false,
         "brain_normal": int(spawned_brain.get("current_normal")) if spawned_brain != null else -1,
@@ -328,6 +386,9 @@ func observation() -> Dictionary:
         })
     var floor_normal := actor.get_floor_normal() if actor.is_on_floor() else Vector3.ZERO
     var native_magick: Resource = actor.get("source_magick")
+    var native_inventory: Resource = actor.get("source_inventory")
+    var native_laser: Resource = actor.get("source_laser_pointer")
+    var laser_target: Vector3 = native_laser.get("target_position") if native_laser != null else Vector3.ZERO
     var magick_ready := bool(actor.call("source_magic_ready"))
     return {
         "action": int(actor.get("current_state")),
@@ -340,6 +401,8 @@ func observation() -> Dictionary:
         "generated_object_count": int(actor.get("source_generated_object_count")),
         "generated_objects": generated_objects(),
         "generated_trace": generated_trace.duplicate(true),
+        "generated_trace_first": generated_trace_first.duplicate(true),
+        "generated_trace_first_overflow": generated_trace_first_overflow,
         "channel_visibility": channel_visibility,
         "hud_display": actor.get("source_hud_display"),
         "magick": {
@@ -347,6 +410,16 @@ func observation() -> Dictionary:
             "current_points": int(actor.call("source_magic_points")) if magick_ready else null,
             "maximum_points": int(native_magick.get("maximum_points")) if native_magick != null else null,
         },
+        "inventory": {
+            "selected_weapon": int(native_inventory.get("selected_weapon")) if native_inventory != null else null,
+            "weapon_80_quantity": int(native_inventory.call("quantity", 80)) if native_inventory != null else null,
+        },
+        "laser": {
+            "active": bool(native_laser.get("active")) if native_laser != null else null,
+            "target_valid": bool(native_laser.get("target_valid")) if native_laser != null else null,
+            "target": source_components(laser_target),
+        },
+        "starting_state_overlay": starting_state_overlay.duplicate(true),
         "designer_fields": {"59": bool(brain.get("dsg_59"))},
         "action_requests": action_requests.duplicate(true),
         "action_states": action_states.duplicate(true),
@@ -400,13 +473,16 @@ func handle(request: Dictionary) -> Dictionary:
             var error := texture.get_image().save_png(path)
             return {"error": "" if error == OK else "screenshot failed", "path": path}
         "reload_fixture":
-            return await reload_fixture()
+            var overlay: Variant = request.get("overlay", {})
+            if not overlay is Dictionary:
+                return {"error": "behavior starting-state overlay is malformed"}
+            return await reload_fixture(overlay)
         "stop":
             return {"stopped": true}
         _:
             return {"error": "unknown behavior command"}
 
-func reload_fixture() -> Dictionary:
+func reload_fixture(overlay: Dictionary = {}) -> Dictionary:
     brain.set("automatic", false)
     brain.call("stop")
     actor.set_physics_process(false)
@@ -425,6 +501,8 @@ func reload_fixture() -> Dictionary:
     action_states.clear()
     key_inputs.clear()
     generated_trace.clear()
+    generated_trace_first.clear()
+    generated_trace_first_overflow = false
     last_action_state = -1
     actor.connect("action_request_traced", Callable(self, "record_action_request"))
     brain.set("automatic", false)
@@ -437,6 +515,9 @@ func reload_fixture() -> Dictionary:
     var restore_error := restore_save_fixture()
     if not restore_error.is_empty():
         return {"error": restore_error}
+    var overlay_error := apply_starting_state_overlay(overlay)
+    if not overlay_error.is_empty():
+        return {"error": overlay_error}
     camera = Camera3D.new()
     camera.name = "BehaviorCamera"
     camera.current = true

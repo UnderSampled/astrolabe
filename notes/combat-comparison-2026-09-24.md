@@ -332,8 +332,8 @@ reference and the `MainActor` keyword, clears two MainActor designer fields if
 field 120 is zero, then kills itself. A separate rule kills it after its lifetime counter exceeds
 150. The verified executable's shared condition handler `0x533d20` reads the
 actor contact result at offset `+0x20`; descriptor alignment and switch entry
-for raw condition 33 support a bit-zero test, but the collision updater's
-production of that bit is not yet proven. Native support should expose the
+for raw condition 33 require further validation before mapping native
+contact. Native support should expose the
 contact result needed by this compiled condition, rather than make an arrow
 specific lifetime or steering decision. Camera procedure 160's remaining
 reset effects and the Fix actor's role beyond selecting the rooted camera
@@ -355,18 +355,28 @@ move the camera. The rooted actor now retains its model-437 Brain and bounded
 Perso-list operations. Its return-zero/camera-update pair now compiles to a
 native API call, which still reports unsupported until the source pose update
 contract is implemented.
-The verified contact handler reads actor runtime offset `+0xf8`, whose producer
-ORs fields `+0xf0` and `+0xf4`. Bit zero's exact contact meaning and update
-order relative to the AI tick remain unresolved, so the native contact result
-is still unknown. A further static trace found one bit-zero producer: within
-a contact adjustment entered after a positive collision probe, a second probe
-with no result ORs bit zero into `+0xf4`. Another path clears `+0xf0/+0xf4`
-when its collision probe has no result, or writes a classified contact value
-when it does. The motion calculation copies the previous `+0xf4` to `+0xf0`
-before updating contact and position; a later routine publishes their union to
-`+0xf8`. The ordering of that publication against AI evaluation, and which
-producer governs the arrow, have not been established. This evidence does not
-yet justify mapping the condition to a Godot slide-collision count.
+The handler reads a mechanics contact-class word at runtime offset `+0xf8`.
+The executable computes a jump-table index by subtracting 31 from its
+selector; index 2 enters a Boolean mask-`0x2` test, while index 0 tests
+mask `0x1`. The typed importer preserves model 733's on-disk operation 33,
+so selector 33/index 2 is strongly supported, although the complete disk-to-
+runtime selector copy has not been traced. The earlier bit-zero attribution
+to condition 33 was a switch-alignment error. Collision processing snapshots
+the previous `+0xf4` result to `+0xf0`, computes a current classified result
+at `+0xf4`, and publishes `+0xf8 = +0xf4 | +0xf0`. An initialization path
+clears the two inputs; the published value changes at the next aggregate
+callback. The classifier uses contact-normal alignment with a caller-supplied
+vector and possibly custom thresholds. Exact arrow inputs and ordering
+relative to AI evaluation remain under investigation. This does not yet
+justify mapping condition 33 to a Godot slide-collision count.
+The selector-33 case at `0x00533dbf` specifically tests mask `0x2` (bit 1),
+not mask `0x4` or bit 0. One classifier path produces class `0x2` after a
+successful contact response when the normal's dot product with its reference
+vector is at least 0.5 and below 0.8660254 under default thresholds. A
+verified general mechanics caller supplies source `[0,0,1]` and those default
+thresholds, but its use by the model-733 arrow is not yet established. An
+original-game observation of that arrow's first condition evaluation is the
+next check before choosing a native Godot contact mapping.
 
 Any implementation that chooses a weapon or moves an arrow in Godot support
 without a corresponding compiled AI request would be a replacement gameplay
@@ -474,3 +484,30 @@ capture is ignored `TestResults/arrow-vector-delayed-burst-20260924.json`;
 the game/service were stopped and the installed saves still matched the
 supplied archive. Leave the generic Godot vector conversion unchanged until
 its frame is independently resolved.
+
+A fresh disposable Godot export contains compiled Hype model 28 and arrow
+model 733. In a bounded test with measured save inventory overlaid to weapon
+80 quantity three, a declared valid laser target and a throwaway preselected
+crossbow state, physical Space ran model 28's action-73 firing path and
+generated one actor whose Brain identifies `fix:/ai/models/733`. The arrow
+had nonzero initial velocity and a changed position by the 33.333 ms contact
+check. At that check its Brain stopped on the explicit unknown result from
+`source_collide_with_nothing()`. There were not two consecutive valid motion
+samples before the failure, so this does not establish a passing crossbow BDD
+case or normal playable firing. The normal BDD case still needs physical Z
+selection, rather than the throwaway preselection used to isolate the arrow
+path. The test-owned wrapper parsed and loaded the fresh exported scene;
+Godot exited normally. The ignored result is
+`TestResults/manoir-crossbow-control-corrected-20260924/result.json`.
+Implement the contact condition only from the original collision-result
+contract, using a narrow Godot API mapping. Do not insert projectile-specific
+movement or return a fabricated no-contact value to advance the script.
+The test wrapper's separate `crossbow_launch` starting-state overlay was
+validated in the same running Godot process: it changed only the declared
+weapon-80 quantity to three and set a valid retained laser target before
+restarting Hype's Brain. Hype remained in action 47/normal behavior 4 with
+designer field 59 false, so the future case still has to select the crossbow
+through physical Z. A subsequent plain fixture reload restored quantity zero,
+an invalid zero target and no overlay. The fixture file hash was unchanged;
+the ignored validation report is
+`TestResults/crossbow-overlay-reload-retry-20260924/result.json`.

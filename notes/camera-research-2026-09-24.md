@@ -301,3 +301,17 @@ ordinary controller update `0x005200a0` to that publisher. Procedure 135
 still has no demonstrated direct matrix, FoV or clip write. Therefore the
 native camera update contract and the meanings of linked-record fields remain
 unproven; the explicit Godot stub is preferable to copying one observed pose.
+
+A bounded debugger probe on 2026-09-25 independently stopped at the compiled
+procedure-135 entry `0x00545d80` and the GLI publisher `0x0043dbd0` in phase-9
+`manoir`. At the first stop, the selected camera Perso was the receiver. At the
+second, the raw return address `0x0043ddf6` identified the registered-camera
+refresh callsite; the unwound stack did not expose a procedure-135 caller.
+The 15-second budget expired before the planned physical Left pulse, so the
+two stops do not prove a causal edge or follow response. The observed idle
+viewport pose and record words matched the prior capture closely. The run
+left the installed save byte-for-byte unchanged and cleaned up game, service
+and debugger processes. The detailed raw probe is in ignored
+`TestResults/camera-debugger-probe-2026-09-25.md`. A movement-triggered
+publication trace remains necessary before implementing the native camera
+pose update.

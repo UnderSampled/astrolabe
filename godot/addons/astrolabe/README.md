@@ -41,9 +41,10 @@ The source object-generation API copies the caller's transform and initializes
 the spawned Perso's native motion from the AI vector operand. Ordinary Godot
 physics integrates that initial velocity; the projectile's compiled AI decides
 its aiming, contact response and lifetime. The source vector's final movement
-frame and exact collision timing still need a live cross-engine comparison; the
-initial conversion uses the spawning actor's basis, as indicated by a bounded
-original-game displacement observation.
+frame and exact collision timing still need a live cross-engine comparison. The
+initial conversion uses the spawning actor's basis, but the captured original
+arrow displacement does not establish that basis choice because the compiled
+arrow AI may change its sighting before the first published motion sample.
 The exported level keeps a scene-local map from stable rooted and Global Perso
 references to native Brain paths. Object generation binds each compiled
 external actor reference to a live Brain before the generated actor starts; a

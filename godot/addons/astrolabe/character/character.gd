@@ -140,10 +140,9 @@ func source_initialize_motion(value: Vector3, spawning_basis: Basis) -> void:
     assert(value.is_finite())
     source_vector_speed = value
     source_relative_motion = false
-    # The evaluated vector is in the spawning actor's local source frame.
-    # The native body consumes a world velocity. Its destination-local
-    # transform is assigned before attachment, so its own global_basis is not
-    # reliable until add_child() runs.
+    # The coordinate frame of the evaluated source vector remains unverified.
+    # This provisional basis conversion seeds native world velocity. The new
+    # body's global_basis is not reliable until add_child() runs.
     var local_velocity := Vector3(value.x, value.z, -value.y)
     external_velocity = spawning_basis.orthonormalized() * local_velocity
 
