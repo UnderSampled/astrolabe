@@ -71,7 +71,10 @@ confirmed selected Weapon 80 at quantity zero and Hype action 47. Phase 9 and
 level name alone must not be treated as proof that this slot loaded.
 The verified menu setup uses each key for 55 ms followed by an 800 ms release
 gap. A shorter gap can leave the next screenshot before the menu visibly
-updates.
+updates. The menu `press_keys` tool uses X11 chord names `Down` and `Return`;
+the separate `physical_key_sequence` tool uses typed names `ArrowDown` and
+`Enter`. Check each tool response for an error before sending the next menu
+key.
 
 After verification, this is the Codex entry to add manually. Replace the sample
 value with the exact contents of the token file. Do not include angle brackets.
