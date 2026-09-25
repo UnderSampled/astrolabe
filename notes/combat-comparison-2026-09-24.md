@@ -589,3 +589,14 @@ cannot by itself prove which prior value the AI evaluated.
 The raw ignored capture is
 `TestResults/arrow-contact-retry-20260924-sequence.json`. Orrery and the game
 were stopped and all supplied save members retained their original hashes.
+
+The verified executable's generic mechanics callback `0x00585d51` looks up
+an environment card with a downward query and passes that card's `+4` vector
+to `0x0059a504`; that function calls the contact classifier `0x00597be6`
+with the vector and a separate threshold descriptor. The generic defaults
+include dot-product boundaries 0.8660254 and 0.5 for class `0x1`/`0x2`
+paths; a later response can produce class `0x4`. The live arrow reports a
+cached type-11 card, whose dispatcher callback is `0x0058a43e`, rather than
+the examined generic callback. Its actual classifier vector, thresholds and
+path to the published `0x4` word remain unresolved. This static trace does
+not justify a Godot slide-count, floor or wall predicate for condition 33.
