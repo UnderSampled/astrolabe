@@ -562,3 +562,30 @@ mask-`0x2` result and whether the published word equals their union. A stopped
 capture can land between stores; an inconsistent triple is recorded as such,
 not silently discarded. This is a read-only observation of source state and
 does not yet establish which value a prior AI evaluation consumed.
+
+The first no-debugger capture using that observation verified the three-arrow
+starting quantity, then pressed Z for 120 ms and Space for 100 ms without a
+gap. Across eight 15 ms scene-tail samples, the child count stayed at 176;
+no model-733 candidate appeared. The unrelated baseline child resolved to Fix
+`(17,0)` offset 8024, so its contact words cannot be used as arrow evidence.
+The run ended cleanly with the supplied save unchanged. Its ignored raw result
+is `TestResults/arrow-contact-live-20260924.json`. Earlier successful shots
+used Z for 55 ms, a 100 ms or longer gap, then Space for 55–80 ms. The
+no-spawn result does not establish the condition's value or polarity.
+
+A single cadence-matched retry used Z for 55 ms, a 100 ms gap and Space for
+80 ms after the post-load settle. The new child 176's checked Brain model
+resolved to Fix module 17, block 0, payload offset `0x4e324`: active base
+`0x02840020` plus that offset equals its live model pointer `0x0288e344`.
+The first published update (stamp 2298) had contact words `[0,0,0]` and
+velocity `[1.3863,44.9757,-0.5103]` at
+`[-73.8893,28.9979,6.0916]`. The next (stamp 2299) had `[4,4,4]`,
+clear selector-33 mask `0x2`, vertical velocity zero and position
+`[-73.8519,29.4167,6.0778]`; the child was absent at the following sample.
+The two published samples establish the live model identity, displacement and
+contact transition, but no breakpoint observed the condition's actual return
+or the reason for removal. In particular, a zero mask in a post-update capture
+cannot by itself prove which prior value the AI evaluated.
+The raw ignored capture is
+`TestResults/arrow-contact-retry-20260924-sequence.json`. Orrery and the game
+were stopped and all supplied save members retained their original hashes.
