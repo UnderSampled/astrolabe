@@ -642,3 +642,198 @@ vector. The Godot test's first import took about 200 seconds; consider
 reusing the generated project for compatible scenarios while keeping
 fixture and runtime state explicit. None of these gaps should be hidden by
 support-side firing or projectile scripts.
+
+## Selector-33 debugger probe (2026-09-25)
+
+Static disassembly of the pinned executable places selector 33's bit test at
+`0x00533dbf`: it tests `EAX & 0x2` and stores the resulting Boolean through
+the pointer at `[ESP+0x14]` before `0x00533dcf`. The handler calls a helper
+that reaches the dynamics object's AI-visible contact word at `+0xf8`.
+The handler's `ESI` operand was initially assumed to be a SuperObject, but a
+later live trace put it inside the Fix block. Subsequent static review showed
+that `ESI` is handler argument 2 and its selector is read from `[ESI-8]`;
+it is not established as an actor pointer. The static record is ignored
+`TestResults/arrow-selector33-static-20260924.txt`.
+
+One bounded live run loaded the verified save, established quantity three,
+selected the crossbow with physical Z and observed action 48 twice before
+attaching GDB. It then sent physical Space for 80 ms. The exact case and
+post-store breakpoints were armed, but no checked model-733 invocation or
+Boolean was recorded. The JSONL contains only the arming record, so the run
+cannot distinguish a missing projectile from an unobserved condition call or
+a filtering/callback fault. No contact mapping is justified by this result.
+The game was stopped, the installed saves retained their hashes, and no
+screenshots were taken. Ignored evidence:
+`TestResults/arrow-selector33-luna-20260925-033521.jsonl` and its `.gdb.log`.
+
+The next probe needs per-breakpoint raw-hit and callback-error counters plus
+an independent, statically verified arrow insertion witness. Only then can a
+missing selector-33 result be assigned to spawn, branch reachability or the
+identity filter. The existing BDD comparison remains limited to initial
+launch and movement.
+
+A subsequent bounded run added the post-insertion witness at `0x0054a72e`.
+The returned SuperObject was a new child under the dynamic world root, and
+its Brain model pointer resolved to Fix module 17/block 0, model 733 at
+offset `0x4e324`. The witness succeeded once, while the selector-33 case and
+post-store breakpoints had zero raw hits. This rules out a missing spawn in
+that run, but gives no contact-condition Boolean. Evidence is ignored
+`TestResults/arrow-selector33-spawn-case-luna-20260925-034937.jsonl`.
+
+One more bounded run broke at handler entry `0x00533d5a`: 118 raw hits,
+no case/post-store hits, and no callback or memory-read errors. Two logged
+entry samples selected 31 and had `ESI=0x02880f04`, inside the live Fix
+block. The existing filter compared `ESI` to the witnessed SuperObject and
+rejected all 118 hits. That comparison is not established as a valid actor
+identity test, so its rejection count does not show whether the arrow entered
+the handler. The raw zero selector-33 hits show that this branch was not
+observed during the capture window. A subsequent static argument review
+confirmed the selector read from `[ESI-8]`. The third handler argument
+resolves a mechanics pointer; at handler entry `EAX` holds its `+0xd8` base,
+and `[EAX+0x20]` is the contact input. An actor-specific check can compare
+that base with the witnessed arrow's dynamics object plus `0xd8`, then follow
+selector 33 to the actual Boolean. The exact model-733 condition node is
+another possible address filter once its ownership is verified. Evidence is
+ignored
+`TestResults/arrow-handler-entry-spawn-case-luna-20260925-035313.jsonl`.
+The argument review is ignored
+`TestResults/selector-handler-argument-static-luna-20260925.txt`.
+Both runs detached and stopped cleanly, preserved SaveGame0 hashes, and used
+no screenshots.
+
+A read-only Fix decode located the `CollideWithNothing` node in model 733's
+normal behavior 2, rule 0, at module 17/block 0 offset `0x4ea08` (wire bytes
+`21 00 00 00 00 00 03 01`). The previously witnessed runtime block base
+derives a node address of `0x0288ea28`; the selector handler should receive
+`ESI=0x0288ea30`, since it reads the selector at `[ESI-8]`. This address has
+not yet been observed at the breakpoint. Another operation-33 node exists in
+normal behavior 1 at offset `0x4e7e8`. The ignored static evidence is
+`TestResults/arrow-condition-node-static-20260925.json`.
+
+A compact reread of the passing original crossbow trace found the spawned
+model-733 child in normal behavior 0 at every observed sample. It initially
+shared Hype's root transform, including translation
+`[-74.378601, 27.485542, 4.550852]`; at the first observed movement its
+update stamp was still zero. At stamps 294 and 295 it had moved away from
+that origin, but normal behavior remained 0. The Godot projectile root also
+began at Hype's root transform within about 0.02 source units. These samples
+do not support adding a muzzle offset to the generation API. The visible
+starting point could instead involve mesh-local placement or early motion;
+compare root and mesh transforms at matched update stages before changing
+spawn placement. The source/Godot displacement intervals are not paired, so
+their magnitudes do not establish a speed ratio. The ignored extraction is
+`TestResults/crossbow-launch-geometry-analysis-20260925.md`.
+
+The generated arrow's retained velocity magnitude is 45 source units per
+second; 5.25 units is seven 60 Hz physics intervals at that speed, matching
+the reported physics-frame gap 708 to 715. This is a plausible timing
+explanation for that Godot displacement, not proof that the source and Godot
+trajectories match. The original sample at 1214 ms is already about 1.9 units
+from insertion while its published update stamp remains zero.
+
+The same paired report gives a more specific control-flow lead. Godot's
+model-733 Brain is in normal behavior 0 at physics frame 708 with clock zero,
+then switches to normal behavior 1 at its first 33.333 ms AI clock (frame
+715) and stops on the explicit unsupported contact result. The original
+child remains in normal behavior 0 at update stamps 294 and 295. This is a
+plausible behavior-transition timing or compilation mismatch to resolve
+before mapping condition 33. The current samples do not establish whether
+the source would transition later, or whether the observed source and Godot
+update phases are equivalent.
+
+Read-only inspection of the generated model-733 script explains the Godot
+transition: its normal-0 schedule executes `WaitFrames(2)`, lowered to two
+`normal_schedule_tick` waits, then calls `change_normal(1, false)`. Normal-1
+rule 0 immediately evaluates `CollideWithNothing` and exposes the existing
+unsupported result. The shared support advances schedule ticks with native
+physics frames, and the zero-time `start()` does not emit a wait tick. No
+extra Godot tick is apparent in this code path. The original samples show
+two published post-spawn update stamps but do not align source AI ticks to
+Godot physics ticks; changing `WaitFrames` or contact semantics from these
+traces would be premature. A source-backed WaitFrames cadence and a denser
+first-update comparison are needed.
+
+Static review of the pinned source executable identified
+`Action_WaitNbFrames`' updater. With counter 2, its successive callbacks
+decrement 2→1 and 1→0 while reporting continuation; a third callback sees
+zero and reports completion. The disassembly does not establish whether the
+first callback happens in the activation update or the following update, nor
+when `ChangeBehavior` commits relative to that callback. Godot's two awaited
+schedule ticks may therefore match the source or be one update early; the
+source callback phase must be measured before changing the compiler. The
+ignored evidence is `TestResults/waitframes-source-static-20260925.txt`.
+
+An initial hardware-watchpoint attempt first guarded the live arrow's scene
+list identity and incoming link. Its insertion breakpoint fired once, but
+the candidate failed the kind/parent/model-733 identity gate, so no watchpoint
+was armed and no unlink was observed. The callback omitted the rejected
+candidate values; a read-only postmortem could narrow the rejection to that
+gate but not identify its failing predicate. A retry must log each bounded
+candidate and named predicate before deciding whether the arrow spawned.
+This run used no screenshots, stopped the owned processes, and preserved
+SaveGame0 hashes. Ignored evidence:
+`TestResults/arrow-unlink-watch-luna-20260925-041507.jsonl`.
+
+The instrumented retry logged the rejected candidate: SuperObject
+`0x03e0fe34`, kind 4, under the expected dynamic root, with model pointer
+`0x0288e344`. It is the same model-733 arrow identified by the earlier
+checked capture. The probe's new identity helper mistakenly treated the
+module-17 table slot as the block base, missing one pointer dereference;
+it computed a false base and rejected the valid arrow before checking links.
+No watchpoint was armed, so the removal path is still unknown. The recorded
+Z-to-Space interval was 1586.9 ms, later than the passing BDD's 898 ms;
+the arrow still spawned. Save hashes and cleanup passed, with no screenshots.
+The ignored evidence is
+`TestResults/arrow-unlink-watch-luna-20260925-042425.jsonl`. Reuse the
+previously verified table lookup and test it against known addresses before
+another debugger capture.
+
+After correcting that lookup and passing a synthetic table-indirection
+regression, one final bounded capture verified the model-733 SuperObject and
+its incoming DynamicWorld sibling link. A hardware watchpoint saw the
+predecessor's `next` slot at `0x03cb557c` change from the arrow
+`0x03e0fe34` to zero at instruction `0x004fcd91`. This proves the arrow was
+being detached from that sibling chain. The debugger callback attempted a
+count-consistent traversal immediately after the pointer store, before the
+routine decremented the parent's child count, so it failed at a transient
+in-list state and did not serialize registers or a call stack. Static
+disassembly places `0x004fcd91` inside a generic SuperObject reparent
+routine: it removes the old-parent links and count, then links the object
+under a caller-supplied new parent. This capture does not prove destruction.
+The destination parent and caller are unknown without the missed register
+and stack capture. The run stopped and cleaned up, retained all save hashes,
+and used no screenshots. The cause of its disappearance from DynamicWorld
+still needs a caller or later state observation. Ignored evidence:
+`TestResults/arrow-unlink-watch-luna-20260925-042759.jsonl` and its
+`.gdb.log`; static review is
+`TestResults/arrow-unlink-pc-static-review-20260925.txt`.
+
+Further static inspection of the same pinned routine established a safe
+target for one diagnostic stop: at `0x004fcd91`, `EAX` is the moving
+SuperObject, `[ESP+4]` is the caller return address, and `[ESP+0xc]` is the
+required destination parent. Multiple callers use this routine with
+different destinations, so the instruction address alone does not identify
+why the arrow moved. Recording those values before any list traversal would
+distinguish the destination and immediate caller. The static evidence is
+ignored `TestResults/arrow-reparent-stack-static-20260925.txt`.
+
+A reviewed callback then captured one complete mid-reparent stop without
+traversing the inconsistent list. The verified model-733 arrow was
+`0x03e0fe34`; the hardware watchpoint saw its predecessor `next` pointer
+change to zero at `0x004fcd91`. `EAX` and the first argument matched the
+arrow. The second argument at `[ESP+0xc]` was `0x03bd182c`, equal to the
+arrow's **old DynamicWorld parent**; the return address was `0x0044a610`,
+the DynamicWorld-root wrapper. Static caller review confirmed that this
+wrapper explicitly passes that root to the generic reparent routine, which
+unlinks and reinserts the actor at the destination list tail.
+No register, stack, watchpoint or backtrace read failed, though GDB's
+best-effort backtrace stopped at frame 0. This is a same-root remove/reinsert,
+which does not explain its later
+absence from the sampled scene tail. The capture stopped cleanly, preserved
+SaveGame0 hashes, and used no screenshots. Z-to-Space was 1924.1 ms versus
+the passing BDD's 898 ms, so timings are not paired. Ignored evidence:
+`TestResults/arrow-unlink-watch-luna-20260925-043633.jsonl` and its
+`.gdb.log`. These hexadecimal values were recalculated from the raw JSONL
+integers; an initial verbal summary misconverted them. Corrected caller
+evidence is ignored
+`TestResults/arrow-unlink-root-reinsert-static-20260925.txt`.
