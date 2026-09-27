@@ -21,6 +21,22 @@ current material slice need not wait for AI work.
 
 ## One project in two states
 
+The repository's authored Hype game is the Godot implementation of the game.
+What earlier notes call the "demo" is this application, and its basic menu is
+the actual current main menu. The provisional manor start represents **Load
+Game**, restoring the measured supplied-save state. **New Game** starts through
+the intro when that route is implemented. The current `game/demo.*` filenames
+are historical names for the game session, not ownership of a separate preview.
+
+Evolve one menu and game-session flow. Loading-efficiency work can establish
+clear resource preparation, saved-state restoration, readiness and session
+teardown boundaries. Savegame work replaces the fixed restoration with real
+save/load, and UI parity work replaces the basic presentation while using the
+same game operations. Keep gameplay in the generated AI and maintained native
+support; test harnesses observe and drive the actual game rather than provide
+another player implementation. Temporary gate/camera/initialization limitations
+remain explicit fidelity debt in the game and its evidence.
+
 Design from a Godot developer's workflow: find a level or character, open its
 scene, inspect its resources, make an authored variation, and regenerate source
 content without losing that work. Use the same `res://` arrangement in both

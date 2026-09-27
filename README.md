@@ -4,9 +4,9 @@
 
 Astrolabe converts **Hype: The Time Quest** (1999), built on Ubisoft's OpenSpace Montreal engine, into useful, deterministic Godot content. Downstream fan-remaster and game-parity projects can depend on assets generated locally from the user's game copy. Those projects own their durable game assets and depend on Astrolabe, even if packaged together.
 
-The target is native Godot project files: editor-visible level scenes and instanced props/persos, native resources and animations, and AI ASTs converted into GDScript. Conversion should make full use of Godot's scene tree and asset pipeline. The supported scene/character slice now uses saved native scenes and animations, with compiled sound behavior. The first AI-to-GDScript slice runs the two torch sound controllers; see [AI evidence](./notes/ai-gdscript-slice.md) for its bounds, alongside the [conversion contract](./docs/astrolabe/rust-architecture.md#godot-adapter-native-project-conversion) and [next priorities](./notes/remaining-work.md).
+The target is native Godot project files: editor-visible level scenes and instanced props/persos, native resources and animations, and AI ASTs converted into GDScript. Conversion should make full use of Godot's scene tree and asset pipeline. The supported scene/character slice uses saved native scenes and animations. Compiled AI runs the torch sound controllers and the demonstrated Hype movement, jump, sword and Fire slices in `manoir`; see the [implementation evidence](./notes/implementation-progress.md), [conversion contract](./docs/astrolabe/rust-architecture.md#godot-adapter-native-project-conversion) and [next priorities](./notes/remaining-work.md).
 
-The first Rust library and CLI restore LZO, textures, and standalone audio, and convert the supported Astrolabe scene/character fixture into a native Godot development project. Rete persists the same useful values. The previous C# implementation and the `gltf` branch remain pinned reference submodules. This is an initial asset converter, not a complete game port; see the [coverage and evidence](./notes/implementation-progress.md).
+The Rust library and CLI restore LZO, textures, and standalone audio, and convert supported levels and characters into a native Godot development project. Rete persists the same useful values. The previous C# implementation and the `gltf` branch remain pinned reference submodules. This remains a partial game port; see the [coverage and evidence](./notes/implementation-progress.md).
 
 Astrolabe has **one useful intermediate model**: textures, models, animations, scenes, sounds, and behaviors with meaningful fields and relationships. **Rete is the serialized form of that model**, using Serde/MessagePack. The binrw codecs declaratively map OpenSpace encodings to and from these same useful types, through a unified interface so independent formats can be documented and implemented alongside one another. See the [binary codec boundary](./docs/astrolabe/rust-architecture.md#binary-codecs-with-binrw).
 
@@ -18,11 +18,22 @@ Requires Rust/Cargo, Godot 4 (verified with `4.7.2.stable.arch_linux.ed1daf0bf`)
 
 ```sh
 cargo build --release --locked
-target/release/astrolabe port disc godot --level astrolabe --locale en
-godot --path godot
+target/release/astrolabe port disc godot --level manoir --locale en
+godot --editor --path godot
 ```
 
-The committed bootstrap and synthetic animation example work without game data. Rehydration adds `generated/hype/levels/astrolabe/level.tscn`, named perso scenes and native animation libraries. The default selects the supported scene slice; `--content model` selects the first rooted model explicitly. The optional level-local preview adds orbit/fly and inspection controls. This is not yet a complete playable level. See the [project guide](./godot/README.md) and [native migration evidence](./notes/native-godot-migration.md).
+Let the editor finish importing the generated textures and sounds, then press
+**F5** and select **Load Game**. The menu works without game data. This is the
+Godot implementation of the game: its current load route uses the saved level,
+compiled Hype scripts and a measured English-save fixture for the working
+movement, jump, sword and Fire slices. General save loading will replace that
+fixed restoration; New Game will begin with the intro when implemented.
+Combat damage, crossbow play, spell contact/lifetime, death and source camera
+parity remain open. Open
+generated scenes and native animation libraries directly in the editor when
+examining converted content. The default selects the supported scene slice;
+`--content model` selects the first rooted model explicitly. See the
+[native migration evidence](./notes/native-godot-migration.md).
 
 To save and inspect Rete, then reconstruct supported source content:
 

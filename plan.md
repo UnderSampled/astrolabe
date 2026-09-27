@@ -2,7 +2,7 @@
 
 **Make a tool to repeatably port this OpenSpace game to Godot.**
 
-This is the current Rust plan, updated 2026-09-23 with a scaffold-first development rule. The Rust implementation covers initial milestones 0–5, partial scene/character slices of 6–7 and the first torch AI slice of 8; see [the implementation report](./notes/implementation-progress.md) for evidence, measured checks, and explicit remaining limitations. The milestone requirements below remain the eventual acceptance criteria; bounded first passes can be useful and demoable before a whole milestone exits. The former C# plan and completion claims remain in [the archived snapshot](./reference/astrolabe-csharp/plan.md); they are research evidence, not Rust progress. Read [the architecture](./docs/astrolabe/rust-architecture.md) and [Rete design](./docs/rete/rete-design.md) before implementation.
+This is the Rust plan, updated 2026-09-27 with the [current roadmap](./notes/remaining-work.md#current-roadmap--2026-09-27). The Rust implementation covers initial milestones 0–5, partial scene/character slices of 6–7 and bounded player/AI slices of 8; see [the implementation report](./notes/implementation-progress.md) for evidence, measured checks, and explicit remaining limitations. The milestone requirements below remain the eventual acceptance criteria; bounded first passes can be useful and demoable before a whole milestone exits. The former C# plan and completion claims remain in [the archived snapshot](./reference/astrolabe-csharp/plan.md); they are research evidence, not Rust progress. Read [the architecture](./docs/astrolabe/rust-architecture.md) and [Rete design](./docs/rete/rete-design.md) before implementation.
 
 ## Development rule: always ready to demo
 
@@ -28,43 +28,42 @@ Work broadly at the **current tier**, then go deep enough to prove its shared de
 
 ## Priorities and completion
 
-Current priority: use the preserved gameplay checkpoint and make
-the [live loading, comparison and testing plan](./notes/realtime-comparison-plan.md)
-an executable, demoable suite at its top tier before finishing the first real
-behavior comparison. Keep existing focused runner and controller work where it
-serves that framework; do not build a separate one-off first test.
-It defines static/Rete-to-live data comparison, independently runnable behavior
-scenarios using shared Gherkin steps and declared physical-input recordings,
-and optional cross-backend comparison,
-with frame-indexed replay for timing-sensitive claims, independent measured
-milliseconds and screenshot/pixel evidence,
-Rust code and level-data coverage, and focused suites with mandatory safeguards.
-Resume the playable idle/walk/run checkpoint through that harness; do not restart completed
-media/model work or resume the archived engine-runtime experiment.
+The [current roadmap](./notes/remaining-work.md#current-roadmap--2026-09-27)
+organizes seven efforts: Orrery recording/replay and external behavior-suite
+restructuring; Godot loading efficiency; first-level (`manoir`) game parity;
+graphical parity; savegame research/Orrery support and Godot persistence;
+Godot UI parity; and complete Rete coverage. These are scope and dependency
+statements, not a fixed execution order. Loading efficiency and Orrery/BDD have
+independent [prepared handoffs](./notes/remaining-work.md#current-roadmap--2026-09-27).
+Expand the manor's existing playable path with the required save, menu, intro
+and actor behavior as their efforts proceed. Graphics
+and required model/Rete coverage advance with those slices. Complete tracing,
+whole-game Rete coverage and full-game replay are not universal prerequisites.
 
-The [player Brain audit](./notes/hype-control-progress.md#player-brain-export-gap--2026-09-23-audit)
-found a structural gap in the current functional path: the normal `manoir`
-export has no saved Brain for Hype. The importer rejects his entire AI model
-when it encounters unsupported content elsewhere in that model; the selected
-turn/walk rule probes attach a test-created Brain after instantiating his native
-character. This all-or-nothing gate violates the development rule above.
-Build the runnable comparison suite first. Its first real gameplay path then
-requires a live Orrery original-game backend that first passes the scenario on
-OpenSpace, then partial AI import that retains
-Hype's model, Brain and stable behavior, rule and designer-field identities;
-supported behavior can compile through
-ordinary import, Rete and Godot export while other content remains explicit
-and unsupported. Do not claim an input-driven player comparison until that
-saved path runs.
+Orrery remains an OpenSpace runtime analysis tool. Recording/replay extends
+inspection and control; the behavior suite owns scenarios/assertions outside
+Orrery and uses a separate Godot harness. Follow the
+[recording implementation update](./notes/realtime-comparison-plan.md#session-recording-direction--2026-09-27)
+and [session contract](./docs/astrolabe/session-recordings.md). Preserve existing
+scenario evidence while correcting code ownership.
 
-The supported native Godot scene/character migration is complete: saved parts
-and initial poses, native animation libraries, compiled sound behavior, committed
-support/project ownership and authored regeneration pass the complete local suite.
-See [migration evidence](./notes/native-godot-migration.md). Milestones 6–7 still
-have explicit semantic/reconstruction gaps. Phase 8 now has a first
-[typed AI-to-GDScript slice](./notes/ai-gdscript-slice.md): the two real torch sound
-controllers, with a source-game comparison and a tested Rete parameter edit.
-Broader gameplay and AI reconstruction remain open.
+The current Godot "demo" is the game implementation, and its basic menu is the
+actual menu. The fixed manor start is a provisional Load Game route; New Game
+will begin with the intro. Loading-efficiency work can organize the shared
+game-session lifecycle, savegame work replaces fixed restoration, and UI work
+replaces the current presentation. Develop this one application, following
+[the project ownership contract](./docs/astrolabe/godot-project.md#one-project-in-two-states).
+
+September 24–25 evidence includes a saved player Brain, input-driven native
+movement/contact, bounded jump, sword and Fire comparisons, and a playable
+manor demonstration. Those are scoped results, not complete player combat,
+first-level, visual or precise timing acceptance. The latest reported movement
+selection finished 87/90; retain and resolve its failures rather than citing an
+older pass as the current whole-project result. See
+[implementation progress](./notes/implementation-progress.md) for exact scope
+and the [September 13 native migration](./notes/native-godot-migration.md) for
+its historical acceptance. Do not restart completed media/model/player slices
+or resume the archived engine-runtime experiment.
 
 **We MUST NOT reimplement the OpenSpace engine within Godot. Implement the AI
 script API using native Godot facilities, and compile the game's AI scripts to
@@ -72,11 +71,12 @@ call that API.** The script decisions and observable API behavior are the
 contract; OpenSpace's internal execution and storage machinery are not.
 
 The unfinished runtime experiment is preserved at `9374ef5` on
-`codex/archive-openspace-runtime-20260914`; active production code returns to
-`d8d0375`. Follow [the concrete Godot gameplay plan](./notes/godot-gameplay-plan.md)
-for milestone 8. The next gameplay checkpoint is Hype's real AI driving
-idle/walk/run with native Godot movement and contact in `manoir`, followed by
-jump, sword/crossbow and magick. The archived attempt to implement the whole
+`codex/archive-openspace-runtime-20260914`; production development restarted
+from `d8d0375` on September 14 and has since advanced. Follow
+[the concrete Godot gameplay plan](./notes/godot-gameplay-plan.md)
+for milestone 8. Build on Hype's real AI driving native movement/contact in
+`manoir`; complete jump, sword/crossbow and magick alongside the other first-level
+requirements in the current roadmap. The archived attempt to implement the whole
 OpenSpace runtime remains paused; broad scaffolding of the port and suite is
 the active development rule above.
 
@@ -103,6 +103,20 @@ Restore **working LZO compression/decompression, textures, and audio first**, be
 **One useful model, declarative codecs, Rete persistence.** Rete is the serialized form of the intermediate model. binrw declarations and reusable helpers document and implement how OpenSpace encodes its meaningful fields. The shared interface loads meaningful content from packages into memory and converts/saves it through the selected target, with common resolution, validation, diagnostics, and fixture tooling. A narrower OpenSpace `FormatCodec` pairs binary reads/writes of useful types. It does not impose OpenSpace parameters on Rete or Godot. Source reference resolution and semantic interpretation are part of content decoding. Temporary binary records support encoding where necessary; there is no required separate OpenSpace document model. Serde/MessagePack saves and reloads those same values. Apply [the declarative codec and unified interface contract](./docs/astrolabe/rust-architecture.md#binary-codecs-with-binrw) throughout the milestones below.
 
 ## Original-engine comparison control
+
+**2026-09-27 recording direction:** Orrery remains the OpenSpace runtime analysis
+tool, adding recording/replay alongside inspection and control. The behavior
+test suite belongs outside Orrery and uses it, as originally intended; Godot has
+a separate harness. Their shared
+[session-recording contract](./docs/astrolabe/session-recordings.md) captures the
+available save-file set before launch and follows startup, menus and gameplay
+on one timeline. This includes recordings that select New Game and can grow to
+full-game runs. The [implementation update](./notes/realtime-comparison-plan.md#session-recording-direction--2026-09-27)
+corrects the earlier plan/code placement of Godot/BDD work inside Orrery and
+extends ready-state-only recording scope; existing bounded probes remain valid
+only for their stated coverage. The misplaced suite requires extraction, not a
+narrowing of Orrery to a recorder. These are design decisions, not completed
+capture capabilities.
 
 **The Python `hype` MCP harness is still available, but the new suite must not depend on it.** Its earlier runs remain useful evidence and it can serve optional diagnosis. Preserve the private installation, saves and evidence. The active suite control path is the native Rust [Orrery controller](./docs/orrery/controller.md), which links Astrolabe without adding a dependency from the converter adapters. Orrery shares selected OpenSpace record readers between file and relocated-memory views; it does not yet import a whole live level. Its narrow original-game replay has succeeded. A live Orrery MCP session has now verified launch, supplied-save loading, physical input, typed normal/reflex AI selection, screenshot and cleanup. Selected designer values and a reusable suite backend remain open; see [live evidence](./notes/orrery-live-session-2026-09-23.md).
 
@@ -203,11 +217,12 @@ Replace the current animation/configuration/family/perso JSON loading path for t
 
 ### 8. AI, interactions, and a playable behavior slice
 
-The torch slice is complete. Continue with the ordered controls and explicit
-exit checks in [Hype gameplay in Godot](./notes/godot-gameplay-plan.md). Its first
-checkpoint is input to visible idle/walk/run with floor/wall contact, through
-the actual converted Hype scripts. Complete that integrated path before
-broadening the engine-service catalogue.
+The torch and bounded player slices provide the starting point. Continue with
+the controls and explicit exit checks in
+[Hype gameplay in Godot](./notes/godot-gameplay-plan.md), extending them to the
+intro, actor interactions and independent actor behavior/physics required by
+the current manor-parity roadmap. Add engine services as those real converted
+script paths require them; do not broaden the service catalogue speculatively.
 
 Extend shared AIModel/Behavior/Macro types, designer-variable definitions and instance values, typed script trees, action bindings and semantic actor/resource links as that path requires. Preserve meaningful Brain/Mind source metadata for reconstruction without exporting their memory/execution organization as a Godot framework. Add physics/collision/sector and waypoint semantics when the selected gameplay uses them. Pull the small localization subset required for the chosen behavior from phase 9 when needed.
 
@@ -231,7 +246,13 @@ Use the previously measured hidden-lever or Fire Trinity sequence as a candidate
 
 Complete DLG/LNG and RTD/RTG, language-specific Fix/level bindings, text tables and TRN where confirmed, and all remaining SND/SDA/GPT/PTX fields. Implement required INI/MEM/CFG/VGM semantics for port configuration, options, menus, and credits. Classify each from actual source use; historical catalogue names are not a substitute for verification.
 
-CFG game options are distinct from the supplied save-file fixture used to bypass the intro; a general original save editor is not required. AVI/cutscene conversion is deliberately deferred to phase 11.
+CFG game options are distinct from savegames. Catalogue source save structures
+and extend Orrery's save analysis/fixture support; implement Godot persistence
+and its save/load UI as required by first-level progression. Evaluate a source
+save converter with explicit field/behavior coverage, without making Orrery a
+runtime dependency of the port. A general original-save editor is not required.
+Bring the intro needed for first-level parity forward from phase 11; unrelated
+cinematics remain later.
 
 **Exit:** selected language/dialogue and menu/option paths work in Godot with their dependencies. Source-file tests cover supported sidecars and remaining undecoded fields are visible. The converter handles explicitly selected locale deterministically.
 
@@ -245,7 +266,12 @@ Run single-level, subset, and whole-game conversion as sequential level selectio
 
 ### 11. Late media work: Indeo AVI cutscenes
 
-The user identifies the original AVIs as Indeo-encoded. Defer their conversion until the core asset/gameplay port is established. Inventory the real streams with `ffprobe`, then evaluate `ffmpeg` transcoding to a format supported by the pinned Godot build. Built-in [Ogg Theora playback](https://docs.godotengine.org/en/stable/classes/class_videostreamtheora.html) makes `.ogv` a candidate; confirm quality, audio, and playback with a real sample before fixing the profile. See the [FFmpeg transcoding documentation](https://ffmpeg.org/ffmpeg.html).
+The 2026-09-27 roadmap brings the intro needed by the new-game/manor route
+forward into first-level parity; this milestone retains the remaining
+cinematics. Distinguish prerecorded video from scripted in-engine sequences
+and validate the complete handoff into gameplay.
+
+The user identifies the original AVIs as Indeo-encoded. Inventory the real streams with `ffprobe`, then evaluate `ffmpeg` transcoding to a format supported by the pinned Godot build. Built-in [Ogg Theora playback](https://docs.godotengine.org/en/stable/classes/class_videostreamtheora.html) makes `.ogv` a candidate; confirm quality, audio, and playback with a real sample before fixing the profile. See the [FFmpeg transcoding documentation](https://ffmpeg.org/ffmpeg.html).
 
 Use deterministic generated paths for `LOGO.AVI`, `HypeIntro.avi`, and `HypeConclusion.avi`, and record the tool version/options used. Validate frame timing, duration, aspect ratio, color, audio synchronization, and cinematic start/skip/completion behavior in Godot. Implement video reference/RTV or RTL structures only when discovered in the supported edition and needed. Keep this Godot transcode separate from any claim of recovering an original lossy encoded stream.
 
@@ -296,8 +322,8 @@ This maps the local catalogue to milestones. OpenSpace format codecs live in dom
 | SNA AI/DSG/brain/mind/scripts, dynamics, waypoint/action data | 8 | Typed AST compiled to GDScript, Godot engine-function implementations for the tested slice and instance state; supported operation inventory. |
 | DLG, LNG, RTD, RTG, `fixlvl.rtg`; TRN where confirmed | 9, required subset at 8 | Localized strings and level overrides; language-aware generated references. |
 | INI, MEM, CFG, VGM | 9 | Verified configuration/options/resource semantics; classify unused/empty content explicitly. |
-| Indeo AVI and any required RTV/RTL structures | 11 | Late FFmpeg transcode and actual Godot cinematic playback; research only variants actually present. |
-| `Savefile_EN.zip` | 0, test fixture only | Verified post-intro `manoir` fixture in the external Hype harness; record the loaded state for each comparison. No save editor required. |
+| Indeo AVI and any required RTV/RTL structures | Intro for first-level parity; remaining media at 11 | FFmpeg transcode where needed, actual Godot playback and gameplay handoff; research only variants actually present. |
+| Source save files and supplied `Savefile_EN.zip` | Recording fixtures and first-level persistence/UI | Preserve available files at launch; catalogue structure, extend Orrery analysis and implement Godot save/load with an optional converter. Keep raw recording fixtures separate from useful content/Rete assets. No general save editor required. |
 | Lowercase `World/Levels/fix.cnt`, installers, original EXEs/DLLs | Outside asset conversion | Input/runtime/research material. Do not treat as textures or copy into a distributable generated-content bundle. |
 | Unknown source fields/regions discovered during any milestone | Owning milestone, closure at 12 | Explicit tracked unknowns; promote when understood. No unsupported whole-format pass-through counted as completion. |
 
@@ -320,4 +346,20 @@ Shared text-token parsing for CSB/LCB/SIF and later configuration files can be f
 
 ## Next implementation task
 
-Follow the revised [ordered delivery](./notes/realtime-comparison-plan.md#ordered-delivery-and-exit-evidence). First make the comparison suite runnable through the existing test supervisor: scenario inventory/selection, backend slots, recording, observation, per-backend assertion/reporting, optional cross-backend comparison and cleanup form one executable path, with explicit pending results for unsupported real comparisons. Demonstrate its plumbing with a synthetic case and a documented command. Next fill the first scenario's original-game slot with Orrery: connect its verified live launch, supplied `manoir` save, physical input, typed observation, screenshot and cleanup capabilities to the suite, then pass a turn–release–idle scenario on OpenSpace independently. Establish a press–move–release–stop scenario on OpenSpace through the same path. Fill the Godot slot by making normal `manoir` conversion retain Hype's AI model and Brain despite unsupported sibling scripts or designer fields, persist explicit support status through Rete, and save the supported compiled path without test-time script insertion. Then get that player AI driving the movement scenario under controlled input. Compare coarse outcomes and record elapsed time and screenshots without requiring tight timing or pixel parity for this functional checkpoint. Use those results to correct the suite design and demonstrate representative input-driven walk/run with contact, then open sibling behavior groups while keeping remaining movement and initialization cases visible. Tighten input-consumer cadence, live observation and timing assertions where the next claim needs them, and continue into sibling behavior groups. Exhaustive metrics, per-behavior stub catalogs and all-area test refactoring must not block playable AI. Existing media/model and native asset conversion remain the foundation. The [remaining-work inventory](./notes/remaining-work.md) and [project design](./docs/astrolabe/godot-project.md) remain relevant; Indeo AVI and exact historical LZO fidelity retain their late milestones.
+Follow the [current roadmap](./notes/remaining-work.md#current-roadmap--2026-09-27)
+and [recording sequence](./notes/realtime-comparison-plan.md#session-recording-direction--2026-09-27):
+extract the external behavior suite and separate Godot harness, preserve the
+existing assertions/evidence, and establish a complete short original session
+with immutable prelaunch saves, actual inputs and synchronized output/state.
+Develop precise timing/frame association and AI/API trace coverage with explicit
+acceptance cases. Broader coverage remains visible while the first recording
+and replay are useful.
+
+Godot loading work can proceed independently from the measured resource-load
+bottleneck. Establish rendered cold/warm menu-to-play measurements and evaluate
+native resource representation/reuse and readiness waits. Continue manor
+gameplay, intro, actors, saves/UI and graphics through the external suite as
+their dependencies become available. Complete Rete coverage remains a broader
+track; exact historical LZO fidelity and unrelated cinematics retain their late
+milestones. Preserve native Godot editing and the
+[project ownership contract](./docs/astrolabe/godot-project.md).

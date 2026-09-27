@@ -1,6 +1,7 @@
 extends SceneTree
 ## Test-owned control surface around the normally exported manor scene.
 ## The saved Hype actor and Brain make every gameplay decision.
+const MANOIR_START = preload("res://game/manoir_start.gd")
 
 var control_dir: String
 var request_path: String
@@ -58,7 +59,7 @@ func run() -> void:
         quit(1)
         return
     actor.connect("action_request_traced", Callable(self, "record_action_request"))
-    fixture = JSON.parse_string(FileAccess.get_file_as_string("res://tests/fixtures/english_save_manoir.json"))
+    fixture = MANOIR_START.load_fixture()
     if int(fixture.get("schema", 0)) != 1 or str(fixture.get("name", "")) != "supplied-english-save-manoir":
         write_json(control_dir.path_join("ready.json"), {"error": "invalid English save fixture"})
         quit(1)
@@ -215,75 +216,7 @@ func designer_action_arrays() -> Dictionary:
     return result
 
 func restore_save_fixture() -> String:
-    var rows: Array = fixture["source_basis"]
-    var basis := Basis(
-        source_vector(rows[0]),
-        source_vector(rows[2]),
-        -source_vector(rows[1]))
-    actor.global_transform = Transform3D(basis, source_vector(fixture["source_translation"]))
-    brain.set("current_normal", int(fixture["normal_behavior"]))
-    brain.set("current_reflex", int(fixture["reflex_behavior"]))
-    for index in fixture["designer_overrides"]:
-        brain.set("dsg_" + str(index), fixture["designer_overrides"][index])
-    var deactivated: Array = fixture.get("deactivated_channels", [])
-    var seen: Dictionary = {}
-    for value in deactivated:
-        if not (value is int or value is float):
-            return "saved Hype deactivated channel list is malformed"
-        var channel := int(value)
-        if float(channel) != float(value) or channel < 0 or channel > 255 or seen.has(channel):
-            return "saved Hype deactivated channel list is malformed"
-        seen[channel] = true
-        if not bool(actor.call("source_set_channel_active", channel, false)):
-            return "saved Hype channel " + str(channel) + " is missing"
-    var inventory: Dictionary = fixture.get("inventory", {})
-    var native_inventory: Resource = actor.get("source_inventory")
-    if native_inventory == null or not inventory.has("selected_weapon") or not inventory.has("quantities"):
-        return "saved Hype inventory fixture is missing"
-    var selected = inventory["selected_weapon"]
-    if not (selected is int or selected is float) or float(int(selected)) != float(selected) or int(selected) < -1 or int(selected) > 32767:
-        return "saved Hype selected weapon is malformed"
-    var quantities: Dictionary = inventory["quantities"]
-    var restored_quantities: Dictionary = {}
-    for key in quantities:
-        if not str(key).is_valid_int():
-            return "saved Hype inventory item is malformed"
-        var item := int(key)
-        var amount = quantities[key]
-        if item < 0 or item > 32767 or not (amount is int or amount is float) or float(int(amount)) != float(amount):
-            return "saved Hype inventory quantity is malformed"
-        restored_quantities[item] = int(amount)
-    native_inventory.set("selected_weapon", int(selected))
-    native_inventory.set("quantities", restored_quantities)
-    var magick: Dictionary = fixture.get("magick", {})
-    var native_magick: Resource = actor.get("source_magick")
-    if native_magick == null or not magick.has("source_code") or not magick.has("current_points") or not magick.has("maximum_points"):
-        return "saved Hype magick fixture is missing"
-    var spell_code = magick["source_code"]
-    var current_points = magick["current_points"]
-    var maximum_points = magick["maximum_points"]
-    for value in [spell_code, current_points, maximum_points]:
-        if not (value is int or value is float) or float(int(value)) != float(value):
-            return "saved Hype magick value is malformed"
-    if int(spell_code) < 0 or int(spell_code) > 32767 or int(maximum_points) <= 0 or int(current_points) < 0 or int(current_points) > int(maximum_points):
-        return "saved Hype magick value is out of range"
-    native_magick.set("selected_spell_code", int(spell_code))
-    native_magick.set("current_points", int(current_points))
-    native_magick.set("maximum_points", int(maximum_points))
-    var arrays: Dictionary = fixture.get("designer_arrays", {})
-    for index in [162, 164]:
-        var key := str(index)
-        if not arrays.has(key):
-            return "saved Hype designer array " + key + " is missing"
-        var existing = brain.get("dsg_" + key)
-        var saved = arrays[key]
-        if not (existing is PackedInt32Array) or not (saved is Array) or existing.size() != saved.size():
-            return "saved Hype designer array " + key + " has the wrong type or length"
-        var restored := PackedInt32Array()
-        for value in saved:
-            restored.append(int(value))
-        brain.set("dsg_" + key, restored)
-    return ""
+    return MANOIR_START.apply(actor, brain, fixture)
 
 func apply_starting_state_overlay(overlay: Dictionary) -> String:
     starting_state_overlay = {}

@@ -1,5 +1,72 @@
 # Live loading, comparison, and behavior testing
 
+## Session-recording direction — 2026-09-27
+
+This is the recording/tooling track of the [current roadmap](./remaining-work.md#current-roadmap--2026-09-27).
+Loading efficiency can advance independently. Startup/menu, intro and save
+support enter the Godot harness as those first-level features become available;
+their absence is an explicit full-session comparison gap, not a reason to
+block useful original recordings or focused gameplay work.
+
+The agreed [session-recording design](../docs/astrolabe/session-recordings.md)
+extends the earlier focused scenario plan and corrects its ownership boundary:
+**Orrery is an OpenSpace runtime analysis tool, now gaining recording/replay
+alongside inspection and control. The behavior test suite belongs outside it
+and uses it, as originally intended; Godot has a separate harness.** Single-engine
+gameplay assertions and cross-engine comparisons both belong to the suite.
+Shared evidence does not put the suite or Godot inside Orrery. The older dated
+checkpoints below describe what was demonstrated then; they do not establish
+current whole-session coverage.
+
+Record from process launch, with the full set of save files available before
+launch as an immutable fixture. Empty/absent saves are valid explicit cases;
+unreadable saves are not. Choosing a slot or New Game happens through recorded
+menu input. Keep startup/loading time, level changes and subsequent save writes
+in the chronology. Human-driven sessions and scripted routes use the same
+described, tagged recording format, from a short case to a full-game speed-run.
+Capture input, output, typed state and AI/API events continuously within declared
+coverage so comparison can discover differences the user has not pointed out.
+
+Implementation sequence for this extension:
+
+1. Extract the engine-neutral recording/scenario/report contracts and comparison
+   runner from Orrery; give Godot delivery/capture its own harness. Preserve the
+   existing tests, scenario identities and evidence while restoring the intended
+   ownership. Keep Orrery's own tool/contract tests and runtime analysis APIs.
+   The current `crates/orrery/src/behavior/godot.rs` and shared BDD placement are
+   boundary violations to fix, not a new responsibility for Orrery. No extraction
+   is performed by this documentation update.
+2. Establish the session manifest, immutable complete save-file fixture and
+   isolated replay setup. Prove two startup recordings: an explicitly empty
+   save root followed by New Game, and a populated root followed by menu-based
+   slot selection. Include a replay after the preceding run has written saves
+   to prove the initial fixture is restored without contamination. The supplied
+   English archive is one selected fixture, not a mandatory launch injection.
+3. Record a short human-driven original session from launch with input and
+   video, supported state and timing evidence; replay it on OpenSpace and report
+   repeatability and all capture gaps. Add event-based AI transitions and API
+   arguments/results using verified boundaries. Prove transient transitions,
+   a deferred effect, a missed event and a deliberately altered argument can be
+   detected; declare untraced calls rather than presenting partial tracing as
+   exhaustive. Keep the first end-to-end recording useful during expansion.
+4. Have the separate Godot harness consume the recording and emit the same
+   evidence contract through native gameplay. Missing startup/menu/save support
+   remains visible; a focused actor-initialization fixture cannot pass full-session
+   replay. Produce a timeline linking input, calls, state and frames, with
+   automatic first-divergence reporting and narrowly scoped accepted debt.
+5. Add recordings and chapters to cover more routes, then qualify streamed
+   storage, level/clock epochs, interruption recovery and explicit endurance
+   budgets for long runs. A chapter is not independently replayable without
+   replaying its prefix or validating a separate starting fixture.
+
+This extends discovery and repeatability without making complete tracing,
+pixel equality or a full-game run a prerequisite for every feature. Report
+recording coverage, functional results, precision, accepted debt and missing
+capabilities separately. The current narrow `replay::Recording` schema starts
+at a ready state and aborts on a lost epoch; it is not yet this session format.
+
+## Earlier implementation checkpoint
+
 Implementation plan, updated 2026-09-23 to put a runnable suite framework
 before its first real comparison. The 2026-09-20 input-timing evidence and
 technical contracts below remain in force.
@@ -132,12 +199,14 @@ archived runtime experiment.
 
 ## Native runtime and shared loading
 
-Use a companion Rust workspace package, provisionally
-`crates/orrery`, the user-facing **Orrery** controller depending on the Astrolabe library. It owns native
-game control, comparison reports, CLI/MCP entry points and BDD tests. Keep the
-root converter as the default workspace member. The converter must not acquire
-a dependency back on the testkit; cross-engine tests live in the companion
-package. Packaging names can change without changing this boundary.
+Use `crates/orrery`, the user-facing **Orrery** runtime analysis tool depending on
+the Astrolabe library, for native OpenSpace inspection, analysis, control,
+recording/replay and CLI/MCP entry points. Keep Godot control/capture in a separate harness and
+shared BDD/cross-engine comparisons in an independent runner, using shared
+recording contracts outside Orrery. Existing combined code needs extraction as
+described in the [2026-09-27 update](#session-recording-direction--2026-09-27).
+Keep the root converter as the default workspace member; it must not acquire a
+dependency back on either harness or the comparison runner.
 
 The testkit process launches/owns the original game and links Astrolabe directly.
 Prepared tests instantiate that same runtime session; the persistent MCP binary
@@ -152,11 +221,12 @@ Suggested ownership:
 | --- | --- |
 | Hype record declarations, build-specific roots, field interpretation | `src/openspace`, sharing existing binrw declarations and codecs |
 | Offline blocks/relocations and live pointer resolution | Separate source implementations inside OpenSpace |
-| Process handle, memory reads/maps, pause guard, launch/input/capture/cleanup | Companion runtime, with OS-specific modules |
+| Original-game process handle, memory reads/maps, pause guard, launch/input/capture/cleanup | Orrery, with OS-specific modules |
 | Assets, transforms, typed designer values and semantic references | Existing `model` types |
-| Session handles, snapshots, comparison policy, traces and evidence | Testkit observations/reports; reuse model values without creating another asset model |
+| Session handles and backend observations/traces | Owning engine harness; reuse model values without creating another asset model |
+| Recording schema, scenario assertions, comparison policy and combined reports | Shared contracts and independent comparison runner |
 | Saved native Godot resources and compiled AI | Existing Godot exporter and maintained support |
-| Optional Godot observation/control endpoint | Test support operating on those same exported resources |
+| Godot observation/control endpoint and replay | Separate Godot harness operating on those same exported resources |
 
 Refactor `SourceSession` incrementally. Extract bounded byte access, pointer
 resolution, roots, and source-identity lookup from domain interpretation. Replace
@@ -360,6 +430,12 @@ Choosing Godot's native physics rate for a comparison profile is still a require
 experiment, not permission to replay original deltas or recreate its scheduler.
 
 ### One shared recording and independent delivery adapters
+
+The [whole-session contract](../docs/astrolabe/session-recordings.md) now owns the
+outer timeline, prelaunch files and phase/level epochs. The ready-state recording
+below remains a bounded gameplay profile within that design, not a restriction
+that removes startup, menus or loading from a session. A captured human session
+is frozen after recording; prepared scripted inputs can be frozen before it.
 
 Shared steps/helpers build a versioned recording of literal physical events:
 ordered press/release events, physical key/device identity, relevant modifiers,
@@ -584,7 +660,7 @@ into Rete for metrics. Synthetic overlap/gap/alias tests verify the accounting.
 
 ## Gherkin with shared step definitions
 
-Use Cucumber for Rust in the companion package, with one versioned set of
+Use Cucumber for Rust in the independent comparison runner, with one versioned set of
 `.feature` files and **one shared step registry**. Step definitions or their shared
 helpers own the literal physical-input recordings. Selecting a backend changes
 setup, delivery, observation and cleanup, not the meaning or implementation of

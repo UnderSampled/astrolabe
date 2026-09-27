@@ -1,5 +1,22 @@
 # Hype gameplay in Godot
 
+2026-09-27 scope update: the [current roadmap](./remaining-work.md#current-roadmap--2026-09-27)
+targets full first-level (`manoir`) parity. The player slices below are useful
+intermediate deliveries, followed by the intro/new-game handoff, actor
+interactions and independent behavior/physics, and the required savegame and UI
+flows. Graphical parity and loading efficiency advance alongside that work.
+The intro required by this route is brought forward from the former late-media
+milestone; unrelated cinematics remain later. Orrery supplies OpenSpace runtime
+analysis and recording/replay to the external behavior suite; Godot has a
+separate harness. This scope update does not assert new implementation coverage.
+
+The existing "demo" is the game implementation, with its basic menu as the
+actual main menu. Treat the current fixed manor start as provisional Load Game;
+New Game will start with the intro. Loading-efficiency work can organize that
+flow now, savegame work replaces its fixed restoration, and UI work replaces
+its presentation. Continue this application rather than building another game
+beside it. See [game project ownership](../docs/astrolabe/godot-project.md#one-project-in-two-states).
+
 Direction after the 2026-09-14 rollback. This refines milestone 8 of
 [the main plan](../plan.md), within the existing [adapter architecture](../docs/astrolabe/rust-architecture.md)
 and [project ownership contract](../docs/astrolabe/godot-project.md). The archived
@@ -249,15 +266,16 @@ Extend the same player path to a verified cliff in the converted level. Establis
 the route and fall outcome in the original game before fixing BDD bounds.
 Resolve loss of floor support, vertical motion, fall/death action selection and
 the collision or death condition through the compiled player AI and native
-Godot physics. For the first playable demo, death ends gameplay; a restart or
-save-load flow can be developed separately.
+Godot physics. For the first bounded death slice, death may end gameplay;
+reload through the game's Load Game path is part of the first-level save/UI
+work and must be checked when accepting the full route.
 
 **Exit:** Hype can walk off the identified cliff, fall visibly, and enter the
 source-informed death state. A behavior scenario checks the approach, loss of
 floor contact, descent, and terminal game state independently in both engines;
 it does not infer death merely from a position threshold or a missing actor.
 
-### 7. Playable demo and repeatable conversion
+### 7. Playable game and repeatable conversion
 
 Apply these checks within every earlier slice, then for the combined controls.
 Direct OpenSpace conversion and conversion from closed/reopened Rete must

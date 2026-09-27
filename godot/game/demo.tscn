@@ -1,0 +1,47 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/demo.gd" id="demo"]
+[ext_resource type="Script" path="res://game/demo_camera.gd" id="camera"]
+
+[node name="ManorDemo" type="Node3D"]
+script = ExtResource("demo")
+
+[node name="DemoCamera" type="Camera3D" parent="."]
+current = true
+script = ExtResource("camera")
+
+[node name="Hud" type="CanvasLayer" parent="."]
+
+[node name="Panel" type="PanelContainer" parent="Hud"]
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 392.0
+offset_bottom = 236.0
+mouse_filter = 2
+
+[node name="Margin" type="MarginContainer" parent="Hud/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="Rows" type="VBoxContainer" parent="Hud/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="Title" type="Label" parent="Hud/Panel/Margin/Rows"]
+layout_mode = 2
+text = "Hype: The Time Quest"
+
+[node name="Status" type="Label" parent="Hud/Panel/Margin/Rows"]
+layout_mode = 2
+text = "Loading saved game..."
+autowrap_mode = 2
+
+[node name="Mana" type="Label" parent="Hud/Panel/Margin/Rows"]
+layout_mode = 2
+
+[node name="Controls" type="Label" parent="Hud/Panel/Margin/Rows"]
+layout_mode = 2
+text = "Arrows  move and turn     Shift  run     Ctrl  jump\nX  draw sword     Space  use sword\nFire: step Down, press X, then Enter\nR  reload save     Esc  menu"

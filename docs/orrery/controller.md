@@ -1,9 +1,20 @@
-# Orrery native original-game MCP controller
+# Orrery OpenSpace runtime analysis
 
-Orrery is Astrolabe's optional native Rust controller for the private original
-Hype installation. The Cargo package, library, CLI binary, MCP server identity,
+Orrery is Astrolabe's optional native Rust runtime analysis tool for OpenSpace,
+initially the private original Hype installation. It provides inspection and
+control through library, CLI and MCP interfaces. The Cargo package, library, CLI binary, MCP server identity,
 and Gamescope application identity are all named `orrery`. The converter does
 not depend on Orrery. The [[docs/orrery/comparison-model|comparison evidence model]] defines which claims its observations can support.
+
+Recording/replay extends Orrery's runtime analysis capabilities. The behavior
+test suite is a separate consumer of Orrery, including for OpenSpace-only
+scenarios; Godot has a separate harness. The suite owns gameplay assertions and
+cross-engine comparison. See [session recordings](../astrolabe/session-recordings.md)
+for their shared evidence contract, including available save files captured
+before process launch. Existing Godot/BDD code housed in `crates/orrery` violates
+this intended boundary and needs extraction. Orrery's own tool tests remain
+with it. Continuous startup-to-exit recording and general AI/API tracing are
+still implementation work.
 
 The Python `hype` MCP bridge remains available for optional diagnosis. Orrery
 implements its control tools and read-only typed-inspection tools.

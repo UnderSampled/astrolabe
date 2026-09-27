@@ -1,6 +1,16 @@
 # Comparison evidence model
 
-Orrery is optional tooling alongside Astrolabe. It can expose structured observations from a running Hype process and drive ordinary physical input through its owned game session. It is not an OpenSpace engine implementation, and the converter's OpenSpace, Rete, and Godot adapters do not depend on it.
+Orrery is an optional OpenSpace runtime analysis tool alongside Astrolabe. It can expose structured observations from a running Hype process and drive ordinary physical input through its owned game session. It is not an OpenSpace engine implementation, and the converter's OpenSpace, Rete, and Godot adapters do not depend on it.
+
+Recording and replay add to Orrery's inspection, analysis and control capabilities.
+The behavior suite lives outside Orrery and uses it for OpenSpace scenarios;
+this applies to single-engine assertions as well as cross-engine comparisons.
+A separate Godot harness owns its engine's input and observation paths. Their
+shared [session-recording contract](../astrolabe/session-recordings.md)
+includes save files available at program start, the full startup/menu chronology,
+input, output and state/API evidence. Shared evidence does not make Orrery a
+multi-engine controller. Full-session replay and focused initialized-state tests
+have distinct coverage claims.
 
 Keep these claims distinct:
 

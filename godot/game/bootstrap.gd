@@ -1,23 +1,19 @@
 extends Control
-## Source-free entry point. Loading a converted PackedScene requires rehydration.
-const PREVIEW := "res://generated/hype/levels/astrolabe/preview.tscn"
+## Game main menu. Loading the supplied save requires the converted manor.
+const MANOR := "res://generated/hype/levels/manoir/level.tscn"
 
 func _ready() -> void:
     var panel := VBoxContainer.new()
     panel.position = Vector2(40, 40)
     add_child(panel)
     var heading := Label.new()
-    heading.text = "Astrolabe · Godot development project"
+    heading.text = "Hype: The Time Quest"
     panel.add_child(heading)
     var details := Label.new()
-    details.text = "Support and synthetic examples work without game data.\nSee README.md to generate the supported Hype scene."
+    details.text = "Continue from the manor." if ResourceLoader.exists(MANOR) else "Generate the manor from your Hype copy to play. See godot/README.md."
     panel.add_child(details)
-    var example := Button.new()
-    example.text = "Open synthetic example"
-    example.pressed.connect(func(): get_tree().change_scene_to_file("res://tests/example.tscn"))
-    panel.add_child(example)
-    var level := Button.new()
-    level.text = "Inspect converted Astrolabe" if ResourceLoader.exists(PREVIEW) else "Astrolabe content has not been generated"
-    level.disabled = not ResourceLoader.exists(PREVIEW)
-    level.pressed.connect(func(): get_tree().change_scene_to_file(PREVIEW))
-    panel.add_child(level)
+    var play := Button.new()
+    play.text = "Load Game"
+    play.disabled = not ResourceLoader.exists(MANOR)
+    play.pressed.connect(func(): get_tree().change_scene_to_file("res://game/demo.tscn"))
+    panel.add_child(play)

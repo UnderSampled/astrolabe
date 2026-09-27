@@ -1,8 +1,115 @@
-# Remaining work after the visual pass
+# Ongoing and upcoming work
 
-Current priority (2026-09-20): follow the [live loader/comparison plan](./realtime-comparison-plan.md)
-before resuming checkpointed gameplay work. This document retains the broader
-remaining-work inventory and historical visual-pass evidence.
+## Current roadmap — 2026-09-27
+
+This is the current scope agreed with the user. It supersedes the older ordering
+below, including deferral of the intro needed for first-level parity. The
+[implementation report](./implementation-progress.md) records demonstrated
+coverage; listing an effort here does not mark it implemented or accepted.
+
+The list is scope, **not a fixed execution order**. Prepared independent agent
+assignments are [Loading Efficiency](./loading-efficiency-handoff-20260927.md)
+and [Orrery/BDD Upgrade](./orrery-bdd-handoff-20260927.md). Savegame and UI
+replacement describe ownership/dependencies, not which must be done next.
+
+| Effort | Scope and useful completion evidence |
+| --- | --- |
+| Orrery recording/replay and behavior-suite restructuring | Extend Orrery's OpenSpace runtime analysis with complete timing/frame-precise session recording/replay. Extract the behavior suite and comparison runner as external consumers; use a separate Godot harness. Capture initial available saves, startup/menu input, video, typed state, AI transitions and API arguments/results/timing. Prove input consumption and render association, repeatability, gap detection and automatic divergence reporting; grow from short human-driven sessions to long routes. |
+| Godot loading efficiency | Reduce actual launch and menu-to-play latency, including reload/restart. Measure import, dependency/resource loading, instantiation, readiness and first playable rendered frame separately. Evaluate native binary resources, resource reuse and unnecessary waits while preserving editor inspection/editing and normal Godot ownership. |
+| First-level (`manoir`) game parity | Complete player movement, sword, crossbow and magic; the intro and transition into play; actor interactions including pickups, unlocking/moving gates, combat reactions and dialogue; independent actor behavior, movement and physics. Exercise the natural progression and its relevant branches through the actual converted scripts and native Godot facilities. |
+| Graphical parity | Compare camera/framing, actor and effect placement, pose/animation timing, visibility, geometry, materials, lighting, fog and UI throughout recordings. Use matched-camera asset diagnostics and natural-camera gameplay comparisons as distinct evidence. Detect discrepancies continuously instead of waiting for the user to notice them. |
+| Savegames | Extend the existing partial save research into a documented structure catalogue and Orrery support for inspecting/using saves and managing recording fixtures. Implement Godot save/load with retained inventory, progression, actor/world and other required persistent state. Evaluate a source-save converter as a separate supported path; document omissions and verify equivalent loaded behavior. |
+| Godot UI parity | Evolve the actual current game menu and implement the source-informed startup/menu, New Game/load/save, HUD, inventory/equipment, dialogue and pause/options flows as encountered and verified in the original. Use native Godot UI and ordinary input paths. Replace the basic presentation through this work; source UI parity remains unaccepted. |
+| Complete Rete coverage | Expand meaningful model coverage and Rete persistence across the source content, with unknowns and unsupported read/write/export paths explicitly accounted for. Verify source-free reopening, relationships/sharing, deliberate edits and the owning adapters' outputs. Prioritize missing data required by `manoir`, then close the broader corpus; full Rete coverage is not a prerequisite for first-level progress. |
+
+### Ownership and dependencies
+
+The "demo" is the Godot implementation of the game from this point forward.
+Its basic menu is the actual menu, and the current manor starting point is a
+provisional **Load Game** route using measured save-state restoration. **New
+Game** begins with the intro. Evolve this one application: loading-efficiency
+work can organize menu requests, resource preparation, state restoration and
+play readiness; savegame work replaces the fixed restoration, and UI work
+replaces the menu presentation. Do not create a separate future game path while
+maintaining the current one as a disposable demo. Historical `demo` filenames
+can be renamed during the relevant structural work without changing this scope.
+
+Orrery remains an **OpenSpace runtime analysis tool**: recording/replay adds to
+live inspection and control. The behavior suite owns scenarios, gameplay
+assertions and cross-engine comparison outside Orrery, including assertions
+that run only against OpenSpace. Godot control/observation belongs to its own
+harness. Follow the [recording contract](../docs/astrolabe/session-recordings.md)
+and [comparison implementation update](./realtime-comparison-plan.md#session-recording-direction--2026-09-27).
+
+Start the tooling extraction/first complete recording and loading-efficiency
+work as independent efforts. Keep improving the existing playable manor path
+while recording coverage grows; full tracing is not a gate for every gameplay
+change. Reuse the movement/combat/magic evidence from September 24–25 instead
+of restarting those slices or treating them as fully accepted. Resolve the
+reported validation failures through their affected areas before claiming a
+new clean checkpoint.
+
+Save-file snapshot/restore can support original-game recording before all save
+fields are decoded. New Game/menu/intro support and equivalent save-slot setup
+become dependencies when claiming full-session Godot replay. Godot save/load,
+UI and actor/world persistence should develop alongside the relevant manor
+interactions, not wait until after first-level parity is declared. A source-save
+converter is optional until a selected interoperability claim requires it;
+Godot persistence itself is required. The port must run without Orrery.
+
+Bring forward the intro used by the new-game route, including any prerecorded
+video and scripted in-engine sequence/handoff actually involved. Verify their
+roles before choosing implementation. Preserve completion, skip behavior where
+supported, audio and transition into normal gameplay. This overrides the old
+blanket late-cutscene policy for the intro; unrelated cinematics can remain late.
+
+Improve graphics alongside each behavior, using the same recordings to localize
+timing, state and image differences. Keep a discrepancy ledger with its evidence,
+impact, scope and revisit trigger. Accepted debt permits bounded progress; it
+does not turn an incomplete slice or unexplained mismatch into full parity.
+Whole-game speed-run coverage is a later expansion of the recording corpus,
+not a condition for accepting the first short recording.
+
+Full Rete coverage, original-engine acceptance of reconstructed packages and
+exact pre-compression/compressed byte fidelity remain separately demonstrated
+claims. Preserve the existing three-adapter architecture and useful model;
+runtime recordings and memory evidence are diagnostics, not Rete gameplay assets.
+
+### Loading baseline and first investigation
+
+A 2026-09-27 probe of the current local generated manor in Godot 4.7.2 measured
+38.328 seconds for resource loading, 52 ms for instantiation, 21 ms for
+reinstantiation with the PackedScene retained, and 138 ms for tree entry/readiness.
+The static dependency inventory found 1,196 animation resources containing about
+314 MB of text. The demo also has 5.1 seconds of fixed waiting. See the local
+[probe report](../TestResults/menu-load-profile-20260927/report.json).
+
+This was one fresh headless process with filesystem caches not cleared. It did
+not measure the first rendered frame or full menu-to-play latency; resource-load
+costs have not yet been separated into parsing, I/O and script compilation.
+Measure comparable original/Godot cold and warm runs, then evaluate native
+binary resources and retained resources, and replace fixed waits with verified
+readiness. Background loading can keep a menu responsive but must also report
+the actual wait. Do not accept a faster indicator as evidence of faster loading.
+
+### First-level acceptance
+
+Build a described recording corpus covering the original new-game route into
+`manoir`, its player controls, actor interactions/progression, save/reload and
+relevant UI. Add alternate routes and negative/interrupted cases when those
+behaviors are opened. Each engine must satisfy the scenario's own assertions;
+compare state/API events, actual timing and rendered output separately. A
+manually raised gate, partial saved-state restoration or approximate camera may
+remain temporary game limitations but cannot establish the corresponding
+original behavior. Fixture shortcuts used by tests retain their narrower scope.
+State exactly which routes and observations pass and which remain open.
+
+## Historical visual-pass inventory — September 13–20
+
+The material below preserves earlier evidence and remaining format/visual
+details. Its old current-state wording, schema numbers, controller commands and
+whole-suite deadline are historical; use the roadmap above, the implementation
+report and [current testing guide](../docs/astrolabe/testing.md) for active work.
 
 The native Godot scene/character migration passed on 2026-09-13. The saved
 fixture contains supported parts and initial poses, native clips can be scrubbed

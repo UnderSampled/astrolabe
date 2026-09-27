@@ -29,11 +29,10 @@ use tempfile::TempDir;
 
 const SCENE: &str = "generated/hype/levels/manoir/level.tscn";
 const SCRIPT: &str = "tests/behavior_gameplay.gd";
-const FIXTURE: &str = "tests/fixtures/english_save_manoir.json";
+const FIXTURE: &str = "game/english_save_manoir.json";
 const STARTUP_SETTLE_MS: u64 = 5_000;
 const CROSSBOW_TARGET_SOURCE: [f64; 3] = [-73.77856, 32.58957, 6.05084];
-const FIXTURE_BYTES: &[u8] =
-    include_bytes!("../../../../godot/tests/fixtures/english_save_manoir.json");
+const FIXTURE_BYTES: &[u8] = include_bytes!("../../../../godot/game/english_save_manoir.json");
 
 enum ReadyState {
     Fresh,

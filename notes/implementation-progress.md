@@ -1,5 +1,46 @@
 # Rust implementation evidence
 
+2026-09-27 game-flow clarification: the authored Godot application previously
+called the "demo" is the game implementation, and its basic menu is the actual
+current main menu. The menu now offers **Load Game**; the game title, loading
+messages and reload control wording follow that interpretation. Restoration
+still uses the measured English-save fixture. General savegame support will
+replace it, UI parity work will replace the basic presentation, and New Game
+will begin with the intro when implemented. The bridge-gate lift remains an
+explicit workaround, not a value decoded from the save.
+
+The existing headless menu/player smoke completed successfully on Godot 4.7.2:
+it checked the enabled Load Game action, reached playable state, and moved Hype
+1.926 units through physical arrow input with his Brain running and camera
+active. The captured log also contains 30 unsupported compiled-behavior errors
+from other actors and no other error categories. This is a scoped menu/player
+result, not clean whole-level acceptance. Evidence is retained locally in
+`TestResults/menu-flow-20260927/`. No general save loading, New Game flow or
+loading-performance optimization was implemented in this wording/design update.
+
+On 2026-09-25, the repository Godot project gained an authored **Play manor
+demo** route. A fresh local `manoir` export supplies its saved level, Hype and
+compiled Brain; the demo restores the measured English-save start from one
+shared fixture, adds a presentation follow camera, control guide, mana display,
+restart and menu. The demo starts with the bridge gate raised; its opening AI
+is not yet supported. A Godot 4.7.2 visual smoke run shows the opening clear;
+a physics ray across the passage at player height found no remaining collider.
+The run launched the scene, kept the
+Brain and camera active, and moved Hype 1.926 world units with physical Left and
+Up input. Its screenshot is `TestResults/demo-smoke.png`; the headless movement
+run also passed (1.881 units). The older local `astrolabe` generated tree was
+preserved under `output/archived-godot-generated-20260925-pre-demo` because
+the converter correctly rejected replacing a shared resource while an
+unselected older level depended on it. This is a playable demonstration of the
+working player slice, not acceptance of the full combined-demo exit in the
+[gameplay plan](./godot-gameplay-plan.md): combat hit/damage, crossbow play,
+spell contact/lifetime, cliff death and source camera follow still remain open.
+The focused local movement gate passed its Godot gameplay check but finished
+87/90 overall. An AI inventory count assertion found 58 models where it
+expected 57, the native scratch lifetime check reported a missing process, and
+the original-game movement scenario was stopped at the suite deadline. See
+`TestResults/20260925T063601.272162Z-development.log.json`.
+
 On 2026-09-14 the unfinished player/runtime experiment was archived at `9374ef5`
 on `codex/archive-openspace-runtime-20260914`. Active production code was restored
 to `d8d0375`; the coverage below describes that baseline. The retained
