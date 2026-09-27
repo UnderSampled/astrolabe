@@ -63,7 +63,7 @@ enum Commands {
         #[arg(long)]
         output: PathBuf,
     },
-    /// Record a live Hype session from launch with physical input, sampled frames and state.
+    /// Record a live Hype session from launch.
     RecordSession {
         #[arg(long)]
         config: PathBuf,
@@ -81,6 +81,9 @@ enum Commands {
         seconds: u64,
         #[arg(long, default_value_t = 125)]
         frame_ms: u64,
+        /// Full evidence or a small, shareable input recording.
+        #[arg(long, value_enum, default_value_t = orrery::session::CaptureMode::Full)]
+        mode: orrery::session::CaptureMode,
         #[arg(long)]
         input_script: Option<PathBuf>,
     },
@@ -90,6 +93,9 @@ enum Commands {
         config: PathBuf,
         #[arg(long)]
         recording: PathBuf,
+        /// Local save root matching an input-only recording's fixture manifest.
+        #[arg(long)]
+        save_root: Option<PathBuf>,
         #[arg(long)]
         output: PathBuf,
         #[arg(long, default_value_t = 125)]
@@ -302,6 +308,7 @@ fn main() -> Result<()> {
             tag,
             seconds,
             frame_ms,
+            mode,
             input_script,
         } => {
             #[cfg(target_os = "linux")]
@@ -315,6 +322,7 @@ fn main() -> Result<()> {
                     tags: &tag,
                     seconds,
                     frame_ms,
+                    mode,
                     script_path: input_script.as_deref(),
                 })?;
                 println!("{}", serde_json::to_string_pretty(&report)?);
@@ -331,6 +339,7 @@ fn main() -> Result<()> {
                     tag,
                     seconds,
                     frame_ms,
+                    mode,
                     input_script,
                 );
                 bail!("native session recording currently requires Linux");
@@ -339,20 +348,27 @@ fn main() -> Result<()> {
         Commands::ReplaySession {
             config,
             recording,
+            save_root,
             output,
             frame_ms,
             profile,
         } => {
             #[cfg(target_os = "linux")]
             {
-                let report =
-                    orrery::session::replay(&config, &recording, &output, frame_ms, profile)?;
+                let report = orrery::session::replay(
+                    &config,
+                    &recording,
+                    save_root.as_deref(),
+                    &output,
+                    frame_ms,
+                    profile,
+                )?;
                 println!("{}", serde_json::to_string_pretty(&report)?);
                 Ok(())
             }
             #[cfg(not(target_os = "linux"))]
             {
-                let _ = (config, recording, output, frame_ms, profile);
+                let _ = (config, recording, save_root, output, frame_ms, profile);
                 bail!("native session replay currently requires Linux");
             }
         }

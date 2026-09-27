@@ -2,7 +2,7 @@
 //! is immutable; each run gets its own copy-on-write game/prefix and save root.
 use crate::{
     config::{Config, digest},
-    input_tap::InputTap,
+    input_tap::{InputTap, ObservedKey},
     navigation::Navigation,
     orrery::GameSession,
     replay::{Edge, Key},
@@ -12,8 +12,9 @@ use anyhow::{Context, Result, ensure};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use session_recording::{
-    Coverage, Environment, Event, EventWriter, Manifest, SaveFixture, capture_saves, freeze_files,
-    inspect_saves, read_events, recording_sha256, stage_saves, verify_saves,
+    Coverage, Environment, Event, EventWriter, Manifest, RecordingMode, SaveFixture, capture_saves,
+    freeze_files, inspect_saves, read_events, recording_sha256, stage_saves,
+    stage_saves_matching_content, verify_saves, verify_saves_content,
 };
 use sha2::Digest;
 use std::{
@@ -34,6 +35,21 @@ use std::{
 const FRAME_BUDGET_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const MAX_FRAMES: usize = 100_000;
 const MAX_PENDING_VIDEO_FINALIZERS: usize = 2;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum CaptureMode {
+    Full,
+    InputOnly,
+}
+
+impl From<CaptureMode> for RecordingMode {
+    fn from(mode: CaptureMode) -> Self {
+        match mode {
+            CaptureMode::Full => Self::Full,
+            CaptureMode::InputOnly => Self::InputOnly,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum ReplayProfile {
@@ -72,6 +88,7 @@ pub struct RecordOptions<'a> {
     pub tags: &'a [String],
     pub seconds: u64,
     pub frame_ms: u64,
+    pub mode: CaptureMode,
     pub script_path: Option<&'a Path>,
 }
 
@@ -198,6 +215,24 @@ fn write_manifest(path: &Path, manifest: &Manifest) -> Result<()> {
     Ok(())
 }
 
+fn full_coverage() -> Coverage {
+    Coverage {
+        input: "xrecord_server_delivered_key_edges; consumption unverified".into(),
+        video: "timestamped, sparse lossless PNG samples; continuous video and render update association unavailable".into(),
+        state: "phase/level running sample and actor/action/normal/reflex stopped-byte sample in gameplay".into(),
+        ai_api: "not instrumented".into(),
+        audio: "not captured".into(),
+        gaps: vec![
+            "capture attaches after process identification and visible window; startup before first frame is explicit".into(),
+            "input consumption is unverified; mouse and gamepad input are not captured".into(),
+            "focus changes are not captured; keyboard edges are scoped to the game window".into(),
+            "continuous video is not captured; frame-to-render/update association is unverified; audio is not captured".into(),
+            "AI transitions and API arguments/results are not traced".into(),
+            "save changes are sampled and snapshotted after observed stability; engine save-operation boundaries and completion are unverified".into(),
+        ],
+    }
+}
+
 fn prepared_game(
     base_config: &Path,
     output: &Path,
@@ -268,6 +303,150 @@ struct RunResult {
 struct RunControls {
     replay: bool,
     navigation: Option<Navigation>,
+}
+
+fn append_observed_keys(
+    keys: Vec<ObservedKey>,
+    game: &GameSession,
+    writer: &mut EventWriter,
+    held: &mut BTreeSet<u8>,
+    gaps: &mut Vec<String>,
+    replay: bool,
+) -> Result<usize> {
+    let count = keys.len();
+    for key in keys {
+        let keysym = game.keysym_for_code(key.code).ok();
+        let repeat = if key.edge == "press" {
+            !held.insert(key.code)
+        } else {
+            if !held.remove(&key.code) {
+                gaps.push("input release was observed without a press".into());
+            }
+            false
+        };
+        writer.append(
+            game.elapsed().as_micros(),
+            if replay { "input_observed" } else { "input" },
+            json!({
+                "keyboard":0, "code":key.code, "keysym":keysym, "edge":key.edge,
+                "observed_micros":key.elapsed_micros, "server_time_ms":key.server_time_ms,
+                "modifiers":key.modifiers, "consumption_verified":false, "repeat":repeat,
+            }),
+        )?;
+    }
+    Ok(count)
+}
+
+fn run_input_only_loop(
+    game: &mut GameSession,
+    writer: &mut EventWriter,
+    duration: Duration,
+    script: &[PlannedKey],
+) -> Result<RunResult> {
+    writer.append(
+        game.elapsed().as_micros(),
+        "process_identified",
+        json!({"identity": game.identity(), "display": game.display(), "frame_capture_enabled": false}),
+    )?;
+    let host_display = std::env::var("DISPLAY").unwrap_or_default();
+    ensure!(
+        game.display().starts_with(':') && game.display() != host_display,
+        "refusing original-game input tap outside Orrery's private display"
+    );
+    let window_deadline = Instant::now() + Duration::from_secs(40);
+    let window = loop {
+        if let Ok(window) = game.window_id() {
+            break window;
+        }
+        ensure!(
+            Instant::now() < window_deadline,
+            "game window did not appear"
+        );
+        thread::sleep(Duration::from_millis(20));
+    };
+    let tap = InputTap::start(
+        game.display(),
+        &host_display,
+        window,
+        game.started_instant(),
+    )?;
+    game.prepare_physical_input()?;
+    writer.append(game.elapsed().as_micros(), "input_tap_armed", json!({
+        "window":window, "coverage":"xrecord_server_delivered_key_edges", "consumer_verified":false,
+    }))?;
+    let mut next_input = 0;
+    let mut inputs = 0;
+    let mut held = BTreeSet::new();
+    let mut gaps = Vec::new();
+    let cancel = Arc::new(AtomicBool::new(false));
+    let registrations = [libc::SIGINT, libc::SIGTERM]
+        .into_iter()
+        .map(|signal| signal_hook::flag::register(signal, cancel.clone()))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut ending = "completed".to_owned();
+    let mut next_liveness_check = Duration::ZERO;
+    while game.elapsed() < duration {
+        if cancel.load(Ordering::SeqCst) {
+            ending = "interrupted".into();
+            break;
+        }
+        let now = game.elapsed();
+        if now >= next_liveness_check {
+            game.check()?;
+            next_liveness_check = now + Duration::from_millis(250);
+        }
+        while let Some(input) = script.get(next_input) {
+            if input.at_micros > now.as_micros() {
+                break;
+            }
+            let code = input
+                .code
+                .or_else(|| input.key.and_then(|key| game.keycode_for(key).ok()))
+                .context("script key has no unique private-display mapping")?;
+            if let Some(expected) = input.expected_keysym {
+                ensure!(
+                    game.keysym_for_code(code)? == expected,
+                    "script keyboard mapping differs"
+                );
+            }
+            game.physical_keycode(code, input.edge, input.repeat)?;
+            writer.append(
+                game.elapsed().as_micros(),
+                "input_dispatch",
+                json!({
+                    "source_elapsed_micros":input.at_micros,
+                    "late_micros":game.elapsed().as_micros().saturating_sub(input.at_micros),
+                    "keyboard":0, "code":code, "edge":input.edge, "repeat":input.repeat,
+                }),
+            )?;
+            next_input += 1;
+        }
+        inputs += append_observed_keys(tap.drain()?, game, writer, &mut held, &mut gaps, false)?;
+        thread::sleep(Duration::from_millis(5));
+    }
+    inputs += append_observed_keys(tap.stop()?, game, writer, &mut held, &mut gaps, false)?;
+    for registration in registrations {
+        signal_hook::low_level::unregister(registration);
+    }
+    if next_input != script.len() {
+        gaps.push("session ended before all scheduled inputs".into());
+    }
+    if !held.is_empty() {
+        gaps.push(format!(
+            "session ended with {} observed keys held",
+            held.len()
+        ));
+    }
+    let elapsed_micros = game.elapsed().as_micros();
+    writer.append(elapsed_micros, "session_end", json!({"ending":ending}))?;
+    Ok(RunResult {
+        elapsed_micros,
+        ending,
+        gaps,
+        frames: 0,
+        input_events: inputs,
+        video_frames: 0,
+    })
 }
 
 fn record_video_end(
@@ -725,28 +904,14 @@ fn run_loop(
             )?;
             next_input += 1;
         }
-        for key in input_tap.drain()? {
-            let keysym = game.keysym_for_code(key.code).ok();
-            let repeat = if key.edge == "press" {
-                !observed_held.insert(key.code)
-            } else {
-                if !observed_held.remove(&key.code) {
-                    gaps.push("input release was observed without a press".into());
-                }
-                false
-            };
-            writer.append(
-                game.elapsed().as_micros(),
-                if replay { "input_observed" } else { "input" },
-                json!({
-                    "keyboard":0, "code":key.code, "keysym":keysym, "edge":key.edge,
-                    "observed_micros":key.elapsed_micros, "server_time_ms":key.server_time_ms,
-                    "modifiers":key.modifiers,
-                    "consumption_verified":false, "repeat":repeat,
-                }),
-            )?;
-            inputs += 1;
-        }
+        inputs += append_observed_keys(
+            input_tap.drain()?,
+            game,
+            writer,
+            &mut observed_held,
+            &mut gaps,
+            replay,
+        )?;
         if now >= next_state {
             match game.state() {
                 Ok(state) => {
@@ -948,27 +1113,14 @@ fn run_loop(
         }
         thread::sleep(Duration::from_millis(5));
     }
-    for key in input_tap.stop()? {
-        let keysym = game.keysym_for_code(key.code).ok();
-        let repeat = if key.edge == "press" {
-            !observed_held.insert(key.code)
-        } else {
-            if !observed_held.remove(&key.code) {
-                gaps.push("input release was observed without a press".into());
-            }
-            false
-        };
-        writer.append(
-            game.elapsed().as_micros(),
-            if replay { "input_observed" } else { "input" },
-            json!({
-                "keyboard":0, "code":key.code, "keysym":keysym, "edge":key.edge,
-                "observed_micros":key.elapsed_micros, "server_time_ms":key.server_time_ms,
-                "modifiers":key.modifiers, "consumption_verified":false, "repeat":repeat,
-            }),
-        )?;
-        inputs += 1;
-    }
+    inputs += append_observed_keys(
+        input_tap.stop()?,
+        game,
+        writer,
+        &mut observed_held,
+        &mut gaps,
+        replay,
+    )?;
     for registration in registrations {
         signal_hook::low_level::unregister(registration);
     }
@@ -1040,6 +1192,87 @@ fn source_session_duration(
     Ok(manifest_elapsed_micros)
 }
 
+fn replay_script(events: &[Event], mode: RecordingMode) -> Result<Vec<PlannedKey>> {
+    let script = events
+        .iter()
+        .filter(|event| {
+            event.kind == "input" && (mode == RecordingMode::Full || event.data["repeat"] != true)
+        })
+        .map(|event| -> Result<PlannedKey> {
+            let data = &event.data;
+            Ok(PlannedKey {
+                at_micros: data["observed_micros"]
+                    .as_u64()
+                    .map(u128::from)
+                    .unwrap_or(event.elapsed_micros),
+                code: Some(
+                    data["code"]
+                        .as_u64()
+                        .context("recorded input code missing")?
+                        .try_into()?,
+                ),
+                key: None,
+                expected_keysym: data["keysym"].as_u64().map(u32::try_from).transpose()?,
+                edge: serde_json::from_value(data["edge"].clone())?,
+                repeat: mode == RecordingMode::Full && data["repeat"].as_bool().unwrap_or(false),
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    validate_script(&script)?;
+    Ok(script)
+}
+
+fn verify_replay_fixture(
+    manifest: &Manifest,
+    source_recording: &Path,
+    source_saves: Option<&Path>,
+) -> Result<()> {
+    if let Some(root) = source_saves {
+        reject_nested_save_root(root)?;
+        verify_saves_content(root, &manifest.initial_saves)?;
+    } else if manifest.recording_mode == RecordingMode::Full {
+        verify_saves(
+            &source_recording.join("initial-saves"),
+            &SaveFixture {
+                kind: if manifest.initial_saves.kind == session_recording::SaveRootKind::Absent {
+                    session_recording::SaveRootKind::Empty
+                } else {
+                    manifest.initial_saves.kind
+                },
+                directories: manifest.initial_saves.directories.clone(),
+                files: manifest.initial_saves.files.clone(),
+            },
+        )?;
+    } else {
+        ensure!(
+            manifest.initial_saves.kind != session_recording::SaveRootKind::Populated,
+            "input-only recording has a populated save fixture; pass a matching local --save-root"
+        );
+    }
+    Ok(())
+}
+
+fn stage_replay_fixture(
+    manifest: &Manifest,
+    source_recording: &Path,
+    source_saves: Option<&Path>,
+    destination: &Path,
+) -> Result<()> {
+    if let Some(root) = source_saves {
+        stage_saves_matching_content(root, &manifest.initial_saves, destination)?;
+    } else if manifest.recording_mode == RecordingMode::Full {
+        stage_saves(
+            &source_recording.join("initial-saves"),
+            &manifest.initial_saves,
+            destination,
+        )?;
+    }
+    if !destination.exists() {
+        fs::create_dir(destination)?;
+    }
+    Ok(())
+}
+
 fn finalize(
     output: &Path,
     game: GameSession,
@@ -1049,11 +1282,15 @@ fn finalize(
     let elapsed_micros = game.elapsed().as_micros();
     let saves = game.save_root();
     let close = game.close();
-    let output_saves = capture_saves(&saves, &output.join("output-saves"));
+    let output_saves = if manifest.recording_mode == RecordingMode::Full {
+        Some(capture_saves(&saves, &output.join("output-saves")))
+    } else {
+        None
+    };
     // The per-run prefix is disposable; captured saves and recording evidence remain.
     let clean = fs::remove_dir_all(output.join("setup/prefix"));
     close?;
-    let output_saves = output_saves?;
+    let output_saves = output_saves.transpose()?;
     clean?;
     let (result, failure) = match result {
         Ok(result) => (result, None),
@@ -1078,6 +1315,10 @@ fn finalize(
             (partial, Some(error))
         }
     };
+    if manifest.recording_mode == RecordingMode::InputOnly && failure.is_none() {
+        fs::remove_dir_all(output.join("setup"))?;
+        fs::remove_dir_all(output.join("runtime"))?;
+    }
     manifest.elapsed_micros = result.elapsed_micros;
     manifest.ending = result.ending;
     manifest.coverage.gaps.extend(result.gaps);
@@ -1125,6 +1366,7 @@ pub fn record(options: RecordOptions<'_>) -> Result<Value> {
         tags,
         seconds,
         frame_ms,
+        mode,
         script_path,
     } = options;
     let absolute_output = if output.is_absolute() {
@@ -1159,40 +1401,50 @@ pub fn record(options: RecordOptions<'_>) -> Result<Value> {
     fs::create_dir(output)?;
     let recording = output.join("recording");
     fs::create_dir(&recording)?;
-    let fixture = capture_saves(&source, &recording.join("initial-saves"))?;
+    let fixture_dir = if mode == CaptureMode::InputOnly {
+        output.join("fixture-staging")
+    } else {
+        recording.join("initial-saves")
+    };
+    let _fixture_cleanup =
+        (mode == CaptureMode::InputOnly).then(|| PrefixCleanup(fixture_dir.clone()));
+    let fixture = capture_saves(&source, &fixture_dir)?;
     let _prefix_cleanup = PrefixCleanup(output.join("setup/prefix"));
-    let config = prepared_game(
-        config_path,
-        output,
-        &recording.join("initial-saves"),
-        &fixture,
-    )?;
+    let config = prepared_game(config_path, output, &fixture_dir, &fixture)?;
     let created_unix_micros = SystemTime::now().duration_since(UNIX_EPOCH)?.as_micros();
     let mut manifest = Manifest {
-        schema:session_recording::SCHEMA,
-        id:format!("hype-{created_unix_micros}"),
-        title:title.to_owned(), description:description.to_owned(), tags:tags.to_vec(),
-        driver:if script.is_empty() { "human" } else { "scripted" }.into(),
-        executable_sha256:base.exe_sha256,
-        environment:run_environment,
-        initial_saves:fixture,
-        started_unix_micros:0, elapsed_micros:0, ending:"in_progress".into(),
-        replay_of_sha256:None,
-        coverage:Coverage {
-            input:"xrecord_server_delivered_key_edges; consumption unverified".into(),
-            video:"timestamped, sparse lossless PNG samples; continuous video and render update association unavailable".into(),
-            state:"phase/level running sample and actor/action/normal/reflex stopped-byte sample in gameplay".into(),
-            ai_api:"not instrumented".into(), audio:"not captured".into(),
-            gaps:vec![
-                "capture attaches after process identification and visible window; startup before first frame is explicit".into(),
-                "input consumption is unverified; mouse and gamepad input are not captured".into(),
-                "focus changes are not captured; keyboard edges are scoped to the game window".into(),
-                "continuous video is not captured; frame-to-render/update association is unverified; audio is not captured".into(),
-                "AI transitions and API arguments/results are not traced".into(),
-                "save changes are sampled and snapshotted after observed stability; engine save-operation boundaries and completion are unverified".into(),
-            ],
-        },
+        schema: session_recording::SCHEMA,
+        recording_mode: mode.into(),
+        id: format!("hype-{created_unix_micros}"),
+        title: title.to_owned(),
+        description: description.to_owned(),
+        tags: tags.to_vec(),
+        driver: if script.is_empty() {
+            "human"
+        } else {
+            "scripted"
+        }
+        .into(),
+        executable_sha256: base.exe_sha256,
+        environment: run_environment,
+        initial_saves: fixture,
+        started_unix_micros: 0,
+        elapsed_micros: 0,
+        ending: "in_progress".into(),
+        replay_of_sha256: None,
+        coverage: full_coverage(),
     };
+    if mode == CaptureMode::InputOnly {
+        manifest.coverage.video = "not captured in input-only mode".into();
+        manifest.coverage.state = "not captured in input-only mode".into();
+        manifest.coverage.ai_api = "not captured in input-only mode".into();
+        manifest.coverage.gaps = vec![
+            "input tap attaches after the game window appears; earlier startup input is not observed".into(),
+            "input consumption, focus changes, mouse and gamepad input are not captured".into(),
+            "video, audio, state, AI/API, save changes and output saves are omitted; replay in full mode recaptures them".into(),
+            "initial save bytes are omitted; recapture needs a matching local --save-root when populated".into(),
+        ];
+    }
     write_manifest(&recording.join("manifest.json"), &manifest)?;
     let mut writer = EventWriter::create(&recording.join("events.jsonl"))?;
     let mut game = GameSession::start_session(
@@ -1207,18 +1459,27 @@ pub fn record(options: RecordOptions<'_>) -> Result<Value> {
         "launch",
         json!({"recording_armed_before_process_launch":true}),
     )?;
-    let result = run_loop(
-        &mut game,
-        &recording,
-        &mut writer,
-        Duration::from_secs(seconds),
-        Duration::from_millis(frame_ms),
-        &script,
-        RunControls {
-            replay: false,
-            navigation: None,
-        },
-    );
+    let result = if mode == CaptureMode::InputOnly {
+        run_input_only_loop(
+            &mut game,
+            &mut writer,
+            Duration::from_secs(seconds),
+            &script,
+        )
+    } else {
+        run_loop(
+            &mut game,
+            &recording,
+            &mut writer,
+            Duration::from_secs(seconds),
+            Duration::from_millis(frame_ms),
+            &script,
+            RunControls {
+                replay: false,
+                navigation: None,
+            },
+        )
+    };
     if let Err(error) = &result {
         let _ = writer.append(
             game.elapsed().as_micros(),
@@ -1232,6 +1493,7 @@ pub fn record(options: RecordOptions<'_>) -> Result<Value> {
 pub fn replay(
     config_path: &Path,
     source_recording: &Path,
+    source_saves: Option<&Path>,
     output: &Path,
     frame_ms: u64,
     profile: ReplayProfile,
@@ -1261,43 +1523,8 @@ pub fn replay(
     ensure!(complete, "recording has a torn final event");
     let original_duration =
         source_session_duration(manifest.elapsed_micros, &manifest.ending, &events)?;
-    let source_fixture = source_recording.join("initial-saves");
-    verify_saves(
-        &source_fixture,
-        &SaveFixture {
-            kind: if manifest.initial_saves.kind == session_recording::SaveRootKind::Absent {
-                session_recording::SaveRootKind::Empty
-            } else {
-                manifest.initial_saves.kind
-            },
-            directories: manifest.initial_saves.directories.clone(),
-            files: manifest.initial_saves.files.clone(),
-        },
-    )?;
-    let script = events
-        .iter()
-        .filter(|event| event.kind == "input")
-        .map(|event| -> Result<PlannedKey> {
-            let data = &event.data;
-            Ok(PlannedKey {
-                at_micros: data["observed_micros"]
-                    .as_u64()
-                    .map(u128::from)
-                    .unwrap_or(event.elapsed_micros),
-                code: Some(
-                    data["code"]
-                        .as_u64()
-                        .context("recorded input code missing")?
-                        .try_into()?,
-                ),
-                key: None,
-                expected_keysym: data["keysym"].as_u64().map(u32::try_from).transpose()?,
-                edge: serde_json::from_value(data["edge"].clone())?,
-                repeat: data["repeat"].as_bool().unwrap_or(false),
-            })
-        })
-        .collect::<Result<Vec<_>>>()?;
-    validate_script(&script)?;
+    verify_replay_fixture(&manifest, source_recording, source_saves)?;
+    let script = replay_script(&events, manifest.recording_mode)?;
     ensure!(
         script.iter().all(|key| key.at_micros <= original_duration),
         "recording input extends beyond session_end"
@@ -1322,14 +1549,12 @@ pub fn replay(
     let _prefix_cleanup = PrefixCleanup(output.join("setup/prefix"));
     let recording = output.join("recording");
     fs::create_dir(&recording)?;
-    stage_saves(
-        &source_fixture,
-        &manifest.initial_saves,
+    stage_replay_fixture(
+        &manifest,
+        source_recording,
+        source_saves,
         &recording.join("initial-saves"),
     )?;
-    if !recording.join("initial-saves").exists() {
-        fs::create_dir(recording.join("initial-saves"))?;
-    }
     ensure!(
         recording_sha256(source_recording)? == source_sha256,
         "source recording changed while replay inputs were copied"
@@ -1340,6 +1565,7 @@ pub fn replay(
         &recording.join("initial-saves"),
         &manifest.initial_saves,
     )?;
+    let input_only_source = manifest.recording_mode == RecordingMode::InputOnly;
     let mut replay_manifest = manifest;
     replay_manifest.id = format!(
         "{}-replay-{}",
@@ -1347,6 +1573,13 @@ pub fn replay(
         SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
     );
     replay_manifest.driver = format!("replay:{}", profile.label());
+    replay_manifest.recording_mode = RecordingMode::Full;
+    if input_only_source {
+        replay_manifest.coverage = full_coverage();
+        replay_manifest.coverage.gaps.push(
+            "source recording contained input and fixture identity only; this run recaptures output evidence".into(),
+        );
+    }
     if profile != ReplayProfile::Literal {
         replay_manifest.coverage.gaps.push(
             "readiness-gated navigation may add explicit delays; it does not establish literal startup timing equivalence or input consumption".into(),
@@ -1393,9 +1626,19 @@ pub fn replay(
     let mut report = finalize(output, game, &mut replay_manifest, result)?;
     let (replayed, complete) = read_events(&recording.join("events.jsonl"))?;
     ensure!(complete, "replay event stream is torn");
+    let source_repeat_events = events
+        .iter()
+        .filter(|event| event.kind == "input" && event.data["repeat"] == true)
+        .count();
+    let observed_repeat_events = replayed
+        .iter()
+        .filter(|event| event.kind == "input_observed" && event.data["repeat"] == true)
+        .count();
     let source_input = events
         .iter()
-        .filter(|event| event.kind == "input")
+        .filter(|event| {
+            event.kind == "input" && (!input_only_source || event.data["repeat"] != true)
+        })
         .map(|event| {
             (
                 event.data["code"].as_u64(),
@@ -1406,7 +1649,9 @@ pub fn replay(
         .collect::<Vec<_>>();
     let observed_input = replayed
         .iter()
-        .filter(|event| event.kind == "input_observed")
+        .filter(|event| {
+            event.kind == "input_observed" && (!input_only_source || event.data["repeat"] != true)
+        })
         .map(|event| {
             (
                 event.data["code"].as_u64(),
@@ -1460,6 +1705,9 @@ pub fn replay(
         .and_then(|event| event["total_added_delay_micros"].as_u64())
         .unwrap_or(0);
     let delivery = json!({
+        "repeat_policy":if input_only_source { "held_state_edges_only" } else { "all_observed_key_events" },
+        "source_repeat_events":source_repeat_events,
+        "observed_repeat_events":observed_repeat_events,
         "replay_profile":profile.label(),
         "navigation_waits":navigation_waits,
         "navigation_added_delay_micros":navigation_added_delay_micros,
@@ -1483,7 +1731,11 @@ pub fn replay(
     report["delivery"] = delivery;
     report["delivery_validation"] = json!({
         "status":if first_input_difference.is_none() { "passed" } else { "failed" },
-        "rule":"X-server observed keyboard edge identity/order must equal the source recording; game consumption remains unverified",
+        "rule":if input_only_source {
+            "X-server observed nonrepeat keyboard edge identity/order must equal the source recording; auto-repeat counts and game consumption remain unverified"
+        } else {
+            "X-server observed keyboard event identity/order must equal the source recording; game consumption remains unverified"
+        },
     });
     if first_input_difference.is_some() {
         report["error"] = json!("replay physical input delivery differs from recording");
@@ -1497,6 +1749,143 @@ pub fn replay(
         "replay physical input delivery differs from recording"
     );
     Ok(report)
+}
+
+#[cfg(test)]
+mod input_only_tests {
+    use super::*;
+
+    fn fixture_manifest(fixture: SaveFixture) -> Manifest {
+        Manifest {
+            schema: session_recording::SCHEMA,
+            recording_mode: RecordingMode::InputOnly,
+            id: "test".into(),
+            title: "test".into(),
+            description: String::new(),
+            tags: Vec::new(),
+            driver: "human".into(),
+            executable_sha256: String::new(),
+            environment: Environment {
+                content_tree_sha256: String::new(),
+                content_file_count: 0,
+                runtime_name: String::new(),
+                runtime_executable_sha256: String::new(),
+                locale: String::new(),
+                display_profile: String::new(),
+                control_profile: String::new(),
+                randomness_inputs: String::new(),
+            },
+            initial_saves: fixture,
+            started_unix_micros: 0,
+            elapsed_micros: 0,
+            ending: "completed".into(),
+            replay_of_sha256: None,
+            coverage: full_coverage(),
+        }
+    }
+
+    #[test]
+    fn input_only_fixture_requires_matching_local_bytes_for_full_recapture() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let local = temp.path().join("local-saves");
+        fs::create_dir_all(local.join("SaveGame0"))?;
+        fs::write(local.join("SaveGame0/General.sav"), b"private save bytes")?;
+        let manifest = fixture_manifest(inspect_saves(&local)?);
+        let portable = temp.path().join("portable");
+        fs::create_dir(&portable)?;
+        write_manifest(&portable.join("manifest.json"), &manifest)?;
+        assert!(!portable.join("initial-saves").exists());
+        assert!(
+            !fs::read(portable.join("manifest.json"))?
+                .windows(b"private save bytes".len())
+                .any(|window| window == b"private save bytes")
+        );
+        assert!(
+            verify_replay_fixture(&manifest, &portable, None)
+                .unwrap_err()
+                .to_string()
+                .contains("--save-root")
+        );
+        verify_replay_fixture(&manifest, &portable, Some(&local))?;
+        let staged = temp.path().join("staged");
+        stage_replay_fixture(&manifest, &portable, Some(&local), &staged)?;
+        verify_saves(&staged, &manifest.initial_saves)?;
+        let save = local.join("SaveGame0/General.sav");
+        File::open(&save)?.set_times(
+            std::fs::FileTimes::new().set_modified(UNIX_EPOCH + Duration::from_secs(1_700_000_000)),
+        )?;
+        verify_replay_fixture(&manifest, &portable, Some(&local))?;
+        let staged_with_restored_time = temp.path().join("staged-with-restored-time");
+        stage_replay_fixture(
+            &manifest,
+            &portable,
+            Some(&local),
+            &staged_with_restored_time,
+        )?;
+        verify_saves(&staged_with_restored_time, &manifest.initial_saves)?;
+        fs::write(local.join("SaveGame0/General.sav"), b"changed")?;
+        assert!(verify_replay_fixture(&manifest, &portable, Some(&local)).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn input_only_replays_held_edges_without_reinjecting_auto_repeat() -> Result<()> {
+        let events = [
+            (100, "press", false),
+            (200, "press", true),
+            (300, "release", false),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(sequence, (elapsed_micros, edge, repeat))| Event {
+            sequence: sequence as u64,
+            elapsed_micros,
+            kind: "input".into(),
+            data: json!({"keyboard":0,"code":38,"keysym":97,"edge":edge,
+                "observed_micros":elapsed_micros,"repeat":repeat}),
+        })
+        .collect::<Vec<_>>();
+        let full = replay_script(&events, RecordingMode::Full)?;
+        let compact = replay_script(&events, RecordingMode::InputOnly)?;
+        assert_eq!(full.len(), 3);
+        assert!(full[1].repeat);
+        assert_eq!(compact.len(), 2);
+        assert!(compact.iter().all(|input| !input.repeat));
+        assert_eq!(compact[0].edge, Edge::Press);
+        assert_eq!(compact[1].edge, Edge::Release);
+        Ok(())
+    }
+
+    #[test]
+    fn old_manifest_defaults_to_full_mode() -> Result<()> {
+        let manifest = fixture_manifest(SaveFixture {
+            kind: session_recording::SaveRootKind::Empty,
+            directories: vec![],
+            files: vec![],
+        });
+        let mut value = serde_json::to_value(manifest)?;
+        value.as_object_mut().unwrap().remove("recording_mode");
+        let old: Manifest = serde_json::from_value(value)?;
+        assert_eq!(old.recording_mode, RecordingMode::Full);
+        Ok(())
+    }
+
+    #[test]
+    fn input_only_directory_fixture_still_needs_local_root() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let manifest = fixture_manifest(SaveFixture {
+            kind: session_recording::SaveRootKind::Populated,
+            directories: vec!["SaveGame0".into()],
+            files: vec![],
+        });
+        assert!(
+            verify_replay_fixture(&manifest, temp.path(), None)
+                .unwrap_err()
+                .to_string()
+                .contains("--save-root")
+        );
+        Ok(())
+    }
 }
 
 #[cfg(test)]

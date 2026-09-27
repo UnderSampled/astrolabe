@@ -137,6 +137,22 @@ gaps are visible.
 
 ## Replay and comparison
 
+### Input-only source recordings
+
+Orrery can capture a portable `input_only` source recording for later full
+recapture. Its manifest retains the environment and initial save fixture
+identities, but its recording directory contains only the manifest and timed
+input/session events. Save bytes, video, checkpoints, state and save outputs
+are omitted. A replay from a populated fixture requires a matching local save
+root and verifies bytes and structure before launch. It restores recorded
+modification times in the isolated run copy. The new run captures full output
+evidence and links back to the source hash.
+Input-only replay dispatches press/release state changes. It retains observed
+X11 auto-repeat presses marked while a key is held as source evidence but lets
+the replay display generate its own repeats; the delivery check compares
+nonrepeat edges and reports repeat counts separately. This check cannot
+establish game consumption or behavioral repeatability.
+
 Freeze a captured recording and initial fixture; each replay is a separate run
 referencing their hashes and preserving its own observed outputs. Verify
 original-to-original repeatability before assigning tight cross-engine

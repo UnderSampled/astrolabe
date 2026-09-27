@@ -343,7 +343,7 @@ impl GameSession {
         })
     }
 
-    fn check(&self) -> Result<()> {
+    pub(crate) fn check(&self) -> Result<()> {
         ensure!(
             Instant::now() < self.expires,
             "game session lifetime expired"

@@ -299,6 +299,7 @@ fn run(cli: Cli) -> Result<Value> {
     let root = x11.setup().roots[screen].root;
     let mut started_unix_micros = SystemTime::now().duration_since(UNIX_EPOCH)?.as_micros();
     let mut manifest = Manifest {
+        recording_mode: session_recording::RecordingMode::Full,
         schema:session_recording::SCHEMA,
         id:format!("{}-godot-{started_unix_micros}",source_manifest.id),
         title:source_manifest.title.clone(),

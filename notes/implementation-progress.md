@@ -355,6 +355,23 @@ mandatory safeguards under authorized local test permissions; the initial
 restricted run had nine host permission failures. Evidence is in ignored
 `TestResults/orrery-save-name-commit-gated-v4-20260927/` and
 `TestResults/navigation-comparison-escalated-20260927.json`.
+Orrery now supports `record-session --mode input-only`. It keeps the initial
+fixture's identity and the observed keyboard timeline while omitting copied
+save bytes, video, frames, state, save snapshots and output saves. A full
+`replay-session` can recapture those outputs from a matching local save root;
+the local save root is mandatory for a populated fixture. Matching source bytes
+and layout are verified; recorded timestamps are restored in the run copy.
+Input-only replay
+dispatches held-state press/release edges, not marked X11 auto-repeat presses,
+and validates the nonrepeat sequence while reporting repeat counts separately.
+An isolated 18-second no-save smoke recorded two physical edges in a 3,080-byte
+recording; its full recapture produced 485 indexed video frames in a
+274,338,785-byte recording, passed edge delivery validation and linked the
+compact source hash. The populated-fixture verification and repeat filtering
+also have synthetic tests. This demonstrates the recapture path, not gameplay
+equivalence; evidence remains ignored under
+`TestResults/orrery-input-only-smoke-20260927/` and
+`TestResults/orrery-input-only-recapture-20260927/`.
 The focused behavior test ownership has also been separated: one
 `behavior-contract` crate now defines physical input, scenario recordings,
 samples, assertions and result comparison; Orrery retains only the original

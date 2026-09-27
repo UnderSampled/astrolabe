@@ -15,6 +15,14 @@ use std::{
 
 pub const SCHEMA: u32 = 1;
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecordingMode {
+    #[default]
+    Full,
+    InputOnly,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SaveRootKind {
@@ -64,6 +72,8 @@ pub struct Environment {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Manifest {
     pub schema: u32,
+    #[serde(default)]
+    pub recording_mode: RecordingMode,
     pub id: String,
     pub title: String,
     pub description: String,
@@ -289,32 +299,17 @@ pub fn inspect_saves(root: &Path) -> Result<SaveFixture> {
 }
 
 pub fn verify_saves(root: &Path, expected: &SaveFixture) -> Result<()> {
-    let actual = match fs::symlink_metadata(root) {
-        Ok(metadata) => {
-            ensure!(
-                metadata.is_dir() && !metadata.file_type().is_symlink(),
-                "invalid save root"
-            );
-            let mut directories = Vec::new();
-            let mut files = Vec::new();
-            collect(root, root, &mut directories, &mut files, None)?;
-            SaveFixture {
-                kind: if files.is_empty() && directories.is_empty() {
-                    SaveRootKind::Empty
-                } else {
-                    SaveRootKind::Populated
-                },
-                directories,
-                files,
-            }
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => SaveFixture {
-            kind: SaveRootKind::Absent,
-            directories: vec![],
-            files: vec![],
-        },
-        Err(error) => return Err(error.into()),
-    };
+    verify_saves_with_metadata(root, expected, true)
+}
+
+/// Verify portable save bytes and layout without requiring source timestamps.
+/// Staging restores the recorded timestamps in the isolated run copy.
+pub fn verify_saves_content(root: &Path, expected: &SaveFixture) -> Result<()> {
+    verify_saves_with_metadata(root, expected, false)
+}
+
+fn verify_saves_with_metadata(root: &Path, expected: &SaveFixture, timestamps: bool) -> Result<()> {
+    let actual = inspect_saves(root)?;
     ensure!(actual.kind == expected.kind, "save root kind differs");
     ensure!(
         actual.directories == expected.directories,
@@ -329,7 +324,7 @@ pub fn verify_saves(root: &Path, expected: &SaveFixture) -> Result<()> {
             actual.path == expected.path
                 && actual.size == expected.size
                 && actual.sha256 == expected.sha256
-                && actual.modified_unix_nanos == expected.modified_unix_nanos,
+                && (!timestamps || actual.modified_unix_nanos == expected.modified_unix_nanos),
             "save file differs: {}",
             expected.path
         );
@@ -351,6 +346,20 @@ pub fn stage_saves(source: &Path, fixture: &SaveFixture, destination: &Path) -> 
             files: fixture.files.clone(),
         },
     )?;
+    stage_saves_unchecked(source, fixture, destination)
+}
+
+/// Stage byte-identical local saves while restoring the recorded timestamps.
+pub fn stage_saves_matching_content(
+    source: &Path,
+    fixture: &SaveFixture,
+    destination: &Path,
+) -> Result<()> {
+    verify_saves_content(source, fixture)?;
+    stage_saves_unchecked(source, fixture, destination)
+}
+
+fn stage_saves_unchecked(source: &Path, fixture: &SaveFixture, destination: &Path) -> Result<()> {
     ensure!(!destination.exists(), "replay save root already exists");
     if fixture.kind == SaveRootKind::Absent {
         return Ok(());

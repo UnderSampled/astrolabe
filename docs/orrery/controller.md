@@ -123,6 +123,43 @@ target/release/orrery replay-session \
   --output TestResults/my-hype-replay
 ```
 
+For a small recording that can be shared or committed, use `--mode input-only`:
+
+```sh
+target/release/orrery record-session \
+  --config /home/stephen/Projects/hype-harness/local/config.json \
+  --output TestResults/my-input-run \
+  --save-root /path/to/save-root-containing-SaveGame0 \
+  --title "Manor route" --seconds 90 --mode input-only
+target/release/orrery replay-session \
+  --config /home/stephen/Projects/hype-harness/local/config.json \
+  --recording TestResults/my-input-run/recording \
+  --save-root /path/to/save-root-containing-SaveGame0 \
+  --output TestResults/my-full-recapture
+```
+
+Commit or share only `my-input-run/recording/`. It contains the manifest with
+the initial save files' paths, sizes, hashes and modification times, plus the
+timed game-window input events. It contains no save bytes, screenshots, video,
+state samples or output saves. The game's copied installation and temporary
+fixture are removed after a successful input-only run. If the starting save
+root was populated, full recapture requires `--save-root` pointing to a local
+copy with exactly matching bytes and structure; Orrery restores the recorded
+modification times in the isolated run copy. A byte or layout mismatch fails
+before launching the game. For an absent or empty starting save root,
+`--save-root` is optional. The normal `replay-session` command captures full
+video, checkpoints, state and save evidence in its new output run. Its manifest
+references the source recording hash. The source recording remains unchanged.
+
+Input-only replay dispatches recorded press/release state changes. X11
+auto-repeat presses marked while a key was already held remain in its input
+timeline but are not injected as replay commands. Recapture checks the
+nonrepeat edge sequence and reports source and replay repeat counts separately.
+Those counts can differ because the X server generates repeats according to
+hold duration and scheduling. A matching edge sequence establishes delivery to
+the game window, not gameplay consumption or identical menu behavior. Full
+source recordings retain the existing strict all-event validation.
+
 For a captured route whose first three presses are Down, Enter, Enter at the
 Hype title/load menus, `replay-session --profile hype-title-load-v1` enables a
 separate visual navigation profile. Before Down it requires two recent title
