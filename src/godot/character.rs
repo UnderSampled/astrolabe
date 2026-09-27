@@ -397,30 +397,41 @@ fn export_rig(
         if restored && config.is_none_or(|c| c.reset_parts.is_none()) {
             continue;
         }
-        let mut links = String::new();
-        let mut entries = Vec::new();
+        let library_id = format!(
+            "library_{rig_id}_{}",
+            if restored { "restored" } else { "normal" }
+        );
+        writeln!(
+            project.builder,
+            "    var {library_id} = AnimationLibrary.new()"
+        )?;
         for state in &states {
             let name = format!("state_{}", state.state.id);
-            let path = format!(
-                "{directory}/{}{name}.tres",
+            let input = format!(
+                "build_inputs/{directory}/{}{name}.tres",
                 if restored { "restored/" } else { "" }
             );
             export_animation(
-                project, source, state, &channels, &parts, restored, &path, written,
+                project, source, state, &channels, &parts, restored, &input, written,
             )?;
-            let ext = format!("s_{}", state.state.id);
             writeln!(
-                links,
-                "[ext_resource type=\"Animation\" path={} id=\"{ext}\"]",
-                quoted(&format!("res://{path}"))
+                project.builder,
+                "    if not add_embedded_animation({library_id}, {}, {}):\n        quit(1)\n        return",
+                quoted(&name),
+                quoted(&format!("res://{input}")),
             )?;
-            entries.push(format!("&{}: ExtResource(\"{ext}\")", quoted(&name)));
         }
         let path = format!(
-            "{directory}/{}animations.tres",
+            "{directory}/{}animations.res",
             if restored { "restored/" } else { "" }
         );
-        project.write(path.clone(),format!("[gd_resource type=\"AnimationLibrary\" load_steps={} format=3]\n\n{links}\n[resource]\n_data = {{ {} }}\n",states.len()+1,entries.join(",\n")).as_bytes())?;
+        project.reserve(&path)?;
+        writeln!(
+            project.builder,
+            "    if not save_binary_resource({library_id}, {}, {}):\n        quit(1)\n        return",
+            quoted(&format!("res://{path}")),
+            quoted(&super::engine::resource_uid(&path)),
+        )?;
         libraries.push((restored, path));
     }
     let controller = format!("{directory}/actions.gd");
@@ -485,7 +496,7 @@ fn export_animation(
     channels: &BTreeSet<u16>,
     parts: &[Part],
     restored: bool,
-    path: &str,
+    input: &str,
     written: &mut BTreeSet<AssetPath>,
 ) -> Result<()> {
     let fps = state.state.speed;
@@ -577,15 +588,16 @@ fn export_animation(
         }
         anim.methods(keys)?;
     }
-    project.write(
-        path.into(),
+    project.write_build_input(
+        input,
         format!(
             "[gd_resource type=\"Animation\" load_steps={} format=3]\n\n{links}\n{}",
             links.lines().count() + 1,
             anim.text
         )
         .as_bytes(),
-    )
+    )?;
+    Ok(())
 }
 
 fn export_action(

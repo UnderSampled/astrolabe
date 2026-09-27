@@ -38,9 +38,14 @@ back with **Down**, press **X**, then press **Enter** to cast. **R** reloads the
 provisional save start; **Esc** returns to the menu. The supported slice includes
 movement with contact, stationary/moving/wall jumps, sword selection and beam lifetime, and Fire cast
 with mana cost. Combat hit/damage, crossbow play, spell contact/lifetime, cliff
-death and complete camera parity are not established. Loading is currently slow;
-the loading-efficiency work will improve resource preparation and readiness in
-this Load Game flow. UI parity work will replace the current menu presentation.
+death and complete camera parity are not established. Generated animation
+libraries use compressed native `.res` resources; their named states remain
+editable and seekable in the AnimationPlayer inspector. Load Game prepares the
+saved native scene in the background and reports its loading stage. Reload and
+return-to-menu retain one loaded scene resource while creating fresh gameplay
+instances. See the [loading measurements](../notes/godot-loading-efficiency-2026-09-27.md)
+for the remaining fresh-process cost and retained-memory tradeoff. UI parity
+work will replace the current menu presentation.
 
 The current session still uses the historical `game/demo.*` and `demo_camera.gd`
 filenames. They are game code; the names do not define a separate demo product.
@@ -60,6 +65,9 @@ To adopt this structure elsewhere, run `astrolabe init-godot PROJECT` once.
 belong to the adopter after initialization. Use `update-godot-support` for an
 explicit support update. Ordinary content regeneration preserves these files
 and unselected generated levels, and rejects modified generated files.
+Existing adopted projects can opt into warm Load Game caching by adding the
+`GameContent` autoload at `res://game/content_cache.gd` to their owned project
+settings; the game still loads without this autoload.
 
 Build variations by instancing generated scenes in `game/levels/` or
 `game/characters/`, adding your own nodes/scripts/resources there. Commit only

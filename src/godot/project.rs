@@ -10,7 +10,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Write as _,
     fs,
-    path::PathBuf,
+    path::{Component, Path, PathBuf},
     time::Duration,
 };
 /// A fresh staging project keeps failed conversion from damaging an existing project.
@@ -80,6 +80,20 @@ impl Project {
     pub(super) fn write(&mut self, path: String, bytes: &[u8]) -> Result<()> {
         self.reserve(&path)?;
         write_atomic(&self.stage.path().join(path), bytes)
+    }
+    /// Text input for Godot's conversion-time ResourceSaver. It is never
+    /// published: the owned output is the binary native resource instead.
+    pub(super) fn write_build_input(&self, path: &str, bytes: &[u8]) -> Result<()> {
+        ensure!(
+            path.starts_with("build_inputs/")
+                && Path::new(path)
+                    .components()
+                    .all(|part| matches!(part, Component::Normal(_))),
+            "invalid build input path"
+        );
+        let full = self.stage.path().join(path);
+        fs::create_dir_all(full.parent().expect("build input has a parent"))?;
+        write_atomic(&full, bytes)
     }
     pub fn diagnostic(&mut self, note: impl Into<String>) {
         self.diagnostics.push(note.into());
@@ -257,8 +271,8 @@ environment = SubResource("environment")
             self.stage.path(),
             &["--headless", "--script", "res://build.gd"],
             // Whole levels build native meshes, animations and scenes here.
-            // The manoir builder exceeds one minute even in release mode.
-            Duration::from_secs(180),
+            // Dense animations are also converted to binary resources.
+            Duration::from_secs(360),
         )?;
         self.reserve(&self.level_path("validation.json"))?;
         // Preserve path-derived resource/node identities across edits and cache rebuilds.

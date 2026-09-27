@@ -1,5 +1,22 @@
 # Rust implementation evidence
 
+2026-09-27 Godot loading work: the maintained exporter now bundles sampled
+states into compressed native AnimationLibrary resources, and the authored game
+retains one loaded scene across menu/reload transitions while instantiating
+fresh gameplay state. In repeated headless menu runs on already imported local
+projects, fresh Load Game fell from 29.7 seconds to 17.3–19.7 seconds; a second
+load in the same process fell from 27.7–28.1 seconds to 0.28–0.29 seconds.
+The first rendered playable frame fell from 30.76 to 21.14 seconds in a
+separate Xvfb run. First editor import remained about 7 seconds. Orrery's
+retained original-game recordings reached the playable manor phase 2.85–3.08
+seconds after save selection, so fresh Godot loading remains much slower. The
+[dated measurement note](./godot-loading-efficiency-2026-09-27.md) gives the
+methods, memory cost, resource experiments, and verification limits.
+The selected local scene/animation suite passed 52 of 53 tests on its bounded
+rerun; its three-export full-scene case timed out at 360 seconds and remains a
+failed validation gate. The focused animation test, full manor port, game
+reload smoke, and rendered capture passed separately.
+
 2026-09-27 game-flow clarification: the authored Godot application previously
 called the "demo" is the game implementation, and its basic menu is the actual
 current main menu. The menu now offers **Load Game**; the game title, loading

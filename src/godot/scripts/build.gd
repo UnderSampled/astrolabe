@@ -9,6 +9,34 @@ func native_resource(path: String) -> Resource:
         native_resources[path] = load(path)
     return native_resources[path]
 
+func save_binary_resource(resource: Resource, path: String, uid_text: String) -> bool:
+    if resource == null:
+        push_error("Cannot load native resource for " + path)
+        return false
+    var uid := ResourceUID.text_to_id(uid_text)
+    if ResourceUID.has_id(uid):
+        ResourceUID.set_id(uid, path)
+    else:
+        ResourceUID.add_id(uid, path)
+    if ResourceSaver.save(resource, path, ResourceSaver.FLAG_COMPRESS | ResourceSaver.FLAG_CHANGE_PATH) != OK:
+        push_error("Cannot save binary native resource: " + path)
+        return false
+    return true
+
+func add_embedded_animation(library: AnimationLibrary, name: StringName, input_path: String) -> bool:
+    var source := ResourceLoader.load(input_path, "Animation", ResourceLoader.CACHE_MODE_IGNORE) as Animation
+    if source == null:
+        push_error("Cannot load native animation: " + input_path)
+        return false
+    # A pathless copy is saved as a real Animation subresource of the native
+    # library. Mechanics and cue Resources referenced by its keys remain shared.
+    var animation := source.duplicate(false) as Animation
+    animation.resource_path = ""
+    if library.add_animation(name, animation) != OK:
+        push_error("Cannot add native animation: " + str(name))
+        return false
+    return true
+
 func lighting_material(path: String, mode: int) -> StandardMaterial3D:
     var key = path + ":" + str(mode)
     if not material_variants.has(key):

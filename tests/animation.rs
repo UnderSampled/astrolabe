@@ -541,16 +541,35 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
     );
     let temp = tempfile::tempdir()?;
     let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
-    godot::export(
+    let roots = [ContentRoot {
+        kind: Scene::KIND.into(),
+        reference: scene.path,
+    }];
+    let first = godot::export(
         &mut source,
-        &[ContentRoot {
-            kind: Scene::KIND.into(),
-            reference: scene.path,
-        }],
+        &roots,
         Selection::hype("animation-test", "en")?,
         temp.path(),
         &engine,
     )?;
+    let repeated = tempfile::tempdir()?;
+    let second = godot::export(
+        &mut source,
+        &roots,
+        Selection::hype("animation-test", "en")?,
+        repeated.path(),
+        &engine,
+    )?;
+    assert_eq!(
+        first.files, second.files,
+        "native output changed between builds"
+    );
+    assert!(first.files.keys().any(|p| p.ends_with("animations.res")));
+    assert!(!first.files.keys().any(|p| {
+        p.rsplit('/')
+            .next()
+            .is_some_and(|name| name.starts_with("state_") && name.ends_with(".res"))
+    }));
     std::fs::write(
         temp.path().join("animation_check.gd"),
         r#"extends SceneTree
@@ -574,6 +593,7 @@ func check():
     if not require(channel1.position.is_equal_approx(Vector3(1,3,-2)), "saved initial pose missing before ready"): return
     if not require(actor.current_mechanics.mass == 17, "saved typed mechanics missing"): return
     if not require(player.get_animation("state_0") is Animation and player.get_animation_library("") is AnimationLibrary, "native library missing"): return
+    if not require(player.get_animation_library("").resource_path.ends_with(".res"), "dense native animation library must use a binary resource"): return
     for animation_name in player.get_animation_list():
         var animation = player.get_animation(animation_name)
         for track in animation.get_track_count():

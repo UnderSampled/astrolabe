@@ -11,17 +11,19 @@ func run() -> void:
         return
     var menu := menu_packed.instantiate()
     root.add_child(menu)
+    current_scene = menu
     var menu_buttons := menu.find_children("*", "Button", true, false)
     if menu_buttons.size() != 1 or menu_buttons[0].text != "Load Game" or menu_buttons[0].disabled:
         fail("Game menu must offer one enabled Load Game action after manor generation")
         return
-    menu.queue_free()
-    var packed := load("res://game/demo.tscn") as PackedScene
-    if packed == null:
-        fail("Demo scene did not load")
+    menu_buttons[0].pressed.emit()
+    var transition_deadline := Time.get_ticks_msec() + 5000
+    while (current_scene == null or current_scene == menu) and Time.get_ticks_msec() < transition_deadline:
+        await process_frame
+    var demo := current_scene
+    if demo == null or demo == menu:
+        fail("Load Game did not open the game session")
         return
-    var demo := packed.instantiate()
-    root.add_child(demo)
     var deadline := Time.get_ticks_msec() + 90000
     var next_report := Time.get_ticks_msec() + 10000
     while not bool(demo.get("ready_to_play")) and Time.get_ticks_msec() < deadline:
@@ -32,6 +34,7 @@ func run() -> void:
     if not bool(demo.get("ready_to_play")):
         fail("Demo did not reach playable state: " + str(demo.get_node("Hud/Panel/Margin/Rows/Status").text))
         return
+    print("SMOKE: first session playable")
     var actor := demo.get("actor") as CharacterBody3D
     var brain := demo.get("brain") as Node
     var camera := demo.get_node("DemoCamera") as Camera3D
@@ -50,6 +53,9 @@ func run() -> void:
         fail("Demo actor, Brain, or camera did not start")
         return
     var start := actor.global_position
+    var first_actor_id := actor.get_instance_id()
+    var first_inventory_id := (actor.get("source_inventory") as Resource).get_instance_id()
+    var first_magick_points := int((actor.get("source_magick") as Resource).get("current_points"))
     key(KEY_LEFT, true)
     await create_timer(0.25).timeout
     key(KEY_LEFT, false)
@@ -61,12 +67,60 @@ func run() -> void:
     if distance < 0.2 or not str(brain.get("unsupported_failure")).is_empty():
         fail("Physical arrow input did not move the compiled Hype actor")
         return
+    print("SMOKE: movement passed")
+    (actor.get("source_inventory") as Resource).set("quantities", {999: 42})
+    (actor.get("source_magick") as Resource).set("current_points", 1)
+    actor.velocity = Vector3(5, 0, 0)
+    brain.set("current_normal", -1)
+    print("SMOKE: requesting reload")
+    key(KEY_R, true)
+    key(KEY_R, false)
+    transition_deadline = Time.get_ticks_msec() + 5000
+    while (current_scene == null or current_scene == demo) and Time.get_ticks_msec() < transition_deadline:
+        await process_frame
+    var reloaded := current_scene
+    if reloaded == null or reloaded == demo:
+        fail("Reload did not replace the old session")
+        return
+    deadline = Time.get_ticks_msec() + 90000
+    while not bool(reloaded.get("ready_to_play")) and Time.get_ticks_msec() < deadline:
+        await process_frame
+    if not bool(reloaded.get("ready_to_play")):
+        fail("Reload did not become playable")
+        return
+    print("SMOKE: reloaded session playable")
+    var fresh_actor := reloaded.get("actor") as CharacterBody3D
+    var fresh_brain := reloaded.get("brain") as Node
+    var fresh_inventory := fresh_actor.get("source_inventory") as Resource
+    var fresh_magick := fresh_actor.get("source_magick") as Resource
+    if fresh_actor.get_instance_id() == first_actor_id or fresh_inventory.get_instance_id() == first_inventory_id or not fresh_actor.global_position.is_equal_approx(start):
+        fail("Reload reused mutable actor state")
+        return
+    if fresh_inventory.get("quantities").has(999) or int(fresh_magick.get("current_points")) != first_magick_points or absf(fresh_actor.velocity.x) > 0.1 or not bool(fresh_brain.get("running")):
+        fail("Inventory, magick, physics, or Brain leaked across reload")
+        return
+    if not is_equal_approx(reloaded.get("level").get_node("world/0/15/iMGrille_Manoir_Pont").position.y, 5.2):
+        fail("The bridge gate moved twice across reload")
+        return
     var args := OS.get_cmdline_user_args()
     if not args.is_empty():
+        await RenderingServer.frame_post_draw
         var picture := root.get_texture().get_image()
         if picture == null or picture.save_png(args[0]) != OK:
             fail("Demo screenshot could not be saved")
             return
+    key(KEY_ESCAPE, true)
+    print("SMOKE: requesting menu")
+    key(KEY_ESCAPE, false)
+    transition_deadline = Time.get_ticks_msec() + 5000
+    while (current_scene == null or current_scene == reloaded) and Time.get_ticks_msec() < transition_deadline:
+        await process_frame
+    if not current_scene is Control:
+        fail("Escape did not return to the menu")
+        return
+    if root.get_node_or_null("GameContent") == null or root.get_node("GameContent").get("level_scene") == null:
+        fail("Menu transition discarded the single retained level resource")
+        return
     print("Demo ready: Hype moved %.3f units; Brain running; follow camera current" % distance)
     quit(0)
 
