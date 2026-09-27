@@ -1,10 +1,10 @@
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 #[derive(Parser)]
 #[command(
     name = "orrery",
-    about = "Orrery native original-game controller and comparison tools"
+    about = "Orrery native original-game analysis and control"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -31,15 +31,6 @@ enum Commands {
     },
     /// Write the exact provisional physical-input recording shared by adapters.
     RecordBoundary {
-        #[arg(long)]
-        output: PathBuf,
-    },
-    /// Pair independent OpenSpace and Godot scenario reports by recording hash.
-    CompareBehavior {
-        #[arg(long)]
-        openspace: PathBuf,
-        #[arg(long)]
-        godot: PathBuf,
         #[arg(long)]
         output: PathBuf,
     },
@@ -71,6 +62,41 @@ enum Commands {
         config: PathBuf,
         #[arg(long)]
         output: PathBuf,
+    },
+    /// Record a live Hype session from launch with physical input, sampled frames and state.
+    RecordSession {
+        #[arg(long)]
+        config: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long)]
+        save_root: Option<PathBuf>,
+        #[arg(long)]
+        title: String,
+        #[arg(long, default_value = "")]
+        description: String,
+        #[arg(long)]
+        tag: Vec<String>,
+        #[arg(long, default_value_t = 60)]
+        seconds: u64,
+        #[arg(long, default_value_t = 125)]
+        frame_ms: u64,
+        #[arg(long)]
+        input_script: Option<PathBuf>,
+    },
+    /// Replay a frozen session's captured physical edges at literal elapsed times.
+    ReplaySession {
+        #[arg(long)]
+        config: PathBuf,
+        #[arg(long)]
+        recording: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+        #[arg(long, default_value_t = 125)]
+        frame_ms: u64,
+        /// Optional, explicitly timed navigation gates for the Hype title/load menus.
+        #[arg(long, value_enum, default_value_t = orrery::session::ReplayProfile::Literal)]
+        profile: orrery::session::ReplayProfile,
     },
     #[command(hide = true)]
     OriginalWorker {
@@ -219,49 +245,6 @@ fn main() -> Result<()> {
             );
             Ok(())
         }
-        Commands::CompareBehavior {
-            openspace,
-            godot,
-            output,
-        } => {
-            fn load_result(
-                path: &std::path::Path,
-                backend: &str,
-            ) -> Result<orrery::behavior::BackendResult> {
-                let report: serde_json::Value = serde_json::from_slice(
-                    &std::fs::read(path).with_context(|| format!("read {}", path.display()))?,
-                )?;
-                ensure!(report["schema"] == 1, "unsupported scenario report schema");
-                ensure!(
-                    report["cleanup_complete"] == true,
-                    "scenario cleanup incomplete"
-                );
-                ensure!(
-                    report["selected_backend"] == backend,
-                    "scenario report backend differs"
-                );
-                let result: orrery::behavior::BackendResult =
-                    serde_json::from_value(report["result"].clone())?;
-                result.require_pass()?;
-                Ok(result)
-            }
-            let source = load_result(&openspace, "openspace")?;
-            let target = load_result(&godot, "godot")?;
-            let comparison = orrery::behavior::compare_results(&source, &target)?;
-            let passed = comparison.status == "passed";
-            std::fs::write(
-                &output,
-                serde_json::to_vec_pretty(&serde_json::json!({
-                    "schema": 1,
-                    "openspace_report": openspace,
-                    "godot_report": godot,
-                    "comparison": comparison,
-                }))?,
-            )?;
-            println!("{}", output.display());
-            ensure!(passed, "functional behavior comparison failed");
-            Ok(())
-        }
         Commands::SaveInspect { path, output } => {
             let report = orrery::save::inspect(&path)?;
             let bytes = serde_json::to_vec_pretty(&report)?;
@@ -308,6 +291,69 @@ fn main() -> Result<()> {
             {
                 let _ = (config, output);
                 bail!("native runtime currently requires Linux");
+            }
+        }
+        Commands::RecordSession {
+            config,
+            output,
+            save_root,
+            title,
+            description,
+            tag,
+            seconds,
+            frame_ms,
+            input_script,
+        } => {
+            #[cfg(target_os = "linux")]
+            {
+                let report = orrery::session::record(orrery::session::RecordOptions {
+                    config_path: &config,
+                    output: &output,
+                    source_saves: save_root.as_deref(),
+                    title: &title,
+                    description: &description,
+                    tags: &tag,
+                    seconds,
+                    frame_ms,
+                    script_path: input_script.as_deref(),
+                })?;
+                println!("{}", serde_json::to_string_pretty(&report)?);
+                Ok(())
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                let _ = (
+                    config,
+                    output,
+                    save_root,
+                    title,
+                    description,
+                    tag,
+                    seconds,
+                    frame_ms,
+                    input_script,
+                );
+                bail!("native session recording currently requires Linux");
+            }
+        }
+        Commands::ReplaySession {
+            config,
+            recording,
+            output,
+            frame_ms,
+            profile,
+        } => {
+            #[cfg(target_os = "linux")]
+            {
+                let report =
+                    orrery::session::replay(&config, &recording, &output, frame_ms, profile)?;
+                println!("{}", serde_json::to_string_pretty(&report)?);
+                Ok(())
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                let _ = (config, recording, output, frame_ms, profile);
+                bail!("native session replay currently requires Linux");
             }
         }
         Commands::OriginalWorker {

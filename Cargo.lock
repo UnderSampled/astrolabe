@@ -201,6 +201,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
 
 [[package]]
+name = "behavior-contract"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "behavior-suite"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "astrolabe",
+ "behavior-contract",
+ "clap",
+ "cucumber",
+ "godot-harness",
+ "orrery",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "binrw"
 version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -813,6 +838,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "godot-harness"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "astrolabe",
+ "behavior-contract",
+ "clap",
+ "serde_json",
+ "session-recording",
+ "sha2",
+ "tempfile",
+ "window-video",
+ "x11rb",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1348,18 +1389,20 @@ dependencies = [
  "anyhow",
  "astrolabe",
  "axum",
+ "behavior-contract",
  "clap",
- "cucumber",
  "flate2",
  "libc",
  "png",
  "rmcp",
  "serde",
  "serde_json",
+ "session-recording",
  "sha2",
  "signal-hook",
  "tempfile",
  "tokio",
+ "window-video",
  "x11rb",
 ]
 
@@ -1810,6 +1853,17 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "session-recording"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
 ]
 
 [[package]]
@@ -2451,6 +2505,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
  "windows-sys",
+]
+
+[[package]]
+name = "window-video"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "libc",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

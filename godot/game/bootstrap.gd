@@ -17,3 +17,5 @@ func _ready() -> void:
     play.disabled = not ResourceLoader.exists(MANOR)
     play.pressed.connect(func(): get_tree().change_scene_to_file("res://game/demo.tscn"))
     panel.add_child(play)
+    if not play.disabled:
+        play.grab_focus()

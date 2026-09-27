@@ -157,6 +157,7 @@ pub struct GameSession {
     config: Config,
     run: PathBuf,
     started: Instant,
+    started_unix_micros: u128,
     expires: Instant,
     _installation_lock: File,
 }
@@ -172,6 +173,30 @@ impl GameSession {
         duration: Duration,
         bridge_binary: &Path,
     ) -> Result<Self> {
+        Self::start_inner(config_path, runs, duration, bridge_binary, true, true)
+    }
+
+    /// Start a game from a private per-run installation, returning as soon as
+    /// the process is identified so menu/startup capture can begin.
+    pub fn start_session(config_path: &Path, runs: &Path, duration: Duration) -> Result<Self> {
+        Self::start_inner(
+            config_path,
+            runs,
+            duration,
+            &std::env::current_exe()?,
+            false,
+            false,
+        )
+    }
+
+    fn start_inner(
+        config_path: &Path,
+        runs: &Path,
+        duration: Duration,
+        bridge_binary: &Path,
+        pinned_save: bool,
+        wait_menu: bool,
+    ) -> Result<Self> {
         ensure!(
             (60..=43_200).contains(&duration.as_secs()),
             "duration outside 60..43200 seconds"
@@ -184,7 +209,11 @@ impl GameSession {
             unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0,
             "prepared original-game installation is already in use"
         );
-        let config = Config::load(&config_path)?;
+        let config = if pinned_save {
+            Config::load(&config_path)?
+        } else {
+            Config::load_base(&config_path)?
+        };
         for entry in fs::read_dir("/proc")? {
             let entry = entry?;
             if entry.file_name().as_bytes().iter().all(u8::is_ascii_digit) {
@@ -271,6 +300,8 @@ impl GameSession {
         if let Some(authority) = guest["XAUTHORITY"].as_str() {
             wine.env("XAUTHORITY", authority);
         }
+        let started = Instant::now();
+        let started_unix_micros = SystemTime::now().duration_since(UNIX_EPOCH)?.as_micros();
         owner.spawn(&mut wine)?;
         let process = find_game(&mut owner, &config, Duration::from_secs(40))?;
         let image = fs::read(&config.exe)?;
@@ -279,29 +310,34 @@ impl GameSession {
             "live image header differs from pinned executable"
         );
         let build = HypeBuild::verified(&config.exe_sha256)?;
-        let ready = Instant::now() + Duration::from_secs(40);
-        loop {
-            if build
-                .status(&mut Running(&process))
-                .is_ok_and(|s| s.phase == 38)
-            {
-                break;
+        if wait_menu {
+            let ready = Instant::now() + Duration::from_secs(40);
+            loop {
+                if build
+                    .status(&mut Running(&process))
+                    .is_ok_and(|s| s.phase == 38)
+                {
+                    break;
+                }
+                ensure!(Instant::now() < ready, "game did not reach the main menu");
+                thread::sleep(Duration::from_millis(100));
             }
-            ensure!(Instant::now() < ready, "game did not reach the main menu");
-            thread::sleep(Duration::from_millis(100));
         }
         let desktop =
             Desktop::connect_display(&display, &host_display, process.identity().pid as u32)?;
-        thread::sleep(Duration::from_millis(500));
-        desktop.focus()?;
-        thread::sleep(Duration::from_millis(800));
+        if wait_menu {
+            thread::sleep(Duration::from_millis(500));
+            desktop.focus()?;
+            thread::sleep(Duration::from_millis(800));
+        }
         Ok(Self {
             owner,
             process,
             desktop,
             config,
             run,
-            started: Instant::now(),
+            started,
+            started_unix_micros,
             expires: Instant::now() + duration,
             _installation_lock: lock,
         })
@@ -335,6 +371,22 @@ impl GameSession {
             json!({"phase":bytes[0],"level":parse_ascii(&bytes[1..], "level")?,
             "pending_level":parse_ascii(&pending, "pending level")?}),
         )
+    }
+
+    /// Raw running clock sample; the four reads are not an atomic engine update.
+    pub fn timing(&self) -> Result<Value> {
+        self.check()?;
+        let word = |address: u32| -> Result<u32> {
+            let bytes = self.process.read_running(address as usize, 4)?;
+            Ok(u32::from_le_bytes(bytes.as_slice().try_into()?))
+        };
+        Ok(json!({
+            "update_counter":word(hype_runtime::UPDATE_COUNTER)?,
+            "clock_ms":word(hype_runtime::CLOCK_MS)?,
+            "raw_delta_ms":word(hype_runtime::RAW_DELTA_MS)?,
+            "clamped_delta_ms":word(hype_runtime::CLAMPED_DELTA_MS)?,
+            "consistency":"running_non_atomic",
+        }))
     }
 
     pub fn mana(&self) -> Result<Value> {
@@ -755,6 +807,20 @@ impl GameSession {
         Ok((actor, paused_at.elapsed()))
     }
 
+    /// A coherent selected-actor AI snapshot. It can reveal the current
+    /// normal/reflex choice but cannot establish transitions between samples.
+    pub fn observe_main_actor_with_ai_timed(&self) -> Result<(ActorAiObservation, Duration)> {
+        self.check()?;
+        let build = HypeBuild::verified(&self.config.exe_sha256)?;
+        let pause = self.process.pause(Duration::from_secs(1))?;
+        let paused_at = Instant::now();
+        let mut capture = pause.capture()?;
+        let actor = build.actor_with_ai(&mut capture, &[47], &[])?;
+        capture.finish()?;
+        drop(pause);
+        Ok((actor, paused_at.elapsed()))
+    }
+
     /// Focus once before a functional input schedule. Gameplay events use the
     /// same guarded private-display XTest path as precision replay.
     pub fn prepare_physical_input(&mut self) -> Result<()> {
@@ -1156,6 +1222,44 @@ impl GameSession {
     }
     pub fn identity(&self) -> Identity {
         self.process.identity()
+    }
+    pub fn elapsed(&self) -> Duration {
+        self.started.elapsed()
+    }
+    pub fn started_instant(&self) -> Instant {
+        self.started
+    }
+    pub fn started_unix_micros(&self) -> u128 {
+        self.started_unix_micros
+    }
+    pub fn run_directory(&self) -> &Path {
+        &self.run
+    }
+    pub fn display(&self) -> &str {
+        &self.desktop.display
+    }
+    pub fn window_id(&self) -> Result<u32> {
+        self.desktop.window_id()
+    }
+    pub fn window_dimensions(&self, window: u32) -> Result<(u16, u16)> {
+        self.desktop.window_dimensions(window)
+    }
+    pub fn keysym_for_code(&self, code: u8) -> Result<u32> {
+        self.desktop.keysym_for_code(code)
+    }
+    pub fn keycode_for(&self, key: Key) -> Result<u8> {
+        self.desktop.keycode_for(key)
+    }
+    pub fn physical_keycode(&mut self, code: u8, edge: Edge, repeat: bool) -> Result<()> {
+        self.check()?;
+        self.desktop.physical_keycode(code, edge, repeat)
+    }
+    pub fn capture_frame(&self, path: &Path) -> Result<crate::desktop::ScreenCapture> {
+        self.check()?;
+        self.desktop.screenshot(path, self.started)
+    }
+    pub fn save_root(&self) -> PathBuf {
+        self.config.game.join("GameData/SaveGame")
     }
     pub fn close(mut self) -> Result<()> {
         let release = self.desktop.release();

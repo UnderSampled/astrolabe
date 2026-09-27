@@ -9,12 +9,12 @@ not depend on Orrery. The [[docs/orrery/comparison-model|comparison evidence mod
 Recording/replay extends Orrery's runtime analysis capabilities. The behavior
 test suite is a separate consumer of Orrery, including for OpenSpace-only
 scenarios; Godot has a separate harness. The suite owns gameplay assertions and
-cross-engine comparison. See [session recordings](../astrolabe/session-recordings.md)
+run-to-run comparison. See [session recordings](../astrolabe/session-recordings.md)
 for their shared evidence contract, including available save files captured
-before process launch. Existing Godot/BDD code housed in `crates/orrery` violates
-this intended boundary and needs extraction. Orrery's own tool tests remain
-with it. Continuous startup-to-exit recording and general AI/API tracing are
-still implementation work.
+before process launch. The shared case definitions and BDD runner now live in
+`crates/behavior-contract` and `crates/behavior-suite`; Orrery's own tool tests
+remain with it. The CLI has a first launch-to-exit session recorder and literal
+elapsed-time replay. General AI/API tracing remains implementation work.
 
 The Python `hype` MCP bridge remains available for optional diagnosis. Orrery
 implements its control tools and read-only typed-inspection tools.
@@ -97,6 +97,170 @@ http_headers = { Authorization = "Bearer <64-hex-character-token>" }
 ```
 
 The implementation deliberately does not edit `~/.codex/config.toml`.
+
+## Session recording and replay
+
+`record-session` arms the evidence files before launching the game. It copies the
+verified private Wine installation with copy-on-write reflinks into the output
+run, stages a complete snapshot of the selected save root, and launches only
+that copy. `--save-root` may identify an existing save directory, an explicitly
+empty one, or an absent path. If omitted, the installed game's complete
+`GameData/SaveGame` directory is captured. An unreadable root is an error.
+For the supplied English fixture, pass the directory containing `SaveGame0/`
+as `--save-root`. Orrery rejects a path to the inner slot directory before
+launch because it would flatten the save layout.
+
+```sh
+cargo build --release --locked -p orrery
+target/release/orrery record-session \
+  --config /home/stephen/Projects/hype-harness/local/config.json \
+  --output TestResults/my-hype-recording \
+  --title "Manor route" --description "Load the manor slot and move left" \
+  --tag movement --seconds 90 --frame-ms 125
+target/release/orrery replay-session \
+  --config /home/stephen/Projects/hype-harness/local/config.json \
+  --recording TestResults/my-hype-recording/recording \
+  --output TestResults/my-hype-replay
+```
+
+For a captured route whose first three presses are Down, Enter, Enter at the
+Hype title/load menus, `replay-session --profile hype-title-load-v1` enables a
+separate visual navigation profile. Before Down it requires two recent title
+frames with New Game selected; before the first Enter it requires two Load Game
+selected frames; before the second Enter it requires two Existing games frames.
+The detector also checks phase 38. Each wait, qualifying evidence frame, result
+and added delay is recorded as a `navigation_*` timeline event and summarized in
+`delivery.json`. A six-second gate timeout stops later input and seals the
+failed recording with the last frame/phase evidence. The profile checks screen
+readiness; it does not verify that Hype consumed a key or preserve literal
+startup timing. The default `literal` profile retains the original event times.
+The visual thresholds are versioned for the captured 780×600 and 1024×768
+English Hype menus; a different edition needs recalibration.
+
+The live game window accepts human input. A scripted route can instead pass
+`--input-script` with JSON events such as
+`[{"at_micros":15000000,"key":"Enter","edge":"press"},{"at_micros":15055000,"key":"Enter","edge":"release"}]`.
+The script uses physical key names from Orrery's current `Key` enum; the saved
+recording contains the delivered X11 keycodes, keysyms and modifier masks. XRecord observes
+server-delivered key edges on the private game window. Its availability on the
+active Gamescope Xwayland display is required for this profile. The recorder
+reports actual observation time separately from scripted dispatch time.
+
+`recording/manifest.json` describes the fixture, provenance and coverage;
+`recording/initial-saves/` preserves the prelaunch bytes;
+`recording/events.jsonl` is an appendable, ordered timeline;
+`recording/video/` holds continuous lossless FFV1 Matroska segments and a
+per-frame timestamp index; and `recording/frames/` holds sparse lossless PNG
+checkpoints with acquisition intervals. FFmpeg and FFprobe must be available.
+Each window-size change starts a new segment. The capture reports timing gaps,
+clock drift, and possible clipping around a size change. The corrected live
+12-second smoke recorded 78 frames at 780×600 and 227 at 1024×768. Both files
+are playable with zero-based media time, and the indexed raw capture timestamps
+differ from media timestamps by at most 0.5 ms. The segments overlap by 159 ms
+around the size change; the comparison suite retains both as evidence and uses
+the newer full-resolution segment during the overlap. Game render/update
+association remains unverified, so pixel differences are diagnostic.
+A corrected 30-second manor route and its literal replay each captured 845
+indexed frames and all eight scripted keyboard edges; both reached gameplay
+in `manoir`. The session duration now ends before video encoder finalization,
+so a slow encoder does not lengthen replay. The suite detected a 206 ms
+separation between two actor samples with different normal/reflex selections
+near level entry, and most video frames fell outside its fixed 15 ms pairing
+tolerance because replay capture began about 89 ms earlier. These are reported
+differences, not a claim of visual or completed-update parity. See the ignored
+local evidence in `TestResults/hype-input-video-state-corrected-20260927/`.
+When save bytes change, the recorder waits for matching observations at least
+500 ms apart and stores a verified copy under `recording/save-snapshots/` with
+its first-observed and snapshot times. This locates an observed stable change;
+the engine's save-completion boundary is not yet instrumented.
+`output-saves/` and `report.json` describe the finished run. A replay verifies
+and stages the captured initial fixture into another fresh private copy. It
+checks file bytes and modification times, hashes the source recording before and
+after staging, and uses its own staged copy for launch. Captured fixture and
+completed recording files are sealed read-only; run-specific save copies remain
+writable. The manifest's wall-clock
+start is sampled at the Wine launch boundary; a failed launch leaves an
+incomplete recording without a launch event. A capture error after launch
+marks the manifest `failed`, seals the readable event/frame prefix, and reports
+the error; failed sessions are not replay inputs. Replay dispatches the recorded
+physical edges at their literal elapsed-time targets,
+records actual lateness and observed delivery, and captures its own video,
+sparse checkpoints and state. Video and state samples are evidence, not replay targets. Capture
+stamps before the first visible window, dropped frame intervals, and incomplete
+endings remain explicit. Separate 2 GiB video and checkpoint budgets plus a
+100,000-checkpoint budget bound one run; reaching any budget produces a
+`storage_budget` ending.
+
+The manifest hashes the Hype executable, its content tree outside the save
+directory, and the Wine executable. Replay requires matching hashes. The saved
+keyboard map is checked for each replayed key. The game runs from a fresh
+copy-on-write prefix, and its final save tree is retained as output evidence
+without changing the installed save root. The report confirms whether the
+observed input edge sequence matches; it does not treat matching edges as proof
+that a gameplay update consumed them.
+The report separates `ending` (whether capture reached its duration) from
+`delivery_validation` (whether every source X-server edge was observed in
+order). A repeat-count difference fails strict validation and the CLI while
+retaining the sealed capture; `nonrepeat_edge_sequence_equal` reports whether
+the remaining physical presses and releases still align.
+
+A 50-second isolated source run reached the Save UI, selected an occupied slot,
+confirmed replacement, and accepted its name. Its changed `SaveGame0` files
+were retained in a stable snapshot at 37.84 seconds. Literal-time replay from
+the frozen fixture observed the same 41 keyboard edges but selected a different
+title-menu row after Down and loaded `manoir` four seconds earlier; it did not
+repeat the save. The comparison report preserves this discrepancy. Use the
+`delivery.input_sequence_equal` field only for X-server edge delivery, not menu
+or gameplay repeatability. The fixture and private installed saves stayed
+unchanged in both runs.
+
+The independent Godot consumer and frame comparator can inspect the same
+recording. Build the Godot harness package explicitly when invoking its release
+binary directly; the root workspace's default build does not include it.
+
+```sh
+cargo run --release --locked -p godot-harness -- \
+  --recording TestResults/my-hype-recording/recording \
+  --project godot --output TestResults/my-godot-replay
+python3 tools/compare_recordings.py \
+  TestResults/my-hype-recording/recording \
+  TestResults/my-hype-replay/recording \
+  TestResults/my-frame-comparison
+```
+
+The suite comparator streams every indexed video frame through fixed elapsed-time
+buckets without shifting or resizing. It retains both raw segments at a resize
+and selects the newer full-resolution frames in their overlap. Sparse PNG
+checkpoints remain separate diagnostics. The report also covers observed
+input-edge identity/timing (or explicitly dispatch-only evidence), missing frames,
+timing uncertainty, dimensions, and sampled state/actor differences. State samples
+pair by observed time, retaining every sample. Pixel metrics remain diagnostic
+until render and gameplay update association is verified. The output also contains a standalone
+`viewer.html` with a shared input/state/capture timeline, side-by-side frames,
+first-divergence navigation and links to the diagnostic contact sheet and full
+report. Its image paths refer to the source and candidate recording directories,
+so retain those alongside the report.
+
+The Godot harness hashes the authored and generated project content while
+excluding the derived `.godot/` cache. It forces viewport draws for script-run
+capture and records stalls and late inputs. Threaded manor resource loading kept
+all six inputs within 11 ms of their recorded times in the 2026-09-27 run and
+reached playable `manoir` within the 30-second recording. Godot reached gameplay
+at 29.05 seconds versus 16.51 seconds in Hype; the input at 16 seconds arrived
+while Godot was loading. Original save import and intro/menu behavior remain
+unsupported, so this is not a full-session gameplay match.
+
+State sampling currently covers phase/current/pending level and a typed main
+actor sample during gameplay. The actor sample includes current normal/reflex
+behavior selections, but cannot reveal transitions between samples. Actor
+sampling briefly stops the process and reports that pause; it does not claim a
+completed-update boundary. The frame sequence has no verified update/render
+association. Event-level AI/API traces, audio, mouse/gamepad
+input, focus changes, verified save-operation boundaries, and automatic first-divergence
+comparison inside Orrery are currently absent and named in coverage. The separate
+comparison tool reports first timed frame/phase/level and selected actor-sample
+divergence. The existing 18-update precision tape remains a separate focused
+probe.
 
 ## Compatibility matrix
 

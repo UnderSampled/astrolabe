@@ -3,10 +3,10 @@ use astrolabe::{
     model::{animation::TransformValue, geometry::SourceTransform},
     openspace::level::live::ActorObservation,
 };
+use behavior_contract::{self as behavior, BackendResult, Scenario};
 use cucumber::{World as _, WriterExt as _, given, then, when, writer::Stats as _};
-use orrery::behavior::{
-    self, ActorSample, BackendResult, OriginalBackend, Scenario, godot::GodotBackend,
-};
+use godot_harness::behavior::GodotBackend;
+use orrery::behavior::OriginalBackend;
 use std::{
     cell::{Cell, RefCell},
     fs,
@@ -197,7 +197,7 @@ pub fn synthetic_result(recording: behavior::FunctionalRecording) -> Result<Back
                 .map(|(index, (distance, action))| {
                     let phase = if index < 5 { "walk" } else { "run" };
                     let point = &recording.samples[index % 5];
-                    ActorSample::from_actor(
+                    orrery::behavior::actor_sample_from_actor(
                         format!("{phase}_{}", point.name),
                         point.at_ms,
                         point.at_ms,
@@ -261,7 +261,7 @@ pub fn synthetic_result(recording: behavior::FunctionalRecording) -> Result<Back
                 .into_iter()
                 .zip(&recording.samples)
                 .map(|((position, action), point)| {
-                    let mut sample = ActorSample::from_actor(
+                    let mut sample = orrery::behavior::actor_sample_from_actor(
                         point.name.clone(),
                         point.at_ms,
                         point.at_ms,
@@ -326,7 +326,7 @@ pub fn synthetic_result(recording: behavior::FunctionalRecording) -> Result<Back
             ];
             let samples = positions.into_iter().zip(&recording.samples)
                 .map(|((position, action), point)| {
-                    let mut sample = ActorSample::from_actor(point.name.clone(), point.at_ms, point.at_ms, point.at_ms + 1, synthetic_actor(action, position, 0.))?;
+                    let mut sample = orrery::behavior::actor_sample_from_actor(point.name.clone(), point.at_ms, point.at_ms, point.at_ms + 1, synthetic_actor(action, position, 0.))?;
                     sample.raw_observation = serde_json::json!({"on_floor": point.name == "floor" || point.name.starts_with("settled")});
                     Ok(sample)
                 }).collect::<Result<Vec<_>>>()?;
@@ -395,7 +395,7 @@ pub fn synthetic_result(recording: behavior::FunctionalRecording) -> Result<Back
                 .into_iter()
                 .zip(&recording.samples)
                 .map(|((position, action), point)| {
-                    let mut sample = ActorSample::from_actor(
+                    let mut sample = orrery::behavior::actor_sample_from_actor(
                         point.name.clone(),
                         point.at_ms,
                         point.at_ms,
@@ -451,7 +451,7 @@ pub fn synthetic_result(recording: behavior::FunctionalRecording) -> Result<Back
                 .into_iter()
                 .zip(&recording.samples)
                 .map(|(action, point)| {
-                    ActorSample::from_actor(
+                    orrery::behavior::actor_sample_from_actor(
                         point.name.clone(),
                         point.at_ms,
                         point.at_ms,
@@ -502,7 +502,7 @@ pub fn synthetic_result(recording: behavior::FunctionalRecording) -> Result<Back
                 .samples
                 .iter()
                 .map(|point| {
-                    ActorSample::from_actor(
+                    orrery::behavior::actor_sample_from_actor(
                         point.name.clone(),
                         point.at_ms,
                         point.at_ms,
@@ -565,7 +565,7 @@ pub fn synthetic_result(recording: behavior::FunctionalRecording) -> Result<Back
                 .zip(mana)
                 .zip(&recording.samples)
                 .map(|((action, mana), point)| {
-                    let mut sample = ActorSample::from_actor(
+                    let mut sample = orrery::behavior::actor_sample_from_actor(
                         point.name.clone(),
                         point.at_ms,
                         point.at_ms,
@@ -629,7 +629,7 @@ pub fn synthetic_result(recording: behavior::FunctionalRecording) -> Result<Back
         .zip(points)
         .enumerate()
         .map(|(index, (point, (x, y, heading)))| {
-            ActorSample::from_actor(
+            orrery::behavior::actor_sample_from_actor(
                 point.name.clone(),
                 point.at_ms,
                 point.at_ms,
@@ -776,10 +776,21 @@ fn ready(world: &mut BehaviorWorld) {
                         std::env::var_os("ASTROLABE_HYPE_CONFIG")
                             .context("ASTROLABE_HYPE_CONFIG missing")?,
                     );
+                    let executable = std::env::var_os("ASTROLABE_ORRERY_BINARY")
+                        .map(PathBuf::from)
+                        .unwrap_or_else(|| {
+                            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                                .join("../../target/validation/orrery")
+                        });
+                    ensure!(
+                        executable.is_file(),
+                        "Orrery executable is missing: {}",
+                        executable.display()
+                    );
                     SessionBackend::Original(Box::new(OriginalBackend::start_with_bridge(
                         &config,
                         &runs,
-                        Some(std::path::Path::new(env!("CARGO_BIN_EXE_orrery"))),
+                        Some(&executable),
                     )?))
                 }
                 Mode::Godot => SessionBackend::Godot(Box::new(GodotBackend::start(&runs)?)),
@@ -803,6 +814,10 @@ fn ready(world: &mut BehaviorWorld) {
 fn perform(world: &mut BehaviorWorld, scenario: Scenario) {
     world.scenario = Some(scenario);
     let tape = behavior::recording(scenario);
+    if let Err(err) = tape.validate() {
+        world.failure = Some(err.to_string());
+        panic!("shared case schedule is invalid: {err}");
+    }
     let result = match crate::BACKEND {
         Mode::Synthetic => synthetic_result(tape),
         Mode::Original | Mode::Godot => world
@@ -812,7 +827,13 @@ fn perform(world: &mut BehaviorWorld, scenario: Scenario) {
             .and_then(|backend| backend.run(tape)),
     };
     match result {
-        Ok(result) => world.result = Some(result),
+        Ok(result) => match behavior_suite::evaluate_backend_result(result) {
+            Ok(result) => world.result = Some(result),
+            Err(err) => {
+                world.failure = Some(err.to_string());
+                panic!("behavior suite evaluation failed: {err}")
+            }
+        },
         Err(err) => {
             world.failure = Some(err.to_string());
             panic!("behavior recording failed: {err}")
@@ -1343,7 +1364,7 @@ fn run_selected(names: &[&'static str], shared_session: bool) -> Result<SessionE
             "selected_backend": selected_backend,
             "source": source_provenance(),
             "session": {"id": session_id, "shared": shared_session, "launch_count": launch_count.get(),
-                "startup_settle_ms": match crate::BACKEND { Mode::Original => Some(behavior::ORIGINAL_STARTUP_SETTLE_MS), Mode::Godot => Some(5_000), Mode::Synthetic => None }},
+                "startup_settle_ms": match crate::BACKEND { Mode::Original => Some(orrery::behavior::ORIGINAL_STARTUP_SETTLE_MS), Mode::Godot => Some(5_000), Mode::Synthetic => None }},
             "result": outcome.result,
             "openspace": if crate::BACKEND == Mode::Original { serde_json::json!({"status": selected_status}) } else { serde_json::json!({"status": "not_run"}) },
             "godot": if crate::BACKEND == Mode::Godot { serde_json::json!({"status": selected_status}) } else { BackendResult::pending_godot(outcome.scenario) },
@@ -1400,7 +1421,7 @@ fn run_selected(names: &[&'static str], shared_session: bool) -> Result<SessionE
             "not_run": not_run,
             "shared_session": shared_session,
             "launch_count": launch_count.get(),
-            "startup_settle_ms": match crate::BACKEND { Mode::Original => Some(behavior::ORIGINAL_STARTUP_SETTLE_MS), Mode::Godot => Some(5_000), Mode::Synthetic => None },
+            "startup_settle_ms": match crate::BACKEND { Mode::Original => Some(orrery::behavior::ORIGINAL_STARTUP_SETTLE_MS), Mode::Godot => Some(5_000), Mode::Synthetic => None },
             "cleanup_complete": cleanup_complete,
             "status": if run_error.is_none() && not_run.is_empty() { "passed" } else { "failed" },
             "error": run_error,

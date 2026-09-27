@@ -1,11 +1,5 @@
 //! One persistent Godot process for the shared functional movement scenarios.
 //! The test wrapper sends physical key edges to the saved, compiled Hype Brain.
-use super::{
-    ActorSample, BackendResult, CLEAR_ROUTE_HEADING_TOLERANCE_RAD, CLEAR_ROUTE_TARGET_HEADING_RAD,
-    DeliveredInput, FunctionalRecording, IDLE_ACTION, SamplePoint, Scenario, TimedInput,
-    assertions, correction_hold_ms, distance_xy, heading_delta, heading_error_to, wall, wall_jump,
-};
-use crate::replay::{Edge, Event, Key};
 use anyhow::{Context, Result, ensure};
 use astrolabe::{
     godot,
@@ -15,6 +9,12 @@ use astrolabe::{
         scene::Scene,
     },
     openspace::content,
+};
+use behavior_contract::input::{Edge, Event, Key};
+use behavior_contract::{
+    ActorSample, BackendResult, CLEAR_ROUTE_HEADING_TOLERANCE_RAD, CLEAR_ROUTE_TARGET_HEADING_RAD,
+    DeliveredInput, FunctionalRecording, IDLE_ACTION, SamplePoint, Scenario, TimedInput,
+    correction_hold_ms, distance_xy, heading_delta, heading_error_to, wall, wall_jump,
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -32,7 +32,7 @@ const SCRIPT: &str = "tests/behavior_gameplay.gd";
 const FIXTURE: &str = "game/english_save_manoir.json";
 const STARTUP_SETTLE_MS: u64 = 5_000;
 const CROSSBOW_TARGET_SOURCE: [f64; 3] = [-73.77856, 32.58957, 6.05084];
-const FIXTURE_BYTES: &[u8] = include_bytes!("../../../../godot/game/english_save_manoir.json");
+const FIXTURE_BYTES: &[u8] = include_bytes!("../../../godot/game/english_save_manoir.json");
 
 enum ReadyState {
     Fresh,
@@ -176,7 +176,7 @@ impl GodotBackend {
         fs::create_dir_all(project.join("tests"))?;
         fs::write(
             project.join(SCRIPT),
-            include_str!("../../../../godot/tests/behavior_gameplay.gd"),
+            include_str!("../../../godot/tests/behavior_gameplay.gd"),
         )?;
         fs::create_dir_all(project.join("tests/fixtures"))?;
         fs::write(project.join(FIXTURE), FIXTURE_BYTES)?;
@@ -662,7 +662,36 @@ impl GodotBackend {
             edge: Edge::Release,
         })?;
         thread::sleep(Duration::from_millis(400));
-        let contact = self.observe("wall_jump_setup_contact", 0, origin)?;
+        let mut contact = self.observe("wall_jump_setup_contact", 0, origin)?;
+        let mut approach_corrections = Vec::new();
+        for _ in 0..3 {
+            if wall_jump::contact_near_corner(&contact) {
+                break;
+            }
+            let clearance = wall::corner_clearances(&contact);
+            if clearance.0 < -0.08 || clearance.1 < -0.08 {
+                break;
+            }
+            self.physical_event(&Event {
+                keyboard: 0,
+                key: Key::ArrowUp,
+                edge: Edge::Press,
+            })?;
+            thread::sleep(Duration::from_millis(250));
+            self.physical_event(&Event {
+                keyboard: 0,
+                key: Key::ArrowUp,
+                edge: Edge::Release,
+            })?;
+            thread::sleep(Duration::from_millis(400));
+            contact = self.observe("wall_jump_setup_contact_correction", 0, origin)?;
+            approach_corrections.push(json!({
+                "physical_up_hold_ms": 250,
+                "settle_ms": 400,
+                "before_clearance": clearance,
+                "after_clearance": wall::corner_clearances(&contact),
+            }));
+        }
         self.physical_event(&Event {
             keyboard: 0,
             key: Key::ArrowDown,
@@ -681,6 +710,7 @@ impl GodotBackend {
             "method": "physical_up_to_corner_then_down_to_grounded_wall_jump_start",
             "up_hold_ms": 3_200,
             "contact_settle_ms": 400,
+            "approach_corrections": approach_corrections,
             "down_hold_ms": 700,
             "start_settle_ms": 700,
             "contact": contact,
@@ -765,7 +795,6 @@ impl GodotBackend {
     }
 
     pub fn run(&mut self, recording: FunctionalRecording) -> Result<BackendResult> {
-        recording.validate()?;
         if recording.scenario == Scenario::RunVsWalk {
             return self.run_comparison(recording);
         }
@@ -789,12 +818,7 @@ impl GodotBackend {
         let (delivered, samples, _) =
             self.execute_trial(&recording.inputs, &recording.samples, "", None)?;
         let screenshot = self.screenshot(recording.scenario.slug())?;
-        let checks = assertions(recording.scenario, &samples)?;
-        let status = if checks.iter().all(|c| c.passed) {
-            "passed"
-        } else {
-            "failed"
-        };
+        let status = "recorded";
         let result = BackendResult {
             backend: "godot".into(),
             scenario: recording.scenario,
@@ -812,20 +836,19 @@ impl GodotBackend {
             completed_update: false,
             delivered,
             samples,
-            assertions: checks,
+            assertions: vec![],
             screenshot: Some(screenshot),
             cleanup_complete: false,
             error: None,
         };
-        self.ready_state =
-            if result.status == "passed" && result.scenario == Scenario::TurnReleaseIdle {
-                ReadyState::TurnedLeft {
-                    settled: result.samples[4].clone(),
-                    hash: result.recording_sha256.clone(),
-                }
-            } else {
-                ReadyState::Finished
-            };
+        self.ready_state = if result.scenario == Scenario::TurnReleaseIdle {
+            ReadyState::TurnedLeft {
+                settled: result.samples[4].clone(),
+                hash: result.recording_sha256.clone(),
+            }
+        } else {
+            ReadyState::Finished
+        };
         Ok(result)
     }
 
@@ -854,12 +877,7 @@ impl GodotBackend {
         delivered.extend(run_delivered);
         samples.extend(run_samples);
         let screenshot = self.screenshot("run-comparison-run")?;
-        let checks = assertions(recording.scenario, &samples)?;
-        let status = if checks.iter().all(|check| check.passed) {
-            "passed"
-        } else {
-            "failed"
-        };
+        let status = "recorded";
         let result = BackendResult {
             backend: "godot".into(),
             scenario: recording.scenario,
@@ -877,7 +895,7 @@ impl GodotBackend {
             completed_update: false,
             delivered,
             samples,
-            assertions: checks,
+            assertions: vec![],
             screenshot: Some(screenshot),
             cleanup_complete: false,
             error: None,
@@ -897,12 +915,7 @@ impl GodotBackend {
             "",
             Some("contact_end"),
         )?;
-        let checks = assertions(recording.scenario, &samples)?;
-        let status = if checks.iter().all(|check| check.passed) {
-            "passed"
-        } else {
-            "failed"
-        };
+        let status = "recorded";
         let result = BackendResult {
             backend: "godot".into(),
             scenario: recording.scenario,
@@ -920,7 +933,7 @@ impl GodotBackend {
             completed_update: false,
             delivered,
             samples,
-            assertions: checks,
+            assertions: vec![],
             screenshot,
             cleanup_complete: false,
             error: None,

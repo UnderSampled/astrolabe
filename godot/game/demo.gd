@@ -27,7 +27,19 @@ func open_level() -> void:
         fail("The manor has not been generated. See godot/README.md.")
         return
     status_label.text = "Loading the manor..."
-    var packed := load(LEVEL) as PackedScene
+    var request := ResourceLoader.load_threaded_request(
+        LEVEL, "PackedScene", true, ResourceLoader.CACHE_MODE_REUSE)
+    if request != OK:
+        fail("The manor scene could not begin loading.")
+        return
+    while is_inside_tree() and ResourceLoader.load_threaded_get_status(LEVEL) == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+        await get_tree().process_frame
+    if not is_inside_tree():
+        return
+    if ResourceLoader.load_threaded_get_status(LEVEL) != ResourceLoader.THREAD_LOAD_LOADED:
+        fail("The manor scene failed to load.")
+        return
+    var packed := ResourceLoader.load_threaded_get(LEVEL) as PackedScene
     if packed == null:
         fail("The generated manor scene could not be opened.")
         return

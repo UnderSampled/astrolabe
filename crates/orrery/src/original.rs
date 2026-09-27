@@ -531,6 +531,33 @@ pub fn worker(
                     | (u8::from(expected_held.contains(&Key::LeftShift)) << 1);
                 completed.push((word(0), mask, word(36), word(40)));
             }
+            let raw_rows = completed
+                .iter()
+                .enumerate()
+                .map(|(index, &(ordinal, mask, pointer, counter))| {
+                    let offset = RECORDS - STATE + index * RECORD_SIZE;
+                    let row = &raw[offset..offset + RECORD_SIZE];
+                    let word = |at: usize| u32::from_le_bytes(row[at..at + 4].try_into().unwrap());
+                    json!({
+                        "ordinal": ordinal,
+                        "planned_input_mask": mask,
+                        "action_pointer": format!("live:{pointer:08x}"),
+                        "left_action_counter": counter as i32,
+                        "update_counter": word(4),
+                        "clock_ms": word(8),
+                        "raw_delta_ms": word(12),
+                        "clamped_delta_ms": word(16),
+                        "boundary_time_ms": word(20),
+                        "os_dispatch_micros": dispatch_times[index],
+                        "os_events": recording.updates[index].events,
+                    })
+                })
+                .collect::<Vec<_>>();
+            write_json(
+                &output.join("raw-boundary.json"),
+                &json!({"schema":1,"claim":"unqualified observations before replay acceptance",
+                    "action_members":actor.action_members,"rows":raw_rows}),
+            )?;
             let action_ids = qualify_boundary_consumption(&actor.action_members, &completed)?;
             let mut rows = vec![];
             let mut previous_counter = None;
@@ -924,7 +951,10 @@ fn supervise(
                     "inspection_complete"
                 }
                 && report["cleanup_complete"] == true,
-            "native worker did not finish and clean up"
+            "native worker result: status={}, cleanup_complete={}, error={}",
+            report["status"],
+            report["cleanup_complete"],
+            report["error"]
         );
         Ok(())
     })();

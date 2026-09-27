@@ -32,7 +32,7 @@ fn original_actor_definitions_match_direct_and_reopened_rete_and_detect_edit() -
     let config = Config::load(&config_path)?;
     let game = std::env::var_os("ASTROLABE_GAME_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|| "disc".into());
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../disc"));
     let selection = Selection::hype("manoir", "en")?;
     let source = source_fingerprint(&game, &selection)?;
     ensure!(

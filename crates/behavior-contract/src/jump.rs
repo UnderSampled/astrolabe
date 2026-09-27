@@ -2,7 +2,7 @@
 //! backward movement reaches a clear grounded start.
 use super::*;
 
-pub(super) fn recording() -> FunctionalRecording {
+pub fn recording() -> FunctionalRecording {
     FunctionalRecording {
         schema: 1,
         scenario: Scenario::StationaryJump,
@@ -41,7 +41,7 @@ pub(super) fn recording() -> FunctionalRecording {
     }
 }
 
-pub(super) fn validate(recording: &FunctionalRecording) -> Result<()> {
+pub fn validate(recording: &FunctionalRecording) -> Result<()> {
     ensure!(
         recording.preparatory_trial.is_none(),
         "jump has an unexpected trial"
@@ -69,7 +69,7 @@ pub(super) fn validate(recording: &FunctionalRecording) -> Result<()> {
     Ok(())
 }
 
-pub(super) fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
+pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
     ensure!(
         samples.len() == 7,
         "stationary jump requires seven observations"

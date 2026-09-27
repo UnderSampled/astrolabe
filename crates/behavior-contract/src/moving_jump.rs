@@ -3,7 +3,7 @@
 //! ordinary walk-stop action in place of the moving jump branch.
 use super::*;
 
-pub(super) fn recording() -> FunctionalRecording {
+pub fn recording() -> FunctionalRecording {
     let edge = |at_ms, id: &str, key, event| TimedInput {
         at_ms,
         id: id.into(),
@@ -43,7 +43,7 @@ pub(super) fn recording() -> FunctionalRecording {
     }
 }
 
-pub(super) fn validate(recording: &FunctionalRecording) -> Result<()> {
+pub fn validate(recording: &FunctionalRecording) -> Result<()> {
     let expected = self::recording();
     ensure!(
         recording.preparatory_trial.is_none()
@@ -54,7 +54,7 @@ pub(super) fn validate(recording: &FunctionalRecording) -> Result<()> {
     Ok(())
 }
 
-pub(super) fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
+pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
     assertions_with_walk_bound(
         samples,
         0.1,
@@ -62,7 +62,7 @@ pub(super) fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
     )
 }
 
-pub(super) fn assertions_with_walk_bound(
+pub fn assertions_with_walk_bound(
     samples: &[ActorSample],
     walk_progress_lower: f64,
     source: &str,

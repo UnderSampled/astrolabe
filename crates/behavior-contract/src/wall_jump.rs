@@ -3,14 +3,14 @@
 //! starting routine and source finite-face oracle differ.
 use super::*;
 
-pub(super) fn recording() -> FunctionalRecording {
+pub fn recording() -> FunctionalRecording {
     let mut recording = moving_jump::recording();
     recording.scenario = Scenario::WallJump;
     recording.ready_state = "manoir-grounded-near-verified-corner-wall".into();
     recording
 }
 
-pub(super) fn validate(recording: &FunctionalRecording) -> Result<()> {
+pub fn validate(recording: &FunctionalRecording) -> Result<()> {
     let expected = self::recording();
     ensure!(
         recording.preparatory_trial.is_none()
@@ -22,15 +22,11 @@ pub(super) fn validate(recording: &FunctionalRecording) -> Result<()> {
     Ok(())
 }
 
-pub(super) fn validate_ready(contact: &ActorSample, start: &ActorSample) -> Result<()> {
+pub fn validate_ready(contact: &ActorSample, start: &ActorSample) -> Result<()> {
     let contact_clearance = wall::corner_clearances(contact);
     let start_clearance = wall::corner_clearances(start);
     ensure!(
-        contact.action == Some(IDLE_ACTION)
-            && contact_clearance.0 >= -0.08
-            && contact_clearance.0 <= 0.25
-            && contact_clearance.1 >= -0.08
-            && contact_clearance.1 <= 0.25,
+        contact_near_corner(contact),
         "physical wall approach missed the known corner: {contact:?}, clearance {contact_clearance:?}"
     );
     ensure!(
@@ -49,7 +45,14 @@ pub(super) fn validate_ready(contact: &ActorSample, start: &ActorSample) -> Resu
     Ok(())
 }
 
-pub(super) fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
+pub fn contact_near_corner(contact: &ActorSample) -> bool {
+    let clearance = wall::corner_clearances(contact);
+    contact.action == Some(IDLE_ACTION)
+        && (-0.08..=0.25).contains(&clearance.0)
+        && (-0.08..=0.25).contains(&clearance.1)
+}
+
+pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
     let source =
         "Orrery 2026-09-24 physical near-wall manor route and source finite-face corner oracle";
     let mut checks = moving_jump::assertions_with_walk_bound(samples, 0.05, source)?;

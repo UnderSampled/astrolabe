@@ -6,6 +6,8 @@ pub mod comparison;
 pub mod config;
 #[cfg(target_os = "linux")]
 pub mod desktop;
+#[cfg(target_os = "linux")]
+pub mod input_tap;
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 pub mod instrumentation;
 #[cfg(target_os = "linux")]
@@ -13,8 +15,14 @@ pub mod linux;
 #[cfg(target_os = "linux")]
 pub mod mcp;
 #[cfg(target_os = "linux")]
+pub mod navigation;
+#[cfg(target_os = "linux")]
 pub mod original;
 #[cfg(target_os = "linux")]
 pub mod orrery;
 pub mod replay;
 pub mod save;
+#[cfg(target_os = "linux")]
+pub mod session;
+#[cfg(target_os = "linux")]
+pub use window_video as video;

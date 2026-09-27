@@ -17,13 +17,18 @@ its own harness. Neither engine's tooling owns the other's runtime or the suite.
 | Orrery | OpenSpace runtime inspection, analysis and control; original-game launch, save-file staging, physical input recording/replay, state and AI/API tracing, output capture, and owned-process cleanup |
 | Godot harness | Godot launch and initial persistence setup, native input delivery, scene/state and compiled-AI tracing, output capture, and cleanup, using the actual exported project and maintained support |
 | Shared recording contract | Versioned descriptions, fixture and stream manifests, input/event identities, clocks, provenance and explicit coverage; independent of either engine controller |
-| Behavior test suite, comparison runner and viewer | Own scenarios and gameplay assertions, select recordings, use Orrery or the Godot harness, evaluate each run, normalize observations, compare evidence and present a synchronized timeline |
+| Behavior test suite, comparison runner and viewer | Own one set of shared scenarios and gameplay assertions. Run each selected scenario on OpenSpace, Godot, or both; retain each backend's result separately. Normalize and compare completed runs and present a synchronized timeline. |
 
 Orrery remains useful by itself for interactive investigation as well as
 recording and replay. The Godot harness can also run independently. The suite
 depends on these tools through their public interfaces; neither depends on the
 suite. Even OpenSpace-only gameplay scenarios and their pass/fail assertions
 belong to the external suite. Orrery's own tool/contract tests remain with Orrery.
+Orrery may verify that its own replay dispatched and observed the requested
+physical edges. Judging whether two runs behaved alike, including two original
+Hype runs, belongs to the suite. A still image captured for inspection or a
+visual checkpoint is distinct from the continuous video stream required for a
+session recording.
 Shared formats do not require a Godot dependency on Orrery. Converter adapters
 and ordinary gameplay do not depend on either tool.
 Reuse Astrolabe's typed OpenSpace readers where applicable, without duplicating
@@ -151,7 +156,7 @@ The viewer links video, input, AI calls, state and timing on one timeline and
 offers side-by-side frames, overlays/differences and the earliest unexplained
 divergence. Automated comparison examines the captured sequence, grouping
 related mismatches into reviewable intervals; the operator need not choose the
-instant to inspect. Preserve the [visual comparison rules](../../notes/realtime-comparison-plan.md#screenshots-and-pixel-comparison),
+instant to inspect. Preserve the [visual comparison rules](../../notes/realtime-comparison-plan.md#video-frames-and-pixel-comparison),
 including explicit frame association, rendering profiles and visible masks.
 Known debt names its behavior/field/interval, impact and revisit trigger; it
 does not suppress unrelated new discrepancies.

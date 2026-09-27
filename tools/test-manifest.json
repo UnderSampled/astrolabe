@@ -70,6 +70,12 @@
       ],
       "safeguard": "always",
       "timeout_seconds": 25
+    },
+    {
+      "script": "test_compare_recordings.py",
+      "areas": ["comparison"],
+      "safeguard": "always",
+      "timeout_seconds": 15
     }
   ],
   "tests": [
@@ -1869,7 +1875,7 @@
       "release": true
     },
     {
-      "binary": "orrery::behavior_synthetic",
+      "binary": "behavior-suite::behavior_synthetic",
       "test": "synthetic_movement_uses_shared_bdd_steps_and_report_pending_godot",
       "areas": ["movement", "comparison"],
       "kind": "contract",
@@ -1880,7 +1886,7 @@
       "release": true
     },
     {
-      "binary": "orrery::behavior_synthetic",
+      "binary": "behavior-suite::behavior_synthetic",
       "test": "synthetic_stationary_jump_uses_shared_bdd_and_checks_height",
       "areas": ["jump", "comparison"],
       "kind": "contract",
@@ -1891,7 +1897,7 @@
       "release": true
     },
     {
-      "binary": "orrery::behavior_synthetic",
+      "binary": "behavior-suite::behavior_synthetic",
       "test": "synthetic_moving_jump_requires_continuous_walk_and_forward_air_motion",
       "areas": ["jump", "comparison"],
       "kind": "contract",
@@ -1902,7 +1908,7 @@
       "release": true
     },
     {
-      "binary": "orrery::behavior_synthetic",
+      "binary": "behavior-suite::behavior_synthetic",
       "test": "synthetic_wall_jump_checks_source_faces_and_landing",
       "areas": ["jump", "comparison"],
       "kind": "contract",
@@ -1913,7 +1919,7 @@
       "release": true
     },
     {
-      "binary": "orrery::behavior_synthetic",
+      "binary": "behavior-suite::behavior_synthetic",
       "test": "synthetic_sword_attack_requires_selection_attack_and_recovery",
       "areas": ["combat", "comparison"],
       "kind": "contract",
@@ -1924,7 +1930,7 @@
       "release": true
     },
     {
-      "binary": "orrery::behavior_synthetic",
+      "binary": "behavior-suite::behavior_synthetic",
       "test": "synthetic_fire_cast_requires_action_order_and_mana_cost",
       "areas": ["magick", "comparison"],
       "kind": "contract",
@@ -1935,7 +1941,7 @@
       "release": true
     },
     {
-      "binary": "orrery::behavior_synthetic",
+      "binary": "behavior-suite::behavior_synthetic",
       "test": "synthetic_crossbow_initial_launch_requires_two_positions",
       "areas": ["combat", "comparison"],
       "kind": "contract",
@@ -1946,7 +1952,7 @@
       "release": true
     },
     {
-      "binary": "orrery::behavior_original",
+      "binary": "behavior-suite::behavior_original",
       "test": "original_movement_scenarios_share_one_game_session",
       "areas": ["movement", "comparison"],
       "kind": "original-engine",
@@ -1957,7 +1963,7 @@
       "release": true
     },
     {
-      "binary": "orrery::behavior_original",
+      "binary": "behavior-suite::behavior_original",
       "test": "original_stationary_jump_and_landing",
       "areas": ["jump", "comparison"],
       "kind": "original-engine",
@@ -1968,7 +1974,7 @@
       "release": true
     },
     {
-      "binary": "orrery::behavior_original",
+      "binary": "behavior-suite::behavior_original",
       "test": "original_moving_jump_and_landing",
       "areas": ["jump", "comparison"],
       "kind": "original-engine",
@@ -1979,7 +1985,7 @@
       "release": true
     },
     {
-      "binary": "orrery::behavior_original",
+      "binary": "behavior-suite::behavior_original",
       "test": "original_wall_jump_and_landing",
       "areas": ["jump", "comparison"],
       "kind": "original-engine",
@@ -1990,7 +1996,7 @@
       "release": true
     },
     {
-      "binary": "orrery::behavior_original",
+      "binary": "behavior-suite::behavior_original",
       "test": "original_sword_attack_and_recovery",
       "areas": ["combat", "comparison"],
       "kind": "original-engine",
@@ -2001,7 +2007,7 @@
       "release": true
     },
     {
-      "binary": "orrery::behavior_original",
+      "binary": "behavior-suite::behavior_original",
       "test": "original_fire_cast_and_mana_cost",
       "areas": ["magick", "comparison"],
       "kind": "original-engine",
@@ -2012,7 +2018,7 @@
       "release": true
     },
     {
-      "binary": "orrery::behavior_original",
+      "binary": "behavior-suite::behavior_original",
       "test": "original_crossbow_initial_launch",
       "areas": ["combat", "comparison"],
       "kind": "original-engine",
@@ -2023,7 +2029,7 @@
       "release": true
     },
     {
-      "binary": "orrery::behavior_godot",
+      "binary": "behavior-suite::behavior_godot",
       "test": "godot_stationary_jump_and_landing",
       "areas": ["jump", "comparison"],
       "kind": "gameplay",
@@ -2034,7 +2040,7 @@
       "release": true
     },
     {
-      "binary": "orrery::behavior_godot",
+      "binary": "behavior-suite::behavior_godot",
       "test": "godot_moving_jump_and_landing",
       "areas": ["jump", "comparison"],
       "kind": "gameplay",
@@ -2045,7 +2051,7 @@
       "release": true
     },
     {
-      "binary": "orrery::behavior_godot",
+      "binary": "behavior-suite::behavior_godot",
       "test": "godot_wall_jump_and_landing",
       "areas": ["jump", "comparison"],
       "kind": "gameplay",
@@ -2056,7 +2062,7 @@
       "release": true
     },
     {
-      "binary": "orrery::behavior_godot",
+      "binary": "behavior-suite::behavior_godot",
       "test": "godot_sword_attack_and_recovery",
       "areas": ["combat", "comparison"],
       "kind": "gameplay",
@@ -2067,7 +2073,7 @@
       "release": true
     },
     {
-      "binary": "orrery::behavior_godot",
+      "binary": "behavior-suite::behavior_godot",
       "test": "godot_fire_cast_and_mana_cost",
       "areas": ["magick", "comparison"],
       "kind": "gameplay",
@@ -2078,7 +2084,7 @@
       "release": true
     },
     {
-      "binary": "orrery::behavior_godot",
+      "binary": "behavior-suite::behavior_godot",
       "test": "godot_crossbow_initial_launch",
       "areas": ["combat", "comparison"],
       "kind": "gameplay",
@@ -2089,7 +2095,7 @@
       "release": true
     },
     {
-      "binary": "orrery::behavior_godot",
+      "binary": "behavior-suite::behavior_godot",
       "test": "godot_movement_scenarios_share_saved_scene_and_brain",
       "areas": ["movement", "comparison"],
       "kind": "gameplay",
@@ -2764,8 +2770,8 @@
       "release": true
     },
     {
-      "binary": "orrery",
-      "test": "behavior::sword::tests::missing_godot_beam_trace_fails_the_sword_case",
+      "binary": "behavior-contract",
+      "test": "sword::tests::missing_godot_beam_trace_fails_the_sword_case",
       "areas": [
         "combat",
         "comparison"
@@ -2786,6 +2792,138 @@
       "kind": "contract",
       "prerequisites": [],
       "fixture": "synthetic physical input sequence",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "godot-harness::bin/godot-harness",
+      "test": "tests::project_provenance_includes_generated_assets_but_excludes_import_cache",
+      "areas": ["runtime", "comparison"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic Godot project tree",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "session-recording::fixtures",
+      "test": "event_prefix_and_recording_hash_include_frames",
+      "areas": ["runtime", "comparison"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic event stream and frames",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "session-recording::fixtures",
+      "test": "save_fixture_distinguishes_absent_empty_and_populated_and_prevents_contamination",
+      "areas": ["runtime", "comparison"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic save roots",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "navigation::tests::menu_route_is_explicit",
+      "areas": ["runtime", "comparison"],
+      "kind": "contract",
+      "prerequisites": [],
+      "fixture": "synthetic title-menu physical route",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "navigation::tests::gate_requires_stable_fresh_evidence_and_reports_delay",
+      "areas": ["runtime", "comparison"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic visual gate observations",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "navigation::tests::gate_times_out_without_rewriting_later_inputs",
+      "areas": ["runtime", "comparison"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic title-menu timeout",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "navigation::tests::visual_gates_normalize_resolution_and_reject_other_screens",
+      "areas": ["runtime", "comparison"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic RGB menu frames",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "behavior-suite::behavior_synthetic",
+      "test": "suite_owns_the_transition_from_recorded_evidence_to_behavior_pass",
+      "areas": ["comparison"],
+      "kind": "contract",
+      "prerequisites": [],
+      "fixture": "synthetic shared case and backend evidence",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "session::video_event_tests::replay_uses_session_end_before_later_video_finalization_event",
+      "areas": ["runtime", "comparison"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic session and later video finalization events",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "session::video_event_tests::selected_save_slot_is_rejected_but_empty_or_absent_roots_are_allowed",
+      "areas": ["runtime", "comparison"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic Hype save directory layouts",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "session::video_event_tests::video_end_event_uses_collection_time_and_preserves_capture_timing",
+      "areas": ["runtime", "comparison"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic video finalization clocks",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "window-video",
+      "test": "tests::frame_pts_keeps_epoch_microseconds_exact",
+      "areas": ["runtime", "comparison"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic frame timestamps",
       "timeout_seconds": 5,
       "ignored": false,
       "release": true

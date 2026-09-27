@@ -224,6 +224,14 @@ impl Desktop {
             .map(|(_, w)| w)
             .context("no visible window belonging to the owned Hype process")
     }
+    pub fn window_id(&self) -> Result<u32> {
+        self.window()
+    }
+
+    pub fn window_dimensions(&self, window: u32) -> Result<(u16, u16)> {
+        let geometry = self.connection.get_geometry(window)?.reply()?;
+        Ok((geometry.width, geometry.height))
+    }
     pub fn focus(&self) -> Result<()> {
         let window = self.window()?;
         let event = ClientMessageEvent::new(
@@ -281,6 +289,51 @@ impl Desktop {
             "physical key has no unique primary X11 mapping"
         );
         Ok(keys[0])
+    }
+    pub fn keycode_for(&self, key: Key) -> Result<u8> {
+        self.keycode(physical_keysym(key))
+    }
+    pub fn keysym_for_code(&self, code: u8) -> Result<u32> {
+        let setup = self.connection.setup();
+        ensure!(
+            (setup.min_keycode..=setup.max_keycode).contains(&code),
+            "keycode outside private keyboard mapping"
+        );
+        let mapping = self.connection.get_keyboard_mapping(code, 1)?.reply()?;
+        mapping
+            .keysyms
+            .first()
+            .copied()
+            .context("empty keycode mapping")
+    }
+
+    pub fn physical_keycode(&mut self, code: u8, edge: Edge, repeat: bool) -> Result<()> {
+        let window = self.window()?;
+        ensure!(
+            self.connection.get_input_focus()?.reply()?.focus == window,
+            "game lost keyboard focus before physical input"
+        );
+        self.keysym_for_code(code)?;
+        match edge {
+            Edge::Press => {
+                if repeat {
+                    ensure!(self.pressed.contains(&code), "repeat without held key");
+                } else {
+                    ensure!(self.pressed.insert(code), "physical key is already held");
+                }
+                self.connection
+                    .xtest_fake_input(KEY_PRESS_EVENT, code, CURRENT_TIME, self.root, 0, 0, 0)?
+                    .check()?;
+            }
+            Edge::Release => {
+                ensure!(self.pressed.remove(&code), "physical key is not held");
+                self.connection
+                    .xtest_fake_input(KEY_RELEASE_EVENT, code, CURRENT_TIME, self.root, 0, 0, 0)?
+                    .check()?;
+            }
+        }
+        self.connection.flush()?;
+        Ok(())
     }
 
     /// Deliver literal physical key edges through XTest on the private display.

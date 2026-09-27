@@ -6,7 +6,7 @@ license = "CC0-1.0"
 description = "Repeatable conversion of OpenSpace game content through a useful model"
 
 [workspace]
-members = ["crates/orrery"]
+members = ["crates/orrery", "crates/session-recording", "crates/window-video", "crates/godot-harness", "crates/behavior-contract", "crates/behavior-suite"]
 default-members = ["."]
 resolver = "3"
 

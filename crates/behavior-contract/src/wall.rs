@@ -6,12 +6,12 @@ use super::{
     ActorSample, Assertion, FunctionalRecording, IDLE_ACTION, SamplePoint, Scenario, TimedInput,
     WALK_FORWARD_ACTION, action_is, bound, distance_xy, heading_error_to, walking_action_is_active,
 };
-use crate::replay::{Edge, Event, Key};
+use crate::input::{Edge, Event, Key};
 use anyhow::{Result, ensure};
 use serde_json::{Value, json};
 
-pub(super) const TARGET_HEADING_RAD: f64 = -2.40;
-pub(super) const HEADING_TOLERANCE_RAD: f64 = 0.05;
+pub const TARGET_HEADING_RAD: f64 = -2.40;
+pub const HEADING_TOLERANCE_RAD: f64 = 0.05;
 const RADIUS: f64 = 0.55;
 const OFFSETS: [f64; 3] = [0.53, 1.10, 1.65];
 const START: [f64; 3] = [-74.37866, 27.48651, 4.55087];
@@ -27,11 +27,11 @@ const CROSS: [[f64; 3]; 3] = [
 ];
 const SOURCE: &str = "source manoir world/1/5/0 finite faces: material 7/group 1/triangle 1 and adjacent material 6/group 0/triangle 6; Hype movement zones 196716/196724/196736, radius 0.55; Orrery 2026-09-24 corner probe";
 
-pub(super) fn heading_error(actual: f64) -> f64 {
+pub fn heading_error(actual: f64) -> f64 {
     heading_error_to(TARGET_HEADING_RAD, actual)
 }
 
-pub(super) fn oracle() -> Value {
+pub fn oracle() -> Value {
     json!({
         "method": "source_finite_corner_oracle",
         "source_node_id": "world/1/5/0",
@@ -44,7 +44,7 @@ pub(super) fn oracle() -> Value {
     })
 }
 
-pub(super) fn recording() -> FunctionalRecording {
+pub fn recording() -> FunctionalRecording {
     FunctionalRecording {
         schema: 1,
         scenario: Scenario::WallContact,
@@ -88,7 +88,7 @@ pub(super) fn recording() -> FunctionalRecording {
     }
 }
 
-pub(super) fn validate(recording: &FunctionalRecording) -> Result<()> {
+pub fn validate(recording: &FunctionalRecording) -> Result<()> {
     ensure!(
         recording.preparatory_trial.is_none(),
         "wall recording has an extra trial"
@@ -189,7 +189,7 @@ fn clearance(sample: &ActorSample, face: [Point; 3]) -> f64 {
         .fold(f64::INFINITY, f64::min)
 }
 
-pub(super) fn corner_clearances(sample: &ActorSample) -> (f64, f64) {
+pub fn corner_clearances(sample: &ActorSample) -> (f64, f64) {
     (clearance(sample, ANGLED), clearance(sample, CROSS))
 }
 
@@ -201,7 +201,7 @@ fn native_contact(sample: &ActorSample) -> Option<(bool, bool)> {
     Some((found, sample.raw_observation["on_floor"] == true))
 }
 
-pub(super) fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
+pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
     ensure!(samples.len() == 7, "wall recording needs seven samples");
     let names = [
         "baseline",

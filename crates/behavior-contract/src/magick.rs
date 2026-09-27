@@ -7,7 +7,7 @@ const ARMED_IDLE: u32 = 48;
 const CAST_ACTION: u32 = 290;
 const FOLLOW_THROUGH: u32 = 271;
 
-pub(super) fn recording() -> FunctionalRecording {
+pub fn recording() -> FunctionalRecording {
     let edge = |at_ms, id: &str, key, edge| TimedInput {
         at_ms,
         id: id.into(),
@@ -45,7 +45,7 @@ pub(super) fn recording() -> FunctionalRecording {
     }
 }
 
-pub(super) fn validate(recording: &FunctionalRecording) -> Result<()> {
+pub fn validate(recording: &FunctionalRecording) -> Result<()> {
     let expected = self::recording();
     ensure!(
         recording.preparatory_trial.is_none()
@@ -63,7 +63,7 @@ fn mana(sample: &ActorSample) -> f64 {
         .unwrap_or(f64::NAN)
 }
 
-pub(super) fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
+pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
     ensure!(samples.len() == 6, "Fire cast needs six observations");
     ensure!(
         samples

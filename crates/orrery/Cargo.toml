@@ -3,10 +3,13 @@ name = "orrery"
 version = "0.1.0"
 edition = "2024"
 license = "CC0-1.0"
-description = "Orrery native original-game controller and comparison tooling for Astrolabe"
+description = "Orrery native original-game analysis, recording, and control"
 
 [dependencies]
 astrolabe = { path = "../.." }
+session-recording = { path = "../session-recording" }
+window-video = { path = "../window-video" }
+behavior-contract = { path = "../behavior-contract" }
 anyhow = "1.0"
 clap = { version = "4.6", features = ["derive"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -20,11 +23,10 @@ tokio = { version = "1.48", features = ["macros", "net", "rt-multi-thread", "sig
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2"
-x11rb = { version = "0.14.0", features = ["xtest"] }
+x11rb = { version = "0.14.0", features = ["xtest", "record"] }
 signal-hook = "0.4.4"
 png = "0.18"
 
 [dev-dependencies]
 tempfile = "3.27"
-cucumber = "=0.23.0"
 rmcp = { version = "3.4.0", default-features = false, features = ["client", "server", "transport-streamable-http-client-reqwest", "transport-streamable-http-server"] }

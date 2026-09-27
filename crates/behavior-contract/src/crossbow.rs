@@ -5,7 +5,7 @@ use super::*;
 const ARROW_MODEL: &str = "fix:/ai/models/733";
 const ARROW_MODEL_OFFSET: u64 = 0x4e324;
 
-pub(super) fn recording() -> FunctionalRecording {
+pub fn recording() -> FunctionalRecording {
     let edge = |at_ms, id: &str, key, direction| TimedInput {
         at_ms,
         id: id.into(),
@@ -40,7 +40,7 @@ pub(super) fn recording() -> FunctionalRecording {
     }
 }
 
-pub(super) fn validate(recording: &FunctionalRecording) -> Result<()> {
+pub fn validate(recording: &FunctionalRecording) -> Result<()> {
     let expected = self::recording();
     ensure!(
         recording.preparatory_trial.is_none()
@@ -88,7 +88,7 @@ fn original_arrow(sample: &serde_json::Value) -> Option<(u64, String, u64, [f64;
     })
 }
 
-pub(super) fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
+pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
     ensure!(
         samples.len() == 3,
         "crossbow launch needs three observations"

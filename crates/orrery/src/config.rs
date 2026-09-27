@@ -51,6 +51,28 @@ pub fn digest(path: &Path) -> Result<String> {
 }
 impl Config {
     pub fn load(path: &Path) -> Result<Self> {
+        let config = Self::load_base(path)?;
+        let directory = path
+            .canonicalize()?
+            .parent()
+            .context("configuration parent missing")?
+            .to_owned();
+        ensure!(
+            config.save_sha256 == SAVE_SHA256
+                && digest(&directory.join("Savefile_EN.zip"))? == SAVE_SHA256,
+            "English save archive differs"
+        );
+        for (name, expected) in SAVE_MEMBERS {
+            ensure!(
+                digest(&config.game.join("GameData/SaveGame/SaveGame0").join(name))? == expected,
+                "installed save fixture differs: {name}"
+            );
+        }
+        Ok(config)
+    }
+
+    /// Verify a private, build-pinned installation without prescribing its saves.
+    pub fn load_base(path: &Path) -> Result<Self> {
         let config: Self = serde_json::from_slice(&fs::read(path)?)?;
         let directory = path
             .canonicalize()?
@@ -77,17 +99,6 @@ impl Config {
             "executable fixture hash differs"
         );
         HypeBuild::verified(&config.exe_sha256)?;
-        ensure!(
-            config.save_sha256 == SAVE_SHA256
-                && digest(&directory.join("Savefile_EN.zip"))? == SAVE_SHA256,
-            "English save archive differs"
-        );
-        for (name, expected) in SAVE_MEMBERS {
-            ensure!(
-                digest(&config.game.join("GameData/SaveGame/SaveGame0").join(name))? == expected,
-                "installed save fixture differs: {name}"
-            );
-        }
         Ok(config)
     }
     pub fn environment(&self) -> Result<std::collections::BTreeMap<String, String>> {

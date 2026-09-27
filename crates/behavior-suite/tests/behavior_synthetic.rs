@@ -8,7 +8,7 @@ fn synthetic_stationary_jump_uses_shared_bdd_and_checks_height() -> anyhow::Resu
     let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
     assert_eq!(report["result"]["status"], "passed");
     assert_eq!(report["godot"]["status"], "pending");
-    use orrery::behavior::{self, Scenario};
+    use behavior_contract::{self as behavior, Scenario};
     let mut source =
         behavior_steps::synthetic_result(behavior::recording(Scenario::StationaryJump))?;
     source.backend = "openspace".into();
@@ -27,7 +27,7 @@ fn synthetic_moving_jump_requires_continuous_walk_and_forward_air_motion() -> an
     let path = behavior_steps::run_scenario("Jumping from a walk and landing")?;
     let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
     assert_eq!(report["result"]["status"], "passed");
-    use orrery::behavior::{self, Scenario};
+    use behavior_contract::{self as behavior, Scenario};
     let mut source = behavior_steps::synthetic_result(behavior::recording(Scenario::MovingJump))?;
     source.backend = "openspace".into();
     source.cleanup_complete = true;
@@ -66,7 +66,7 @@ fn synthetic_sword_attack_requires_selection_attack_and_recovery() -> anyhow::Re
     assert_eq!(report["result"]["status"], "passed");
     assert_eq!(report["openspace"]["status"], "not_run");
     assert_eq!(report["godot"]["status"], "pending");
-    use orrery::behavior::{self, Scenario};
+    use behavior_contract::{self as behavior, Scenario};
     let mut source = behavior_steps::synthetic_result(behavior::recording(Scenario::SwordAttack))?;
     source.backend = "openspace".into();
     let mut godot = source.clone();
@@ -86,7 +86,7 @@ fn synthetic_crossbow_initial_launch_requires_two_positions() -> anyhow::Result<
     let path = behavior_steps::run_scenario("Launching one crossbow arrow initially")?;
     let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
     assert_eq!(report["result"]["status"], "passed");
-    use orrery::behavior::{self, Scenario};
+    use behavior_contract::{self as behavior, Scenario};
     let mut result =
         behavior_steps::synthetic_result(behavior::recording(Scenario::CrossbowInitialLaunch))?;
     result.samples[2].raw_observation["generated_trace_first"][1]["translation"] =
@@ -107,7 +107,7 @@ fn synthetic_fire_cast_requires_action_order_and_mana_cost() -> anyhow::Result<(
     let report: serde_json::Value = serde_json::from_slice(&std::fs::read(&path)?)?;
     assert_eq!(report["result"]["status"], "passed");
     assert_eq!(report["godot"]["status"], "pending");
-    use orrery::behavior::{self, Scenario};
+    use behavior_contract::{self as behavior, Scenario};
     let mut source = behavior_steps::synthetic_result(behavior::recording(Scenario::FireCast))?;
     source.backend = "openspace".into();
     source.samples[1].action = Some(45);
@@ -162,7 +162,7 @@ fn synthetic_movement_uses_shared_bdd_steps_and_report_pending_godot() -> anyhow
         assert_eq!(report["openspace"]["status"], "not_run");
         println!("synthetic BDD evidence: {}", path.display());
     }
-    use orrery::behavior::{self, Scenario};
+    use behavior_contract::{self as behavior, Scenario};
     let mut source =
         behavior_steps::synthetic_result(behavior::recording(Scenario::WalkReleaseStop))?;
     source.backend = "openspace".into();
@@ -256,5 +256,25 @@ fn synthetic_movement_uses_shared_bdd_steps_and_report_pending_godot() -> anyhow
     let mut short_window = source.clone();
     short_window.samples[3].capture_end_ms = short_window.samples[3].planned_ms + 200;
     assert!(short_window.require_pass().is_err());
+    Ok(())
+}
+
+#[test]
+fn suite_owns_the_transition_from_recorded_evidence_to_behavior_pass() -> anyhow::Result<()> {
+    use behavior_contract::{self as behavior, Scenario};
+
+    let mut evidence =
+        behavior_steps::synthetic_result(behavior::recording(Scenario::TurnReleaseIdle))?;
+    evidence.status = "recorded".into();
+    evidence.assertions.clear();
+
+    let evaluated = behavior_suite::evaluate_backend_result(evidence.clone())?;
+    assert_eq!(evaluated.status, "passed");
+    assert!(!evaluated.assertions.is_empty());
+
+    evidence.samples[1].action = Some(behavior::IDLE_ACTION);
+    let rejected = behavior_suite::evaluate_backend_result(evidence)?;
+    assert_eq!(rejected.status, "failed");
+    assert!(rejected.assertions.iter().any(|check| !check.passed));
     Ok(())
 }

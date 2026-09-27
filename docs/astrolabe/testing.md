@@ -23,15 +23,20 @@ render the game. Use visible mode for interactive movement development; the
 test supervisor still owns process deadlines and cleanup. `--headless` restores
 the default explicitly.
 
-The `movement` selection includes four Cucumber functional scenarios in
-Orrery: turn and stop, walk and stop, run versus walk, and wall contact. The
-synthetic backend exercises their shared steps and mismatch reporting offline.
+The `movement` selection includes four Cucumber functional scenarios in the
+separate `behavior-suite`: turn and stop, walk and stop, run versus walk, and
+wall contact. `behavior-contract` owns their engine-neutral input, evidence and
+assertions; Orrery owns the OpenSpace backend, and `godot-harness` owns the
+Godot backend. The synthetic backend exercises their shared steps and mismatch
+reporting offline. The original and Godot test binaries select a backend for
+the same feature files and input schedules; they are not separate case sets.
 With `--local` and the prepared original-game fixture, one ignored test runs
 all four in one Hype process. A second ignored test uses one Godot process with
 a normal `manoir` export, its saved Hype Brain, and a labeled English-save
-state fixture. Each scenario has independent assertions and a
-`behavior-*.json` result; the suite file links all four, records one launch,
-and verifies cleanup. Walk may inherit the successful turn's compatible state;
+state fixture. The suite evaluates the same scenario assertions separately for
+each backend run and writes a `behavior-*.json` result; the suite file links all
+four, records one launch, and verifies cleanup. Walk may inherit the successful
+turn's compatible state;
 run and wall restore the supplied save within the same process and establish
 their start with physical input. Single-scenario execution remains available
 through the same step runner. Backend reports are compared only after both
@@ -49,7 +54,7 @@ remain open. See the [combat comparison note](../../notes/combat-comparison-2026
 Pair matching scenario reports with:
 
 ```sh
-cargo run --locked --offline -p orrery -- compare-behavior --openspace SOURCE.json --godot GODOT.json --output COMPARISON.json
+cargo run --locked --offline -p behavior-suite -- --openspace SOURCE.json --godot GODOT.json --output COMPARISON.json
 ```
 
 The command checks cleanup, individual passes, scenario and

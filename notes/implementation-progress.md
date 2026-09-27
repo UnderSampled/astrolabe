@@ -251,11 +251,167 @@ Before the readability refactor and schema 2, a separate bounded measurement run
 Godot probes delivered the same five-update physical-key hold. Original elapsed
 intervals ranged from 102 to 174 ms, versus approximately 104 ms in Godot; this
 proves a narrow input-scheduling capability, not timing or gameplay parity.
-Production replay, actual character consumer ordering and synchronized images
-remain unimplemented/unverified. The [replay decision and evidence](./realtime-comparison-plan.md#replay-decision-frames-drive-inputs-milliseconds-judge-timing)
-choose frame-indexed inputs with independent measured-ms assertions and no
+At that checkpoint, production replay, actual character consumer ordering and
+synchronized images were unimplemented/unverified. The [replay decision and evidence](./realtime-comparison-plan.md#replay-decision-frames-drive-inputs-milliseconds-judge-timing)
+chooses frame-indexed inputs with independent measured-ms assertions and no
 automatic timing fallback. The experiment's temporary hook/buffer were restored
 and its owned game was stopped.
+
+**2026-09-27 Orrery session recording:** The new versioned recording format
+captures a complete initial save-file fixture, environmental hashes, XRecord
+server-delivered keyboard edges, continuous FFV1 video with a per-frame time
+index and sparse PNG checkpoints, phase/level and selected typed actor/timing
+samples from process launch. Orrery replays physical
+edges at their recorded elapsed-time targets from a fresh copy-on-write Wine
+prefix. An earlier 30-second `manoir` capture and replay each produced 111 PNG
+checkpoints and observed the same six key edges; both ended in phase 9 at `manoir`.
+The source and replay used identical 979-file content-tree and Wine hashes; the
+private original fixture remained unchanged and no game process remained after
+cleanup. Each run reported nine skipped PNG checkpoint intervals. The timing-aware
+comparison pairs all 22 selected actor samples and 54 of 55 phase/level samples
+in the original-to-original run; its first timed uncertainty occurs near 2.38
+seconds. Pixel equality is not qualified because render and update association
+is unverified. See the [Orrery controller guide](../docs/orrery/controller.md#session-recording-and-replay) for commands and explicit
+coverage limits. An empty-save New Game capture/replay also reached `manoir`,
+with an existing empty initial save root retained as a distinct fixture
+condition. These runs establish literal input delivery and observed final
+phase/level, not gameplay state parity or input-consumer precision.
+An isolated 40-second save-screen probe did not change any save bytes, so the
+planned live replay after an actual save write remains unverified. The shared
+fixture tests do prove fresh staging cannot inherit files from a prior run.
+The fixture verifier now also checks saved file modification times and seals
+captured evidence files read-only; replay hashes its source before and after
+copying the input fixture, then launches from a writable run copy. A later
+save-write probe initially failed because the sandbox could not access the
+Wayland socket. With approved private-display access, a 50-second isolated run
+captured 191 frames and 16 input edges and reached `manoir`, but the planned
+interaction did not open the save UI. All 12 final save files still match the
+initial fixture, so an actual save write and subsequent replay remain unverified.
+Two later isolated attempts also loaded `manoir` but the intended lectern
+interaction opened nearby NPC dialogue, not the Save UI; the save files stayed
+unchanged. The recorder now samples the complete run-owned save root and
+retains a verified nested copy after an observed change is stable for at least
+500 ms, with the engine save-operation boundary explicitly unverified. The
+initial nested-copy path produced capture gaps in those attempts; the directory
+creation is fixed and a nested snapshot fixture test passes. A capture error
+after launch now seals a readable failed prefix and keeps it out of replay.
+A fresh explicit Orrery release build and a 22-second private run then captured
+two verified save-tree snapshots with no capture gaps. The first followed
+startup changes; the second followed a labelled mtime-only change to the
+run-owned save copy. All 16 nested snapshot files matched their recorded
+hashes and mtimes, while the immutable fixture and installed saves stayed
+unchanged. This exercises the recording path but is not evidence of an in-game
+save operation.
+A later 50-second COW run did complete an actual overwrite of the first
+occupied manor slot. The script reached the Save UI, selected YES, then accepted
+the retained adventure name with one more Enter. A timestamped save snapshot at
+37.84 seconds captured changed `SaveGame0/General000.sav` and `Level000.sav`
+bytes, including three changed Level records; the initial fixture and private
+installation were unchanged. A literal-time replay staged the same immutable
+fixture and observed the same 41 keyboard edges, but loaded `manoir` about four
+seconds earlier at the menu and did not write the save. The comparator reports
+startup timing/state divergence, so this is save-write capture proof and a
+documented replay limit, not end-to-end behavioral repeatability. Evidence is
+in ignored `TestResults/orrery-save-name-commit-20260927/`, its `-replay-20260927`
+peer, and `TestResults/orrery-save-name-commit-comparison-20260927/`.
+An opt-in `hype-title-load-v1` replay profile now waits for stable visual
+evidence at the three title/load menu boundaries and records each wait, frame,
+and added delay. Its detectors matched all 54 title and 16 Existing games
+frames in the two local recordings without matching the other 312 frames,
+including loading, gameplay and Save overlays. A fresh 50-second gated replay
+of the frozen save-write capture qualified all three gates with 67.3 ms total
+added delay, reached the same populated save and wrote changed SaveGame0 files
+at about 37.5 seconds. Decoded source and replay saves differ in duration by
+49 units and two Level records' bytes, so this is repeated save behavior, not
+byte-for-byte output parity. Its strict physical-input validation failed:
+source XRecord observed one additional Up auto-repeat press (41 edges versus
+40); later nonrepeat edges realigned. X-server delivery and game consumption
+remain distinct. The completed capture and failed delivery check are retained
+under ignored `TestResults/orrery-save-name-commit-gated-v2-20260927/`.
+A second gated replay qualified the same three menu states with 5.9 ms total
+delay and again wrote changed `SaveGame0` files in `manoir`. All 18 nonrepeat
+press/release edges matched, while four Up auto-repeat edges differed (41
+source versus 37 replay observations). The updated report correctly marks
+delivery validation failed even though capture reached its planned duration.
+The affected offline comparison selection passed 61/61 tests with all 20
+mandatory safeguards under authorized local test permissions; the initial
+restricted run had nine host permission failures. Evidence is in ignored
+`TestResults/orrery-save-name-commit-gated-v4-20260927/` and
+`TestResults/navigation-comparison-escalated-20260927.json`.
+The focused behavior test ownership has also been separated: one
+`behavior-contract` crate now defines physical input, scenario recordings,
+samples, assertions and result comparison; Orrery retains only the original
+backend; `godot-harness` owns the Godot backend; and `behavior-suite` owns the
+Cucumber runner and paired-report CLI. The moved tests kept their scenario
+identities and were discovered in the reviewed inventory. A stable-tree
+offline comparison selection passed 61/61 tests, including all 20 mandatory
+safeguards, after the move. Local original and Godot scenario execution still
+needs a focused post-move check.
+The recorder now adds normal/reflex behavior selections to its stopped actor
+samples. A new isolated replay captured both in all 20 actor samples, with
+several different selections across the observed gameplay period and no actor
+capture gaps. These are periodic selections; event-level transitions and API
+arguments/results still lack a verified source boundary.
+
+The corrected continuous-video manor route and one literal replay used the
+complete `SaveGame0/` fixture and each reached `manoir` gameplay during a
+30-second active session. Both observed all eight scripted key edges, produced
+55 phase/level and 30 typed actor samples, and indexed 845 FFV1 frames over
+the 780×600 to 1024×768 window resize. Video encoder finalization now follows
+`session_end` without extending replay. The suite matched all input edges and
+54 selected state samples, while retaining one normal/reflex actor-selection
+difference from samples taken 206 ms apart near gameplay entry. Fixed 15 ms
+frame pairing compared 34 video pairs and identified 791 timing mismatches;
+replay's first frame was about 89 ms earlier. Render/update association and
+input consumption remain unverified. The offline comparison selection now
+passes 66/66 tests with 74 declared exclusions under the required local host
+permissions; formatting, Clippy and release build also pass. Evidence is in
+ignored `TestResults/hype-input-video-state-corrected-20260927/` and
+`TestResults/20260927T141456.290484Z-development.log.json`.
+
+The first separate Godot replay exposed a 35.80-second synchronous manor-load
+stall and correctly ended `deadline_overrun` in loading. After changing the
+authored game to thread resource loading, a fresh replay dispatched all six
+inputs within 11 ms of the recorded targets, captured 106 visible 1024×768
+frames, and reached playable `manoir` within the 30-second recording. Godot
+first reached gameplay at 29.05 seconds versus 16.51 seconds in Hype; the
+16-second Enter arrived while Godot was still loading. The comparator retains
+that phase/timing difference and diagnostic pixels without aligning frames to
+hide it. Godot's manifest now hashes 5,964 authored and generated content files,
+excluding its derived `.godot/` cache. Original save import, intro/menu parity
+and compiled behavior coverage remain incomplete.
+The comparison report now includes a standalone timeline viewer with 113 frame
+buckets and 159 input/state/capture events for this Hype-to-Godot run. Static
+validation found all 217 referenced images and a valid embedded script; local
+browser viewing was unavailable. Frame acquisition intervals and every sampled
+state/actor observation remain in the machine-readable report.
+
+The current Godot harness also consumed the corrected 30-second Hype recording
+as the same shared case and captured continuous 1024×768 FFV1 video. A first
+full run used a stale harness binary and timed out waiting for its video
+finalization marker; rebuilding `godot-harness` explicitly fixed that version
+mismatch. A private-Xvfb replay then dispatched all eight source inputs and
+indexed 902 video frames with no encoder-index timestamp gaps. The Godot
+manifest initially included encoder shutdown in its elapsed session time; a
+follow-up fix makes its manifest, summary and report agree at about 30.04
+seconds, with `video_stream_end` later at 36.67 seconds. The final run reached
+`manoir`, but recorded one two-second main-thread stall and late Left input
+while loading, so it is not clean input-timing evidence. The comparison keeps
+the source/Godot startup, loading, state and video differences: eight matching
+dispatch-only input events, 19 matched/31 mismatched/10 missing selected state
+samples, and 759 comparable video frames with 70 missing and 73 dimension
+mismatches. Save import, menu parity, input consumption, AI/API event tracing
+and render/update frame association remain open. Evidence is in ignored
+`TestResults/godot-shared-case-final-20260927/`.
+
+The full local comparison selection run on 2026-09-27 finished 73/77 selected
+checks in 1,285.76 seconds with complete cleanup and unchanged source data
+(`TestResults/20260927T083809.526199Z-development.log.json`). Focused reruns
+after diagnostics passed the Godot wall-jump case, original wall-jump case and
+direct/reopened-Rete actor definitions. The remaining native 18-update boundary
+replay failed before gameplay in one focused retry; an earlier full-suite
+failure occurred at its physical-input consumption assertion. These are
+intermittent original-runtime failures, not recording/replay acceptance passes.
 
 The subsequent [mechanics investigation](./realtime-comparison-plan.md#original-mechanics-cadence-input-phase-and-observations)
 found variable elapsed-time mechanics in the traced main gameplay path, not a

@@ -7,7 +7,7 @@ const ATTACK_ACTION: u32 = 134;
 const ATTACK_FOLLOW_THROUGH_ACTION: u32 = 135;
 const ARMED_IDLE_ACTION: u32 = 48;
 
-pub(super) fn recording() -> FunctionalRecording {
+pub fn recording() -> FunctionalRecording {
     let edge = |at_ms, id: &str, key, event| TimedInput {
         at_ms,
         id: id.into(),
@@ -45,7 +45,7 @@ pub(super) fn recording() -> FunctionalRecording {
     }
 }
 
-pub(super) fn validate(recording: &FunctionalRecording) -> Result<()> {
+pub fn validate(recording: &FunctionalRecording) -> Result<()> {
     let expected = self::recording();
     ensure!(
         recording.preparatory_trial.is_none()
@@ -57,7 +57,7 @@ pub(super) fn validate(recording: &FunctionalRecording) -> Result<()> {
     Ok(())
 }
 
-pub(super) fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
+pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
     ensure!(samples.len() == 6, "sword attack needs six observations");
     let [base, equipped, early, late, recovered, settled] = samples else {
         unreachable!()
