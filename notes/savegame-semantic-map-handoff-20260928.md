@@ -254,10 +254,13 @@ different source or experiment: dialogue target-object section key to authored
 answer row/text; star `+0x38` gameplay consumer or verified map-open transition;
 `1:6` source allocation to an exact rooted Level node plus a type-specific
 caller. Do not assign another count or ownership survey as a meaning task.
-The current high-use AI discriminator is Hype native function 205 and procedure
-82: their unresolved effects are shared by Hype DSG[11] and Global DSG[4].
+For Hype DSG[11], native function 205 is now traced through the pinned patched
+executable to the first selected `"Object"` inventory item's info word, tested
+against 44. The next high-use discriminator is procedure 82: its native
+dispatch/effect is still unresolved across Hype DSG[11] and Global DSG[4].
 Use the [shared blocker index](../output/savegame-semantic-map/shared-consumer-blockers.md)
-and require a concrete callback/effect result before promoting those meanings.
+and [native trace](../output/savegame-semantic-map/native-link-swap-83.md);
+require an actual procedure callback/effect before naming either gameplay state.
 
 One owner controls live-game sessions. Use Orrery's verified Gamescope headless/
 private Xwayland path, authenticated Xvfb for rendered Godot checks, and private

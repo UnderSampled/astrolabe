@@ -311,8 +311,11 @@ dynamic targets cannot be assigned to one saved actor. The generated
 projects typed local sites onto each linked Perso and joins all 221 saved
 actor DSG identities by exact actor and slot. Hype's own saved Boolean DSG[11]
 (`0:17:15586`) has 11 typed reads and eight writes. Four matching Reflex rules
-set and clear it around six repeated link-table-swap calls; its visible
-purpose remains unknown. See the [actor-local trace](../../output/savegame-semantic-map/hype-dsg11-actor-local-followup.md).
+compare the first selected inventory `"Object"` item's info word to 44 and
+set/clear the latch around six repeated procedure-82 calls. The meaning of 44
+and the native procedure's visible effect remain unknown. See the
+[actor-local trace](../../output/savegame-semantic-map/hype-dsg11-actor-local-followup.md)
+and [native callback check](../../output/savegame-semantic-map/native-link-swap-83.md).
 
 Saved Global Boolean `DSG[18]` at
 `0:17:4701`, gates manual camera look in the typed `StdCamer` AI: zero permits

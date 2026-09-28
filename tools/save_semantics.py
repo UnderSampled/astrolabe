@@ -1114,15 +1114,18 @@ def semantic_catalogue(inspection: dict, allocation_joins: dict | None) -> tuple
                    for item in hype_link_swap_latch["file_occurrences"])):
         raise ValueError("Hype DSG[11] changed owner or saved Boolean shape")
     hype_link_swap_latch["partial_semantics"] = {
-        "known_role": "Hype's own Boolean DSG[11] guards six repeated link-table-swap calls and action/channel branches; four identical Reflex rules set or clear it alongside Hype DSG[10] after tests involving an unsupported inventory-object function",
+        "known_role": "Hype's own Boolean DSG[11] gates six repeated procedure-82 calls and action/channel branches; four identical Reflex rules compare function 205's selected inventory Object item info word to 44, then set or clear this latch alongside Hype DSG[10] under further guards",
         "source_rule": "hype-hype-dsg11-link-swap-latch-v1",
         "source_evidence": [
             "fix:/ai/models/28 Normal behaviors 0, 89 and 103",
             "fix:/ai/models/28 Reflex behaviors 1, 3, 4 and 6",
             "reference/raymap/Assets/Scripts/OpenSpace/AI/AITypes/AITypes_Hype.cs procedure 82 and function 205",
+            "reference/decompilation/functions/0041d890_FUN_0041d890.c:21-56",
+            "reference/decompilation/functions/004a3940_INV_fn_wGetInfo.c:8-13",
             "output/savegame-semantic-map/hype-dsg11-actor-local-followup.md",
+            "output/savegame-semantic-map/native-link-swap-83.md",
         ],
-        "unknown": "native swap and inventory-object contracts, visible state, trigger conditions hidden by unsupported operands, and fresh-process restoration",
+        "unknown": "meaning of Object info code 44, native procedure-82 effect, visible state, further trigger guards, and fresh-process restoration",
     }
     hype_link_swap_latch["unresolved"] = [
         "the actor-local latch and repeated script operations are proved, but no complete gameplay-state name is supported",
