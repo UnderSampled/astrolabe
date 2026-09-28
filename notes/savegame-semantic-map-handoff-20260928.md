@@ -262,11 +262,12 @@ requires approved access to private ptrace, authenticated display sockets,
 and private audio; request that access through the normal command approval
 path before running. A 480-second run stopped after 42 passes and 465.139
 seconds including build/discovery; its unfinished cases were not failures of
-the implementation. The last complete elevated save run passed 49/49 in
-500.521 seconds with cleanup complete and unchanged source
-(`TestResults/20260928T101336.923585Z-development.log.json`). It includes
-the rooted checkpoint reference join, inventory-capacity and StandardGame hit-point joins,
-NeverBack and gauge-root link joins, all six earlier original-game save scenarios, and the first-slot player/named conflict test. The new named-level state-5 case passed its focused two-variant run in 101.826 seconds, with 28 mandatory safeguards and complete cleanup, but the new 50-case selection has not yet run. The outgoing state-6 transition overwrites `HYPE/manoir.sav`; the controlled case reinserted only the opposed byte into an isolated copy after departure, then observed mode-5 return applying the named file. See `output/savegame-semantic-map/named-level-mode5-probe-20260928/final-report.json`. The subsequent partial Global annotations passed Python compilation and catalogue reconciliation; they do not represent additional live tests. Do not infer a passing suite from a
+the implementation. The frozen 50-case elevated selection passed **50/50** in
+587.276 seconds, with unchanged source, no timeout or leaked children and
+complete cleanup (`TestResults/20260928T111438.680887Z-development.log.json`).
+It includes rooted checkpoint and gauge joins, all seven original-game save
+scenarios, the named-level mode-5 return case, native Godot persistence and
+mandatory safeguards. The new named-level case also passed its focused two-variant run in 101.826 seconds with 28 mandatory safeguards. The outgoing state-6 transition overwrites `HYPE/manoir.sav`; the controlled case reinserted only the opposed byte into an isolated copy after departure, then observed mode-5 return applying the named file. See `output/savegame-semantic-map/named-level-mode5-probe-20260928/final-report.json`. The subsequent partial Global annotations passed Python compilation and catalogue reconciliation; they do not represent additional live tests. Do not infer a passing suite from a
 default-sandbox preflight run that lacks these runtime capabilities.
 That restricted run (`TestResults/20260928T101112.874990Z-development.log.json`)
 finished 35 passes and 14 runtime-environment failures because private
