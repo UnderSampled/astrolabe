@@ -230,6 +230,23 @@ shared catalogue contract, evidence pointers, expected result and file ownership
 Prefer self-contained briefs without full conversation inheritance, or reuse
 an existing knowledgeable agent. Do not duplicate whole-repository discovery.
 Workers return mappings, evidence, unresolved cases and changed files compactly.
+For every AI-field brief, apply the verified owner contract: `Expression::Variable(n)`
+and statement assignments to variable `n` address the executing Perso's own
+current Brain/DSG[n] buffer. An AI model supplies the descriptor type/default
+template; it is not a separate current-value owner. If several Persos share a
+model, qualify each local read/write by the executing actor before matching a
+save identity. Keep Hype DSG[57] (`0:17:15540`) distinct from Global DSG[57]
+(`0:17:4658`). Explicit `ActorFieldRead`/`ActorFieldAssign` targets are a
+different cross-actor path; dynamic targets and unsupported AST fragments
+remain unresolved without further evidence. Include this distinction in
+worker results and reusable AI index output to avoid repeating local/external
+attribution corrections.
+`tools/save_global_ai_index.py` now writes a sibling
+`local-ai-variable-index.json` from the same typed Rete export and semantic
+catalogue as the explicit Global inverse index. It projects local sites by
+linked Perso, includes saved DSG fields with no local site, and keeps compound
+array targets unresolved. Use its actor-qualified rows in future worker briefs;
+the external Global ranking remains a separate navigation measure.
 
 One owner controls live-game sessions. Use Orrery's verified Gamescope headless/
 private Xwayland path, authenticated Xvfb for rendered Godot checks, and private
@@ -246,13 +263,24 @@ tests in `tools/test-manifest.json` in the same handoff, with prerequisites and
 budgets. Build/preflight before a live experiment. Isolate a failing scenario
 before another full affected selection, retaining mandatory safeguards.
 
-Signal a stable-tree validation checkpoint to all workers, including list/static
-validators; no covered source edits until it finishes. Read-only analysis can
-continue. Measure build/setup/execution/cleanup separately. Set realistic declared
+Signal a validation checkpoint to all workers, including list/static validators.
+Freeze the runner's implementation fingerprint inputs until it finishes:
+`Cargo.toml`, `Cargo.lock`, `godot/project.godot`, and files under `src/`,
+`tests/`, `tools/`, `godot/addons/`, and `crates/`. These include untracked
+helpers; an agent editing a new `tools/` file can invalidate a long run.
+Read-only analysis and writing `notes/`, `docs/`, or ignored `output/` may
+continue, with evidence prose reconciled after validation. Measure
+build/setup/execution/cleanup separately. Set realistic declared
 budgets from evidence, keep cleanup time, and count timeouts as failures. Reuse
-the prior passing 42-case save baseline; rerun affected checks as changes require,
+the passing 50-case save baseline; rerun affected checks as changes require,
 then the complete current affected selection on a stable tree. Do not repeatedly
 run unrelated Godot/gameplay suites for static catalogue additions.
+Before a disposable staged-tree build, check free space and quota for its
+separate Cargo target, compile only the affected binaries, and remove only
+that build's owned temporary directory on failure. A broad `--no-run` attempt
+on the first save-core checkpoint hit `/tmp` quota after a scoped offline
+`cargo check -p astrolabe -p orrery` passed; that storage failure was not a
+source or test failure.
 
 Current exact save-selection recipe: `python3 tools/test.py --area save --local
 --offline --timeout 960` selects 50 cases and declares a 960-second save job
@@ -262,12 +290,15 @@ requires approved access to private ptrace, authenticated display sockets,
 and private audio; request that access through the normal command approval
 path before running. A 480-second run stopped after 42 passes and 465.139
 seconds including build/discovery; its unfinished cases were not failures of
-the implementation. The frozen 50-case elevated selection passed **50/50** in
-587.276 seconds, with unchanged source, no timeout or leaked children and
-complete cleanup (`TestResults/20260928T111438.680887Z-development.log.json`).
+the implementation. The latest frozen 50-case elevated selection passed **50/50** in
+643.233 seconds, including 20 mandatory safeguards, with unchanged source, no timeout or leaked children and
+complete cleanup (`TestResults/20260928T121150.841596Z-development.log.json`).
+Formatting, Clippy and the locked release build passed before that run. The
+earlier frozen checkpoint also passed 50/50 in 587.276 seconds
+(`TestResults/20260928T111438.680887Z-development.log.json`).
 It includes rooted checkpoint and gauge joins, all seven original-game save
 scenarios, the named-level mode-5 return case, native Godot persistence and
-mandatory safeguards. The new named-level case also passed its focused two-variant run in 101.826 seconds with 28 mandatory safeguards. The outgoing state-6 transition overwrites `HYPE/manoir.sav`; the controlled case reinserted only the opposed byte into an isolated copy after departure, then observed mode-5 return applying the named file. See `output/savegame-semantic-map/named-level-mode5-probe-20260928/final-report.json`. The subsequent partial Global annotations passed Python compilation and catalogue reconciliation; they do not represent additional live tests. Do not infer a passing suite from a
+mandatory safeguards. The new named-level case also passed its focused two-variant run in 101.826 seconds with 28 mandatory safeguards. The outgoing state-6 transition overwrites `HYPE/manoir.sav`; the controlled case reinserted only the opposed byte into an isolated copy after departure, then observed mode-5 return applying the named file. See `output/savegame-semantic-map/named-level-mode5-probe-20260928/final-report.json`. The later map-slot and lever-write annotations passed Python compilation and full catalogue regeneration but were added after the frozen run; they do not represent additional live tests. A later reverse-owner merge passed the exact ignored local join test and a fresh CLI join byte-identical to the canonical 1,271-record JSON, with all 201 StandardGame owners unchanged; see `output/savegame-semantic-map/reverse-merge-validation.md`. Do not infer a passing suite from a
 default-sandbox preflight run that lacks these runtime capabilities.
 That restricted run (`TestResults/20260928T101112.874990Z-development.log.json`)
 finished 35 passes and 14 runtime-environment failures because private

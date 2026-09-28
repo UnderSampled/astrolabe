@@ -13,7 +13,10 @@ use crate::model::{
     scene::{NodeKind, Scene, SceneNode},
 };
 use anyhow::{Context, Result, ensure};
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::Path,
+};
 
 const GLOBAL_PERSO_ALLOCATION: u32 = 15;
 
@@ -282,7 +285,8 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
         actor_refs.insert(address, perso.clone());
         global_actor = Some(crate::model::scene::GlobalActor { source, perso });
     }
-    for template in super::ai::object_templates(&session, &actor_refs)? {
+    let rooted_template_seeds = actor_refs.keys().copied().collect::<BTreeSet<_>>();
+    for template in super::ai::object_templates(&session, &rooted_template_seeds)? {
         let identity = session.source_identity(template)?;
         let role = if identity.role == SourceRole::Fix {
             "fix"

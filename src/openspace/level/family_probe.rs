@@ -5,7 +5,7 @@ use super::{
 };
 use crate::model::{AssetPath, PackageRole, io::Content};
 use anyhow::{Context, Result, ensure};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) fn check(session: &SourceSession, value: &SceneImport) -> Result<()> {
     let mut offsets = BTreeMap::new();
@@ -144,7 +144,8 @@ pub(super) fn check(session: &SourceSession, value: &SceneImport) -> Result<()> 
                 .clone();
             actor_refs.insert(perso, reference);
         }
-        for perso in super::ai::object_templates(session, &actor_refs)? {
+        let rooted_template_seeds = actor_refs.keys().copied().collect::<BTreeSet<_>>();
+        for perso in super::ai::object_templates(session, &rooted_template_seeds)? {
             record_family(perso)?;
         }
     }

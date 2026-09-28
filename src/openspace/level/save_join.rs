@@ -9,7 +9,10 @@ use super::{
     },
     session::SourceSession,
 };
-use crate::{model::Selection, openspace::ai_values::DesignerValueCodec};
+use crate::{
+    model::{Selection, ai::SourceRole},
+    openspace::ai_values::DesignerValueCodec,
+};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -513,15 +516,98 @@ fn inventory_item_names(session: &SourceSession) -> BTreeMap<Address, Vec<String
     result
 }
 
-fn standard_save_candidates(session: &SourceSession) -> Result<ActorFieldCandidates> {
+fn reverse_perso_owners_of_standard(
+    session: &SourceSession,
+    standard: Address,
+) -> Result<Vec<(Address, String)>> {
+    let mut owners = BTreeMap::new();
+    for (&(source_owner, source_key, source_virtual), &target_key) in &session.pointers {
+        if target_key != standard.key {
+            continue;
+        }
+        let Some(block) = session
+            .blocks
+            .get(&source_owner)
+            .and_then(|blocks| blocks.get(&source_key))
+        else {
+            continue;
+        };
+        let Some(site_offset) = source_virtual
+            .checked_sub(block.base)
+            .and_then(|offset| usize::try_from(offset).ok())
+        else {
+            continue;
+        };
+        let Some(parent_offset) = site_offset.checked_sub(4) else {
+            continue;
+        };
+        let site = Address {
+            owner: source_owner,
+            key: source_key,
+            offset: site_offset,
+        };
+        if session.pointer(site, 0).ok().flatten() != Some(standard) {
+            continue;
+        }
+        let parent = Address {
+            owner: source_owner,
+            key: source_key,
+            offset: parent_offset,
+        };
+        if session.allocation_index(parent).is_err() {
+            continue;
+        }
+        let Some(header) = parent_offset
+            .checked_sub(4)
+            .and_then(|offset| block.data.get(offset..parent_offset))
+        else {
+            continue;
+        };
+        let Some(size) = u32::from_le_bytes(header.try_into()?)
+            .checked_mul(4)
+            .and_then(|size| size.checked_sub(4))
+        else {
+            continue;
+        };
+        if size != 76 || site_offset + 4 > block.data.len() {
+            continue;
+        }
+        if super::source_view::perso_parts(&mut super::source_view::FileView(session), parent)
+            .is_err()
+        {
+            continue;
+        }
+        let identity = session.source_identity(parent)?;
+        let role = if identity.role == SourceRole::Fix {
+            "fix"
+        } else {
+            "level"
+        };
+        owners.insert(
+            parent,
+            format!(
+                "{role}:/persos/{}-{}-{}",
+                identity.block[0], identity.block[1], identity.allocation
+            ),
+        );
+    }
+    Ok(owners.into_iter().collect())
+}
+
+fn standard_save_candidates(
+    session: &SourceSession,
+    records: &[SaveRecordLocation],
+) -> Result<ActorFieldCandidates> {
     let fix_global = super::scene::global_perso_source(session)?.map(|(address, _)| address);
-    let mut fields = BTreeMap::<Address, Vec<(String, Option<String>)>>::new();
+    let mut fields = BTreeMap::<Address, BTreeMap<Address, (String, Option<String>)>>::new();
+    let mut rooted = BTreeSet::new();
     for node in session.tree()? {
         let header: SuperObjectWire = wire(session.bytes(node.address, 64)?)?;
         if header.kind != 4 {
             continue;
         }
         let perso = session.required(node.address, 4)?;
+        rooted.insert(perso);
         let standard = session.required(perso, 4)?;
         let source: StandardSaveWire = wire(session.bytes(standard, 56)?)?;
         let _ = (
@@ -544,16 +630,102 @@ fn standard_save_candidates(session: &SourceSession) -> Result<ActorFieldCandida
                     offset: standard.offset + relative,
                     ..standard
                 };
-                fields.entry(field).or_default().push(actor.clone());
+                fields
+                    .entry(field)
+                    .or_default()
+                    .insert(perso, actor.clone());
             }
         }
         let field = Address {
             offset: standard.offset + 44,
             ..standard
         };
-        fields.entry(field).or_default().push(actor);
+        fields.entry(field).or_default().insert(perso, actor);
     }
-    Ok(fields)
+    if let Some(global) = fix_global {
+        rooted.insert(global);
+    }
+    for template in super::ai::object_templates(session, &rooted)? {
+        let identity = session.source_identity(template)?;
+        let standard = session.required(template, 4)?;
+        let source: StandardSaveWire = wire(session.bytes(standard, 56)?)?;
+        let _ = source.custom_bits_init;
+        let role = if identity.role == SourceRole::Fix {
+            "fix"
+        } else {
+            "level"
+        };
+        let actor = format!(
+            "{role}:/persos/{}-{}-{}",
+            identity.block[0], identity.block[1], identity.allocation
+        );
+        fields
+            .entry(Address {
+                offset: standard.offset + 44,
+                ..standard
+            })
+            .or_default()
+            .insert(template, (actor, None));
+    }
+    for record in records {
+        if record.kind != "0x04" || record.flags != "0x0204" || record.live_width != 4 {
+            continue;
+        }
+        let key = BlockKey(record.module, record.block);
+        let Some(standard_offset) = usize::try_from(record.offset)
+            .ok()
+            .and_then(|offset| offset.checked_sub(44))
+        else {
+            continue;
+        };
+        for &owner in &[Owner::Fix, Owner::Level] {
+            let standard = Address {
+                owner,
+                key,
+                offset: standard_offset,
+            };
+            let field = Address {
+                offset: standard_offset + 44,
+                ..standard
+            };
+            if session.allocation_index(standard).is_err() {
+                continue;
+            }
+            let Some(header_offset) = standard_offset.checked_sub(4) else {
+                continue;
+            };
+            let Ok(header) = session.bytes(
+                Address {
+                    offset: header_offset,
+                    ..standard
+                },
+                4,
+            ) else {
+                continue;
+            };
+            let Some(size) = u32::from_le_bytes(header.try_into()?)
+                .checked_mul(4)
+                .and_then(|size| size.checked_sub(4))
+            else {
+                continue;
+            };
+            if size != 56 || session.bytes(standard, 56).is_err() {
+                continue;
+            }
+            let parents = reverse_perso_owners_of_standard(session, standard)?;
+            for (parent, actor) in parents {
+                fields
+                    .entry(field)
+                    .or_default()
+                    .entry(parent)
+                    .or_insert((actor, None));
+            }
+        }
+    }
+    Ok(fields
+        .into_iter()
+        .map(|(field, actors)| (field, actors.into_values().collect()))
+        .collect())
 }
 
 /// Maps the three script-authored hit-point bytes only for rooted StandardGame
@@ -754,7 +926,7 @@ pub fn join_save_allocations(
 ) -> Result<SaveJoinResult> {
     let session = SourceSession::open(game, selection)?;
     let (designer_fields, mut designer_discovery) = designer_candidates(&session)?;
-    let standard_fields = standard_save_candidates(&session)?;
+    let standard_fields = standard_save_candidates(&session, records)?;
     let standard_hitpoint_fields = standard_hitpoint_candidates(&session)?;
     let sector_character_fields = sector_character_candidates(&session)?;
     let sectors = rooted_sector_data(&session)?;
@@ -1326,6 +1498,26 @@ mod tests {
                 reference_target: None,
             },
             SaveRecordLocation {
+                id: "0:5:4543492".into(),
+                block: 0,
+                module: 5,
+                offset: 4543492,
+                live_width: 4,
+                kind: "0x04".into(),
+                flags: "0x0204".into(),
+                reference_target: None,
+            },
+            SaveRecordLocation {
+                id: "0:5:4972224".into(),
+                block: 0,
+                module: 5,
+                offset: 4972224,
+                live_width: 4,
+                kind: "0x04".into(),
+                flags: "0x0204".into(),
+                reference_target: None,
+            },
+            SaveRecordLocation {
                 id: "0:17:4420".into(),
                 block: 0,
                 module: 17,
@@ -1435,6 +1627,20 @@ mod tests {
             joined[16].candidates[0].source_object.as_deref()
                 == Some("Fix inventory item (member name unavailable)")
         );
+        ensure!(joined[17].status == "single_bounded_allocation");
+        ensure!(joined[17].candidates.len() == 1);
+        ensure!(joined[17].candidates[0].source_object.as_deref() == Some("fix:/persos/5-0-24465"));
+        ensure!(
+            joined[17].candidates[0].source_field.as_deref() == Some("StandardGame.CustomBitsInit")
+        );
+        ensure!(joined[17].candidates[0].field_match_ambiguity.is_empty());
+        ensure!(joined[18].status == "single_bounded_allocation");
+        ensure!(joined[18].candidates.len() == 1);
+        ensure!(joined[18].candidates[0].source_object.as_deref() == Some("fix:/persos/5-0-27269"));
+        ensure!(
+            joined[18].candidates[0].source_field.as_deref() == Some("StandardGame.CustomBitsInit")
+        );
+        ensure!(joined[18].candidates[0].field_match_ambiguity.is_empty());
         Ok(())
     }
 

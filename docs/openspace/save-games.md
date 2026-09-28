@@ -180,11 +180,13 @@ The maintained `tools/save_semantics.py` catalogue keeps record identities
 separate from file occurrences and records both complete and partial meanings.
 In the supplied manor slot, 1,534 record occurrences reduce to 1,271
 contextual identities because all 263 named-level identities also occur in
-the player file. Source and runtime joins identify 826 bounded/static fields;
+the player file. Source and runtime joins identify 961 bounded/static fields;
 live registration and source loops identify 201 dialogue fields and 60 map
-star-entry fields. Five complete meanings have fresh-process runtime
+star-entry fields, for 1,222 owned and typed identities. Of the bounded fields,
+110 are exact runtime slots in the map state array and UI table; their gameplay
+purposes remain unknown. Five complete meanings have fresh-process runtime
 corroboration, 503 more have source-backed explanations, and 763 remain
-unexplained. Of those, 369 have a partial byte, bit, or reference-role
+unexplained. Of those, 397 have a partial byte, bit, or reference-role
 explanation. These counts concern this fixture and profile, not all reachable
 game states.
 
@@ -225,8 +227,12 @@ All 100 map-setting words match distinct bounded 72-byte Fix entries at
 language-specific `map/<language>/setting` file before registration; the
 supplied values are 55 ones and 45 zeros. The checked local Vignette archive
 has no such setting member, and the available decompilation shows no direct
-gameplay consumer. Their individual meanings remain unknown. See the
-[source survey](../../output/savegame-semantic-map/map-setting-words-followup.md).
+gameplay consumer. Entry 0 is initialized separately; entries 1–99 are parser
+slot candidates, and none can be assigned an authored row without that file.
+The ten map-state saves are consecutive words of the 40-byte `DAT_00750ac4`
+runtime array, initialized and reset to raw `0xfffffffe`; their per-slot roles
+and signedness remain unknown. See the [setting-table audit](../../output/savegame-semantic-map/map-setting-hundred-owner-followup.md)
+and [state-array audit](../../output/savegame-semantic-map/map-state-ten-words-followup.md).
 
 The dialogue loader
 [`DLG_fn_vLoadDialog`](../../reference/decompilation/functions/0056ba50_DLG_fn_vLoadDialog.c)
@@ -295,7 +301,15 @@ canonical Fix Global actor `fix:/persos/15`. The join compares their actual
 source Perso address and attributes its 198 saved designer fields to the Fix
 actor, while retaining the level appearance as context. This is why the
 rooted Rete appearance can have an empty brain while the Fix Global model has
-238 typed designer variables. Saved Global Boolean `DSG[18]` at
+238 typed designer variables. In a typed AI script, `Variable(n)` and a local
+assignment to variable `n` access the executing Perso's own current Brain/DSG[n]
+buffer. The shared model supplies descriptor type/default metadata, so actors
+sharing one model still have distinct saved current values. Explicit
+`ActorFieldRead`/`ActorFieldAssign` access a separately named actor; unresolved
+dynamic targets cannot be assigned to one saved actor. The generated
+[actor-local index](../../output/savegame-semantic-map/local-ai-variable-index.json)
+projects typed local sites onto each linked Perso and joins all 221 saved
+actor DSG identities by exact actor and slot. Saved Global Boolean `DSG[18]` at
 `0:17:4701`, gates manual camera look in the typed `StdCamer` AI: zero permits
 entry when the look button and companion state allow it, while one blocks
 entry and triggers exit from the active look behavior. Hype's AI writes this
@@ -305,7 +319,7 @@ the [Global camera analysis](../../output/savegame-semantic-map/global-dsg18-fol
 Its companion `DSG[17]` at `0:17:4702` is the manual camera-look permission:
 one allows the pressed look input to enter the mode when DSG[18] is zero;
 zero prevents entry and is an exit condition from active look behavior. The
-13 Hype AI writes set it to one or zero under model-local guards, while two
+13 Hype AI writes set it to one or zero under guards on Hype's own DSG slots, while two
 save-test actor writes restore a snapshot. These source-AI roles are narrow;
 the full write lifecycle and fresh-process restoration remain unverified.
 See the [companion-field evidence](../../output/savegame-semantic-map/global-dsg17-followup.md).
@@ -383,14 +397,19 @@ script. The supplied save targets the rooted checkpoint actor at
 `level:/persos/world/0/35`; a source branch can instead assign the main
 actor. No typed gameplay reader or restoration outcome has been verified,
 so the reference remains partial. See the [checkpoint target trace](../../output/savegame-semantic-map/global-dsg32-checkpoint-target.md).
-Separately, 176 saved four-byte words belong to
+Separately, 201 saved four-byte words belong to
 individual Perso StandardGame `CustomBitsInit` fields: 123 level records and
-53 Fix records. The source parser writes the named field at `+0x2c`, and the
-Hype save path registers that same offset. Camera targeting uses bit 0. One
+78 Fix records. The source join follows 24 AI-referenced Fix object templates
+through their actual Perso→StandardGame pointers; one more Fix word at
+`0:5:4972224` is joined by a sole reverse relocation to source Perso
+`fix:/persos/5-0-27269`. The source parser writes the named field at
+`+0x2c`, and the Hype save path registers that same offset. Camera targeting
+uses bit 0. One
 action path uses bit 7 to bypass segment-versus-world collision checks before
 moving a target, although that bit is clear in all supplied fixture values.
-The other bits and full gameplay effect remain unknown; these are partial
-meanings, not 176 completed mappings.
+The general bit consumers are not proved active for every template. The other
+bits and full gameplay effect remain unknown; these are partial meanings,
+not 201 completed mappings.
 
 The same actor source join resolves 56 one-byte records at StandardGame
 `+0x1b` and `+0x1c`, in 28 actor pairs. The parser's second `InitFlags`

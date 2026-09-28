@@ -596,6 +596,57 @@ def semantic_catalogue(inspection: dict, allocation_joins: dict | None) -> tuple
     lever["meaning_status"] = "source_verified"
     lever["unresolved"] = ["which Boolean state corresponds to physical up/down or passage state is unverified"]
 
+    lever_action_selector = entries["1:17:187070"]
+    if (lever_action_selector.get("source_owner") != "level:/persos/world/0/174"
+            or lever_action_selector.get("source_field") != "DSG[3]"
+            or lever_action_selector.get("source_type") != "designer type 0"
+            or lever_action_selector.get("meaning_status") != "unknown"
+            or any(item["kind"] != "0x10" or item["flags"] != "0x0204"
+                   or item["value_size"] != 1 or item["value_hex"] != "00"
+                   for item in lever_action_selector["file_occurrences"])):
+        raise ValueError("manor lever action selector changed owner or Boolean save shape")
+    lever_action_selector["partial_semantics"] = {
+        "known_role": "the lever actor's own DSG[3] selects one of two AI action-state maps in Normal behavior 2 when DSG[2] is nonzero; DSG[4] selects within the map. Normal behavior 3 sets DSG[3] to one when DSG[5] differs from one, and Normal behavior 5 clears it after an action-state choice",
+        "source_rule": "hype-manor-lever-action-selector-v1",
+        "source_evidence": [
+            "level:/ai/models/1396 Normal behavior 2 rule 0 statement 1",
+            "level:/ai/models/1396 Normal behavior 3 schedule statement 1 otherwise",
+            "level:/ai/models/1396 Normal behavior 5 schedule statement 1",
+            "src/openspace/level/save_join.rs",
+            "output/savegame-semantic-map/manoir-lever-dsg3-followup.md",
+        ],
+        "unknown": "the physical lever or passage meaning, full conditions entering behaviors 3 and 5, and visible results of the two action-state groups",
+    }
+    lever_action_selector["unresolved"] = [
+        "source AI proves guarded action selection and two local writes, but not what this Boolean remembers or which physical state either value represents",
+    ]
+
+    gogood_choice = entries["1:17:171448"]
+    if (gogood_choice.get("source_owner") != "level:/persos/world/0/161"
+            or gogood_choice.get("source_field") != "DSG[0]"
+            or gogood_choice.get("source_type") != "designer type 2"
+            or gogood_choice.get("meaning_status") != "unknown"
+            or len(gogood_choice["file_occurrences"]) != 2
+            or any(item["kind"] != "0x10" or item["flags"] != "0x0a0c"
+                   or item["value_size"] != 1 or item["value_hex"] != "00"
+                   for item in gogood_choice["file_occurrences"])):
+        raise ValueError("Gogood return selector changed owner or saved unsigned-byte shape")
+    gogood_choice["partial_semantics"] = {
+        "known_role": "Gogood's own DSG[0] receives 1, 3 or 2 from Button_Hit-guarded Normal behaviors 3, 5 or 8; behavior 1 reads 1/2/3 to select Normal behavior 6/7/9, and IWorld reads the same actor field in conditional behavior requests",
+        "observed_authored_values": [1, 2, 3],
+        "source_rule": "hype-manor-gogood-choice-selector-v1",
+        "source_evidence": [
+            "level:/ai/models/1251 Normal behaviors 1, 3, 5 and 8",
+            "level:/ai/models/154 Normal behavior 2 schedule statement 15",
+            "src/openspace/level/save_join.rs",
+            "output/savegame-semantic-map/gogood-return-dsg0-followup.md",
+        ],
+        "unknown": "gameplay labels for the three choices, unsupported guards and effects, procedure 207's native callback, and full restoration lifecycle",
+    }
+    gogood_choice["unresolved"] = [
+        "the authored three-value script selector is known, but its complete gameplay effects and native behavior-change callback are not",
+    ]
+
     mannequin_fields = [
         ("level:/persos/world/0/152", {0: "1:17:127662", 1: "1:17:127661", 2: "1:17:127660"}),
         ("level:/persos/world/0/153", {0: "1:17:131194", 1: "1:17:131193", 2: "1:17:131192"}),
@@ -1003,7 +1054,7 @@ def semantic_catalogue(inspection: dict, allocation_joins: dict | None) -> tuple
         (42, "0:17:4673", "after DSG[44] fails, one selects configuration tier 3 in iDummy_PourCercles", "shared-pour-cercles-followup.md"),
         (43, "0:17:4672", "zero deactivates level allocation 5460; one can select iDummy_TimeTravel behavior 6 when Func_GetGameState is not 4 and earlier routes fail", "shared-time-selector-followup.md"),
         (44, "0:17:4671", "one selects configuration tier 4 in the first iDummy_PourCercles branch", "shared-pour-cercles-followup.md"),
-        (45, "0:17:4670", "Hype copies this Boolean into model Variable[57] in Normal behavior 0 statement 67; its Reflex behavior 7 also overwrites that local variable from DSG[73] == 4", "rete-ast-recovery-followup.md"),
+        (45, "0:17:4670", "Hype copies this Boolean into its own DSG[57] in Normal behavior 0 statement 67; its Reflex behavior 7 also overwrites that actor field from Global DSG[73] == 4", "rete-ast-recovery-followup.md"),
         (66, "0:17:4649", "one selects a Gogood return actor Normal behavior 10 request under IWorld's outer gates, plus separate mannequin-frame and return-script branches", "shared-change-comport-followup.md"),
         (219, "0:17:4487", "IWorld selector 6 sets one; one gates later IWorld branches and i_Gogood_MasterYoda KillSelf", "global-dsg219-233-followup.md"),
         (233, "0:17:4473", "one selects Hype's ActivateMap input branch with unsupported operation 374; IWorld clears it under the DSG[147] zero branch", "global-dsg219-233-followup.md"),
@@ -1027,6 +1078,31 @@ def semantic_catalogue(inspection: dict, allocation_joins: dict | None) -> tuple
         entry["unresolved"] = [
             "the actor-qualified branch is known, but a complete gameplay-state meaning is not",
         ]
+
+    hype_selector = entries["0:17:15540"]
+    if (hype_selector.get("source_owner") != "level:/persos/world/0/0"
+            or hype_selector.get("source_field") != "DSG[57]"
+            or hype_selector.get("source_type") != "designer type 0"
+            or hype_selector.get("meaning_status") != "unknown"
+            or any(item["kind"] != "0x10" or item["flags"] != "0x0204"
+                   or item["value_size"] != 1 or item["value_hex"] != "00"
+                   for item in hype_selector["file_occurrences"])):
+        raise ValueError("Hype DSG[57] changed owner or saved Boolean shape")
+    hype_selector["partial_semantics"] = {
+        "known_role": "Hype's own Boolean DSG[57] is set from Global DSG[45] in Normal behavior 0 and independently from Global DSG[73] == 4 in Reflex behavior 7; 121 typed tests of this actor slot gate several behavior paths",
+        "source_rule": "hype-hype-dsg57-branch-selector-v1",
+        "source_evidence": [
+            "fix:/ai/models/28 Normal behavior 0 schedule statement 67",
+            "fix:/ai/models/28 Reflex behavior 7 rule 0 statement 35",
+            "src/openspace/level/save_join.rs",
+            "output/savegame-semantic-map/rete-ast-recovery-followup.md",
+            "output/savegame-semantic-map/hype-dsg57-identity-followup.md",
+        ],
+        "unknown": "a single authored gameplay meaning for the broad downstream branches, update ordering and fresh-process restoration",
+    }
+    hype_selector["unresolved"] = [
+        "the saved Hype actor slot and two script writers are joined, but the broad consumer fan-out does not establish a complete gameplay meaning",
+    ]
 
     configuration_tier = entries["0:17:4639"]
     if (configuration_tier.get("source_owner") != "fix:/persos/15"
@@ -1259,8 +1335,8 @@ def semantic_catalogue(inspection: dict, allocation_joins: dict | None) -> tuple
         }
         entry["unresolved"] = ["remaining CustomBitsInit bit meanings and restoration effects are unverified"]
         standard_bits += 1
-    if allocation_joins is not None and standard_bits != 176:
-        raise ValueError(f"expected 176 typed StandardGame bitfields, found {standard_bits}")
+    if allocation_joins is not None and standard_bits != 201:
+        raise ValueError(f"expected 201 typed StandardGame bitfields, found {standard_bits}")
     neverback = [entry for entry in entries.values()
                  if entry.get("source_rule") == "hype-standard-neverback-activation-v1"]
     if allocation_joins is not None:
@@ -1331,18 +1407,30 @@ def semantic_catalogue(inspection: dict, allocation_joins: dict | None) -> tuple
     map_groups = Counter()
     for identity, entry in entries.items():
         if entry["family"] == "0:5/0x04/0x0205":
-            candidate = entry["source_allocation_join"]["candidates"][0]
+            join = entry["source_allocation_join"]
+            if join["status"] != "single_bounded_allocation" or len(join["candidates"]) != 1:
+                raise ValueError(f"Fix map registration lost its unique allocation: {identity}")
+            candidate = join["candidates"][0]
             start = candidate["allocation_data_start"]
             end = candidate["allocation_end"]
             index = candidate["allocation_index"]
-            if start is None or end is None or index is None:
+            if (candidate["owner"] != "fix" or start is None or end is None or index is None
+                    or any(item["kind"] != "0x04" or item["flags"] != "0x0205"
+                           or item["value_size"] != 4 for item in entry["file_occurrences"])):
                 raise ValueError("Fix map state lost its bounded allocation")
-            relative = int(identity.split(":")[2]) - start
+            block, module, offset_text = identity.split(":")
+            if (block, module) != ("0", "5"):
+                raise ValueError(f"Fix map registration changed source identity: {identity}")
+            offset = int(offset_text)
+            relative = offset - start
             size = end - start
-            if size == 72 and relative == 48 and 27451 <= index <= 27550:
+            if (size == 72 and relative == 48 and 27451 <= index <= 27550
+                    and start == 4986412 + 76 * (index - 27451)
+                    and offset + 4 <= end):
                 group = "map_setting_entry_plus_0x30"
                 ordinal = index - 27451
-            elif size == 40 and index == 27449 and relative in range(0, 40, 4):
+            elif (size == 40 and index == 27449 and start == 4986348
+                  and relative in range(0, 40, 4) and offset + 4 <= end):
                 group = "map_ten_word_state"
                 ordinal = relative // 4
             elif size == 16 and index == 27450 and relative in range(0, 16, 4):
@@ -1357,6 +1445,30 @@ def semantic_catalogue(inspection: dict, allocation_joins: dict | None) -> tuple
                 "binding": "source-informed structural match; no live registry address confirmation",
             }
             map_groups[group] += 1
+            if group == "map_setting_entry_plus_0x30":
+                entry["ownership_status"] = "source_object_and_field"
+                entry["source_owner"] = "Hype map UI runtime entry table"
+                entry["source_field"] = f"entry[{ordinal}]+0x30"
+                entry["source_type"] = "four-byte integer parsed with %d"
+                entry["source_rule"] = "hype-map-setting-slot-v1"
+                entry["map_slot_role"] = (
+                    "reserved_special_map_ui_record" if ordinal == 0
+                    else "setting_parser_slot_candidate"
+                )
+                entry["unresolved"] = [
+                    "the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown"
+                ]
+            elif group == "map_ten_word_state":
+                if any(item["value_hex"] != "feffffff" for item in entry["file_occurrences"]):
+                    raise ValueError("baseline map state array differs from source reset pattern")
+                entry["ownership_status"] = "source_object_and_field"
+                entry["source_owner"] = "Hype map UI runtime state array DAT_00750ac4"
+                entry["source_field"] = f"word[{ordinal}]"
+                entry["source_type"] = "raw four-byte word; signedness unknown"
+                entry["source_rule"] = "hype-map-state-array-slot-v1"
+                entry["unresolved"] = [
+                    "the slot's gameplay role, value domain and restoration behavior remain unknown"
+                ]
             if group == "map_epoch_selectable":
                 expected = "01000000" if ordinal == 0 else "00000000"
                 if any(item["value_hex"] != expected for item in entry["file_occurrences"]):
@@ -1398,6 +1510,14 @@ def semantic_catalogue(inspection: dict, allocation_joins: dict | None) -> tuple
         "map_star_entry_plus_0x38_candidate": 60,
     }:
         raise ValueError(f"map registrar group counts differ: {dict(map_groups)}")
+    star_ids = {
+        identity for identity, entry in entries.items()
+        if entry.get("registration_group", {}).get("name") == "map_star_entry_plus_0x38_candidate"
+    }
+    if allocation_joins is not None and star_ids != {
+        f"1:10:{1248 + 64 * ordinal}" for ordinal in range(60)
+    }:
+        raise ValueError("map star-entry source identities differ from the 60-slot registrar")
 
     # Orrery decodes kind 0x11 as a block/module/offset reference. Preserve
     # each occurrence's target independently: player and named-level files can
@@ -1822,9 +1942,9 @@ def semantic_catalogue(inspection: dict, allocation_joins: dict | None) -> tuple
                 ],
             },
             "hype-standard-custom-bits-init-v1": {
-                "applies_when": "rooted Perso StandardGame points to a bounded 56-byte source allocation with a four-byte current-value save at +0x2c",
-                "ownership": "actor's StandardGame.CustomBitsInit field; 123 level and 53 Fix records in the manor fixture",
-                "meaning_limit": "bit 0 participates in camera character target selection; bit 7 bypasses collision checks in one action path but is clear in this fixture; other bits are unresolved, so the 176 full records remain semantically unknown",
+                "applies_when": "a rooted, AI-referenced, or reverse-pointer-validated source Perso has an exact StandardGame pointer to a bounded 56-byte source allocation with a four-byte current-value save at +0x2c",
+                "ownership": "actor's StandardGame.CustomBitsInit field; 123 level and 78 Fix records in the manor fixture, including 24 AI-referenced Fix templates and one additional source-Perso reverse-pointer owner",
+                "meaning_limit": "bit 0 participates in camera character target selection and bit 7 bypasses collision checks in one action path, but these consumers are not proved active for every template; other bit roles and restoration effects remain unresolved, so all 201 records remain semantically unknown",
                 "source_evidence": [
                     "src/openspace/level/records.rs",
                     "reference/decompilation/functions/00438100_FUN_00438100.c:138",
@@ -1893,6 +2013,27 @@ def semantic_catalogue(inspection: dict, allocation_joins: dict | None) -> tuple
                     "reference/decompilation/functions/004164d0_FUN_004164d0.c:24",
                     "reference/decompilation/functions/00416800_FUN_00416800.c:40",
                     "reference/decompilation/functions/00417030_FUN_00417030.c:14",
+                ],
+            },
+            "hype-map-setting-slot-v1": {
+                "applies_when": "100 uniquely bounded 72-byte Fix map UI entries in allocation order, each with one four-byte 0:5/0x04/0x0205 save at +0x30",
+                "ownership": "runtime table entry ordinal; entry 0 is separately initialized, while entries 1..99 are setting-parser slot candidates, not established authored rows",
+                "meaning_limit": "the matching language-specific setting file, actual parsed row count, authored labels, gameplay consumers and restoration effects are unavailable",
+                "source_evidence": [
+                    "reference/decompilation/functions/00416800_FUN_00416800.c:50",
+                    "reference/decompilation/functions/00416560_FUN_00416560.c:24",
+                    "reference/decompilation/functions/004164d0_FUN_004164d0.c:14",
+                    "reference/decompilation/functions/00416780_FUN_00416780.c:32",
+                ],
+            },
+            "hype-map-state-array-slot-v1": {
+                "applies_when": "ten consecutive four-byte 0:5/0x04/0x0205 saves exactly cover the bounded 40-byte Fix allocation for DAT_00750ac4",
+                "ownership": "runtime array word ordinal 0..9; initialization and reset store the raw bit pattern 0xfffffffe",
+                "meaning_limit": "per-word gameplay role, accepted value domain, signedness and restoration effects are unknown",
+                "source_evidence": [
+                    "reference/decompilation/functions/00416800_FUN_00416800.c:23",
+                    "reference/decompilation/functions/004164d0_FUN_004164d0.c:19",
+                    "reference/decompilation/functions/00416780_FUN_00416780.c:15",
                 ],
             },
         },
@@ -2111,17 +2252,38 @@ def corroborate_live_registry(
     ]
     if len(star_entries) != 60 or {entry["registration_group"]["ordinal"] for entry in star_entries} != set(range(60)):
         raise ValueError("map star-entry registration ordinals are incomplete")
+    star_entries.sort(key=lambda entry: entry["registration_group"]["ordinal"])
+    star_addresses = []
     for entry in star_entries:
         ordinal = entry["registration_group"]["ordinal"]
         if any(item["kind"] != "0x04" or item["flags"] != "0x0205" or item["value_size"] != 4
                for item in entry["file_occurrences"]):
             raise ValueError(f"map star entry {ordinal} changed kind, flags or width")
+        identity = f"1:10:{1248 + 64 * ordinal}"
+        matches = [
+            node for node in nodes
+            if node["mapped_source"] is not None
+            and f"{node['mapped_source']['block']}:{node['mapped_source']['module']}:{node['mapped_source']['offset']}" == identity
+        ]
+        if (entry["record_identity"] != identity or len(matches) != 1
+                or matches[0]["flags"] != 0x04000205
+                or not isinstance(matches[0]["source_address"], int)
+                or entry["source_allocation_join"]["status"] != "no_bounded_source_block"
+                or entry["source_allocation_join"]["candidates"]):
+            raise ValueError(f"map star entry {ordinal} lost its exact live registration")
+        star_addresses.append(matches[0]["source_address"])
+        entry["registration_group"]["binding"] = (
+            "one exact post-load live registry node; ordinal and addresses are process-local"
+        )
         entry["source_owner"] = f"Hype map star entry #{ordinal} (post-load allocation order)"
         entry["source_field"] = "record+0x38"
-        entry["source_type"] = "u32; gameplay meaning unknown"
+        entry["source_type"] = "raw four-byte word; signedness unknown"
         entry["source_rule"] = "hype-map-star-entry-registration-v1"
         entry["ownership_status"] = "live_registered_object_and_field"
         entry["unresolved"] = ["the gameplay purpose and value domain of this star-entry word remain unknown"]
+    if any(address != star_addresses[0] + 64 * ordinal
+           for ordinal, address in enumerate(star_addresses)):
+        raise ValueError("map star-entry live addresses lost their 64-byte stride")
     coverage["live_registered_object_and_field_identities"] += 60
     coverage["owned_typed_identities"] = coverage["source_object_and_field_identities"] + 261
     coverage["source_verified_only_identities"] += 67
@@ -2142,7 +2304,7 @@ def corroborate_live_registry(
         ],
     }
     catalogue["source_family_rules"]["hype-map-star-entry-registration-v1"] = {
-        "applies_when": "the map registrar's fourth loop registers 60 u32 words at star-entry +0x38, matched to all 60 dynamic 1:10 records by count, 64-byte stride, exact live kind/flags and ordinal",
+        "applies_when": "the map registrar's fourth loop registers 60 four-byte words at star-entry +0x38, matched to all 60 dynamic 1:10 records by exact identity set, kind/flags, live node uniqueness and 64-byte stride",
         "ownership": "one map star entry by post-load allocation ordinal; the ordinal is contextual, not an authored map marker ID",
         "meaning_limit": "the saved word's individual gameplay purpose, value domain and later restoration behavior remain unknown",
         "source_evidence": [

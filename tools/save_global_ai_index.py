@@ -198,6 +198,414 @@ def global_saved_fields(catalogue: dict[str, Any]) -> dict[int, dict[str, Any]]:
     return saved
 
 
+def build_local_index(export: dict[str, Any], catalogue: dict[str, Any],
+                      external_index: dict[str, Any], export_path: Path,
+                      catalogue_path: Path) -> dict[str, Any]:
+    """Project direct local Brain accesses from linked models onto each Perso.
+
+    Model descriptors describe a reusable layout. Current fixture values are
+    joined separately by the exact actor URI plus DSG index.
+    """
+    actors, models = export.get("actors"), export.get("models")
+    if not isinstance(actors, list) or not isinstance(models, dict):
+        raise ValueError("typed-AI export must contain actor list and model map")
+
+    owners: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for actor in actors:
+        owners[actor["model"]].append(actor)
+
+    saved_by_actor_field: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    for identity, entry in catalogue.get("entries", {}).items():
+        actor = entry.get("source_owner")
+        field = entry.get("source_field")
+        if isinstance(actor, str) and isinstance(field, str):
+            saved_by_actor_field[(actor, field)].append({"identity": identity, "entry": entry})
+
+    model_sites: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    unclassified: list[dict[str, Any]] = []
+    counts: Counter[str] = Counter()
+    unsupported_fragments = 0
+    dynamic_main_actor_sites = 0
+    dynamic_main_actor_array_target_sites = 0
+    explicit_actor_incdec_sites = 0
+    dynamic_main_actor_incdec_sites = 0
+
+    def add_site(model_uri: str, model: dict[str, Any], index: Any, access: str,
+                 operand_form: str, group: str, behavior_id: Any, script: str,
+                 path: str) -> None:
+        if not isinstance(index, int) or isinstance(index, bool):
+            unclassified.append({
+                "source_model": model_uri, "behavior": {"group": group, "id": behavior_id},
+                "script": script, "path": path, "access": access,
+                "operand_form": operand_form, "reason": "local operand has no static integer index",
+            })
+            return
+        if index < 0 or index >= len(model.get("variables", [])):
+            unclassified.append({
+                "source_model": model_uri, "dsg_index": index,
+                "behavior": {"group": group, "id": behavior_id},
+                "script": script, "path": path, "access": access,
+                "operand_form": operand_form, "reason": "local index is outside model descriptor table",
+            })
+            return
+        model_sites[model_uri].append({
+            "dsg_index": index, "access": access, "operand_form": operand_form,
+            "behavior": {"group": group, "id": behavior_id},
+            "script": script, "path": path,
+        })
+        counts[access] += 1
+
+    def walk(node: Any, model_uri: str, model: dict[str, Any], group: str,
+             behavior_id: Any, script: str, path: str) -> None:
+        nonlocal unsupported_fragments, dynamic_main_actor_sites, dynamic_main_actor_array_target_sites
+        nonlocal explicit_actor_incdec_sites, dynamic_main_actor_incdec_sites
+        if isinstance(node, dict):
+            # Each typed AI node is represented by a one-key enum object. Handle
+            # array operations at the parent so their base is not double-counted
+            # as a scalar Variable read.
+            if "Variable" in node and isinstance(node["Variable"], int):
+                add_site(model_uri, model, node["Variable"], "read",
+                         "Expression::Variable", group, behavior_id, script, path)
+                return
+            if "SelfFieldRead" in node:
+                add_site(model_uri, model, node["SelfFieldRead"], "read",
+                         "Expression::SelfFieldRead", group, behavior_id, script, path)
+                return
+            if "Unsupported" in node:
+                # The preserved raw payload is not a typed operand tree.
+                unsupported_fragments += 1
+                return
+            if "ActorListContains" in node and isinstance(node["ActorListContains"], dict):
+                value = node["ActorListContains"]
+                add_site(model_uri, model, value.get("list"), "list_read",
+                         "Expression::ActorListContains", group, behavior_id, script, path)
+                walk(value.get("actor"), model_uri, model, group, behavior_id,
+                     script, f"{path}.actor")
+                return
+            if "ArrayElement" in node and isinstance(node["ArrayElement"], dict):
+                value = node["ArrayElement"]
+                base = value.get("array")
+                direct = base.get("Variable") if isinstance(base, dict) else None
+                if isinstance(direct, int) and not isinstance(direct, bool):
+                    add_site(model_uri, model, direct, "array_read",
+                             "Expression::ArrayElement(Variable base)", group,
+                             behavior_id, script, path)
+                else:
+                    unclassified.append({
+                        "source_model": model_uri, "behavior": {"group": group, "id": behavior_id},
+                        "script": script, "path": path, "access": "array_read",
+                        "operand_form": "Expression::ArrayElement",
+                        "reason": "array base is not a direct Variable slot",
+                    })
+                    walk(base, model_uri, model, group, behavior_id, script, f"{path}.array")
+                walk(value.get("index"), model_uri, model, group, behavior_id,
+                     script, f"{path}.index")
+                return
+            if "ArrayAssign" in node and isinstance(node["ArrayAssign"], dict):
+                value = node["ArrayAssign"]
+                base = value.get("array")
+                direct = base.get("Variable") if isinstance(base, dict) else None
+                if isinstance(direct, int) and not isinstance(direct, bool):
+                    add_site(model_uri, model, direct, "array_write",
+                             "Statement::ArrayAssign(Variable base)", group,
+                             behavior_id, script, path)
+                else:
+                    nested_dynamic_main_actor = count_main_actor_fields(base)
+                    unclassified.append({
+                        "source_model": model_uri, "behavior": {"group": group, "id": behavior_id},
+                        "script": script, "path": path, "access": "array_write",
+                        "operand_form": "Statement::ArrayAssign",
+                        "reason": "compound or non-Variable array target is unresolved",
+                        "nested_dynamic_main_actor_read_assign_sites": nested_dynamic_main_actor,
+                    })
+                    dynamic_main_actor_array_target_sites += nested_dynamic_main_actor
+                    # Keep reads in the index/value expressions; the target is
+                    # deliberately not searched for a guessed destination slot.
+                walk(value.get("index"), model_uri, model, group, behavior_id,
+                     script, f"{path}.index")
+                walk(value.get("value"), model_uri, model, group, behavior_id,
+                     script, f"{path}.value")
+                return
+
+            for kind, value in node.items():
+                current = f"{path}.{kind}"
+                if kind in ("Assign", "AddAssign", "SubtractAssign", "VectorComponentAssign") and isinstance(value, dict):
+                    index = value.get("vector") if kind == "VectorComponentAssign" else value.get("variable")
+                    add_site(model_uri, model, index, "write", f"Statement::{kind}",
+                             group, behavior_id, script, current)
+                elif kind in ("Increment", "Decrement") and isinstance(value, dict):
+                    target = value.get("target")
+                    if isinstance(target, dict) and isinstance(target.get("Variable"), int):
+                        add_site(model_uri, model, target["Variable"], "write",
+                                 f"Statement::{kind}(FieldTarget::Variable)", group,
+                                 behavior_id, script, current)
+                    elif isinstance(target, dict) and "ActorField" in target:
+                        explicit_actor_incdec_sites += 1
+                    elif isinstance(target, dict) and "MainActorField" in target:
+                        dynamic_main_actor_incdec_sites += 1
+                    # The target's Variable enum is an l-value, never a read.
+                    continue
+                elif kind in ("MainActorFieldRead", "MainActorFieldAssign"):
+                    dynamic_main_actor_sites += 1
+                walk(value, model_uri, model, group, behavior_id, script, current)
+        elif isinstance(node, list):
+            for index, value in enumerate(node):
+                walk(value, model_uri, model, group, behavior_id, script,
+                     f"{path}[{index}]")
+
+    def count_main_actor_fields(node: Any) -> int:
+        """Count dynamic target forms nested in an unresolved l-value only."""
+        if isinstance(node, dict):
+            return sum(
+                (1 if kind in ("MainActorFieldRead", "MainActorFieldAssign") else 0)
+                + count_main_actor_fields(value)
+                for kind, value in node.items()
+            )
+        if isinstance(node, list):
+            return sum(count_main_actor_fields(value) for value in node)
+        return 0
+
+    for model_uri, model in models.items():
+        if not owners.get(model_uri):
+            continue
+        for group in ("normal", "reflex"):
+            behavior_set = model.get(group) or {}
+            for behavior in behavior_set.get("behaviors", []):
+                behavior_id = behavior.get("id")
+                schedule = behavior.get("schedule")
+                if isinstance(schedule, dict):
+                    for statement_index, statement in enumerate(schedule.get("statements", [])):
+                        walk(statement, model_uri, model, group, behavior_id,
+                             "schedule", f"{group}.behaviors[{behavior_id}].schedule.statements[{statement_index}]")
+                for rule_index, rule in enumerate(behavior.get("rules") or []):
+                    if isinstance(rule, dict):
+                        for statement_index, statement in enumerate(rule.get("statements", [])):
+                            walk(statement, model_uri, model, group, behavior_id,
+                                 f"rule[{rule_index}]",
+                                 f"{group}.behaviors[{behavior_id}].rules[{rule_index}].statements[{statement_index}]")
+
+    actor_rows: list[dict[str, Any]] = []
+    for actor in sorted(actors, key=lambda item: (item["actor"], item["model"])):
+        actor_uri, model_uri = actor["actor"], actor["model"]
+        model = models[model_uri]
+        grouped: dict[int, list[dict[str, Any]]] = defaultdict(list)
+        for site in model_sites.get(model_uri, []):
+            grouped[site["dsg_index"]].append(site)
+        saved_indices: set[int] = set()
+        for owner_uri, source_field in saved_by_actor_field:
+            if owner_uri == actor_uri and source_field.startswith("DSG[") and source_field.endswith("]"):
+                raw_index = source_field[4:-1]
+                if raw_index.isdigit():
+                    saved_indices.add(int(raw_index))
+        local_fields = []
+        for index in sorted(set(grouped) | saved_indices):
+            sites = grouped.get(index, [])
+            source_field = f"DSG[{index}]"
+            candidates = saved_by_actor_field.get((actor_uri, source_field), [])
+            fixture = None
+            if len(candidates) == 1:
+                identity, entry = candidates[0]["identity"], candidates[0]["entry"]
+                occurrence = (entry.get("file_occurrences") or [{}])[0]
+                fixture = {
+                    "identity": identity, "source_field": source_field,
+                    "source_type": entry.get("source_type"),
+                    "value_hex": occurrence.get("value_hex"),
+                    "file": occurrence.get("file"), "flags": occurrence.get("flags"),
+                }
+                fixture_status = "single_exact_actor_field_match"
+            elif not candidates:
+                fixture_status = "no_exact_actor_field_match_in_catalogue"
+            else:
+                fixture_status = "ambiguous_exact_actor_field_matches"
+            descriptors = model.get("variables", [])
+            descriptor = descriptors[index] if index < len(descriptors) else None
+            local_fields.append({
+                "dsg_index": index,
+                "model_descriptor": descriptor,
+                "model_descriptor_status": "matched" if descriptor is not None else "no_model_descriptor_at_index",
+                "fixture_saved_field_status": fixture_status,
+                "fixture_saved_field": fixture,
+                "fixture_candidates": [candidate["identity"] for candidate in candidates] if len(candidates) > 1 else [],
+                "sites": [
+                    {"actor": actor_uri, "source_model": model_uri, **site}
+                    for site in sorted(sites, key=lambda item: (item["path"], item["access"], item["operand_form"]))
+                ],
+            })
+        actor_rows.append({
+            "actor": actor_uri, "actor_name": actor.get("name"),
+            "source_model": model_uri, "local_fields": local_fields,
+        })
+
+    projected_site_count = sum(len(field["sites"]) for actor in actor_rows for field in actor["local_fields"])
+    linked_models = {actor["model"] for actor in actors}
+    return {
+        "schema": "local-ai-variable-index-v1",
+        "input": {
+            "typed_ai_export": str(export_path), "typed_ai_export_sha256": sha256(export_path),
+            "semantic_catalogue": str(catalogue_path), "semantic_catalogue_sha256": sha256(catalogue_path),
+            "external_index": "global-inverse-ai-index.json",
+            "external_index_schema": external_index.get("schema"),
+        },
+        "coverage": {
+            "linked_actor_count": len(actors), "unique_linked_model_count": len(linked_models),
+            "models_with_direct_local_sites": len({uri for uri, sites in model_sites.items() if sites}),
+            "actors_with_direct_local_sites": sum(any(field["sites"] for field in row["local_fields"]) for row in actor_rows),
+            "actor_qualified_field_count": sum(len(row["local_fields"]) for row in actor_rows),
+            "actor_qualified_fields_with_sites": sum(bool(field["sites"]) for row in actor_rows for field in row["local_fields"]),
+            "actor_qualified_saved_field_count": sum(field["fixture_saved_field"] is not None
+                                                      for row in actor_rows for field in row["local_fields"]),
+            "projected_local_site_count": projected_site_count,
+            "model_local_site_count": sum(len(sites) for sites in model_sites.values()),
+            "local_sites_by_access": dict(sorted(counts.items())),
+            "unclassified_compound_or_invalid_targets": len(unclassified),
+            "unsupported_ast_fragments": unsupported_fragments,
+            "dynamic_main_actor_read_assign_sites_not_projected": dynamic_main_actor_sites,
+            "dynamic_main_actor_targets_inside_unclassified_array_assign": dynamic_main_actor_array_target_sites,
+            "legacy_external_index_dynamic_target_count": len(external_index.get("unresolved_dynamic_targets", [])),
+            "explicit_actor_field_increment_decrement_sites_not_projected": explicit_actor_incdec_sites,
+            "dynamic_main_actor_increment_decrement_sites_not_projected": dynamic_main_actor_incdec_sites,
+        },
+        "actors": actor_rows,
+        "unclassified_local_targets": unclassified,
+        "dynamic_main_actor_scope": {
+            "typed_read_assign_sites_outside_unclassified_array_assign": dynamic_main_actor_sites,
+            "read_assign_sites_inside_unclassified_array_assign": dynamic_main_actor_array_target_sites,
+            "sum_matching_legacy_external_index": dynamic_main_actor_sites + dynamic_main_actor_array_target_sites,
+            "legacy_external_index_dynamic_target_count": len(external_index.get("unresolved_dynamic_targets", [])),
+            "preserved_unsupported_payloads_traversed_as_typed_sites": False,
+        },
+        "interpretation": (
+            "Variable/local operands address the executing Perso Brain current buffer; "
+            "model descriptors are shared layout/default metadata. Fixture identities "
+            "are joined only by exact actor URI and DSG index. Explicit ActorField "
+            "and dynamic MainActor targets are not projected into this local index. "
+            "Dynamic MainActor read/assign coverage excludes preserved Unsupported payloads "
+            "and compound ArrayAssign target expressions; their counts are reported separately."
+        ),
+    }
+
+
+def assert_pinned_manoir_fixture(local_index: dict[str, Any],
+                                external_index: dict[str, Any],
+                                ranking: dict[str, Any],
+                                catalogue: dict[str, Any]) -> None:
+    """Guard the supplied-save actor identities and shared-model projection."""
+    actors = {row["actor"]: row for row in local_index["actors"]}
+
+    def field(actor_uri: str, model_uri: str, index: int) -> dict[str, Any]:
+        actor = actors.get(actor_uri)
+        if actor is None or actor.get("source_model") != model_uri:
+            raise AssertionError(f"fixture actor/model mismatch: {actor_uri} -> {model_uri}")
+        result = next((item for item in actor["local_fields"] if item["dsg_index"] == index), None)
+        if result is None:
+            raise AssertionError(f"missing fixture local slot: {actor_uri} DSG[{index}]")
+        return result
+
+    def identity(row: dict[str, Any], expected_id: str | None, expected_value: str | None) -> None:
+        actual = row.get("fixture_saved_field")
+        if expected_id is None:
+            if actual is not None:
+                raise AssertionError(f"unexpected saved identity: {actual}")
+        elif not actual or actual.get("identity") != expected_id or actual.get("value_hex") != expected_value:
+            raise AssertionError(f"fixture saved field mismatch: expected {expected_id}={expected_value}, got {actual}")
+
+    def access_counts(row: dict[str, Any]) -> tuple[int, int]:
+        sites = row["sites"]
+        return (sum(site["access"] == "read" for site in sites),
+                sum(site["access"] == "write" for site in sites))
+
+    hype = field("level:/persos/world/0/0", "fix:/ai/models/28", 57)
+    identity(hype, "0:17:15540", "00")
+    if access_counts(hype) != (121, 4):
+        raise AssertionError(f"Hype DSG[57] AST access counts changed: {access_counts(hype)}")
+    hype_write_paths = {site["path"] for site in hype["sites"] if site["access"] == "write"}
+    if hype_write_paths != {
+        "normal.behaviors[0].schedule.statements[67].If.then[0].Assign",
+        "normal.behaviors[0].schedule.statements[67].If.otherwise[0].Assign",
+        "reflex.behaviors[7].rules[0].statements[35].If.then[0].Assign",
+        "reflex.behaviors[7].rules[0].statements[35].If.otherwise[0].Assign",
+    }:
+        raise AssertionError(f"Hype DSG[57] write paths changed: {sorted(hype_write_paths)}")
+    global_57 = next((entry for entry in catalogue["entries"].values()
+                      if entry.get("source_owner") == GLOBAL_ACTOR and entry.get("source_field") == "DSG[57]"), None)
+    if global_57 is None:
+        raise AssertionError("missing separate saved Global DSG[57]")
+    global_57_ids = [identity for identity, entry in catalogue["entries"].items()
+                     if entry.get("source_owner") == GLOBAL_ACTOR and entry.get("source_field") == "DSG[57]"]
+    if global_57_ids != ["0:17:4658"]:
+        raise AssertionError(f"Global DSG[57] identity changed: {global_57_ids}")
+    global_actor_57 = field(GLOBAL_ACTOR, "fix:/ai/models/1", 57)
+    identity(global_actor_57, "0:17:4658", "00")
+    if hype.get("fixture_saved_field", {}).get("identity") == global_actor_57.get("fixture_saved_field", {}).get("identity"):
+        raise AssertionError("Hype and Global DSG[57] unexpectedly share one saved identity")
+
+    lever = field("level:/persos/world/0/174", "level:/ai/models/1396", 3)
+    identity(lever, "1:17:187070", "00")
+    if access_counts(lever) != (1, 2):
+        raise AssertionError(f"lever DSG[3] AST access counts changed: {access_counts(lever)}")
+    lever_write_paths = {site["path"] for site in lever["sites"] if site["access"] == "write"}
+    if lever_write_paths != {
+        "normal.behaviors[3].schedule.statements[1].If.otherwise[0].Assign",
+        "normal.behaviors[5].schedule.statements[1].Assign",
+    }:
+        raise AssertionError(f"lever DSG[3] write paths changed: {sorted(lever_write_paths)}")
+
+    gogood = field("level:/persos/world/0/5", "level:/ai/models/210", 0)
+    identity(gogood, None, None)
+    if access_counts(gogood) != (1, 1):
+        raise AssertionError(f"Gogood model-210 slot-0 access counts changed: {access_counts(gogood)}")
+    return_actor = field("level:/persos/world/0/161", "level:/ai/models/1251", 0)
+    identity(return_actor, "1:17:171448", "00")
+    if access_counts(return_actor) != (3, 3):
+        raise AssertionError(f"Gogood return slot-0 access counts changed: {access_counts(return_actor)}")
+
+    mannequin_expected = {
+        "level:/persos/world/0/152": "1:17:127662",
+        "level:/persos/world/0/153": "1:17:131194",
+        "level:/persos/world/0/154": "1:17:132114",
+    }
+    for actor_uri, record_id in mannequin_expected.items():
+        mannequin = field(actor_uri, "level:/ai/models/939", 0)
+        identity(mannequin, record_id, "04")
+        if access_counts(mannequin) != (6, 3):
+            raise AssertionError(f"mannequin {actor_uri} DSG[0] access counts changed: {access_counts(mannequin)}")
+
+    linked_actor_uris = set(actors)
+    expected_saved = {
+        (entry.get("source_owner"), entry.get("source_field"), identity)
+        for identity, entry in catalogue["entries"].items()
+        if entry.get("source_owner") in linked_actor_uris
+        and isinstance(entry.get("source_field"), str)
+        and entry["source_field"].startswith("DSG[")
+        and entry["source_field"].endswith("]")
+        and entry["source_field"][4:-1].isdigit()
+    }
+    indexed_saved = [
+        (row["actor"], field_row["fixture_saved_field"]["source_field"],
+         field_row["fixture_saved_field"]["identity"])
+        for row in local_index["actors"] for field_row in row["local_fields"]
+        if field_row["fixture_saved_field"] is not None
+    ]
+    if set(indexed_saved) != expected_saved or len(indexed_saved) != len(expected_saved):
+        raise AssertionError("actor-local index does not reconcile every exact saved actor DSG identity once")
+    site_keys = [
+        (site["actor"], site["source_model"], site["path"], site["access"], site["operand_form"])
+        for row in local_index["actors"] for field_row in row["local_fields"] for site in field_row["sites"]
+    ]
+    if len(site_keys) != len(set(site_keys)):
+        raise AssertionError("actor-local index contains duplicate projected site keys")
+
+    coverage = external_index["coverage"]
+    summary = ranking["summary"]
+    if coverage["resolved_typed_external_sites"] != 1216:
+        raise AssertionError("external typed-site total changed from the pinned 1,216")
+    if summary["matched_explicit_external_read_sites"] != 335 or summary["matched_explicit_external_write_sites"] != 416:
+        raise AssertionError("saved Global explicit-site totals changed from the pinned 335/416")
+    dynamic = local_index["dynamic_main_actor_scope"]
+    if dynamic["sum_matching_legacy_external_index"] != 757 or dynamic["legacy_external_index_dynamic_target_count"] != 757:
+        raise AssertionError("typed/dynamic-target coverage no longer reconciles to the pinned 757 sites")
+
+
 def build_index(export: dict[str, Any], catalogue: dict[str, Any], rete_root: Path,
                 export_path: Path, catalogue_path: Path) -> dict[str, Any]:
     actors, models = export.get("actors"), export.get("models")
@@ -341,8 +749,8 @@ def build_index(export: dict[str, Any], catalogue: dict[str, Any], rete_root: Pa
         "resolved_external_sites_to_global_actor": sites,
         "unresolved_dynamic_targets": unresolved,
         "unsupported_ast_fragments": unsupported,
-        "global_model_local_variable_occurrences": {str(index): local[index] for index in sorted(local)},
-        "interpretation": "Only ActorFieldRead/ActorFieldAssign with a canonical actor URI are counted as external reader/writer sites. Variable(n) is local to its source AI model. Unsupported fragments are retained as coverage evidence but their operands are not classified as DSG accesses.",
+        "global_actor_brain_variable_occurrences": {str(index): local[index] for index in sorted(local)},
+        "interpretation": "Only ActorFieldRead/ActorFieldAssign with a canonical actor URI are counted here as external reader/writer sites. Expression::Variable(n) and other local operands address slot n in the Brain of the Perso executing the linked model; see the sibling actor-qualified local index. Unsupported fragments are retained as coverage evidence but their operands are not classified as DSG accesses.",
     }
 
 
@@ -456,10 +864,24 @@ def main() -> None:
     index["input"]["inspect_executable"] = provenance["inspect_executable"]
     index["input"]["inspect_executable_sha256"] = provenance["inspect_executable_sha256"]
     index["input"]["rete_asset_inventory_sha256"] = provenance["asset_inventory_sha256"]
+    local_index = build_local_index(export, catalogue, index, export_path, catalogue_path)
+    local_index["input"]["inspector_provenance"] = provenance
+    local_index["input"]["inspect_executable"] = provenance["inspect_executable"]
+    local_index["input"]["inspect_executable_sha256"] = provenance["inspect_executable_sha256"]
+    local_index["input"]["rete_asset_inventory_sha256"] = provenance["asset_inventory_sha256"]
     ranking = rank_fields(catalogue, index)
+    if catalogue.get("profile") == PROFILE:
+        assert_pinned_manoir_fixture(local_index, index, ranking, catalogue)
     output_root.mkdir(parents=True, exist_ok=True)
     index_path = output_root / "global-inverse-ai-index.json"
+    local_index_path = output_root / "local-ai-variable-index.json"
     ranking_path = output_root / "global-saved-field-ranking.json"
+    local_index_path.write_text(json.dumps(local_index, indent=2, ensure_ascii=False) + "\n")
+    index["input"]["local_ai_variable_index"] = {
+        "path": local_index_path.name,
+        "sha256": sha256(local_index_path),
+        "schema": local_index["schema"],
+    }
     index_path.write_text(json.dumps(index, indent=2, ensure_ascii=False) + "\n")
     ranking["inputs"]["inverse_index_sha256"] = sha256(index_path)
     ranking_path.write_text(json.dumps(ranking, indent=2, ensure_ascii=False) + "\n")
@@ -478,13 +900,14 @@ def main() -> None:
     ]
     for row in ranking["high_value_unknowns_ranked_by_use"][:25]:
         report.append(f"| {row['rank']} | {row['dsg_index']} | `{row['identity']}` | {row['source_type']} / {row['payload_extent_bytes']} | {row['external_reader_count']} / {row['external_writer_count']} | `{row['fixture_value_hex']}` |")
-    report += ["", "## Scope limits", "", f"The export also contains {len(index['unresolved_dynamic_targets'])} unresolved runtime-target sites and {len(index['unsupported_ast_fragments'])} unsupported AST fragments. Neither is attributed to a canonical saved DSG without a typed canonical actor target. Model-local `Variable(n)` accesses remain separate.", "", "## Reproduction", "", "```sh", f"python3 tools/save_global_ai_index.py --catalogue {catalogue_path} --rete-root <imported-rete-root> --output-root output/savegame-semantic-map", "```", ""]
+    report += ["", "## Scope limits", "", f"The export also contains {len(index['unresolved_dynamic_targets'])} unresolved runtime-target sites and {len(index['unsupported_ast_fragments'])} unsupported AST fragments. Neither is attributed to a canonical saved DSG without a typed canonical actor target. Actor-local `Variable(n)` accesses are projected per linked Perso in `local-ai-variable-index.json`.", "", "## Reproduction", "", "```sh", f"python3 tools/save_global_ai_index.py --catalogue {catalogue_path} --rete-root <imported-rete-root> --output-root output/savegame-semantic-map", "```", ""]
     (output_root / "global-saved-field-ranking.md").write_text("\n".join(report))
     coverage = index["coverage"]
     print(f"perso_assets={provenance['perso_asset_count']} actors={len(export['actors'])} models={len(export['models'])} typed_sites={coverage['resolved_typed_external_sites']} saved_fields={ranking['summary']['saved_global_dsg_identities']} matched_reads={reads} matched_writes={writes}")
     print(f"rete_inventory_sha256={provenance['asset_inventory_sha256']} inspector_sha256={provenance['inspect_executable_sha256']}")
     print(f"index_sha256={sha256(index_path)}")
-    print(f"outputs={index_path} {ranking_path} {output_root / 'global-saved-field-ranking.md'}")
+    print(f"local_index_sha256={sha256(local_index_path)}")
+    print(f"outputs={index_path} {local_index_path} {ranking_path} {output_root / 'global-saved-field-ranking.md'}")
 
 
 if __name__ == "__main__":

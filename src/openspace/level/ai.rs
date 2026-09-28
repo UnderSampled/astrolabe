@@ -223,9 +223,9 @@ fn source_set(s: &SourceSession, model: Address, field: usize) -> Result<Option<
 /// relocated words cannot become guessed Persos.
 pub(super) fn object_templates(
     s: &SourceSession,
-    rooted: &BTreeMap<Address, AssetRef<Perso>>,
+    rooted: &BTreeSet<Address>,
 ) -> Result<Vec<Address>> {
-    let mut pending: Vec<_> = rooted.keys().copied().collect();
+    let mut pending: Vec<_> = rooted.iter().copied().collect();
     let mut seen_persos = BTreeSet::new();
     let mut seen_models = BTreeSet::new();
     let mut templates = Vec::new();
@@ -283,7 +283,7 @@ pub(super) fn object_templates(
                         };
                         let _: PersoHeaderWire = wire(s.bytes(target, 20)?)?;
                         source_view::perso_parts(&mut source_view::FileView(s), target)?;
-                        if !rooted.contains_key(&target) && !templates.contains(&target) {
+                        if !rooted.contains(&target) && !templates.contains(&target) {
                             templates.push(target);
                         }
                         pending.push(target);

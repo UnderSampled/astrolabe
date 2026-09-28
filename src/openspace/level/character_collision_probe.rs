@@ -108,7 +108,8 @@ fn source_character_collisions_reconstruct_and_hype_movement_matches_live_shapes
         all_refs.push((source_perso, reference));
     }
     let mut template_refs = Vec::new();
-    for source_perso in super::ai::object_templates(&session, &actor_refs)? {
+    let rooted_template_seeds = actor_refs.keys().copied().collect::<BTreeSet<_>>();
+    for source_perso in super::ai::object_templates(&session, &rooted_template_seeds)? {
         let identity = session.source_identity(source_perso)?;
         let role = if identity.role == SourceRole::Fix {
             "fix"
