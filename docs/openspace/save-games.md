@@ -186,7 +186,7 @@ star-entry fields, for 1,222 owned and typed identities. Of the bounded fields,
 110 are exact runtime slots in the map state array and UI table; their gameplay
 purposes remain unknown. Five complete meanings have fresh-process runtime
 corroboration, 503 more have source-backed explanations, and 763 remain
-unexplained. Of those, 397 have a partial byte, bit, or reference-role
+unexplained. Of those, 398 have a partial byte, bit, or reference-role
 explanation. These counts concern this fixture and profile, not all reachable
 game states.
 
@@ -309,7 +309,12 @@ sharing one model still have distinct saved current values. Explicit
 dynamic targets cannot be assigned to one saved actor. The generated
 [actor-local index](../../output/savegame-semantic-map/local-ai-variable-index.json)
 projects typed local sites onto each linked Perso and joins all 221 saved
-actor DSG identities by exact actor and slot. Saved Global Boolean `DSG[18]` at
+actor DSG identities by exact actor and slot. Hype's own saved Boolean DSG[11]
+(`0:17:15586`) has 11 typed reads and eight writes. Four matching Reflex rules
+set and clear it around six repeated link-table-swap calls; its visible
+purpose remains unknown. See the [actor-local trace](../../output/savegame-semantic-map/hype-dsg11-actor-local-followup.md).
+
+Saved Global Boolean `DSG[18]` at
 `0:17:4701`, gates manual camera look in the typed `StdCamer` AI: zero permits
 entry when the look button and companion state allow it, while one blocks
 entry and triggers exit from the active look behavior. Hype's AI writes this

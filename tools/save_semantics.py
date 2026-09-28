@@ -1104,6 +1104,30 @@ def semantic_catalogue(inspection: dict, allocation_joins: dict | None) -> tuple
         "the saved Hype actor slot and two script writers are joined, but the broad consumer fan-out does not establish a complete gameplay meaning",
     ]
 
+    hype_link_swap_latch = entries["0:17:15586"]
+    if (hype_link_swap_latch.get("source_owner") != "level:/persos/world/0/0"
+            or hype_link_swap_latch.get("source_field") != "DSG[11]"
+            or hype_link_swap_latch.get("source_type") != "designer type 0"
+            or hype_link_swap_latch.get("meaning_status") != "unknown"
+            or any(item["kind"] != "0x10" or item["flags"] != "0x0204"
+                   or item["value_size"] != 1 or item["value_hex"] != "00"
+                   for item in hype_link_swap_latch["file_occurrences"])):
+        raise ValueError("Hype DSG[11] changed owner or saved Boolean shape")
+    hype_link_swap_latch["partial_semantics"] = {
+        "known_role": "Hype's own Boolean DSG[11] guards six repeated link-table-swap calls and action/channel branches; four identical Reflex rules set or clear it alongside Hype DSG[10] after tests involving an unsupported inventory-object function",
+        "source_rule": "hype-hype-dsg11-link-swap-latch-v1",
+        "source_evidence": [
+            "fix:/ai/models/28 Normal behaviors 0, 89 and 103",
+            "fix:/ai/models/28 Reflex behaviors 1, 3, 4 and 6",
+            "reference/raymap/Assets/Scripts/OpenSpace/AI/AITypes/AITypes_Hype.cs procedure 82 and function 205",
+            "output/savegame-semantic-map/hype-dsg11-actor-local-followup.md",
+        ],
+        "unknown": "native swap and inventory-object contracts, visible state, trigger conditions hidden by unsupported operands, and fresh-process restoration",
+    }
+    hype_link_swap_latch["unresolved"] = [
+        "the actor-local latch and repeated script operations are proved, but no complete gameplay-state name is supported",
+    ]
+
     configuration_tier = entries["0:17:4639"]
     if (configuration_tier.get("source_owner") != "fix:/persos/15"
             or configuration_tier.get("source_field") != "DSG[73]"
