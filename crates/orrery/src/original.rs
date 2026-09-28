@@ -674,10 +674,15 @@ pub fn worker(
         let stopped = process.pause(Duration::from_secs(1))?;
         let mut capture = stopped.capture()?;
         let status = build.status(&mut capture)?;
+        let registry = crate::save_registry::read_registry(
+            &mut |address, size| capture.read(address as usize, size),
+            100_000,
+        )?;
         let actor = build.actor(&mut capture)?;
         let snapshot = capture.finish()?;
         drop(stopped);
         let capture_end = started.elapsed().as_micros();
+        write_json(&output.join("save_registry.json"), &registry)?;
         write_json(&output.join("snapshot.json"), &snapshot)?;
         let screenshot = desktop.screenshot(&output.join("original.png"), started)?;
         desktop.release()?;
@@ -699,7 +704,7 @@ pub fn worker(
             json!({"schema":1,"status":"inspection_complete","scope":"native fixture launch and stopped-byte actor inspection",
             "fixture":config,"graphics_sha256":graphics,"process":process.identity(),"game":status,"actor":actor,
             "setup":setup,"capture_start_micros":capture_start,"capture_end_micros":capture_end,
-            "snapshot":"snapshot.json","screenshot":screenshot,"consistency":"stopped_bytes",
+            "snapshot":"snapshot.json","screenshot":screenshot,"save_registry":registry,"consistency":"stopped_bytes",
             "completed_update":false,"frame_replay":false,"behavior_parity":false}),
         )
     })();

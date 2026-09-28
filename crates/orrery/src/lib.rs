@@ -24,5 +24,6 @@ pub mod replay;
 pub mod save;
 #[cfg(target_os = "linux")]
 pub mod session;
+pub mod save_registry;
 #[cfg(target_os = "linux")]
 pub use window_video as video;

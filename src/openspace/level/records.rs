@@ -199,6 +199,32 @@ pub(super) struct ProhibitedStateWire {
     pub(super) header: u32,
     pub(super) state: u32,
 }
+/// Hype gauge panel node traversed by 0043a8a0; its size and child-list/count
+/// offsets are corroborated by the Fix 5:0 relocation chain.
+#[derive(Debug, Clone, BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct GaugeRootWire {
+    pub(super) next: u32,
+    pub(super) texture_sets: [u32; 3],
+    pub(super) first_child: u32,
+    pub(super) unknown_before_thresholds: [u8; 4],
+    pub(super) thresholds: [u8; 4],
+    pub(super) unknown_before_count: u8,
+    pub(super) child_count: u8,
+    pub(super) completed_children: u8,
+    pub(super) threshold_selector: u8,
+    pub(super) unknown_tail: [u8; 8],
+}
+/// Hype gauge item node traversed from GaugeRootWire::first_child.
+#[derive(Debug, Clone, BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct GaugeChildWire {
+    pub(super) next: u32,
+    pub(super) unknown: [u8; 16],
+    pub(super) visual_phase: u8,
+    pub(super) progress_tick: u8,
+    pub(super) unknown_tail: [u8; 2],
+}
 /// Hype engine allocates 0x30, not Raymap/C#'s 0x40 with spurious sphere fields.
 #[derive(Debug, Clone, BinRead, BinWrite)]
 #[brw(little)]
@@ -626,6 +652,14 @@ pub(super) struct PersoHeaderWire {
     pub(super) unknown_montreal: [u8; 4],
     pub(super) brain: u32,
 }
+/// The scene actor's sector-character list is at Perso+0x28. 00447bf0
+/// follows SuperObject+4 to Perso, then this link, to update the actor's sector.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct PersoSectorWire {
+    pub(super) prefix: [u8; 40],
+    pub(super) sector_character_list: u32,
+}
 
 /// The selected AI records are shared by file import and bounded relocated
 /// memory inspection. Keeping their declarations here prevents the live view
@@ -714,4 +748,33 @@ pub(super) struct PersoData3dPrefixWire {
 #[brw(little)]
 pub(super) struct StandardIdentityWire {
     pub(super) object_types: [u32; 3],
+}
+/// Hype StandardGame is a 56-byte allocation. 00438c30 registers the three
+/// HitPoints bytes at +0x18..+0x1a and the two state bytes at +0x1b/+0x1c
+/// for the `NeverBack` InitFlags policy (+0x24 == 4), and registers +0x2c
+/// for every actor. 00438100 names the HitPoints and CustomBitsInit fields.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct StandardSaveWire {
+    pub(super) prefix: [u8; 24],
+    pub(super) hit_points_init: u8,
+    pub(super) hit_points_max_init: u8,
+    pub(super) hit_points_max_max: u8,
+    pub(super) never_back_latch: u8,
+    pub(super) active: u8,
+    pub(super) middle: [u8; 7],
+    pub(super) return_policy: u32,
+    pub(super) before_custom_bits: [u8; 4],
+    pub(super) custom_bits_init: u32,
+    pub(super) suffix: [u8; 8],
+}
+/// 00447750 allocates 0x18 bytes; 00447bf0 writes the sector link at +4
+/// and copies it into the first word after reassigning the character.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct SectorCharacterListWire {
+    pub(super) current_sector: u32,
+    pub(super) sector_link: u32,
+    pub(super) character_list: u32,
+    pub(super) remaining: [u8; 12],
 }

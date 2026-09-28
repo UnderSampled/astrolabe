@@ -4,6 +4,74 @@ use crate::model::ai::Expression;
 
 #[test]
 #[ignore = "requires local game data; included by tools/test.py --local"]
+fn source_manor_lever_save_identity() -> Result<()> {
+    let game = std::env::var_os("ASTROLABE_GAME_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| "disc".into());
+    let selection = Selection::hype("manoir", "en")?;
+    let s = SourceSession::open(&game, &selection)?;
+    let node = s
+        .tree()?
+        .into_iter()
+        .find(|node| node.path == "world/0/27")
+        .context("manor dummy is absent")?;
+    let perso = s.required(node.address, 4)?;
+    let brain = s.required(perso, 16)?;
+    let mind = s.required(brain, 0)?;
+    let model = s.required(mind, 0)?;
+    let definition = s.required(model, 8)?;
+    let infos = s.required(definition, 4)?;
+    let info: InfoWire = wire(s.bytes(add(infos, 8 * 16), 16)?)?;
+    assert_eq!(info.kind, 0);
+    assert_eq!(info.save, 0x200);
+    let memory = s.required(mind, 12)?;
+    let current = s.required(memory, 8)?;
+    let value = add(current, info.offset as usize);
+    assert_eq!(value.owner, Owner::Fix);
+    assert_eq!(value.key, BlockKey(17, 0));
+    assert_eq!(value.offset, 297732);
+    assert_eq!(s.bytes(value, 1)?, &[0]);
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires local game data; included by tools/test.py --local"]
+fn source_inventory_magic_flags_identity() -> Result<()> {
+    let game = std::env::var_os("ASTROLABE_GAME_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| "disc".into());
+    let selection = Selection::hype("manoir", "en")?;
+    let s = SourceSession::open(&game, &selection)?;
+    for (offset, expected_id, expected_kind) in
+        [(1560, 54, "MagicIce"), (2800, 74, "MagicLightning")]
+    {
+        let active = Address {
+            owner: Owner::Fix,
+            key: BlockKey(10, 0),
+            offset,
+        };
+        let handle = Address {
+            offset: offset - 8,
+            ..active
+        };
+        let member = s.required(handle, 0)?;
+        let record = s.bytes(member, 30)?;
+        let id = i16::from_le_bytes(record[28..30].try_into()?);
+        let name = s.required(member, 12)?;
+        let bytes = s.bytes(name, 32)?;
+        let end = bytes
+            .iter()
+            .position(|byte| *byte == 0)
+            .context("inventory kind name")?;
+        assert_eq!(id, expected_id);
+        assert_eq!(std::str::from_utf8(&bytes[..end])?, expected_kind);
+        assert_eq!(s.bytes(active, 1)?, &[0]);
+    }
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires local game data; included by tools/test.py --local"]
 fn source_ai_inventory_and_script_reconstruction() -> Result<()> {
     let game = std::env::var_os("ASTROLABE_GAME_DIR")
         .map(std::path::PathBuf::from)

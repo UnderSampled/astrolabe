@@ -39,6 +39,9 @@ enum Commands {
         path: PathBuf,
         #[arg(long)]
         output: Option<PathBuf>,
+        /// Explicit semantic profile; save files do not identify their executable build.
+        #[arg(long)]
+        profile: Option<String>,
     },
     /// Compare decoded Hype save records from two directories, ZIPs, or files.
     SaveDiff {
@@ -46,6 +49,34 @@ enum Commands {
         after: PathBuf,
         #[arg(long)]
         output: Option<PathBuf>,
+        /// Explicit semantic profile for mapped record annotations.
+        #[arg(long)]
+        profile: Option<String>,
+        /// Label a flat before directory as one save slot.
+        #[arg(long)]
+        before_slot: Option<String>,
+        /// Label a flat after directory as one save slot.
+        #[arg(long)]
+        after_slot: Option<String>,
+    },
+    /// Join save identities to bounded Fix/level allocations in one source context.
+    SaveSourceJoin {
+        save: PathBuf,
+        #[arg(long)]
+        game: PathBuf,
+        #[arg(long)]
+        level: String,
+        #[arg(long)]
+        output: PathBuf,
+    },
+    /// Discover saved designer fields in a source level without interpreting a save slot.
+    SaveSourceDiscover {
+        #[arg(long)]
+        game: PathBuf,
+        #[arg(long)]
+        level: String,
+        #[arg(long)]
+        output: PathBuf,
     },
     /// Inspect the supplied manor fixture using the native private-game runtime.
     InspectOriginal {
@@ -251,8 +282,12 @@ fn main() -> Result<()> {
             );
             Ok(())
         }
-        Commands::SaveInspect { path, output } => {
-            let report = orrery::save::inspect(&path)?;
+        Commands::SaveInspect {
+            path,
+            output,
+            profile,
+        } => {
+            let report = orrery::save::inspect_with_profile(&path, profile.as_deref())?;
             let bytes = serde_json::to_vec_pretty(&report)?;
             if let Some(output) = output {
                 std::fs::write(&output, bytes)?;
@@ -266,8 +301,17 @@ fn main() -> Result<()> {
             before,
             after,
             output,
+            profile,
+            before_slot,
+            after_slot,
         } => {
-            let report = orrery::save::diff(&before, &after)?;
+            let report = orrery::save::diff_with_slots(
+                &before,
+                &after,
+                before_slot.as_deref(),
+                after_slot.as_deref(),
+                profile.as_deref(),
+            )?;
             let bytes = serde_json::to_vec_pretty(&report)?;
             if let Some(output) = output {
                 std::fs::write(&output, bytes)?;
@@ -275,6 +319,37 @@ fn main() -> Result<()> {
             } else {
                 println!("{}", String::from_utf8(bytes)?);
             }
+            Ok(())
+        }
+        Commands::SaveSourceJoin {
+            save,
+            game,
+            level,
+            output,
+        } => {
+            let report = orrery::save::source_allocation_report(&save, &game, &level)?;
+            std::fs::write(&output, serde_json::to_vec_pretty(&report)?)?;
+            println!("{}", output.display());
+            Ok(())
+        }
+        Commands::SaveSourceDiscover {
+            game,
+            level,
+            output,
+        } => {
+            let selection = astrolabe::model::Selection::hype(&level, "en")?;
+            let report =
+                astrolabe::openspace::level::join_save_allocations(&game, &selection, &[])?;
+            std::fs::write(
+                &output,
+                serde_json::to_vec_pretty(&serde_json::json!({
+                    "schema": 1,
+                    "source_level": level,
+                    "designer_discovery": report.designer_discovery,
+                    "scope": "static source designer fields with save flags; not live registrations or field meanings",
+                }))?,
+            )?;
+            println!("{}", output.display());
             Ok(())
         }
         Commands::InspectOriginal {

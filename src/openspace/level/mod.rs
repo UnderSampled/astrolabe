@@ -12,6 +12,7 @@ pub mod live;
 mod records;
 #[cfg(test)]
 mod reference_tests;
+mod save_join;
 mod scene;
 mod session;
 mod source_view;
@@ -23,6 +24,9 @@ pub use container::write_sna_block;
 pub use fragment::{ModelFragment, write_model_fragment};
 pub use geometry::{EmittedRange, GeometryExport, ReferenceTarget, write_geometry};
 pub use import::{LevelSummary, ModelImport, import_first_model, inspect_level};
+pub use save_join::{
+    SaveAllocationJoin, SaveJoinResult, SaveRecordLocation, join_save_allocations,
+};
 pub use scene::{SceneImport, import_scene};
 
 #[cfg(test)]

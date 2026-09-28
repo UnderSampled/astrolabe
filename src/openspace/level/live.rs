@@ -452,6 +452,32 @@ impl HypeBuild {
         Ok(observation)
     }
 
+    /// Resolve a unique live actor by the source object-type triple when
+    /// startup has changed its child ordinal. The checked live path is returned
+    /// as evidence; its address is never reused outside this capture.
+    pub fn scene_actor_by_types_with_ai(
+        &self,
+        memory: &mut impl ReadMemory,
+        level: &str,
+        expected_object_types: [u32; 3],
+        actions: &[u32],
+        designer_values: &[u32],
+    ) -> Result<(Vec<u32>, ActorAiObservation)> {
+        let status = self.status(memory)?;
+        ensure!(
+            status.phase == 9 && status.level == level,
+            "scene actor search requires the selected loaded level"
+        );
+        let mut source = MemoryView(memory);
+        let found = find_live_actor(&mut source, expected_object_types, false)?;
+        let observation = actor_ai_at_node(&mut source, found.node, actions, designer_values)?;
+        ensure!(
+            observation.actor.object_types == expected_object_types,
+            "resolved live actor source identity changed during capture"
+        );
+        Ok((found.path, observation))
+    }
+
     /// Capture the four camera parameter records linked from a selected
     /// source Perso. These are capture-local source words for research, not
     /// reusable model fields or persisted virtual addresses.
@@ -1114,7 +1140,7 @@ fn scene_node(source: &mut MemoryView<'_, impl ReadMemory>, child_path: &[u32]) 
 }
 
 #[derive(Debug)]
-struct LiveCameraMatch {
+struct LiveActorMatch {
     node: u32,
     perso: u32,
     path: Vec<u32>,
@@ -1124,13 +1150,21 @@ struct LiveCameraMatch {
 fn find_live_camera(
     source: &mut MemoryView<'_, impl ReadMemory>,
     expected_object_types: [u32; 3],
-) -> Result<LiveCameraMatch> {
+) -> Result<LiveActorMatch> {
+    find_live_actor(source, expected_object_types, true)
+}
+
+fn find_live_actor(
+    source: &mut MemoryView<'_, impl ReadMemory>,
+    expected_object_types: [u32; 3],
+    require_camera: bool,
+) -> Result<LiveActorMatch> {
     const MAX_NODES: usize = 4096;
     const MAX_DEPTH: usize = 32;
     let root = source.required(0x75ec6c, 0)?;
     let mut stack = vec![(root, Vec::<u32>::new())];
     let mut visited = BTreeSet::from([root]);
-    let mut found: Option<LiveCameraMatch> = None;
+    let mut found: Option<LiveActorMatch> = None;
     let mut matches = 0usize;
     while let Some((node, path)) = stack.pop() {
         let header: SuperObjectWire = wire(&source.bytes(node, 64)?)?;
@@ -1140,10 +1174,12 @@ fn find_live_camera(
         if header.kind == 4 {
             let perso = source.required(node, SuperObjectWire::DATA)?;
             let parts = source_view::perso_parts(source, perso)?;
-            if parts.object_types == expected_object_types && source.pointer(perso, 20)?.is_some() {
+            if parts.object_types == expected_object_types
+                && (!require_camera || source.pointer(perso, 20)?.is_some())
+            {
                 matches += 1;
                 if found.is_none() {
-                    found = Some(LiveCameraMatch {
+                    found = Some(LiveActorMatch {
                         node,
                         perso,
                         path: path.clone(),
@@ -1206,11 +1242,11 @@ fn find_live_camera(
     }
     ensure!(
         matches == 1,
-        "live camera search expected one camera-bearing actor {:?}, found {matches} in {} nodes",
+        "live actor search expected one actor {:?} (camera required: {require_camera}), found {matches} in {} nodes",
         expected_object_types,
         visited.len()
     );
-    let mut result = found.context("live camera search lost its unique match")?;
+    let mut result = found.context("live actor search lost its unique match")?;
     result.scanned_nodes = visited.len();
     Ok(result)
 }

@@ -11,8 +11,18 @@ and upcoming work: recording/replay, loading efficiency, manor gameplay parity,
 graphics, savegames, UI and Rete coverage. Its dated scope takes precedence over
 older priority statements in the historical checkpoints below.
 
-Ready-to-use Sol implementation handoffs: [Godot loading efficiency](loading-efficiency-handoff-20260927.md)
-and [Orrery recording/replay with the external BDD suite](orrery-bdd-handoff-20260927.md).
+Ready-to-use Sol implementation handoffs: [Godot loading efficiency](loading-efficiency-handoff-20260927.md),
+[Orrery recording/replay with the external BDD suite](orrery-bdd-handoff-20260927.md),
+and [save-game investigation and first persistence slice](savegame-investigation-handoff-20260927.md).
+The follow-on [comprehensive save-game semantic mapping plan](savegame-semantic-map-handoff-20260928.md)
+targets record meanings and corpus coverage beyond that first slice.
+It also permits bounded improvements from those findings across Godot, its AI
+API, Astrolabe and Orrery while keeping mapping primary; essential authored
+research belongs in linked notes rather than only in ignored generated output.
+Its [current mapping checkpoint](savegame-semantic-map-progress-20260928.md)
+reconciles record occurrences, source allocation/actor joins and unknown families.
+The [durable save evidence ledger](savegame-semantic-evidence-20260928.md)
+records verified meanings, source anchors, negative results and local evidence hashes.
 They are independent assignments, not a prescribed order for the roadmap.
 The [dated Godot loading results](godot-loading-efficiency-2026-09-27.md)
 record before/after menu, rendered-frame, import and original-game timings.
