@@ -308,12 +308,13 @@ distinct target identities. Of the 362 occurrences, 134 target an identity
 that also has a saved record. The rest include unsaved targets, dynamic graph
 locations, and 16 `255:255:0` encoded targets. The 53 sector links above are
 resolved. A [focused reference-family check](../output/savegame-semantic-map/level6-reference-family-followup.md)
-reconciled the 38 `1:6` references at distinct 64-byte allocation `+4` slots:
+reconciled the 38 `1:6` references at distinct 64-byte Level allocation `+4` slots:
 16 point to kind `0x12` instantiated-item SuperObjects, seven to bounded
 12-byte `0:10` allocations, and 15 are sentinels. The seven direct-allocation
 cases have first word `0x16`; the other 31 have first word zero. This proves a
 two-shape target correlation but not the source allocations' owner or a full
-gameplay role, so none of the 38
+gameplay role. An [all-owner review](../output/savegame-semantic-map/save-1-6-owner-chain-83.md)
+confirmed that Raymap's matching layout is only a candidate, so none of the 38
 is promoted to a complete meaning. The remaining pointer graph still needs
 investigation.
 
