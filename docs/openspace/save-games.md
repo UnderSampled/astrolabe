@@ -495,8 +495,13 @@ registers four adjacent two-byte player-file records. Current and maximum
 mana at `0:5:4986212` and `0:5:4986214` are runtime-corroborated. In
 `0:5:4986216`, the low byte is the selected magic slot/index (0–2), used by
 the gauge and selection functions; the high byte has no verified meaning.
-That record remains partly unexplained, and no nonzero selection has survived
-a dedicated fresh-process reload check. The preceding `0:5:4986210` two-byte
+That record remains partly unexplained. A dedicated fresh-process test restored
+the two-byte words `0000`, `0100` and `005a` in stable playable manor. Native
+selected-spell observations were 0, 1 and 0 respectively, corroborating the
+low-byte selection and showing that the high-byte marker survives this load
+route without changing that observation. This does not establish the high
+byte's purpose; see the [selection probe](../../output/savegame-semantic-map/magic-slot-86.md).
+The preceding `0:5:4986210` two-byte
 value is the unsigned `DefaultMagicPoints` starting amount. Bounded
 disassembly of the pinned executable's `MagicLevel` callback shows it caps
 this value at configured maximum points and uses it to initialize current

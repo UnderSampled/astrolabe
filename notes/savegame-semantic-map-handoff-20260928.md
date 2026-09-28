@@ -261,6 +261,19 @@ dispatch/effect is still unresolved across Hype DSG[11] and Global DSG[4].
 Use the [shared blocker index](../output/savegame-semantic-map/shared-consumer-blockers.md)
 and [native trace](../output/savegame-semantic-map/native-link-swap-83.md);
 require an actual procedure callback/effect before naming either gameplay state.
+The [bounded dispatch follow-up](../output/savegame-semantic-map/procedure82-native-85.md)
+ruled out one apparent table: the decompiled `00527250` accessor's ID-82
+address lands in ordinary strings and does not identify a callback. Obtain an
+independently verified procedure-ID-to-callback edge before another body trace.
+For dialogue, the [next live bridge plan](../output/savegame-semantic-map/dialogue-live-bridge-plan.md)
+starts from the validated module-21 registration for saved slot `0:21:392`
+and checks its object `+0x24` section-name pointer. Treat any key as an
+observed parser identity until the target and backing authored data agree.
+The [first isolated attempt](../output/savegame-semantic-map/dialogue-live-bridge-87/dialogue-live-bridge-87.md)
+reached playable manor but `save_registry::read_registry` panicked before
+the slot read because its `bool::then_some` argument eagerly subtracts an
+out-of-range block base. No dialogue meaning was gained. Fix that bounded
+registry mapper and verify the negative range case before rerunning the probe.
 
 One owner controls live-game sessions. Use Orrery's verified Gamescope headless/
 private Xwayland path, authenticated Xvfb for rendered Godot checks, and private
@@ -285,6 +298,12 @@ with that access; [the reproduction note](../output/savegame-semantic-map/magic-
 records the fixture/executable hashes, staged-save hashes, timing and cleanup.
 The current template has stronger explicit assertions and passed compile-only
 validation; it has not been rerun live since those assertions were added.
+The separate [magic-selection probe](../output/savegame-semantic-map/magic-slot-86.md)
+used three fresh isolated processes and restored `0000`, `0100` and `005a`
+at `0:5:4986216`, with native selected-spell observations 0, 1 and 0.
+The high byte persists on this route but its meaning remains unknown. The
+temporary experiment test was removed after the successful run; the JSON
+evidence remains under ignored `output/`.
 
 Use fast synthetic/offline checks for joins, ambiguity, context isolation and
 coverage accounting. Test meaningful negative cases and family generalization;

@@ -1301,7 +1301,12 @@ def semantic_catalogue(inspection: dict, allocation_joins: dict | None) -> tuple
             "reference/decompilation/functions/00439db0_FUN_00439db0.c:12",
             "reference/decompilation/functions/00439df0_FUN_00439df0.c:12",
         ],
-        "runtime_limit": "nonzero selection persistence has not been verified by fresh reload",
+        "runtime_evidence": [
+            "output/savegame-semantic-map/magic-slot-86.json",
+            "output/savegame-semantic-map/magic-slot-86.md",
+        ],
+        "runtime_observation": "isolated fresh loads restored 0000, 0100 and 005a into the live word; native selected_spell was 0, 1 and 0 respectively in stable playable manoir",
+        "runtime_limit": "the high byte's gameplay meaning and selection in other load modes remain unresolved",
     }
     if allocation_joins is not None:
         magic_default = entries["0:5:4986210"]
