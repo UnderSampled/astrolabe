@@ -496,9 +496,12 @@ That record remains partly unexplained, and no nonzero selection has survived
 a dedicated fresh-process reload check. The preceding `0:5:4986210` two-byte
 value is the unsigned `DefaultMagicPoints` starting amount. Bounded
 disassembly of the pinned executable's `MagicLevel` callback shows it caps
-this value at configured maximum points and use it to initialize current
-points; its fresh-process restoration order remains unverified. See the
-[callback evidence](../../output/savegame-semantic-map/magick-config-followup.md).
+this value at configured maximum points and uses it to initialize current
+points. In an isolated fresh-load A/B test, saved values 8 and 40 each
+survived in the live default word at stable manor, while current/max mana
+stayed 30/50 from their separate records. See the
+[callback evidence](../../output/savegame-semantic-map/magick-config-followup.md)
+and [restoration probe](../../output/savegame-semantic-map/magic-default-restore-84.md).
 
 The eight-byte record `0:5:4` is Hype's millisecond game-clock value.
 `DAT_00610810` points to its exact bounded Fix allocation and is registered

@@ -1330,6 +1330,8 @@ def semantic_catalogue(inspection: dict, allocation_joins: dict | None) -> tuple
                 "reference/decompilation/symbols.tsv:48579",
                 "output/savegame-semantic-map/magick-config-followup.md",
             ],
+            "restoration_scope": "opposed 8/40 values both survived fresh first-slot loads into stable playable manor as the live +0x22 word; settled current/max mana remained the separately saved 30/50",
+            "restoration_evidence": "output/savegame-semantic-map/magic-default-restore-84.md",
         }
         magic_default["meaning_status"] = "source_verified"
         magic_default["unresolved"] = [
@@ -1724,13 +1726,14 @@ def semantic_catalogue(inspection: dict, allocation_joins: dict | None) -> tuple
             "hype-magic-default-starting-points-v1": {
                 "applies_when": "the bounded Hype Magick state allocation in Fix block 0:5 has a two-byte current-value save at +0x22",
                 "meaning": "DefaultMagicPoints configuration is capped at maximum and initializes current magic points",
-                "meaning_limit": "fresh-process save-apply order and later MagicLevel overwrite are unverified",
+                "meaning_limit": "the supplied first-slot load restored opposed 8/40 defaults to the live +0x22 word while current/max mana stayed 30/50; callback timing and other save routes remain unobserved",
                 "source_evidence": [
                     "reference/decompilation/functions/004398f0_FUN_004398f0.c:27",
                     "reference/decompilation/functions/00439830_FUN_00439830.c:11",
                     "reference/decompilation/symbols.tsv:48579",
                     "output/savegame-semantic-map/magick-config-followup.md",
                 ],
+                "runtime_evidence": "output/savegame-semantic-map/magic-default-restore-84.md",
             },
             "hype-manor-lever-phase-v1": {
                 "applies_when": "the named manor lever actor level:/persos/world/0/174 has saved Boolean DSG[1] at 1:17:187072",

@@ -248,6 +248,17 @@ linked Perso, includes saved DSG fields with no local site, and keeps compound
 array targets unresolved. Use its actor-qualified rows in future worker briefs;
 the external Global ranking remains a separate navigation measure.
 
+The dialogue, star-entry and `1:6` reference passes already reconcile their
+structure. A follow-up on those families must name the missing bridge and a
+different source or experiment: dialogue target-object section key to authored
+answer row/text; star `+0x38` gameplay consumer or verified map-open transition;
+`1:6` source allocation to an exact rooted Level node plus a type-specific
+caller. Do not assign another count or ownership survey as a meaning task.
+The current high-use AI discriminator is Hype native function 205 and procedure
+82: their unresolved effects are shared by Hype DSG[11] and Global DSG[4].
+Use the [shared blocker index](../output/savegame-semantic-map/shared-consumer-blockers.md)
+and require a concrete callback/effect result before promoting those meanings.
+
 One owner controls live-game sessions. Use Orrery's verified Gamescope headless/
 private Xwayland path, authenticated Xvfb for rendered Godot checks, and private
 game-only audio. Route launch, physical input and capture consistently; never
@@ -255,6 +266,22 @@ fall back to desktop display/audio. Preserve the private installation, saves and
 unrelated processes. Use isolated copies, deadlines and owned cleanup. Before
 launch, validate keys through the actual parser, fixture/profile hashes, renderer
 and audio prerequisites. Keep failed-run evidence outside temporary cleanup.
+
+The focused `DefaultMagicPoints` restore discriminator is retained as
+[`tools/probes/run_magic_default_restore.sh`](../tools/probes/run_magic_default_restore.sh)
+and its [Rust scenario](../tools/probes/magic_default_restore.rs). Run
+`tools/probes/run_magic_default_restore.sh --compile-only` for a safe build, or
+run the launcher without arguments for the isolated 8/40 original-game trials.
+The launcher builds the Orrery bridge, copies its temporary integration test,
+and removes that copy on exit. A Codex live run requires escalated runtime
+access for Orrery's private PipeWire/PulseAudio Unix socket and Gamescope;
+the first default-sandbox attempt failed at socket bind with `Operation not
+permitted`, before Hype launched. The successful focused live command was
+`cargo test --locked --offline -p behavior-suite --test magic_default_probe_temp -- --ignored --nocapture`
+with that access; [the reproduction note](../output/savegame-semantic-map/magic-default-restore-template-run.md)
+records the fixture/executable hashes, staged-save hashes, timing and cleanup.
+The current template has stronger explicit assertions and passed compile-only
+validation; it has not been rerun live since those assertions were added.
 
 Use fast synthetic/offline checks for joins, ambiguity, context isolation and
 coverage accounting. Test meaningful negative cases and family generalization;
