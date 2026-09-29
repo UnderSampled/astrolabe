@@ -15,7 +15,7 @@ use serde_json::json;
 use std::{
     fs::{self, File},
     os::{fd::AsRawFd, unix::ffi::OsStrExt},
-    path::{Path, PathBuf},
+    path::Path,
     process::{Command, Stdio},
     sync::{
         Arc,
@@ -365,16 +365,15 @@ pub fn worker(
     let mut owner = Owner::new()?;
     write_json(&output.join("worker-started.json"), &Identity::current()?)?;
     let result = (|| -> Result<serde_json::Value> {
-        ensure!(
-            std::env::var("DISPLAY").is_ok_and(|d| d != host_display && d.starts_with(':')),
-            "worker is not on a private display"
-        );
+        let display = std::env::var("DISPLAY").context("Gamescope did not provide DISPLAY")?;
+        Desktop::validate_private_display(&display, host_display)?;
         let wine_log = File::create_new(output.join("wine.log"))?;
         let mut command = Command::new(&config.wine);
         command
             .arg(&config.exe)
             .current_dir(&config.game)
             .envs(config.environment()?)
+            .env_remove("WAYLAND_DISPLAY")
             .stdout(Stdio::from(wine_log.try_clone()?))
             .stderr(Stdio::from(wine_log));
         owner.spawn(&mut command)?;
@@ -674,16 +673,16 @@ pub fn worker(
         let stopped = process.pause(Duration::from_secs(1))?;
         let mut capture = stopped.capture()?;
         let status = build.status(&mut capture)?;
+        let actor = build.actor(&mut capture)?;
         let registry = crate::save_registry::read_registry(
             &mut |address, size| capture.read(address as usize, size),
             100_000,
         )?;
-        let actor = build.actor(&mut capture)?;
         let snapshot = capture.finish()?;
         drop(stopped);
         let capture_end = started.elapsed().as_micros();
-        write_json(&output.join("save_registry.json"), &registry)?;
         write_json(&output.join("snapshot.json"), &snapshot)?;
+        write_json(&output.join("save_registry.json"), &registry)?;
         let screenshot = desktop.screenshot(&output.join("original.png"), started)?;
         desktop.release()?;
         let mut graphics = std::collections::BTreeMap::new();
@@ -729,92 +728,15 @@ pub fn worker(
 
 struct Supervisor {
     owner: Owner,
-    focus_file: PathBuf,
-    original_focus: [Option<String>; 2],
-    focus_changed: bool,
 }
 impl Supervisor {
     fn new() -> Result<Self> {
-        let focus_file = PathBuf::from(std::env::var_os("HOME").context("HOME missing")?)
-            .join(".config/kwinrulesrc");
-        let text = fs::read_to_string(&focus_file)?;
-        let mut section = "";
-        let mut entries = std::collections::BTreeMap::new();
-        for line in text.lines() {
-            if line.starts_with('[') {
-                section = line;
-            }
-            if let Some((key, value)) = line.split_once('=') {
-                entries.insert((section.to_string(), key.to_string()), value.to_string());
-            }
-        }
-        let key = |section: &str, name: &str| {
-            entries.get(&(section.to_owned(), name.to_owned())).cloned()
-        };
-        let group = "[hype-harness-startup-focus]";
-        ensure!(
-            key(group, "wmclass").as_deref() == Some("hype-harness")
-                && key(group, "fsplevel").as_deref() == Some("4")
-                && key(group, "fsplevelrule").as_deref() == Some("2")
-                && key("[General]", "rules")
-                    .is_some_and(|s| s.split(',').any(|v| v == "hype-harness-startup-focus")),
-            "prepared harness-specific KWin focus rule is missing"
-        );
         Ok(Self {
             owner: Owner::new()?,
-            focus_file,
-            original_focus: [key(group, "acceptfocus"), key(group, "acceptfocusrule")],
-            focus_changed: false,
         })
     }
-    fn command(&mut self, command: &mut Command) -> Result<()> {
-        let process = self
-            .owner
-            .spawn(command.stdout(Stdio::null()).stderr(Stdio::null()))?;
-        let deadline = Instant::now() + Duration::from_secs(5);
-        loop {
-            if let Some(status) = self.owner.try_wait(&process)? {
-                ensure!(status.success(), "focus helper failed: {status}");
-                return Ok(());
-            }
-            ensure!(Instant::now() < deadline, "focus helper deadline exceeded");
-            thread::sleep(Duration::from_millis(10));
-        }
-    }
-    fn focus(&mut self, enable: bool) -> Result<()> {
-        if !enable && !self.focus_changed {
-            return Ok(());
-        }
-        self.focus_changed = true;
-        for (index, key) in ["acceptfocus", "acceptfocusrule"].into_iter().enumerate() {
-            let value = if enable {
-                Some(if index == 0 { "false" } else { "2" }.to_owned())
-            } else {
-                self.original_focus[index].clone()
-            };
-            let mut command = Command::new("kwriteconfig6");
-            command.arg("--file").arg(&self.focus_file).args([
-                "--group",
-                "hype-harness-startup-focus",
-                "--key",
-                key,
-            ]);
-            if let Some(value) = value {
-                command.arg(value);
-            } else {
-                command.arg("--delete");
-            }
-            self.command(&mut command)?;
-        }
-        self.command(Command::new("qdbus6").args(["org.kde.KWin", "/KWin", "reconfigure"]))?;
-        self.focus_changed = enable;
-        Ok(())
-    }
     fn close(&mut self) -> Result<()> {
-        let focus = self.focus(false);
-        let children = self.owner.close();
-        focus?;
-        children
+        self.owner.close()
     }
 }
 impl Drop for Supervisor {
@@ -823,9 +745,9 @@ impl Drop for Supervisor {
     }
 }
 
-/// Owns a bounded inspection worker and restores the existing focus rule even
-/// when that worker crashes or hangs. Both native and reference controllers use
-/// the prepared installation's same advisory lock; its service is not stopped.
+/// Owns a bounded inspection worker and its Gamescope process tree. The worker
+/// runs on Gamescope's private nested Xwayland display without desktop focus
+/// changes. The prepared installation's service is not stopped.
 pub fn inspect(config_path: &Path, output: &Path, fail_stopped_worker: bool) -> Result<()> {
     supervise(config_path, output, fail_stopped_worker, false)
 }
@@ -868,14 +790,17 @@ fn supervise(
     let output = output.canonicalize()?;
     let started = Instant::now();
     let mut supervisor = Supervisor::new()?;
+    // Keep this route in the supervisor: the worker can deliberately _exit
+    // during an ownership test, but its Wine audio must stay off the desktop.
+    let audio_route = crate::audio::AudioRoute::start(&output, None)?;
     let result = (|| -> Result<()> {
-        supervisor.focus(true)?;
         let log = File::create_new(output.join("gamescope.log"))?;
         let mut command = Command::new("gamescope");
+        let host_display = std::env::var("DISPLAY").unwrap_or_default();
         command
             .args([
                 "--backend",
-                "sdl",
+                "headless",
                 "-w",
                 "1040",
                 "-h",
@@ -897,15 +822,14 @@ fn supervise(
             .arg("--output")
             .arg(&output)
             .arg("--host-display")
-            .arg(std::env::var("DISPLAY").unwrap_or_default())
-            .env("SDL_VIDEODRIVER", "wayland")
-            .env("SDL_VIDEO_WAYLAND_WMCLASS", "hype-harness")
-            .env("SDL_APP_ID", "hype-harness")
-            .env("SDL_WINDOW_NO_ACTIVATION_WHEN_SHOWN", "1")
+            .arg(&host_display)
+            .env_remove("DISPLAY")
+            .env_remove("WAYLAND_DISPLAY")
             .env_remove("XDG_ACTIVATION_TOKEN")
             .env_remove("DESKTOP_STARTUP_ID")
             .stdout(Stdio::from(log.try_clone()?))
             .stderr(Stdio::from(log));
+        audio_route.apply_to(&mut command);
         if fail_stopped_worker {
             command.arg("--fail-stopped-worker");
         }
@@ -916,9 +840,6 @@ fn supervise(
         loop {
             cancel.check()?;
             supervisor.owner.processes()?;
-            if output.join("menu-ready.json").exists() {
-                supervisor.focus(false)?;
-            }
             if let Some(status) = supervisor.owner.try_wait(&gamescope)? {
                 ensure!(
                     status.success(),
@@ -964,6 +885,7 @@ fn supervise(
         Ok(())
     })();
     let cleanup = supervisor.close();
+    drop(audio_route);
     write_json(
         &output.join("summary.json"),
         &json!({"schema":1,"status":if result.is_ok() && cleanup.is_ok() {"passed"} else {"failed"},

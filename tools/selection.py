@@ -20,7 +20,7 @@ def validate_inventory(manifest, inventory):
             raise ValueError(f'missing release/fixture/kind classification: {key}')
         if not math.isfinite(row['timeout_seconds']) or row['timeout_seconds'] <= 0:
             raise ValueError(f'invalid deadline: {key}')
-        if set(row['prerequisites']) - {'godot', 'disc', 'liblzo2', 'ffmpeg', 'original'}:
+        if set(row['prerequisites']) - {'godot', 'xvfb', 'disc', 'liblzo2', 'ffmpeg', 'original', 'private_audio'}:
             raise ValueError(f'unknown prerequisite: {key}')
         if row.get('safeguard') not in (None, 'always', 'gameplay'):
             raise ValueError(f'unknown safeguard policy: {key}')

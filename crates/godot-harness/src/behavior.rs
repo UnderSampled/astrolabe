@@ -201,11 +201,15 @@ impl GodotBackend {
         let headless = godot::gameplay_headless()?;
         if headless {
             command.arg("--headless");
+        } else {
+            crate::require_xvfb()?;
         }
         let child = command
             .args(["--script", "res://tests/behavior_gameplay.gd", "--"])
             .arg(control.path())
             .arg(SCENE)
+            .env_remove("WAYLAND_DISPLAY")
+            .env("XDG_SESSION_TYPE", "x11")
             .stdout(Stdio::from(log.try_clone()?))
             .stderr(Stdio::from(log))
             .spawn()

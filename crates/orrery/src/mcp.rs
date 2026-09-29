@@ -53,7 +53,10 @@ fn empty() -> Value {
 }
 fn start_schema() -> Value {
     object(
-        json!({"duration_seconds":{"type":"integer","minimum":60,"maximum":43200,"default":3600}}),
+        json!({
+            "duration_seconds":{"type":"integer","minimum":60,"maximum":43200,"default":3600},
+            "display_backend":{"type":"string","enum":["headless"],"default":"headless"}
+        }),
         &[],
     )
 }
@@ -196,7 +199,7 @@ const TOOLS: [ToolSpec; 22] = [
     },
     ToolSpec {
         name: "start_game",
-        description: "Open the private Gamescope game behind the active desktop and wait for its main menu. Idempotent while running.",
+        description: "Open the private game in Gamescope's headless backend and wait for its main menu. Gamescope provides the private Xwayland display used for input and capture. Idempotent while running.",
         read_only: false,
         destructive: false,
         schema: start_schema,
@@ -1087,7 +1090,14 @@ fn call_tool(
             ))
         }
         "start_game" => {
-            allowed(map, &["duration_seconds"])?;
+            allowed(map, &["duration_seconds", "display_backend"])?;
+            ensure!(
+                map.get("display_backend")
+                    .and_then(Value::as_str)
+                    .unwrap_or("headless")
+                    == "headless",
+                "only the headless display backend is supported"
+            );
             Ok(ToolOutput::ok(controller.start(integer(
                 map,
                 "duration_seconds",

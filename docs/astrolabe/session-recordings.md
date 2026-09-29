@@ -146,7 +146,12 @@ input/session events. Save bytes, video, checkpoints, state and save outputs
 are omitted. A replay from a populated fixture requires a matching local save
 root and verifies bytes and structure before launch. It restores recorded
 modification times in the isolated run copy. The new run captures full output
-evidence and links back to the source hash.
+evidence, including game audio, and links back to the source hash. Orrery's
+full-mode game audio is FLAC in Matroska from the monitor of a private null sink
+assigned to the owned Wine process before launch. The stream event records its
+launch-relative start and an explicit buffering uncertainty; it does not claim
+sample-accurate association with original engine updates. The isolated audio
+server does not change the desktop default sink or record a desktop monitor.
 Input-only replay dispatches press/release state changes. It retains observed
 X11 auto-repeat presses marked while a key is held as source evidence but lets
 the replay display generate its own repeats; the delivery check compares

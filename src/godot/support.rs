@@ -5,7 +5,7 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, path::Path};
 
-pub const INTERFACE: u32 = 37;
+pub const INTERFACE: u32 = 38;
 const PACKAGE: &str = "addons/astrolabe";
 const RECEIPT: &str = "addons/astrolabe/installed.json";
 
@@ -54,6 +54,8 @@ const STARTER: &[(&str, &[u8])] = assets![
     "game/demo_camera.gd.uid",
     "game/manoir_start.gd",
     "game/manoir_start.gd.uid",
+    "game/save_state.gd",
+    "game/save_state.gd.uid",
     "game/english_save_manoir.json",
     "game/characters/luminous_hype.tscn",
     "tests/example.tscn",

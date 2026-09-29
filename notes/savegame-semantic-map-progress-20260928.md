@@ -359,9 +359,23 @@ common 504-byte shift is not transform evidence or proof of magic causation.
 
 ### Current checkpoint and effort estimate
 
+**Paused at `57d4a09`.** The [pause checkpoint](savegame-pause-checkpoint-20260928.md)
+records cleanup and resumption steps. The
+[revised planning estimate](savegame-estimate-update-20260928.md) supersedes
+the earlier ranges below: 40–80 additional active hours for comprehensive
+supplied-save meanings, or 100–200+ hours total from here for the broader corpus.
+Confidence is low; the ranges are not additive and do not authorize resumption.
+
 The largest unknown groups are 194 Global `DSG` fields among the 200 still-unknown Fix `0:17` records, 134 `0:21` dialogue references whose target content is unknown, and 123 `1:5` four-byte StandardGame records whose bit meanings are mostly unknown; additional `0:5` scalar/pointer and `1:10` map-state families remain. Ownership is resolved for 1,222 identities, and **508 complete record meanings** are currently supported (5 runtime-corroborated and 503 source-verified). Inventory, hit-point, gauge, dialogue, sector-link and NeverBack actor rules produced most of these meanings; extrapolating that rate to the remaining 763 would be misleading. The earlier 8–16 hour range may suffice for a useful fixture map, but a strong semantic explanation of the whole supplied fixture now looks more like several focused days, with broader progression-state/level coverage taking longer. This is a working estimate, not a stopping condition.
 
 ## Next discriminating work
+
+On resumption, the handoff's [continuation strategy](savegame-semantic-map-handoff-20260928.md#continuation-after-the-508-meaning-plateau)
+sets the execution order: pursue the bounded dialogue repair and observation
+first, using existing indexes and negative evidence. The families below are
+the remaining backlog, not instructions to start more parallel structural
+surveys. Each new assignment must identify a question that its new evidence
+can answer.
 
 1. Continue with other high-use Global saved fields. The [DSG[30] trace](../output/savegame-semantic-map/global-dsg30-followup.md) now source-verifies its checkpoint sighting-vector role, and [DSG[145]](../output/savegame-semantic-map/global-dsg145-followup.md) selects two sets of manor time-travel placement vectors. The [DSG[0] channel trace](../output/savegame-semantic-map/global-dsg0-followup.md) proved conditional channel-72 activation but found no authored target or gameplay purpose, so it remains unknown. The [all-saved-field ranking](../output/savegame-semantic-map/global-saved-field-ranking.md) intersects 198 saved Global fields with 335 explicit external reads and 416 writes; 173 fields have both reader and writer sites, but those sites are evidence leads rather than complete meanings. The [inverse AI index](../output/savegame-semantic-map/global-inverse-ai-followup.md) scanned 94 linked Persos and 70 AI models. `DSG[24]` still has only the `iDummy_SaveTesteurs` snapshot/restore use outside Global's own initialization to 10. Determine its actual consumer or treat it as unknown; do not mistake the test copy for a gameplay role. The [Global own-model inventory](../output/savegame-semantic-map/global-ast-reader-sites.md), [two-field follow-up](../output/savegame-semantic-map/global-two-fields-followup.md), and [pinned-executable callback check](../output/savegame-semantic-map/global-callback-pointer-check.md) retain remaining uncertainty, including a Raymap callback-name conflict and dynamic/unsupported AST targets.
 2. Resolve the authored content reached by the 134 dialogue references and the individual meanings of 60 `1:10` map-star entries. The [dialogue](../output/savegame-semantic-map/dialogue-target-investigation.md) and [star](../output/savegame-semantic-map/map-star-value-investigation.md) source surveys establish structural targets and values but no individual authored names or gameplay purpose. The supplied [manual](../disc/HypeManual.pdf) confirms `<End>` as the default map key and describes the map as something a character owns; the playable manor fixture's map ownership has not been established. Before another map live probe, preflight the exact private-display input path, map availability, and a visible map-open condition; the [first attempt](../output/savegame-semantic-map/map-state-live-probe.md) expired and the [retry](../output/savegame-semantic-map/map-state-live-probe-retry-01.md) did not visibly open the map. Do not interpret unchanged words until opening is confirmed in gameplay.

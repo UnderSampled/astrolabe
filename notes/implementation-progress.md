@@ -1,5 +1,38 @@
 # Rust implementation evidence
 
+2026-09-27 save checkpoint: Orrery inspection now retains complete slot paths,
+unknown record tails and explicitly selected semantic annotations. A source-only
+behavior-suite case twice proved current mana 30/50 → `druidik` 50/50 → normal
+game-written save record 50 → fresh-process loaded 50/50, using isolated
+copies of the pinned English fixture. Other source cases now demonstrate
+fresh-process reload of two mapped magic inventory selected-state flags and the
+manor dummy's lever-unlock Boolean; the latter enabled teleport into playable
+`astrolabe`. The authored Godot game has a versioned native slot for Hype's
+mana/inventory and the exported dummy's Boolean. A three-process test restored
+mana 23, inventory quantity 2 and the dummy flag through the menu and F5,
+then used the restored mana. A later source run drew Hype's sword after fresh
+reload, selected the restored Ice spell and cast it, consuming 50 mana.
+Converted lever gameplay, wider world/progression state, source-save
+conversion and cross-engine loaded behavior remain open. See the
+[dated results](./savegame-results-2026-09-27.md). Orrery's authenticated MCP
+path also reached playable `manoir` through Gamescope's private headless
+display; rendered Godot input and capture ran inside Xvfb. The source game's
+audio reached the desktop in that first headless check; a subsequent live
+full-record run verified a private game-only audio route and cleanup. A later
+targeted headless save case showed that DEL left Fire selected while Hype's
+sword was sheathed; drawing the sword satisfied the manual's precondition and
+allowed restored Ice selection and a mana-consuming cast.
+The expanded save selection passed on 2026-09-28: 50/50 tests in 587.276
+seconds with an explicit 960-second budget, an unchanged source snapshot,
+and complete cleanup
+(`TestResults/20260928T111438.680887Z-development.log.json`). The original
+lever case uses the same measured physical approach to the save lectern as
+the other source cases. A controlled named-level return also demonstrated
+mode-8 application for one actor byte after an isolated-file intervention.
+The [semantic map](savegame-semantic-map-progress-20260928.md) currently owns
+and types 1,222 of 1,271 supplied-slot identities; 508 have source-verified
+or runtime-corroborated meanings and 763 remain unknown.
+
 2026-09-27 Godot loading work: the maintained exporter now bundles sampled
 states into compressed native AnimationLibrary resources, and the authored game
 retains one loaded scene across menu/reload transitions while instantiating
@@ -21,8 +54,10 @@ reload smoke, and rendered capture passed separately.
 called the "demo" is the game implementation, and its basic menu is the actual
 current main menu. The menu now offers **Load Game**; the game title, loading
 messages and reload control wording follow that interpretation. Restoration
-still uses the measured English-save fixture. General savegame support will
-replace it, UI parity work will replace the basic presentation, and New Game
+uses the measured English-save fixture as a manor seed and now overlays the
+supported player fields from a native slot when present. Wider savegame
+coverage and UI parity work will replace the remaining fixture and basic
+presentation, and New Game
 will begin with the intro when implemented. The bridge-gate lift remains an
 explicit workaround, not a value decoded from the save.
 

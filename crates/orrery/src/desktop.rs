@@ -4,7 +4,7 @@ use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 use std::{
     collections::BTreeSet,
-    fs::File,
+    fs::{self, File},
     path::Path,
     time::{Duration, Instant},
 };
@@ -12,8 +12,48 @@ use x11rb::{
     CURRENT_TIME,
     connection::Connection,
     protocol::{xproto::*, xtest::ConnectionExt as _},
-    rust_connection::RustConnection,
+    rust_connection::{DefaultStream, RustConnection},
 };
+
+fn authority_cookie(path: &Path) -> Result<Vec<u8>> {
+    let bytes = fs::read(path).context("read Gamescope Xauthority file")?;
+    let mut cursor = 0;
+    let field = |bytes: &[u8], cursor: &mut usize| -> Result<Vec<u8>> {
+        let end = cursor
+            .checked_add(2)
+            .context("Xauthority offset overflow")?;
+        let length = u16::from_be_bytes(
+            bytes
+                .get(*cursor..end)
+                .context("truncated Xauthority field length")?
+                .try_into()?,
+        ) as usize;
+        *cursor = end;
+        let end = cursor
+            .checked_add(length)
+            .context("Xauthority offset overflow")?;
+        let value = bytes
+            .get(*cursor..end)
+            .context("truncated Xauthority field")?
+            .to_vec();
+        *cursor = end;
+        Ok(value)
+    };
+    while cursor < bytes.len() {
+        let end = cursor
+            .checked_add(2)
+            .context("Xauthority offset overflow")?;
+        cursor = end;
+        let _address = field(&bytes, &mut cursor)?;
+        let _number = field(&bytes, &mut cursor)?;
+        let name = field(&bytes, &mut cursor)?;
+        let data = field(&bytes, &mut cursor)?;
+        if name == b"MIT-MAGIC-COOKIE-1" {
+            return Ok(data);
+        }
+    }
+    anyhow::bail!("Gamescope Xauthority file has no cookie for the nested display")
+}
 
 #[derive(Debug, Clone, Copy, Serialize)]
 pub enum SetupKey {
@@ -69,11 +109,51 @@ impl Desktop {
         Self::connect_display(&display, host_display, pid)
     }
     pub fn connect_display(display: &str, host_display: &str, pid: u32) -> Result<Self> {
+        Self::validate_private_display(display, host_display)?;
+        let (connection, screen) = x11rb::connect(Some(display))?;
+        Self::from_connection(display, pid, connection, screen)
+    }
+    pub fn connect_display_with_authority(
+        display: &str,
+        host_display: &str,
+        authority: &Path,
+        pid: u32,
+    ) -> Result<Self> {
+        Self::validate_private_display(display, host_display)?;
+        let parsed = x11rb::reexports::x11rb_protocol::parse_display::parse_display(Some(display))?;
+        let mut last_error = None;
+        for address in parsed.connect_instruction() {
+            match DefaultStream::connect(&address) {
+                Ok((stream, _peer)) => {
+                    let cookie = authority_cookie(authority)?;
+                    let connection = RustConnection::connect_to_stream_with_auth_info(
+                        stream,
+                        parsed.screen as usize,
+                        b"MIT-MAGIC-COOKIE-1".to_vec(),
+                        cookie,
+                    )?;
+                    return Self::from_connection(display, pid, connection, parsed.screen as usize);
+                }
+                Err(error) => last_error = Some(error),
+            }
+        }
+        Err(last_error
+            .context("connect to Gamescope's nested Xwayland display")?
+            .into())
+    }
+    pub(crate) fn validate_private_display(display: &str, host_display: &str) -> Result<()> {
         ensure!(
             !display.is_empty() && display != host_display && display.starts_with(':'),
             "refusing input on host/nonlocal display"
         );
-        let (connection, screen) = x11rb::connect(Some(display))?;
+        Ok(())
+    }
+    fn from_connection(
+        display: &str,
+        pid: u32,
+        connection: RustConnection,
+        screen: usize,
+    ) -> Result<Self> {
         let root = connection.setup().roots[screen].root;
         Ok(Self {
             connection,
@@ -94,6 +174,7 @@ impl Desktop {
             "Escape" => Some(0xff1b),
             "space" => Some(0x20),
             "Tab" => Some(0xff09),
+            "Delete" => Some(0xffff),
             "Control_L" => Some(0xffe3),
             "Shift_L" => Some(0xffe1),
             value if value.len() == 1 && value.as_bytes()[0].is_ascii_alphanumeric() => {
@@ -465,8 +546,22 @@ impl Desktop {
         })
     }
 }
+
 impl Drop for Desktop {
     fn drop(&mut self) {
         let _ = self.release();
+    }
+}
+
+#[cfg(test)]
+mod display_isolation_tests {
+    use super::Desktop;
+
+    #[test]
+    fn nested_display_must_be_local_and_different_from_parent() {
+        assert!(Desktop::validate_private_display(":1", ":0").is_ok());
+        assert!(Desktop::validate_private_display(":1", "").is_ok());
+        assert!(Desktop::validate_private_display(":0", ":0").is_err());
+        assert!(Desktop::validate_private_display("wayland-0", ":0").is_err());
     }
 }

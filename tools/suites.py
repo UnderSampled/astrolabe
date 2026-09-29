@@ -44,7 +44,7 @@ def native_config(selected, report_path):
         lines += ['[[profile.astrolabe.overrides]]', 'filter = ' + json.dumps(expression([row])),
                   'slow-timeout = { period = "' + str(row['timeout_seconds']) +
                   's", terminate-after = 1, grace-period = "2s" }']
-        if 'godot' in row['prerequisites'] or 'original' in row['prerequisites']:
+        if {'godot', 'original', 'xvfb', 'private_audio'} & set(row['prerequisites']):
             lines.append('test-group = "engines"')
     return '\n'.join(lines) + '\n'
 
@@ -53,12 +53,15 @@ def prerequisites(environment, root):
     engine = environment.get('ASTROLABE_GODOT', 'godot')
     game = Path(environment.get('ASTROLABE_GAME_DIR', root/'disc'))
     return {'godot': bool(shutil.which(engine)),
+            'xvfb': bool(shutil.which(environment.get('ASTROLABE_XVFB_RUN', 'xvfb-run'))),
             'disc': (game/'Gamedata/World/Levels/Fix.sna').is_file(),
             'liblzo2': bool(ctypes.util.find_library('lzo2')),
             'ffmpeg': bool(shutil.which('ffmpeg')),
+            'private_audio': all(shutil.which(tool) for tool in
+                                 ('pipewire', 'pipewire-pulse', 'wireplumber', 'pactl')),
             'original': Path(environment.get('ASTROLABE_HYPE_CONFIG', '/nonexistent')).is_file()
-                        and all(shutil.which(tool) for tool in ('gamescope', 'kwriteconfig6', 'qdbus6'))
-                        and bool(environment.get('WAYLAND_DISPLAY'))}
+                        and all(shutil.which(tool) for tool in
+                                ('gamescope', 'pipewire', 'pipewire-pulse', 'wireplumber', 'pactl'))}
 
 
 def junit_results(path, selected):
@@ -91,7 +94,7 @@ def main():
     parser.add_argument('--game', type=Path)
     parser.add_argument('--godot')
     parser.add_argument('--headless', action=argparse.BooleanOptionalAction, default=True,
-                        help='run Godot gameplay headless (use --no-headless to show rendered gameplay)')
+                        help='run Godot gameplay headless (use --no-headless for rendered gameplay in isolated Xvfb)')
     parser.add_argument('--original-config', type=Path, help='existing private Hype fixture configuration')
     parser.add_argument('--nextest', default=os.environ.get('ASTROLABE_NEXTEST'))
     parser.add_argument('--timeout', type=float, help='job budget including build and cleanup; no universal cap')
@@ -157,7 +160,7 @@ def main():
 
     try:
         print(f'{suite}: budget {budget:g}s including build and cleanup; '
-              f'Godot gameplay {"headless" if args.headless else "visible"}; evidence {evidence}', flush=True)
+              f'Godot gameplay {"headless" if args.headless else "rendered in isolated Xvfb"}; evidence {evidence}', flush=True)
         if not tool:
             raise RuntimeError('cargo-nextest 0.9.145 is required; set ASTROLABE_NEXTEST or --nextest')
         result, version_log = stage('tool-version', [tool, 'nextest', '--version'], 5, False)
@@ -219,6 +222,12 @@ def main():
                            '--run-ignored', 'all', '--no-tests', 'fail', '-E', expression(executable)]
                 if args.offline:
                     command.append('--offline')
+                if not args.headless:
+                    xvfb_run = shutil.which('xvfb-run')
+                    if not xvfb_run:
+                        raise RuntimeError('--no-headless requires xvfb-run; refusing to use the desktop display')
+                    command = [xvfb_run, '-a', '-s', '-screen 0 1024x768x24 -nolisten tcp',
+                               'env', '-u', 'WAYLAND_DISPLAY', 'XDG_SESSION_TYPE=x11', *command]
                 result, _ = stage('execute', command, budget)
                 code = code or result.exit_code
                 if junit.is_file():

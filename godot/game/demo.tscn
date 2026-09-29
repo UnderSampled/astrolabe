@@ -42,6 +42,10 @@ autowrap_mode = 2
 [node name="Mana" type="Label" parent="Hud/Panel/Margin/Rows"]
 layout_mode = 2
 
+[node name="Save" type="Button" parent="Hud/Panel/Margin/Rows"]
+layout_mode = 2
+text = "Save Game"
+
 [node name="Controls" type="Label" parent="Hud/Panel/Margin/Rows"]
 layout_mode = 2
-text = "Arrows  move and turn     Shift  run     Ctrl  jump\nX  draw sword     Space  use sword\nFire: step Down, press X, then Enter\nR  reload save     Esc  menu"
+text = "Arrows  move and turn     Shift  run     Ctrl  jump\nX  draw sword     Space  use sword\nFire: step Down, press X, then Enter\nF5  save     R  reload save     Esc  menu"

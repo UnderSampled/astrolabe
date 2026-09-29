@@ -72,6 +72,106 @@ needed source structures through existing typed readers, with binrw declarations
 where appropriate; do not traverse opaque records by guessed offsets. Avoid a
 broad parser migration or engine reimplementation as a prerequisite.
 
+## Continuation after the 508-meaning plateau
+
+This is the continuation strategy for the [paused checkpoint](savegame-pause-checkpoint-20260928.md).
+It takes precedence over repeating the initial discovery/ownership phases below.
+The task and monitor remain paused until the user requests resumption.
+
+During approximately the final 3.5 hours, complete meanings stayed at 508 while
+ownership rose by 135 records and partial explanations rose from 366 to 398.
+Useful results included the actor-qualified AI index, corrected field attribution,
+restoration experiments and committed evidence. Those supporting results did
+not resolve the remaining fields' complete meanings. Three full selections
+occupied about 30.5 minutes while research continued alongside them; one roughly
+ten-minute run was invalidated by concurrent implementation edits. Several
+dialogue, map-star and reference surveys returned to the same missing consumers.
+Runtime setup and attribution corrections also caused rework. The planning
+review should have pressed earlier for a concrete semantic result from the
+accumulated tools. Treat this as a change in execution strategy, not a reason
+to weaken evidence or discard useful groundwork.
+
+### First resumed investigation
+
+Sol should own one specific question through to an evidence-backed conclusion
+before expanding the investigation portfolio. Start with the existing dialogue
+experiment: fix the bounded Orrery registry-reader subtraction failure, verify
+the out-of-range case with a focused check, then rerun the isolated observation
+using the proven private runtime. Follow the saved reference to the verified
+object and section key, then to authored answer data if that link is available.
+A parser key alone is still not dialogue text or effect. Generalize to other
+records only when the family rule and its applicability are established.
+
+A genuinely independent Luna assignment can pursue the verified native dispatch
+edge for procedure 82, which blocks Hype DSG[11] and Global DSG[4]. Reuse the
+negative finding that the previously examined table resolves into strings;
+verify the executable/build and callback edge before tracing its effect.
+Do not launch another general survey of those fields. If the dialogue path
+remains blocked, record exactly what new observation failed to resolve and
+choose the next concrete consumer or progression-state question from existing
+evidence rather than restarting its ownership research.
+
+### Require a new question before repeating work
+
+Each assignment must give the worker the current actor/field identity, relevant
+index rows, established facts, previous negative findings, the precise missing
+link and the new evidence that could distinguish competing interpretations.
+Name the expected decision and where to preserve its evidence. Use the existing
+actor-local ownership contract; shared AI models do not merge actors' saved
+values. A useful negative result rules out a previously live possibility or
+identifies an exact new prerequisite. Reconfirming the same count, layout or
+unsupported consumer is not a new semantic result.
+
+Keep the shared blocker summary and authored conclusions in `notes/`, with raw
+captures/indexes local. Do not reassign dialogue, star or `1:6` work unless the
+brief names a different source, a newly decoded operation, a verified new state
+or an experiment that can close the missing link. Partial evidence and stronger
+runtime corroboration remain valuable, but report them separately from new
+complete meanings and implemented gameplay/API behavior.
+
+### Make supporting work earn its place
+
+Use the maintained joins, actor-local index, corpus reports and saved experiments
+as the starting point. Add a tool or abstraction only to unblock the selected
+question, make a necessary observation reproducible or correct a demonstrated
+defect. Once that need is met, return to the field's meaning. Do not commission
+another general index or framework as a substitute for resolving a consumer.
+The authorized bounded Godot/API, Astrolabe and Orrery improvements remain in
+scope when they advance that investigation or directly apply verified knowledge.
+
+Delegate complementary work with explicit ownership and deliverables. Reuse
+knowledgeable workers where useful; multiple Lunas remain welcome when their
+tasks are independently actionable. Keep one live-session owner and provide
+the exact successful fixture/config/launch path, normal approval requirements,
+input/display/audio routing and cleanup recipe. Worker count itself is neither
+a progress measure nor a reason to generate more assignments.
+
+Use focused validation and mandatory safeguards for the actual changes, and
+reuse the valid 50-case baseline within its recorded scope. Documentation or
+static annotations alone do not require the whole live selection. When a full
+affected selection is required, finish edits to its exact fingerprint inputs
+before starting; independent notes and read-only work may continue. Diagnose a
+failed setup or scenario before repeating it. Preserve successful authored
+probes and failed-run evidence, so the next worker can reproduce the result
+without recreating a temporary harness or repeating known permission failures.
+
+### Reassess semantic progress explicitly
+
+After the first 4–6 active hours of an eventual resumption, compare with the
+pause baseline: 508 complete meanings, 398 partial unknowns, 1,222 owned/typed
+records and 13/222 arrays with complete content meanings. Report which formerly
+unknown fields now have verified meanings, which shared blockers were actually
+removed, which conclusions gained runtime support, and what implementation
+improvements resulted. Record setup/testing/rework costs separately where
+observable; overlapping worker time cannot be summed into elapsed time.
+
+If the count remains flat, explain any substantive new evidence and what it
+enables next. If neither meanings nor an identified shared blocker have advanced,
+revise the next investigation before sending more similar assignments. Do not
+silently spend another interval on the same structural surveys or raise counts
+by relabelling partial knowledge. This review point neither completes/shrinks
+the comprehensive goal nor automatically pauses it after resumption.
+
 ## Work sequence
 
 ### 1. Establish the corpus and generate the registration index
@@ -384,11 +484,16 @@ fixture path; the Orrery MCP service does not accept a replacement save root.
 Report progress as changes in explained meaning, not just new tooling, agents
 or test counts. Maintain explicit remaining work and next discriminating checks.
 Do not call the comprehensive goal complete at the first ownership report or
-while entries are merely classified as unknown. The estimated 8–16 hours for
-strong fixture coverage and several days for broader coverage are planning
-ranges, not guarantees or automatic stopping limits. Refine them using observed
-mapping throughput and unresolved families at the first checkpoint.
+while entries are merely classified as unknown. The
+[2026-09-28 revised estimate](savegame-estimate-update-20260928.md) supersedes
+the earlier 8–16-hour fixture estimate: allow 40–80 additional active hours for
+comprehensive supplied-save meanings and 100–200+ hours total from the pause
+checkpoint for the broader declared corpus. These low-confidence planning
+ranges are not additive, guarantees or automatic stopping limits. Reassess
+after the first 4–6 active hours of an eventual resumption using new verified
+meanings and resolved semantic blockers.
 
-This task's process review resumes hourly in the planning task. It should
+The task and its hourly review are paused at the user's request. If resumed,
+the review should
 inspect saved reports and offer concise evidence-based feedback, without
 spawning review workers or competing for the game session.

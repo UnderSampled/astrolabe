@@ -72,7 +72,7 @@ fn table() -> Result<BTreeMap<i32, Stat>> {
                         matches!(
                             e.kind(),
                             std::io::ErrorKind::NotFound | std::io::ErrorKind::PermissionDenied
-                        )
+                        ) || e.raw_os_error() == Some(libc::ESRCH)
                     }) => {}
                 Err(error) => return Err(error),
             }

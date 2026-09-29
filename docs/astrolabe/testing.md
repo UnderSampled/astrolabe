@@ -16,12 +16,13 @@ python3 tools/test.py --area movement --local --offline --no-headless
 
 Area runs include declared dependencies and mandatory safeguards. `--local` enables tests that need ignored local game data; without an area it selects the full existing converter inventory. `--release` selects the complete declared matrix. `--list` discovers the selected tests and reports `not_run`, never a pass. See `python3 tools/test.py --help` for fixture and budget options.
 
-Godot runs headless by default. `--no-headless` shows rendered gameplay launches
-on the current desktop and records that choice in the suite report. Import,
-editor validation, and short script checks stay headless because they do not
-render the game. Use visible mode for interactive movement development; the
-test supervisor still owns process deadlines and cleanup. `--headless` restores
-the default explicitly.
+Godot runs headless by default. `--no-headless` runs rendered gameplay inside a
+disposable authenticated Xvfb display; it requires `xvfb-run` and fails instead
+of falling back to the desktop display. The suite owns the Xvfb and test process
+lifetimes. Import, editor validation, and short script checks stay headless
+because they do not render the game. The direct session replay binary also
+requires an explicit `DISPLAY` and existing `XAUTHORITY`, so launch it under
+`xvfb-run` when capturing rendered output.
 
 The `movement` selection includes four Cucumber functional scenarios in the
 separate `behavior-suite`: turn and stop, walk and stop, run versus walk, and
@@ -63,6 +64,16 @@ delivery checks. It returns failure if any comparison check fails. The JSON
 keeps timing and rendered-image pairing limits visible.
 
 Each run owns a temporary workspace and tracks its process tree through cleanup. It does not install tools or proprietary game data. Independent jobs must not share one original-game installation. New reports do not overwrite older reports. The current selection, exclusions, tool versions, run times, and outcomes are captured in the generated JSON and supporting evidence directory.
+
+Original-game comparisons run Gamescope with its explicit headless backend,
+without inheriting the desktop's `DISPLAY` or `WAYLAND_DISPLAY`. Gamescope owns
+the nested Xwayland display used by Wine, screenshots, and XTest input; active
+game status reports this backend and its private nested display. Orrery also
+routes game audio through its own temporary PipeWire/Pulse server and null
+sink, then closes that route with the game. The save persistence test runs
+rendered Godot stages in an authenticated private Xvfb display; it never opens
+a game window on the desktop. Run the focused save selection with
+`python3 tools/test.py --area save --local --offline`.
 
 Use `cargo fmt --all --check` and `cargo clippy --workspace --locked --all-targets -- -D warnings` when changing the workspace. Rust test coverage is collected separately with `tools/coverage.py`; synthetic and local-inclusive reports remain separate. Install the pinned optional tools with `python3 tools/install-test-tools.py nextest llvm-cov` when needed.
 

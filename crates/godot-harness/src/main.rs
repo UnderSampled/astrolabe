@@ -289,11 +289,7 @@ fn run(cli: Cli) -> Result<Value> {
     let version = Command::new(&godot).arg("--version").output()?;
     ensure!(version.status.success(), "cannot read Godot version");
     let godot_version = String::from_utf8(version.stdout)?;
-    let display = std::env::var("DISPLAY").context("Godot session replay requires X11 DISPLAY")?;
-    ensure!(
-        !display.trim().is_empty(),
-        "Godot session replay requires X11 DISPLAY"
-    );
+    let display = godot_harness::require_xvfb()?;
     let (x11, screen) = x11rb::connect(Some(&display))
         .with_context(|| format!("cannot connect to Godot X11 display {display}"))?;
     let root = x11.setup().roots[screen].root;
@@ -355,6 +351,8 @@ fn run(cli: Cli) -> Result<Value> {
         .env("XDG_CONFIG_HOME", output.join("config"))
         .env("XDG_DATA_HOME", output.join("data"))
         .env("XDG_CACHE_HOME", output.join("cache"))
+        .env_remove("WAYLAND_DISPLAY")
+        .env("XDG_SESSION_TYPE", "x11")
         .stdout(Stdio::from(log.try_clone()?))
         .stderr(Stdio::from(log));
     // Use one launch point for video PTS mapping and the manifest's wall clock.

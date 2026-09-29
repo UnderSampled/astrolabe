@@ -106,6 +106,15 @@ run, stages a complete snapshot of the selected save root, and launches only
 that copy. `--save-root` may identify an existing save directory, an explicitly
 empty one, or an absent path. If omitted, the installed game's complete
 `GameData/SaveGame` directory is captured. An unreadable root is an error.
+Orrery gives every owned Hype run a private PipeWire/PulseAudio server and a
+null sink, so headless game sound is not sent to the desktop speakers. Full
+recording and full replay arm `recording/audio.mka` before Wine launches; it
+contains lossless FLAC from that sink's monitor. The `audio_stream_end` event
+states the sample format, duration, launch-relative capture start, provenance,
+signal check, and timing uncertainty. The private server and encoder are owned
+by the run and removed at teardown. A missing or failed stream is a recording
+failure or explicit coverage gap. This requires local `pipewire`,
+`pipewire-pulse`, `wireplumber`, `pactl`, `ffmpeg`, and `ffprobe` executables.
 For the supplied English fixture, pass the directory containing `SaveGame0/`
 as `--save-root`. Orrery rejects a path to the inner slot directory before
 launch because it would flatten the save layout.
@@ -140,7 +149,7 @@ target/release/orrery replay-session \
 
 Commit or share only `my-input-run/recording/`. It contains the manifest with
 the initial save files' paths, sizes, hashes and modification times, plus the
-timed game-window input events. It contains no save bytes, screenshots, video,
+timed game-window input events. It contains no save bytes, screenshots, video, audio,
 state samples or output saves. The game's copied installation and temporary
 fixture are removed after a successful input-only run. If the starting save
 root was populated, full recapture requires `--save-root` pointing to a local
@@ -292,8 +301,9 @@ actor sample during gameplay. The actor sample includes current normal/reflex
 behavior selections, but cannot reveal transitions between samples. Actor
 sampling briefly stops the process and reports that pause; it does not claim a
 completed-update boundary. The frame sequence has no verified update/render
-association. Event-level AI/API traces, audio, mouse/gamepad
-input, focus changes, verified save-operation boundaries, and automatic first-divergence
+association. Full Orrery sessions record lossless game audio with a declared
+launch-relative start; sample-to-engine-update timing remains unverified.
+Event-level AI/API traces, mouse/gamepad input, focus changes, verified save-operation boundaries, and automatic first-divergence
 comparison inside Orrery are currently absent and named in coverage. The separate
 comparison tool reports first timed frame/phase/level and selected actor-sample
 divergence. The existing 18-update precision tape remains a separate focused

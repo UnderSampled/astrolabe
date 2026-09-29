@@ -151,6 +151,7 @@ pub fn display_bridge(output: &Path) -> Result<()> {
 }
 
 pub struct GameSession {
+    audio_route: crate::audio::AudioRoute,
     owner: Owner,
     process: Process,
     desktop: Desktop,
@@ -173,12 +174,41 @@ impl GameSession {
         duration: Duration,
         bridge_binary: &Path,
     ) -> Result<Self> {
-        Self::start_inner(config_path, runs, duration, bridge_binary, true, true)
+        Self::start_inner(config_path, runs, duration, bridge_binary, true, true, None)
     }
 
     /// Start a game from a private per-run installation, returning as soon as
     /// the process is identified so menu/startup capture can begin.
     pub fn start_session(config_path: &Path, runs: &Path, duration: Duration) -> Result<Self> {
+        Self::start_session_with_bridge(config_path, runs, duration, &std::env::current_exe()?)
+    }
+
+    /// Start an isolated session when the caller is a test or suite binary;
+    /// the bridge executable must be Orrery's CLI with `display-bridge`.
+    pub fn start_session_with_bridge(
+        config_path: &Path,
+        runs: &Path,
+        duration: Duration,
+        bridge_binary: &Path,
+    ) -> Result<Self> {
+        Self::start_inner(
+            config_path,
+            runs,
+            duration,
+            bridge_binary,
+            false,
+            false,
+            None,
+        )
+    }
+
+    /// Arm private audio before Wine launch, including the startup/menu period.
+    pub fn start_recording_session(
+        config_path: &Path,
+        runs: &Path,
+        duration: Duration,
+        recording_dir: &Path,
+    ) -> Result<Self> {
         Self::start_inner(
             config_path,
             runs,
@@ -186,6 +216,7 @@ impl GameSession {
             &std::env::current_exe()?,
             false,
             false,
+            Some(recording_dir),
         )
     }
 
@@ -196,6 +227,7 @@ impl GameSession {
         bridge_binary: &Path,
         pinned_save: bool,
         wait_menu: bool,
+        recording_dir: Option<&Path>,
     ) -> Result<Self> {
         ensure!(
             (60..=43_200).contains(&duration.as_secs()),
@@ -228,6 +260,12 @@ impl GameSession {
         let stamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
         let run = runs.join(format!("run-{stamp}"));
         fs::create_dir(&run)?;
+        let audio_route = crate::audio::AudioRoute::start(
+            &run,
+            recording_dir
+                .map(|directory| directory.join("audio.mka"))
+                .as_deref(),
+        )?;
         let handoff = run.join("display.json");
         let game_log = File::create_new(run.join("gamescope.log"))?;
         let host_display = std::env::var("DISPLAY").unwrap_or_default();
@@ -236,7 +274,7 @@ impl GameSession {
         gamescope
             .args([
                 "--backend",
-                "sdl",
+                "headless",
                 "-w",
                 "1040",
                 "-h",
@@ -255,10 +293,8 @@ impl GameSession {
             .arg("display-bridge")
             .arg("--output")
             .arg(&handoff)
-            .env("SDL_VIDEODRIVER", "wayland")
-            .env("SDL_VIDEO_WAYLAND_WMCLASS", "orrery")
-            .env("SDL_APP_ID", "orrery")
-            .env("SDL_WINDOW_NO_ACTIVATION_WHEN_SHOWN", "1")
+            .env_remove("DISPLAY")
+            .env_remove("WAYLAND_DISPLAY")
             .env_remove("XDG_ACTIVATION_TOKEN")
             .env_remove("DESKTOP_STARTUP_ID")
             .stdout(Stdio::from(game_log.try_clone()?))
@@ -286,8 +322,8 @@ impl GameSession {
             .context("nested DISPLAY missing")?
             .to_owned();
         ensure!(
-            !display.is_empty() && display != host_display,
-            "refusing host display"
+            !display.is_empty(),
+            "Gamescope did not provide a private nested Xwayland display"
         );
         let wine_log = File::create_new(run.join("wine.log"))?;
         let mut wine = Command::new(&config.wine);
@@ -295,8 +331,10 @@ impl GameSession {
             .current_dir(&config.game)
             .envs(config.environment()?)
             .env("DISPLAY", &display)
+            .env_remove("WAYLAND_DISPLAY")
             .stdout(Stdio::from(wine_log.try_clone()?))
             .stderr(Stdio::from(wine_log));
+        audio_route.apply_to(&mut wine);
         if let Some(authority) = guest["XAUTHORITY"].as_str() {
             wine.env("XAUTHORITY", authority);
         }
@@ -323,14 +361,22 @@ impl GameSession {
                 thread::sleep(Duration::from_millis(100));
             }
         }
-        let desktop =
-            Desktop::connect_display(&display, &host_display, process.identity().pid as u32)?;
+        let authority = guest["XAUTHORITY"]
+            .as_str()
+            .context("nested XAUTHORITY missing")?;
+        let desktop = Desktop::connect_display_with_authority(
+            &display,
+            &host_display,
+            Path::new(authority),
+            process.identity().pid as u32,
+        )?;
         if wait_menu {
             thread::sleep(Duration::from_millis(500));
             desktop.focus()?;
             thread::sleep(Duration::from_millis(800));
         }
         Ok(Self {
+            audio_route,
             owner,
             process,
             desktop,
@@ -356,7 +402,7 @@ impl GameSession {
         Ok(
             json!({"pid":self.process.identity().pid,"starttime":self.process.identity().start_ticks,
             "run":self.run,"display":self.desktop.display,"isolated_keyboard":true,
-            "backend":"gamescope-sdl-wayland","exe_sha256":self.config.exe_sha256,
+            "backend":"gamescope-headless-private-xwayland","exe_sha256":self.config.exe_sha256,
             "remaining_seconds":self.expires.saturating_duration_since(Instant::now()).as_secs()}),
         )
     }
@@ -401,6 +447,29 @@ impl GameSession {
             json!({"address":format!("0x{:x}",pointer+0x24),"current":current,"maximum":maximum,
             "selected_spell":bytes[4],"fraction":if maximum == 0 { None } else { Some(current as f64 / maximum as f64) }}),
         )
+    }
+
+    /// Read the active inventory from one stopped source-memory capture.
+    pub fn inventory(&self) -> Result<InventoryObservation> {
+        self.check()?;
+        let build = HypeBuild::verified(&self.config.exe_sha256)?;
+        let pause = self.process.pause(Duration::from_secs(1))?;
+        let mut capture = pause.capture()?;
+        let value = build.inventory(&mut capture)?;
+        capture.finish()?;
+        Ok(value)
+    }
+
+    /// Resolve the selected spell through the same active inventory snapshot.
+    pub fn magic_selection(&self) -> Result<MagicSelectionObservation> {
+        self.check()?;
+        let build = HypeBuild::verified(&self.config.exe_sha256)?;
+        let pause = self.process.pause(Duration::from_secs(1))?;
+        let mut capture = pause.capture()?;
+        let inventory = build.inventory(&mut capture)?;
+        let selected = build.magic_selection(&mut capture, &inventory)?;
+        capture.finish()?;
+        Ok(selected)
     }
 
     /// Read a bounded, typed main-actor projection from one stopped-byte capture.
@@ -682,6 +751,43 @@ impl GameSession {
             designer_values,
             false,
         )
+    }
+
+    /// Find one actor after runtime initialization changes source child
+    /// ordinals, while retaining the resolved path and typed identity check.
+    pub fn inspect_scene_actor_by_types(
+        &self,
+        level: &str,
+        object_types: [u32; 3],
+        actions: &[u32],
+        designer_values: &[u32],
+    ) -> Result<Value> {
+        ensure!(
+            actions.len() <= 64 && designer_values.len() <= 64,
+            "actor search exceeds bounded selections"
+        );
+        self.check()?;
+        let build = HypeBuild::verified(&self.config.exe_sha256)?;
+        let pause = self.process.pause(Duration::from_secs(1))?;
+        let mut capture = pause.capture()?;
+        let status = build.status(&mut capture)?;
+        let (child_path, observation) = build.scene_actor_by_types_with_ai(
+            &mut capture,
+            level,
+            object_types,
+            actions,
+            designer_values,
+        )?;
+        let snapshot = capture.finish()?;
+        drop(pause);
+        Ok(json!({
+            "fixture":{"executable_sha256":self.config.exe_sha256,"save_sha256":self.config.save_sha256},
+            "run":self.run,"status":status,"capture":snapshot,
+            "selector":{"level":level,"object_types":object_types,"resolved_child_path":child_path},
+            "observation":observation,
+            "completed_update":false,
+            "consistency_limit":"one coherent stopped-byte capture; no completed-update publication evidence",
+        }))
     }
 
     /// Selected actor plus its source camera records and active viewport pose
@@ -1071,6 +1177,196 @@ impl GameSession {
             .guarded_write(address, &value, &expected)
     }
 
+    fn live_transform_evidence(memory: &mut impl ReadMemory, address: u32) -> Result<Value> {
+        if address == 0 {
+            return Ok(Value::Null);
+        }
+        let header = memory.read(address, 2)?;
+        let flags = u16::from_le_bytes(header.as_slice().try_into()?);
+        let size = if flags & 0x80 != 0 {
+            88
+        } else {
+            match flags {
+                0x11 => 8,
+                0x22 => 10,
+                0x33 => 16,
+                0x77 => 18,
+                0x7b => 22,
+                0x7f => 28,
+                _ => bail!("unsupported live transform flags {flags:#x}"),
+            }
+        };
+        let raw = memory.read(address, size)?;
+        let decoded = astrolabe::openspace::level::read_transform(&raw)?;
+        Ok(json!({
+            "address":format!("0x{address:08x}"),
+            "flags":format!("0x{flags:04x}"),
+            "raw_hex":hex(&raw),
+            "decoded":decoded,
+        }))
+    }
+
+    fn live_parent_transform_chain(
+        memory: &mut impl ReadMemory,
+        actor_node: &str,
+    ) -> Result<Vec<Value>> {
+        let mut address = u32::from_str_radix(
+            actor_node
+                .strip_prefix("live:")
+                .context("lever node has no live locator")?,
+            16,
+        )?;
+        let mut seen = Vec::new();
+        let mut chain = Vec::new();
+        while address != 0 {
+            ensure!(chain.len() < 32, "lever parent chain exceeds depth limit");
+            ensure!(
+                !seen.contains(&address),
+                "lever parent chain contains a cycle"
+            );
+            seen.push(address);
+            let header = memory.read(address, 64)?;
+            let word = |offset: usize| -> Result<u32> {
+                Ok(u32::from_le_bytes(header[offset..offset + 4].try_into()?))
+            };
+            let parent = word(28)?;
+            let local_transform = word(32)?;
+            let global_transform = word(36)?;
+            chain.push(json!({
+                "node":format!("live:{address:08x}"),
+                "parent":if parent == 0 { Value::Null } else { json!(format!("live:{parent:08x}")) },
+                "header_hex":hex(&header),
+                "local_transform":Self::live_transform_evidence(memory, local_transform)?,
+                "global_transform":Self::live_transform_evidence(memory, global_transform)?,
+            }));
+            address = parent;
+        }
+        Ok(chain)
+    }
+
+    /// Reach the hidden manor lever through its real input script, using one
+    /// guarded and reversible navigation intervention. Both source actors are
+    /// resolved by checked scene identity in the current process. The lever's
+    /// original placement is restored before callers perform a normal save.
+    pub fn activate_secret_manor_lever(&mut self, evidence_path: &Path) -> Result<Value> {
+        self.check()?;
+        let lever = self.inspect_scene_actor_by_types("manoir", [41, 74, 199], &[0], &[])?;
+        let before_flag = self.inspect_scene_actor_by_types("manoir", [4, 5, 50], &[0], &[8])?;
+        let perso = lever["observation"]["actor"]["perso"]
+            .as_str()
+            .and_then(|value| value.strip_prefix("live:"))
+            .context("lever has no checked current-process locator")?;
+        let address = u32::from_str_radix(perso, 16)?
+            .checked_add(0x6c)
+            .context("lever local translation address overflow")?;
+        let actor = &lever["observation"]["actor"];
+        let (original_bytes, parent_chain, capture) = {
+            let pause = self.process.pause(Duration::from_secs(1))?;
+            let mut memory = pause.capture()?;
+            let original_bytes = memory.read(address as usize, 12)?;
+            let parent_chain = Self::live_parent_transform_chain(
+                &mut memory,
+                actor["node"].as_str().context("lever actor node")?,
+            )?;
+            let capture = memory.finish()?;
+            drop(pause);
+            (original_bytes, parent_chain, capture)
+        };
+        let original_hex = hex(&original_bytes);
+        let (original_words, _) = original_bytes.as_chunks::<4>();
+        let original_xyz = original_words
+            .iter()
+            .map(|word| f32::from_le_bytes(*word))
+            .collect::<Vec<_>>();
+        let expected = [-38.073_284_f32, 152.783_94, 17.162_954];
+        // The same checked lever and parent chain have also been observed at
+        // this runtime placement after loading the supplied manor save. Its
+        // cause is still unknown; retain both exact observed placements as
+        // guarded starting states and restore the one actually found.
+        let alternate = [-38.073_284_f32, 152.783_94, -230.470_54];
+        let near = |reference: [f32; 3]| {
+            original_xyz
+                .iter()
+                .zip(reference)
+                .all(|(actual, expected)| (actual - expected).abs() < 0.1)
+        };
+        let hierarchy_matches = parent_chain.len() == 3
+            && parent_chain[0]["local_transform"]["flags"] == "0x01b0"
+            && parent_chain[1]["local_transform"]["flags"] == "0x0080"
+            && parent_chain[2]["local_transform"]["flags"] == "0x0080"
+            && parent_chain[0]["parent"] == parent_chain[1]["node"]
+            && parent_chain[1]["parent"] == parent_chain[2]["node"]
+            && parent_chain[2]["parent"].is_null();
+        let matched_placement = if near(expected) {
+            "source_opening"
+        } else if near(alternate) {
+            "observed_runtime_alternate"
+        } else {
+            "unrecognized"
+        };
+        let evidence = json!({
+            "phase":self.state()?,
+            "selector":lever["selector"],
+            "actor":actor,
+            "raw_local_translation":{"address":format!("0x{address:08x}"),"hex":original_hex.clone()},
+            "observed_local_translation":original_xyz,
+            "expected_source_translation":expected,
+            "observed_runtime_alternate":alternate,
+            "matched_placement":matched_placement,
+            "hierarchy_matches":hierarchy_matches,
+            "parent_transform_chain":parent_chain,
+            "capture":capture,
+        });
+        if let Some(parent) = evidence_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(evidence_path, serde_json::to_vec_pretty(&evidence)?)?;
+        ensure!(
+            hierarchy_matches && matched_placement != "unrecognized",
+            "lever identity, parent chain or observed manor placement differs: {original_xyz:?}, {matched_placement}, hierarchy_matches={hierarchy_matches}"
+        );
+        let player = self.observe_main_actor()?;
+        let target = player.global_transform.affine().translation;
+        ensure!(
+            target.iter().all(|axis| axis.is_finite()),
+            "player position is nonfinite"
+        );
+        let target_bytes = target
+            .iter()
+            .flat_map(|value| value.to_le_bytes())
+            .collect::<Vec<_>>();
+        let target_hex = hex(&target_bytes);
+        let move_write = self.write_memory(address as usize, "hex", &target_hex, &original_hex)?;
+        let activation = (|| -> Result<Value> {
+            let revealed = self.cheat("debug", 80, 100)?;
+            let interaction = self.keys(&["space".into()], 80, 100)?;
+            thread::sleep(Duration::from_millis(300));
+            if self.state()?["phase"] == 38 {
+                self.keys(&["Escape".into()], 80, 150)?;
+            }
+            ensure!(
+                self.state()?["phase"] == 9,
+                "lever activation did not return to gameplay"
+            );
+            let after_flag = self.inspect_scene_actor_by_types("manoir", [4, 5, 50], &[0], &[8])?;
+            let after_player = self.observe_main_actor()?;
+            Ok(
+                json!({"reveal_input":revealed,"interaction_input":interaction,"after_flag":after_flag,"after_player":after_player}),
+            )
+        })();
+        let restore = self.write_memory(address as usize, "hex", &original_hex, &target_hex);
+        let activated = activation?;
+        let restore_write = restore?;
+        Ok(json!({
+            "method":"guarded_current_process_lever_navigation_then_original_input",
+            "fixture":{"executable_sha256":self.config.exe_sha256,"save_sha256":self.config.save_sha256},
+            "lever":lever,"before_flag":before_flag,"player":player,
+            "original_local_translation":original_xyz,"target_local_translation":target,
+            "move_write":move_write,"activation":activated,"restore_write":restore_write,
+            "save_files_modified":false,
+        }))
+    }
+
     /// Declare a scenario starting state without changing the save fixture.
     /// The source inventory list is resolved afresh in this stopped process;
     /// no heap address is accepted from a test or reused across runs.
@@ -1260,6 +1556,9 @@ impl GameSession {
     }
     pub fn save_root(&self) -> PathBuf {
         self.config.game.join("GameData/SaveGame")
+    }
+    pub fn finish_audio(&mut self) -> Result<Option<Value>> {
+        self.audio_route.finish_capture(self.started)
     }
     pub fn close(mut self) -> Result<()> {
         let release = self.desktop.release();

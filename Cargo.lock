@@ -221,7 +221,9 @@ dependencies = [
  "cucumber",
  "godot-harness",
  "orrery",
+ "png",
  "serde_json",
+ "session-recording",
  "tokio",
 ]
 

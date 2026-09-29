@@ -1,5 +1,7 @@
 //! Optional original-engine tooling. The converter never depends on this crate.
 //! Process addresses and capture provenance are local evidence, not Rete data.
+#[cfg(target_os = "linux")]
+pub mod audio;
 pub mod behavior;
 pub mod comparison;
 #[cfg(target_os = "linux")]
@@ -22,8 +24,8 @@ pub mod original;
 pub mod orrery;
 pub mod replay;
 pub mod save;
+pub mod save_registry;
 #[cfg(target_os = "linux")]
 pub mod session;
-pub mod save_registry;
 #[cfg(target_os = "linux")]
 pub use window_video as video;

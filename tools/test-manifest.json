@@ -12,6 +12,7 @@
     "jump",
     "combat",
     "magick",
+    "save",
     "runtime",
     "comparison"
   ],
@@ -32,13 +33,14 @@
       "ai",
       "animation"
     ],
+    "save": [],
     "comparison": [
       "runtime"
     ],
     "runtime": []
   },
   "budgets_seconds": {
-    "development": 480,
+    "development": 720,
     "routine": 600,
     "local": 1800,
     "release": 2400,
@@ -544,6 +546,69 @@
       ],
       "fixture": "supplied Hype en",
       "timeout_seconds": 60,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::ai::tests::source_manor_lever_save_identity",
+      "areas": ["save", "ai"],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "supplied Hype en manor",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::ai::tests::source_inventory_magic_flags_identity",
+      "areas": ["save", "ai"],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "supplied Hype en manor",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::save_join::tests::source_save_join_checks_inventory_designer_and_allocation_bounds",
+      "areas": ["save", "source"],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "supplied Hype en manor source allocations and inventory handles",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::save_join::tests::source_save_join_maps_only_registered_standard_hitpoint_bytes",
+      "areas": ["save", "source"],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "supplied Hype en manor rooted StandardGame hit-point bytes",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::save_join::tests::source_save_join_maps_relocated_gauge_pointer_chain",
+      "areas": ["save", "source"],
+      "kind": "corpus",
+      "prerequisites": ["disc"],
+      "fixture": "supplied Hype en manor Fix gauge root and child relocation chain",
+      "timeout_seconds": 30,
       "ignored": true,
       "release": true
     },
@@ -2459,13 +2524,301 @@
     },
     {
       "binary": "orrery",
+      "test": "save::tests::duplicate_and_truncated_records_fail",
+      "areas": ["source", "runtime", "comparison", "save"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic malformed save records",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "save::tests::slots_keep_their_relative_paths",
+      "areas": ["source", "runtime", "comparison", "save"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic multi-slot save root",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "save::tests::unknown_record_keeps_the_unparsed_tail",
+      "areas": ["source", "runtime", "comparison", "save"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic unknown save record",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
       "test": "save::tests::supplied_english_save_parses_without_record_loss",
-      "areas": ["source", "runtime", "comparison"],
+      "areas": ["source", "runtime", "comparison", "save"],
       "kind": "source",
       "prerequisites": ["original"],
       "fixture": "supplied English Savefile_EN.zip",
       "timeout_seconds": 5,
       "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "godot-harness::save_persistence",
+      "test": "native_manor_save_survives_fresh_process_and_rejects_bad_slots",
+      "areas": ["runtime", "magick", "comparison", "save"],
+      "kind": "process",
+      "prerequisites": [
+        "godot",
+        "xvfb",
+        "disc"
+      ],
+      "fixture": "generated local manor and isolated native save slot",
+      "timeout_seconds": 100,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "godot-harness::save_persistence",
+      "test": "tests::accepts_clean_success_and_known_scene_diagnostics",
+      "areas": ["runtime", "save"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic Godot stage logs with known scene diagnostics",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "godot-harness::save_persistence",
+      "test": "tests::accepts_expected_corrupt_slot_diagnostic_only_in_corrupt_stage",
+      "areas": ["runtime", "save"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic corrupt-slot stage log",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "godot-harness::save_persistence",
+      "test": "tests::rejects_missing_success_marker",
+      "areas": ["runtime", "save"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic incomplete Godot stage log",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "godot-harness::save_persistence",
+      "test": "tests::rejects_script_error_even_with_known_engine_diagnostics_and_exit_one",
+      "areas": ["runtime", "save"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic Godot script-error stage log",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "godot-harness::save_persistence",
+      "test": "tests::rejects_unknown_engine_error_even_when_process_exits_successfully",
+      "areas": ["runtime", "save"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic unknown engine-error stage log",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "audio::tests::private_client_environment_is_scoped",
+      "areas": ["runtime", "save"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic private audio client environment",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "audio::tests::private_tone_is_captured_and_resources_are_removed",
+      "areas": ["runtime", "save"],
+      "kind": "process",
+      "prerequisites": [
+        "private_audio",
+        "ffmpeg"
+      ],
+      "fixture": "isolated PipeWire null sink and synthetic tone",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "audio::tests::failed_capture_start_reaps_private_server",
+      "areas": ["runtime", "save"],
+      "kind": "process",
+      "prerequisites": [
+        "private_audio",
+        "ffmpeg"
+      ],
+      "fixture": "isolated private audio server with invalid capture path",
+      "timeout_seconds": 15,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "desktop::display_isolation_tests::nested_display_must_be_local_and_different_from_parent",
+      "areas": ["runtime", "save"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic desktop and private Xwayland display names",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "behavior-suite::save_original",
+      "test": "original_mana_save_survives_fresh_process",
+      "areas": ["source", "runtime", "comparison", "magick", "save"],
+      "kind": "process",
+      "prerequisites": [
+        "original"
+      ],
+      "fixture": "isolated supplied English slot and pinned original executable",
+      "timeout_seconds": 170,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "behavior-suite::save_original",
+      "test": "original_crossbow_quantity_resets_after_reload",
+      "areas": ["source", "runtime", "comparison", "combat", "save"],
+      "kind": "process",
+      "prerequisites": [
+        "original"
+      ],
+      "fixture": "isolated supplied English slot with guarded crossbow quantity setup",
+      "timeout_seconds": 170,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "behavior-suite::save_original",
+      "test": "original_secret_lever_world_state_survives_reload",
+      "areas": ["source", "runtime", "comparison", "save"],
+      "kind": "process",
+      "prerequisites": [
+        "original"
+      ],
+      "fixture": "isolated supplied English slot, guarded manor lever navigation and normal save",
+      "timeout_seconds": 180,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "behavior-suite::save_original",
+      "test": "original_no_action_save_is_stable_across_independent_runs",
+      "areas": ["source", "runtime", "comparison", "save"],
+      "kind": "process",
+      "prerequisites": [
+        "original"
+      ],
+      "fixture": "exploratory control: two independent staged supplied English slots and normal game saves",
+      "timeout_seconds": 300,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "behavior-suite::save_original",
+      "test": "original_player_and_named_save_precedence_for_manor_actor",
+      "areas": ["source", "runtime", "comparison", "save"],
+      "kind": "process",
+      "prerequisites": [
+        "original"
+      ],
+      "fixture": "two isolated copies of supplied English slot with opposed player/named NeverBack actor byte values",
+      "timeout_seconds": 220,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "behavior-suite::save_original",
+      "test": "original_named_level_mode5_manor_record_precedence",
+      "areas": ["source", "runtime", "comparison", "save"],
+      "kind": "process",
+      "prerequisites": [
+        "original"
+      ],
+      "fixture": "two isolated supplied English slots with opposed player/named NeverBack bytes and verified tele11/tele05 level transitions",
+      "timeout_seconds": 420,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "behavior-suite::save_original",
+      "test": "original_magic_inventory_survives_reload",
+      "areas": ["save"],
+      "kind": "process",
+      "prerequisites": [
+        "original"
+      ],
+      "fixture": "isolated supplied English slot and pinned original executable",
+      "timeout_seconds": 180,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "session::input_only_tests::input_only_directory_fixture_still_needs_local_root",
+      "areas": ["runtime", "comparison"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic portable save-root manifest",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "session::input_only_tests::input_only_fixture_requires_matching_local_bytes_for_full_recapture",
+      "areas": ["runtime", "comparison"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic portable and local save roots",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "session::input_only_tests::input_only_replays_held_edges_without_reinjecting_auto_repeat",
+      "areas": ["runtime", "comparison"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic recorded physical key edges",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "session::input_only_tests::old_manifest_defaults_to_full_mode",
+      "areas": ["runtime", "comparison"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "synthetic older recording manifest",
+      "timeout_seconds": 5,
+      "ignored": false,
       "release": true
     },
     {
@@ -2821,7 +3174,7 @@
     {
       "binary": "session-recording::fixtures",
       "test": "save_fixture_distinguishes_absent_empty_and_populated_and_prevents_contamination",
-      "areas": ["runtime", "comparison"],
+      "areas": ["runtime", "comparison", "save"],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic save roots",
@@ -2924,6 +3277,39 @@
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic frame timestamps",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "save_registry::tests::maps_and_validates_node",
+      "areas": ["save", "runtime"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic 36-byte SAI registry node and MMG block",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "save_registry::tests::rejects_cycle",
+      "areas": ["save", "runtime"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic cyclic SAI registry list",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
+      "test": "save_registry::tests::rejects_bad_header_links_owner_and_limit",
+      "areas": ["save", "runtime"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic malformed SAI registry invariants",
       "timeout_seconds": 5,
       "ignored": false,
       "release": true

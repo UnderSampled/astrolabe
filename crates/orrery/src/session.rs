@@ -202,7 +202,7 @@ fn environment(config: &Config) -> Result<Environment> {
         runtime_executable_sha256: digest(&config.wine)?,
         locale: std::env::var("LANG").unwrap_or_else(|_| "unknown".into()),
         display_profile:
-            "gamescope SDL 1040x800 at 60 Hz; game window dimensions captured per frame".into(),
+            "Gamescope headless 1040x800 at 60 Hz with private nested Xwayland; game window dimensions captured per frame".into(),
         control_profile: "private Xwayland physical keyboard; per-event keycode and keysym".into(),
         randomness_inputs: "unverified".into(),
     })
@@ -215,18 +215,48 @@ fn write_manifest(path: &Path, manifest: &Manifest) -> Result<()> {
     Ok(())
 }
 
+fn startup_failure(
+    output: &Path,
+    manifest: &mut Manifest,
+    writer: &mut EventWriter,
+    error: anyhow::Error,
+) -> anyhow::Error {
+    manifest.ending = "failed".into();
+    manifest.coverage.audio = "unavailable: launch failed before capture could complete".into();
+    manifest
+        .coverage
+        .gaps
+        .push(format!("session startup failed: {error:#}"));
+    let _ = writer.append(0, "session_failure", json!({"error":format!("{error:#}")}));
+    let _ = write_manifest(&output.join("recording/manifest.json"), manifest);
+    let _ = freeze_files(&output.join("recording"));
+    let _ = fs::write(
+        output.join("report.json"),
+        serde_json::to_vec_pretty(&json!({
+            "ending":"failed", "error":format!("{error:#}"),
+            "recording":output.join("recording"),
+            "coverage":manifest.coverage,
+        }))
+        .unwrap_or_default(),
+    );
+    error.context(format!(
+        "session startup failed; readable evidence retained at {}",
+        output.join("recording").display()
+    ))
+}
+
 fn full_coverage() -> Coverage {
     Coverage {
         input: "xrecord_server_delivered_key_edges; consumption unverified".into(),
         video: "timestamped, sparse lossless PNG samples; continuous video and render update association unavailable".into(),
         state: "phase/level running sample and actor/action/normal/reflex stopped-byte sample in gameplay".into(),
         ai_api: "not instrumented".into(),
-        audio: "not captured".into(),
+        audio: "private game audio capture pending".into(),
         gaps: vec![
             "capture attaches after process identification and visible window; startup before first frame is explicit".into(),
             "input consumption is unverified; mouse and gamepad input are not captured".into(),
             "focus changes are not captured; keyboard edges are scoped to the game window".into(),
-            "continuous video is not captured; frame-to-render/update association is unverified; audio is not captured".into(),
+            "continuous video and audio stream timing are not source render/update calibrated".into(),
             "AI transitions and API arguments/results are not traced".into(),
             "save changes are sampled and snapshotted after observed stability; engine save-operation boundaries and completion are unverified".into(),
         ],
@@ -288,6 +318,20 @@ fn prepared_game(
     fs::write(&path, serde_json::to_vec_pretty(&copied)?)?;
     Config::load_base(&path)?;
     Ok(path)
+}
+
+/// Stage a complete save root into an isolated copy-on-write installation.
+/// The source root is captured and verified without modifying it.
+pub fn prepare_isolated_config(
+    base_config: &Path,
+    source_saves: &Path,
+    output: &Path,
+) -> Result<PathBuf> {
+    reject_nested_save_root(source_saves)?;
+    fs::create_dir(output)?;
+    let fixture_dir = output.join("initial-saves");
+    let fixture = capture_saves(source_saves, &fixture_dir)?;
+    prepared_game(base_config, output, &fixture_dir, &fixture)
 }
 
 #[derive(Debug)]
@@ -1133,6 +1177,10 @@ fn run_loop(
             observed_held.len()
         ));
     }
+    let audio = game
+        .finish_audio()?
+        .context("full session had no armed game audio capture")?;
+    writer.append(game.elapsed().as_micros(), "audio_stream_end", audio)?;
     let session_end = game.elapsed().as_micros();
     writer.append(session_end, "session_end", json!({"ending":ending}))?;
     pending_videos.push(PendingVideo::spawn(
@@ -1281,6 +1329,8 @@ fn finalize(
 ) -> Result<Value> {
     let elapsed_micros = game.elapsed().as_micros();
     let saves = game.save_root();
+    let mut game = game;
+    let trailing_audio = game.finish_audio();
     let close = game.close();
     let output_saves = if manifest.recording_mode == RecordingMode::Full {
         Some(capture_saves(&saves, &output.join("output-saves")))
@@ -1292,6 +1342,10 @@ fn finalize(
     close?;
     let output_saves = output_saves.transpose()?;
     clean?;
+    let result = result.and_then(|result| {
+        trailing_audio?;
+        Ok(result)
+    });
     let (result, failure) = match result {
         Ok(result) => (result, None),
         Err(error) => {
@@ -1324,8 +1378,22 @@ fn finalize(
     manifest.coverage.gaps.extend(result.gaps);
     if result.video_frames > 0 {
         manifest.coverage.video = "continuous lossless FFV1 Matroska window capture at 30 Hz with wall-clock frame index; sparse PNG checkpoints; game render/update association unverified".into();
-        manifest.coverage.gaps.retain(|gap| gap != "continuous video is not captured; frame-to-render/update association is unverified; audio is not captured");
-        manifest.coverage.gaps.push("video frames are presented-window samples; source render/update association is unverified and audio is not captured".into());
+        manifest.coverage.gaps.push("video frames are presented-window samples; source render/update association is unverified".into());
+    }
+    if manifest.recording_mode == RecordingMode::Full {
+        let (events, _) = read_events(&output.join("recording/events.jsonl"))?;
+        if let Some(audio) = events.iter().find(|event| event.kind == "audio_stream_end") {
+            manifest.coverage.audio = "lossless FLAC from private game-only null-sink monitor; launch-relative offset and timing uncertainty in audio_stream_end".into();
+            if audio.data["signal_detected"] != true {
+                manifest.coverage.gaps.push(
+                    "captured audio is digital silence; game output was not audibly verified"
+                        .into(),
+                );
+            }
+        } else {
+            manifest.coverage.audio = "unavailable".into();
+            manifest.coverage.gaps.push("game audio capture did not finalize; inspect private audio logs and retained evidence".into());
+        }
     }
     write_manifest(&output.join("recording/manifest.json"), manifest)?;
     freeze_files(&output.join("recording"))?;
@@ -1447,11 +1515,24 @@ pub fn record(options: RecordOptions<'_>) -> Result<Value> {
     }
     write_manifest(&recording.join("manifest.json"), &manifest)?;
     let mut writer = EventWriter::create(&recording.join("events.jsonl"))?;
-    let mut game = GameSession::start_session(
-        &config,
-        &output.join("runtime"),
-        Duration::from_secs(seconds.max(60) + 60),
-    )?;
+    let started = if mode == CaptureMode::Full {
+        GameSession::start_recording_session(
+            &config,
+            &output.join("runtime"),
+            Duration::from_secs(seconds.max(60) + 60),
+            &recording,
+        )
+    } else {
+        GameSession::start_session(
+            &config,
+            &output.join("runtime"),
+            Duration::from_secs(seconds.max(60) + 60),
+        )
+    };
+    let mut game = match started {
+        Ok(game) => game,
+        Err(error) => return Err(startup_failure(output, &mut manifest, &mut writer, error)),
+    };
     manifest.started_unix_micros = game.started_unix_micros();
     write_manifest(&recording.join("manifest.json"), &manifest)?;
     writer.append(
@@ -1481,6 +1562,23 @@ pub fn record(options: RecordOptions<'_>) -> Result<Value> {
         )
     };
     if let Err(error) = &result {
+        if mode == CaptureMode::Full {
+            match game.finish_audio() {
+                Ok(Some(audio)) => {
+                    let _ = writer.append(game.elapsed().as_micros(), "audio_stream_end", audio);
+                }
+                Ok(None) => {}
+                Err(audio_error) => {
+                    let _ = writer.append(
+                        game.elapsed().as_micros(),
+                        "capture_gap",
+                        json!({
+                            "stream":"audio", "error":format!("{audio_error:#}")
+                        }),
+                    );
+                }
+            }
+        }
         let _ = writer.append(
             game.elapsed().as_micros(),
             "session_failure",
@@ -1592,11 +1690,23 @@ pub fn replay(
     write_manifest(&recording.join("manifest.json"), &replay_manifest)?;
     let mut writer = EventWriter::create(&recording.join("events.jsonl"))?;
     let duration = Duration::from_micros(u64::try_from(original_duration)?.max(5_000_000));
-    let mut game = GameSession::start_session(
+    let started = GameSession::start_recording_session(
         &config,
         &output.join("runtime"),
         duration.max(Duration::from_secs(60)) + Duration::from_secs(120),
-    )?;
+        &recording,
+    );
+    let mut game = match started {
+        Ok(game) => game,
+        Err(error) => {
+            return Err(startup_failure(
+                output,
+                &mut replay_manifest,
+                &mut writer,
+                error,
+            ));
+        }
+    };
     replay_manifest.started_unix_micros = game.started_unix_micros();
     write_manifest(&recording.join("manifest.json"), &replay_manifest)?;
     writer.append(
@@ -1617,6 +1727,21 @@ pub fn replay(
         },
     );
     if let Err(error) = &result {
+        match game.finish_audio() {
+            Ok(Some(audio)) => {
+                let _ = writer.append(game.elapsed().as_micros(), "audio_stream_end", audio);
+            }
+            Ok(None) => {}
+            Err(audio_error) => {
+                let _ = writer.append(
+                    game.elapsed().as_micros(),
+                    "capture_gap",
+                    json!({
+                        "stream":"audio", "error":format!("{audio_error:#}")
+                    }),
+                );
+            }
+        }
         let _ = writer.append(
             game.elapsed().as_micros(),
             "session_failure",

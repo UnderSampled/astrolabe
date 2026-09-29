@@ -8,10 +8,12 @@ description = "Cross-engine Hype behavior scenarios and comparison runner"
 [dependencies]
 behavior-contract = { path = "../behavior-contract" }
 orrery = { path = "../orrery" }
+session-recording = { path = "../session-recording" }
 godot-harness = { path = "../godot-harness" }
 astrolabe = { path = "../.." }
 anyhow = "1.0"
 clap = { version = "4.6", features = ["derive"] }
 serde_json = "1.0"
+png = "0.18"
 cucumber = "=0.23.0"
 tokio = { version = "1.48", features = ["rt-multi-thread"] }

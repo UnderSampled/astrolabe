@@ -75,6 +75,15 @@ focused checks.
 
 ## Next discriminating steps after resumption
 
+Follow the handoff's [continuation strategy after the 508-meaning plateau](savegame-semantic-map-handoff-20260928.md#continuation-after-the-508-meaning-plateau).
+Use the existing tools to resolve one concrete semantic question through source
+and focused observation; the first candidate is the dialogue path below.
+Repeated structural surveys require new evidence that can resolve the known
+missing link. Independent Luna work and bounded port/tool improvements remain
+allowed, with one runtime owner and focused validation. Reassess actual semantic
+progress after 4–6 active hours of an eventual resumption. This documentation
+update does not restart the task or hourly monitor.
+
 1. Repair the bounded registry mapper's eager `bool::then_some` subtraction
    at `crates/orrery/src/save_registry.rs:123` and add a focused negative
    address-range check, then repeat the isolated dialogue probe. Promote a
