@@ -948,3 +948,31 @@ contact cleanup or explicit AI deletion removed the actor. The focused test
 has passed with displacement in other runs, preserving the observed
 run-to-run variation. Report:
 `TestResults/crossbow-world-search-20261001/behavior-crossbow-initial-launch-1790839603661099883.json`.
+
+The focused Godot trace then reached model 733 node 4 at about 33 ms and
+stopped on condition category 1 operation 28. Raymap's Hype condition catalog
+names operation 28 `Cond_CollidePersoZDENoWithTypeZDE`; the imported Rete nodes
+are a keyword (4), constant (1), and mask (1). Disassembly of the pinned
+patched executable (SHA-256
+`ed105a423f6e1bcf0460aa8f7357e2bae3783ca8aadfff8ef8a13b93d967d97d`) shows
+the generic condition path reaching `FUN_00524420` and then
+`FUN_0042f210`. That helper either resolves a collision set or selects one of
+the actor's collision zones, then uses `FUN_0042f2a0` and
+`FUN_0042f4e0` to collect geometric intersections with active characters.
+This is not a synonym for `Cond_CollideWithNothing` or a count of the last
+`CharacterBody3D` slide contacts.
+
+The current Godot character exporter only instantiates the ZDM movement group
+(`src/godot/character.rs::movement_collision`); it does not expose the ZDE
+geometry required by this condition. The node's three operands have not yet
+been matched to the helper's zone/collision-set parameters, and target-type
+filtering is not available on those exported shapes. A direct boolean mapping
+would therefore make arrow AI proceed on an unverified result. The attempted
+`get_slide_collision_count() == 0` mapping was removed; `CollideWithNothing`
+again fails visibly while its source contact-class producer remains unknown.
+Focused Godot evidence is
+`TestResults/crossbow-contact-20261001/behavior-crossbow-initial-launch-1790840376462423854.json`:
+the arrow launches and moves, then its Brain stops at this op28 gap. Ammo
+parity remains three in the original and two in Godot. Crossbow use is not
+accepted until the ZDE query and contact result are represented natively and
+the live ammo discrepancy is traced to its source inventory call.
