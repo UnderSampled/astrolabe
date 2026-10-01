@@ -626,6 +626,7 @@ impl GameSession {
         scene_tail_limit: Option<usize>,
         include_crossbow_global: bool,
         scene_ai_model_identity: Option<(u16, u16, u32)>,
+        scene_ai_designer_values: &[u32],
     ) -> Result<MagickBehaviorObservation> {
         ensure!(
             (1..=64).contains(&actions.len()),
@@ -686,6 +687,7 @@ impl GameSession {
                     module,
                     block,
                     payload_offset,
+                    scene_ai_designer_values,
                 )
             })
             .transpose()?;

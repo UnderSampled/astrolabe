@@ -14,6 +14,7 @@ use std::{
 
 pub const ORIGINAL_STARTUP_SETTLE_MS: u64 = 2_500;
 const CROSSBOW_DIAGNOSTIC_FIELDS: &[u32] = &[7, 8, 13, 15, 59, 60, 95, 130];
+const CROSSBOW_ARROW_SCHEDULE_FIELDS: &[u32] = &[0];
 
 pub fn actor_sample_from_actor(
     name: String,
@@ -726,6 +727,11 @@ impl OriginalBackend {
                             Some(2),
                             capture_projectile_burst,
                             capture_projectile_burst.then_some((17, 0, 0x4e324)),
+                            if capture_projectile_burst {
+                                CROSSBOW_ARROW_SCHEDULE_FIELDS
+                            } else {
+                                &[]
+                            },
                         )?;
                         ensure!(
                             observation.status.phase == 9 && observation.status.level == "manoir",
@@ -762,6 +768,11 @@ impl OriginalBackend {
                         Some(2),
                         capture_projectile_burst,
                         capture_projectile_burst.then_some((17, 0, 0x4e324)),
+                        if capture_projectile_burst {
+                            CROSSBOW_ARROW_SCHEDULE_FIELDS
+                        } else {
+                            &[]
+                        },
                     )?;
                     ensure!(
                         observation.status.phase == 9 && observation.status.level == "manoir",

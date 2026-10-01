@@ -592,6 +592,7 @@ impl HypeBuild {
         module: u16,
         block: u16,
         payload_offset: u32,
+        designer_values: &[u32],
     ) -> Result<SceneAiModelSearchObservation> {
         let status = self.status(memory)?;
         ensure!(
@@ -615,7 +616,7 @@ impl HypeBuild {
         let (matches, scanned_nodes) = find_live_actors_by_ai_model(&mut source, model_address)?;
         let mut instances = Vec::with_capacity(matches.len());
         for found in matches {
-            let observed = actor_ai_at_node(&mut source, found.node, &[], &[])?;
+            let observed = actor_ai_at_node(&mut source, found.node, &[], designer_values)?;
             let perso = source.required(found.node, SuperObjectWire::DATA)?;
             let ai = source_view::ai_parts(&mut source, perso)?;
             ensure!(
@@ -632,6 +633,7 @@ impl HypeBuild {
                 actor,
                 normal: observed.normal,
                 reflex: observed.reflex,
+                designer_values: observed.designer_values,
             });
         }
         Ok(SceneAiModelSearchObservation {
@@ -1855,6 +1857,7 @@ pub struct SceneAiModelInstance {
     pub actor: ActorObservation,
     pub normal: Option<BehaviorSelection>,
     pub reflex: Option<BehaviorSelection>,
+    pub designer_values: Vec<SelectedDesignerValue>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

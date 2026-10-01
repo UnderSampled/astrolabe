@@ -1017,3 +1017,25 @@ live traces show launch displacement and cleanup vary across source runs.
 The only suite failure was the local AI inventory assertion retaining the
 old count of 57 models; importing the now-supported condition raises that
 count to 58. The corresponding assertion has been updated.
+
+The following focused combat run passed the Godot initial-launch case and
+completed the original case's setup, selection, arrow spawn, and model-733
+identity checks, but failed the source displacement assertion. Two dense
+observations found the same source arrow at its Hype spawn transform
+`[-74.3786, 27.4858, 4.5509]`, 10 ms apart. Its integrated velocity and
+pending override velocity were zero; published contact class was 0; its
+normal behavior remained 0 and designer field 0 was integer 0. It disappeared
+from the complete ActualWorld model-733 search by the next observation 10 ms
+later. This capture therefore records removal before any observed movement,
+but does not identify the removal cause or prove which update phase the AI
+reached. Each stopped capture itself took about 78–87 ms, longer than the
+10 ms resumed gaps; the timestamps are therefore not continuous gameplay
+intervals and the capture cadence may affect this short-lived arrow. The
+earlier passing source capture still shows movement and later contact class 4,
+so source launch behavior remains variable between runs. The new run also
+captured the model-733 schedule field, but its value is reset to zero by normal
+behavior 0 before `WaitFrames(2)`; it does not expose the wait counter. Godot
+still passes initial launch and stops at its explicit
+`CollideWithNothing` gap before operation 28. Reports are
+`TestResults/20261001T084724.658869Z-development.log.d/behavior-crossbow-initial-launch-1790844866446208279.json`
+and `TestResults/20261001T084724.658869Z-development.log.d/behavior-crossbow-initial-launch-1790844622833292351.json`.
