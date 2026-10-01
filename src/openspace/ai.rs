@@ -340,6 +340,9 @@ impl Parser<'_> {
                 (4, 193) => Statement::SetParticleGeneratorEnabled(false),
                 (4, 337) => Statement::SetLaserPointerActive(true),
                 (4, 338) => Statement::SetLaserPointerActive(false),
+                (4, 342) => Statement::SetLaserPointerSniperMode(self.expression(indent + 1)?),
+                (4, 266) => Statement::SetDisplayVisible(false),
+                (4, 267) => Statement::SetDisplayVisible(true),
                 (4, 445) => Statement::ChangeSighting(self.expression(indent + 1)?),
                 (4, 160) => {
                     let operand = self.at;
@@ -1006,6 +1009,13 @@ impl Writer<'_> {
                 }
                 Statement::SetLaserPointerActive(active) => {
                     self.node(4, if *active { 337 } else { 338 }, indent)
+                }
+                Statement::SetLaserPointerSniperMode(enabled) => {
+                    self.node(4, 342, indent);
+                    self.expression(enabled, indent + 1)?;
+                }
+                Statement::SetDisplayVisible(visible) => {
+                    self.node(4, if *visible { 267 } else { 266 }, indent)
                 }
                 Statement::ChangeSighting(direction) => {
                     self.node(4, 445, indent);
@@ -1968,6 +1978,23 @@ mod partial_tests {
         assert!(matches!(
             script.statements[4],
             Statement::SetLaserPointerActive(true)
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn crossbow_camera_mode_calls_decode_and_reconstruct() -> Result<()> {
+        let (codec, bytes) =
+            partial(&[(4, 342, 1), (12, 1, 2), (4, 266, 1), (4, 267, 1), (8, 0, 0)]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            script.statements.as_slice(),
+            [
+                Statement::SetLaserPointerSniperMode(Expression::Integer(1)),
+                Statement::SetDisplayVisible(false),
+                Statement::SetDisplayVisible(true),
+            ]
         ));
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())

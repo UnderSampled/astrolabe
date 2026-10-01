@@ -26,8 +26,24 @@ var loading_stage := "idle"
 var load_started_usec := 0
 var load_timings_ms: Dictionary = {}
 var saved_max_fps := -1
+var crossbow_aim_mode := false
+var crossbow_aim_pitch := 0.0
+
+const AIM_ACTIONS := {
+    "Button_Left": KEY_LEFT,
+    "Button_Right": KEY_RIGHT,
+    "Button_Up": KEY_UP,
+    "Button_Down": KEY_DOWN,
+    "Button_Hit": KEY_SPACE,
+    "BT_Camera_LookLeft": KEY_LEFT,
+    "BT_Camera_LookRight": KEY_RIGHT,
+    "BT_Camera_LookUp": KEY_UP,
+    "BT_Camera_LookDown": KEY_DOWN,
+    "BT_Camera_TireArbalete": KEY_SPACE,
+}
 
 func _ready() -> void:
+    configure_crossbow_inputs()
     load_started_usec = Time.get_ticks_usec()
     stage("session", "Loading saved game...")
     mana_label.text = ""
@@ -162,15 +178,74 @@ func restore_frame_limit() -> void:
         Engine.max_fps = saved_max_fps
         saved_max_fps = -1
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
     if not ready_to_play or not is_instance_valid(actor) or not is_instance_valid(brain):
         return
     var magick: Resource = actor.get("source_magick")
     if magick != null:
         mana_label.text = "Fire  %d / %d mana" % [int(magick.get("current_points")), int(magick.get("maximum_points"))]
+    var inventory: Resource = actor.get("source_inventory")
+    if inventory != null and int(inventory.get("selected_weapon")) == 80:
+        mana_label.text = "Crossbow  %d bolts" % int(inventory.call("quantity", 80))
+    var aiming := inventory != null and int(inventory.get("selected_weapon")) == 80 and Input.is_action_pressed("BT_Camera_Look")
+    if aiming != crossbow_aim_mode:
+        set_crossbow_aim_mode(aiming)
+    if crossbow_aim_mode:
+        if Input.is_action_pressed("BT_Camera_LookUp"): crossbow_aim_pitch = minf(crossbow_aim_pitch + 45.0 * delta, 35.0)
+        if Input.is_action_pressed("BT_Camera_LookDown"): crossbow_aim_pitch = maxf(crossbow_aim_pitch - 45.0 * delta, -35.0)
+        demo_camera.crossbow_aim_pitch_degrees = crossbow_aim_pitch
+        update_crossbow_aim_target()
     var failure := str(brain.get("unsupported_failure"))
     if not failure.is_empty():
         status_label.text = "This behavior is not supported yet. Press R to reload."
+
+func configure_crossbow_inputs() -> void:
+    for action in ["BT_Camera_Look", "BT_Camera_LookLeft", "BT_Camera_LookRight", "BT_Camera_LookUp", "BT_Camera_LookDown", "BT_Camera_TireArbalete"]:
+        if not InputMap.has_action(action): InputMap.add_action(action)
+    bind_physical_key("BT_Camera_Look", KEY_KP_0)
+    bind_physical_key("BT_Camera_Look", KEY_INSERT)
+    bind_physical_key("Button_Left", KEY_LEFT)
+    bind_physical_key("Button_Right", KEY_RIGHT)
+    bind_physical_key("Button_Up", KEY_UP)
+    bind_physical_key("Button_Down", KEY_DOWN)
+    bind_physical_key("Button_Hit", KEY_SPACE)
+
+func bind_physical_key(action: StringName, key: Key) -> void:
+    if not InputMap.has_action(action): InputMap.add_action(action)
+    var event := InputEventKey.new()
+    event.physical_keycode = key
+    if not InputMap.action_has_event(action, event): InputMap.action_add_event(action, event)
+
+func route_physical_key(action: StringName, key: Key, enabled: bool) -> void:
+    var event := InputEventKey.new()
+    event.physical_keycode = key
+    if enabled:
+        if not InputMap.action_has_event(action, event): InputMap.action_add_event(action, event)
+    elif InputMap.action_has_event(action, event):
+        InputMap.action_erase_event(action, event)
+
+func set_crossbow_aim_mode(enabled: bool) -> void:
+    crossbow_aim_mode = enabled
+    var movement_actions := ["Button_Left", "Button_Right", "Button_Up", "Button_Down"]
+    var camera_actions := ["BT_Camera_LookLeft", "BT_Camera_LookRight", "BT_Camera_LookUp", "BT_Camera_LookDown"]
+    for i in movement_actions.size():
+        route_physical_key(movement_actions[i], AIM_ACTIONS[movement_actions[i]], not enabled)
+        route_physical_key(camera_actions[i], AIM_ACTIONS[camera_actions[i]], enabled)
+    route_physical_key("Button_Hit", KEY_SPACE, not enabled)
+    route_physical_key("BT_Camera_TireArbalete", KEY_SPACE, enabled)
+    if not enabled: crossbow_aim_pitch = 0.0
+
+func update_crossbow_aim_target() -> void:
+    if not is_instance_valid(actor): return
+    var viewport := get_viewport()
+    var center := viewport.get_visible_rect().size * 0.5
+    var origin := demo_camera.project_ray_origin(center)
+    var direction := demo_camera.project_ray_normal(center)
+    var query := PhysicsRayQueryParameters3D.create(origin, origin + direction * 2000.0, 1)
+    query.exclude = [actor.get_rid()]
+    var hit := actor.get_world_3d().direct_space_state.intersect_ray(query)
+    var target := hit["position"] as Vector3 if not hit.is_empty() else origin + direction * 2000.0
+    actor.call("source_set_laser_pointer_target", target)
 
 func _unhandled_key_input(event: InputEvent) -> void:
     var key := event as InputEventKey
@@ -192,6 +267,7 @@ func leave_session(destination: String) -> void:
         brain.call("stop")
     if is_instance_valid(actor):
         actor.set_physics_process(false)
+    if crossbow_aim_mode: set_crossbow_aim_mode(false)
     for action in InputMap.get_actions():
         if str(action).begins_with("Button_"):
             Input.action_release(action)

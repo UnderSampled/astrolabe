@@ -180,6 +180,11 @@ pub enum Statement {
     /// Original laser-pointer presentation is global; aiming reads its last
     /// target independently of whether the pointer is visible.
     SetLaserPointerActive(bool),
+    /// Proc_SetLaserPointerSniperMode changes the native pointer's aiming mode.
+    SetLaserPointerSniperMode(Expression),
+    /// Proc_InvisibleDisplay / Proc_VisibleDisplay toggle rendered visibility
+    /// while leaving the actor's native physics and AI active.
+    SetDisplayVisible(bool),
     ChangeSighting(Expression),
     /// Camera procedure 160 receives an AI-referenced camera Perso and the
     /// source MainActor keyword. The native API stores the target actor.

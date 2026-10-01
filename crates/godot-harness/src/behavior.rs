@@ -380,6 +380,7 @@ impl GodotBackend {
                 Key::ArrowUp => "ArrowUp", Key::ArrowDown => "ArrowDown",
                 Key::LeftShift => "LeftShift",
                 Key::LeftControl => "LeftControl",
+                Key::Keypad0 => "Keypad0",
                 Key::X => "X",
                 Key::Z => "Z",
                 Key::Space => "Space",

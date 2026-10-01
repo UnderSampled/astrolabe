@@ -6,6 +6,7 @@ var target: Node3D
 const DISTANCE := 3.3433
 const HEIGHT := 2.8344
 const LOOK_HEIGHT := 1.816
+var crossbow_aim_pitch_degrees := 0.0
 
 func _ready() -> void:
     fov = 69.8838
@@ -20,4 +21,8 @@ func follow() -> void:
         return
     var backward := -target.global_basis.orthonormalized().z
     global_position = target.global_position + backward * DISTANCE + Vector3.UP * HEIGHT
-    look_at(target.global_position + Vector3.UP * LOOK_HEIGHT)
+    var focus := target.global_position + Vector3.UP * LOOK_HEIGHT
+    var direction := (focus - global_position).normalized()
+    if Input.is_action_pressed("BT_Camera_Look"):
+        direction = direction.rotated(target.global_basis.x.normalized(), deg_to_rad(crossbow_aim_pitch_degrees))
+    look_at(global_position + direction * DISTANCE)

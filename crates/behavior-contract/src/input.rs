@@ -11,6 +11,7 @@ pub enum Key {
     ArrowDown,
     LeftShift,
     LeftControl,
+    Keypad0,
     X,
     Z,
     Space,

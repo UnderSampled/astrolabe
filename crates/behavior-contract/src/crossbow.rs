@@ -1,6 +1,4 @@
-//! Initial crossbow launch through Hype's and the arrow's compiled AI.
-//! The Space/Button_Hit launch and the unbound TireArbalete camera action are
-//! distinct paths; the former does not establish ammunition consumption.
+//! Initial crossbow camera-mode shot through Hype's and the arrow's compiled AI.
 use super::*;
 
 const ARROW_MODEL: &str = "fix:/ai/models/733";
@@ -23,13 +21,16 @@ pub fn recording() -> FunctionalRecording {
         inputs: vec![
             edge(200, "select_press", Key::Z, Edge::Press),
             edge(255, "select_release", Key::Z, Edge::Release),
-            edge(1100, "attack_press", Key::Space, Edge::Press),
-            edge(1180, "attack_release", Key::Space, Edge::Release),
+            edge(1050, "crossbow_aim_press", Key::Keypad0, Edge::Press),
+            edge(1250, "attack_press", Key::Space, Edge::Press),
+            edge(1330, "attack_release", Key::Space, Edge::Release),
+            edge(1450, "crossbow_aim_release", Key::Keypad0, Edge::Release),
         ],
         samples: [
             (0, "baseline"),
             (1000, "selected"),
-            (1600, "flight_recorded"),
+            (1400, "camera_fire_active"),
+            (1900, "flight_recorded"),
         ]
         .into_iter()
         .map(|(at_ms, name)| SamplePoint {
@@ -48,7 +49,7 @@ pub fn validate(recording: &FunctionalRecording) -> Result<()> {
             && recording.ready_state == expected.ready_state
             && recording.inputs == expected.inputs
             && recording.samples == expected.samples,
-        "crossbow launch requires physical Z55, an armed checkpoint, and Space80/Button_Hit from quantity three"
+        "crossbow launch requires physical Z55, keypad-0 camera aim, and Space firing from quantity three"
     );
     Ok(())
 }
@@ -146,18 +147,19 @@ fn original_arrow_evidence(burst: &[serde_json::Value]) -> (bool, Option<f64>) {
 
 pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
     ensure!(
-        samples.len() == 3,
+        samples.len() == 4,
         "crossbow launch needs three observations"
     );
     ensure!(
         samples.iter().map(|sample| sample.name.as_str()).eq([
             "baseline",
             "selected",
+            "camera_fire_active",
             "flight_recorded"
         ]),
         "crossbow observations changed order"
     );
-    let [baseline, selected, flight] = samples else {
+    let [baseline, selected, camera_fire_active, flight] = samples else {
         unreachable!()
     };
     let raw = &flight.raw_observation;
@@ -175,7 +177,7 @@ pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
             .map(|member| &member["quantity"])
             .unwrap_or(&serde_json::Value::Null)
     };
-    let source = "Verified saved Weapon 80 quantity zero plus a test-owned quantity-three start; Z55/gap100/Space80 is physical input";
+    let source = "Verified saved Weapon 80 quantity zero plus a test-owned quantity-three start; Z55, keypad-0 camera aim, and Space firing are physical input";
     let mut checks = vec![bound(
         "crossbow_quantity_three_start",
         f64::from(u8::from(starting_quantity.as_u64() == Some(3))),
@@ -190,7 +192,18 @@ pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
         Some(1.0),
         "Observed armed idle after physical Z selection and before physical Space/Button_Hit",
     ));
-
+    let aim_schedule_active = if godot {
+        camera_fire_active.raw_observation["normal_behavior"] == 40
+    } else {
+        camera_fire_active.raw_observation["source_ai"]["normal"]["current"] == 40
+    };
+    checks.push(bound(
+        "crossbow_camera_aim_schedule_active_during_fire",
+        f64::from(u8::from(aim_schedule_active)),
+        Some(1.0),
+        Some(1.0),
+        "The player's compiled normal-40 Crossbow camera-aim/firing schedule remains active while keypad-0 is held",
+    ));
     if godot {
         let trace = raw["generated_trace"]
             .as_array()

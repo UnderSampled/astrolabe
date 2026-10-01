@@ -1284,6 +1284,20 @@ fn statements(
                     "{pad}character().source_set_laser_pointer_active({active})"
                 )?;
             }
+            Statement::SetLaserPointerSniperMode(enabled) => {
+                let value = guarded_expression(out, enabled, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if not character().source_set_laser_pointer_sniper_mode({value}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!("{} has no native laser-pointer state", model.path))
+                )?;
+            }
+            Statement::SetDisplayVisible(visible) => {
+                writeln!(
+                    out,
+                    "{pad}character().source_set_display_visible({visible})"
+                )?;
+            }
             Statement::ChangeSighting(direction) => {
                 let value = guarded_expression(out, direction, model, depth, flow)?;
                 writeln!(

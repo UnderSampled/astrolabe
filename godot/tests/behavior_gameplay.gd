@@ -24,7 +24,43 @@ var starting_state_overlay: Dictionary = {}
 var last_action_state: int = -1
 
 func _initialize() -> void:
+    configure_crossbow_inputs()
     call_deferred("run")
+
+func configure_crossbow_inputs() -> void:
+    for action in ["BT_Camera_Look", "BT_Camera_LookLeft", "BT_Camera_LookRight", "BT_Camera_LookUp", "BT_Camera_LookDown", "BT_Camera_TireArbalete"]:
+        if not InputMap.has_action(action): InputMap.add_action(action)
+    for action in ["Button_Left", "Button_Right", "Button_Up", "Button_Down", "Button_Hit"]:
+        if not InputMap.has_action(action): InputMap.add_action(action)
+    bind_physical_key("BT_Camera_Look", KEY_KP_0)
+    bind_physical_key("Button_Left", KEY_LEFT)
+    bind_physical_key("Button_Right", KEY_RIGHT)
+    bind_physical_key("Button_Up", KEY_UP)
+    bind_physical_key("Button_Down", KEY_DOWN)
+    bind_physical_key("Button_Hit", KEY_SPACE)
+
+func bind_physical_key(action: StringName, key: Key) -> void:
+    var event := InputEventKey.new()
+    event.physical_keycode = key
+    if not InputMap.action_has_event(action, event): InputMap.action_add_event(action, event)
+
+func route_crossbow_key(action: StringName, key: Key, enabled: bool) -> void:
+    var event := InputEventKey.new()
+    event.physical_keycode = key
+    if enabled:
+        if not InputMap.action_has_event(action, event): InputMap.action_add_event(action, event)
+    elif InputMap.action_has_event(action, event):
+        InputMap.action_erase_event(action, event)
+
+func set_crossbow_input_mode(enabled: bool) -> void:
+    var movement := ["Button_Left", "Button_Right", "Button_Up", "Button_Down"]
+    var aiming := ["BT_Camera_LookLeft", "BT_Camera_LookRight", "BT_Camera_LookUp", "BT_Camera_LookDown"]
+    var keys := [KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN]
+    for i in range(movement.size()):
+        route_crossbow_key(movement[i], keys[i], not enabled)
+        route_crossbow_key(aiming[i], keys[i], enabled)
+    route_crossbow_key("Button_Hit", KEY_SPACE, not enabled)
+    route_crossbow_key("BT_Camera_TireArbalete", KEY_SPACE, enabled)
 
 func write_json(path: String, value: Dictionary) -> void:
     var file := FileAccess.open(path, FileAccess.WRITE)
@@ -406,8 +442,11 @@ func handle(request: Dictionary) -> Dictionary:
         "observe":
             return observation()
         "key":
+            var key_name := str(request.get("key", ""))
+            var pressed := bool(request.get("pressed", false))
+            if key_name == "Keypad0" and pressed: set_crossbow_input_mode(true)
             var event := InputEventKey.new()
-            match str(request.get("key", "")):
+            match key_name:
                 "ArrowLeft": event.physical_keycode = KEY_LEFT
                 "ArrowRight": event.physical_keycode = KEY_RIGHT
                 "ArrowUp": event.physical_keycode = KEY_UP
@@ -417,13 +456,15 @@ func handle(request: Dictionary) -> Dictionary:
                 "X": event.physical_keycode = KEY_X
                 "Z": event.physical_keycode = KEY_Z
                 "Space": event.physical_keycode = KEY_SPACE
+                "Keypad0": event.physical_keycode = KEY_KP_0
                 "Enter": event.physical_keycode = KEY_ENTER
                 _: return {"error": "unknown physical key"}
-            event.pressed = bool(request.get("pressed", false))
-            key_inputs.append({"at_ms": Time.get_ticks_msec(), "key": str(request.get("key", "")), "pressed": event.pressed})
+            event.pressed = pressed
+            key_inputs.append({"at_ms": Time.get_ticks_msec(), "key": key_name, "pressed": event.pressed})
             if key_inputs.size() > 30: key_inputs.pop_front()
             Input.parse_input_event(event)
             Input.flush_buffered_events()
+            if key_name == "Keypad0" and not pressed: set_crossbow_input_mode(false)
             return observation()
         "screenshot":
             var path := str(request.get("path", ""))

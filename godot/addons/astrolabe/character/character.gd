@@ -15,6 +15,7 @@ const SOURCE_COLLISION_QUERY_MAX_RESULTS := 4096
 @export var current_mechanics: Resource
 @export var physical_environment: Resource
 @export var source_inventory: Resource
+var source_display_hidden_layers: Dictionary = {}
 @export var source_magick: Resource
 @export var source_laser_pointer: Resource
 @export var autoplay: bool = true
@@ -219,6 +220,36 @@ func source_magic_remove_points(amount: int) -> int:
 func source_set_laser_pointer_active(active: bool) -> void:
     assert(source_laser_pointer != null)
     source_laser_pointer.set("active", active)
+
+func source_set_laser_pointer_sniper_mode(enabled: bool) -> bool:
+    if source_laser_pointer == null: return false
+    source_laser_pointer.set("sniper_mode", enabled)
+    return true
+
+func source_set_laser_pointer_target(target: Vector3) -> void:
+    assert(source_laser_pointer != null and target.is_finite())
+    source_laser_pointer.set("target_position", target)
+    source_laser_pointer.set("target_valid", true)
+
+func source_set_display_visible(display_visible: bool) -> void:
+    for visual in find_children("*", "VisualInstance3D", true, false):
+        if not visual is VisualInstance3D or _is_generated_child(visual): continue
+        var instance_id := visual.get_instance_id()
+        if display_visible:
+            if source_display_hidden_layers.has(instance_id):
+                visual.layers = int(source_display_hidden_layers[instance_id])
+                source_display_hidden_layers.erase(instance_id)
+        else:
+            if not source_display_hidden_layers.has(instance_id):
+                source_display_hidden_layers[instance_id] = visual.layers
+            visual.layers = 0
+
+func _is_generated_child(candidate: Node) -> bool:
+    var current: Node = candidate
+    while current != null and current != self:
+        if current.has_meta("astrolabe_generated_template"): return true
+        current = current.get_parent()
+    return false
 
 func source_laser_pointer_ready() -> bool:
     return source_laser_pointer != null and bool(source_laser_pointer.get("target_valid"))
