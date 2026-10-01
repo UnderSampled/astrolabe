@@ -94,9 +94,11 @@ is intentionally unset until a source-backed game/camera ray can supply it;
 scripts fail explicitly when the target is unavailable. The native sighting
 method rotates the actor from the source vector while preserving position and
 scale. Its up/roll choice and zero-vector behavior remain fidelity questions.
-`Cond_CollideWithNothing` reads the current movement step's native slide
-contacts. The compiled model-733 arrow AI now remains active during free flight;
-the separate ZDE target query and hit response remain incomplete.
+`Cond_CollideWithNothing` currently reads the current movement step's native
+slide contacts. The source model-733 selector uses the published contact-class
+bit `0x2`, so this Godot result is a provisional native approximation, not
+source contact parity. The compiled arrow AI remains active during free flight;
+the source-equivalent contact result and hit/cleanup behavior remain open.
 The arrow's `Camera_ChangeTargetedPerso(StdCamer, MainActor)` call is compiled.
 The level exposes source actor node paths; the native camera API uses the
 compiled operand identity to find the saved actor's `SourceCamera` child and
