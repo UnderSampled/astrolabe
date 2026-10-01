@@ -1056,3 +1056,23 @@ shows the previous no-displacement result was sensitive to expensive capture
 overhead and gives a useful source motion/contact trace, while leaving the
 condition mapping and removal caller open. Report:
 `TestResults/crossbow-latest-child/behavior-crossbow-initial-launch-1790845390083999133.json`.
+
+### Shared projectile creation with the sword beam
+
+The sword beam and Crossbow use the same native projectile creation path. The
+creation handler copies the caller's transform, and Godot now assigns that
+transform before the new actor's Brain starts. This shared ordering is relevant
+to both weapons' launch poses. The beam's recent position/animation work still
+concerns its rendered parts and animation; Crossbow use separately depends on
+model 733's contact/lifetime behavior and the firing inventory result. Do not
+transfer a beam-specific mesh offset or animation adjustment to the arrow.
+
+A focused original Crossbow rerun on 2026-10-01 passed all six launch
+assertions, including 1.8874 units of arrow displacement. An attempted cleanup
+counter probe initially read designer field 120 from the arrow instead of
+MainActor; correcting that capture showed the MainActor field also remained
+zero in baseline, selected and flight samples. The field therefore does not
+identify the arrow's cleanup branch, and the temporary capture change was
+removed. The live run confirms launch/motion for this input but does not close
+the Godot contact result, arrow cleanup, or ammunition discrepancy. Report:
+`TestResults/crossbow-cleanup-counter-fixed/behavior-crossbow-initial-launch-1790846620343401394.json`.
