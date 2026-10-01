@@ -199,9 +199,9 @@ pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
             .iter()
             .filter(|entry| entry["event"] == "frame" && entry["source_model_path"] == ARROW_MODEL)
             .collect::<Vec<_>>();
-        let release = trace.iter().find(|entry| {
-            entry["event"] == "release" && entry["source_model_path"] == ARROW_MODEL
-        });
+        let release = trace
+            .iter()
+            .find(|entry| entry["event"] == "release" && entry["source_model_path"] == ARROW_MODEL);
         let launch = frames
             .iter()
             .copied()
@@ -259,6 +259,34 @@ pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
             None,
             "Initial native arrow movement while the compiled model-733 Brain remains active",
         ));
+        let arrow_exit = trace.iter().find(|entry| {
+            entry["event"] == "tree_exiting" && entry["source_model_path"] == ARROW_MODEL
+        });
+        let contact_cleanup = arrow_exit.is_some_and(|entry| {
+            entry["slide_collision_count"]
+                .as_u64()
+                .is_some_and(|count| count > 0)
+                && entry["brain_normal"] == 1
+                && entry["brain_failure"] == ""
+                && entry["main_actor_field_120"] == 0
+        });
+        checks.push(bound(
+            "crossbow_wall_contact_runs_compiled_cleanup",
+            f64::from(u8::from(contact_cleanup)),
+            Some(1.0),
+            Some(1.0),
+            "The launched model-733 arrow reaches native slide contact and its compiled normal-1 behavior removes it without a Brain failure",
+        ));
+        let firing_guard_seen = frames.iter().any(|entry| {
+            entry["source_model_path"] == ARROW_MODEL && entry["main_actor_field_120"] == 1
+        });
+        checks.push(bound(
+            "crossbow_firing_guard_released_after_cleanup",
+            f64::from(u8::from(firing_guard_seen && arrow_exit.is_some_and(|entry| entry["main_actor_field_120"] == 0))),
+            Some(1.0),
+            Some(1.0),
+            "Owner AI firing guard is set while the arrow is active and reset when its compiled cleanup removes the arrow",
+        ));
     } else {
         let global_identity = samples
             .iter()
@@ -304,7 +332,7 @@ pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
             None,
             "Two time-ordered positions of the same checked original arrow before it disappears",
         ));
-        let contact_observed_without_selector_bit = burst.iter().any(|entry| {
+        let contact_observed = burst.iter().any(|entry| {
             entry["scene_tail_latest"]["children"]
                 .as_array()
                 .is_some_and(|children| {
@@ -315,8 +343,7 @@ pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
                             && offset["payload_offset"].as_u64() == Some(ARROW_MODEL_OFFSET)
                             && child["dynamics"]["contact_classes"]["publication_consistent"]
                                 == true
-                            && child["dynamics"]["contact_classes"]["selector_33_mask_0x2_set"]
-                                == false
+                            && child["dynamics"]["contact_classes"]["collide_with_nothing"] == false
                             && child["dynamics"]["contact_classes"]["current"]
                                 .as_u64()
                                 .is_some_and(|value| value != 0)
@@ -324,11 +351,11 @@ pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
                 })
         });
         checks.push(bound(
-            "crossbow_source_contact_class_bit2_clear_during_arrow_contact",
-            f64::from(u8::from(contact_observed_without_selector_bit)),
+            "crossbow_source_collide_with_nothing_false_on_classified_contact",
+            f64::from(u8::from(contact_observed)),
             Some(1.0),
             Some(1.0),
-            "Checked model-733 instance had a published nonzero contact class with selector-33 mask 0x2 clear",
+            "Checked model-733 instance had a published nonzero contact word; pinned handler operation 33 returns true only when that word is zero",
         ));
         let post_burst = &raw["crossbow_post_burst_diagnostic"];
         let post_burst_identity = post_burst["scene_ai_model"]["model"]["module"] == 17

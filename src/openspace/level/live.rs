@@ -724,9 +724,16 @@ impl HypeBuild {
         designer_values: &[u32],
     ) -> Result<SceneTailObservation> {
         ensure!((1..=16).contains(&limit), "scene tail limit outside 1..16");
-        ensure!(designer_values.len() <= 64, "too many selected tail AI fields");
         ensure!(
-            designer_values.iter().copied().collect::<BTreeSet<_>>().len()
+            designer_values.len() <= 64,
+            "too many selected tail AI fields"
+        );
+        ensure!(
+            designer_values
+                .iter()
+                .copied()
+                .collect::<BTreeSet<_>>()
+                .len()
                 == designer_values.len(),
             "duplicate selected tail AI field"
         );
@@ -822,7 +829,7 @@ impl HypeBuild {
                         previous,
                         current,
                         ai_visible,
-                        selector_33_mask_0x2_set: ai_visible & 0x2 != 0,
+                        collide_with_nothing: ai_visible == 0,
                         publication_consistent: ai_visible == (previous | current),
                     };
                     let list = source.pointer(wrapper, 0xfc)?;
@@ -1829,7 +1836,8 @@ pub struct SceneTailContactClasses {
     pub current: u32,
     /// Mechanics +0xf8 is the class word read by the Hype condition handler.
     pub ai_visible: u32,
-    pub selector_33_mask_0x2_set: bool,
+    /// Raw condition operation 33 compares its mechanics contact word to zero.
+    pub collide_with_nothing: bool,
     /// A false value can be a stopped capture between the publisher's stores.
     pub publication_consistent: bool,
 }

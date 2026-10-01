@@ -266,7 +266,7 @@ fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
                 previous: 1,
                 current: 2,
                 ai_visible: 3,
-                selector_33_mask_0x2_set: true,
+                collide_with_nothing: false,
                 publication_consistent: true,
             },
             list_locator: Some("live:00005000".into()),

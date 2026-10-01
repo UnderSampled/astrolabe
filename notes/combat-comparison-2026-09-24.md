@@ -355,13 +355,12 @@ move the camera. The rooted actor now retains its model-437 Brain and bounded
 Perso-list operations. Its return-zero/camera-update pair now compiles to a
 native API call, which still reports unsupported until the source pose update
 contract is implemented.
-The handler reads a mechanics contact-class word at runtime offset `+0xf8`.
+The handler reads a mechanics contact word at runtime offset `+0xf8`.
 The executable computes a jump-table index by subtracting 31 from its
-selector; index 2 enters a Boolean mask-`0x2` test, while index 0 tests
-mask `0x1`. The typed importer preserves model 733's on-disk operation 33,
-so selector 33/index 2 is strongly supported, although the complete disk-to-
-runtime selector copy has not been traced. The earlier bit-zero attribution
-to condition 33 was a switch-alignment error. Collision processing snapshots
+selector; raw operation 33 reaches index 2 and returns whether the word is
+zero. The mask-`0x2` test at index 3 is raw operation 34. The typed importer
+preserves model 733's on-disk operation 33; the exact copy into the runtime
+handler is still a separate tracing question. Collision processing snapshots
 the previous `+0xf4` result to `+0xf0`, computes a current classified result
 at `+0xf4`, and publishes `+0xf8 = +0xf4 | +0xf0`. An initialization path
 clears the two inputs; the published value changes at the next aggregate
@@ -369,7 +368,7 @@ callback. The classifier uses contact-normal alignment with a caller-supplied
 vector and possibly custom thresholds. Exact arrow inputs and ordering
 relative to AI evaluation remain under investigation. This does not yet
 justify mapping condition 33 to a Godot slide-collision count.
-The selector-33 case at `0x00533dbf` specifically tests mask `0x2` (bit 1),
+The selector-34 case at `0x00533dbf` specifically tests mask `0x2` (bit 1),
 not mask `0x4` or bit 0. One classifier path produces class `0x2` after a
 successful contact response when the normal's dot product with its reference
 vector is at least 0.5 and below 0.8660254 under default thresholds. A
@@ -557,8 +556,8 @@ SuperObject `+0x04` to Perso, Perso `+0x08` to dynamics wrapper, and wrapper
 `+0x10` to dynamics object. Its returned base is object `+0xd8`, so the
 condition's `+0x20` word is object `+0xf8`. Orrery's existing scene-tail
 dynamics observation now reads object `+0xf0/+0xf4/+0xf8` together as previous,
-current and AI-visible contact-class words, along with the selector-33
-mask-`0x2` result and whether the published word equals their union. A stopped
+current and AI-visible contact words, along with the raw-operation-33
+zero-word result and whether the published word equals their union. A stopped
 capture can land between stores; an inconsistent triple is recorded as such,
 not silently discarded. This is a read-only observation of source state and
 does not yet establish which value a prior AI evaluation consumed.
@@ -647,9 +646,9 @@ reusing the generated project for compatible scenarios while keeping
 fixture and runtime state explicit. None of these gaps should be hidden by
 support-side firing or projectile scripts.
 
-## Selector-33 debugger probe (2026-09-25)
+## Selector-33 debugger probe (2026-09-25; selector mapping corrected 2026-10-01)
 
-Static disassembly of the pinned executable places selector 33's bit test at
+Static disassembly of the pinned executable places selector 34's bit test at
 `0x00533dbf`: it tests `EAX & 0x2` and stores the resulting Boolean through
 the pointer at `[ESP+0x14]` before `0x00533dcf`. The handler calls a helper
 that reaches the dynamics object's AI-visible contact word at `+0xf8`.
@@ -930,10 +929,11 @@ lower-rate branch fields still passed the field-14 and owner-AI assertions,
 but reproduced this no-displacement result. By contrast, the earlier passing
 capture of the same input recording first showed movement at observation 8,
 later recorded velocity `[1.3864, 0, -0.5103]` and contact class 4, and measured
-1.8874 units of displacement. That class does not set selector-33's `0x2`
-mask. The captures establish that launch and early movement vary between
-source runs; neither one proves the AI contact branch ran or why the child
-left the tail. Original quantity remained three. The reports are
+1.8874 units of displacement. Under the corrected handler mapping, raw
+operation 33 returns false for that nonzero word. The captures establish that
+launch and early movement vary between source runs; neither one proves the AI
+contact branch ran or why the child left the tail. Original quantity remained
+three. The reports are
 `TestResults/crossbow-followup-20261001-elevated/behavior-crossbow-initial-launch-1790838161172678457.json`
 and
 `TestResults/crossbow-followup-20261001-final/behavior-crossbow-initial-launch-1790838244235252812.json`.
@@ -1066,11 +1066,11 @@ contact class 0. At resumed time 1323 ms it had moved, reported update stamp
 contact class 4 and had stopped its vertical velocity. It remained in behavior
 0 in those observations and disappeared by the following source tail capture.
 As before, stopped captures and resumed-time gaps do not establish the exact
-AI/contact evaluation order; the class-4 observation clears selector 33's
-`0x2` mask but does not reveal the condition's value at its read. This run
+AI/contact evaluation order; operation 33 returns false for the class-4 word,
+but the capture does not reveal whether AI consumed that value. This run
 shows the previous no-displacement result was sensitive to expensive capture
 overhead and gives a useful source motion/contact trace, while leaving the
-condition mapping and removal caller open. Report:
+condition's scheduling and removal caller open. Report:
 `TestResults/crossbow-latest-child/behavior-crossbow-initial-launch-1790845390083999133.json`.
 
 ### Shared projectile creation with the sword beam
@@ -1150,10 +1150,9 @@ the existing functional tape. It resolves the active Fix model-733 allocation
 and searches the full 317-node manor scene for its live instances, while the
 fast burst continues to capture the short-lived arrow with the lighter scene
 -tail reader. On the latest run, the checked arrow moved 1.8874 source units
-between two published positions. Its later source contact class was `4` in
-two consecutive captures (`current=previous=ai_visible=4`), so selector-33
-mask `0x2` was clear. The later identity-checked full-scene search found zero
-live model-733 instances. The source BDD now asserts those bounded findings
+between two published positions. Its later source contact word was `4` in
+two consecutive captures (`current=previous=ai_visible=4`). The later
+identity-checked full-scene search found zero live model-733 instances. The source BDD now asserts those bounded findings
 without assigning a removal cause. Evidence:
 `TestResults/crossbow-source-valid-motion/behavior-crossbow-initial-launch-1790851376138633251.json`.
 
@@ -1163,8 +1162,8 @@ position, which could report an artificial 79-unit displacement when paired
 with the first published transform. The assertion now excludes that zero
 placeholder; a dedicated regression test verifies movement is measured only
 between published positions. The source run passes with 1.8874 units. This
-capture strengthens the evidence that a class-4 contact does not set the
-source arrow's selector-33 hit bit, but does not reveal whether timeout,
+capture strengthens the evidence that model 733's source condition 33 is false
+on the observed class-4 contact, but does not reveal whether timeout,
 reparenting or another engine path removes the arrow before the later search.
 
 ### Model-733 schedule values during the source burst (2026-10-01)
@@ -1179,3 +1178,20 @@ sampled AI fields can diverge, but the repeated stopped-byte captures pause the
 game and do not qualify uninterrupted AI scheduling or callback order. Do not
 change Godot's two-tick `WaitFrames(2)` mapping from this capture. Report:
 `TestResults/crossbow-arrow-schedule-burst/behavior-crossbow-initial-launch-1790851698343044924.json`.
+
+
+### Erratum: selector-33 jump-table mapping (2026-10-01)
+
+Earlier paragraphs in this dated research log attributed selector 33 to a
+contact-class bit test. That mapping was off by one table entry. The pinned
+handler at `0x00533d20` loads selector `edi`, subtracts `31`, bounds the result,
+and dispatches through the table at `0x00533e28`. Table entry 2, reached by
+model-733 raw operation 33, targets `0x00533d83`, which returns the Boolean
+`contact_word == 0`. Entry 3 at `0x00533dbf` tests mask `0x2`; it is selector
+34, not selector 33. The live source observation of class 4 therefore means
+`CollideWithNothing` is false, and model 733's `not CollideWithNothing`
+subcondition is true at that published contact state. The maintained scene-tail
+field is now named `collide_with_nothing` and computes the operation-33 result
+from the full published word. The older selector-33/bit-2 prose above is
+superseded by this correction. Godot still approximates the zero-word source
+condition with its slide-contact count; direct parity remains unverified.

@@ -269,7 +269,7 @@ func generated_objects() -> Array:
 
 func crossbow_ai_state() -> Dictionary:
     var fields: Dictionary = {}
-    for index in [7, 8, 13, 15, 59, 60, 95, 130]:
+    for index in [7, 8, 13, 15, 59, 60, 95, 120, 130]:
         fields[str(index)] = brain.get("dsg_" + str(index))
     return {
         "action": int(actor.get("current_state")),
@@ -290,6 +290,9 @@ func generated_object_snapshot(spawned: CharacterBody3D) -> Dictionary:
         "instance_id": spawned.get_instance_id(),
         "template": str(spawned.get_meta("astrolabe_generated_template")),
         "source_model_path": str(spawned_brain.get("source_model_path")) if spawned_brain != null else "",
+        "slide_collision_count": spawned.get_slide_collision_count(),
+        "on_floor": spawned.is_on_floor(),
+        "on_wall": spawned.is_on_wall(),
         "physics_frame": Engine.get_physics_frames(),
         "translation": [position.x, -position.z, position.y],
         "velocity": [velocity.x, -velocity.z, velocity.y],
@@ -305,6 +308,7 @@ func generated_object_snapshot(spawned: CharacterBody3D) -> Dictionary:
         "brain_clock_ms": float(spawned_brain.get("clock_milliseconds")) if spawned_brain != null else 0.0,
         "brain_start_ms": int(start_value) if start_value is int or start_value is float else null,
         "brain_failure": str(spawned_brain.get("unsupported_failure")) if spawned_brain != null else "",
+        "main_actor_field_120": int(brain.get("dsg_120")) if brain != null else null,
         "visible_from_hype": bool(spawned.call("source_see_perso", actor, spawned)),
         "owner_crossbow_ai": crossbow_ai_state(),
     }
