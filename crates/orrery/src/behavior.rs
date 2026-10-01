@@ -749,9 +749,14 @@ impl OriginalBackend {
                 let capture_start_ms =
                     origin.elapsed().saturating_sub(paused_total).as_millis() as u64;
                 let (actor, paused, magick_capture) = if observe_magick {
+                    let designer_values = if capture_projectile_burst {
+                        CROSSBOW_DIAGNOSTIC_FIELDS
+                    } else {
+                        &[59]
+                    };
                     let observation = self.controller.game()?.observe_magick_behavior(
                         &[47, 48, 290, 271],
-                        &[59],
+                        designer_values,
                         Some(2),
                         capture_projectile_burst,
                     )?;

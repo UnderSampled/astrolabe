@@ -915,3 +915,21 @@ assertion while eight AI fields were being collected on every burst sample.
 Burst sampling is now back to field 59 only to preserve the earlier passing
 capture cadence; the richer fields remain on lower-rate snapshots. That final
 sampling adjustment has not been runtime-verified.
+
+An elevated, two-case rerun on the committed checkpoint passed the Godot
+initial-launch case in 122.2 seconds. Its original case passed setup, arming,
+spawn and model-733 identity, but failed the displacement assertion. In that
+capture the new child was at Hype's root transform in burst observations 4–6;
+its integrated velocity and contact words were all zero, and it was absent
+from the sampled tail at observation 7. A follow-up after restoring the
+lower-rate branch fields still passed the field-14 and owner-AI assertions,
+but reproduced this no-displacement result. By contrast, the earlier passing
+capture of the same input recording first showed movement at observation 8,
+later recorded velocity `[1.3864, 0, -0.5103]` and contact class 4, and measured
+1.8874 units of displacement. That class does not set selector-33's `0x2`
+mask. The captures establish that launch and early movement vary between
+source runs; neither one proves the AI contact branch ran or why the child
+left the tail. Original quantity remained three. The reports are
+`TestResults/crossbow-followup-20261001-elevated/behavior-crossbow-initial-launch-1790838161172678457.json`
+and
+`TestResults/crossbow-followup-20261001-final/behavior-crossbow-initial-launch-1790838244235252812.json`.
