@@ -70,6 +70,7 @@ fn displacement(a: [f64; 3], b: [f64; 3]) -> f64 {
 }
 
 fn original_arrow(sample: &serde_json::Value) -> Option<(u64, String, u64, [f64; 3])> {
+    let elapsed = sample["elapsed_resumed_ms"].as_u64()?;
     let children = sample["scene"]["children"].as_array()?;
     children.iter().find_map(|child| {
         let offset = &child["ai"]["fix_block_offset"];
@@ -80,12 +81,27 @@ fn original_arrow(sample: &serde_json::Value) -> Option<(u64, String, u64, [f64;
             Some((
                 child["index"].as_u64()?,
                 child["node_locator"].as_str()?.to_owned(),
-                child["update_stamp"].as_u64()?,
+                elapsed,
                 position(&child["global_transform"]["Affine"]["translation"])?,
             ))
         })
         .flatten()
     })
+}
+
+fn original_arrow_evidence(burst: &[serde_json::Value]) -> (bool, Option<f64>) {
+    let candidates = burst.iter().filter_map(original_arrow).collect::<Vec<_>>();
+    let moved = candidates.windows(2).find_map(|pair| {
+        let (index_a, node_a, elapsed_a, position_a) = &pair[0];
+        let (index_b, node_b, elapsed_b, position_b) = &pair[1];
+        // The source frame stamp can still be zero on an inserted actor, and
+        // is not a completed-update oracle. Captures must advance in time and
+        // the same checked arrow must move.
+        (index_a == index_b && node_a == node_b && elapsed_b > elapsed_a)
+            .then(|| displacement(*position_a, *position_b))
+            .filter(|distance| *distance > 0.05)
+    });
+    (!candidates.is_empty(), moved)
 }
 
 pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
@@ -177,17 +193,10 @@ pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
         let burst = raw["source_projectile_burst"]
             .as_array()
             .context("original launch has no bounded scene-tail burst")?;
-        let candidates = burst.iter().filter_map(original_arrow).collect::<Vec<_>>();
-        let moved = candidates.windows(2).find_map(|pair| {
-            let (index_a, node_a, stamp_a, position_a) = &pair[0];
-            let (index_b, node_b, stamp_b, position_b) = &pair[1];
-            (index_a == index_b && node_a == node_b && *stamp_a > 0 && stamp_b > stamp_a)
-                .then(|| displacement(*position_a, *position_b))
-                .filter(|distance| *distance > 0.05)
-        });
+        let (spawned, moved) = original_arrow_evidence(burst);
         checks.push(bound(
             "crossbow_original_model733_spawned",
-            f64::from(u8::from(!candidates.is_empty())),
+            f64::from(u8::from(spawned)),
             Some(1.0),
             Some(1.0),
             "Checked live Fix module 17/block 0 model pointer at payload offset 0x4e324",
@@ -197,8 +206,41 @@ pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
             moved.unwrap_or(-1.0),
             Some(0.05),
             None,
-            "Two published positions of the same checked original arrow before it disappears",
+            "Two time-ordered positions of the same checked original arrow before it disappears",
         ));
     }
     Ok(checks)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn original_arrow_can_move_before_its_source_frame_stamp_is_published() {
+        let observation = |elapsed, stamp, translation| {
+            serde_json::json!({
+                "elapsed_resumed_ms": elapsed,
+                "scene": {"children": [{
+                    "index": 176,
+                    "node_locator": "live:03e0fe34",
+                    "update_stamp": stamp,
+                    "global_transform": {"Affine": {"translation": translation}},
+                    "ai": {"fix_block_offset": {
+                        "module": 17,
+                        "block": 0,
+                        "payload_offset": ARROW_MODEL_OFFSET
+                    }}
+                }]}
+            })
+        };
+        let observations = [
+            observation(1_234, 0, [-73.905_868, 28.456_821, 6.097_703]),
+            observation(1_244, 313, [-73.737_892, 29.416_655, 6.035_868]),
+        ];
+        let (spawned, movement) = original_arrow_evidence(&observations);
+
+        assert!(spawned);
+        assert!(movement.is_some_and(|distance| distance > 0.05));
+    }
 }

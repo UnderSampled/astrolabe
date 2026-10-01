@@ -3124,6 +3124,20 @@
     },
     {
       "binary": "behavior-contract",
+      "test": "crossbow::tests::original_arrow_can_move_before_its_source_frame_stamp_is_published",
+      "areas": [
+        "combat",
+        "comparison"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic source model-733 arrow observations with an initial zero frame stamp",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "behavior-contract",
       "test": "sword::tests::missing_godot_beam_trace_fails_the_sword_case",
       "areas": [
         "combat",
