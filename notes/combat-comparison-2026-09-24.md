@@ -1223,3 +1223,23 @@ The Godot arrow moved 2.363 units, reached native slide contact, ran compiled
 cleanup, and released its firing guard. The source removal cause and exact
 contact-geometry parity remain unproven; these results establish usable firing,
 one-bolt consumption, initial movement and the observed cleanup endpoints.
+
+### Crossbow contact-position diagnostic (2026-10-01)
+
+The behavior trace now records model-733's first-zone ZDE query and the exact
+Godot slide collider, contact point and normal. On a repeated Godot run, the
+ZDE query was false from animation release through flight and cleanup. The
+arrow exited at source-space position `[-74.8285, 32.9517, 6.0777]` after
+contacting static source node `world/1/5/0` at approximately
+`[-74.8635, 32.6040, 6.0810]`. This separates its cleanup from a character
+ZDE hit in this test.
+
+The paired original run published model-733 contact word 4 at
+`[-74.0336, 29.4167, 6.0730]`, roughly 3.5 source units before the Godot
+static contact along the shot path. The later source scene search found no
+model-733 instance, but did not identify the collision target or removal call.
+The Godot point is a checked static node; the source point is only a checked
+model-733 transform plus its mechanics contact word. Treat this as an open
+contact/trajectory mismatch, not proof that the source hit the same node.
+Diagnostic evidence:
+`TestResults/crossbow-contact-collider-diagnostic-godot-20261001/behavior-crossbow-initial-launch-*.json`.

@@ -322,11 +322,29 @@ func generated_object_snapshot(spawned: CharacterBody3D) -> Dictionary:
     var spawned_inventory: Resource = spawned.get("source_inventory")
     var target: Vector3 = spawned_laser.get("target_position") if spawned_laser != null else Vector3.ZERO
     var basis := spawned.global_basis
+    var slide_contacts: Array = []
+    for index in spawned.get_slide_collision_count():
+        var contact := spawned.get_slide_collision(index)
+        var collider := contact.get_collider() as Node
+        var owner := collider.get_parent() if collider != null else null
+        var point := contact.get_position()
+        var normal := contact.get_normal()
+        slide_contacts.append({
+            "collider": str(collider.get_path()) if collider != null else "",
+            "source_node_id": str(owner.get_meta("source_node_id", "")) if owner != null else "",
+            "position": [point.x, point.y, point.z],
+            "normal": [normal.x, normal.y, normal.z],
+        })
+    var zde_first_zone_hit: Variant = null
+    if spawned_brain != null and str(spawned_brain.get("source_model_path")) == "fix:/ai/models/733":
+        zde_first_zone_hit = bool(spawned.call("source_collide_perso_zde_no_with_type_zde", 1, 1))
     return {
         "instance_id": spawned.get_instance_id(),
         "template": str(spawned.get_meta("astrolabe_generated_template")),
         "source_model_path": str(spawned_brain.get("source_model_path")) if spawned_brain != null else "",
         "slide_collision_count": spawned.get_slide_collision_count(),
+        "slide_contacts": slide_contacts,
+        "zde_first_zone_hit": zde_first_zone_hit,
         "on_floor": spawned.is_on_floor(),
         "on_wall": spawned.is_on_wall(),
         "physics_frame": Engine.get_physics_frames(),
