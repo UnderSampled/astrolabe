@@ -1243,3 +1243,14 @@ model-733 transform plus its mechanics contact word. Treat this as an open
 contact/trajectory mismatch, not proof that the source hit the same node.
 Diagnostic evidence:
 `TestResults/crossbow-contact-collider-diagnostic-godot-20261001/behavior-crossbow-initial-launch-*.json`.
+
+A bounded ActualWorld scan around the source contact point in the passing
+2026-10-01 original run found three nearby actors: the load marker at
+`world/0/34` (`iDummy_Load_Manoir_MAD`, 1.54 units), the bridge gate at
+`world/0/15` (`iMGrille_Manoir_Pont`, 2.41 units), and the blue potion pickup
+at `world/0/175` (`iFioleBleue_NearBrigand`, 2.49 units). Hype itself was also
+within the search radius. Their generated Godot scenes expose no collision
+shapes, so this is a candidate list, not evidence of which actor produced
+contact word 4. The source contact target and mechanics cleanup path remain
+unidentified. Report:
+`TestResults/behavior-crossbow-initial-launch-1790858766145048614.json`.
