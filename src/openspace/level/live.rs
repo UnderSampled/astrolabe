@@ -180,8 +180,8 @@ impl HypeBuild {
             source_clock_ms,
         })
     }
-    /// Resolve active inventory members and their transient quantity locations
-    /// through the same checked list used by the typed observation.
+    /// Resolve active inventory handles, their item identities, and their
+    /// transient quantity locations through the checked source list.
     fn inventory_members(
         &self,
         memory: &mut impl ReadMemory,
@@ -203,18 +203,23 @@ impl HypeBuild {
             ensure!(visited.len() < 256, "inventory list exceeds 256 entries");
             ensure!(visited.insert(entry), "inventory list cycle");
             let handle = source.required(entry, 4)?;
-            let handle_bytes = source.bytes(handle, 9)?;
+            let handle_bytes = source.bytes(handle, 12)?;
             if handle_bytes[8] != 0 {
                 let member = u32_at(&handle_bytes, 0)?;
+                let quantity = i16::from_le_bytes(handle_bytes[10..12].try_into()?);
+                drop(handle_bytes);
                 ensure!(member != 0, "active inventory handle has no member");
-                let (name_pointer, id, quantity) = {
+                let (name_pointer, id) = {
                     let record = source.bytes(member, 30)?;
                     (
                         u32_at(&record, 12)?,
                         i16::from_le_bytes(record[28..30].try_into()?),
-                        i16::from_le_bytes(record[10..12].try_into()?),
                     )
                 };
+                // Hype's functions 208/209 pass the inventory handle to the
+                // quantity getter/setter (0x4a3ba0/0x4a3b90), which read/write
+                // handle+0x0a. The referenced item record has a separate
+                // +0x0a field and is not the live stack quantity.
                 ensure!(name_pointer != 0, "active inventory member has no kind");
                 let mut name = Vec::new();
                 for offset in 0..64 {
@@ -233,7 +238,7 @@ impl HypeBuild {
                         id,
                         quantity,
                     },
-                    source.add(member, 10)?,
+                    source.add(handle, 10)?,
                 ));
             }
             next = source.pointer(entry, 20)?;
@@ -1147,7 +1152,7 @@ mod active_camera_tests {
         let mut entry = [0u8; 24];
         entry[4..8].copy_from_slice(&0x4000u32.to_le_bytes());
         memory.put(0x3000, &entry);
-        let mut handle = [0u8; 9];
+        let mut handle = [0u8; 12];
         handle[0..4].copy_from_slice(&0x5000u32.to_le_bytes());
         handle[8] = 1;
         memory.put(0x4000, &handle);
@@ -1157,13 +1162,20 @@ mod active_camera_tests {
         memory.put(0x5000, &member);
         memory.put(0x6000, b"Weapon\0");
         let build = HypeBuild::verified(HYPE_EXECUTABLE_SHA256).unwrap();
+        handle[0..4].copy_from_slice(&0x5000u32.to_le_bytes());
+        handle[10..12].copy_from_slice(&0_i16.to_le_bytes());
+        memory.put(0x4000, &handle);
+        member[10..12].copy_from_slice(&8_i16.to_le_bytes());
+        memory.put(0x5000, &member);
         assert_eq!(
             build
                 .inventory_quantity_address(&mut memory, "Weapon", 80, 0)
                 .unwrap(),
-            0x500a
+            0x400a
         );
-        assert_eq!(build.inventory(&mut memory).unwrap().selected_weapon, 80);
+        let inventory = build.inventory(&mut memory).unwrap();
+        assert_eq!(inventory.selected_weapon, 80);
+        assert_eq!(inventory.active[0].quantity, 0);
         assert!(
             build
                 .inventory_quantity_address(&mut memory, "Weapon", 80, 3)

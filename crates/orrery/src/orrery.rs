@@ -1458,12 +1458,23 @@ impl GameSession {
             before.selected_weapon == 80,
             "supplied save has a different selected weapon"
         );
-        let address = build.inventory_quantity_address(&mut capture, "Weapon", 80, 0)?;
+        let crossbow_items = before
+            .active
+            .iter()
+            .filter(|item| item.kind == "Weapon" && item.id == 80)
+            .collect::<Vec<_>>();
+        ensure!(
+            crossbow_items.len() == 1 && crossbow_items[0].quantity > 0,
+            "supplied save must have one stocked active Crossbow handle"
+        );
+        let prior_quantity = crossbow_items[0].quantity;
+        let address =
+            build.inventory_quantity_address(&mut capture, "Weapon", 80, prior_quantity)?;
         let before_capture = capture.finish()?;
         let write = pause.guarded_write(
             usize::try_from(address)?,
             &3_i16.to_le_bytes(),
-            &0_i16.to_le_bytes(),
+            &prior_quantity.to_le_bytes(),
         )?;
         let mut capture = pause.capture()?;
         let after = build.inventory(&mut capture)?;
@@ -1485,6 +1496,9 @@ impl GameSession {
         drop(pause);
         Ok(json!({
             "method": "guarded_current_process_inventory_starting_state",
+            "quantity_field": "active_inventory_handle_plus_0x0a",
+            "prior_quantity": prior_quantity,
+            "declared_quantity": 3,
             "fixture": {
                 "executable_sha256": self.config.exe_sha256,
                 "save_sha256": self.config.save_sha256,
@@ -1492,8 +1506,7 @@ impl GameSession {
             "status": status,
             "item_kind": "Weapon",
             "item_id": 80,
-            "expected_quantity": 0,
-            "declared_quantity": 3,
+            "expected_quantity": prior_quantity,
             "before": before,
             "after": after,
             "guarded_write": write,

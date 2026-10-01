@@ -1195,3 +1195,31 @@ field is now named `collide_with_nothing` and computes the operation-33 result
 from the full published word. The older selector-33/bit-2 prose above is
 superseded by this correction. Godot still approximates the zero-word source
 condition with its slide-contact count; direct parity remains unverified.
+
+### Crossbow inventory handle quantity fix (2026-10-01)
+
+The source and Godot Crossbow acceptance cases now both verify a real one-bolt
+consumption. The source discrepancy came from observing and editing the wrong
+`+0x0a` field: Hype functions 208 and 209 resolve the item identity through an
+inventory handle's member pointer, then read or write the live stack quantity
+at `handle + 0x0a`. The referenced item record has a distinct `+0x0a` value.
+The prior observer and guarded test setup used that member-record value, so the
+source AI still saw its saved stack of eight even after the test appeared to
+set the quantity to three. The typed observer and setup now use the live handle
+field and record its prior value for the guarded write.
+
+The corrected original run changed the active handle from 8 to 3, observed
+normal behavior 40 save `dsg130=3`, then saw the live quantity fall to 2 during
+firing. The Godot run passes the same quantity-three setup and quantity-two
+terminal assertion. Both cases also pass their existing aim and launch checks.
+Source evidence:
+`TestResults/crossbow-ammo-parity-source-20261001/behavior-crossbow-initial-launch-1790857534609481761.json`.
+Godot evidence:
+`TestResults/crossbow-ammo-parity-godot-20261001/behavior-crossbow-initial-launch-1790857575843175382.json`.
+
+In these focused runs, the source arrow moved 1.8874 source units, had a
+published nonzero contact word, and was absent from a later full-scene search.
+The Godot arrow moved 2.363 units, reached native slide contact, ran compiled
+cleanup, and released its firing guard. The source removal cause and exact
+contact-geometry parity remain unproven; these results establish usable firing,
+one-bolt consumption, initial movement and the observed cleanup endpoints.

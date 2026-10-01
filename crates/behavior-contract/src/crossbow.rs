@@ -184,7 +184,7 @@ pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
             .map(|member| &member["quantity"])
             .unwrap_or(&serde_json::Value::Null)
     };
-    let source = "Verified saved Weapon 80 quantity zero plus a test-owned quantity-three start; Z55, keypad-0 camera aim, and Space firing are physical input";
+    let source = "One active source inventory handle is set to quantity three through the same handle field that Hype's InventoryQuantity and InventoryRemove functions use; Z55, keypad-0 camera aim, and Space firing are physical input";
     let mut checks = vec![bound(
         "crossbow_quantity_three_start",
         f64::from(u8::from(starting_quantity.as_u64() == Some(3))),
@@ -218,15 +218,26 @@ pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
         None,
         "Physical Left while keypad-0 is held routes to BT_Camera_LookLeft and changes Hype's facing",
     ));
+    let terminal_quantity = if godot {
+        raw["inventory"]["weapon_80_quantity"].as_i64()
+    } else {
+        raw["inventory"]["active"]
+            .as_array()
+            .and_then(|members| {
+                members
+                    .iter()
+                    .find(|member| member["kind"] == "Weapon" && member["id"] == 80)
+            })
+            .and_then(|member| member["quantity"].as_i64())
+    };
+    checks.push(bound(
+        "crossbow_camera_fire_consumes_one_bolt",
+        f64::from(u8::from(terminal_quantity == Some(2))),
+        Some(1.0),
+        Some(1.0),
+        "The source and compiled BT_Camera_TireArbalete schedules each remove one bolt from the test-owned quantity-three inventory",
+    ));
     if godot {
-        let terminal_quantity = raw["inventory"]["weapon_80_quantity"].as_u64();
-        checks.push(bound(
-            "crossbow_camera_fire_consumes_one_bolt",
-            f64::from(u8::from(terminal_quantity == Some(2))),
-            Some(1.0),
-            Some(1.0),
-            "The compiled BT_Camera_TireArbalete schedule removes one bolt from the test-owned quantity-three inventory",
-        ));
         checks.push(bound(
             "crossbow_camera_aim_brain_keeps_running",
             f64::from(u8::from(camera_fire_active.raw_observation["brain_running"] == true
