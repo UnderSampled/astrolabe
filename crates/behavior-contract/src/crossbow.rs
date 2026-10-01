@@ -1,5 +1,6 @@
 //! Initial crossbow launch through Hype's and the arrow's compiled AI.
-//! Impact, contact cleanup, ammunition parity and camera effects are separate work.
+//! The Space/Button_Hit launch and the unbound TireArbalete camera action are
+//! distinct paths; the former does not establish ammunition consumption.
 use super::*;
 
 const ARROW_MODEL: &str = "fix:/ai/models/733";
@@ -47,7 +48,7 @@ pub fn validate(recording: &FunctionalRecording) -> Result<()> {
             && recording.ready_state == expected.ready_state
             && recording.inputs == expected.inputs
             && recording.samples == expected.samples,
-        "crossbow launch requires physical Z55, an armed checkpoint, and Space80 from quantity three"
+        "crossbow launch requires physical Z55, an armed checkpoint, and Space80/Button_Hit from quantity three"
     );
     Ok(())
 }
@@ -178,17 +179,20 @@ pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
         f64::from(u8::from(selected.action == Some(48))),
         Some(1.0),
         Some(1.0),
-        "Observed armed idle after physical Z selection and before physical Space",
+        "Observed armed idle after physical Z selection and before physical Space/Button_Hit",
     ));
 
     if godot {
-        let trace = raw["generated_trace_first"]
+        let trace = raw["generated_trace"]
             .as_array()
-            .context("Godot launch has no preserved first generated frames")?;
+            .context("Godot launch has no generated actor trace")?;
         let frames = trace
             .iter()
             .filter(|entry| entry["event"] == "frame" && entry["source_model_path"] == ARROW_MODEL)
             .collect::<Vec<_>>();
+        let release = trace.iter().find(|entry| {
+            entry["event"] == "release" && entry["source_model_path"] == ARROW_MODEL
+        });
         let launch = frames
             .iter()
             .copied()
@@ -203,6 +207,15 @@ pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
                     .filter(|distance| *distance > 0.05)
             })
         });
+        checks.push(bound(
+            "crossbow_arrow_released_from_animation_channel",
+            f64::from(u8::from(release.is_some_and(|entry| {
+                entry["translation"] == entry["attachment_translation"]
+            }))),
+            Some(1.0),
+            Some(1.0),
+            "Shared native attachment cue copies the triggering animation channel transform before model-733 Brain activation",
+        ));
         checks.push(bound(
             "crossbow_compiled_arrow_starts",
             f64::from(u8::from(launch.is_some_and(|entry| {

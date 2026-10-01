@@ -1104,3 +1104,41 @@ contract now asserts that continued flight explicitly. This does not establish
 source contact-class parity or finish the separate ZDE hit-response branch,
 camera response, lifetime and ammunition behavior. Evidence:
 `TestResults/crossbow-contact-native-map/behavior-crossbow-initial-launch-1790847368574946759.json`.
+
+
+### Crossbow input-path correction (2026-10-01)
+
+The quantity-three `Space` recording launches the arrow through model 28's
+`Button_Hit` branch (action 17). It does not invoke the distinct model-28
+normal behavior 40 schedule, which listens to `BT_Camera_TireArbalete`. The
+Godot adapter currently has no physical keyboard binding for that action;
+Space is adopted as `Button_Hit`. Therefore the earlier statement comparing
+source quantity three with Godot quantity two was not a valid ammo-parity
+comparison: Godot's hit/arrow path removes one, while the captured original
+path does not. The Crossbow launch case does not assert ammo consumption, and
+this path does not establish what the unbound Crossbow fire action does.
+
+The source diagnostic snapshots show normal behavior 17 during launch and 4
+after the arrow disappears; the latest sample recorded Weapon 80 quantity 3,
+`dsg95=80`, and `dsg130=0`. The burst observations still omit AI fields to keep
+capture cadence short. Retained probes for Global field 14 are false at
+baseline, selection and flight; the former `dsg29` probe did not identify
+the firing selector and has been removed from maintained diagnostics. The
+`Space` scenario remains the verified shared projectile creation route,
+which is also used by the sword beam. Its beam attachment animation finding
+remains relevant to shared release placement, while Crossbow contact and
+cleanup are separate model-733 behavior.
+
+
+### Crossbow animation-channel release verified in Godot (2026-10-01)
+
+The initial-launch contract now checks the held model-733 actor's `release`
+event in the full bounded generated trace. The released actor's recorded
+source-space translation must equal the triggering animation channel
+translation, then the compiled Brain must start and continue moving in flight.
+The first focused run exposed that a 60-entry early trace window omitted the
+release event even though the full trace contained it; the assertion now reads
+the full bounded trace. The rerun passed 1/1 in 19.9 seconds. Evidence:
+`TestResults/crossbow-animation-release-check2/behavior-crossbow-initial-launch-*.json`.
+This validates Godot's shared attachment-cue path, consistent with the sword
+beam release work; original source contact and model-733 cleanup remain open.
