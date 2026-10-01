@@ -13,7 +13,7 @@ use astrolabe::openspace::level::{
     live::{
         ActorAiObservation, ActorObservation, CrossbowGlobalObservation, HypeBuild,
         InventoryObservation, MagicSelectionObservation, ReadMemory, SceneAiModelSearchObservation,
-        SceneTailObservation, Status,
+        SceneNearbyActorsObservation, SceneTailObservation, Status,
     },
 };
 use serde::Serialize;
@@ -46,6 +46,7 @@ pub struct MagickBehaviorObservation {
     pub magic_selection: MagicSelectionObservation,
     pub crossbow_global: Option<CrossbowGlobalObservation>,
     pub scene_ai_model: Option<SceneAiModelSearchObservation>,
+    pub nearby_scene_actors: Option<SceneNearbyActorsObservation>,
     pub scene_tail: Option<SceneTailObservation>,
     pub capture: StoppedCaptureProvenance,
     pub pause: PauseProvenance,
@@ -677,6 +678,7 @@ impl GameSession {
         include_crossbow_global: bool,
         scene_ai_model_identity: Option<(u16, u16, u32)>,
         scene_ai_designer_values: &[u32],
+        nearby_scene_point: Option<([f32; 3], f32)>,
     ) -> Result<MagickBehaviorObservation> {
         ensure!(
             (1..=64).contains(&actions.len()),
@@ -741,6 +743,11 @@ impl GameSession {
                 )
             })
             .transpose()?;
+        let nearby_scene_actors = nearby_scene_point
+            .map(|(center, radius)| {
+                build.scene_actors_near_position(&mut capture, "manoir", center, radius)
+            })
+            .transpose()?;
         let scene_tail = scene_tail_limit
             .map(|limit| build.scene_tail(&mut capture, limit))
             .transpose()?;
@@ -773,6 +780,7 @@ impl GameSession {
             magic_selection,
             crossbow_global,
             scene_ai_model,
+            nearby_scene_actors,
             scene_tail,
             capture,
             pause: pause_provenance,

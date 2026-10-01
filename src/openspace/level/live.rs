@@ -648,6 +648,120 @@ impl HypeBuild {
         })
     }
 
+    /// Capture source actors near a caller-observed world position while
+    /// validating the complete ActualWorld hierarchy in this stopped view.
+    pub fn scene_actors_near_position(
+        &self,
+        memory: &mut impl ReadMemory,
+        level: &str,
+        center: [f32; 3],
+        radius: f32,
+    ) -> Result<SceneNearbyActorsObservation> {
+        let status = self.status(memory)?;
+        ensure!(
+            status.phase == 9 && status.level == level,
+            "nearby actor search requires the selected loaded level"
+        );
+        ensure!(
+            center.into_iter().all(f32::is_finite)
+                && radius.is_finite()
+                && (0.0..=20.0).contains(&radius),
+            "nearby actor search bounds are invalid"
+        );
+        const MAX_NODES: usize = 4096;
+        const MAX_DEPTH: usize = 32;
+        let mut source = MemoryView(memory);
+        let root = source.required(0x75ec6c, 0)?;
+        let mut stack = vec![(root, Vec::<u32>::new())];
+        let mut visited = BTreeSet::from([root]);
+        let mut actors = Vec::new();
+        while let Some((node, path)) = stack.pop() {
+            let header: SuperObjectWire = wire(&source.bytes(node, 64)?)?;
+            if path.is_empty() {
+                ensure!(header.kind == 0, "ActualWorld root is not a world node");
+            }
+            if header.kind == 4 {
+                let perso = source.required(node, SuperObjectWire::DATA)?;
+                let object_types = source_view::perso_parts(&mut source, perso)?.object_types;
+                let transform = source.required(node, 36)?;
+                let global_transform = source_view::transform(&mut source, transform)?;
+                let translation = global_transform.affine().translation;
+                let distance = translation
+                    .iter()
+                    .zip(center)
+                    .map(|(a, b)| (a - b).powi(2))
+                    .sum::<f32>()
+                    .sqrt();
+                if distance <= radius {
+                    actors.push(SceneNearbyActor {
+                        scene_path: path.clone(),
+                        object_types,
+                        distance,
+                        global_transform,
+                    });
+                }
+            }
+            let count = usize::try_from(header.child_count)?;
+            ensure!(
+                count <= MAX_NODES,
+                "live scene child count exceeds search bound"
+            );
+            if count == 0 {
+                ensure!(
+                    header.first_child == 0 && header.last_child == 0,
+                    "empty live scene node has child endpoints"
+                );
+                continue;
+            }
+            ensure!(path.len() < MAX_DEPTH, "live scene search depth exceeded");
+            ensure!(
+                visited.len().saturating_add(count) <= MAX_NODES,
+                "live scene search node budget exceeded"
+            );
+            ensure!(
+                header.first_child != 0 && header.last_child != 0,
+                "live scene node lacks child endpoints"
+            );
+            let mut child = header.first_child;
+            let mut previous = 0u32;
+            let mut children = Vec::with_capacity(count);
+            for index in 0..count {
+                ensure!(child != 0, "live scene sibling list ended early");
+                ensure!(visited.insert(child), "live scene cycle or repeated child");
+                let member: SuperObjectWire = wire(&source.bytes(child, 64)?)?;
+                ensure!(
+                    member.parent == node,
+                    "live scene child parent link differs"
+                );
+                ensure!(
+                    member.previous == previous,
+                    "live scene previous sibling link differs"
+                );
+                if index + 1 == count {
+                    ensure!(
+                        child == header.last_child && member.next == 0,
+                        "live scene last child endpoint differs"
+                    );
+                } else {
+                    ensure!(member.next != 0, "live scene sibling list ended early");
+                }
+                let mut child_path = path.clone();
+                child_path.push(u32::try_from(index)?);
+                children.push((child, child_path));
+                previous = child;
+                child = member.next;
+            }
+            stack.extend(children.into_iter().rev());
+        }
+        actors.sort_by(|a, b| a.distance.total_cmp(&b.distance));
+        Ok(SceneNearbyActorsObservation {
+            center,
+            radius,
+            scanned_nodes: visited.len(),
+            actors,
+        })
+    }
+
     /// Capture the four camera parameter records linked from a selected
     /// source Perso. These are capture-local source words for research, not
     /// reusable model fields or persisted virtual addresses.
@@ -1923,6 +2037,24 @@ pub struct SceneAiModelInstance {
     pub normal: Option<BehaviorSelection>,
     pub reflex: Option<BehaviorSelection>,
     pub designer_values: Vec<SelectedDesignerValue>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneNearbyActorsObservation {
+    pub center: [f32; 3],
+    pub radius: f32,
+    pub scanned_nodes: usize,
+    pub actors: Vec<SceneNearbyActor>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneNearbyActor {
+    pub scene_path: Vec<u32>,
+    pub object_types: [u32; 3],
+    pub distance: f32,
+    pub global_transform: TransformValue,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

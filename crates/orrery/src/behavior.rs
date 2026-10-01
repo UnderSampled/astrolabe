@@ -16,6 +16,27 @@ pub const ORIGINAL_STARTUP_SETTLE_MS: u64 = 2_500;
 const CROSSBOW_DIAGNOSTIC_FIELDS: &[u32] = &[7, 8, 13, 15, 59, 60, 95, 130];
 const CROSSBOW_ARROW_DIAGNOSTIC_FIELDS: &[u32] = &[0, 1, 2, 3];
 
+fn crossbow_contact_position(burst: &[serde_json::Value]) -> Option<[f32; 3]> {
+    burst.iter().rev().find_map(|sample| {
+        let children = sample["scene_tail_latest"]["children"].as_array()?;
+        let arrow = children.iter().find(|child| {
+            let offset = &child["ai"]["fix_block_offset"];
+            offset["module"] == 17
+                && offset["block"] == 0
+                && offset["payload_offset"] == 0x4e324
+                && child["dynamics"]["contact_classes"]["current"]
+                    .as_u64()
+                    .is_some_and(|value| value != 0)
+        })?;
+        let point = arrow["global_transform"]["Affine"]["translation"].as_array()?;
+        Some([
+            point.first()?.as_f64()? as f32,
+            point.get(1)?.as_f64()? as f32,
+            point.get(2)?.as_f64()? as f32,
+        ])
+    })
+}
+
 pub fn actor_sample_from_actor(
     name: String,
     planned_ms: u64,
@@ -761,6 +782,10 @@ impl OriginalBackend {
                         } else {
                             &[]
                         },
+                        (capture_projectile_burst && name == "flight_recorded")
+                            .then(|| crossbow_contact_position(&projectile_burst))
+                            .flatten()
+                            .map(|point| (point, 3.0)),
                     )?;
                     ensure!(
                         observation.status.phase == 9 && observation.status.level == "manoir",
@@ -793,6 +818,7 @@ impl OriginalBackend {
                         "crossbow_global": observation.crossbow_global,
                         "source_model_733_instances": observation.scene_ai_model,
                         "source_scene_tail": observation.scene_tail,
+                        "nearby_scene_actors": observation.nearby_scene_actors,
                         "source_capture": observation.capture,
                     });
                     (observation.actor.actor, paused, Some(raw))
@@ -909,6 +935,7 @@ impl OriginalBackend {
                 true,
                 Some((17, 0, 0x4e324)),
                 CROSSBOW_ARROW_DIAGNOSTIC_FIELDS,
+                None,
             )?;
             let flight = samples
                 .last_mut()
