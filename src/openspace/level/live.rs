@@ -582,6 +582,65 @@ impl HypeBuild {
         Ok((found.path, observation))
     }
 
+    /// Find every live scene actor whose AI model resolves to one active Fix
+    /// allocation. Unlike `scene_tail`, this follows the whole ActualWorld
+    /// hierarchy, so reparenting cannot look like actor destruction.
+    pub fn scene_ai_model_instances(
+        &self,
+        memory: &mut impl ReadMemory,
+        level: &str,
+        module: u16,
+        block: u16,
+        payload_offset: u32,
+    ) -> Result<SceneAiModelSearchObservation> {
+        let status = self.status(memory)?;
+        ensure!(
+            status.phase == 9 && status.level == level,
+            "AI model search requires the selected loaded level"
+        );
+        let mut source = MemoryView(memory);
+        let (base, end) = self
+            .fix_block_bounds(&mut source, module, block)?
+            .context("requested AI model Fix block is not active")?;
+        ensure!(
+            payload_offset <= end - base,
+            "requested AI model offset is outside its active Fix block"
+        );
+        let model_address = base
+            .checked_add(payload_offset)
+            .context("AI model source address overflow")?;
+        let model = self
+            .fix_block_offset(&mut source, module, block, model_address)?
+            .context("requested AI model identity did not resolve in the active Fix block")?;
+        let (matches, scanned_nodes) = find_live_actors_by_ai_model(&mut source, model_address)?;
+        let mut instances = Vec::with_capacity(matches.len());
+        for found in matches {
+            let observed = actor_ai_at_node(&mut source, found.node, &[], &[])?;
+            let perso = source.required(found.node, SuperObjectWire::DATA)?;
+            let ai = source_view::ai_parts(&mut source, perso)?;
+            ensure!(
+                ai.model == model_address,
+                "scene AI model identity changed during the stopped capture"
+            );
+            let actor = observed.actor;
+            ensure!(
+                actor.perso == format!("live:{perso:08x}"),
+                "scene AI match Perso changed during the stopped capture"
+            );
+            instances.push(SceneAiModelInstance {
+                scene_path: found.path,
+                actor,
+                normal: observed.normal,
+                reflex: observed.reflex,
+            });
+        }
+        Ok(SceneAiModelSearchObservation {
+            model,
+            scanned_nodes,
+            instances,
+        })
+    }
+
     /// Capture the four camera parameter records linked from a selected
     /// source Perso. These are capture-local source words for research, not
     /// reusable model fields or persisted virtual addresses.
@@ -1101,6 +1160,41 @@ mod active_camera_tests {
     }
 
     #[test]
+    fn live_ai_model_search_finds_instances_across_the_world_tree() {
+        let mut memory = Memory(BTreeMap::new());
+        let root = 0x1000u32;
+        let child = 0x2000u32;
+        let perso = 0x3000u32;
+        let brain = 0x4000u32;
+        let mind = 0x5000u32;
+        let model = 0x6000u32;
+        memory.put(0x75ec6c, &root.to_le_bytes());
+        let mut root_node = [0u8; 64];
+        root_node[8..12].copy_from_slice(&child.to_le_bytes());
+        root_node[12..16].copy_from_slice(&child.to_le_bytes());
+        root_node[16..20].copy_from_slice(&1u32.to_le_bytes());
+        memory.put(root, &root_node);
+        let mut child_node = [0u8; 64];
+        child_node[0..4].copy_from_slice(&4u32.to_le_bytes());
+        child_node[4..8].copy_from_slice(&perso.to_le_bytes());
+        child_node[28..32].copy_from_slice(&root.to_le_bytes());
+        memory.put(child, &child_node);
+        let mut perso_header = [0u8; 20];
+        perso_header[16..20].copy_from_slice(&brain.to_le_bytes());
+        memory.put(perso, &perso_header);
+        memory.put(brain, &[mind.to_le_bytes().as_slice(), &[0; 4]].concat());
+        memory.put(mind, &[model.to_le_bytes().as_slice(), &[0; 16]].concat());
+        memory.put(model, &[0; 16]);
+
+        let (instances, scanned_nodes) =
+            find_live_actors_by_ai_model(&mut MemoryView(&mut memory), model).unwrap();
+        assert_eq!(scanned_nodes, 2);
+        assert_eq!(instances.len(), 1);
+        assert_eq!(instances[0].path, [0]);
+        assert_eq!(instances[0].node, child);
+    }
+
+    #[test]
     fn active_camera_decodes_checked_projection_from_one_source_pointer() {
         let mut memory = Memory(BTreeMap::new());
         let mut status = vec![0; 261];
@@ -1415,6 +1509,92 @@ fn find_live_actor_matching<M: ReadMemory>(
     Ok(result)
 }
 
+struct LiveSceneActor {
+    node: u32,
+    path: Vec<u32>,
+}
+
+fn find_live_actors_by_ai_model<M: ReadMemory>(
+    source: &mut MemoryView<'_, M>,
+    expected_model: u32,
+) -> Result<(Vec<LiveSceneActor>, usize)> {
+    const MAX_NODES: usize = 4096;
+    const MAX_DEPTH: usize = 32;
+    let root = source.required(0x75ec6c, 0)?;
+    let mut stack = vec![(root, Vec::<u32>::new())];
+    let mut visited = BTreeSet::from([root]);
+    let mut found = Vec::new();
+    while let Some((node, path)) = stack.pop() {
+        let header: SuperObjectWire = wire(&source.bytes(node, 64)?)?;
+        if path.is_empty() {
+            ensure!(header.kind == 0, "ActualWorld root is not a world node");
+        }
+        if header.kind == 4 {
+            let perso = source.required(node, SuperObjectWire::DATA)?;
+            if source.pointer(perso, 16)?.is_some()
+                && source_view::ai_parts(source, perso)?.model == expected_model
+            {
+                found.push(LiveSceneActor {
+                    node,
+                    path: path.clone(),
+                });
+            }
+        }
+        let count = usize::try_from(header.child_count)?;
+        ensure!(
+            count <= MAX_NODES,
+            "live scene child count exceeds search bound"
+        );
+        if count == 0 {
+            ensure!(
+                header.first_child == 0 && header.last_child == 0,
+                "empty live scene node has child endpoints"
+            );
+            continue;
+        }
+        ensure!(path.len() < MAX_DEPTH, "live scene search depth exceeded");
+        ensure!(
+            visited.len().saturating_add(count) <= MAX_NODES,
+            "live scene search node budget exceeded"
+        );
+        ensure!(
+            header.first_child != 0 && header.last_child != 0,
+            "live scene node lacks child endpoints"
+        );
+        let mut child = header.first_child;
+        let mut previous = 0u32;
+        let mut children = Vec::with_capacity(count);
+        for index in 0..count {
+            ensure!(child != 0, "live scene sibling list ended early");
+            ensure!(visited.insert(child), "live scene cycle or repeated child");
+            let member: SuperObjectWire = wire(&source.bytes(child, 64)?)?;
+            ensure!(
+                member.parent == node,
+                "live scene child parent link differs"
+            );
+            ensure!(
+                member.previous == previous,
+                "live scene previous sibling link differs"
+            );
+            if index + 1 == count {
+                ensure!(
+                    child == header.last_child && member.next == 0,
+                    "live scene last child endpoint differs"
+                );
+            } else {
+                ensure!(member.next != 0, "live scene sibling list ended early");
+            }
+            let mut child_path = path.clone();
+            child_path.push(u32::try_from(index)?);
+            children.push((child, child_path));
+            previous = child;
+            child = member.next;
+        }
+        stack.extend(children.into_iter().rev());
+    }
+    Ok((found, visited.len()))
+}
+
 fn camera_records_at(
     source: &mut MemoryView<'_, impl ReadMemory>,
     camera: u32,
@@ -1658,6 +1838,23 @@ pub struct CrossbowGlobalObservation {
     pub perso_fix_block_offset: LiveBlockOffset,
     pub ai_model_fix_block_offset: LiveBlockOffset,
     pub allocation_header_words: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneAiModelSearchObservation {
+    pub model: LiveBlockOffset,
+    pub scanned_nodes: usize,
+    pub instances: Vec<SceneAiModelInstance>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneAiModelInstance {
+    pub scene_path: Vec<u32>,
+    pub actor: ActorObservation,
+    pub normal: Option<BehaviorSelection>,
+    pub reflex: Option<BehaviorSelection>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -3093,6 +3093,21 @@
     },
     {
       "binary": "astrolabe",
+      "test": "openspace::level::live::active_camera_tests::live_ai_model_search_finds_instances_across_the_world_tree",
+      "areas": [
+        "combat",
+        "runtime",
+        "source"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic ActualWorld with a checked AI-model pointer chain",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "openspace::level::live::active_camera_tests::live_camera_search_uses_checked_live_hierarchy_and_rejects_ambiguity",
       "areas": [
         "source",

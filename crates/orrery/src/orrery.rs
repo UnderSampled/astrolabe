@@ -12,7 +12,8 @@ use astrolabe::openspace::level::{
     hype_runtime,
     live::{
         ActorAiObservation, ActorObservation, CrossbowGlobalObservation, HypeBuild,
-        InventoryObservation, MagicSelectionObservation, ReadMemory, SceneTailObservation, Status,
+        InventoryObservation, MagicSelectionObservation, ReadMemory, SceneAiModelSearchObservation,
+        SceneTailObservation, Status,
     },
 };
 use serde::Serialize;
@@ -44,6 +45,7 @@ pub struct MagickBehaviorObservation {
     pub inventory: InventoryObservation,
     pub magic_selection: MagicSelectionObservation,
     pub crossbow_global: Option<CrossbowGlobalObservation>,
+    pub scene_ai_model: Option<SceneAiModelSearchObservation>,
     pub scene_tail: Option<SceneTailObservation>,
     pub capture: StoppedCaptureProvenance,
     pub pause: PauseProvenance,
@@ -623,6 +625,7 @@ impl GameSession {
         designer_values: &[u32],
         scene_tail_limit: Option<usize>,
         include_crossbow_global: bool,
+        scene_ai_model_identity: Option<(u16, u16, u32)>,
     ) -> Result<MagickBehaviorObservation> {
         ensure!(
             (1..=64).contains(&actions.len()),
@@ -675,6 +678,17 @@ impl GameSession {
         let crossbow_global = include_crossbow_global
             .then(|| build.crossbow_global(&mut capture))
             .transpose()?;
+        let scene_ai_model = scene_ai_model_identity
+            .map(|(module, block, payload_offset)| {
+                build.scene_ai_model_instances(
+                    &mut capture,
+                    "manoir",
+                    module,
+                    block,
+                    payload_offset,
+                )
+            })
+            .transpose()?;
         let scene_tail = scene_tail_limit
             .map(|limit| build.scene_tail(&mut capture, limit))
             .transpose()?;
@@ -706,6 +720,7 @@ impl GameSession {
             inventory,
             magic_selection,
             crossbow_global,
+            scene_ai_model,
             scene_tail,
             capture,
             pause: pause_provenance,

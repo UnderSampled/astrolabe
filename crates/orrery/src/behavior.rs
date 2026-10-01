@@ -725,6 +725,7 @@ impl OriginalBackend {
                             &[59],
                             Some(2),
                             capture_projectile_burst,
+                            capture_projectile_burst.then_some((17, 0, 0x4e324)),
                         )?;
                         ensure!(
                             observation.status.phase == 9 && observation.status.level == "manoir",
@@ -741,6 +742,7 @@ impl OriginalBackend {
                             "source_ai": observation.actor,
                             "inventory": observation.inventory,
                             "crossbow_global": observation.crossbow_global,
+                            "source_model_733_instances": observation.scene_ai_model,
                             "scene": observation.scene_tail,
                         }));
                     }
@@ -759,6 +761,7 @@ impl OriginalBackend {
                         designer_values,
                         Some(2),
                         capture_projectile_burst,
+                        capture_projectile_burst.then_some((17, 0, 0x4e324)),
                     )?;
                     ensure!(
                         observation.status.phase == 9 && observation.status.level == "manoir",
@@ -789,6 +792,7 @@ impl OriginalBackend {
                         "source_status": observation.status,
                         "source_ai": observation.actor,
                         "crossbow_global": observation.crossbow_global,
+                        "source_model_733_instances": observation.scene_ai_model,
                         "source_scene_tail": observation.scene_tail,
                         "source_capture": observation.capture,
                     });

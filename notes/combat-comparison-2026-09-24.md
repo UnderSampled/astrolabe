@@ -933,3 +933,18 @@ left the tail. Original quantity remained three. The reports are
 `TestResults/crossbow-followup-20261001-elevated/behavior-crossbow-initial-launch-1790838161172678457.json`
 and
 `TestResults/crossbow-followup-20261001-final/behavior-crossbow-initial-launch-1790838244235252812.json`.
+
+An Orrery diagnostic now searches the complete bounded ActualWorld hierarchy
+for actors whose Brain/Mind chain points to the checked active Fix model-733
+allocation. This distinguishes leaving the DynamicWorld tail from leaving the
+live scene. In a fresh physical Z/Space run, the original arrow was found at
+scene path `[0,176]` in two captures 59 ms apart, with the same transform
+`[-74.3785, 27.4839, 4.5508]`; the full 317-node search found no model-733
+instance in the next capture 10 ms later or in the remaining burst. Thus it
+was removed from ActualWorld during that interval, rather than merely
+reparented elsewhere. This run failed the displacement assertion, so it does
+not establish normal launch motion. It also does not establish whether source
+contact cleanup or explicit AI deletion removed the actor. The focused test
+has passed with displacement in other runs, preserving the observed
+run-to-run variation. Report:
+`TestResults/crossbow-world-search-20261001/behavior-crossbow-initial-launch-1790839603661099883.json`.
