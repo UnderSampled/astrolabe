@@ -11,7 +11,7 @@ Feature: Jumping in the manor
 
   Scenario: Jumping from a walk and landing
     Given a clear path is ahead of Hype
-    When the player jumps while continuously walking forward
+    When the player jumps while walking and steers after takeoff
     Then Hype jumps upward and forward from the walk
     And Hype lands and settles after the moving jump
 

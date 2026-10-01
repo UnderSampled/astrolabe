@@ -1,12 +1,16 @@
 //! A moving jump from a physical near-wall start at the verified manor corner.
-//! The input schedule matches the clear-route moving jump; only the grounded
-//! starting routine and source finite-face oracle differ.
+//! The wall case keeps its original forward input through takeoff. The
+//! clear-route midair steering input is omitted to preserve its contact path.
 use super::*;
 
 pub fn recording() -> FunctionalRecording {
     let mut recording = moving_jump::recording();
     recording.scenario = Scenario::WallJump;
     recording.ready_state = "manoir-grounded-near-verified-corner-wall".into();
+    recording.inputs.truncate(4);
+    // Keep the established wall-contact observation window.
+    recording.samples[3].at_ms = 1_100;
+    recording.samples[4].at_ms = 1_400;
     recording
 }
 
@@ -17,7 +21,7 @@ pub fn validate(recording: &FunctionalRecording) -> Result<()> {
             && recording.ready_state == expected.ready_state
             && recording.inputs == expected.inputs
             && recording.samples == expected.samples,
-        "wall jump requires the near-wall start and uninterrupted moving-jump schedule"
+        "wall jump requires the near-wall start and uninterrupted forward approach schedule"
     );
     Ok(())
 }

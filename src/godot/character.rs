@@ -584,8 +584,41 @@ fn export_animation(
         }
         let mut keys = Vec::new();
         for (frame, cues) in groups {
-            keys.push((f64::from(frame)/f64::from(fps.max(1)),format!("{{\"method\": &\"_cues\", \"args\": [{frame}, PackedInt32Array({}), PackedInt32Array({}), [{}]]}}",cues.iter().map(|(_,c)|c.channel.to_string()).collect::<Vec<_>>().join(","),cues.iter().map(|(_,c)|c.configuration_slot.to_string()).collect::<Vec<_>>().join(","),cues.iter().map(|(i,_)|format!("ExtResource(\"cue_{i}\")")).collect::<Vec<_>>().join(","))));
+            let channel_paths = cues
+                .iter()
+                .map(|(_, cue)| {
+                    let samples = &clip.frames[usize::from(frame)].samples;
+                    let column = usize::from(cue.channel);
+                    let id = clip.samples[samples[column] as usize].channel;
+                    id.map_or_else(
+                        || quoted(""),
+                        |id| {
+                            let occurrence = samples[..column]
+                                .iter()
+                                .filter(|&&index| clip.samples[index as usize].channel == Some(id))
+                                .count();
+                            quoted(&format!(
+                                "Channels/channel_{}",
+                                usize::from(id) + 256 * occurrence
+                            ))
+                        },
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(",");
+            keys.push((f64::from(frame)/f64::from(fps.max(1)),format!("{{\"method\": &\"_cues\", \"args\": [{frame}, PackedInt32Array({}), PackedInt32Array({}), [{}], PackedStringArray({channel_paths})]}}",cues.iter().map(|(_,c)|c.channel.to_string()).collect::<Vec<_>>().join(","),cues.iter().map(|(_,c)|c.configuration_slot.to_string()).collect::<Vec<_>>().join(","),cues.iter().map(|(i,_)|format!("ExtResource(\"cue_{i}\")")).collect::<Vec<_>>().join(","))));
         }
+        let releases_object = clip
+            .cues
+            .iter()
+            .map(|cue| source.load(&cue.action))
+            .collect::<Result<Vec<_>>>()?
+            .iter()
+            .any(|action| matches!(action.operation, AnimationOperation::Attachment { .. }));
+        writeln!(
+            anim.text,
+            "metadata/releases_generated_object = {releases_object}"
+        )?;
         anim.methods(keys)?;
     }
     project.write_build_input(
@@ -633,7 +666,7 @@ fn export_action(
         AnimationOperation::Camera { command } => ("camera", *command),
         AnimationOperation::Unknown { kind, .. } => ("unknown", u32::from(*kind)),
     };
-    if kind != "sound" {
+    if kind != "sound" && kind != "attachment" {
         project.diagnostic(format!(
             "{}: native timed cue signal; {kind} operation is not executed",
             action.path

@@ -167,8 +167,24 @@ pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
     }
     if equipped.raw_observation.get("on_floor").is_some() {
         let trace = settled.raw_observation["generated_trace"].as_array();
-        let launch =
-            trace.and_then(|entries| entries.iter().find(|entry| entry["event"] == "frame"));
+        let launch = trace.and_then(|entries| {
+            entries
+                .iter()
+                .find(|entry| entry["event"] == "frame" && entry["brain_running"] == true)
+        });
+        let release =
+            trace.and_then(|entries| entries.iter().find(|entry| entry["event"] == "release"));
+        checks.push(bound(
+            "sword_beam_released_from_animation_channel",
+            f64::from(u8::from(release.is_some_and(|entry| {
+                entry["source_model_path"] == "fix:/ai/models/708"
+                    && entry["translation"] == entry["attachment_translation"]
+                    && entry["translation"][2].as_f64().zip(entry["parent_translation"][2].as_f64()).is_some_and(|(beam, parent)| (0.7..1.1).contains(&(beam - parent)))
+            }))),
+            Some(1.0),
+            Some(1.0),
+            "Source event kind 2 copies its animation channel matrix; Orrery 2026-09-29 model-708 beam rises 0.8613 units at release",
+        ));
         let exit = trace.and_then(|entries| {
             entries
                 .iter()

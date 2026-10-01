@@ -130,6 +130,12 @@ The focused supervised movement gate passed 56 selected checks in 389.53
 seconds with complete engine cleanup
 (`TestResults/20260924T082252.694345Z-development.log.json`).
 
+On 2026-09-29, support interface 39 added the source animation attachment
+release for generated sword beams and arrows. The beam now waits for the
+release cue and starts from the animated channel's world transform. See the
+[release evidence](./sword-beam-release-2026-09-29.md) for the live original
+positions, native regression and remaining collision limits.
+
 Later on 2026-09-24, the original-game and Godot sword-selection BDD cases
 passed with the same sampled action sequence. The generated sword beam now
 runs its compiled AI, moves through `GoRelative`, and exits at its scripted

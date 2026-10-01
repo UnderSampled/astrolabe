@@ -866,7 +866,7 @@ fn stationary_jump(world: &mut BehaviorWorld) {
     perform(world, Scenario::StationaryJump);
 }
 
-#[when("the player jumps while continuously walking forward")]
+#[when("the player jumps while walking and steers after takeoff")]
 fn moving_jump(world: &mut BehaviorWorld) {
     perform(world, Scenario::MovingJump);
 }

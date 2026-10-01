@@ -616,6 +616,16 @@ func check():
     actor.select_state(0)
     player.pause()
     if not require(cues.size() == 1 and cues[0].slice(0,3) == [0,1,300], "state entry native cue"): return
+    var released := Node3D.new()
+    scene.add_child(released)
+    actor.generated_object = released
+    actor.select_state(0)
+    if not require(released.global_transform.is_equal_approx(channel1.global_transform) and actor.generated_object == null, "release cue did not copy its native channel world transform"): return
+    actor.generated_object = released
+    actor.advance(1.001)
+    if not require(released.global_transform.is_equal_approx(channel1.global_transform) and actor.generated_object == null, "release cue lost frame-column mapping after channel swap"): return
+    released.free()
+    actor.select_state(0)
     cues.clear()
     player.seek(0.5, true, true)
     if not require(actor.frame_index == 1 and actor.current_state == 0, "state rate overrides clip fps"): return

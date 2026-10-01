@@ -5,6 +5,7 @@ signal cue_triggered(action: Resource, frame: int, channel: int, configuration_s
 signal action_finished(action: int)
 signal action_request_traced(requested: int, restart: bool, previous: int, selected: int, accepted: bool)
 signal hud_visibility_requested(indicator: String, visible: bool)
+signal generated_object_released(actor: Node3D, attachment: Node3D)
 const SOURCE_INVENTORY = preload("res://addons/astrolabe/character/inventory.gd")
 const SOURCE_MAGICK = preload("res://addons/astrolabe/character/magick.gd")
 const SOURCE_LASER_POINTER = preload("res://addons/astrolabe/character/laser_pointer.gd")
@@ -30,6 +31,8 @@ var source_relative_motion: bool = false
 var source_airborne: bool = false
 var source_particle_generator_enabled: bool = false
 var source_generated_object_count: int = 0
+## A generated actor waits for the native animation's release cue.
+var generated_object: Node3D
 var source_hud_display: Dictionary = {}
 ## Last evaluated local displacement, including every native substep and loop.
 var root_motion_displacement: Vector3 = Vector3.ZERO
@@ -92,7 +95,7 @@ func _physics_process(delta: float) -> void:
     # once, through native contact resolution. Forces/impulses persist independently.
     var motion := global_basis.orthonormalized() * root_motion_displacement / delta
     if source_relative_motion:
-        external_velocity = _source_motion_vector(source_vector_speed)
+        external_velocity = _source_relative_vector(source_vector_speed)
         source_relative_motion = false
     # Apply gravity to this contact step. Floor response must not turn that
     # downward acceleration into retained sideways momentum on a slight slope.
@@ -125,9 +128,11 @@ func turn(degrees_per_second: float, seconds: float) -> void:
     assert(is_finite(degrees_per_second) and is_finite(seconds) and seconds >= 0.0)
     rotate_object_local(Vector3.UP, deg_to_rad(degrees_per_second) * seconds)
 
-func _source_motion_vector(value: Vector3) -> Vector3:
+## GoRelative and jump impulses use the actor's orientation when their motion
+## is committed. Airborne steering through a jump procedure uses it too.
+func _source_relative_vector(value: Vector3) -> Vector3:
     var converted := Vector3(value.x, value.z, -value.y)
-    return global_basis.orthonormalized() * converted if source_relative_motion else converted
+    return global_basis.orthonormalized() * converted
 
 func source_set_vector_speed(value: Vector3) -> void:
     assert(value.is_finite())
@@ -164,13 +169,13 @@ func source_set_impulse(value: Vector3) -> void:
     source_impulse = value
 
 func source_jump_absolute() -> void:
-    external_velocity = _source_motion_vector(source_vector_speed + source_impulse)
+    external_velocity = _source_relative_vector(source_vector_speed + source_impulse)
     source_impulse = Vector3.ZERO
     source_relative_motion = false
     source_airborne = true
 
 func source_jump_without_adding_speed() -> void:
-    external_velocity += _source_motion_vector(source_impulse)
+    external_velocity += _source_relative_vector(source_impulse)
     source_impulse = Vector3.ZERO
     source_relative_motion = false
     source_airborne = true
@@ -344,9 +349,10 @@ func source_execute_action_and_generate_object(template_path: String, action: in
     if generated_brain != null and not _bind_generated_actor_brains(generated_brain, destination):
         generated.free()
         return -1
-    if not request_action(action, true):
-        generated.free()
-        return 0
+    var previous := pending_state if pending_state >= 0 else current_state
+    var selected := _transition_target(previous, action)
+    var clip_name := StringName(("restored/" if restored_configuration else "") + "state_%d" % selected)
+    var waits_for_release := animation_player.has_animation(clip_name) and bool(animation_player.get_animation(clip_name).get_meta("releases_generated_object", false))
     if generated is CharacterBody3D:
         generated.set("motion_enabled", true)
         generated.set("physical_environment", physical_environment)
@@ -362,10 +368,20 @@ func source_execute_action_and_generate_object(template_path: String, action: in
         # A generated Perso's compiled Brain reads the source main actor. Bind
         # that ordinary scene reference before _ready schedules its first tick.
         generated_brain.set("main_actor", self)
+        if waits_for_release: generated_brain.set("automatic", false)
     destination.add_child(generated)
     if generated_brain != null:
         generated_brain.set("main_actor_path", generated_brain.get_path_to(self))
     generated.set_meta("astrolabe_generated_template", template_path)
+    if waits_for_release:
+        generated.visible = false
+        generated.set_physics_process(false)
+        generated.set_process(false)
+        generated_object = generated
+    if not request_action(action, true):
+        if generated_object == generated: generated_object = null
+        generated.queue_free()
+        return 0
     source_generated_object_count += 1
     return 1
 
@@ -609,14 +625,30 @@ func set_bounds_visible(value: bool) -> void:
     var bounds := get_node_or_null("FamilyBounds") as Node3D
     if bounds != null: bounds.visible = value
 
-func _cue(action: Resource, frame: int, channel: int, slot: int) -> void:
+func _cue(action: Resource, frame: int, channel: int, slot: int, channel_path: String = "") -> void:
     if action.sound != null:
         action.sound.execute(get_node("SoundEmitter"))
+    if action.kind == &"attachment" and is_instance_valid(generated_object):
+        var attachment := get_node_or_null(NodePath(channel_path)) as Node3D
+        assert(attachment != null, "Object release requires a converted animation channel")
+        # Source event kind 2 copies the triggering channel's world matrix,
+        # releases the held object, then activates its mechanics/AI (0043bcd0).
+        var generated := generated_object
+        generated_object = null
+        generated.global_transform = attachment.global_transform
+        generated_object_released.emit(generated, attachment)
+        generated.visible = true
+        generated.set_physics_process(true)
+        generated.set_process(true)
+        var generated_brain := generated.get_node_or_null("Brain")
+        if generated_brain != null:
+            generated_brain.set("automatic", true)
+            generated_brain.call("start")
     cue_triggered.emit(action, frame, channel, slot)
 
-func _cues(frame: int, channels: PackedInt32Array, slots: PackedInt32Array, actions: Array) -> void:
+func _cues(frame: int, channels: PackedInt32Array, slots: PackedInt32Array, actions: Array, channel_paths: PackedStringArray = PackedStringArray()) -> void:
     if suppress_cues: return
     var revision := playback_revision
     for i in actions.size():
-        _cue(actions[i], frame, channels[i], slots[i])
+        _cue(actions[i], frame, channels[i], slots[i], channel_paths[i] if i < channel_paths.size() else "")
         if revision != playback_revision: return

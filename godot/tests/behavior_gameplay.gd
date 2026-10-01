@@ -59,6 +59,7 @@ func run() -> void:
         quit(1)
         return
     actor.connect("action_request_traced", Callable(self, "record_action_request"))
+    actor.connect("generated_object_released", Callable(self, "record_generated_release"))
     fixture = MANOIR_START.load_fixture()
     if int(fixture.get("schema", 0)) != 1 or str(fixture.get("name", "")) != "supplied-english-save-manoir":
         write_json(control_dir.path_join("ready.json"), {"error": "invalid English save fixture"})
@@ -199,6 +200,14 @@ func record_generated_exit(spawned: CharacterBody3D) -> void:
     else:
         generated_trace_first_overflow = true
     if generated_trace.size() > 120: generated_trace.pop_front()
+
+func record_generated_release(spawned: Node3D, attachment: Node3D) -> void:
+    var entry := generated_object_snapshot(spawned as CharacterBody3D)
+    entry["event"] = "release"
+    entry["at_ms"] = Time.get_ticks_msec()
+    entry["attachment_translation"] = source_components(attachment.global_position)
+    entry["parent_translation"] = source_components(actor.global_position)
+    generated_trace.append(entry)
 
 func source_vector(values: Array) -> Vector3:
     return Vector3(float(values[0]), float(values[2]), -float(values[1]))
@@ -440,6 +449,7 @@ func reload_fixture(overlay: Dictionary = {}) -> Dictionary:
     generated_trace_first_overflow = false
     last_action_state = -1
     actor.connect("action_request_traced", Callable(self, "record_action_request"))
+    actor.connect("generated_object_released", Callable(self, "record_generated_release"))
     brain.set("automatic", false)
     actor.set_physics_process(false)
     root.add_child(scene)

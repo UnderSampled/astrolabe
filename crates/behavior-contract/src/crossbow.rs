@@ -143,7 +143,10 @@ pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
             .iter()
             .filter(|entry| entry["event"] == "frame" && entry["source_model_path"] == ARROW_MODEL)
             .collect::<Vec<_>>();
-        let launch = frames.first().copied();
+        let launch = frames
+            .iter()
+            .copied()
+            .find(|entry| entry["brain_running"] == true);
         let moving_pair = launch.and_then(|first| {
             let id = &first["instance_id"];
             let start = position(&first["translation"])?;
