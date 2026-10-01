@@ -14,7 +14,7 @@ use std::{
 
 pub const ORIGINAL_STARTUP_SETTLE_MS: u64 = 2_500;
 const CROSSBOW_DIAGNOSTIC_FIELDS: &[u32] = &[7, 8, 13, 15, 59, 60, 95, 130];
-const CROSSBOW_ARROW_SCHEDULE_FIELDS: &[u32] = &[0];
+const CROSSBOW_ARROW_DIAGNOSTIC_FIELDS: &[u32] = &[0, 1, 2, 3];
 
 pub fn actor_sample_from_actor(
     name: String,
@@ -757,7 +757,7 @@ impl OriginalBackend {
                         capture_projectile_burst,
                         capture_projectile_burst.then_some((17, 0, 0x4e324)),
                         if capture_projectile_burst {
-                            CROSSBOW_ARROW_SCHEDULE_FIELDS
+                            CROSSBOW_ARROW_DIAGNOSTIC_FIELDS
                         } else {
                             &[]
                         },
@@ -883,7 +883,7 @@ impl OriginalBackend {
                 | Scenario::CrossbowInitialLaunch
                 | Scenario::FireCast
         );
-        let (delivered, samples, _) = self.execute_trial(
+        let (delivered, mut samples, _) = self.execute_trial(
             &recording.inputs,
             &recording.samples,
             "",
@@ -897,6 +897,25 @@ impl OriginalBackend {
                 projectile_burst: recording.scenario == Scenario::CrossbowInitialLaunch,
             },
         )?;
+        if recording.scenario == Scenario::CrossbowInitialLaunch {
+            // The launch tape ends shortly after the 25-stop fast burst. Keep
+            // that tape fixed, then take one later identity-checked snapshot
+            // to see whether model 733 remains, changes behavior, or disappears.
+            thread::sleep(Duration::from_millis(250));
+            let observation = self.controller.game()?.observe_magick_behavior(
+                &[47, 48, 290, 271],
+                CROSSBOW_DIAGNOSTIC_FIELDS,
+                Some(4),
+                true,
+                Some((17, 0, 0x4e324)),
+                CROSSBOW_ARROW_DIAGNOSTIC_FIELDS,
+            )?;
+            let flight = samples
+                .last_mut()
+                .context("Crossbow launch has no terminal flight sample")?;
+            flight.raw_observation["crossbow_post_burst_diagnostic"] =
+                serde_json::to_value(observation)?;
+        }
         let screenshot = self.controller.game()?.screenshot()?;
         let status = "recorded";
         let result = BackendResult {

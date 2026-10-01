@@ -109,11 +109,20 @@ fn original_arrow(sample: &serde_json::Value) -> Option<(u64, String, u64, [f64;
             && offset["block"] == 0
             && offset["payload_offset"].as_u64() == Some(ARROW_MODEL_OFFSET))
         .then(|| {
+            let position = position(&child["global_transform"]["Affine"]["translation"])?;
+            // Newly allocated source actors can briefly expose an unpublished
+            // zero transform. It is not a valid trajectory sample.
+            if position
+                .iter()
+                .all(|component| component.abs() <= f64::EPSILON)
+            {
+                return None;
+            }
             Some((
                 child["index"].as_u64()?,
                 child["node_locator"].as_str()?.to_owned(),
                 elapsed,
-                position(&child["global_transform"]["Affine"]["translation"])?,
+                position,
             ))
         })
         .flatten()
@@ -295,6 +304,47 @@ pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
             None,
             "Two time-ordered positions of the same checked original arrow before it disappears",
         ));
+        let contact_observed_without_selector_bit = burst.iter().any(|entry| {
+            entry["scene_tail_latest"]["children"]
+                .as_array()
+                .is_some_and(|children| {
+                    children.iter().any(|child| {
+                        let offset = &child["ai"]["fix_block_offset"];
+                        offset["module"] == 17
+                            && offset["block"] == 0
+                            && offset["payload_offset"].as_u64() == Some(ARROW_MODEL_OFFSET)
+                            && child["dynamics"]["contact_classes"]["publication_consistent"]
+                                == true
+                            && child["dynamics"]["contact_classes"]["selector_33_mask_0x2_set"]
+                                == false
+                            && child["dynamics"]["contact_classes"]["current"]
+                                .as_u64()
+                                .is_some_and(|value| value != 0)
+                    })
+                })
+        });
+        checks.push(bound(
+            "crossbow_source_contact_class_bit2_clear_during_arrow_contact",
+            f64::from(u8::from(contact_observed_without_selector_bit)),
+            Some(1.0),
+            Some(1.0),
+            "Checked model-733 instance had a published nonzero contact class with selector-33 mask 0x2 clear",
+        ));
+        let post_burst = &raw["crossbow_post_burst_diagnostic"];
+        let post_burst_identity = post_burst["scene_ai_model"]["model"]["module"] == 17
+            && post_burst["scene_ai_model"]["model"]["block"] == 0
+            && post_burst["scene_ai_model"]["model"]["payload_offset"] == ARROW_MODEL_OFFSET;
+        let arrow_absent_later = post_burst_identity
+            && post_burst["scene_ai_model"]["instances"]
+                .as_array()
+                .is_some_and(|instances| instances.is_empty());
+        checks.push(bound(
+            "crossbow_source_arrow_absent_at_post_burst_checkpoint",
+            f64::from(u8::from(arrow_absent_later)),
+            Some(1.0),
+            Some(1.0),
+            "Later full-scene search tied to active Fix model-733 allocation found no live instance; removal cause is not asserted",
+        ));
     }
     Ok(checks)
 }
@@ -329,5 +379,34 @@ mod tests {
 
         assert!(spawned);
         assert!(movement.is_some_and(|distance| distance > 0.05));
+    }
+
+    #[test]
+    fn original_arrow_zero_allocation_transform_is_not_motion_evidence() {
+        let observation = |elapsed, translation| {
+            serde_json::json!({
+                "elapsed_resumed_ms": elapsed,
+                "scene_tail_latest": {"children": [{
+                    "index": 176,
+                    "node_locator": "live:03e0fe34",
+                    "global_transform": {"Affine": {"translation": translation}},
+                    "ai": {"fix_block_offset": {
+                        "module": 17,
+                        "block": 0,
+                        "payload_offset": ARROW_MODEL_OFFSET
+                    }}
+                }]}
+            })
+        };
+        let observations = [
+            observation(1_230, [0.0, 0.0, 0.0]),
+            observation(1_234, [-73.905_868, 28.456_821, 6.097_703]),
+            observation(1_244, [-73.737_892, 29.416_655, 6.035_868]),
+        ];
+
+        let (spawned, movement) = original_arrow_evidence(&observations);
+
+        assert!(spawned);
+        assert!(movement.is_some_and(|distance| (0.97..1.01).contains(&distance)));
     }
 }

@@ -1142,3 +1142,27 @@ the full bounded trace. The rerun passed 1/1 in 19.9 seconds. Evidence:
 `TestResults/crossbow-animation-release-check2/behavior-crossbow-initial-launch-*.json`.
 This validates Godot's shared attachment-cue path, consistent with the sword
 beam release work; original source contact and model-733 cleanup remain open.
+
+### Crossbow source contact and late-arrow checkpoint (2026-10-01)
+
+The original launch recording now adds a separate post-burst diagnostic after
+the existing functional tape. It resolves the active Fix model-733 allocation
+and searches the full 317-node manor scene for its live instances, while the
+fast burst continues to capture the short-lived arrow with the lighter scene
+-tail reader. On the latest run, the checked arrow moved 1.8874 source units
+between two published positions. Its later source contact class was `4` in
+two consecutive captures (`current=previous=ai_visible=4`), so selector-33
+mask `0x2` was clear. The later identity-checked full-scene search found zero
+live model-733 instances. The source BDD now asserts those bounded findings
+without assigning a removal cause. Evidence:
+`TestResults/crossbow-source-valid-motion/behavior-crossbow-initial-launch-1790851376138633251.json`.
+
+The run also exposed and fixed a weakness in the earlier motion assertion: it
+accepted an actor's initial all-zero unpublished transform as a trajectory
+position, which could report an artificial 79-unit displacement when paired
+with the first published transform. The assertion now excludes that zero
+placeholder; a dedicated regression test verifies movement is measured only
+between published positions. The source run passes with 1.8874 units. This
+capture strengthens the evidence that a class-4 contact does not set the
+source arrow's selector-33 hit bit, but does not reveal whether timeout,
+reparenting or another engine path removes the arrow before the later search.

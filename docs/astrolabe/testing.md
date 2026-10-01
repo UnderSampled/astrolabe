@@ -52,10 +52,12 @@ and show the same arrow at two positions. The paired result covers initial
 launch only; subsequent contact behavior, trajectory and ammunition parity
 remain open. The Godot trace now also checks that model 733 is released at its
 exported animation channel transform before its Brain runs. The source selector
-for model-733 contact tests published contact-class bit `0x2`; Godot's current
-slide-contact count is provisional and does not establish source parity. The
-Space recording exercises `Button_Hit` and does not establish ammunition
-consumption by the separate `TireArbalete` action. See the [combat comparison
+for model-733 contact tests published contact-class bit `0x2`; the current
+source run observes class `4` with that bit clear before a later full-scene
+search finds the arrow absent. Godot's current slide-contact count is
+provisional and does not establish source parity. The Space recording exercises
+`Button_Hit` and does not establish ammunition consumption by the separate
+`TireArbalete` action. See the [combat comparison
 note](../../notes/combat-comparison-2026-09-24.md#initial-crossbow-launch-bdd-2026-09-25).
 
 Pair matching scenario reports with:
