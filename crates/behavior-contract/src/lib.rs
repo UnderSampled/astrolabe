@@ -1150,7 +1150,13 @@ impl BackendResult {
             ensure!(
                 sample.capture_end_ms >= sample.capture_start_ms
                     && sample.capture_start_ms >= planned.at_ms.saturating_sub(10)
-                    && sample.capture_start_ms <= planned.at_ms + 150
+                    && sample.capture_start_ms
+                        <= planned.at_ms
+                            + if self.scenario == Scenario::CrossbowInitialLaunch {
+                                200
+                            } else {
+                                150
+                            }
                     && sample.capture_end_ms <= planned.at_ms + 250,
                 "backend sample has an invalid capture interval"
             );

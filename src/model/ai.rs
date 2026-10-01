@@ -263,6 +263,8 @@ pub enum Expression {
     Nowhere,
     Integer(i32),
     Real(f32),
+    /// Source Func_Int truncates a real-valued expression to an integer.
+    IntegerCast(Box<Expression>),
     /// Source vector literal (category 16); components remain source-space.
     Vector(Box<[Expression; 3]>),
     /// Current actor's world position in source coordinates.

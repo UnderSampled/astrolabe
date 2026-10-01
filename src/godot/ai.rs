@@ -452,7 +452,8 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         Expression::Negate(value)
         | Expression::IsInAction(value)
         | Expression::Not(value)
-        | Expression::InventoryQuantity(value) => needs_guard(value, model),
+        | Expression::InventoryQuantity(value)
+        | Expression::IntegerCast(value) => needs_guard(value, model),
         Expression::VectorComponent { vector, .. } => needs_guard(vector, model),
         _ => false,
     }
@@ -594,6 +595,12 @@ fn guarded_expression(
             guarded_expression(out, &values[1], model, depth, flow)?,
             guarded_expression(out, &values[2], model, depth, flow)?
         ),
+        Expression::IntegerCast(value) => {
+            format!(
+                "int({})",
+                guarded_expression(out, value, model, depth, flow)?
+            )
+        }
         Expression::RandomInt { lower, upper } => format!(
             "random_int(int({}), int({}))",
             guarded_expression(out, lower, model, depth, flow)?,
@@ -733,6 +740,7 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         Expression::Nobody | Expression::Nowhere => "null".into(),
         Expression::Integer(v) => v.to_string(),
         Expression::Real(v) => format!("{v:?}"),
+        Expression::IntegerCast(value) => format!("int({})", expression(value, model)?),
         Expression::SelfPosition => "character().source_position()".into(),
         Expression::GameTime => "character().source_game_time()".into(),
         Expression::TimeElapsed { start, duration } => format!(

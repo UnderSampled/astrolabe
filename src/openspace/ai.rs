@@ -844,6 +844,7 @@ impl Parser<'_> {
                 }
                 Expression::MainActorDistance
             }
+            (3, 22) => Expression::IntegerCast(Box::new(self.expression(indent + 1)?)),
             (3, 201) => Expression::InventoryWeapon,
             (3, 208) => Expression::InventoryQuantity(Box::new(self.expression(indent + 1)?)),
             (3, 209) => Expression::InventoryRemove {
@@ -1199,6 +1200,10 @@ impl Writer<'_> {
             Expression::Nowhere => self.node(0, 8, indent),
             Expression::Integer(v) => self.node(12, *v as u32, indent),
             Expression::Real(v) => self.node(13, v.to_bits(), indent),
+            Expression::IntegerCast(value) => {
+                self.node(3, 22, indent);
+                self.expression(value, indent + 1)?;
+            }
             Expression::Vector(values) => {
                 self.node(16, 0, indent);
                 for value in values.iter() {
@@ -1995,6 +2000,29 @@ mod partial_tests {
                 Statement::SetDisplayVisible(false),
                 Statement::SetDisplayVisible(true),
             ]
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn integer_function_reconstructs_crossbow_camera_aim_math() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (2, 11, 1),
+            (11, 102, 2),
+            (3, 22, 2),
+            (2, 0, 3),
+            (11, 102, 4),
+            (12, 5, 4),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            script.statements.as_slice(),
+            [Statement::Assign {
+                variable: 102,
+                value: Expression::IntegerCast(value)
+            }] if matches!(value.as_ref(), Expression::Plus(..))
         ));
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())

@@ -22,6 +22,13 @@ pub fn recording() -> FunctionalRecording {
             edge(200, "select_press", Key::Z, Edge::Press),
             edge(255, "select_release", Key::Z, Edge::Release),
             edge(1050, "crossbow_aim_press", Key::Keypad0, Edge::Press),
+            edge(1100, "crossbow_aim_left_press", Key::ArrowLeft, Edge::Press),
+            edge(
+                1200,
+                "crossbow_aim_left_release",
+                Key::ArrowLeft,
+                Edge::Release,
+            ),
             edge(1250, "attack_press", Key::Space, Edge::Press),
             edge(1330, "attack_release", Key::Space, Edge::Release),
             edge(1450, "crossbow_aim_release", Key::Keypad0, Edge::Release),
@@ -204,6 +211,31 @@ pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
         Some(1.0),
         "The player's compiled normal-40 Crossbow camera-aim/firing schedule remains active while keypad-0 is held",
     ));
+    checks.push(bound(
+        "crossbow_horizontal_aim_turns_player",
+        heading_delta(selected, camera_fire_active),
+        Some(0.005),
+        None,
+        "Physical Left while keypad-0 is held routes to BT_Camera_LookLeft and changes Hype's facing",
+    ));
+    if godot {
+        let terminal_quantity = raw["inventory"]["weapon_80_quantity"].as_u64();
+        checks.push(bound(
+            "crossbow_camera_fire_consumes_one_bolt",
+            f64::from(u8::from(terminal_quantity == Some(2))),
+            Some(1.0),
+            Some(1.0),
+            "The compiled BT_Camera_TireArbalete schedule removes one bolt from the test-owned quantity-three inventory",
+        ));
+        checks.push(bound(
+            "crossbow_camera_aim_brain_keeps_running",
+            f64::from(u8::from(camera_fire_active.raw_observation["brain_running"] == true
+                && camera_fire_active.raw_observation["brain_failure"] == "")),
+            Some(1.0),
+            Some(1.0),
+            "The compiled camera-aim and firing behavior remains live without an unsupported source function",
+        ));
+    }
     if godot {
         let trace = raw["generated_trace"]
             .as_array()
