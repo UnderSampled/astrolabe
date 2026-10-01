@@ -881,3 +881,37 @@ idle–walk–run–selection capture with channel IDs, active bits and owning
 rendered nodes is needed to reproduce the user's observed crossbow flicker.
 The ignored inventory is
 `TestResults/weapon-channel-visibility-analysis-20260925.md`.
+
+## Typed Crossbow Global observation (2026-10-01)
+
+Orrery now identifies the active Fix Global by matching its exact Perso pointer
+in ActualWorld, then follows its Brain/Mind/model references before reading
+designer field 14 as a typed Boolean. In the paired combat run, the matching
+actor was at scene path `[0,0]` (the actor at `[0,1]` was a different Perso).
+The verified module-5/block-0 payload began at `0x314`, had a 20-word
+allocation, and referenced the module-17/block-0 model at `0x1c`. Field 14 was
+false at baseline, after selection, during flight, and across all 25 retained
+arrow-burst captures. This agrees with Godot's field-14 value, so that field
+does not explain the quantity difference: original Weapon 80 stayed at three;
+Godot changed from three to two.
+
+The lower-rate source AI snapshots show `normal.current` moving from 4 to 17
+while the arrow was present and back to 4 afterward. Both backends reported
+the selected weapon as 80, firing action `dsg95` as 80 during flight, and
+`dsg130` as 0. This supports comparable firing-state entry, but does not prove
+whether source native inventory function 209 ran or what it returned/wrote;
+the exact MainActor Brain assignment target also remains unverified. Do not
+change ammo semantics until that call or mutation is observed. The model-733
+contact result and arrow lifetime also remain unresolved, so full Crossbow
+acceptance is still open.
+
+The 2026-10-01 focused combat run passed both original and Godot initial-launch
+BDD cases, including the original displacement assertion. The suite result was
+97 passed and one unrelated failure in
+`openspace::level::ai::tests::source_ai_inventory_and_script_reconstruction`
+(58 observed versus 57 expected). A later two-case diagnostic run passed the
+Godot case; its original case spawned the arrow but failed the displacement
+assertion while eight AI fields were being collected on every burst sample.
+Burst sampling is now back to field 59 only to preserve the earlier passing
+capture cadence; the richer fields remain on lower-rate snapshots. That final
+sampling adjustment has not been runtime-verified.

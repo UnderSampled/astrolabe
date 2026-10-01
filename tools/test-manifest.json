@@ -3078,6 +3078,21 @@
     },
     {
       "binary": "astrolabe",
+      "test": "openspace::level::live::active_camera_tests::fix_block_offsets_resolve_the_active_module_and_block",
+      "areas": [
+        "combat",
+        "runtime",
+        "source"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic checked Fix module table",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "openspace::level::live::active_camera_tests::live_camera_search_uses_checked_live_hierarchy_and_rejects_ambiguity",
       "areas": [
         "source",

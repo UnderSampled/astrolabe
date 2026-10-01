@@ -286,34 +286,62 @@ impl HypeBuild {
         Ok(address)
     }
 
-    /// Resolve one live model pointer against the loaded Fix AI block. The
-    /// address table is runtime state for this verified executable; only the
-    /// block-relative offset may be compared with a source allocation.
+    /// Resolve a live source pointer against one loaded Fix module/block. The
+    /// module table and its entries are runtime state for this verified
+    /// executable; only the block-relative offset may be compared with a
+    /// source allocation.
+    fn fix_block_offset(
+        &self,
+        source: &mut MemoryView<'_, impl ReadMemory>,
+        module: u16,
+        block: u16,
+        address: u32,
+    ) -> Result<Option<LiveBlockOffset>> {
+        let Some((base, end)) = self.fix_block_bounds(source, module, block)? else {
+            return Ok(None);
+        };
+        if address < base || address > end {
+            return Ok(None);
+        }
+        Ok(Some(LiveBlockOffset {
+            module,
+            block,
+            payload_offset: address - base,
+            active_base_locator: format!("live:{base:08x}"),
+            active_end_locator: format!("live:{end:08x}"),
+        }))
+    }
+
+    fn fix_block_bounds(
+        &self,
+        source: &mut MemoryView<'_, impl ReadMemory>,
+        module: u16,
+        block: u16,
+    ) -> Result<Option<(u32, u32)>> {
+        // Mmg's module pointer array begins at this build-verified address;
+        // module 17's slot is 0x00880f64 and module 5's is 0x00880f34.
+        let module_slot = source.add(0x0088_0f20, usize::from(module) * 4)?;
+        let Some(table) = source.pointer(module_slot, 0)? else {
+            return Ok(None);
+        };
+        let block_record = source.add(table, usize::from(block) * 16)?;
+        let record = source.bytes(block_record, 16)?;
+        let base = u32_at(&record, 0)?;
+        let end = u32_at(&record, 4)?;
+        ensure!(
+            base != 0 && end >= base && end - base < 64 * 1024 * 1024,
+            "active Fix block has invalid bounds"
+        );
+        Ok(Some((base, end)))
+    }
+
+    /// Resolve one live AI model pointer against the loaded Fix AI block.
     fn fix_ai_block_offset(
         &self,
         source: &mut MemoryView<'_, impl ReadMemory>,
         model: u32,
     ) -> Result<Option<LiveBlockOffset>> {
-        let Some(table) = source.pointer(0x0088_0f64, 0)? else {
-            return Ok(None);
-        };
-        let record = source.bytes(table, 16)?;
-        let base = u32_at(&record, 0)?;
-        let end = u32_at(&record, 4)?;
-        ensure!(
-            base != 0 && end >= base && end - base < 64 * 1024 * 1024,
-            "active Fix AI block has invalid bounds"
-        );
-        if model < base || model > end {
-            return Ok(None);
-        }
-        Ok(Some(LiveBlockOffset {
-            module: 17,
-            block: 0,
-            payload_offset: model - base,
-            active_base_locator: format!("live:{base:08x}"),
-            active_end_locator: format!("live:{end:08x}"),
-        }))
+        self.fix_block_offset(source, 17, 0, model)
     }
     /// Source function 232 selects one of three runtime magic-name rows, then
     /// looks up the selected inventory item named `Magic` plus that row and
@@ -450,6 +478,82 @@ impl HypeBuild {
             observation.actor.object_types
         );
         Ok(observation)
+    }
+
+    /// Capture the live Global control used by Hype's crossbow firing branch.
+    /// Its scene path, Fix Perso allocation, allocation extent, linked model
+    /// and typed designer field must all match the source-backed identity.
+    pub fn crossbow_global(
+        &self,
+        memory: &mut impl ReadMemory,
+    ) -> Result<CrossbowGlobalObservation> {
+        let status = self.status(memory)?;
+        ensure!(
+            status.phase == 9 && status.level == "manoir",
+            "crossbow Global observation requires loaded manor gameplay"
+        );
+        let mut source = MemoryView(memory);
+        let (module_5_base, module_5_end) = self
+            .fix_block_bounds(&mut source, 5, 0)?
+            .context("active Fix module 5/block 0 is unavailable")?;
+        let perso = module_5_base
+            .checked_add(0x314)
+            .context("manor Global Perso address overflow")?;
+        let perso_fix_block_offset = self
+            .fix_block_offset(&mut source, 5, 0, perso)?
+            .context("manor Global Perso is outside active Fix module 5/block 0")?;
+        ensure!(
+            perso_fix_block_offset.payload_offset == 0x314,
+            "manor Global Perso moved from Fix module 5/block 0 allocation 15"
+        );
+        ensure!(
+            module_5_end >= perso && module_5_end - perso >= 79,
+            "manor Global Perso allocation exceeds active Fix module 5/block 0"
+        );
+        let allocation_header_address = perso
+            .checked_sub(4)
+            .context("manor Global allocation header address underflow")?;
+        let allocation_header_words = u32_at(&source.bytes(allocation_header_address, 4)?, 0)?;
+        ensure!(
+            allocation_header_words == 20,
+            "manor Global allocation header differs from the expected 20-word Perso"
+        );
+        let found = find_live_actor_by_perso(&mut source, perso)?;
+        let observation = actor_ai_at_node(&mut source, found.node, &[], &[14])?;
+        ensure!(
+            observation.actor.object_types == [0, 0, 0],
+            "live Fix Global object types differ from source identity: {:?}",
+            observation.actor.object_types
+        );
+        let ai = source_view::ai_parts(&mut source, perso)?;
+        let ai_model_fix_block_offset = self
+            .fix_ai_block_offset(&mut source, ai.model)?
+            .context("manor Global AI model is outside active Fix module 17/block 0")?;
+        ensure!(
+            ai_model_fix_block_offset.payload_offset == 0x1c,
+            "manor Global AI model differs from Fix module 17/block 0 allocation 1"
+        );
+        let field_14 = observation
+            .designer_values
+            .iter()
+            .find(|value| value.index == 14)
+            .context("manor Global AI field 14 was not captured")?;
+        ensure!(
+            field_14.kind == 0
+                && matches!(
+                    field_14.value,
+                    ObservedDesignerValue::Value(DesignerValue::Boolean(_))
+                ),
+            "manor Global AI field 14 is not a typed Boolean"
+        );
+        Ok(CrossbowGlobalObservation {
+            actor: observation,
+            scene_path: found.path,
+            scanned_nodes: found.scanned_nodes,
+            perso_fix_block_offset,
+            ai_model_fix_block_offset,
+            allocation_header_words,
+        })
     }
 
     /// Resolve a unique live actor by the source object-type triple when
@@ -956,6 +1060,47 @@ mod active_camera_tests {
     }
 
     #[test]
+    fn fix_block_offsets_resolve_the_active_module_and_block() {
+        let mut memory = Memory(BTreeMap::new());
+        let module_5_table = 0x1000u32;
+        let module_17_table = 0x2000u32;
+        memory.put(0x0088_0f34, &module_5_table.to_le_bytes());
+        memory.put(0x0088_0f64, &module_17_table.to_le_bytes());
+        for (record, base, end) in [
+            (module_5_table, 0x0100_0000u32, 0x0101_0000u32),
+            (module_17_table, 0x0200_0000u32, 0x0201_0000u32),
+        ] {
+            memory.put(record, &base.to_le_bytes());
+            memory.put(record + 4, &end.to_le_bytes());
+            memory.put(record + 8, &[0; 8]);
+        }
+        let build = HypeBuild::verified(HYPE_EXECUTABLE_SHA256).unwrap();
+        let mut source = MemoryView(&mut memory);
+        assert_eq!(
+            build
+                .fix_block_offset(&mut source, 5, 0, 0x0100_0314)
+                .unwrap()
+                .unwrap()
+                .payload_offset,
+            0x314
+        );
+        assert_eq!(
+            build
+                .fix_block_offset(&mut source, 17, 0, 0x0200_001c)
+                .unwrap()
+                .unwrap()
+                .payload_offset,
+            0x1c
+        );
+        assert!(
+            build
+                .fix_block_offset(&mut source, 5, 0, 0x0101_0001)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
     fn active_camera_decodes_checked_projection_from_one_source_pointer() {
         let mut memory = Memory(BTreeMap::new());
         let mut status = vec![0; 261];
@@ -1075,6 +1220,10 @@ mod active_camera_tests {
         let found = find_live_camera(&mut source, [2, 2, 2]).unwrap();
         assert_eq!(found.path, [1, 0]);
         assert_eq!(found.scanned_nodes, 4);
+        let global = find_live_actor_by_perso(&mut source, perso).unwrap();
+        assert_eq!(global.perso, perso);
+        assert_eq!(global.path, [1, 0]);
+        assert_eq!(global.scanned_nodes, 4);
 
         let (second_perso, second_data3d, second_standard): (u32, u32, u32) =
             (0x3000, 0x3100, 0x3200);
@@ -1159,6 +1308,23 @@ fn find_live_actor(
     expected_object_types: [u32; 3],
     require_camera: bool,
 ) -> Result<LiveActorMatch> {
+    find_live_actor_matching(source, require_camera, |source, perso| {
+        Ok(source_view::perso_parts(source, perso)?.object_types == expected_object_types)
+    })
+}
+
+fn find_live_actor_by_perso(
+    source: &mut MemoryView<'_, impl ReadMemory>,
+    expected_perso: u32,
+) -> Result<LiveActorMatch> {
+    find_live_actor_matching(source, false, |_, perso| Ok(perso == expected_perso))
+}
+
+fn find_live_actor_matching<M: ReadMemory>(
+    source: &mut MemoryView<'_, M>,
+    require_camera: bool,
+    mut matches_actor: impl FnMut(&mut MemoryView<'_, M>, u32) -> Result<bool>,
+) -> Result<LiveActorMatch> {
     const MAX_NODES: usize = 4096;
     const MAX_DEPTH: usize = 32;
     let root = source.required(0x75ec6c, 0)?;
@@ -1173,8 +1339,7 @@ fn find_live_actor(
         }
         if header.kind == 4 {
             let perso = source.required(node, SuperObjectWire::DATA)?;
-            let parts = source_view::perso_parts(source, perso)?;
-            if parts.object_types == expected_object_types
+            if matches_actor(source, perso)?
                 && (!require_camera || source.pointer(perso, 20)?.is_some())
             {
                 matches += 1;
@@ -1242,8 +1407,7 @@ fn find_live_actor(
     }
     ensure!(
         matches == 1,
-        "live actor search expected one actor {:?} (camera required: {require_camera}), found {matches} in {} nodes",
-        expected_object_types,
+        "live actor search expected one matching actor (camera required: {require_camera}), found {matches} in {} nodes",
         visited.len()
     );
     let mut result = found.context("live actor search lost its unique match")?;
@@ -1481,6 +1645,19 @@ pub struct LiveBlockOffset {
     pub payload_offset: u32,
     pub active_base_locator: String,
     pub active_end_locator: String,
+}
+
+/// Checked source identity and live value for manor Global's crossbow control.
+/// Locators are capture-local; block offsets identify the source allocations.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CrossbowGlobalObservation {
+    pub actor: ActorAiObservation,
+    pub scene_path: Vec<u32>,
+    pub scanned_nodes: usize,
+    pub perso_fix_block_offset: LiveBlockOffset,
+    pub ai_model_fix_block_offset: LiveBlockOffset,
+    pub allocation_header_words: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

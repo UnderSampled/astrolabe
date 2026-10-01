@@ -69,6 +69,34 @@ fn displacement(a: [f64; 3], b: [f64; 3]) -> f64 {
         .sqrt()
 }
 
+fn contains_boolean(value: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::Bool(_) => true,
+        serde_json::Value::Array(values) => values.iter().any(contains_boolean),
+        serde_json::Value::Object(values) => values.values().any(contains_boolean),
+        _ => false,
+    }
+}
+
+fn checked_global_identity(observation: &serde_json::Value) -> bool {
+    let perso = &observation["perso_fix_block_offset"];
+    let model = &observation["ai_model_fix_block_offset"];
+    let fields = observation["actor"]["designer_values"].as_array();
+    let field_14 = fields.and_then(|values| {
+        values
+            .iter()
+            .find(|value| value["index"] == 14 && value["kind"] == 0)
+    });
+    observation["allocation_header_words"] == 20
+        && perso["module"] == 5
+        && perso["block"] == 0
+        && perso["payload_offset"] == 0x314
+        && model["module"] == 17
+        && model["block"] == 0
+        && model["payload_offset"] == 0x1c
+        && field_14.is_some_and(|value| contains_boolean(&value["value"]))
+}
+
 fn original_arrow(sample: &serde_json::Value) -> Option<(u64, String, u64, [f64; 3])> {
     let elapsed = sample["elapsed_resumed_ms"].as_u64()?;
     let children = sample["scene"]["children"].as_array()?;
@@ -190,6 +218,32 @@ pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
             "Initial native arrow movement only; later Cond_CollideWithNothing remains unsupported and visible in the trace",
         ));
     } else {
+        let global_identity = samples
+            .iter()
+            .all(|sample| checked_global_identity(&sample.raw_observation["crossbow_global"]));
+        checks.push(bound(
+            "crossbow_global_live_identity_and_field14",
+            f64::from(u8::from(global_identity)),
+            Some(1.0),
+            Some(1.0),
+            "Same-capture manor path, Fix Perso allocation, Global AI model, and typed live field 14",
+        ));
+        let main_ai = raw["source_ai"]["designer_values"].as_array();
+        let owner_ai_fields = [7, 8, 13, 15, 59, 60, 95, 130];
+        let owner_ai_observed = main_ai.is_some_and(|values| {
+            owner_ai_fields.iter().all(|index| {
+                values
+                    .iter()
+                    .any(|value| value["index"] == *index && !value["value"].is_null())
+            })
+        });
+        checks.push(bound(
+            "crossbow_owner_ai_fields_observed",
+            f64::from(u8::from(owner_ai_observed)),
+            Some(1.0),
+            Some(1.0),
+            "Typed source reads of crossbow branch selectors and remembered quantity",
+        ));
         let burst = raw["source_projectile_burst"]
             .as_array()
             .context("original launch has no bounded scene-tail burst")?;

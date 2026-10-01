@@ -13,6 +13,7 @@ use std::{
 };
 
 pub const ORIGINAL_STARTUP_SETTLE_MS: u64 = 2_500;
+const CROSSBOW_DIAGNOSTIC_FIELDS: &[u32] = &[7, 8, 13, 15, 59, 60, 95, 130];
 
 pub fn actor_sample_from_actor(
     name: String,
@@ -723,6 +724,7 @@ impl OriginalBackend {
                             &[47, 48, 290, 271],
                             &[59],
                             Some(2),
+                            capture_projectile_burst,
                         )?;
                         ensure!(
                             observation.status.phase == 9 && observation.status.level == "manoir",
@@ -736,6 +738,9 @@ impl OriginalBackend {
                             "index": first + local_index,
                             "elapsed_resumed_ms": origin.elapsed().saturating_sub(paused_total).as_millis(),
                             "pause_micros": paused.as_micros(),
+                            "source_ai": observation.actor,
+                            "inventory": observation.inventory,
+                            "crossbow_global": observation.crossbow_global,
                             "scene": observation.scene_tail,
                         }));
                     }
@@ -748,6 +753,7 @@ impl OriginalBackend {
                         &[47, 48, 290, 271],
                         &[59],
                         Some(2),
+                        capture_projectile_burst,
                     )?;
                     ensure!(
                         observation.status.phase == 9 && observation.status.level == "manoir",
@@ -777,6 +783,7 @@ impl OriginalBackend {
                         "inventory": observation.inventory,
                         "source_status": observation.status,
                         "source_ai": observation.actor,
+                        "crossbow_global": observation.crossbow_global,
                         "source_scene_tail": observation.scene_tail,
                         "source_capture": observation.capture,
                     });

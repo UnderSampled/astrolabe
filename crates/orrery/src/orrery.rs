@@ -11,8 +11,8 @@ use anyhow::{Context, Result, bail, ensure};
 use astrolabe::openspace::level::{
     hype_runtime,
     live::{
-        ActorAiObservation, ActorObservation, HypeBuild, InventoryObservation,
-        MagicSelectionObservation, ReadMemory, SceneTailObservation, Status,
+        ActorAiObservation, ActorObservation, CrossbowGlobalObservation, HypeBuild,
+        InventoryObservation, MagicSelectionObservation, ReadMemory, SceneTailObservation, Status,
     },
 };
 use serde::Serialize;
@@ -43,6 +43,7 @@ pub struct MagickBehaviorObservation {
     pub actor: ActorAiObservation,
     pub inventory: InventoryObservation,
     pub magic_selection: MagicSelectionObservation,
+    pub crossbow_global: Option<CrossbowGlobalObservation>,
     pub scene_tail: Option<SceneTailObservation>,
     pub capture: StoppedCaptureProvenance,
     pub pause: PauseProvenance,
@@ -621,6 +622,7 @@ impl GameSession {
         actions: &[u32],
         designer_values: &[u32],
         scene_tail_limit: Option<usize>,
+        include_crossbow_global: bool,
     ) -> Result<MagickBehaviorObservation> {
         ensure!(
             (1..=64).contains(&actions.len()),
@@ -670,6 +672,9 @@ impl GameSession {
         let actor = build.actor_with_ai(&mut capture, actions, designer_values)?;
         let inventory = build.inventory(&mut capture)?;
         let magic_selection = build.magic_selection(&mut capture, &inventory)?;
+        let crossbow_global = include_crossbow_global
+            .then(|| build.crossbow_global(&mut capture))
+            .transpose()?;
         let scene_tail = scene_tail_limit
             .map(|limit| build.scene_tail(&mut capture, limit))
             .transpose()?;
@@ -700,6 +705,7 @@ impl GameSession {
             actor,
             inventory,
             magic_selection,
+            crossbow_global,
             scene_tail,
             capture,
             pause: pause_provenance,

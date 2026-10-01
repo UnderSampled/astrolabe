@@ -267,6 +267,16 @@ func generated_objects() -> Array:
         result.append(generated_object_snapshot(candidate as CharacterBody3D))
     return result
 
+func crossbow_ai_state() -> Dictionary:
+    var fields: Dictionary = {}
+    for index in [7, 8, 13, 15, 59, 60, 95, 130]:
+        fields[str(index)] = brain.get("dsg_" + str(index))
+    return {
+        "action": int(actor.get("current_state")),
+        "normal_behavior": int(brain.get("current_normal")),
+        "fields": fields,
+    }
+
 func generated_object_snapshot(spawned: CharacterBody3D) -> Dictionary:
     var position := spawned.global_position
     var velocity: Vector3 = spawned.get("external_velocity")
@@ -296,6 +306,7 @@ func generated_object_snapshot(spawned: CharacterBody3D) -> Dictionary:
         "brain_start_ms": int(start_value) if start_value is int or start_value is float else null,
         "brain_failure": str(spawned_brain.get("unsupported_failure")) if spawned_brain != null else "",
         "visible_from_hype": bool(spawned.call("source_see_perso", actor, spawned)),
+        "owner_crossbow_ai": crossbow_ai_state(),
     }
 
 func observation() -> Dictionary:
@@ -379,6 +390,7 @@ func observation() -> Dictionary:
         "global_field_17": bool(global_brain.get("dsg_17")) if global_brain != null else null,
         "global_field_14": bool(global_brain.get("dsg_14")) if global_brain != null else null,
         "normal_behavior": int(brain.get("current_normal")),
+        "crossbow_ai": crossbow_ai_state(),
         "reflex_behavior": int(brain.get("current_reflex")),
         "motion_enabled": bool(actor.get("motion_enabled")),
         "physics_processing": actor.is_physics_processing(),
