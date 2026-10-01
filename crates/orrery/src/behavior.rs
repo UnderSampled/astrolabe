@@ -721,18 +721,7 @@ impl OriginalBackend {
                         if local_index > 0 {
                             thread::sleep(Duration::from_millis(8));
                         }
-                        let observation = self.controller.game()?.observe_magick_behavior(
-                            &[47, 48, 290, 271],
-                            &[59],
-                            Some(2),
-                            capture_projectile_burst,
-                            capture_projectile_burst.then_some((17, 0, 0x4e324)),
-                            if capture_projectile_burst {
-                                CROSSBOW_ARROW_SCHEDULE_FIELDS
-                            } else {
-                                &[]
-                            },
-                        )?;
+                        let observation = self.controller.game()?.observe_latest_projectile()?;
                         ensure!(
                             observation.status.phase == 9 && observation.status.level == "manoir",
                             "game left the manor during arrow observation"
@@ -745,11 +734,10 @@ impl OriginalBackend {
                             "index": first + local_index,
                             "elapsed_resumed_ms": origin.elapsed().saturating_sub(paused_total).as_millis(),
                             "pause_micros": paused.as_micros(),
-                            "source_ai": observation.actor,
-                            "inventory": observation.inventory,
-                            "crossbow_global": observation.crossbow_global,
-                            "source_model_733_instances": observation.scene_ai_model,
-                            "scene": observation.scene_tail,
+                            "scene_tail_latest": observation.scene_tail,
+                            "capture": observation.capture,
+                            "completed_update": observation.completed_update,
+                            "consistency_limit": observation.consistency_limit,
                         }));
                     }
                 }

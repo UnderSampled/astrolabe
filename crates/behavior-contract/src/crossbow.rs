@@ -99,7 +99,9 @@ fn checked_global_identity(observation: &serde_json::Value) -> bool {
 
 fn original_arrow(sample: &serde_json::Value) -> Option<(u64, String, u64, [f64; 3])> {
     let elapsed = sample["elapsed_resumed_ms"].as_u64()?;
-    let children = sample["scene"]["children"].as_array()?;
+    let children = sample["scene"]["children"]
+        .as_array()
+        .or_else(|| sample["scene_tail_latest"]["children"].as_array())?;
     children.iter().find_map(|child| {
         let offset = &child["ai"]["fix_block_offset"];
         (offset["module"] == 17

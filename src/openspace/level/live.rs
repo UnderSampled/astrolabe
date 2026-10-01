@@ -946,6 +946,12 @@ impl HypeBuild {
             children,
         })
     }
+
+    /// Capture only the newest DynamicWorld child. The bounded tail traversal
+    /// still validates sibling links, but avoids parsing unrelated children.
+    pub fn scene_tail_latest(&self, memory: &mut impl ReadMemory) -> Result<SceneTailObservation> {
+        self.scene_tail(memory, 1)
+    }
 }
 
 fn actor_ai_at_node(

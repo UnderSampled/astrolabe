@@ -53,6 +53,17 @@ pub struct MagickBehaviorObservation {
     pub consistency_limit: &'static str,
 }
 
+/// Minimal stopped-byte observation for the short-lived newest projectile.
+#[derive(Debug, Serialize)]
+pub struct ProjectileObservation {
+    pub status: Status,
+    pub scene_tail: SceneTailObservation,
+    pub capture: StoppedCaptureProvenance,
+    pub pause: PauseProvenance,
+    pub completed_update: bool,
+    pub consistency_limit: &'static str,
+}
+
 #[derive(Debug, Serialize)]
 pub struct MagickFixtureProvenance {
     pub executable_sha256: String,
@@ -167,6 +178,45 @@ pub struct GameSession {
 }
 
 impl GameSession {
+    pub fn observe_latest_projectile(&self) -> Result<ProjectileObservation> {
+        self.check()?;
+        let build = HypeBuild::verified(&self.config.exe_sha256)?;
+        let pause_guard = self.process.pause(Duration::from_secs(1))?;
+        let pause_started = Instant::now();
+        let stopped_threads = pause_guard.stopped_threads();
+        let preserved_existing_stop = pause_guard.preserved_existing_stop();
+        let mut capture = pause_guard.capture()?;
+        let status = build.status(&mut capture)?;
+        ensure!(
+            status.phase == 9 && status.level == "manoir",
+            "projectile observation requires loaded manor gameplay"
+        );
+        let scene_tail = build.scene_tail_latest(&mut capture)?;
+        let snapshot = capture.finish()?;
+        let pause_duration_micros = pause_started.elapsed().as_micros();
+        let pause = PauseProvenance {
+            pause_duration_micros,
+            stopped_threads,
+            preserved_existing_stop,
+        };
+        drop(pause_guard);
+        Ok(ProjectileObservation {
+            status,
+            scene_tail,
+            capture: StoppedCaptureProvenance {
+                process: snapshot.process,
+                consistency: snapshot.consistency,
+                capture_micros: snapshot.capture_micros,
+                stopped_threads: snapshot.stopped_threads,
+                page_reads: snapshot.page_reads,
+                copied_source_bytes: snapshot.copied_source_bytes,
+            },
+            pause,
+            completed_update: false,
+            consistency_limit: "one coherent stopped-byte capture; no completed-update publication evidence",
+        })
+    }
+
     pub fn start(config_path: &Path, runs: &Path, duration: Duration) -> Result<Self> {
         Self::start_with_bridge(config_path, runs, duration, &std::env::current_exe()?)
     }

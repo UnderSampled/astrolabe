@@ -1039,3 +1039,20 @@ still passes initial launch and stops at its explicit
 `CollideWithNothing` gap before operation 28. Reports are
 `TestResults/20261001T084724.658869Z-development.log.d/behavior-crossbow-initial-launch-1790844866446208279.json`
 and `TestResults/20261001T084724.658869Z-development.log.d/behavior-crossbow-initial-launch-1790844622833292351.json`.
+
+Orrery's source burst now has a minimal newest-child capture instead of reading
+Hype's actor, inventory, Global, four scene-tail children, and a full ActualWorld
+model search at every stop. The focused original Crossbow scenario passed all
+six assertions. Its per-stop capture time fell to 3.6–5.1 ms. The verified
+model-733 arrow was visible at spawn with behavior 0, update stamp 0, and
+contact class 0. At resumed time 1323 ms it had moved, reported update stamp
+296, and had velocity `[1.3840, 44.9758, -0.5095]`; at 1346 ms it reported
+contact class 4 and had stopped its vertical velocity. It remained in behavior
+0 in those observations and disappeared by the following source tail capture.
+As before, stopped captures and resumed-time gaps do not establish the exact
+AI/contact evaluation order; the class-4 observation clears selector 33's
+`0x2` mask but does not reveal the condition's value at its read. This run
+shows the previous no-displacement result was sensitive to expensive capture
+overhead and gives a useful source motion/contact trace, while leaving the
+condition mapping and removal caller open. Report:
+`TestResults/crossbow-latest-child/behavior-crossbow-initial-launch-1790845390083999133.json`.
