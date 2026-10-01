@@ -514,11 +514,25 @@ pub fn synthetic_result(recording: behavior::FunctionalRecording) -> Result<Back
             samples[0].raw_observation["inventory"] =
                 serde_json::json!({"selected_weapon": 80, "weapon_80_quantity": 3});
             samples[1].action = Some(48);
-            samples[2].raw_observation["generated_trace_first"] = serde_json::json!([
+            samples[2].heading_rad = 0.1;
+            samples[2].raw_observation["normal_behavior"] = serde_json::json!(40);
+            samples[2].raw_observation["brain_running"] = serde_json::json!(true);
+            samples[2].raw_observation["brain_failure"] = serde_json::json!("");
+            samples[3].raw_observation["generated_trace_first"] = serde_json::json!([]);
+            samples[3].raw_observation["inventory"] =
+                serde_json::json!({"selected_weapon": 80, "weapon_80_quantity": 2});
+            samples[3].raw_observation["generated_trace"] = serde_json::json!([
+                {"event":"release","instance_id":1,"source_model_path":"fix:/ai/models/733",
+                 "translation":[0.0,0.0,5.0],"attachment_translation":[0.0,0.0,5.0]},
                 {"event":"frame","instance_id":1,"source_model_path":"fix:/ai/models/733",
-                 "brain_running":true,"brain_failure":"","translation":[0.0,0.0,5.0]},
+                 "brain_running":true,"brain_failure":"","translation":[0.0,0.0,5.0],
+                 "main_actor_field_120":1},
                 {"event":"frame","instance_id":1,"source_model_path":"fix:/ai/models/733",
-                 "brain_running":false,"brain_failure":"unsupported contact","translation":[0.0,0.0,5.5]}
+                 "brain_running":true,"brain_failure":"","translation":[0.0,0.0,5.5],
+                 "main_actor_field_120":1},
+                {"event":"tree_exiting","instance_id":1,"source_model_path":"fix:/ai/models/733",
+                 "slide_collision_count":1,"brain_normal":1,"brain_failure":"",
+                 "main_actor_field_120":0}
             ]);
             let checks = behavior::assertions(scenario, &samples)?;
             let delivered = recording

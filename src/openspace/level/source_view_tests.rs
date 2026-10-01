@@ -44,11 +44,12 @@ fn verified_live_inventory_filters_inactive_members_and_rejects_cycles() -> Resu
     let mut second = vec![0; 24];
     word(&mut second, 4, 0x1240);
     ranges.insert(0x1140, second);
-    let mut active = vec![0; 9];
+    let mut active = vec![0; 12];
     word(&mut active, 0, 0x1300);
     active[8] = 1;
+    active[10..12].copy_from_slice(&5_i16.to_le_bytes());
     ranges.insert(0x1200, active);
-    ranges.insert(0x1240, vec![0; 9]);
+    ranges.insert(0x1240, vec![0; 12]);
     let mut member = vec![0; 30];
     word(&mut member, 12, 0x1400);
     member[28..30].copy_from_slice(&80_i16.to_le_bytes());
@@ -60,7 +61,7 @@ fn verified_live_inventory_filters_inactive_members_and_rejects_cycles() -> Resu
     assert_eq!(observed.active.len(), 1);
     assert_eq!(observed.active[0].kind, "Weapon");
     assert_eq!(observed.active[0].id, 80);
-    assert_eq!(observed.active[0].quantity, 0);
+    assert_eq!(observed.active[0].quantity, 5);
     assert_eq!(observed.selected_weapon, 80);
     word(memory.ranges.get_mut(&0x1140).unwrap(), 20, 0x1100);
     assert!(
@@ -87,7 +88,7 @@ fn verified_live_magic_selection_resolves_selected_inventory_code() -> Result<()
     let mut entry = vec![0; 24];
     word(&mut entry, 4, 0x1200);
     ranges.insert(0x1100, entry);
-    let mut handle = vec![0; 9];
+    let mut handle = vec![0; 12];
     word(&mut handle, 0, 0x1300);
     handle[8] = 1;
     ranges.insert(0x1200, handle);

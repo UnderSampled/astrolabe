@@ -89,7 +89,7 @@ fn synthetic_crossbow_initial_launch_requires_two_positions() -> anyhow::Result<
     use behavior_contract::{self as behavior, Scenario};
     let mut result =
         behavior_steps::synthetic_result(behavior::recording(Scenario::CrossbowInitialLaunch))?;
-    result.samples[2].raw_observation["generated_trace_first"][1]["translation"] =
+    result.samples[3].raw_observation["generated_trace"][2]["translation"] =
         serde_json::json!([0.0, 0.0, 5.0]);
     result.assertions = behavior::assertions(result.scenario, &result.samples)?;
     assert!(

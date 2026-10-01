@@ -350,6 +350,28 @@
     },
     {
       "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::crossbow_camera_mode_calls_decode_and_reconstruct",
+      "areas": ["ai", "source", "combat"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic crossbow camera-mode script",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::integer_function_reconstructs_crossbow_camera_aim_math",
+      "areas": ["ai", "source", "combat"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic crossbow camera aim script",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::laser_aim_calls_reconstruct_exact_script",
       "areas": ["ai", "source", "combat"],
       "kind": "unit",
@@ -3184,6 +3206,17 @@
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic source model-733 arrow observations with an initial zero frame stamp",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "behavior-contract",
+      "test": "crossbow::tests::original_arrow_zero_allocation_transform_is_not_motion_evidence",
+      "areas": ["combat", "comparison"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic model-733 observations with a zero allocation transform",
       "timeout_seconds": 5,
       "ignored": false,
       "release": true
