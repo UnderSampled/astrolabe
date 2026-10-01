@@ -79,7 +79,8 @@ fn source_ai_inventory_and_script_reconstruction() -> Result<()> {
     let selection = Selection::hype("astrolabe", "en")?;
     let imported = super::super::import_scene(&game, &selection)?;
     // The rooted graph includes brains of action-generated Perso templates.
-    assert_eq!(imported.ai_models.len(), 57);
+    // The native ZDE condition decoder keeps model 733 in the rooted AI set.
+    assert_eq!(imported.ai_models.len(), 58);
     assert!(imported.persos.iter().filter(|p| p.brain.is_some()).count() > 2);
     assert!(
         imported

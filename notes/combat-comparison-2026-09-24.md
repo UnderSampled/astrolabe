@@ -1007,3 +1007,13 @@ intersection query. This is progress toward the condition, not acceptance:
 the query does not yet apply the source material filter, and the focused live
 Crossbow case still needs to show the arrow survives the condition, resolves
 contact/lifetime correctly, and matches source ammunition behavior.
+
+The elevated local combat selection on this checkpoint passed the original
+and Godot initial-launch cases, Sword scenarios, and the guarded ammunition
+reload case. The Godot arrow moved through operation 28 and then stopped at
+`CollideWithNothing`, which still reports that its source contact result is
+unverified. The original Crossbow run passed its launch checks, while prior
+live traces show launch displacement and cleanup vary across source runs.
+The only suite failure was the local AI inventory assertion retaining the
+old count of 57 models; importing the now-supported condition raises that
+count to 58. The corresponding assertion has been updated.
