@@ -712,7 +712,24 @@ impl HypeBuild {
         memory: &mut impl ReadMemory,
         limit: usize,
     ) -> Result<SceneTailObservation> {
+        self.scene_tail_with_ai_designer_values(memory, limit, &[])
+    }
+
+    /// Bounded tail capture with selected model-733 Brain fields. Other actors
+    /// retain the ordinary lightweight AI identity/state observation.
+    pub fn scene_tail_with_ai_designer_values(
+        &self,
+        memory: &mut impl ReadMemory,
+        limit: usize,
+        designer_values: &[u32],
+    ) -> Result<SceneTailObservation> {
         ensure!((1..=16).contains(&limit), "scene tail limit outside 1..16");
+        ensure!(designer_values.len() <= 64, "too many selected tail AI fields");
+        ensure!(
+            designer_values.iter().copied().collect::<BTreeSet<_>>().len()
+                == designer_values.len(),
+            "duplicate selected tail AI field"
+        );
         let status = self.status(memory)?;
         ensure!(
             status.phase == 9,
@@ -888,12 +905,25 @@ impl HypeBuild {
                         let designer_field_count =
                             source_view::designer_view(&mut source, parts.model, parts.mind)?
                                 .map_or(0, |view| view.fields.len());
+                        let fix_block_offset =
+                            self.fix_ai_block_offset(&mut source, parts.model)?;
+                        let designer_values = if fix_block_offset.as_ref().is_some_and(|offset| {
+                            offset.module == 17
+                                && offset.block == 0
+                                && offset.payload_offset == 0x4e324
+                        }) {
+                            actor_ai_at_node(&mut source, address, &[], designer_values)?
+                                .designer_values
+                        } else {
+                            Vec::new()
+                        };
                         Ok::<_, anyhow::Error>(SceneTailAi::Ready {
                             model_locator: format!("live:{:08x}", parts.model),
-                            fix_block_offset: self.fix_ai_block_offset(&mut source, parts.model)?,
+                            fix_block_offset,
                             normal_count: normal_set.as_ref().map_or(0, |set| set.members.len()),
                             reflex_count: reflex_set.as_ref().map_or(0, |set| set.members.len()),
                             designer_field_count,
+                            designer_values,
                             normal,
                             reflex,
                         })
@@ -951,6 +981,14 @@ impl HypeBuild {
     /// still validates sibling links, but avoids parsing unrelated children.
     pub fn scene_tail_latest(&self, memory: &mut impl ReadMemory) -> Result<SceneTailObservation> {
         self.scene_tail(memory, 1)
+    }
+
+    pub fn scene_tail_latest_with_ai_designer_values(
+        &self,
+        memory: &mut impl ReadMemory,
+        designer_values: &[u32],
+    ) -> Result<SceneTailObservation> {
+        self.scene_tail_with_ai_designer_values(memory, 1, designer_values)
     }
 }
 
@@ -1817,6 +1855,7 @@ pub enum SceneTailAi {
         normal_count: usize,
         reflex_count: usize,
         designer_field_count: usize,
+        designer_values: Vec<SelectedDesignerValue>,
         normal: Option<BehaviorSelection>,
         reflex: Option<BehaviorSelection>,
     },

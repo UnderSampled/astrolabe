@@ -311,6 +311,7 @@ fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
             normal_count: 0,
             reflex_count: 0,
             designer_field_count: 0,
+            designer_values: vec![],
             normal: None,
             reflex: None,
         })

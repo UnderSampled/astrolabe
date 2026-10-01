@@ -191,7 +191,7 @@ impl GameSession {
             status.phase == 9 && status.level == "manoir",
             "projectile observation requires loaded manor gameplay"
         );
-        let scene_tail = build.scene_tail_latest(&mut capture)?;
+        let scene_tail = build.scene_tail_latest_with_ai_designer_values(&mut capture, &[0])?;
         let snapshot = capture.finish()?;
         let pause_duration_micros = pause_started.elapsed().as_micros();
         let pause = PauseProvenance {

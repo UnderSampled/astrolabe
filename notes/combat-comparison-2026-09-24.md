@@ -1166,3 +1166,16 @@ between published positions. The source run passes with 1.8874 units. This
 capture strengthens the evidence that a class-4 contact does not set the
 source arrow's selector-33 hit bit, but does not reveal whether timeout,
 reparenting or another engine path removes the arrow before the later search.
+
+### Model-733 schedule values during the source burst (2026-10-01)
+
+The newest-child burst can now read selected designer fields only when the
+captured actor resolves to model 733. In the latest source run, every retained
+arrow snapshot remained in normal behavior 0 with `dsg_0=0`; meanwhile source
+mechanics advanced its transform through published stamps 294/295 and contact
+class 4. The same run passed the 1.8874-unit published-motion, contact-bit,
+and late-absence assertions. This is evidence that mechanics movement and the
+sampled AI fields can diverge, but the repeated stopped-byte captures pause the
+game and do not qualify uninterrupted AI scheduling or callback order. Do not
+change Godot's two-tick `WaitFrames(2)` mapping from this capture. Report:
+`TestResults/crossbow-arrow-schedule-burst/behavior-crossbow-initial-launch-1790851698343044924.json`.
