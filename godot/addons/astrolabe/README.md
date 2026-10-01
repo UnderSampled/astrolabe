@@ -94,9 +94,9 @@ is intentionally unset until a source-backed game/camera ray can supply it;
 scripts fail explicitly when the target is unavailable. The native sighting
 method rotates the actor from the source vector while preserving position and
 scale. Its up/roll choice and zero-vector behavior remain fidelity questions.
-`Cond_CollideWithNothing` is decoded and compiled, but its contact-result
-mapping is not established. The native API currently returns an unknown value;
-the compiled AI reports that gap and stops before testing or negating it.
+`Cond_CollideWithNothing` reads the current movement step's native slide
+contacts. The compiled model-733 arrow AI now remains active during free flight;
+the separate ZDE target query and hit response remain incomplete.
 The arrow's `Camera_ChangeTargetedPerso(StdCamer, MainActor)` call is compiled.
 The level exposes source actor node paths; the native camera API uses the
 compiled operand identity to find the saved actor's `SourceCamera` child and

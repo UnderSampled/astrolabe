@@ -212,12 +212,30 @@ pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
             Some(1.0),
             "Compiled Hype model 28 creates model-733 arrow; arrow Brain runs at launch",
         ));
+        let continued_flight = launch.and_then(|first| {
+            let id = &first["instance_id"];
+            let start = position(&first["translation"])?;
+            frames.iter().find(|entry| {
+                entry["instance_id"] == *id
+                    && entry["brain_running"] == true
+                    && entry["brain_failure"] == ""
+                    && position(&entry["translation"])
+                        .is_some_and(|current| displacement(start, current) > 0.05)
+            })
+        });
+        checks.push(bound(
+            "crossbow_compiled_arrow_ai_continues_in_flight",
+            f64::from(u8::from(continued_flight.is_some())),
+            Some(1.0),
+            Some(1.0),
+            "Model-733 Brain remains active after native no-contact evaluation while its arrow moves",
+        ));
         checks.push(bound(
             "crossbow_initial_displacement",
             moving_pair.unwrap_or(-1.0),
             Some(0.05),
             None,
-            "Initial native arrow movement only; later Cond_CollideWithNothing remains unsupported and visible in the trace",
+            "Initial native arrow movement while the compiled model-733 Brain remains active",
         ));
     } else {
         let global_identity = samples

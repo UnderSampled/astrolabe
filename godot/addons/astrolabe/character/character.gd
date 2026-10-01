@@ -413,10 +413,11 @@ func source_see_perso(receiver: Node3D, target: Node3D) -> bool:
 func source_collide_with_ground() -> bool:
     return is_on_floor()
 
-## Cond_CollideWithNothing uses a source contact-result bit whose producer and
-## native Godot mapping are not yet verified. Unknown must never become false.
-func source_collide_with_nothing() -> Variant:
-    return null
+## The mechanics collision path reports a contact result after each movement
+## step. CharacterBody3D publishes the corresponding native result through its
+## slide contacts; AI conditions run after _physics_process has moved the body.
+func source_collide_with_nothing() -> bool:
+    return get_slide_collision_count() == 0
 
 ## Resolve a compiled Perso identity in the active level's saved actor graph.
 func source_actor_node(actor_asset: String) -> Node3D:

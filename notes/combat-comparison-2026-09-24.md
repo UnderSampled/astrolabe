@@ -1092,3 +1092,15 @@ identify the arrow's cleanup branch, and the temporary capture change was
 removed. The live run confirms launch/motion for this input but does not close
 the Godot contact result, arrow cleanup, or ammunition discrepancy. Report:
 `TestResults/crossbow-cleanup-counter-fixed/behavior-crossbow-initial-launch-1790846620343401394.json`.
+
+### Native no-contact result for the model-733 arrow
+
+The Godot movement API now maps `Cond_CollideWithNothing` to the current
+`CharacterBody3D` slide-contact result. This lets the arrow's compiled AI
+continue through free flight rather than stopping at its first contact check.
+The focused Godot Crossbow case passed after this change; the model-733 trace
+shows its Brain active with no failure as its arrow moves. The behavior
+contract now asserts that continued flight explicitly. This does not establish
+source contact-class parity or finish the separate ZDE hit-response branch,
+camera response, lifetime and ammunition behavior. Evidence:
+`TestResults/crossbow-contact-native-map/behavior-crossbow-initial-launch-1790847368574946759.json`.
