@@ -586,8 +586,53 @@ func _state_repeats(_id: int) -> int:
     return 0
 
 func _state_movement_collision(_state: int) -> void:
-    # Generated subclasses activate the already saved shapes for this action.
-    pass
+    # Activate already saved ZDE query shapes selected by source character state.
+    for value in find_children("*", "CollisionShape3D", true, false):
+        var shape := value as CollisionShape3D
+        if not shape.has_meta("source_active_states"):
+            continue
+        var states: PackedInt32Array = shape.get_meta("source_active_states")
+        _set_zde_shape_active(shape, states.has(_state))
+
+func _set_zde_shape_active(shape: CollisionShape3D, active: bool) -> void:
+    shape.disabled = not active or (int(shape.get_meta("source_collision_identifier", 0)) & 0x8000) != 0
+
+## Condition 28 intersects one of this Perso's active ZDE zones against the
+## active character ZDE shapes in the native physics space.
+func source_collide_perso_zde_no_with_type_zde(zone_number: int, maximum: int) -> bool:
+    if zone_number <= 0 or maximum <= 0:
+        return false
+    var query_area := get_node_or_null("ZDE") as Area3D
+    if query_area == null:
+        return false
+    var space := get_world_3d().direct_space_state
+    var matches: Dictionary = {}
+    for value in query_area.find_children("*", "CollisionShape3D", true, false):
+        var query_shape := value as CollisionShape3D
+        if int(query_shape.get_meta("source_zone", -1)) != zone_number - 1:
+            continue
+        if query_shape.disabled or query_shape.shape == null:
+            continue
+        var parameters := PhysicsShapeQueryParameters3D.new()
+        parameters.shape = query_shape.shape
+        parameters.transform = query_shape.global_transform
+        parameters.collision_mask = 4
+        parameters.collide_with_areas = true
+        parameters.collide_with_bodies = false
+        parameters.margin = 0.0
+        parameters.exclude = [query_area.get_rid()]
+        for hit in space.intersect_shape(parameters, maximum):
+            var other_area := hit.get("collider") as Area3D
+            if other_area == null or other_area.name != "ZDE":
+                continue
+            var other_actor := other_area.get_parent()
+            if other_actor == self:
+                continue
+            if other_actor is CharacterBody3D:
+                matches[other_actor.get_instance_id()] = true
+                if matches.size() >= maximum:
+                    return true
+    return false
 
 func _set_movement_shape_active(shape: CollisionShape3D, active: bool) -> void:
     shape.disabled = not active or (int(shape.get_meta("source_collision_identifier", 0)) & 0x8000) != 0

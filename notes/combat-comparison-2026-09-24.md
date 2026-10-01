@@ -988,3 +988,22 @@ OpenSpace/Rete import gap. The model-733 expression's `Me`, constant `1`, and
 mask `1` operands are consistent with selecting the arrow's first zone, but
 their exact mapping to the helper's arguments remains unverified; do not
 assume a zone-index convention from this asset alone.
+
+### Operation 28 native query progress (2026-10-01)
+
+The generic condition call resolves the operands more narrowly than the initial
+trace established. In `FUN_00524420`, the node's actor and zone operands become
+`param_1` and `param_3` to `FUN_0042f210`; the node's final mask operand becomes
+its result-capacity argument. The helper passes the fixed `DAT_00721b60`
+material filter, selects zone `param_3 - 1` from the actor's ZDE group, and
+collects up to the requested number of intersecting characters. Its boolean
+result is whether at least one match was collected. Thus this node's `Me`,
+constant 1, and mask 1 are source actor, first zone, and one-result capacity.
+The fixed source material-filter rule is still not represented in Godot.
+
+The Rust parser now preserves this typed condition, the exporter projects ZDE
+profiles into native `Area3D` shapes, and compiled AI calls a direct-space
+intersection query. This is progress toward the condition, not acceptance:
+the query does not yet apply the source material filter, and the focused live
+Crossbow case still needs to show the arrow survives the condition, resolves
+contact/lifetime correctly, and matches source ammunition behavior.

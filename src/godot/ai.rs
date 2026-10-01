@@ -776,6 +776,9 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         Expression::ActionFinished => "character().action_complete".into(),
         Expression::CollideWithGround => "character().source_collide_with_ground()".into(),
         Expression::CollideWithNothing => "character().source_collide_with_nothing()".into(),
+        Expression::CollidePersoZdeNoWithTypeZde { zone, maximum } => {
+            format!("character().source_collide_perso_zde_no_with_type_zde({zone}, {maximum})")
+        }
         Expression::CollideWithSlope => "character().source_collide_with_slope()".into(),
         Expression::IsTypeOfGmtCollide(kind) => {
             format!("character().source_is_type_of_gmt_collide({kind})")

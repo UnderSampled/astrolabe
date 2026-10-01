@@ -142,7 +142,7 @@ fn movement_collision(
             .push(activation.state.to_string());
     }
     let mut script = format!(
-        "extends {}\n## Compiled state activation of persisted native movement shapes.\nfunc _state_movement_collision(id: int) -> void:\n    match id:\n",
+        "extends {}\n## Compiled state activation of persisted native movement shapes.\nfunc _state_movement_collision(id: int) -> void:\n    super._state_movement_collision(id)\n    match id:\n",
         quoted(base)
     );
     for (selection, states) in cases {
@@ -164,6 +164,100 @@ fn movement_collision(
         "    {actor}.set_script(native_resource({}))",
         quoted(&format!("res://{path}"))
     )?;
+    Ok(())
+}
+
+fn zde_collision(
+    project: &mut Project,
+    source: &mut impl ContentSource,
+    perso: &Perso,
+    family: &Family,
+    actor: &str,
+) -> Result<()> {
+    let Some(collisions) = &perso.collisions else {
+        return Ok(());
+    };
+    collisions.validate()?;
+    let group = &collisions.groups[1];
+    let Some(reference) = &group.profile else {
+        return Ok(());
+    };
+    let profile = source.load(reference)?;
+    profile.validate_reference(&reference.path)?;
+    profile.validate()?;
+    if let Some(id) = group.active {
+        profile.selection(id)?;
+    }
+    let Some(geometry) = &profile.geometry else {
+        return Ok(());
+    };
+    let selected = |id| -> BTreeSet<_> {
+        profile
+            .selections
+            .iter()
+            .find(|selection| Some(selection.id) == id)
+            .into_iter()
+            .flat_map(|selection| &selection.zones)
+            .map(|zone| usize::from(zone.index))
+            .collect()
+    };
+    let fallback_active = selected(group.active);
+    let active_states = |slot: usize| -> Vec<i32> {
+        if let Some(activations) = &profile.activations {
+            activations
+                .iter()
+                .filter(|activation| selected(activation.selection).contains(&slot))
+                .map(|activation| i32::from(activation.state))
+                .collect()
+        } else if fallback_active.contains(&slot) {
+            family.states.iter().map(|state| state.id as i32).collect()
+        } else {
+            Vec::new()
+        }
+    };
+    let initial_state = perso.current_state.or(perso.initial_state);
+    let area = format!("{actor}_zde");
+    writeln!(
+        project.builder,
+        "    var {area} = Area3D.new()\n    {area}.name = \"ZDE\"\n    {area}.collision_layer = 4\n    {area}.collision_mask = 0\n    {area}.monitoring = false\n    {area}.monitorable = true\n    {area}.set_meta(\"source_perso\", {})\n    {actor}.add_child({area})\n    {area}.owner = {actor}",
+        quoted(perso.path.as_str())
+    )?;
+    for (slot, reference) in geometry.slots.iter().enumerate() {
+        let Some(reference) = reference else {
+            continue;
+        };
+        let collision = source.load(reference)?;
+        collision.validate_reference(&reference.path)?;
+        let mesh = collision.resolve(source)?;
+        let names = project.collision_shapes(
+            &mesh,
+            source,
+            &area,
+            actor,
+            &format!("{actor}_zde_{slot}"),
+            true,
+        )?;
+        let states = active_states(slot);
+        let state_array = format!(
+            "PackedInt32Array([{}])",
+            states
+                .iter()
+                .map(i32::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        for name in names {
+            writeln!(
+                project.builder,
+                "    {name}.name = {}\n    {name}.set_meta(\"source_zone\", {slot})\n    {name}.set_meta(\"source_active_states\", {state_array})\n    {actor}._set_zde_shape_active({name}, {})",
+                quoted(&format!(
+                    "ZDE_{slot}_{}",
+                    name.rsplit('_').next().unwrap_or("shape")
+                )),
+                initial_state.is_some_and(|state| states.contains(&(state as i32)))
+            )?;
+        }
+    }
     Ok(())
 }
 
@@ -241,6 +335,7 @@ pub(super) fn export_perso(
         "res://{}/actions.gd",
         rig_directory(project, &family, &rig_id)
     );
+    zde_collision(project, source, perso, &family, &name)?;
     movement_collision(project, source, perso, &name, &controller)?;
     writeln!(
         project.builder,

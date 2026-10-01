@@ -927,6 +927,17 @@
     },
     {
       "binary": "astrolabe::ai",
+      "test": "source_zde_collision_condition_compiles_to_native_query",
+      "areas": ["ai", "combat"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic source ZDE collision condition",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
       "test": "partial_compiled_script_runs_supported_branch_and_stops_at_reached_fragment",
       "areas": ["ai"],
       "kind": "engine",
@@ -3002,6 +3013,17 @@
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic source actor-list calls",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::source_zde_collision_condition_decodes_and_reconstructs",
+      "areas": ["ai", "source", "combat"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic source AI nodes",
       "timeout_seconds": 5,
       "ignored": false,
       "release": true

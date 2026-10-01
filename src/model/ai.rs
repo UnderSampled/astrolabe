@@ -290,6 +290,12 @@ pub enum Expression {
     /// Source Cond_CollideWithNothing reads the actor contact result. The
     /// native contact-category mapping remains under investigation.
     CollideWithNothing,
+    /// Source Cond_CollidePersoZDENoWithTypeZDE queries intersections for a
+    /// selected actor ZDE zone, bounded by its source hit-count operand.
+    CollidePersoZdeNoWithTypeZde {
+        zone: u32,
+        maximum: u32,
+    },
     /// Source collision-category bit 0x4; Godot currently maps it to native
     /// inclined floor contact while the full source classification is studied.
     CollideWithSlope,

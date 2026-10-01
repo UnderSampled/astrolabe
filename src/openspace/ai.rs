@@ -671,6 +671,26 @@ impl Parser<'_> {
             (1, 31) => Expression::CollideWithGround,
             (1, 33) => Expression::CollideWithNothing,
             (1, 34) => Expression::CollideWithSlope,
+            (1, 28) => {
+                let (_, actor) = self.take(indent + 1)?;
+                let (actor_kind, actor_parameter) = (actor.kind, actor.parameter);
+                let (_, zone) = self.take(indent + 1)?;
+                let (zone_kind, zone_parameter) = (zone.kind, zone.parameter);
+                let (_, limit) = self.take(indent + 1)?;
+                match (actor_kind, actor_parameter, zone_kind, limit.kind) {
+                    (0, 4, 12, 17) => Expression::CollidePersoZdeNoWithTypeZde {
+                        zone: zone_parameter,
+                        maximum: limit.parameter,
+                    },
+                    _ => return Ok(Expression::Unsupported(self.unsupported_range(
+                        at,
+                        end,
+                        format!(
+                            "unsupported Cond_CollidePersoZDENoWithTypeZDE operands at node {at}"
+                        ),
+                    )?)),
+                }
+            }
             (1, 60) => {
                 let (_, material_type) = self.take(indent + 1)?;
                 ensure!(
@@ -1264,6 +1284,12 @@ impl Writer<'_> {
             Expression::ActionFinished => self.node(1, 123, indent),
             Expression::CollideWithGround => self.node(1, 31, indent),
             Expression::CollideWithNothing => self.node(1, 33, indent),
+            Expression::CollidePersoZdeNoWithTypeZde { zone, maximum } => {
+                self.node(1, 28, indent);
+                self.node(0, 4, indent + 1);
+                self.node(12, *zone, indent + 1);
+                self.node(17, *maximum, indent + 1);
+            }
             Expression::CollideWithSlope => self.node(1, 34, indent),
             Expression::IsTypeOfGmtCollide(kind) => {
                 self.node(1, 60, indent);
@@ -1454,6 +1480,34 @@ mod partial_tests {
         assert!(matches!(
             &then[0],
             Statement::ActorListAdd { list: 27, actor: target } if target == &actor
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn source_zde_collision_condition_decodes_and_reconstructs() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (0, 0, 1),
+            (1, 28, 2),
+            (0, 4, 3),
+            (12, 1, 3),
+            (17, 1, 3),
+            (0, 1, 1),
+            (4, 206, 2),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            script.statements.as_slice(),
+            [Statement::If {
+                condition: Expression::CollidePersoZdeNoWithTypeZde {
+                    zone: 1,
+                    maximum: 1
+                },
+                then,
+                otherwise: None
+            }] if matches!(then.as_slice(), [Statement::Noop])
         ));
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())

@@ -147,6 +147,30 @@ fn unknown_contact_stops_compiled_ai_before_negated_branch() -> Result<()> {
 }
 
 #[test]
+fn source_zde_collision_condition_compiles_to_native_query() -> Result<()> {
+    let mut model = model()?;
+    let script = Script {
+        statements: vec![Statement::If {
+            condition: Expression::CollidePersoZdeNoWithTypeZde {
+                zone: 1,
+                maximum: 1,
+            },
+            then: vec![Statement::KillSelf],
+            otherwise: None,
+        }],
+    };
+    let bytes = AiScriptCodec::default().write(&script)?;
+    assert_eq!(AiScriptCodec::default().read(&bytes)?, script);
+    model.normal.as_mut().unwrap().behaviors[0].schedule = Some(script);
+    let code = godot::ai::compile(&model, &[])?;
+    assert!(
+        code.contains("source_collide_perso_zde_no_with_type_zde(1, 1)"),
+        "{code}"
+    );
+    Ok(())
+}
+
+#[test]
 fn camera_target_call_keeps_source_actor_and_main_actor() -> Result<()> {
     let mut model = model()?;
     model.normal.as_mut().unwrap().behaviors[0]
