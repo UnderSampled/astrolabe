@@ -976,3 +976,15 @@ the arrow launches and moves, then its Brain stops at this op28 gap. Ammo
 parity remains three in the original and two in Godot. Crossbow use is not
 accepted until the ZDE query and contact result are represented natively and
 the live ammo discrepancy is traced to its source inventory call.
+
+The decoded Fix Rete package does contain the arrow's source ZDE data:
+`fix:/persos/5-0-24728` (family 8, AI model 733) uses
+`fix:/collision-profiles/24780` as collision group 1 (ZDE). Its geometry slots
+are `207949` and `207957`; state 0 selects zone 0, and state 2 selects zone 1.
+Both zones are source boxes spanning `[-0.1, -0.55, -0.1]` to
+`[0.1, 1.55, 0.1]`, with collision identifiers 2 and 4096 respectively.
+Thus the missing data is specifically the Godot projection and query, not an
+OpenSpace/Rete import gap. The model-733 expression's `Me`, constant `1`, and
+mask `1` operands are consistent with selecting the arrow's first zone, but
+their exact mapping to the helper's arguments remains unverified; do not
+assume a zone-index convention from this asset alone.
