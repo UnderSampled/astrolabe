@@ -595,11 +595,15 @@ an environment card with a downward query and passes that card's `+4` vector
 to `0x0059a504`; that function calls the contact classifier `0x00597be6`
 with the vector and a separate threshold descriptor. The generic defaults
 include dot-product boundaries 0.8660254 and 0.5 for class `0x1`/`0x2`
-paths; a later response can produce class `0x4`. The live arrow reports a
-cached type-11 card, whose dispatcher callback is `0x0058a43e`, rather than
-the examined generic callback. Its actual classifier vector, thresholds and
-path to the published `0x4` word remain unresolved. This static trace does
-not justify a Godot slide-count, floor or wall predicate for condition 33.
+paths; a later response can produce class `0x4`. A dispatch-table review
+corrects the earlier callback attribution: `FUN_00443540` stores two function
+pointers per card type, and `FUN_0058a43e` is `param_1[0xb]`, the second
+callback in table slot 5, not the first callback for type 11. Slot 11 is
+`param_1[0x16] = FUN_005898f3` and
+`param_1[0x17] = FUN_0058efd2`. The model's mechanics kind 11 points to this
+pair, but the arrow's classifier vector, thresholds and path to the published
+`0x4` word remain unresolved. This static trace does not justify a Godot
+slide-count, floor or wall predicate for condition 33.
 
 ## Initial crossbow launch BDD (2026-09-25)
 
@@ -994,19 +998,31 @@ assume a zone-index convention from this asset alone.
 The generic condition call resolves the operands more narrowly than the initial
 trace established. In `FUN_00524420`, the node's actor and zone operands become
 `param_1` and `param_3` to `FUN_0042f210`; the node's final mask operand becomes
-its result-capacity argument. The helper passes the fixed `DAT_00721b60`
-material filter, selects zone `param_3 - 1` from the actor's ZDE group, and
-collects up to the requested number of intersecting characters. Its boolean
-result is whether at least one match was collected. Thus this node's `Me`,
-constant 1, and mask 1 are source actor, first zone, and one-result capacity.
-The fixed source material-filter rule is still not represented in Godot.
+its result-capacity argument. The helper uses `DAT_00721b60` as a shared result
+buffer and selects zone `param_3 - 1` from the actor's ZDE group. The initial
+value 1 passed by `FUN_00524420` is the candidate collision material identifier
+mask; a match is collected only when candidate ZDM geometry intersects and its
+material identifier contains that bit. The node's `Me`, constant 1, and mask 1
+are source actor, first zone, and one-result capacity. The Godot query now tests
+candidate ZDM `CharacterBody3D` shapes and applies the identifier bit before
+counting a match. Source eligibility flags and the additional type-11/type-20
+collision-list path still need comparison.
 
-The Rust parser now preserves this typed condition, the exporter projects ZDE
-profiles into native `Area3D` shapes, and compiled AI calls a direct-space
-intersection query. This is progress toward the condition, not acceptance:
-the query does not yet apply the source material filter, and the focused live
-Crossbow case still needs to show the arrow survives the condition, resolves
+The Rust parser preserves this typed condition, the exporter projects ZDE
+profiles into native `Area3D` shapes and retains candidate ZDM collision
+identifiers, and compiled AI calls a direct-space intersection query. This is
+progress toward the condition, not acceptance: the focused live Crossbow case
+still needs to show the arrow takes the source-equivalent branch, resolves
 contact/lifetime correctly, and matches source ammunition behavior.
+
+The focused Godot launch was rerun after the query change. It passed the same
+four launch and displacement assertions. Its captured arrow advanced through
+operation 28 and then stopped at the next explicit unknown, `CollideWithNothing`
+(model 733 normal behavior 1, AI clock 33.3 ms). This confirms the direct-space
+query now returns a native Boolean without failing at operation 28; it does not
+yet prove that the Boolean matches Hype's material/eligibility traversal. The
+source contact-class mapping and arrow cleanup remain the next blocker. Report:
+`TestResults/crossbow-zde-material-filter/behavior-crossbow-initial-launch-1790847368574946759.json`.
 
 The elevated local combat selection on this checkpoint passed the original
 and Godot initial-launch cases, Sword scenarios, and the guarded ammunition

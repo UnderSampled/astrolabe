@@ -9,6 +9,7 @@ signal generated_object_released(actor: Node3D, attachment: Node3D)
 const SOURCE_INVENTORY = preload("res://addons/astrolabe/character/inventory.gd")
 const SOURCE_MAGICK = preload("res://addons/astrolabe/character/magick.gd")
 const SOURCE_LASER_POINTER = preload("res://addons/astrolabe/character/laser_pointer.gd")
+const SOURCE_COLLISION_QUERY_MAX_RESULTS := 4096
 @export var initial_state: int = -1
 @export var current_state: int = -1
 @export var current_mechanics: Resource
@@ -597,8 +598,9 @@ func _state_movement_collision(_state: int) -> void:
 func _set_zde_shape_active(shape: CollisionShape3D, active: bool) -> void:
     shape.disabled = not active or (int(shape.get_meta("source_collision_identifier", 0)) & 0x8000) != 0
 
-## Condition 28 intersects one of this Perso's active ZDE zones against the
-## active character ZDE shapes in the native physics space.
+## Condition 28 intersects one of this Perso's active ZDE zones with candidate
+## character ZDM collision shapes. Hype filters candidate collision materials
+## by identifier mask 1 before counting a result.
 func source_collide_perso_zde_no_with_type_zde(zone_number: int, maximum: int) -> bool:
     if zone_number <= 0 or maximum <= 0:
         return false
@@ -616,22 +618,30 @@ func source_collide_perso_zde_no_with_type_zde(zone_number: int, maximum: int) -
         var parameters := PhysicsShapeQueryParameters3D.new()
         parameters.shape = query_shape.shape
         parameters.transform = query_shape.global_transform
-        parameters.collision_mask = 4
-        parameters.collide_with_areas = true
-        parameters.collide_with_bodies = false
+        parameters.collision_mask = 2
+        parameters.collide_with_areas = false
+        parameters.collide_with_bodies = true
         parameters.margin = 0.0
-        parameters.exclude = [query_area.get_rid()]
-        for hit in space.intersect_shape(parameters, maximum):
-            var other_area := hit.get("collider") as Area3D
-            if other_area == null or other_area.name != "ZDE":
+        parameters.exclude = [get_rid()]
+        for hit in space.intersect_shape(parameters, SOURCE_COLLISION_QUERY_MAX_RESULTS):
+            var other_actor := hit.get("collider") as CharacterBody3D
+            if other_actor == null or other_actor == self:
                 continue
-            var other_actor := other_area.get_parent()
-            if other_actor == self:
+            var shape_index := int(hit.get("shape", -1))
+            if shape_index < 0:
                 continue
-            if other_actor is CharacterBody3D:
-                matches[other_actor.get_instance_id()] = true
-                if matches.size() >= maximum:
-                    return true
+            var owner_id := other_actor.shape_find_owner(shape_index)
+            if owner_id < 0:
+                continue
+            var other_shape := other_actor.shape_owner_get_owner(owner_id) as CollisionShape3D
+            if other_shape == null or not other_shape.has_meta("source_collision_identifier"):
+                continue
+            var identifier := int(other_shape.get_meta("source_collision_identifier"))
+            if (identifier & 1) == 0:
+                continue
+            matches[other_actor.get_instance_id()] = true
+            if matches.size() >= maximum:
+                return true
     return false
 
 func _set_movement_shape_active(shape: CollisionShape3D, active: bool) -> void:
