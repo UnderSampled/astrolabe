@@ -136,6 +136,16 @@ release cue and starts from the animated channel's world transform. See the
 [release evidence](./sword-beam-release-2026-09-29.md) for the live original
 positions, native regression and remaining collision limits.
 
+On 2026-10-02, support interface 40 commits generated motion using the released
+actor's basis and exports native state-selected reaction zones. The supplied
+manor Crossbow scenario now passes physical selection, aiming, one-bolt
+consumption, checkpoint reaction-box contact and compiled native cleanup.
+An independent original-game lectern save reloads the spent quantity two in
+a fresh process. The combat selection was 103/104 with one intermittent Orrery
+scratch-cleanup failure; that unchanged test passed three isolated reruns.
+Exact source deletion timing, enemy damage and distant-flight expiry remain
+unverified. See the [Crossbow fixes and evidence](./crossbow-fixes-2026-10-02.md).
+
 Later on 2026-09-24, the original-game and Godot sword-selection BDD cases
 passed with the same sampled action sequence. The generated sword beam now
 runs its compiled AI, moves through `GoRelative`, and exits at its scripted

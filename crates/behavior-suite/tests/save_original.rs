@@ -1221,7 +1221,7 @@ fn original_mana_save_survives_fresh_process() -> Result<()> {
 
 #[test]
 #[ignore = "requires prepared Hype installation, Wine and Gamescope; selected by --local"]
-fn original_crossbow_quantity_resets_after_reload() -> Result<()> {
+fn original_crossbow_quantity_survives_fresh_process() -> Result<()> {
     let config = std::env::var_os("ASTROLABE_HYPE_CONFIG")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("/home/stephen/Projects/hype-harness/local/config.json"));
@@ -1241,15 +1241,36 @@ fn original_crossbow_quantity_resets_after_reload() -> Result<()> {
         load_first_slot(&mut first)?;
         wait_manoir(&mut first)?;
         let baseline = first.inventory()?;
-        ensure!(crossbow_quantity(&baseline)? == 0, "source crossbow baseline changed");
+        fs::write(root.join("first/baseline-inventory.json"), serde_json::to_vec_pretty(&baseline)?)?;
+        ensure!(crossbow_quantity(&baseline)? == 8, "source crossbow baseline changed: {baseline:?}");
         let intervention = first.prepare_crossbow_quantity()?;
         fs::write(root.join("first/intervention.json"), serde_json::to_vec_pretty(&intervention)?)?;
         let prepared = first.inventory()?;
         ensure!(crossbow_quantity(&prepared)? == 3, "intervention did not establish three arrows");
-        // Isolate the one field set by the guarded intervention before
-        // investigating whether a physical attack consumes ammunition.
+        // Reuse the shared physical shot recording; independently read the
+        // inventory before saving rather than deriving an expected quantity
+        // from the reload observation.
+        let recording = behavior_contract::crossbow::recording();
+        first.prepare_physical_input()?;
+        let origin = Instant::now();
+        let mut delivered = Vec::new();
+        for input in &recording.inputs {
+            thread::sleep(Duration::from_millis(input.at_ms).saturating_sub(origin.elapsed()));
+            first.physical_events(std::slice::from_ref(&input.event))?;
+            delivered.push(json!({"id":input.id, "actual_ms":origin.elapsed().as_millis(), "event":input.event}));
+        }
+        thread::sleep(Duration::from_millis(700));
+        let after_shot = first.inventory()?;
+        ensure!(crossbow_quantity(&after_shot)? == 2, "one physical shot did not consume one bolt: {after_shot:?}");
+        fs::write(root.join("first/physical-shot.json"), serde_json::to_vec_pretty(&json!({
+            "recording":recording, "delivered":delivered, "after_shot":after_shot
+        }))?)?;
+        first.physical_key_sequence(&[(
+            behavior_contract::Key::Z, Duration::from_millis(55), Duration::from_millis(1000)
+        )])?;
+        ensure!(first.observe_main_actor()?.current_action == Some(47), "crossbow did not holster before lectern save");
         let before_save = first.inventory()?;
-        ensure!(crossbow_quantity(&before_save)? == 3, "prepared quantity changed before save");
+        ensure!(crossbow_quantity(&before_save)? == 2, "shot quantity changed before save");
         save_first_slot(&mut first, &root.join("first"), true)?;
         let deadline = Instant::now() + Duration::from_secs(12);
         loop {
@@ -1300,9 +1321,13 @@ fn original_crossbow_quantity_resets_after_reload() -> Result<()> {
         load_first_slot(&mut second)?;
         wait_manoir(&mut second)?;
         let restored = second.inventory()?;
+        fs::write(
+            root.join("reload/inventory.json"),
+            serde_json::to_vec_pretty(&restored)?,
+        )?;
         ensure!(
-            crossbow_quantity(&restored)? == 0,
-            "guarded crossbow quantity unexpectedly persisted: {restored:?}"
+            crossbow_quantity(&restored)? == 2,
+            "saved crossbow handle quantity did not persist: {restored:?}"
         );
         Ok(restored)
     })();
@@ -1310,13 +1335,14 @@ fn original_crossbow_quantity_resets_after_reload() -> Result<()> {
     let restored = reload_result?;
     second_close?;
     let report = json!({
-        "schema":1, "status":"source_reset_demonstrated", "scope":"original_crossbow_quantity_save_reload",
+        "schema":1, "status":"source_persistence_demonstrated", "scope":"original_crossbow_quantity_save_reload",
         "fixture_archive_sha256":SAVE_SHA256,
         "baseline":baseline, "intervention_quantity_three":prepared,
         "before_save":before_save, "fresh_reload":restored,
         "intervention":"guarded current-process quantity setup; no save bytes edited",
-        "source_record_mapping":"not found in this game-written diff",
-        "acceptance":"negative case; inventory persistence requires a different source action",
+        "quantity_field":"active_inventory_handle_plus_0x0a",
+        "expected_transitions":"independent supplied-save baseline 8; guarded setup 3; physical shot 2; game-written save and fresh-process reload 2",
+        "acceptance":"original game-written save restores the live inventory quantity in a fresh process",
     });
     fs::write(
         root.join("report.json"),

@@ -3,6 +3,14 @@ extends SceneTree
 ## The saved Hype actor and Brain make every gameplay decision.
 const MANOIR_START = preload("res://game/manoir_start.gd")
 
+## Observe after native character physics, including ticks between rendered
+## frames. Short-lived projectiles must not disappear from the evidence trace
+## merely because rendering stalled.
+class PhysicsTrace extends Node:
+    var collect: Callable
+    func _physics_process(_delta: float) -> void:
+        collect.call()
+
 var control_dir: String
 var request_path: String
 var response_path: String
@@ -106,6 +114,10 @@ func run() -> void:
     brain.set("automatic", false)
     actor.set_physics_process(false)
     root.add_child(scene)
+    var physics_trace := PhysicsTrace.new()
+    physics_trace.process_physics_priority = 100
+    physics_trace.collect = Callable(self, "track_generated_objects")
+    root.add_child(physics_trace)
     # Scene attachment initializes scripts and may reenable callbacks.
     actor.set_physics_process(false)
     write_json(control_dir.path_join("phase.json"), {"phase": "attached_scene"})
@@ -159,7 +171,6 @@ func run() -> void:
     while true:
         await process_frame
         track_action_state()
-        track_generated_objects()
         follow_actor()
         if not FileAccess.file_exists(request_path):
             continue
@@ -238,6 +249,9 @@ func record_generated_exit(spawned: CharacterBody3D) -> void:
     if generated_trace.size() > 120: generated_trace.pop_front()
 
 func record_generated_release(spawned: Node3D, attachment: Node3D) -> void:
+    if not spawned.has_meta("astrolabe_behavior_exit_traced"):
+        spawned.set_meta("astrolabe_behavior_exit_traced", true)
+        spawned.tree_exiting.connect(Callable(self, "record_generated_exit").bind(spawned))
     var entry := generated_object_snapshot(spawned as CharacterBody3D)
     entry["event"] = "release"
     entry["at_ms"] = Time.get_ticks_msec()
@@ -253,7 +267,7 @@ func source_components(value: Vector3) -> Array:
 
 func designer_action_arrays() -> Dictionary:
     var result: Dictionary = {}
-    for index in [162, 164]:
+    for index in [159, 160, 161, 162, 163, 164]:
         var values: Array = []
         for value in brain.get("dsg_" + str(index)):
             values.append(int(value))
@@ -279,7 +293,7 @@ func apply_starting_state_overlay(overlay: Dictionary) -> String:
     var native_laser: Resource = actor.get("source_laser_pointer")
     if native_inventory == null or native_laser == null:
         return "crossbow starting-state resources are missing"
-    if int(native_inventory.get("selected_weapon")) != 80 or int(native_inventory.call("quantity", 80)) != 0:
+    if int(native_inventory.get("selected_weapon")) != 80 or int(native_inventory.call("quantity", 80)) != 8:
         return "crossbow overlay requires the measured English save inventory"
     var quantities: Dictionary = native_inventory.get("quantities")
     quantities = quantities.duplicate(true)
@@ -332,6 +346,7 @@ func generated_object_snapshot(spawned: CharacterBody3D) -> Dictionary:
         slide_contacts.append({
             "collider": str(collider.get_path()) if collider != null else "",
             "source_node_id": str(owner.get_meta("source_node_id", "")) if owner != null else "",
+            "source_perso": str(collider.get_meta("source_collision_perso", "")) if collider != null else "",
             "position": [point.x, point.y, point.z],
             "normal": [normal.x, normal.y, normal.z],
         })

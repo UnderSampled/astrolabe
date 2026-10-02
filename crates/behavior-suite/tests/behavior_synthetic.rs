@@ -98,6 +98,24 @@ fn synthetic_crossbow_initial_launch_requires_two_positions() -> anyhow::Result<
             .iter()
             .any(|check| { check.name == "crossbow_initial_displacement" && !check.passed })
     );
+    let mut wrong_contact =
+        behavior_steps::synthetic_result(behavior::recording(Scenario::CrossbowInitialLaunch))?;
+    wrong_contact.samples[3].raw_observation["generated_trace"][3]["slide_contacts"][0]["source_perso"] =
+        serde_json::json!("world/1/5/0");
+    let checks = behavior::assertions(wrong_contact.scenario, &wrong_contact.samples)?;
+    assert!(checks.iter().any(|check| check.name
+        == "crossbow_contacts_saved_checkpoint_reaction_box"
+        && !check.passed));
+    let mut wrong_lifetime =
+        behavior_steps::synthetic_result(behavior::recording(Scenario::CrossbowInitialLaunch))?;
+    wrong_lifetime.samples[3].raw_observation["generated_trace"][3]["brain_clock_ms"] =
+        serde_json::json!(201.0);
+    let checks = behavior::assertions(wrong_lifetime.scenario, &wrong_lifetime.samples)?;
+    assert!(
+        checks
+            .iter()
+            .any(|check| check.name == "crossbow_contact_cleanup_lifetime_ms" && !check.passed)
+    );
     Ok(())
 }
 

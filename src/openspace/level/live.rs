@@ -13,6 +13,7 @@ use crate::model::{
     character::{Family, Perso, StateRef},
 };
 use anyhow::{Context, Result, ensure};
+use binrw::BinRead;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{borrow::Cow, collections::BTreeSet};
@@ -59,6 +60,93 @@ fn live_f32<M: ReadMemory>(
     let value = f32::from_bits(u32_at(&source.bytes(address, 4)?, 0)?);
     ensure!(value.is_finite(), "non-finite live dynamics value");
     Ok(value)
+}
+
+/// Collision result filled by Hype's 0x463df0 query and copied by the
+/// mechanics response to +0x16c (ground) or +0x1dc (wall/ceiling). The query
+/// writes the hit SuperObject at +0x5c, normal at +0x0c and point at +0x18.
+/// Uninterpreted material/response fields stay opaque in this transient view.
+#[derive(BinRead)]
+#[br(little)]
+struct MechanicsContactWire {
+    kind: u32,
+    _unknown_04: [u8; 4],
+    fraction: f32,
+    normal: [f32; 3],
+    point: [f32; 3],
+    _unknown_24: [u8; 56],
+    superobject: u32,
+    _unknown_60: [u8; 16],
+}
+
+fn mechanics_contact<M: ReadMemory>(
+    source: &mut MemoryView<'_, M>,
+    object: u32,
+    offset: usize,
+) -> Result<SceneMechanicsContact> {
+    let address = source.add(object, offset)?;
+    let contact: MechanicsContactWire = wire(&source.bytes(address, 0x70)?)?;
+    ensure!(
+        contact
+            .normal
+            .into_iter()
+            .chain(contact.point)
+            .all(f32::is_finite)
+            && contact.fraction.is_finite(),
+        "nonfinite mechanics contact"
+    );
+    ensure!(
+        contact.superobject != 0,
+        "mechanics contact has no hit SuperObject"
+    );
+    let header: SuperObjectWire = wire(&source.bytes(contact.superobject, 64)?)?;
+    let object_types = if header.kind == 4 {
+        Some(source_view::perso_parts(source, header.data)?.object_types)
+    } else {
+        None
+    };
+    let mut path = Vec::new();
+    let mut node = contact.superobject;
+    let mut visited = BTreeSet::new();
+    let root = source.required(0x75ec6c, 0)?;
+    while node != root {
+        ensure!(
+            path.len() < 32 && visited.insert(node),
+            "contact ancestry exceeds bound or cycles"
+        );
+        let member: SuperObjectWire = wire(&source.bytes(node, 64)?)?;
+        ensure!(member.parent != 0, "contact target is outside ActualWorld");
+        let mut previous = member.previous;
+        let mut following = node;
+        let mut index = 0;
+        while previous != 0 {
+            ensure!(
+                index < 4096 && visited.insert(previous),
+                "contact sibling chain exceeds bound or cycles"
+            );
+            let sibling: SuperObjectWire = wire(&source.bytes(previous, 64)?)?;
+            ensure!(
+                sibling.parent == member.parent && sibling.next == following,
+                "contact sibling links differ"
+            );
+            index += 1;
+            following = previous;
+            previous = sibling.previous;
+        }
+        path.push(index);
+        node = member.parent;
+    }
+    path.reverse();
+    Ok(SceneMechanicsContact {
+        kind: contact.kind,
+        fraction: contact.fraction,
+        normal: contact.normal,
+        point: contact.point,
+        node_locator: format!("live:{:08x}", contact.superobject),
+        node_kind: header.kind,
+        object_types,
+        scene_path: path,
+    })
 }
 
 /// The verified camera block stores a world-to-camera basis and a translation
@@ -951,6 +1039,12 @@ impl HypeBuild {
                         collide_with_nothing: ai_visible == 0,
                         publication_consistent: ai_visible == (previous | current),
                     };
+                    let ground_contact = (ai_visible & 3 != 0)
+                        .then(|| mechanics_contact(&mut source, object, 0x16c).map(Box::new))
+                        .transpose()?;
+                    let wall_contact = (ai_visible & 0x1c != 0)
+                        .then(|| mechanics_contact(&mut source, object, 0x1dc).map(Box::new))
+                        .transpose()?;
                     let list = source.pointer(wrapper, 0xfc)?;
                     let mut card_slots = Vec::new();
                     if let Some(list_address) = list {
@@ -998,8 +1092,10 @@ impl HypeBuild {
                         pending_override_velocity,
                         mode_e0,
                         contact_classes,
+                        ground_contact,
+                        wall_contact,
                         list_locator: list.map(|address| format!("live:{address:08x}")),
-                        card_slots,
+                        card_slots: Box::new(card_slots),
                         selected_card_locator,
                         selected_card_type,
                     })
@@ -1943,8 +2039,10 @@ pub enum SceneTailDynamics {
         pending_override_velocity: [f32; 3],
         mode_e0: u32,
         contact_classes: SceneTailContactClasses,
+        ground_contact: Option<Box<SceneMechanicsContact>>,
+        wall_contact: Option<Box<SceneMechanicsContact>>,
         list_locator: Option<String>,
-        card_slots: Vec<SceneTailCardSlot>,
+        card_slots: Box<Vec<SceneTailCardSlot>>,
         /// Last nonnull card in the source selection walk, if any.
         selected_card_locator: Option<String>,
         selected_card_type: Option<u32>,
@@ -1952,6 +2050,22 @@ pub enum SceneTailDynamics {
     Unreadable {
         reason: String,
     },
+}
+
+/// The collision result's target resolved through checked ActualWorld links.
+/// Addresses and sibling ordinals are capture-local. Object types identify
+/// Persos independently of DynamicWorld's runtime sibling reordering.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SceneMechanicsContact {
+    pub kind: u32,
+    pub fraction: f32,
+    pub normal: [f32; 3],
+    pub point: [f32; 3],
+    pub node_locator: String,
+    pub node_kind: u32,
+    pub object_types: Option<[u32; 3]>,
+    pub scene_path: Vec<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

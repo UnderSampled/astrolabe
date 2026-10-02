@@ -3,6 +3,8 @@ use super::*;
 
 const ARROW_MODEL: &str = "fix:/ai/models/733";
 const ARROW_MODEL_OFFSET: u64 = 0x4e324;
+// Saved checkpoint pose plus the source reaction box's minimum Y.
+const CHECKPOINT_CONTACT_Y: f64 = 29.486_925_125_122_07 - 0.4;
 
 pub fn recording() -> FunctionalRecording {
     let edge = |at_ms, id: &str, key, direction| TimedInput {
@@ -140,12 +142,12 @@ fn original_arrow(sample: &serde_json::Value) -> Option<(u64, String, u64, [f64;
 fn original_arrow_evidence(burst: &[serde_json::Value]) -> (bool, Option<f64>) {
     let candidates = burst.iter().filter_map(original_arrow).collect::<Vec<_>>();
     let moved = candidates.windows(2).find_map(|pair| {
-        let (index_a, node_a, elapsed_a, position_a) = &pair[0];
-        let (index_b, node_b, elapsed_b, position_b) = &pair[1];
+        let (_, node_a, elapsed_a, position_a) = &pair[0];
+        let (_, node_b, elapsed_b, position_b) = &pair[1];
         // The source frame stamp can still be zero on an inserted actor, and
         // is not a completed-update oracle. Captures must advance in time and
         // the same checked arrow must move.
-        (index_a == index_b && node_a == node_b && elapsed_b > elapsed_a)
+        (node_a == node_b && elapsed_b > elapsed_a)
             .then(|| displacement(*position_a, *position_b))
             .filter(|distance| *distance > 0.05)
     });
@@ -155,7 +157,7 @@ fn original_arrow_evidence(burst: &[serde_json::Value]) -> (bool, Option<f64>) {
 pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
     ensure!(
         samples.len() == 4,
-        "crossbow launch needs three observations"
+        "crossbow launch needs four observations"
     );
     ensure!(
         samples.iter().map(|sample| sample.name.as_str()).eq([
@@ -333,6 +335,49 @@ pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
             Some(1.0),
             "The launched model-733 arrow reaches native slide contact and its compiled normal-1 behavior removes it without a Brain failure",
         ));
+        let checkpoint_contact = arrow_exit.is_some_and(|entry| {
+            entry["slide_contacts"].as_array().is_some_and(|contacts| {
+                contacts.iter().any(|contact| {
+                    contact["source_perso"] == "level:/persos/world/0/35"
+                        && position(&contact["position"])
+                            .is_some_and(|point| (-point[2] - CHECKPOINT_CONTACT_Y).abs() < 0.03)
+                        && position(&contact["normal"])
+                            .is_some_and(|normal| displacement(normal, [0.0, 0.0, 1.0]) < 0.03)
+                })
+            })
+        });
+        checks.push(bound(
+            "crossbow_contacts_saved_checkpoint_reaction_box",
+            f64::from(u8::from(checkpoint_contact)),
+            Some(1.0), Some(1.0),
+            "Native contact identifies the checkpoint asset and the independently decoded reaction box plane/normal; a later static-world hit does not qualify",
+        ));
+        let lifetime = release.zip(arrow_exit).and_then(|(start, end)| {
+            Some(end["brain_clock_ms"].as_f64()? - start["brain_clock_ms"].as_f64()?)
+        });
+        checks.push(bound(
+            "crossbow_contact_cleanup_lifetime_ms",
+            lifetime.unwrap_or(-1.0), Some(1.0), Some(150.0),
+            "Physics-clock animation release to tree exit at the nearby checkpoint; wall-clock timestamps retain render stalls and source disappearance is separately bracketed by stopped captures",
+        ));
+        let aligned_launch = frames
+            .iter()
+            .find(|entry| {
+                entry["slide_collision_count"].as_u64().unwrap_or(0) == 0
+                    && position(&entry["velocity"]).is_some_and(|v| displacement(v, [0.0; 3]) > 1.0)
+            })
+            .is_some_and(|entry| {
+                position(&entry["velocity"])
+                    .zip(position(&entry["sighting"]))
+                    .is_some_and(|(velocity, sighting)| {
+                        displacement(velocity, sighting.map(|v| v * 45.0)) < 0.01
+                    })
+            });
+        checks.push(bound(
+            "crossbow_launch_velocity_uses_released_arrow_sighting",
+            f64::from(u8::from(aligned_launch)), Some(1.0), Some(1.0),
+            "The decoded local forward speed 45 follows the released arrow basis; the original free-flight velocity is sighting times 45",
+        ));
         let firing_guard_seen = frames.iter().any(|entry| {
             entry["source_model_path"] == ARROW_MODEL && entry["main_actor_field_120"] == 1
         });
@@ -412,6 +457,31 @@ pub fn assertions(samples: &[ActorSample]) -> Result<Vec<Assertion>> {
             Some(1.0),
             Some(1.0),
             "Checked model-733 instance had a published nonzero contact word; pinned handler operation 33 returns true only when that word is zero",
+        ));
+        let checkpoint_contact = burst.iter().any(|entry| {
+            entry["scene_tail_latest"]["children"]
+                .as_array()
+                .is_some_and(|children| {
+                    children.iter().any(|child| {
+                        let offset = &child["ai"]["fix_block_offset"];
+                        let contact = &child["dynamics"]["wall_contact"];
+                        offset["module"] == 17
+                            && offset["block"] == 0
+                            && offset["payload_offset"].as_u64() == Some(ARROW_MODEL_OFFSET)
+                            && child["dynamics"]["contact_classes"]["current"] == 4
+                            && contact["kind"] == 2
+                            && contact["object_types"] == serde_json::json!([29, 42, 108])
+                            && position(&contact["point"])
+                                .is_some_and(|point| (point[1] - CHECKPOINT_CONTACT_Y).abs() < 0.03)
+                            && position(&contact["normal"])
+                                .is_some_and(|normal| displacement(normal, [0.0, -1.0, 0.0]) < 0.03)
+                    })
+                })
+        });
+        checks.push(bound(
+            "crossbow_contacts_saved_checkpoint_reaction_box",
+            f64::from(u8::from(checkpoint_contact)), Some(1.0), Some(1.0),
+            "Typed source wall result identifies checkpoint object types 29/42/108 and its decoded reaction box plane/normal; runtime sibling ordinals are not asset identities",
         ));
         let post_burst = &raw["crossbow_post_burst_diagnostic"];
         let post_burst_identity = post_burst["scene_ai_model"]["model"]["module"] == 17

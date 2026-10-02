@@ -120,12 +120,22 @@ impl OriginalBackend {
             self.setup_interventions.push(reload);
         }
         let intervention = self.controller.game()?.prepare_crossbow_quantity()?;
+        let action_arrays = self
+            .controller
+            .game()?
+            .inspect_main_actor(&[47], Some(&[159, 160, 161, 162, 163, 164]))?;
         let actor = self.controller.game()?.observe_main_actor()?;
         ensure!(
             actor.current_action == Some(IDLE_ACTION),
             "crossbow starting state changed Hype's saved idle action"
         );
         self.setup_interventions.push(intervention);
+        self.setup_interventions.push(serde_json::json!({
+            "method": "read_only_crossbow_action_arrays",
+            "observation": action_arrays["observation"],
+            "run": action_arrays["run"],
+            "status": action_arrays["status"],
+        }));
         self.ready_state = OriginalReadyState::CrossbowStart;
         Ok(())
     }

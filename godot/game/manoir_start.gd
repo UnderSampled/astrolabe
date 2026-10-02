@@ -27,6 +27,22 @@ static func apply(actor: CharacterBody3D, brain: Node, fixture: Dictionary) -> S
     brain.set("current_reflex", int(fixture["reflex_behavior"]))
     for index in fixture["designer_overrides"]:
         brain.set("dsg_" + str(index), fixture["designer_overrides"][index])
+    var level: Node = actor
+    while level.get_parent() != null and level.get_parent() != actor.get_tree().root:
+        level = level.get_parent()
+    for saved in fixture.get("scene_actors", []):
+        var restored_actor: Node3D
+        for candidate in level.find_children("*", "CharacterBody3D", true, false):
+            if str(candidate.get_meta("source_perso", "")) == str(saved["asset"]):
+                restored_actor = candidate as Node3D
+                break
+        if restored_actor == null or str(restored_actor.get_meta("source_perso_name", "")) != str(saved["name"]):
+            return "Saved scene actor is missing: " + str(saved["asset"])
+        if restored_actor.get_meta("source_object_types", PackedInt32Array()) != PackedInt32Array(saved["object_types"]):
+            return "Saved scene actor identity differs: " + str(saved["asset"])
+        var saved_rows: Array = saved["source_basis"]
+        var saved_basis := Basis(source_vector(saved_rows[0]), source_vector(saved_rows[2]), -source_vector(saved_rows[1]))
+        restored_actor.global_transform = Transform3D(saved_basis, source_vector(saved["source_translation"]))
     var seen: Dictionary = {}
     for value in fixture.get("deactivated_channels", []):
         if not (value is int or value is float):
@@ -68,7 +84,7 @@ static func apply(actor: CharacterBody3D, brain: Node, fixture: Dictionary) -> S
     native_magick.set("current_points", int(magick["current_points"]))
     native_magick.set("maximum_points", int(magick["maximum_points"]))
     var arrays: Dictionary = fixture.get("designer_arrays", {})
-    for index in [162, 164]:
+    for index in [159, 160, 161, 162, 163, 164]:
         var key := str(index)
         if not arrays.has(key):
             return "Saved Hype designer array " + key + " is missing"

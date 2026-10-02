@@ -1,5 +1,8 @@
 # Crossbow use handoff — 2026-10-01
 
+Continued by the [October 2 fixes and evidence](crossbow-fixes-2026-10-02.md).
+The status and unresolved contact target below describe this handoff date.
+
 ## Current state
 
 Crossbow selection, camera aim, Space firing, initial arrow motion, and one-bolt

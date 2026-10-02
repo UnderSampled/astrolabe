@@ -140,18 +140,14 @@ func source_set_vector_speed(value: Vector3) -> void:
     assert(value.is_finite())
     source_vector_speed = value
 
-## The source object-generation call writes its vector into the new Perso's
-## motion state at creation. Keep that state and seed native world velocity;
-## ordinary physics integrates it without a projectile-specific script rule.
-func source_initialize_motion(value: Vector3, spawning_basis: Basis) -> void:
+## Object generation retains a local velocity until activation. The animation
+## release cue changes the object's transform before mechanics starts
+## (0043bcd0/005711f7). Commit it using that transform on the first physics tick.
+func source_initialize_motion(value: Vector3) -> void:
     assert(value.is_finite())
     source_vector_speed = value
-    source_relative_motion = false
-    # The coordinate frame of the evaluated source vector remains unverified.
-    # This provisional basis conversion seeds native world velocity. The new
-    # body's global_basis is not reliable until add_child() runs.
-    var local_velocity := Vector3(value.x, value.z, -value.y)
-    external_velocity = spawning_basis.orthonormalized() * local_velocity
+    source_relative_motion = true
+    external_velocity = Vector3.ZERO
 
 func source_go_relative() -> void:
     source_relative_motion = true
@@ -395,7 +391,17 @@ func source_execute_action_and_generate_object(template_path: String, action: in
     # Initialize it before attachment: the compiled Brain can start in _ready.
     generated.transform = destination.global_transform.affine_inverse() * global_transform
     if generated is CharacterBody3D:
-        generated.call("source_initialize_motion", vector, global_basis)
+        generated.call("source_initialize_motion", vector)
+        # Type 11 mechanics can contact native reaction zones (ZDR), in
+        # addition to the static world. Ordinary characters retain their mask.
+        var generated_mechanics: Resource = generated.get("current_mechanics")
+        if generated_mechanics != null and int(generated_mechanics.mode) == 11:
+            generated.collision_mask |= 8
+            # The source mechanics query excludes the generating Perso
+            # (00464570/00463df0). Its reaction bodies are owned child nodes.
+            generated.add_collision_exception_with(self)
+            for owner_body in find_children("*", "PhysicsBody3D", true, false):
+                generated.add_collision_exception_with(owner_body)
     if generated_brain != null:
         # A generated Perso's compiled Brain reads the source main actor. Bind
         # that ordinary scene reference before _ready schedules its first tick.
@@ -619,7 +625,7 @@ func _state_repeats(_id: int) -> int:
     return 0
 
 func _state_movement_collision(_state: int) -> void:
-    # Activate already saved ZDE query shapes selected by source character state.
+    # Activate saved query/reaction shapes selected by source character state.
     for value in find_children("*", "CollisionShape3D", true, false):
         var shape := value as CollisionShape3D
         if not shape.has_meta("source_active_states"):

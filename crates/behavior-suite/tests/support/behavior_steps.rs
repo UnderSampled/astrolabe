@@ -523,15 +523,19 @@ pub fn synthetic_result(recording: behavior::FunctionalRecording) -> Result<Back
                 serde_json::json!({"selected_weapon": 80, "weapon_80_quantity": 2});
             samples[3].raw_observation["generated_trace"] = serde_json::json!([
                 {"event":"release","instance_id":1,"source_model_path":"fix:/ai/models/733",
+                 "at_ms":1300,"brain_clock_ms":0.0,
                  "translation":[0.0,0.0,5.0],"attachment_translation":[0.0,0.0,5.0]},
                 {"event":"frame","instance_id":1,"source_model_path":"fix:/ai/models/733",
                  "brain_running":true,"brain_failure":"","translation":[0.0,0.0,5.0],
+                 "velocity":[0.0,0.0,45.0],"sighting":[0.0,0.0,1.0],
                  "main_actor_field_120":1},
                 {"event":"frame","instance_id":1,"source_model_path":"fix:/ai/models/733",
                  "brain_running":true,"brain_failure":"","translation":[0.0,0.0,5.5],
                  "main_actor_field_120":1},
                 {"event":"tree_exiting","instance_id":1,"source_model_path":"fix:/ai/models/733",
                  "slide_collision_count":1,"brain_normal":1,"brain_failure":"",
+                 "at_ms":1350,"brain_clock_ms":50.0,"slide_contacts":[{"source_perso":"level:/persos/world/0/35",
+                 "position":[-73.98,6.09,-29.08692512512207],"normal":[0.0,0.0,1.0]}],
                  "main_actor_field_120":0}
             ]);
             let checks = behavior::assertions(scenario, &samples)?;

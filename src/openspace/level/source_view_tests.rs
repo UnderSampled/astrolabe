@@ -156,6 +156,7 @@ fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
     status[1..7].copy_from_slice(b"manoir");
     ranges.insert(hype_runtime::STATUS, status);
     ranges.insert(0x75701c, 0x2000_u32.to_le_bytes().to_vec());
+    ranges.insert(0x75ec6c, 0x2000_u32.to_le_bytes().to_vec());
     let mut root = vec![0; 64];
     word(&mut root, 8, 0x2100);
     word(&mut root, 12, 0x2200);
@@ -236,6 +237,13 @@ fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
     word(&mut dynamics, 0xf0, 1);
     word(&mut dynamics, 0xf4, 2);
     word(&mut dynamics, 0xf8, 3);
+    word(&mut dynamics, 0x16c, 2);
+    word(&mut dynamics, 0x174, 0.75_f32.to_bits());
+    word(&mut dynamics, 0x180, 1.0_f32.to_bits());
+    for (index, value) in [3.0_f32, 4.0, 5.0].into_iter().enumerate() {
+        word(&mut dynamics, 0x184 + index * 4, value.to_bits());
+    }
+    word(&mut dynamics, 0x1c8, 0x2200);
     memory.ranges.insert(0x4000, dynamics);
     let mut cards = vec![0; 0x2c];
     cards[0] = 2;
@@ -270,8 +278,19 @@ fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
                 collide_with_nothing: false,
                 publication_consistent: true,
             },
+            ground_contact: Some(Box::new(live::SceneMechanicsContact {
+                kind: 2,
+                fraction: 0.75,
+                normal: [0.0, 0.0, 1.0],
+                point: [3.0, 4.0, 5.0],
+                node_locator: "live:00002200".into(),
+                node_kind: 4,
+                object_types: Some([8, 10, 65536]),
+                scene_path: vec![1],
+            })),
+            wall_contact: None,
             list_locator: Some("live:00005000".into()),
-            card_slots: vec![
+            card_slots: Box::new(vec![
                 live::SceneTailCardSlot {
                     index: 0,
                     key: 7,
@@ -284,7 +303,7 @@ fn verified_live_scene_tail_checks_reverse_links_and_bounds() -> Result<()> {
                     card_locator: Some("live:00006000".into()),
                     card_type: Some(0),
                 },
-            ],
+            ]),
             selected_card_locator: Some("live:00006000".into()),
             selected_card_type: Some(0),
         })

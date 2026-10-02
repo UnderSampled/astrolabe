@@ -2734,7 +2734,7 @@
     },
     {
       "binary": "behavior-suite::save_original",
-      "test": "original_crossbow_quantity_resets_after_reload",
+      "test": "original_crossbow_quantity_survives_fresh_process",
       "areas": ["source", "runtime", "comparison", "combat", "save"],
       "kind": "process",
       "prerequisites": [

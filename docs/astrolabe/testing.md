@@ -45,21 +45,23 @@ pass independently. See the [run comparison](../../notes/run-comparison-2026-09-
 and [wall contact evidence](../../notes/wall-contact-2026-09-24.md) for bounds,
 results, and remaining visual/timing limits.
 
-The combat selection also includes an initial crossbow launch scenario. It
-uses a declared quantity-three start, physical weapon selection, an observed
-armed checkpoint, and a physical attack. Each backend must identify model 733
-and show the same arrow at two positions. The paired result covers initial
-launch only; subsequent contact behavior, trajectory and ammunition parity
-remain open. The Godot trace now also checks that model 733 is released at its
-exported animation channel transform before its Brain runs. The pinned source
-handler for model-733 operation 33 returns true when the published mechanics
-contact word is zero; the current source run observes word `4`, so the
-condition is false before a later full-scene search finds the arrow absent.
-Godot's current slide-contact count is provisional and does not establish
-source parity. The Space recording exercises
-`Button_Hit` and does not establish ammunition consumption by the separate
-`TireArbalete` action. See the [combat comparison
-note](../../notes/combat-comparison-2026-09-24.md#initial-crossbow-launch-bdd-2026-09-25).
+The combat selection includes a Crossbow camera-mode shot from a declared
+quantity-three start: physical Z selection, keypad-0/Left aiming and Space
+firing. Both backends must identify model 733, observe movement, consume one
+bolt and contact the saved checkpoint's reaction box. Source contact identity
+uses object types and the checked result record; DynamicWorld sibling ordinals
+can change during gameplay. Godot must release the arrow from its animation
+channel, move along its released sighting, exit through compiled normal-1
+cleanup and clear the firing guard. Its trace observes each native physics
+tick, retaining wall-clock timestamps separately from physics lifetime.
+The original backend separately checks that a later full-scene search finds
+the arrow absent; it does not assert the original deletion caller.
+
+`original_crossbow_quantity_survives_fresh_process` independently checks the
+supplied save's eight bolts, the guarded quantity-three setup, one physical
+shot leaving two, a real lectern save and a fresh process restoring two. It
+does not edit save bytes. See the [Crossbow investigation and evidence](../../notes/crossbow-fixes-2026-10-02.md)
+for fixture recovery, engine changes and remaining comparison limits.
 
 Pair matching scenario reports with:
 

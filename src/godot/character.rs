@@ -167,18 +167,24 @@ fn movement_collision(
     Ok(())
 }
 
-fn zde_collision(
+fn auxiliary_collision(
     project: &mut Project,
     source: &mut impl ContentSource,
     perso: &Perso,
     family: &Family,
     actor: &str,
+    group_index: usize,
 ) -> Result<()> {
     let Some(collisions) = &perso.collisions else {
         return Ok(());
     };
     collisions.validate()?;
-    let group = &collisions.groups[1];
+    let group = &collisions.groups[group_index];
+    let (label, native_type, layer) = match group_index {
+        1 => ("ZDE", "Area3D", 4),
+        3 => ("ZDR", "StaticBody3D", 8),
+        _ => unreachable!("auxiliary collision group"),
+    };
     let Some(reference) = &group.profile else {
         return Ok(());
     };
@@ -216,12 +222,18 @@ fn zde_collision(
         }
     };
     let initial_state = perso.current_state.or(perso.initial_state);
-    let area = format!("{actor}_zde");
+    let area = format!("{actor}_{}", label.to_lowercase());
     writeln!(
         project.builder,
-        "    var {area} = Area3D.new()\n    {area}.name = \"ZDE\"\n    {area}.collision_layer = 4\n    {area}.collision_mask = 0\n    {area}.monitoring = false\n    {area}.monitorable = true\n    {area}.set_meta(\"source_perso\", {})\n    {actor}.add_child({area})\n    {area}.owner = {actor}",
+        "    var {area} = {native_type}.new()\n    {area}.name = \"{label}\"\n    {area}.collision_layer = {layer}\n    {area}.collision_mask = 0\n    {area}.set_meta(\"source_collision_perso\", {})\n    {actor}.add_child({area})\n    {area}.owner = {actor}",
         quoted(perso.path.as_str())
     )?;
+    if group_index == 1 {
+        writeln!(
+            project.builder,
+            "    {area}.monitoring = false\n    {area}.monitorable = true"
+        )?;
+    }
     for (slot, reference) in geometry.slots.iter().enumerate() {
         let Some(reference) = reference else {
             continue;
@@ -234,7 +246,7 @@ fn zde_collision(
             source,
             &area,
             actor,
-            &format!("{actor}_zde_{slot}"),
+            &format!("{actor}_{}_{slot}", label.to_lowercase()),
             true,
         )?;
         let states = active_states(slot);
@@ -251,7 +263,7 @@ fn zde_collision(
                 project.builder,
                 "    {name}.name = {}\n    {name}.set_meta(\"source_zone\", {slot})\n    {name}.set_meta(\"source_active_states\", {state_array})\n    {actor}._set_zde_shape_active({name}, {})",
                 quoted(&format!(
-                    "ZDE_{slot}_{}",
+                    "{label}_{slot}_{}",
                     name.rsplit('_').next().unwrap_or("shape")
                 )),
                 initial_state.is_some_and(|state| states.contains(&(state as i32)))
@@ -331,11 +343,17 @@ pub(super) fn export_perso(
         quoted(&perso.name),
         quoted(perso.path.as_str())
     )?;
+    writeln!(
+        project.builder,
+        "    {name}.set_meta(\"source_object_types\", PackedInt32Array([{}, {}, {}]))",
+        perso.object_types[0], perso.object_types[1], perso.object_types[2]
+    )?;
     let controller = format!(
         "res://{}/actions.gd",
         rig_directory(project, &family, &rig_id)
     );
-    zde_collision(project, source, perso, &family, &name)?;
+    auxiliary_collision(project, source, perso, &family, &name, 1)?;
+    auxiliary_collision(project, source, perso, &family, &name, 3)?;
     movement_collision(project, source, perso, &name, &controller)?;
     writeln!(
         project.builder,
