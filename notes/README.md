@@ -9,6 +9,9 @@
 The [Crossbow fixes and evidence](crossbow-fixes-2026-10-02.md) continue the
 October 1 handoff with fixture recovery, typed original contact identity,
 native reaction-zone contact and spent-ammunition reload checks.
+The [free-flight followup](crossbow-free-flight-2026-10-02.md) adds native
+counter-expiry/aiming regressions and records the original missed-shot and
+enemy-damage fixture gaps.
 
 The [current roadmap](remaining-work.md#current-roadmap--2026-09-27) groups ongoing
 and upcoming work: recording/replay, loading efficiency, manor gameplay parity,

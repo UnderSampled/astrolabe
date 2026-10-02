@@ -63,6 +63,15 @@ shot leaving two, a real lectern save and a fresh process restoring two. It
 does not edit save bytes. See the [Crossbow investigation and evidence](../../notes/crossbow-fixes-2026-10-02.md)
 for fixture recovery, engine changes and remaining comparison limits.
 
+`exported_crossbow_free_flight_expires_and_releases_guards` is a separate local
+component regression. It freshly exports manor and releases the actual arrow
+through the maintained animation channel in declared clear space. Straight
+and yaw-0.2 target cases check sustained native flight, counter-151 expiry,
+target-directed sighting and all owner guards. It holds owner AI and does not
+establish original missed-shot expiry or enemy damage. See the
+[bounded followup](../../notes/crossbow-free-flight-2026-10-02.md) for the fixture
+and source comparison gaps.
+
 Pair matching scenario reports with:
 
 ```sh

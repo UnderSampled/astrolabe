@@ -3412,6 +3412,25 @@
       "timeout_seconds": 5,
       "ignored": false,
       "release": true
+    },
+    {
+      "binary": "astrolabe::crossbow",
+      "test": "exported_crossbow_free_flight_expires_and_releases_guards",
+      "areas": [
+        "combat",
+        "ai",
+        "animation",
+        "source"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "godot",
+        "disc"
+      ],
+      "fixture": "freshly converted manor plus native high-altitude clear-flight component; original counterpart pending",
+      "timeout_seconds": 180,
+      "ignored": true,
+      "release": true
     }
   ]
 }

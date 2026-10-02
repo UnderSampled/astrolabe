@@ -194,8 +194,12 @@ checkpoint reaction-box contact, native compiled cleanup and ammunition.
 The source's exact deletion caller and tick phase are not established by
 stopped snapshots. Godot physics lifetime is not its wall-clock duration
 during render stalls. General type-11 mechanics, other collision eligibility
-paths, enemy damage, distant-flight expiry, full camera/laser behavior and
+paths, enemy damage, original distant-flight expiry, full camera/laser behavior and
 pixel-perfect trajectory/render matching require separate scenarios. The
 existing paired-report CLI still describes its Crossbow comparison as an
 initial-launch case; independently passing contact assertions are stronger
 evidence than that old comparison label.
+
+The subsequent [free-flight followup](crossbow-free-flight-2026-10-02.md)
+records native counter-expiry/aiming regression coverage and the remaining
+original missed-shot and enemy-damage fixture gaps.

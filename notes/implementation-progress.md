@@ -143,8 +143,14 @@ consumption, checkpoint reaction-box contact and compiled native cleanup.
 An independent original-game lectern save reloads the spent quantity two in
 a fresh process. The combat selection was 103/104 with one intermittent Orrery
 scratch-cleanup failure; that unchanged test passed three isolated reruns.
-Exact source deletion timing, enemy damage and distant-flight expiry remain
-unverified. See the [Crossbow fixes and evidence](./crossbow-fixes-2026-10-02.md).
+The subsequent bounded followup passed 27/27 with all mandatory safeguards.
+Freshly exported straight/aimed component fixtures travel over 100 source
+units and exit at the compiled counter 151, clearing all owner guards without
+contact or a Brain failure. Original missed-shot expiry and enemy damage remain
+unverified: the candidate source fixture entered the Save UI, and no verified
+damageable-enemy fixture/hit-point path is established. Exact source deletion
+timing also remains pending. See the [Crossbow fixes](./crossbow-fixes-2026-10-02.md)
+and [free-flight evidence and gaps](./crossbow-free-flight-2026-10-02.md).
 
 Later on 2026-09-24, the original-game and Godot sword-selection BDD cases
 passed with the same sampled action sequence. The generated sword beam now
