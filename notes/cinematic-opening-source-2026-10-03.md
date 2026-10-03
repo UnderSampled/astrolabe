@@ -1,5 +1,99 @@
 # In-engine manor opening — source checkpoint, 2026-10-03
 
+## Camera framing checkpoint after fresh v3 capture
+
+Luna's fresh `TestResults/manor-intro-camera-source-v3-sol-20261003/`
+capture passed (exit 0, 24.614 seconds, cleanup complete): 80 observations,
+69 camera captures, zero camera errors, one Return at the verified New Game
+menu, and `manoir` phase 9. No source/save edits or gameplay interventions were
+used. The camera actor's position agrees with the active viewport within
+0.00002 source units. Its negative local Y axis agrees with the corrected
+viewport forward. Source clock/update span 670/3 to 13814/390; screenshots
+remain independent captures, without a calibrated render/update association.
+
+The four 164-byte parameter records are now useful canonical camera fields,
+attached to the Perso with their pool-scoped identities. The 220-byte component
+is Fix allocation 23339; its parameter records are allocations 23340–23343.
+The demonstrated records have no relocated pointers. Unknown parameter scalar
+bytes (104 per record) and component scalar bytes (196, excluding its six
+declared pointer words) remain explicit MessagePack byte values. Parameters
+are embedded because these demonstrated allocations belong to their camera;
+independently shared presets would need asset references. This ownership is
+provisional, not a general engine record catalog.
+
+The older 224/168-byte diagnostic extents included the following allocator
+header. Engine size getters 00440050/00440060 return 220/164, matching the
+file pool prefix minus its four-byte header. The new codec and checked live
+record reader exclude those allocator words; they are layout metadata, not
+unknown camera content. Raw v3 evidence is preserved with its original extents.
+
+The declaration and codec connect the named fields to getters: target/look
+offsets at +0x0c/+0x18 (00440ac0/00440af0), shared actor-relative offset
+at +0x24 (00440b20 and rotation/addition in 0051c8d0), distance limits +0x30/+0x34
+(00440b50/00440b70), yaw/pitch +0x40/+0x48 (00440bd0/00440c10), mode +0x98
+(00440f40) and horizontal FoV +0x8c (00440f10). Viewport publication 0043dbd0
+gets FoV from parameter set 1 and passes it to GLI camera aspect adjustment.
+GLI creation/setters 00485000/004852b0 identify clipping at +0x6c/+0x70;
+the source renderer link supplies 0.25/10000. Its derived view matrix and
+renderer handles are not imported as replayable camera layout.
+
+The initial framing has distance [3.5,4], yaw 0, pitch 0.3, horizontal FoV 1.5
+radians and mode 0. The v3 live initial parameter set instead has mode 3.
+These modes are preserved, but neither mode's motion is accepted yet. The actor-relative shift is [0,0,1.8]. Together with pitch 0.3 and ranges
+3.5 and 4, it explains the earlier saved-game idle and settled-walk offsets:
+behind = distance × cos(0.3), above = 1.8 + distance × sin(0.3). This is a
+source-grounded geometric explanation, not a dynamic follow/obstruction pass. The
+file component's target points outside the selected rooted manor hierarchy
+and does not decode as a valid Perso node; it cannot supply a portable initial
+target binding. Source initialization 00440820 sets the current main actor,
+while the v3 opening capture shows a different target locator from the sampled
+Hype and Gogoud. The next checked Orrery capture includes that target actor's
+identity and pose in the camera's existing pause. It uses the declared target
+link and existing checked Perso/transform readers, with no guessed opaque walk.
+
+Rete schema is now 37, replacing the former camera-presence flag with the
+component. Godot support interface 42 saves Camera3D with the source horizontal
+FoV, clipping and a local Y half-turn: converted source camera -Y becomes the
+actor's +Z, whereas Camera3D looks along -Z. `KEEP_WIDTH` preserves the horizontal
+projection ([Godot 4.7 Camera3D documentation](https://docs.godotengine.org/en/4.7/classes/class_camera3d.html)).
+The maintained native update still explicitly returns unsupported. No target
+motion, smoothing, obstruction, viewport selection or intro handoff pass is
+claimed. This does not reuse the saved-game demo's measured fixed boom as the
+converted source camera.
+
+Sol's source-only ownership/reconstruction test passes: all four records rebuild
+byte-for-byte, deliberate target-offset/FoV edits rebuild changed values while
+preserving all other bytes. A new native test loads the normally exported saved
+scene after a Rete FoV edit, checking view direction, clipping and projection
+matrix independently of preview bootstrap. Luna's v5 run accepted the source/Rete
+camera cases (26/30 total), but four support/native cases failed on the stale
+bundled support manifest (41 versus Rust interface 42). After synchronizing the
+maintained manifest, v6 passed all 22 selected Rust cases and four Python modules
+in 116.292 seconds, including all 21 mandatory safeguards and the saved native
+camera projection. Source stayed unchanged and cleanup was complete. These are
+component/regression passes; no Sol game run occurred. Evidence is
+`TestResults/manor-camera-framing-selection-v6-sol-20261003.log.json`.
+
+The v6 original capture passed in 24.039 seconds with 80 observations, 69 camera
+captures and zero errors at manor phase 9. The checked targets are helper Persos
+of family 4/type 39: instances 106, 92, 93 and 94, distinct from Hype and Gogoud.
+Target world position plus its rotated actor offset [0,0,1.8] and rotated look
+offset (zero defaults to [0,-0.05,0]) explains all sampled view directions with
+residual below 0.00003 source units. This corroborates helpers 0051c8d0/0051d140
+using same-pause target/viewport observations, rather than target origin. All
+sampled targets have identity rotation; rotated-target behavior still needs
+native/source-informed tests. The capture shows fixed eyes separated by cuts
+near source clock 4.3, 9.3 and 12.4 seconds, not a continuously moving shot.
+Mode 3 retains the eye while aiming at the selected helper; source 005200a0
+case 3 only requests eye motion for explicit-position flag 0x40, and 0051e620
+suppresses ordinary follow motion for mode 3. This supports a focused native
+look-at component, not a port of controller scratch records or scheduler.
+
+Raw evidence: `TestResults/manor-camera-target-source-v6-sol-20261003/report.json`.
+Offset derivation: `TestResults/manor-camera-target-v6-offset-analysis-sol-20261003.json`.
+No GPU/device-loss markers were reported in the assigned logs; that does not
+prove absence of external coredumps. Save archive hash remained unchanged.
+
 This checkpoint concerns the in-engine New Game opening. AVI playback is outside
 this task. It establishes source route structure and an original opening-camera
 baseline and a validated native Gogoud route/action component; it does **not**
@@ -372,3 +466,72 @@ samples lack a calibrated common start/update boundary), full New Game startup,
 camera, Hype initialization, dialogue, per-actor collision-neighbor filtering or
 wind physics. Wind is still the explicitly authorized no-op. No new original
 launch or full release matrix was run in this final check.
+
+### Next camera boundary: correct observation before native movement
+
+The validated route/wind/collision slice was locally checkpointed as `f72344d`.
+Hype's next initialization call remains procedure 194, selecting an unpromoted
+particle generator. Its following call disables emission. Assignment/emitter
+semantics need useful assets and native behavior; no additional no-op is added.
+The source camera's initial normal 0 first rule independently reaches procedure
+135, which still reports unsupported in native support.
+
+The previous viewport observation's `forward_source` was wrong: it selected a
+row of the stored basis. Source `POS_fn_vMulMatrixVertexWithoutScale` at
+`004b98d0` multiplies the stored matrix columns; `GLI_xProjection` at `004935b0`
+accepts positive camera-space Z. An isometric camera's inverse-view rotation
+therefore maps [0,0,1] to the third column of the transposed stored matrix. This
+also agrees with `POS_fn_vInvertIsoMatrix` at `004b9e30`; camera publication at
+`0043dbd0` remaps source camera axes and then inverts the pose for GLI.
+
+Sol verified the relevant reference-decompilation code against the pinned live
+executable (SHA-256 `048ff4f4f0447a1f54a5a73ff588df78b484015c78df99a8f2d7acd3469df7da`).
+Despite differing whole-executable hashes, these byte ranges are identical to
+the decompiled patch reference:
+
+| Address | Bytes | SHA-256 |
+| --- | ---: | --- |
+| 0043dbd0 | 256 | a4f6651e98e7f6376943696fee7081e63db3500692cd09165421f41e05363890 |
+| 004b98d0 | 214 | 6eaf57024f44c3e2d037c2e73c99da3c35bff1d6f0d487253a5d0f9918e39528 |
+| 004935b0 | 214 | 8948db89c0a9bc0cf2aa9a257e2134b412873125617d27313d277f1ed3011d5b |
+| 004b9e30 | 614 | 306ed95edf024a0f78d915a6fb0535282aa11d3641a874387de5a855119f6d50 |
+
+The decoder now derives inverse-view positive Z; position, raw pose words and
+projection values are unchanged. Its existing synthetic test additionally checks
+that a world point one unit along decoded forward projects to [0,0,1] through
+the source matrix. The earlier third-row value instead projected along view -Y.
+This is an observation fix at the OpenSpace boundary, not an Orrery lifecycle
+change. Native camera parameters, target calculation and cinematic behavior are
+still unmapped. The previous raw captures are retained without rewriting them.
+
+The existing opening probe adds optional `--camera-records`, using Orrery's
+`inspect_scene_camera("manoir", [2,2,2], ...)` unique checked search. It captures
+the camera actor/Brain, selected fields 24,26,28,29,30,31,38,39,40,41, four linked
+records and the active viewport during one pause, alongside the separate Hype
+and Gogoud samples. It rejects a phase-9 level other than manor and requires at
+least one camera capture with no camera-inspection errors, retaining its report
+on failure. No original memory writes, skip input or base setting changes occur.
+The linked words/addresses remain transient debug evidence and do not enter Rete.
+
+Native test/game execution stays assigned to Luna. The next fixed assignment is
+`TestResults/cinematic-worker-camera-source-20261003.md`: 24/262 cases (three
+camera checks plus 21 mandatory safeguards), four Python checks, followed only
+on success by the owned build/isolated opening capture. The selection budget is
+300 seconds; two builds have 80-second deadlines and capture has 100 seconds
+under a 280-second overall job budget. No original camera-record capture or
+corrected native test pass is claimed yet.
+
+Sol's `cargo fmt --check`, `cargo check --locked --offline --all-targets`
+(2.47 seconds), and `cargo clippy --locked --offline --all-targets -- -D warnings`
+(2.95 seconds) pass. Explicit probe compilation with
+`cargo check --locked --offline -p behavior-suite --example cinematic_entry_probe`
+also passes (6.59 seconds). Broader probe-package Clippy failed in the unchanged
+Orrery `observe_magick_behavior` method at line 673 (`too_many_arguments`), outside
+this camera change; no Magic refactor or lint suppression was added.
+
+Read-only derivation from the preserved viewport words is retained in
+`TestResults/cinematic-camera-direction-analysis-20261003.json`. Corrected
+forward is [0.786991,0.555323,0.268816] at original clock 666 ms and
+[-0.082333,0.996541,0.011291] at 12309 ms. Projecting a point one unit along
+each corrected direction gives view [0,0,1] within 0.000011 units. This is a
+calculation on existing evidence, not a new game run or calibrated render match.

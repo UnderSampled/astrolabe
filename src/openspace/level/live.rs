@@ -149,11 +149,11 @@ fn mechanics_contact<M: ReadMemory>(
     })
 }
 
-/// The verified camera block stores a world-to-camera basis and a translation
-/// vector after its two-byte pose flags. Applying the basis to the negated
-/// translation yields the camera origin in OpenSpace axes; its third row is
-/// the view-forward direction. The remaining nine pose floats duplicate the
-/// basis in the source's 22-word transform representation.
+/// The camera's stored columns become rows of the inverse view rotation here.
+/// POS_fn_vMulMatrixVertexWithoutScale (004b98d0) multiplies the stored columns;
+/// GLI_xProjection (004935b0) accepts positive view Z. Thus -basis * translation
+/// is the origin and basis * [0,0,1] is forward, not the third row. The second
+/// nine-float block is the source's scale-inclusive basis (equal for this camera).
 fn decode_camera_pose(pose_words: &[u32; 22]) -> Result<([f32; 3], [f32; 3])> {
     let translation = [
         f32::from_bits(pose_words[1]),
@@ -175,7 +175,7 @@ fn decode_camera_pose(pose_words: &[u32; 22]) -> Result<([f32; 3], [f32; 3])> {
             + basis[row][1] * translation[1]
             + basis[row][2] * translation[2]);
     }
-    let mut forward = basis[2];
+    let mut forward = [basis[0][2], basis[1][2], basis[2][2]];
     let norm = (forward[0] * forward[0] + forward[1] * forward[1] + forward[2] * forward[2]).sqrt();
     ensure!(
         norm.is_finite() && norm > 0.5,
@@ -1517,7 +1517,17 @@ mod active_camera_tests {
         let camera = build.active_camera(&mut memory).unwrap();
         assert_eq!(camera.source_locator, pointer);
         assert_eq!(camera.position_source, [3.0, 4.0, -2.0]);
-        assert_eq!(camera.forward_source, [1.0, 0.0, 0.0]);
+        assert_eq!(camera.forward_source, [0.0, -1.0, 0.0]);
+        // An observed forward point must project to positive view Z under
+        // source POS column multiplication. The old third-row decoder instead
+        // moved along view -Y for this rotation, despite returning a unit vector.
+        let point = std::array::from_fn::<_, 3, _>(|i| {
+            camera.position_source[i] + camera.forward_source[i]
+        });
+        let view = std::array::from_fn::<_, 3, _>(|i| {
+            [2.0, 3.0, 4.0][i] + (0..3).map(|j| basis[j * 3 + i] * point[j]).sum::<f32>()
+        });
+        assert_eq!(view, [0.0, 0.0, 1.0]);
         assert_eq!(camera.horizontal_fov, 1.5);
         assert_eq!(camera.vertical_fov, 1.2);
         assert_eq!(camera.near_plane, 0.25);
@@ -1545,11 +1555,18 @@ mod active_camera_tests {
         memory.put(camera, &root);
         let mut source = MemoryView(&mut memory);
         let records = camera_records_at(&mut source, camera).unwrap();
-        assert_eq!(records.root_words.len(), 56);
+        assert_eq!(records.root_words.len(), 55);
         assert_eq!(records.records.len(), 4);
         assert_eq!(records.records[0].words[0x30 / 4], 3.5f32.to_bits());
-        assert_eq!(records.records[3].words[0xa4 / 4], 14);
+        assert_eq!(records.records[3].words.len(), 41);
         assert_eq!(records.records[3].locator, "live:12341300");
+        assert!(records.target_actor.is_none());
+        // A linked target must be a checked Perso, not arbitrary opaque bytes.
+        let target = 0x4321_0000u32;
+        root[16..20].copy_from_slice(&target.to_le_bytes());
+        source.0.put(camera, &root);
+        source.0.put(target, &[0; 64]);
+        assert!(camera_records_at(&mut source, camera).is_err());
     }
 
     #[test]
@@ -1874,21 +1891,18 @@ fn camera_records_at(
     source: &mut MemoryView<'_, impl ReadMemory>,
     camera: u32,
 ) -> Result<SourceCameraRecordsObservation> {
-    let root = source.bytes(camera, 224)?.to_vec();
+    let root = source.bytes(camera, 220)?.to_vec();
+    let links: super::camera::CameraLinksWire = wire(&root)?;
     ensure!(
-        u32_at(&root, 0xac)? == 103 && u32_at(&root, 0xdc)? == 42,
+        u32_at(&root, 0xac)? == 103,
         "source camera root layout differs"
     );
     let mut records = Vec::with_capacity(4);
-    for index in 0..4 {
+    for (index, pointer) in links.parameters.iter().enumerate() {
+        ensure!(*pointer != 0, "source camera parameter link is empty");
         let address = source.required(camera, index * 4)?;
         ensure!(address != camera, "source camera record aliases its root");
-        let bytes = source.bytes(address, 168)?;
-        let expected_tail = if index == 3 { 14 } else { 42 };
-        ensure!(
-            u32_at(&bytes, 0xa4)? == expected_tail,
-            "source camera record {index} layout differs"
-        );
+        let bytes = source.bytes(address, 164)?;
         records.push(SourceCameraRecordObservation {
             locator: format!("live:{address:08x}"),
             words: bytes
@@ -1899,8 +1913,13 @@ fn camera_records_at(
                 .collect(),
         });
     }
+    let target_actor = source
+        .pointer(camera, 16)?
+        .map(|node| actor_at_node(source, node, &[], |a| format!("live:{a:08x}")))
+        .transpose()?;
     Ok(SourceCameraRecordsObservation {
         root_locator: format!("live:{camera:08x}"),
+        target_actor,
         root_words: root
             .as_chunks::<4>()
             .0
@@ -2181,7 +2200,7 @@ pub struct SceneTailObservation {
 /// Source-local locators are evidence within this capture only. Equal values do
 /// not merge locators; reuse of an address across captures requires generation
 /// and replacement evidence from the controller, which is not supplied here.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ActorObservation {
     pub node: String,
@@ -2209,8 +2228,8 @@ pub struct ActiveCameraObservation {
     /// Camera origin in OpenSpace engine coordinates, decoded from its view
     /// basis and translation using `position = -basis * translation`.
     pub position_source: [f32; 3],
-    /// Normalized third row of the source view basis, pointing from camera
-    /// toward the scene in OpenSpace engine coordinates.
+    /// Normalized inverse-view positive Z axis, pointing from camera toward
+    /// the scene in OpenSpace engine coordinates.
     pub forward_source: [f32; 3],
     pub pose_words: [u32; 22],
     pub horizontal_fov: f32,
@@ -2229,6 +2248,10 @@ pub struct ActiveCameraObservation {
 #[serde(deny_unknown_fields)]
 pub struct SourceCameraRecordsObservation {
     pub root_locator: String,
+    /// Checked camera target actor and pose from this same stopped-byte
+    /// capture. This is transient runtime state, never a persisted binding.
+    #[serde(default)]
+    pub target_actor: Option<ActorObservation>,
     pub root_words: Vec<u32>,
     pub records: Vec<SourceCameraRecordObservation>,
 }

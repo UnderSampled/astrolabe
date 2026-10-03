@@ -55,7 +55,11 @@ mod transform;
 pub use transform::{read_transform, write_transform};
 
 mod animation_export;
+mod camera;
 mod character;
+pub use camera::{read_camera_parameters, write_camera_parameters};
+#[cfg(test)]
+mod camera_probe;
 mod character_collision;
 mod character_collision_export;
 pub use character_collision_export::{

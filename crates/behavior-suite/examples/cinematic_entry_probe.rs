@@ -12,10 +12,11 @@ use std::{
 fn main() -> Result<()> {
     let mut arguments = std::env::args_os().skip(1);
     let root = PathBuf::from(arguments.next().context("evidence directory")?);
-    let source_only = match arguments.next() {
-        None => false,
-        Some(flag) if flag == "--source-only" => true,
-        Some(_) => anyhow::bail!("expected optional --source-only"),
+    let (source_only, camera_records) = match arguments.next() {
+        None => (false, false),
+        Some(flag) if flag == "--source-only" => (true, false),
+        Some(flag) if flag == "--camera-records" => (false, true),
+        Some(_) => anyhow::bail!("expected optional --source-only or --camera-records"),
     };
     ensure!(arguments.next().is_none(), "unexpected extra arguments");
     fs::create_dir_all(&root)?;
@@ -66,9 +67,27 @@ fn main() -> Result<()> {
         let mut first_scene_screenshot = None;
         for _ in 0..80 {
             let state = game.state()?;
+            ensure!(
+                state["phase"] != 9 || state["level"] == "manoir",
+                "New Game reached an unexpected level: {state}"
+            );
             let main_actor = if state["phase"] == 9 {
                 Some(
                     match game.inspect_main_actor_with_camera(&[0, 1, 2], Some(&[]), true) {
+                        Ok(value) => json!({"inspection":value}),
+                        Err(error) => json!({"error":format!("{error:#}")}),
+                    },
+                )
+            } else {
+                None
+            };
+            let camera = if camera_records && state["phase"] == 9 {
+                Some(
+                    match game.inspect_scene_camera(
+                        "manoir",
+                        [2, 2, 2],
+                        &[24, 26, 28, 29, 30, 31, 38, 39, 40, 41],
+                    ) {
                         Ok(value) => json!({"inspection":value}),
                         Err(error) => json!({"error":format!("{error:#}")}),
                     },
@@ -94,14 +113,26 @@ fn main() -> Result<()> {
             if state["phase"] == 9 && first_scene_screenshot.is_none() {
                 first_scene_screenshot = Some(game.screenshot()?);
             }
-            frames.push(json!({"elapsed_ms":start.elapsed().as_millis(),"state":state,"main_actor":main_actor,"gogoud":gogoud}));
+            frames.push(json!({"elapsed_ms":start.elapsed().as_millis(),"state":state,"main_actor":main_actor,"gogoud":gogoud,"camera":camera}));
             thread::sleep(Duration::from_millis(100));
         }
-        let report = json!({"scope":"original_new_game_first_in_engine_frames","video_policy":"prepared base PlayVideo=0 copied unchanged; AVI and full intro path untested","capture_limit":"actor and viewport inspections are separate stopped-byte observations; no synchronized completed-update claim","source_routes":ways,"before":before,"first_input":first,"first_scene_screenshot":first_scene_screenshot,"frames":frames,"ending_screenshot":game.screenshot()?});
+        let camera_count = frames
+            .iter()
+            .filter(|frame| frame["camera"]["inspection"].is_object())
+            .count();
+        let camera_errors = frames
+            .iter()
+            .filter(|frame| frame["camera"]["error"].is_string())
+            .count();
+        let report = json!({"scope":if camera_records {"original_new_game_opening_camera_records"} else {"original_new_game_first_in_engine_frames"},"video_policy":"prepared base PlayVideo=0 copied unchanged; AVI and full intro path untested","capture_limit":"each selected actor inspection is a separate stopped-byte capture; camera actor/linked records/active viewport share one pause; no synchronized completed-update/render claim","camera_records_requested":camera_records,"camera_capture_count":camera_count,"camera_error_count":camera_errors,"source_routes":ways,"before":before,"first_input":first,"first_scene_screenshot":first_scene_screenshot,"frames":frames,"ending_screenshot":game.screenshot()?});
         fs::write(
             root.join("report.json"),
             serde_json::to_vec_pretty(&report)?,
         )?;
+        ensure!(
+            !camera_records || camera_count > 0 && camera_errors == 0,
+            "camera record capture incomplete: {camera_count} captures, {camera_errors} errors; report retained"
+        );
         Ok(())
     })();
     let cleanup = game.close();

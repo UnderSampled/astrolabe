@@ -1,4 +1,4 @@
-# Astrolabe support, interface 41
+# Astrolabe support, interface 42
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -127,8 +127,12 @@ cleanup parity remain open.
 The arrow's `Camera_ChangeTargetedPerso(StdCamer, MainActor)` call is compiled.
 The level exposes source actor node paths; the native camera API uses the
 compiled operand identity to find the saved actor's `SourceCamera` child and
-store the requested target reference. A source camera link adds that native
-`Camera3D` to the saved actor scene. Follow motion, viewport selection,
+store the requested target reference. A source camera component adds that native
+`Camera3D` to the saved actor scene, with the initial parameter set's horizontal
+FoV, source renderer clip planes and a half-turn matching the source viewing
+axis. Four framing parameter sets and their unknown scalar fields persist in
+Rete schema 37. Only projection is exported at this checkpoint; no motion mode
+is accepted yet. Follow motion, initial target binding, viewport selection,
 projection fields and the procedure's other reset fields remain unsupported;
 target assignment alone does not change the view.
 The rooted `StdCamer` now keeps its original model-437 Brain. Its source

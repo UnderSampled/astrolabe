@@ -29,6 +29,29 @@ disabled. This is component acceptance with other Brains held; timing parity,
 per-actor sector filtering and the complete intro remain unverified.
 This is not a working full Godot intro yet.
 
+The next camera investigation corrected live forward decoding to inverse-view
+positive Z. Luna's fresh v3 capture passed with 69 camera observations and zero
+errors. Its camera actor and active viewport agree on position and the actor's
+local -Y viewing axis. Source framing now imports into the canonical Perso
+component and Rete schema 37: four parameter sets, source identities, explicit
+unknown scalar bytes, and renderer clipping. The saved native Camera3D exports
+that viewing axis, horizontal FoV and clip planes in support interface 42.
+Source byte reconstruction and deliberate framing edits pass. Luna's v5 selection
+passed the source/Rete camera cases (26/30 total), but four support/native cases
+failed because the bundled manifest still declared interface 41. Synchronizing
+that maintained file with Rust/README interface 42 preserved ownership safeguards;
+v6 passed all 22 Rust cases and four Python modules in 116.292 seconds. Saved
+native view axis, edited FoV, clipping and projection are accepted. The original
+v6 capture passed in 24.039 seconds with 69 camera observations and no errors.
+Its helper-actor targets and actor/look offsets explain every observed forward
+direction within 0.00003 source units. These first 14 seconds show fixed shots
+and cuts, not continuous motion. Source remained unchanged, cleanup was clean,
+and no GPU/device-loss markers were reported in assigned logs.
+Camera position updates, motion modes,
+initial target binding and viewport selection remain unsupported. This is not a
+native intro or follow-camera pass. Orrery's next checked capture includes the
+target actor from the same camera pause to resolve the opening's separate target.
+
 At Stephen's explicit request, Proc_AddWind is now a documented intentional
 no-op, with typed source/Rete round-trip support. Initialization can pass the
 call; nonzero drift and zero-reset physics remain technical debt. The following

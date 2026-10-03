@@ -172,7 +172,11 @@ impl<'a> Importer<'a> {
             configuration: config,
             initial_configuration: initial,
             object_types: types,
-            has_camera: self.session.pointer(perso, 20)?.is_some(),
+            camera: self
+                .session
+                .pointer(perso, 20)?
+                .map(|a| super::camera::import(self.session, a))
+                .transpose()?,
             routes: super::way::import_bindings(self.session, perso, &path, types, self.result)?,
             brain: None,
             collisions: self

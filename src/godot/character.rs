@@ -359,13 +359,19 @@ pub(super) fn export_perso(
         project.builder,
         "    {name}.initial_state = {state}\n    {name}.current_state = {state}\n    if {state} >= 0:\n        apply_initial_pose({name}, {name}.get_node(\"AnimationPlayer\").get_animation(\"state_{state}\"))"
     )?;
-    if perso.has_camera {
+    if let Some(camera) = &perso.camera {
+        let framing = &camera.parameters[1];
         writeln!(
             project.builder,
-            "    var {name}_camera = Camera3D.new()\n    {name}_camera.name = \"SourceCamera\"\n    {name}_camera.set_script(load(\"res://addons/astrolabe/camera/source_camera.gd\"))\n    {name}.add_child({name}_camera)\n    {name}_camera.owner = {name}"
+            "    var {name}_camera = Camera3D.new()\n    {name}_camera.name = \"SourceCamera\"\n    {name}_camera.set_script(load(\"res://addons/astrolabe/camera/source_camera.gd\"))\n    {name}_camera.rotation.y = PI\n    {name}_camera.keep_aspect = Camera3D.KEEP_WIDTH\n    {name}_camera.fov = {}\n    {name}_camera.near = {}\n    {name}_camera.far = {}\n    {name}.add_child({name}_camera)\n    {name}_camera.owner = {name}",
+            framing.horizontal_fov.to_degrees(),
+            camera.clip_planes[0],
+            camera.clip_planes[1]
         )?;
+        // Source camera local -Y becomes the converted actor's +Z. Godot's
+        // camera looks along local -Z, hence the child half-turn above.
         project.diagnostic(format!(
-            "{}: source camera association exported; camera parameters, follow, viewport selection and procedure reset fields remain unsupported",
+            "{}: source camera horizontal FoV, clipping and viewing axis exported; initial target binding, follow, viewport selection and procedure reset fields remain unsupported",
             perso.path
         ));
     }

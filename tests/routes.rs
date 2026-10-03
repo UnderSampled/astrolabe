@@ -233,7 +233,7 @@ fn compiled_routes_use_native_contact_and_actor_local_progress() -> Result<()> {
         configuration: None,
         initial_configuration: None,
         object_types: [0; 3],
-        has_camera: false,
+        camera: None,
         routes: vec![RouteBinding {
             route: Some(AssetRef::from_path(route.path.clone())),
             progress: [0, 0, 255, 255],

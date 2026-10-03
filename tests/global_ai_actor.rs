@@ -5,7 +5,7 @@ use astrolabe::{
         AssetRef, Selection,
         ai::{AiModel, DesignerValue, Expression, SourceRole, Statement},
         character::Perso,
-        io::Load,
+        io::{Load, Save},
         scene::Scene,
     },
     openspace, rete,
@@ -86,7 +86,16 @@ fn rooted_source_camera_association_survives_rete() -> Result<()> {
     let camera_ref = AssetRef::<Perso>::new("level:/persos/world/0/2")?;
     let camera = imported.load(&camera_ref)?;
     ensure!(camera.name == "StdCamer", "source camera actor differs");
-    ensure!(camera.has_camera, "source camera association was dropped");
+    ensure!(
+        camera.camera.is_some(),
+        "source camera association was dropped"
+    );
+    let framing = &camera.camera.as_ref().unwrap().parameters[1];
+    ensure!(framing.horizontal_fov == 1.5, "source camera FoV differs");
+    ensure!(
+        framing.distance == [3.5, 4.] && framing.yaw == 0. && framing.pitch == 0.3,
+        "source camera framing differs"
+    );
     let brain = camera
         .brain
         .as_ref()
@@ -145,14 +154,14 @@ fn rooted_source_camera_association_survives_rete() -> Result<()> {
     );
     let ordinary_ref = AssetRef::<Perso>::new("level:/persos/world/0/1")?;
     let ordinary = imported.load(&ordinary_ref)?;
-    ensure!(!ordinary.has_camera, "ordinary actor gained a camera");
+    ensure!(!ordinary.camera.is_some(), "ordinary actor gained a camera");
 
     let temp = tempfile::tempdir()?;
     astrolabe::app::save_rete(&mut imported, temp.path())?;
     let (mut store, _) = rete::Store::open(temp.path())?;
     ensure!(
-        store.load(&camera_ref)?.has_camera,
-        "Rete lost source camera association"
+        store.load(&camera_ref)?.camera == camera.camera,
+        "Rete changed source camera framing"
     );
     ensure!(
         *store.load(&brain.model)? == *model,
@@ -161,6 +170,13 @@ fn rooted_source_camera_association_survives_rete() -> Result<()> {
     ensure!(
         store.load(&camera_ref)?.brain == camera.brain,
         "Rete changed source camera Brain"
+    );
+    let mut edited = (*camera).clone();
+    edited.camera.as_mut().unwrap().parameters[1].horizontal_fov = 1.2;
+    store.save(&camera_ref, &edited)?;
+    ensure!(
+        *store.load(&camera_ref)? == edited,
+        "edited camera did not survive Rete reload"
     );
     Ok(())
 }
