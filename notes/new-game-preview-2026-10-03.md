@@ -149,3 +149,33 @@ scoped strict Clippy and six selection checks. Source stayed unchanged and all
 stages cleaned up without timeout or remaining children. Evidence:
 `TestResults/new-game-gogoud-source-preflight-v3-sol-20261003.json`. This does not
 replace the pending native Godot parser check.
+
+V3 passed all five early owned Godot parser checks and regenerated the manor in
+108.808 seconds. It stopped before the selected gameplay/save checks because the
+source digest changed during the Godot import. Total time was 110.657 seconds;
+cleanup completed without timeout or remaining processes. The fresh generated
+manor remains live; the previous full generated tree is additionally preserved
+as `output/archived-godot-manor-edits-20261003-pre-gogoud/moved-original-generated`.
+Evidence: `TestResults/new-game-preview-setup-v3-sol-20261003/result.json`.
+
+The exact digest change is one new 19-byte maintained-support sidecar,
+`godot/addons/astrolabe/character/route.gd.uid`. Excluding only that file reproduces
+the entire frozen v3 digest exactly; Git reports no tracked source change. The
+UID is now tracked and included in the support bundle, following the package's
+existing UID ownership. No source path or sidecar is excluded from the digest.
+The new generated receipt declares interface 44 and its original model 210
+contains both native reset/route calls. No further regeneration is required.
+The next fixed-Luna assignment selects the same bounded safeguards and normal
+opening/save smoke against that fresh output, with new v4 evidence. Full normal
+Gogoud behavior and rendered acceptance remain pending.
+
+The v4 source-only preflight passed in 70.751 seconds: formatting, scoped strict
+Clippy, locked offline release build (48.323 seconds), the existing support
+ownership unit test (one pass, 87 other library tests filtered), and six selection
+checks. Source remained unchanged; all stages cleaned up without timeout or
+remaining children. Evidence:
+`TestResults/new-game-gogoud-source-preflight-v4-sol-20261003.json`. The v4 native
+command is `python3 TestResults/run-new-game-preview-v4-sol-20261003.py`: a
+450-second outer budget containing the unchanged 420-second selection. It
+verifies all 4,679 generated owned-file hashes before launch and performs no
+regeneration or original-game launch.

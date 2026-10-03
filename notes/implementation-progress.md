@@ -30,6 +30,14 @@ V2 then stopped before regeneration at an observer-script inferred comparison
 declares its Boolean type, with adjacent inference reviewed. Corrected v3
 source-only checks passed in 2.401 seconds; Luna parser/regeneration and normal
 opening validation remain pending under fresh evidence paths.
+V3 subsequently passed all five native parsers and regenerated the manor
+(108.808 seconds), then stopped before gameplay on digest drift. The only change
+was Godot creating the missing 19-byte `route.gd.uid`; removing just that entry
+from the digest exactly reproduces the frozen source. The UID is tracked and
+bundled without weakening source protection. Fresh interface-44 outputs and
+compiled original Gogoud reset/route calls are present; the old complete output
+is archived reversibly. The next Luna run reuses that output for bounded normal
+opening/save validation, avoiding another conversion.
 
 2026-10-03 in-engine opening implementation checkpoint: the revised isolated
 New Game capture succeeded with 69 Hype and 69 Gogoud observations and no
