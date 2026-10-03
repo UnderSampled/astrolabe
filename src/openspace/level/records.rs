@@ -661,6 +661,76 @@ pub(super) struct PersoSectorWire {
     pub(super) sector_character_list: u32,
 }
 
+/// Hype FUN_0043e370 follows the actor's waypoint component at +0x20.
+/// This differs from Raymap's unimplemented later-engine MSWay parser.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct PersoWaysWire {
+    pub(super) prefix: [u8; 32],
+    pub(super) ways: u32,
+}
+/// FUN_00459270/00459290: a 12-byte intrusive list of actor-local ways.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct WayListWire {
+    pub(super) first: u32,
+    pub(super) last: u32,
+    pub(super) count: u32,
+}
+/// FUN_004591a0/00459250: shared route and actor-local progress bytes.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct WayBindingWire {
+    pub(super) next: u32,
+    pub(super) previous: u32,
+    pub(super) header: u32,
+    pub(super) route: u32,
+    pub(super) progress: [u8; 4],
+}
+/// WP_fnh_Way_Create and getters 00518f30..00518fc0 (12 bytes).
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct WayWire {
+    pub(super) waypoints: u32,
+    pub(super) links: u32,
+    pub(super) count: u8,
+    pub(super) current: u8,
+    pub(super) previous: u8,
+    pub(super) unknown: u8,
+}
+/// WP_fnuw_WayPoint_SizeOf is 28 bytes; Raymap only reads its first 24.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct WaypointWire {
+    pub(super) unknown: [u8; 4],
+    pub(super) position: [f32; 3],
+    pub(super) radius: f32,
+    pub(super) actor: u32,
+    pub(super) tail: [u8; 4],
+}
+/// WP_fnuw_Link_SizeOf and getters 00526170..00526250.
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct WayLinkWire {
+    pub(super) geometry: u32,
+    pub(super) dynamics: [u8; 52],
+    pub(super) connection: u32,
+    pub(super) dynamic_kind: u32,
+    pub(super) sample: u8,
+    pub(super) used: u8,
+    pub(super) unknown: [u8; 2],
+    pub(super) length: f32,
+}
+
+/// Engine StaticLine object: waypoint and its resolved position reference.
+/// 00530e50 allocates eight bytes; 00530ff0 populates the second pointer.
+#[derive(Debug, BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct StaticLineWire {
+    pub waypoint: u32,
+    pub position: u32,
+}
+
 /// The selected AI records are shared by file import and bounded relocated
 /// memory inspection. Keeping their declarations here prevents the live view
 /// from growing a second, subtly different decoder.

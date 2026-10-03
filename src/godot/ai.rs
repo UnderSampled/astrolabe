@@ -1259,17 +1259,58 @@ fn statements(
                     value
                 )?;
             }
-            Statement::SetVectorSpeed(value) | Statement::SetImpulse(value) => {
+            Statement::SetVectorSpeed(value)
+            | Statement::SetImpulse(value)
+            | Statement::AddWind(value) => {
                 let value = guarded_expression(out, value, model, depth, flow)?;
-                let method = if matches!(statement, Statement::SetVectorSpeed(_)) {
-                    "source_set_vector_speed"
-                } else {
-                    "source_set_impulse"
+                let method = match statement {
+                    Statement::SetVectorSpeed(_) => "source_set_vector_speed",
+                    Statement::AddWind(_) => "source_add_wind",
+                    _ => "source_set_impulse",
                 };
                 writeln!(out, "{pad}character().{method}({value})")?;
             }
             Statement::GoRelative => {
                 writeln!(out, "{pad}character().source_go_relative()")?;
+            }
+            Statement::ResetRoute(slot) => {
+                writeln!(
+                    out,
+                    "{pad}if not character().source_reset_route({slot}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} requires actor-local route slot {slot}",
+                        model.path
+                    ))
+                )?;
+            }
+            Statement::GoOverRoute(slot) => {
+                let id = flow.local;
+                flow.local += 1;
+                if flow.rule {
+                    writeln!(
+                        out,
+                        "{pad}{group}_rule_claimed = true\n{pad}{group}_action_revision += 1"
+                    )?;
+                }
+                writeln!(
+                    out,
+                    "{pad}while active_{group}(token):\n{pad}    var route_revision_{id} := {group}_action_revision\n{pad}    var route_ticket_{id} := character().source_begin_route({slot})\n{pad}    if route_ticket_{id} < 0:\n{pad}        fail_unsupported({})\n{pad}        {exit}\n{pad}    while active_{group}(token) and route_revision_{id} == {group}_action_revision and not character().source_route_finished(route_ticket_{id}):",
+                    quoted(&format!(
+                        "{} requires supported native route slot {slot}",
+                        model.path
+                    ))
+                )?;
+                if flow.rule {
+                    writeln!(out, "{pad}        {group}_rule_claimed = true")?;
+                }
+                if group == "reflex" {
+                    writeln!(out, "{pad}        reflex_controls_tick = true")?;
+                }
+                writeln!(
+                    out,
+                    "{pad}        await {}\n{pad}    character().source_cancel_route(route_ticket_{id})\n{pad}    if not active_{group}(token): {exit}\n{pad}    if route_revision_{id} == {group}_action_revision: break",
+                    flow.tick()
+                )?;
             }
             Statement::KillSelf => {
                 writeln!(out, "{pad}character().source_kill()\n{pad}{exit}")?;

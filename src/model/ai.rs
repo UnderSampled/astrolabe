@@ -170,6 +170,12 @@ pub enum Statement {
     /// Source motion requests retain their order in the AI schedule. The
     /// character component owns their runtime effects.
     SetVectorSpeed(Expression),
+    /// Proc_AddWind assigns an actor-local drift vector in Hype. The native
+    /// target currently accepts this call as an explicitly deferred no-op.
+    AddWind(Expression),
+    /// Hype category-23 operands are actor-local route slot indices.
+    ResetRoute(u8),
+    GoOverRoute(u8),
     GoRelative,
     /// Proc_KillPerso(Me): remove the current generated Perso.
     KillSelf,
@@ -727,6 +733,7 @@ impl AiModel {
                     }
                     | Statement::ChangeSighting(value)
                     | Statement::SetVectorSpeed(value)
+                    | Statement::AddWind(value)
                     | Statement::SetImpulse(value) => expression(value, out),
                     Statement::ArrayAssign {
                         array,
@@ -987,6 +994,7 @@ impl Script {
                     }
                     | Statement::ChangeSighting(value)
                     | Statement::SetVectorSpeed(value)
+                    | Statement::AddWind(value)
                     | Statement::SetImpulse(value)
                     | Statement::Wait {
                         milliseconds: value,
@@ -1189,6 +1197,7 @@ impl Script {
                         expression(degrees_per_second, variables, depth + 1, count)?
                     }
                     Statement::SetVectorSpeed(value)
+                    | Statement::AddWind(value)
                     | Statement::SetImpulse(value)
                     | Statement::ChangeSighting(value) => {
                         expression(value, variables, depth + 1, count)?

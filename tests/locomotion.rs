@@ -230,6 +230,7 @@ fn native_motion_survives_rete_and_drives_character_contact() -> Result<()> {
         initial_configuration: None,
         object_types: [0; 3],
         has_camera: false,
+        routes: vec![],
         brain: Some(Brain {
             model: AssetRef::from_path(ai.path.clone()),
             normal: Some(BehaviorSelection {

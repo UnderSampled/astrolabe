@@ -83,6 +83,75 @@
   "tests": [
     {
       "binary": "astrolabe",
+      "test": "openspace::level::way::tests::source_gogoud_opening_route_and_records",
+      "areas": [
+        "source",
+        "scene",
+        "ai"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "supplied Hype en manor actor-local opening route; source evidence only",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::routes",
+      "test": "exported_gogoud_opening_walk_reaches_native_action_sequence",
+      "areas": [
+        "source",
+        "scene",
+        "ai",
+        "movement",
+        "rete"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc",
+        "godot"
+      ],
+      "fixture": "Hype en manor SNA/Gogoud slot 6, native animation and contact; other Brains held",
+      "timeout_seconds": 150,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::routes",
+      "test": "compiled_routes_use_native_contact_and_actor_local_progress",
+      "areas": [
+        "ai",
+        "movement",
+        "scene",
+        "rete"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "exported synthetic actor and edited Rete waypoint; intentional wind no-op",
+      "timeout_seconds": 60,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::wind_and_actor_local_route_calls_reconstruct_source_nodes",
+      "areas": [
+        "source",
+        "ai"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic Hype wind/reset/GoOverWay source nodes",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "godot::material::tests::palette_key_uses_entry_identity_and_preserves_opaque_duplicate_rgb",
       "areas": [
         "media"

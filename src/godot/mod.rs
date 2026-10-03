@@ -11,6 +11,7 @@ mod material;
 mod project;
 mod publication;
 mod resources;
+mod route;
 mod scene;
 pub mod support;
 pub use engine::{gameplay_headless, run_godot, run_godot_gameplay};

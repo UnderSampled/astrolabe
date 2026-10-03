@@ -2,6 +2,7 @@
 use super::ai::AiModel;
 use super::environment::{Environment, Fog, PhysicalEnvironment, VisualEnvironment};
 use super::mechanics::Mechanics;
+use super::route::{Route, Waypoint};
 use super::{
     AssetPath, AssetRef,
     io::{Content, Load},
@@ -71,6 +72,8 @@ pub trait ContentSource:
     + Load<Family>
     + Load<ObjectList>
     + Load<Perso>
+    + Load<Route>
+    + Load<Waypoint>
     + Load<AiModel>
     + Load<Collision>
     + Load<CollisionProfile>
@@ -99,6 +102,8 @@ impl<T> ContentSource for T where
         + Load<Family>
         + Load<ObjectList>
         + Load<Perso>
+        + Load<Route>
+        + Load<Waypoint>
         + Load<AiModel>
         + Load<Collision>
         + Load<CollisionProfile>
@@ -138,6 +143,8 @@ pub enum Asset {
     Family(Arc<Family>),
     ObjectList(Arc<ObjectList>),
     Perso(Arc<Perso>),
+    Route(Arc<Route>),
+    Waypoint(Arc<Waypoint>),
     Collision(Arc<Collision>),
     CollisionProfile(Arc<CollisionProfile>),
 }
@@ -171,6 +178,8 @@ impl Asset {
             Family::KIND => Self::Family(load(source, &root.reference)?),
             ObjectList::KIND => Self::ObjectList(load(source, &root.reference)?),
             Perso::KIND => Self::Perso(load(source, &root.reference)?),
+            Route::KIND => Self::Route(load(source, &root.reference)?),
+            Waypoint::KIND => Self::Waypoint(load(source, &root.reference)?),
             CollisionProfile::KIND => Self::CollisionProfile(load(source, &root.reference)?),
             Collision::KIND => Self::Collision(load(source, &root.reference)?),
             Scene::KIND => Self::Scene(load(source, &root.reference)?),

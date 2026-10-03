@@ -1,5 +1,42 @@
 # Rust implementation evidence
 
+2026-10-03 in-engine opening implementation checkpoint: the revised isolated
+New Game capture succeeded with 69 Hype and 69 Gogoud observations and no
+inspection errors. Sol inspected its statue and Gogoud shots. Typed route and
+shared waypoint assets now import through the canonical content interface and
+persist in Rete schema 36. Godot support interface 41 exports fixed StaticLine
+geometry as native Curve3D resources and compiles actor-local reset/GoOverWay
+into native steering, contact and cancellable progress. Luna's first native
+selection passed 31/32 cases; the actual Gogoud sequence failed, remaining in
+action 0 against an incorrectly exported fence. The native synthetic route,
+source reconstruction and all safeguards passed. Investigation found that the
+fence belongs to an unreferenced virtual display sector; original contact visits
+the current physical sector and its collision neighbors. Conversion now retains
+that fence's shapes with no collision layer, while preserving contact in explicitly
+referenced virtual sectors. Luna's next selection passed 33/34, including the
+corrected synthetic contact and native scene checks. The actual-actor harness
+failed parsing before gameplay: its new contact reporter passed a shape Object
+where Godot requires a shape index. That call is corrected; syntax now precedes
+expensive manor setup. The first syntax preflight failed on two default Godot
+log-write errors outside the writable workspace; no parser pass was claimed.
+The preflight and Rust case now explicitly own their engine-log paths and retain
+fatal error detection. A corrected syntax-first 22-case check with all mandatory
+safeguards passed 22/22 in 173.636 seconds, with four Python checks, unchanged
+source and complete cleanup. The actual converted Gogoud walks with native
+contact, reaches actions [0,26,24,23], and ends 0.0551 source units from the
+original observed position. The display fence retains its shapes with collision
+disabled. This is component acceptance with other Brains held; timing parity,
+per-actor sector filtering and the complete intro remain unverified.
+This is not a working full Godot intro yet.
+
+At Stephen's explicit request, Proc_AddWind is now a documented intentional
+no-op, with typed source/Rete round-trip support. Initialization can pass the
+call; nonzero drift and zero-reset physics remain technical debt. The following
+particle-generator assignment, source camera update and later dialogue remain
+explicit gates. The prior frozen 22/22 source-inspector selection predates these
+native changes. See the [opening checkpoint](cinematic-opening-source-2026-10-03.md)
+for source evidence, changes, pending verification and ownership decisions.
+
 2026-09-27 save checkpoint: Orrery inspection now retains complete slot paths,
 unknown record tails and explicitly selected semantic annotations. A source-only
 behavior-suite case twice proved current mana 30/50 → `druidik` 50/50 → normal

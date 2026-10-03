@@ -6,6 +6,11 @@
 
 ## Common records
 
+The [in-engine manor opening checkpoint](cinematic-opening-source-2026-10-03.md)
+records typed/shared route conversion, the original opening actor/camera capture,
+the validated native Gogoud component, explicitly deferred wind and remaining
+startup blockers.
+
 The [Crossbow fixes and evidence](crossbow-fixes-2026-10-02.md) continue the
 October 1 handoff with fixture recovery, typed original contact identity,
 native reaction-zone contact and spent-ammunition reload checks.

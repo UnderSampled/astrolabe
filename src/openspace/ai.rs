@@ -321,6 +321,20 @@ impl Parser<'_> {
                     degrees_per_second: self.expression(indent + 1)?,
                 },
                 (4, 29) => Statement::SetVectorSpeed(self.expression(indent + 1)?),
+                (4, 30) => Statement::AddWind(self.expression(indent + 1)?),
+                (4, 220) | (5, 27) => {
+                    let (_, slot) = self.take(indent + 1)?;
+                    ensure!(
+                        slot.kind == 23,
+                        "route call lacks local slot operand at node {at}"
+                    );
+                    let slot: u8 = slot.parameter.try_into()?;
+                    if kind == 4 {
+                        Statement::ResetRoute(slot)
+                    } else {
+                        Statement::GoOverRoute(slot)
+                    }
+                }
                 (4, 34) => Statement::GoRelative,
                 (4, 226) => {
                     let (_, actor) = self.take(indent + 1)?;
@@ -993,6 +1007,18 @@ impl Writer<'_> {
                 Statement::SetVectorSpeed(value) => {
                     self.node(4, 29, indent);
                     self.expression(value, indent + 1)?;
+                }
+                Statement::AddWind(value) => {
+                    self.node(4, 30, indent);
+                    self.expression(value, indent + 1)?;
+                }
+                Statement::ResetRoute(slot) | Statement::GoOverRoute(slot) => {
+                    if matches!(s, Statement::ResetRoute(_)) {
+                        self.node(4, 220, indent);
+                    } else {
+                        self.node(5, 27, indent);
+                    }
+                    self.node(23, u32::from(*slot), indent + 1);
                 }
                 Statement::GoRelative => self.node(4, 34, indent),
                 Statement::KillSelf => {
@@ -2064,6 +2090,39 @@ mod partial_tests {
         assert!(matches!(
             &script.statements[4],
             Statement::JumpWithoutAddingSpeed
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn wind_and_actor_local_route_calls_reconstruct_source_nodes() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (4, 30, 1),
+            (16, 0, 2),
+            (13, 0, 3),
+            (13, 0, 3),
+            (13, 0, 3),
+            (4, 30, 1),
+            (16, 0, 2),
+            (13, 2.0_f32.to_bits(), 3),
+            (13, 0, 3),
+            (13, 0, 3),
+            (4, 220, 1),
+            (23, 0, 2),
+            (5, 27, 1),
+            (23, 6, 2),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            script.statements.as_slice(),
+            [
+                Statement::AddWind(Expression::Vector(_)),
+                Statement::AddWind(Expression::Vector(_)),
+                Statement::ResetRoute(0),
+                Statement::GoOverRoute(6)
+            ]
         ));
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())

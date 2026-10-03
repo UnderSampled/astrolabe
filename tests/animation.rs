@@ -471,6 +471,7 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
         initial_configuration: None,
         object_types: [0; 3],
         has_camera: false,
+        routes: vec![],
         brain: None,
         collisions: None,
     };

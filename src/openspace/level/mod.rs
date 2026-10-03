@@ -12,6 +12,10 @@ pub mod live;
 mod records;
 #[cfg(test)]
 mod reference_tests;
+mod way;
+pub use way::{
+    ActorWayInspection, WayInspection, WayLinkInspection, WaypointInspection, inspect_actor_ways,
+};
 mod save_join;
 mod scene;
 mod session;

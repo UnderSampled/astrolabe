@@ -44,6 +44,12 @@ pub fn export<R: ContentSource>(
             | Asset::Perso(_) => {
                 anyhow::bail!("character content export requires its owning scene")
             }
+            Asset::Route(route) => {
+                super::route::export_route(&mut project, source, &route)?;
+            }
+            Asset::Waypoint(_) => {
+                anyhow::bail!("waypoint export requires its owning route");
+            }
             Asset::Collision(_) => {
                 anyhow::bail!("collision export requires its owning scene")
             }

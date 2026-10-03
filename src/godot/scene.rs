@@ -41,6 +41,18 @@ impl Project {
         self.scene_environment(scene, source, &scene_id)?;
         let physical_environment = self.scene_physical_environment(scene, source, &scene_id)?;
         let mut names: BTreeMap<String, String> = BTreeMap::new();
+        // Source contact visits the actor's physical sector and its explicit
+        // collision neighbors (00464570). Virtual display sectors that no
+        // physical sector references must not become global Godot blockers.
+        // Keep their native shapes for inspection, with no collision layer.
+        let collision_sectors: BTreeSet<_> = scene
+            .nodes
+            .iter()
+            .filter_map(|node| node.sector.as_ref().map(|sector| (node, sector)))
+            .filter(|(_, sector)| sector.virtual_sector == 0)
+            .flat_map(|(node, sector)| std::iter::once(&node.id).chain(&sector.collision))
+            .collect();
+        let mut contact_enabled: BTreeMap<String, bool> = BTreeMap::new();
         let mut lights = std::collections::BTreeSet::new();
         for node in &scene.nodes {
             for reference in node.light.iter().chain(
@@ -56,6 +68,15 @@ impl Project {
             }
         }
         for (i, node) in scene.nodes.iter().enumerate() {
+            let contact = if node.sector.is_some() {
+                collision_sectors.contains(&node.id)
+            } else {
+                node.parent
+                    .as_ref()
+                    .map(|parent| contact_enabled[parent])
+                    .unwrap_or(true)
+            };
+            contact_enabled.insert(node.id.clone(), contact);
             let name = format!("{scene_id}_node_{i}");
             let parent = node
                 .parent
@@ -121,7 +142,7 @@ impl Project {
             if let Some(reference) = &node.collision {
                 let collision = source.load(reference)?;
                 collision.validate_reference(&reference.path)?;
-                self.collision_nodes(&collision, source, &name, &scene_id)?;
+                self.collision_nodes(&collision, source, &name, &scene_id, contact)?;
             }
             names.insert(node.id.clone(), name);
         }
@@ -219,6 +240,15 @@ impl Project {
             };
             let perso = source.load(reference)?;
             let Some(brain) = &perso.brain else { continue };
+            if !perso.routes.is_empty()
+                && let Some(physical) = &physical_environment
+            {
+                let character = format!("{}_character", names[&node.id]);
+                writeln!(
+                    self.builder,
+                    "    {scene_id}.set_editable_instance({character}, true)\n    {character}.physical_environment = {physical}"
+                )?;
+            }
             let model = source.load(&brain.model)?;
             let field_writes = model.actor_field_writes();
             for (i, target) in model.actor_field_targets().iter().enumerate() {

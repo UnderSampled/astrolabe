@@ -169,6 +169,12 @@ pub fn import_scene(game: &Path, selection: Selection) -> Result<Imported> {
     for asset in scene.persos {
         imported.put(&AssetRef::from_path(asset.path.clone()), asset, false)?;
     }
+    for asset in scene.routes {
+        imported.put(&AssetRef::from_path(asset.path.clone()), asset, false)?;
+    }
+    for asset in scene.waypoints {
+        imported.put(&AssetRef::from_path(asset.path.clone()), asset, false)?;
+    }
     for asset in scene.ai_models {
         imported.put(&AssetRef::from_path(asset.path.clone()), asset, false)?;
     }

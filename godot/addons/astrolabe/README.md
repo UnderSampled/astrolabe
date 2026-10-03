@@ -1,4 +1,4 @@
-# Astrolabe support, interface 34
+# Astrolabe support, interface 41
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -11,6 +11,12 @@ scene properties. Advanced OpenSpace sprite orientation/UV modes remain partial.
 `scene/sector_boundary.gd` offers segment intersection with persisted triangle
 boundaries. Its saved ArrayMesh is only a hidden inspection overlay; it does not
 implement sector activation or sound propagation.
+Static contact conversion uses the physical sectors and their explicit collision
+neighbors. Shapes under unreferenced virtual display sectors remain in the saved
+scene with collision layer/mask zero; their visible meshes remain present. Virtual
+sectors explicitly listed as collision neighbors still provide native contact.
+This excludes geometry that no source physical-sector query visits; native
+per-actor sector filtering and dynamic sector activation remain pending.
 
 Source checkout support is maintained through version control. Adopted projects
 update it explicitly with `astrolabe update-godot-support PROJECT`. Content
@@ -59,6 +65,24 @@ The saved level enables motion for its main actor. When no custom gravity is
 supplied, active motion uses the Godot project's default gravity; that value
 is provisional until the original manor trajectory is measured.
 Other collision purposes and moving point/triangle shapes remain diagnosed.
+
+`source_add_wind(Vector3)` is an **intentional no-op**, explicitly requested for
+the opening implementation. The compiler still evaluates its typed vector and
+preserves procedure 30 through OpenSpace and Rete. Hype's misleadingly named
+`Proc_AddWind` assigns actor-local world-axis drift, which callback `00589bfa`
+adds to calculated linear velocity; zero clears that drift. Neither nonzero
+wind nor resetting prior drift has physics parity here. Follow-up: add a separate
+actor drift property, map its units and consumers, compose it with native velocity
+without accumulation, and test nonzero assignment/overwrite/zero reset with contact.
+
+`character/route.gd` holds a saved native `Curve3D`, arrival radii and loop closure.
+Shared source waypoints remain shared useful assets; conversion resolves their
+positions into the native curve. `source_reset_route(slot)` and the compiled
+`GoOverWay` coroutine use actor-local progress and cancellable native steering.
+Animation supplies speed and action mechanics limits; `CharacterBody3D` resolves
+contact. Fixed StaticLine routes with dynamic kind zero are supported. Curved,
+dynamic and actor-relative routes are retained and fail explicitly if called.
+No source samples, dynamics records or route interpreter run in the port.
 
 `request_action(id, restart)` selects compiled family transitions, prohibited
 destinations, repeat counts and next states. A repeated request preserves the

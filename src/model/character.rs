@@ -107,6 +107,8 @@ pub struct Perso {
     /// A source camera component is linked from this actor. Its Hype payload
     /// remains unpromoted; this preserves the native camera role for export.
     pub has_camera: bool,
+    /// Category-23 AI operands address these local slots, including empty ones.
+    pub routes: Vec<super::route::RouteBinding>,
     pub brain: Option<super::ai::Brain>,
     pub collisions: Option<CharacterCollisions>,
 }
@@ -289,6 +291,14 @@ impl Content for Perso {
         Some(&self.path)
     }
     fn validate(&self) -> Result<()> {
+        ensure!(self.routes.len() <= 256, "too many actor-local route slots");
+        ensure!(
+            self.routes
+                .iter()
+                .filter_map(|b| b.route.as_ref())
+                .all(|r| r.path.member().is_none()),
+            "route binding must identify its asset"
+        );
         if let Some(collisions) = &self.collisions {
             collisions.validate()?;
         }

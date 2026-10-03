@@ -369,6 +369,27 @@ pub(super) fn export_perso(
             perso.path
         ));
     }
+    let mut routes = Vec::new();
+    let mut progress = Vec::new();
+    for binding in &perso.routes {
+        routes.push(if let Some(reference) = &binding.route {
+            let route = source.load(reference)?;
+            route.validate_reference(&reference.path)?;
+            let path = super::route::export_route(project, source, &route)?;
+            format!("load({})", quoted(&format!("res://{path}")))
+        } else {
+            "null".into()
+        });
+        progress.push(binding.progress[0].to_string());
+    }
+    if !routes.is_empty() {
+        writeln!(
+            project.builder,
+            "    {name}.source_routes.assign([{}])\n    {name}.source_route_points = PackedInt32Array([{}])",
+            routes.join(", "),
+            progress.join(", ")
+        )?;
+    }
     super::ai::component(project, source, perso, &name, written)?;
     writeln!(
         project.builder,

@@ -32,6 +32,12 @@ var source_impulse: Vector3 = Vector3.ZERO
 var source_relative_motion: bool = false
 var source_airborne: bool = false
 var source_particle_generator_enabled: bool = false
+@export var source_routes: Array[Resource] = []
+@export var source_route_points: PackedInt32Array = PackedInt32Array()
+var source_route_slot: int = -1
+var source_route_revision: int = 0
+var source_route_active: bool = false
+var source_route_holds_motion: bool = false
 var source_generated_object_count: int = 0
 ## A generated actor waits for the native animation's release cue.
 var generated_object: Node3D
@@ -70,6 +76,12 @@ func _ready() -> void:
         source_magick = SOURCE_MAGICK.new()
     if source_laser_pointer == null:
         source_laser_pointer = SOURCE_LASER_POINTER.new()
+    if motion_enabled: _configure_motion()
+    # Selection only; the saved initial pose is usable without this callback.
+    if autoplay and initial_state >= 0:
+        select_state(initial_state)
+
+func _configure_motion() -> void:
     if motion_enabled:
         # The source actor rounds shallow contacts at finite wall edges.
         # Godot's default 15-degree minimum stops Hype at the manoir wall end.
@@ -83,10 +95,6 @@ func _ready() -> void:
         # The first gameplay slice uses Godot's project gravity until the
         # source level's acceleration is measured against a live trajectory.
         gravity = Vector3.DOWN * float(ProjectSettings.get_setting("physics/3d/default_gravity"))
-    # Selection only; the saved initial pose is usable without this callback.
-    if autoplay and initial_state >= 0:
-        select_state(initial_state)
-
 func _process(delta: float) -> void:
     if not motion_enabled: advance(delta)
 
@@ -96,6 +104,9 @@ func _physics_process(delta: float) -> void:
     # The animation never changes this body's position. Apply its local motion
     # once, through native contact resolution. Forces/impulses persist independently.
     var motion := global_basis.orthonormalized() * root_motion_displacement / delta
+    if source_route_holds_motion: motion = Vector3.ZERO
+    if source_route_active:
+        motion = _source_route_motion(delta)
     if source_relative_motion:
         external_velocity = _source_relative_vector(source_vector_speed)
         source_relative_motion = false
@@ -139,6 +150,92 @@ func _source_relative_vector(value: Vector3) -> Vector3:
 func source_set_vector_speed(value: Vector3) -> void:
     assert(value.is_finite())
     source_vector_speed = value
+
+## Deliberately deferred no-op, authorized for the opening slice. Hype assigns
+## this actor's world-space drift, then adds it to calculated linear velocity
+## (00540782 / 00589bfa). Nonzero wind and resetting prior drift are not ported.
+func source_add_wind(value: Vector3) -> void:
+    assert(value.is_finite())
+
+func source_reset_route(slot: int) -> bool:
+    if slot < 0 or slot >= source_routes.size(): return false
+    if source_route_points.size() != source_routes.size(): return false
+    source_route_points[slot] = 0
+    if source_route_slot == slot:
+        source_cancel_route(source_route_revision)
+    return true
+
+## GoOverWay retains actor-local progress. Fixed route vertices are native
+## Curve3D points; animation supplies speed and CharacterBody3D supplies contact.
+## Curved/dynamic/relative routes fail before starting rather than approximating.
+func source_begin_route(slot: int) -> int:
+    if slot < 0 or slot >= source_routes.size(): return -1
+    var route = source_routes[slot]
+    if route == null: return 0
+    if not route.supported or route.curve == null: return -1
+    if route.curve.point_count != route.radii.size() or source_route_points.size() != source_routes.size(): return -1
+    if route.curve.point_count == 0: return 0
+    if source_route_points[slot] < 0 or source_route_points[slot] >= route.curve.point_count: return -1
+    source_route_revision += 1
+    source_route_slot = slot
+    source_route_active = true
+    source_route_holds_motion = false
+    motion_enabled = true
+    _configure_motion()
+    _source_route_target()
+    return source_route_revision
+
+func source_route_finished(ticket: int) -> bool:
+    return ticket == 0 or ticket != source_route_revision or not source_route_active
+
+func source_cancel_route(ticket: int) -> void:
+    if ticket <= 0 or ticket != source_route_revision: return
+    source_route_active = false
+    source_route_holds_motion = true
+    source_route_slot = -1
+
+func _source_route_target() -> Vector3:
+    var route = source_routes[source_route_slot]
+    # Engine arrival callback 0054a9a0 compares three-dimensional distance <=
+    # radius. Zero-radius points additionally accept 0.25, then snap (0054a9f0).
+    # Limit the scan to one complete loop, including coincident vertices.
+    for _point in route.curve.point_count:
+        var index := source_route_points[source_route_slot]
+        var target: Vector3 = route.curve.get_point_position(index)
+        var radius: float = route.radii[index]
+        if global_position.distance_to(target) > (radius if radius > 0.0 else 0.25):
+            return target
+        if radius == 0.0: global_position = target
+        index += 1
+        if index == route.curve.point_count:
+            source_route_points[source_route_slot] = 0
+            if not route.closed:
+                source_route_active = false
+                return global_position
+        else:
+            source_route_points[source_route_slot] = index
+    return global_position
+
+func _source_route_motion(delta: float) -> Vector3:
+    var target := _source_route_target()
+    if not source_route_active: return Vector3.ZERO
+    var direction := (target - global_position).normalized()
+    direction -= up_direction * direction.dot(up_direction)
+    # 00589bfa mode 0x14 steers horizontal world velocity, clamps linear/angular
+    # rates with the action's mechanics card, and leaves vertical contact to physics.
+    # 004436c0 supplies the magnitude, not a signed forward component. Gogoud's
+    # walk is source negative Y (native +Z), like source_sighting().
+    var speed := root_motion_displacement.length() / delta
+    if current_mechanics != null:
+        speed = clampf(speed, -absf(current_mechanics.max_linear_speed), absf(current_mechanics.max_linear_speed))
+    if not direction.is_zero_approx():
+        var facing := atan2(direction.x, direction.z)
+        var turn := wrapf(facing - global_rotation.y, -PI, PI)
+        if current_mechanics != null:
+            var limit: float = absf(current_mechanics.max_angular_speed) * delta
+            turn = clampf(turn, -limit, limit)
+        global_rotation.y += turn
+    return direction * direction.length() * speed
 
 ## Object generation retains a local velocity until activation. The animation
 ## release cue changes the object's transform before mechanics starts
@@ -553,6 +650,7 @@ func select_state(id: int) -> bool:
     if not animation_player.has_animation(StringName("state_%d" % id)): return false
     action_controlled = false
     requested_action_state = id
+    source_route_holds_motion = false
     action_complete = false
     animation_complete = false
     return _select_state(id)
@@ -591,6 +689,7 @@ func request_action(id: int, restart: bool = false) -> bool:
         return false
     requested_action_state = id
     animation_complete = false
+    source_route_holds_motion = false
     _play_action_state(selected)
     action_request_traced.emit(id, restart, previous, selected, true)
     return true

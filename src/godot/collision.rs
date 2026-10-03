@@ -11,6 +11,7 @@ impl Project {
         source: &mut impl ContentSource,
         parent: &str,
         owner: &str,
+        contact: bool,
     ) -> Result<()> {
         collision.validate()?;
         let collision = collision.resolve(source)?;
@@ -20,6 +21,16 @@ impl Project {
             "    var {body} = StaticBody3D.new()\n    {body}.name = \"Collision\"\n    {parent}.add_child({body})\n    {body}.owner = {owner}"
         )?;
         self.collision_shapes(&collision, source, &body, owner, &body, false)?;
+        writeln!(
+            self.builder,
+            "    {body}.set_meta(\"source_collision_reachable\", {contact})"
+        )?;
+        if !contact {
+            writeln!(
+                self.builder,
+                "    {body}.collision_layer = 0\n    {body}.collision_mask = 0"
+            )?;
+        }
         Ok(())
     }
     pub(super) fn collision_shapes(

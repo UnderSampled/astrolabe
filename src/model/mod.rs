@@ -13,6 +13,7 @@ pub mod texture;
 pub mod ai;
 pub mod animation;
 pub mod character;
+pub mod route;
 
 pub mod light;
 pub mod mechanics;

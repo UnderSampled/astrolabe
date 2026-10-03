@@ -126,10 +126,19 @@ pub fn export<R: ContentSource>(
             | Asset::Perso(_) => {
                 anyhow::bail!("character content export requires its owning scene")
             }
+            Asset::Route(_) | Asset::Waypoint(_) => {
+                gaps.push("Route/waypoint source record composition and relocations are pending; Rete retains geometry, sharing and unknown fields.".into());
+            }
             Asset::Collision(_) => {
                 anyhow::bail!("collision export requires its owning scene")
             }
             Asset::Scene(scene) => {
+                for reference in scene.nodes.iter().filter_map(|n| n.perso.as_ref()) {
+                    if !source.load(reference)?.routes.is_empty() {
+                        gaps.push("Scene actor routes/waypoints are retained in Rete; source route composition and relocations are pending.".into());
+                        break;
+                    }
+                }
                 export_characters(source, &scene, &mut files, &mut gaps)?;
                 gaps.push("AI script codec reconstruction is available separately; AI models, Brain/designer memory, sound operand placement and the GPT main-actor binding are not yet assembled by scene CLI export.".into());
                 for reference in scene
