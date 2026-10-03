@@ -15,14 +15,76 @@ fn manor_dialogue_localization_voice_and_callback_survive_rete() -> Result<()> {
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("disc"));
     let imported = import_scene(&game, &Selection::hype("manoir", "en")?)?;
-    assert_eq!(imported.dialogues.len(), 2);
-    for (name, box_style, count, member, model, normal) in [
-        ("gogood_texte1_manoir", 3, 3, 0, "level:/ai/models/210", 4),
+    assert_eq!(imported.dialogues.len(), 9);
+    let library = &imported
+        .sound_definitions
+        .iter()
+        .find(|(path, _)| path.as_str() == "sound:/Sound/playmo_b.lcb")
+        .unwrap()
+        .1;
+    for (name, box_style, count, member, event, model, normal) in [
+        (
+            "gogood_texte1_manoir",
+            3,
+            3,
+            0,
+            25,
+            "level:/ai/models/210",
+            4,
+        ),
+        (
+            "gogood_texte1a_manoir",
+            3,
+            3,
+            1,
+            2,
+            "level:/ai/models/210",
+            5,
+        ),
+        (
+            "gogood_texte1b_manoir",
+            3,
+            4,
+            2,
+            3,
+            "level:/ai/models/210",
+            6,
+        ),
+        (
+            "gogood_texte1c_manoir",
+            3,
+            4,
+            3,
+            4,
+            "level:/ai/models/210",
+            1,
+        ),
+        (
+            "gogood_texte2_manoir",
+            3,
+            4,
+            4,
+            5,
+            "level:/ai/models/210",
+            11,
+        ),
+        (
+            "gogood_texte2a_manoir",
+            3,
+            9,
+            5,
+            6,
+            "level:/ai/models/210",
+            12,
+        ),
+        ("hype_texte1_manoir", 3, 2, 6, 26, "level:/ai/models/294", 5),
+        ("hype_texte2_manoir", 3, 8, 7, 27, "level:/ai/models/294", 3),
         (
             "gogood_master_whatif01",
             1,
             21,
             12,
+            20,
             "level:/ai/models/991",
             17,
         ),
@@ -32,6 +94,7 @@ fn manor_dialogue_localization_voice_and_callback_survive_rete() -> Result<()> {
         assert_eq!((value.box_style, value.lines.len()), (box_style, count));
         let voice = value.voice.as_ref().unwrap();
         assert_eq!((voice.bank, voice.member), (142, member));
+        assert_eq!(voice.binding(library)?.target.member().id, event);
         let callback = value.completion.as_ref().unwrap();
         assert_eq!(callback.model.path.as_str(), model);
         assert_eq!(
@@ -41,11 +104,21 @@ fn manor_dialogue_localization_voice_and_callback_survive_rete() -> Result<()> {
         let reopened: Dialogue = rete::decode(&rete::encode(value)?)?;
         assert_eq!(*value, reopened);
         assert!(value.lines.iter().all(|l| l.flags == 0));
+        println!(
+            "MANOR_DIALOGUE_SOURCE {}",
+            serde_json::json!({
+                "name":value.name, "box":value.box_style,
+                "lines":value.lines.len(), "owner":value.owner.path,
+                "voice":value.voice, "completion":value.completion,
+                "resolved_voice":voice.binding(library)?.target.member(),
+                "deadlines":value.lines.iter().map(|l|l.end_seconds).collect::<Vec<_>>()
+            })
+        );
     }
     let intro = imported
         .dialogues
         .iter()
-        .find(|d| d.box_style == 3)
+        .find(|d| d.name == "gogood_texte1_manoir")
         .unwrap();
     assert_eq!(
         intro
@@ -152,7 +225,7 @@ fn manor_dialogue_exports_native_translation_and_voice_resources() -> Result<()>
         .filter(|r| r.kind == Dialogue::KIND)
         .cloned()
         .collect::<Vec<_>>();
-    assert_eq!(roots.len(), 2);
+    assert_eq!(roots.len(), 9);
     godot::export(&mut imported, &roots, selection, &project, &engine)?;
     let log = project.join("ui-resource-runtime.log");
     let evidence = godot::run_godot(

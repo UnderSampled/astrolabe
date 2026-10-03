@@ -77,3 +77,28 @@ separate unresolved safeguard failure, not a UI pass or proven baseline flake.
 The parent queues the next bounded native assignment; this branch launches no
 native sessions. Evidence is local and uncommitted under task workspace
 `ui-native-20261003-r1/`.
+
+The serialized r2 assignment at clean `92e43944e65380ad5c9bccc7ffb739b4629e6cd1`
+passed all 23 Rust cases and 28 Python checks in 126.800s. Both UI cases reported
+no engine errors; every stage reported no timeout, leaked children or remaining
+processes. The unchanged scratch safeguard passed in 0.165s, so the earlier
+bare errno3 was not reproduced; its underlying cause is still unidentified.
+This validates maintained-component behavior and conversion of the two selected
+actual dialogue resources. It does not validate full intro or visual parity.
+
+After explicit freeze release, the next source-backed increment imports the
+eight normal-opening items plus the ordinary item, totaling 58 lines. The
+source/Rete check validates all nine names, voice bank/member and event IDs,
+callback model/normal targets, and exact semantic round trips. Strict import
+checks establish single answers without branches, answer text/icons, item
+icons/channel effects, nonzero line flags or additional fonts. The architecture
+document records the actual callback table. Native nine-item resource conversion
+is queued separately; no session is launched by this task.
+
+Read-only integration review against main `73e18e2fc9633b08697bc09e9895159bdeea3fe6`
+found shared edited paths in `src/godot/support.rs`, `tests/cameras.rs` and
+`tools/test-manifest.json`. Preserve Sol's New Game starter entry and camera
+checks alongside the UI support list, new optional Perso life state in fixtures
+and UI test entries. Main has not changed the support-interface or Rete-schema
+constants from this branch's base. Integration still needs the normal manifest
+inventory check; original inputs and generated output must stay uncommitted.

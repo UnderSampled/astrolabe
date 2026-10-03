@@ -204,13 +204,27 @@ pub(super) fn import(
         let key = *refs.get(&word).context("DLG root/font lacks RTD binding")?;
         s.resolve(Owner::Level, key, word)
     };
+    let normal_font = resolve(8)?;
     let emphasis = resolve(12)?;
     // +0 is the text-name table; +4 is the circular dialogue catalogue.
     let root = resolve(4)?;
     let mut list = root;
     let mut seen = BTreeSet::new();
     let sounds = SoundSites::open(game, selection, s)?;
-    let supported = ["gogood_texte1_manoir", "gogood_master_whatif01"];
+    // The normal manor opening alternates the six Gogoud and two Hype-statue
+    // items. Keep this bounded set explicit until branching/channel semantics
+    // are promoted; one representative gameplay item exercises framed pages.
+    let supported = [
+        "gogood_texte1_manoir",
+        "gogood_texte1a_manoir",
+        "gogood_texte1b_manoir",
+        "gogood_texte1c_manoir",
+        "gogood_texte2_manoir",
+        "gogood_texte2a_manoir",
+        "hype_texte1_manoir",
+        "hype_texte2_manoir",
+        "gogood_master_whatif01",
+    ];
     while seen.insert(list) {
         ensure!(seen.len() <= 1024, "dialogue list exceeds bound");
         let item = s.required(list, 8)?;
@@ -219,7 +233,13 @@ pub(super) fn import(
             let h: ItemWire = wire(s.bytes(item, 52)?)?;
             ensure!(
                 h.answers == 1 && matches!(h.box_style, 1 | 3),
-                "unsupported selected dialogue structure"
+                "{name}: unsupported selected dialogue structure"
+            );
+            ensure!(
+                s.pointer(item, 36)?.is_none()
+                    && s.pointer(item, 40)?.is_none()
+                    && s.pointer(item, 44)?.is_none(),
+                "{name}: selected dialogue needs item icon/channel side effects"
             );
             let object = s.required(item, 16)?;
             let actor = s.required(object, 4)?;
@@ -232,7 +252,7 @@ pub(super) fn import(
                 s.pointer(answer, 24)?.is_none()
                     && u32_at(s.bytes(answer, 80)?, 40)? == 0
                     && u32_at(s.bytes(answer, 80)?, 76)? == u32::MAX - 1,
-                "selected dialogue has branching/answer text/icon"
+                "{name}: selected dialogue has branching/answer text/icon"
             );
             let callback = s
                 .pointer(answer, 28)?
@@ -288,8 +308,8 @@ pub(super) fn import(
                 );
                 let h: LineWire = wire(s.bytes(a, 28)?)?;
                 ensure!(
-                    h.ordinal as usize == lines.len(),
-                    "dialogue line order differs"
+                    h.ordinal as usize == lines.len() && h.flags == 0,
+                    "{name}: dialogue line order/flags need additional behavior"
                 );
                 let mut spans = Vec::new();
                 let mut span = s.pointer(a, 4)?;
@@ -300,6 +320,11 @@ pub(super) fn import(
                         "cyclic/excessive dialogue spans"
                     );
                     let h: SpanWire = wire(s.bytes(a, 16)?)?;
+                    let font = s.required(a, 12)?;
+                    ensure!(
+                        font == normal_font || font == emphasis,
+                        "{name}: dialogue span uses an unpromoted font"
+                    );
                     spans.push(DialogueSpan {
                         text: s
                             .pointer(a, 4)?
@@ -307,7 +332,7 @@ pub(super) fn import(
                             .transpose()?
                             .unwrap_or_default(),
                         offset: h.offset,
-                        emphasis: s.required(a, 12)? == emphasis,
+                        emphasis: font == emphasis,
                     });
                     span = s.pointer(a, 0)?;
                 }
@@ -348,7 +373,7 @@ pub(super) fn import(
         list == root && result.dialogues.len() == supported.len(),
         "dialogue catalogue/selected names differ"
     );
-    result.diagnostics.push(Diagnostic { code:"openspace.dialogue.manor_slice".into(),asset:Some(result.scene.path.clone()),severity:Severity::Warning,message:format!("Imported two evidenced manor dialogues out of {} items; other dialogue choices, channel effects, source reconstruction and font metrics remain pending",seen.len()) });
+    result.diagnostics.push(Diagnostic { code:"openspace.dialogue.manor_slice".into(),asset:Some(result.scene.path.clone()),severity:Severity::Warning,message:format!("Imported {} evidenced manor dialogues out of {} items (eight opening items and one ordinary conversation); other dialogue choices, channel effects, source reconstruction and font metrics remain pending",result.dialogues.len(),seen.len()) });
     Ok(())
 }
 #[cfg(test)]

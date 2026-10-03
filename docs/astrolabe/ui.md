@@ -107,11 +107,30 @@ TextureRect slots and native ProgressBars are authored extension points.
 
 ## Current boundary and next increments
 
-The import slice includes `gogood_texte1_manoir` (3 lines, two per page, voice
-bank 142 member 0, Gogoud normal 4) and `gogood_master_whatif01` (21 lines, six per
-page, member 12, MasterYoda normal 17). The other catalogue entries emit coverage
-debt; reaching an unavailable item stops explicitly. They have not been declared
-unsupported by manor scope and remain subsequent implementation work.
+The import slice includes the eight dialogue items called by the normal manor
+opening, plus one ordinary conversation. Opening items use ItemBox3 (two lines
+per page); the ordinary item uses ItemBox1 (six). Voice links use bank 142.
+The callback targets below come from actual answer behavior pointers, and are
+independent of the normal behaviors that call RunDialog.
+
+| Item | Lines | Voice member | Callback model / normal |
+| --- | ---: | ---: | --- |
+| gogood_texte1_manoir | 3 | 0 | 210 / 4 |
+| gogood_texte1a_manoir | 3 | 1 | 210 / 5 |
+| gogood_texte1b_manoir | 4 | 2 | 210 / 6 |
+| gogood_texte1c_manoir | 4 | 3 | 210 / 1 |
+| gogood_texte2_manoir | 4 | 4 | 210 / 11 |
+| gogood_texte2a_manoir | 9 | 5 | 210 / 12 |
+| hype_texte1_manoir | 2 | 6 | 294 / 5 |
+| hype_texte2_manoir | 8 | 7 | 294 / 3 |
+| gogood_master_whatif01 | 21 | 12 | 991 / 17 |
+
+All nine selected items have a single nonbranching answer, zero line flags, no
+item icon/channel effects and spans using the two recognized dialogue fonts.
+The importer checks those constraints before promoting content. This does not
+establish branching or whole-catalogue coverage. Other entries in the 67-item
+catalogue emit coverage debt; reaching an unavailable item stops explicitly.
+They remain subsequent manor implementation work.
 
 Still required for manor fidelity: original font glyph/advance metrics and frame
 tiles, source span offsets, line reveal and fade pacing, additional dialogue
