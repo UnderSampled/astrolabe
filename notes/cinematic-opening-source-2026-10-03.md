@@ -843,3 +843,94 @@ integration should remain coordinated. Statue model294's field0 Position and
 its actor-directed initialization calls are separate unresolved source leads.
 Neither colored-Hype/statue overlap nor the complete original opening endpoint
 is accepted or hidden by this particle slice.
+
+### V12 runtime result, opacity continuation and inventory integration
+
+Fixed Luna completed V12 in462.307s. Publication succeeded at interface49 with
+4826 owned files (manor4789, menu37); the prior4822-file generation is archived.
+Normal New Game proved the actual non-null Hype component selects
+`fix:/particles/generators/5-0-22092`, initializes capacity200 and disables
+emission, then stops at the predicted model28/node814/procedure187. Gogoud's
+existing first-dialogue, contact/actions, all69 automatic rooted Brains and
+private-save/restart/Escape checks passed. The selection passed24/25 cases,
+including all21 mandatory safeguards and all four Python modules, with unchanged
+source and clean cleanup. This is not a clean25-case pass.
+
+The isolated particle excerpt produced its success marker and correct generator
+state, but its actor omitted the expected AnimationPlayer. Character process
+updates therefore emitted node-not-found/null-is_playing errors. The correction
+adds the ordinary native AnimationPlayer to that fixture; production character
+error handling was not weakened. Preserve V12 failure evidence:
+`TestResults/hype-particle-integration-v12-sol-20261003/result.json`,
+`TestResults/hype-particle-selection-v12-sol-20261003.log.json` and sibling
+`.log.d/particle-selection/engine.log`. The actual opening evidence is sibling
+`.log.d/new-game-opening/report.json`; its Hype initialization is independently
+valid despite the separate fixture failure.
+
+The next source-backed change compiles187/185/186 into opacity and
+transparent/default display APIs. Raymap names were checked first; installed
+and reference executable bytes match for handler00543130, recursive setter
+00543100, display flag helper00443040 and rendering routines00499ed0/004948c0.
+Proof: `TestResults/hype-opacity-handler-static-byte-proof-sol-20261003.json`.
+The handler clamps the integer to0..255, recursively stores the float opacity,
+and separately clears/sets draw flag8 for transparent/default display. The
+renderer retains its ordinary material pipeline at opacity>=254 and requires
+shaded-blending flag0x20000000 for actor opacity below that threshold.
+
+Native support stores those two independent properties and uses owned copies
+of StandardMaterial3D surface/override materials for partial opacity. It
+preserves shared source materials, the source texture/material alpha and
+original transparency mode on restoration; unsupported reached materials fail
+explicitly. Hype's actual255 request retains full opacity. Godot's native
+GeometryInstance3D.transparency is ignored by Compatibility/Mobile renderers,
+so it cannot implement this API on the project's current renderer; see the
+[official property documentation](https://docs.godotengine.org/en/stable/classes/class_geometryinstance3d.html#class-geometryinstance3d-property-transparency).
+Animation opacity tracks, attached generated actors and full render sorting/
+blend fidelity are separate unverified paths. This change does not fix those
+existing animation tracks or hide/relocate Hype.
+
+The source corpus now reconstructs the actual814..817 presentation nodes
+byte-for-byte. The component fixture compiles disclosed original14..16 and
+814..817 excerpts, adds its missing AnimationPlayer, and exercises128 opacity,
+mode restoration, clamps and preservation of a shared native material. The
+unchanged-AI New Game reporter requires the actual255/transparent display calls
+to complete and records the subsequent failure. Their native execution remains
+pending after the next normal manor regeneration; anticipated next barrier is
+expression category3/op35/node820, not a completed opening.
+
+At the parent's instruction the independently accepted inventory commits
+b0658c1/896959b/a84cd60/aa14a8e were integrated locally as
+8fe83cc/e4ec6f6/5a6d2fc/85b8a43, after the opacity checkpointc51f231. Support
+interface50 gives the combined inventory/particle/opacity source one new
+identity. Rete remains40; the shared registries include both content kinds and
+the inventory case increases the declared matrix to288. The common bitmap-font
+helper preserves advance-before-glyph/cache ordering and the main engine
+normalizer is unchanged. Existing manor/menu content, generated font and user
+settings/saves are not edited during source integration.
+
+Combined source-only validation passed61.118s with unchanged source/clean
+cleanup: format0.529s, root all-target strict Clippy7.093s, library/particle-test
+compilation52.079s,36 AI codec cases0.004s, exact Hype corpus0.819s and exact
+inventory import/fresh Rete/native-text conversion0.575s. Commands/results are
+in `TestResults/hype-opacity-inventory-source-sol-20261003/report.json`. The
+initial opacity Rust check caught an undefined match variable; the explicit
+185/186 arms corrected it and later checks pass. No engine was run by Sol.
+
+Inventory has its own accepted isolated native gate (13.100s, clean cleanup)
+at `/home/stephen/Documents/Codex/2026-10-03/task-4/astrolabe-inventory/output/inventory-qa-aa14a8e-r1/run/results.json`.
+The worker inspected four rendered PNGs: original art/labels/counters are clean;
+the static wheel and Magic's enlarged rings remain presentation limits. This
+gate uses a synthetic actor inventory Resource and does not establish actual
+manor entry or original-game parity. No additional user-delivery gate is required.
+
+The inventory-only publication recipe is
+`python3 -B TestResults/run-inventory-publication-v13-sol-20261003.py`.
+It parses all nine changed GDScripts/closure first, then builds and performs a
+normal `--content inventory` port. It requires146 new inventory files and all
+4826 existing manor/menu hashes to be preserved, plus authored settings/save
+fixture hashes. Budget240s with cleanup reserved; parser10s each, build120s,
+port90s. It does not run another gameplay gate, or rebuild manor to force the
+opening forward. Publishing interface50 inventory leaves the earlier manor AI
+unchanged at its documented187 stop. A separate small corrected-fixture/opening
+native validation follows normal manor regeneration; no clean V13 native pass
+or complete intro/overlap acceptance is claimed here.
