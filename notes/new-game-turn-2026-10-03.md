@@ -110,3 +110,45 @@ The corrected read-only source case passed under
 3.31 seconds of build and 1.27 seconds of test. No Godot or original-game process
 was launched by Sol. Log:
 `TestResults/opening-source-operands-correction-v7-sol-20261003.log`.
+
+## V7 native turn pass and bounded font preflight recovery
+
+The compiled/native incremental-turn contract passed in 0.61 seconds in v7.
+The release build also passed, but ordinary port stopped before import/publication:
+the new ten-second `--check-only res://build.gd` gate timed out. Total setup was
+64.79 seconds. The verified 4,774-file interface45 backup was restored, failed
+output archived, source unchanged and descendant cleanup complete. Evidence:
+`TestResults/new-game-preview-setup-v7-sol-20261003/result.json`, `native-turn.log`
+and `port.log`. No interface46 generation or later gameplay/save pass occurred.
+
+The failing temporary project was removed by TempDir. A subsequent source-only
+export capture used a deliberately failing launcher without invoking Godot:
+the equivalent complete builder is 9,018,332 bytes / 64,487 lines, with 3,563
+staged files. This establishes that the early gate parsed a whole level rather
+than a small font fixture; the timeout alone does not establish the internal
+parser cause. Retained static evidence is in
+`TestResults/opening-builder-static-v8-sol-20261003/`.
+
+The exporter now checks the exact emitted font bodies in a separate minimal
+project, with an owned engine log and the same ten-second deadline. Ordinary
+import/build still validates the complete native builder and resources. A second
+static capture confirms the 89,258-byte / 1,216-line font script contains exactly
+the actual font body, and the full builder is byte-for-byte identical to the
+pre-fix capture (SHA256
+`0ef7c0f201fde7294b5ad29a4cb2d777dada2e5630f99bfabe58e13149001c02`).
+These intentional source-only captures are not native parser or gameplay passes.
+Evidence: `TestResults/opening-font-static-v8-sol-20261003/static-capture.json`.
+
+Current-source checks passed: `cargo build --release --locked --offline`
+(56.88 seconds), `cargo fmt --all --check` (0.49 seconds), and
+`cargo clippy --locked --offline -p astrolabe -p godot-harness --all-targets -- -D warnings`
+(3.30 seconds). Logs/results:
+`TestResults/opening-font-preflight-source-v8-sol-20261003/`.
+V8 reuses those build checks, v7's native turn pass, earlier parser/menu/source
+passes and the hash-verified backup. It performs one ordinary port, including
+its own small font gate, before the unchanged 31-case selection. The full builder
+retains its existing 360-second inner budget; the port stage is bounded at 360
+seconds within the unchanged 600-second outer budget, with 15 seconds reserved
+for cleanup. No duplicate native font probe or visual acceptance gate is added.
+Native recovery, first dialogue, fresh save reload/rejection and full intro
+acceptance remain pending.

@@ -5,7 +5,7 @@ use crate::{
     files::write_atomic,
     model::{AssetPath, Selection},
 };
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Write as _,
@@ -16,6 +16,8 @@ use std::{
 /// A fresh staging project keeps failed conversion from damaging an existing project.
 pub struct Project {
     pub(super) dialogue_resources: Vec<String>,
+    /// The exact emitted font bodies, checked independently of whole-level setup.
+    pub(super) dialogue_font_checks: Vec<String>,
     pub(super) has_level_scene: bool,
     pub(super) scene_fog: Option<Option<crate::model::environment::Fog>>,
     pub(super) scene_fog_conflict: bool,
@@ -44,6 +46,7 @@ impl Project {
         super::support::stage(stage.path(), &output)?;
         Ok(Self {
             dialogue_resources: Vec::new(),
+            dialogue_font_checks: Vec::new(),
             has_level_scene: false,
             scene_ambient: None,
             scene_fog: None,
@@ -259,15 +262,44 @@ environment = SubResource("environment")
                 format!("{}\n", resource_uid(&path)).as_bytes(),
             )?;
         }
-        if !self.dialogue_resources.is_empty() {
-            // Catch generated font/resource API syntax before importing media or
-            // running the native builder. This is cheap and owns the same stage.
+        if !self.dialogue_font_checks.is_empty() {
+            // A whole-level builder can be megabytes long. Check only the exact
+            // emitted font bodies here; ordinary import/build validates the full
+            // builder and native resources under their own conversion budgets.
+            let preflight = tempfile::tempdir()?;
+            write_atomic(
+                &preflight.path().join("project.godot"),
+                b"config_version=5\n",
+            )?;
+            let mut script = String::from("extends SceneTree\n");
+            for (index, body) in self.dialogue_font_checks.iter().enumerate() {
+                writeln!(script, "\nfunc check_font_{index}():\n{body}")?;
+            }
+            write_atomic(&preflight.path().join("font-check.gd"), script.as_bytes())?;
+            let log = preflight.path().join("font-parser.log");
             run_godot(
                 godot,
-                self.stage.path(),
-                &["--headless", "--check-only", "--script", "res://build.gd"],
+                preflight.path(),
+                &[
+                    "--headless",
+                    "--log-file",
+                    log.to_str().context("non-UTF-8 font parser log path")?,
+                    "--check-only",
+                    "--script",
+                    "res://font-check.gd",
+                ],
                 Duration::from_secs(10),
-            )?;
+            )
+            .context("generated dialogue font syntax preflight")?;
+            ensure!(
+                fs::metadata(&log)?.len() <= 1024 * 1024,
+                "font parser log exceeded 1MiB diagnostic limit"
+            );
+            let diagnostics = fs::read_to_string(&log)?;
+            ensure!(
+                !diagnostics.contains("SCRIPT ERROR:") && !diagnostics.contains("ERROR:"),
+                "font parser log reported errors: {diagnostics}"
+            );
         }
         run_godot(
             godot,
