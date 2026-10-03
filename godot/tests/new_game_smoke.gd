@@ -133,7 +133,7 @@ func run() -> void:
         await physics_frame
         await process_frame
         var frame := gogoud_snapshot(gogoud)
-        var changed := gogoud_actions[-1] != gogoud.current_state
+        var changed: bool = gogoud_actions[-1] != gogoud.current_state
         if changed: gogoud_actions.append(gogoud.current_state)
         if tick % 3 == 0 or changed: gogoud_frames.append(frame)
         report["gogoud"]["finish"] = frame

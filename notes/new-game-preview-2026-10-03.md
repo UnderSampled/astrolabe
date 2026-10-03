@@ -120,10 +120,32 @@ The frozen source stayed unchanged and supervised cleanup completed without
 timeouts or remaining children. Evidence:
 `TestResults/new-game-gogoud-source-preflight-v2-sol-20261003.json` and its logs.
 
-The next fixed-Luna assignment is one invocation of
+The v2 fixed-Luna assignment was one invocation of
 `python3 TestResults/run-new-game-preview-v2-sol-20261003.py`, with a 600-second
 total budget. It performs early syntax checks, verifies the full reversible
 backup, archives the old generated tree, regenerates the manor, and runs the
 same bounded 23 Rust cases and four Python modules. The walk observation ends
 at original action 23, before the following 1,200-ms delay and dialogue call.
 It does not depend on the UI worktree or omit any initial source behavior.
+
+V2 stopped at the early smoke-script parser check after 1.028 seconds. Session
+and menu parsed, but `new_game_smoke.gd:136` inferred a comparison against the
+actor's dynamically resolved `current_state` without a declared Boolean type.
+The local observer now declares `changed: bool`; other new inferred locals use
+typed native methods/properties or a declared Dictionary return. This is a test
+syntax fix, with no change to source AI or gameplay. No backup move, regeneration
+or native behavior case ran; source stayed unchanged during the failed run and
+cleanup completed without remaining children. Evidence:
+`TestResults/new-game-preview-setup-v2-sol-20261003/result.json` and its owned
+`parser-preview-smoke.engine.log`.
+
+The corrected fixed-Luna assignment is
+`python3 TestResults/run-new-game-preview-v3-sol-20261003.py`, using fresh evidence
+paths and the same recovery, selection and budgets. Native parser and normal
+opening acceptance remain pending. V1/v2 evidence is retained unchanged.
+
+The v3 source-only preflight passed in 2.401 seconds using the same formatting,
+scoped strict Clippy and six selection checks. Source stayed unchanged and all
+stages cleaned up without timeout or remaining children. Evidence:
+`TestResults/new-game-gogoud-source-preflight-v3-sol-20261003.json`. This does not
+replace the pending native Godot parser check.
