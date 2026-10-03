@@ -31,6 +31,7 @@ pub(super) fn resource_uid(path: &str) -> String {
 
 pub(super) fn normalize_native(path: &str, text: &str) -> Result<String> {
     let text = strip_uids(text);
+    let text = normalize_font_properties(&text)?;
     let field = |line: &str, name: &str| -> Result<String> {
         let rest = line
             .split_once(&format!(" {name}=\""))
@@ -74,6 +75,33 @@ pub(super) fn normalize_native(path: &str, text: &str) -> Result<String> {
     }
     Ok(normalized)
 }
+
+/// A bitmap font must select its size before metadata initializes a native cache.
+/// Godot 4.7 ResourceSaver writes font_name first; loading it creates an empty
+/// 16px cache before fixed_size is applied. Bitmap has_char()/shaping consult that
+/// first cache, even when the later 21px cache contains every source glyph.
+/// Preserve all native properties and their order except this prerequisite.
+fn normalize_font_properties(text: &str) -> Result<String> {
+    if !text.starts_with("[gd_resource type=\"FontFile\"") {
+        return Ok(text.to_owned());
+    }
+    let (prefix, body) = text
+        .split_once("\n[resource]\n")
+        .context("native FontFile resource section missing")?;
+    let Some(fixed_size) = body.lines().find(|line| line.starts_with("fixed_size = ")) else {
+        return Ok(text.to_owned());
+    };
+    if fixed_size[13..].parse::<u32>()? == 0 {
+        return Ok(text.to_owned());
+    }
+    let mut normalized = format!("{prefix}\n[resource]\n{fixed_size}\n");
+    for line in body.lines().filter(|line| *line != fixed_size) {
+        normalized.push_str(line);
+        normalized.push('\n');
+    }
+    Ok(normalized)
+}
+
 pub(super) fn strip_uids(text: &str) -> String {
     let mut value = text.to_owned();
     while let Some(start) = value.find(" uid=\"uid://") {
@@ -206,4 +234,40 @@ fn run_godot_with_display(
         "Godot reported errors: {output}"
     );
     Ok(output)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bitmap_font_size_precedes_name_without_changing_native_glyphs() -> Result<()> {
+        let input = "[gd_resource type=\"FontFile\" format=4]\n\n[resource]\nfont_name = \"Playmo_Font2_0\"\nsubpixel_positioning = 3\nallow_system_fallback = false\nfixed_size = 21\ncache/0/21/0/ascent = 17.2043\ncache/0/21/0/glyphs/233/advance = Vector2(9.432005, 0)\ncache/0/21/1/glyphs/233/texture_idx = 0\n";
+        let normalized = normalize_font_properties(input)?;
+        assert!(normalized.contains("[resource]\nfixed_size = 21\nfont_name = "));
+        assert_eq!(
+            normalized.replace("fixed_size = 21\n", ""),
+            input.replace("fixed_size = 21\n", "")
+        );
+        assert_eq!(normalize_font_properties(&normalized)?, normalized);
+        let native = normalize_native("generated/dialogue.font.tres", input)?;
+        assert!(native.contains("[resource]\nfixed_size = 21\nfont_name = "));
+        assert_eq!(
+            normalize_native("generated/dialogue.font.tres", &native)?,
+            native
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn dynamic_fonts_and_other_resources_keep_property_order() -> Result<()> {
+        for input in [
+            "[gd_resource type=\"FontFile\" format=4]\n\n[resource]\nfont_name = \"Dynamic\"\nfixed_size = 0\n",
+            "[gd_resource type=\"FontFile\" format=4]\n\n[resource]\nfont_name = \"Dynamic\"\n",
+            "[gd_resource type=\"Resource\" format=3]\n\n[resource]\nname = \"Other\"\nfixed_size = 21\n",
+        ] {
+            assert_eq!(normalize_font_properties(input)?, input);
+        }
+        Ok(())
+    }
 }

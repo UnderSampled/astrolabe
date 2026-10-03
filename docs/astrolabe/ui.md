@@ -82,6 +82,13 @@ conversion-time coverage atlas provides the native outline cache for red
 emphasis; native controls draw the white glyph over it. Original subpixel
 blending and final pixels still need comparison on the pinned renderer.
 
+Generated FontFile text sets `fixed_size` before `font_name`. Godot 4.7's
+name setter initializes a size cache, and bitmap character support consults
+the first cache. ResourceSaver's default property order otherwise creates an
+empty 16px cache during reload before the populated 21px caches are restored.
+Export normalization changes only that prerequisite order; glyph data remains
+native and unchanged. Resource validation checks all 133 cached characters.
+
 `dialogue_frame.tscn` uses nine TextureRects. The center stretches; top/bottom
 repeat eight 32px tiles and sides repeat four, with mirrored corners. The authored
 fallback panel and theme remain editable. `dialogue_presentation.gd` calibrates

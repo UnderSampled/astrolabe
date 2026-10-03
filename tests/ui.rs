@@ -40,6 +40,12 @@ fn manor_dialogue_localization_voice_and_callback_survive_rete() -> Result<()> {
         (space.width, space.half_height, space.uv),
         (0.1, -0.15, None)
     );
+    let e_acute = style.glyphs.iter().find(|g| g.character == 'é').unwrap();
+    assert_eq!(
+        (e_acute.width, e_acute.half_height, e_acute.vertical_offset),
+        (0.12705882, -0.09882358, 0.0)
+    );
+    assert!(e_acute.uv.is_some());
     let reopened: DialoguePresentation = rete::decode(&rete::encode(style)?)?;
     assert_eq!(*style, reopened);
     for (t, name) in style.frame.iter().zip(["coin", "top", "middle", "side"]) {

@@ -203,3 +203,47 @@ the early failure. Supervisor cleanup reported no leaked children or remaining
 processes. The parent requested a minimal native metric-only diagnostic before
 another build cycle. Isolated commits/tests are milestones; a user checkpoint
 requires integration/regeneration and visible improvements in actual New Game.
+
+## Integrated V8 named font reload diagnosis
+
+At main revision `e0cf3d05b0c9762aaa154284940109ac1f372a91`, interface46
+generation completed and the actual native dialogue/resource test reached its
+Unicode gate. The cheap unnamed font passed; the exported named font reported
+`has_e_acute=false`. Retained evidence is
+`TestResults/new-game-preview-selection-v8-sol-20261003.log.d/tests.xml` and
+`execute.log`. The source/Rete case and maintained UI timing test passed.
+
+This is not a missing source glyph: the retained original font inspection
+explicitly records code233, and generated
+`godot/generated/hype/levels/manoir/dialogue/presentation/en.font.tres`
+(SHA256 `48cd6c3ea68a63daafebed609d924689ca76c48f66a778ab3ce5520509cb56cf`)
+contains all133 Unicode glyphs, including233, in both normal and outline caches.
+The resource writes `font_name` before `fixed_size`. Godot4.7's
+[`font_set_name`](https://github.com/godotengine/godot/blob/4.7-stable/modules/text_server_adv/text_server_adv.cpp#L2326)
+initializes a size cache; changing fixed_size does not remove it. Bitmap
+`font_has_char` consults the first cache. This explains an empty16px cache
+shadowing the populated21px cache after named resource reload. The cheap
+unnamed fixture did not cover that path.
+
+The isolated `ui/font-cache-load-order` branch starts from committed main
+`e0cf3d0`, with no live dirty dependencies. Export normalization now places the
+native fixed_size property first, preserving all other property order and glyph
+entries. Pure tests verify unchanged glyph content, normalization idempotence,
+and unchanged dynamic/other resources. The source/Rete test explicitly checks
+the é metrics and atlas binding. The native preflight adds a tiny authored named
+font fixture, and the actual resource gate checks character support for every
+cached code while printing size caches and any missing codes. No source text,
+font repertoire, fallback policy or Unicode assertion is weakened.
+
+A minimal parent-queued A/B reload assignment uses retained original and
+property-ordered copies of that single native FontFile. It must confirm the
+empty-cache diagnosis and all133 Unicode mappings without building or importing
+original media. Native validation and visible New Game font/frame acceptance
+remain pending; this worker launches no native sessions.
+
+Before the native assignment: both pure font normalization tests passed;
+the exact source/Rete case passed in5.18s with explicit é metrics; all29 Python
+runner/selection checks passed using the existing pinned nextest executable
+read-only; root-package offline Clippy for all targets and formatting passed.
+The test manifest retains all281 existing cases and adds two pure scene cases
+for283 total. The parent owns native syntax/reload and integrated validation.

@@ -204,6 +204,28 @@
     },
     {
       "binary": "astrolabe",
+      "test": "godot::engine::tests::bitmap_font_size_precedes_name_without_changing_native_glyphs",
+      "areas": ["scene"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "native named bitmap FontFile property order and Unicode cache entries",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::engine::tests::dynamic_fonts_and_other_resources_keep_property_order",
+      "areas": ["scene"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "dynamic FontFile and other native resource property order",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "godot::material::tests::palette_key_uses_entry_identity_and_preserves_opaque_duplicate_rgb",
       "areas": [
         "media"
