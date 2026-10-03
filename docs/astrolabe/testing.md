@@ -16,6 +16,8 @@ python3 tools/test.py --area movement --local --offline --no-headless
 
 Area runs include declared dependencies and mandatory safeguards. `--local` enables tests that need ignored local game data; without an area it selects the full existing converter inventory. `--release` selects the complete declared matrix. `--list` discovers the selected tests and reports `not_run`, never a pass. See `python3 tools/test.py --help` for fixture and budget options.
 
+For temporary native harnesses, follow [the probe workflow](./probe-workflow.md): syntax before conversion, explicit owned Godot logs, and Orrery's existing isolated-session and display-bridge APIs. It also records the contact shape-index lookup and the boundaries between compile checks and behavior evidence.
+
 Godot runs headless by default. `--no-headless` runs rendered gameplay inside a
 disposable authenticated Xvfb display; it requires `xvfb-run` and fails instead
 of falling back to the desktop display. The suite owns the Xvfb and test process

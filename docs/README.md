@@ -12,6 +12,8 @@
 
 [`astrolabe/session-recordings.md`](astrolabe/session-recordings.md) defines complete-session evidence, initial save-file fixtures, independent OpenSpace/Godot harnesses and extensible recording comparison.
 
+[`astrolabe/probe-workflow.md`](astrolabe/probe-workflow.md) gives the preflight and ownership rules for temporary Godot and original-game probes.
+
 ## Rete design
 
 [`rete/rete-design.md`](rete/rete-design.md) describes Rete as persistence for the useful model. [`rete/cross-package-uris.md`](rete/cross-package-uris.md) describes the current package-role reference contract. The model distinguishes shared Fix, active Level, texture, and sound references. Earlier address-named layouts are preserved in [[notes/historical/cross-package-uris-csharp|the C# URI proposal]]; other historical implementation notes are under [`../notes/historical/`](../notes/historical/).
