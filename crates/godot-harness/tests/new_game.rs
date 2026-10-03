@@ -12,6 +12,20 @@ fn menu_new_game_preserves_slot_and_restarts_original_opening() -> Result<()> {
             .is_file(),
         "generate the local manor before checking New Game"
     );
+    let manifest: serde_json::Value = serde_json::from_slice(&fs::read(
+        project.join("generated/astrolabe-manifest.json"),
+    )?)?;
+    ensure!(
+        manifest["support_interface"] == astrolabe::godot::support::INTERFACE,
+        "regenerate stale manor assets before checking the current opening"
+    );
+    let gogoud_code =
+        fs::read_to_string(project.join("generated/hype/levels/manoir/ai/models/210.gd"))?;
+    ensure!(
+        gogoud_code.contains("source_reset_route(0)")
+            && gogoud_code.contains("source_begin_route(6)"),
+        "Gogoud's exported original AI still lacks the implemented route calls"
+    );
     let temporary = tempfile::tempdir()?;
     let evidence = std::env::var_os("ASTROLABE_EVIDENCE_DIR")
         .map(PathBuf::from)
@@ -102,6 +116,7 @@ fn menu_new_game_preserves_slot_and_restarts_original_opening() -> Result<()> {
     for name in [
         "generated/astrolabe-manifest.json",
         "generated/hype/levels/manoir/ai/models/154.gd",
+        "generated/hype/levels/manoir/ai/models/210.gd",
     ] {
         fs::copy(
             project.join(name),

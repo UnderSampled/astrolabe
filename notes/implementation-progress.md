@@ -14,6 +14,18 @@ Native syntax, menu/save/restart smoke and pixels are pending Luna. The source
 freeze now includes authored game/test files as well as support assets. See
 [the prepared preview evidence](./new-game-preview-2026-10-03.md).
 
+The five v1 parser checks passed, but regeneration stopped at an edited generated
+manor scene (100.865 seconds). No preview/save behavior case ran. Static inspection
+found local interface39 assets: Gogoud's first-visit reset at normal13/node12
+still compiles as unsupported and route bindings are absent, although source
+interface44 implements reset/GoOverWay and its actor component already passed.
+Stephen authorized replacement of generated edits with backup. A verified full
+snapshot preserves5,959 files/399,601,931 bytes; live originals remain in place
+until Luna's owned regeneration stage. The normal New Game check now requires
+Gogoud's original actions [0,26,24,23], source-associated native contact and end
+pose, with all original Brains automatic. Fresh regeneration and this actual
+full-scene behavior are pending; no isolated movement fixture is substituted.
+
 2026-10-03 in-engine opening implementation checkpoint: the revised isolated
 New Game capture succeeded with 69 Hype and 69 Gogoud observations and no
 inspection errors. Sol inspected its statue and Gogoud shots. Typed route and

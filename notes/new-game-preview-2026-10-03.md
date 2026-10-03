@@ -64,3 +64,66 @@ launch is assigned. Runtime results and rendered preview acceptance remain pendi
 To preview after local generation/import: open `godot/project.godot`, run F5 and
 select **New Game**. Load Game remains first/default; keyboard selection is Down
 then Enter. Launch and exact current failures will be recorded after Luna's smoke.
+
+## Why the local preview did not show Gogoud walking
+
+Luna's v1 initialization and all five Godot parser checks passed. Regeneration
+then stopped at the normal ownership guard after 100.865 seconds because the
+local generated `manoir/level.tscn` hash differs from its receipt. Total setup
+was 102.616 seconds, source unchanged and cleanup complete. No native New Game,
+save/restart/menu or Load Game behavior case ran. The earlier prepared launch
+instructions therefore remain unverified. Evidence:
+`TestResults/new-game-preview-v1-sol-20261003-result.md` and
+`new-game-preview-setup-v1-sol-20261003/result.json`.
+
+The local generated receipt still declares support interface 39, while the source
+exporter/support is 44. Its unchanged, receipt-matching Gogoud/model 210 GDScript
+still emits a failure for procedure 220 (`ReInitWay(0)`) at node 12 in the original
+first-visit normal 13 branch. It stops before selecting action 0/changing to
+normal 0. The subsequent `GoOverWay(6)` at normal 0 node 0 is also still unsupported
+in that old generated program, and its actor has no exported route bindings.
+Current source compilation already lowers both operations to the maintained
+native route API. The accepted original Gogoud component reaches actions
+[0,26,24,23] with contact; that is supporting evidence, not a pass for this
+full-scene preview. The earliest identified local walk blocker is stale generated
+AI/assets, rather than a new missing movement implementation or later dialogue.
+
+A read-only receipt audit found 395 changed generated files: one scene, 32 mesh
+resources and 362 import sidecars (2,971,368 bytes), all in the sole manor selection.
+The receipt alone does not reconstruct the intent of their edits. No authored
+game/support file is part of that changed set. Exact hashes and paths are in
+`TestResults/new-game-gogoud-stale-assets-static-sol-20261003.json`. Stephen said
+he has no edits to keep and authorized replacement with a reversible backup.
+All 395 changed files and the original receipt are copied and hash-verified under
+`output/archived-godot-manor-edits-20261003-pre-gogoud/`. A complete generated-tree
+snapshot also preserves 5,959 files/399,601,931 bytes, including unowned import/UID
+sidecars, with a verified inventory. The live original output remains in place
+until the owned regeneration stage; original game assets and saves are untouched.
+
+The next Luna workflow moves that fully backed-up old generated tree into the
+archive immediately before fresh normal generation. It preserves the ownership
+guard and never changes its hashes to excuse an edit. On a generation failure,
+the owned workflow archives any partial new output and restores the old tree.
+Successful regeneration leaves the complete previous output recoverable.
+
+The normal New Game smoke is strengthened to require the current support receipt
+and actual compiled reset/route calls, observe Gogoud's full original route/action
+sequence without holding any Brain, and assert sustained displacement,
+source-associated native contact and the original observed end pose. It preserves
+start/end rendered PNGs and source Brain failures. Native execution is still
+pending; no initialization, World reflex, camera or dialogue gate is skipped.
+
+The v2 source-only preflight passed in 0.662 seconds: `cargo fmt --all --check`,
+`cargo clippy --locked --offline -p astrolabe -p godot-harness --all-targets --
+-D warnings`, and `python3 -B tools/test_selection.py` (six selection checks).
+The frozen source stayed unchanged and supervised cleanup completed without
+timeouts or remaining children. Evidence:
+`TestResults/new-game-gogoud-source-preflight-v2-sol-20261003.json` and its logs.
+
+The next fixed-Luna assignment is one invocation of
+`python3 TestResults/run-new-game-preview-v2-sol-20261003.py`, with a 600-second
+total budget. It performs early syntax checks, verifies the full reversible
+backup, archives the old generated tree, regenerates the manor, and runs the
+same bounded 23 Rust cases and four Python modules. The walk observation ends
+at original action 23, before the following 1,200-ms delay and dialogue call.
+It does not depend on the UI worktree or omit any initial source behavior.

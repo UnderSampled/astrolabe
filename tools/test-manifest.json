@@ -2741,7 +2741,7 @@
       "areas": ["runtime", "ai", "scene", "save"],
       "kind": "process",
       "prerequisites": ["godot", "xvfb", "disc"],
-      "fixture": "freshly generated local manor; actual New Game menu/session, unmodified original initial AI, private bad-slot preservation probe, native restart/Escape and rendered preview",
+      "fixture": "freshly generated local manor; actual New Game with all original AI automatic, Gogoud route/actions and source-associated native contact, private bad-slot preservation probe, native restart/Escape and rendered preview",
       "timeout_seconds": 180,
       "ignored": true,
       "release": true
