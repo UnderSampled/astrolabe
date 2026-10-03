@@ -84,7 +84,7 @@ func gogoud_snapshot(actor: CharacterBody3D) -> Dictionary:
     return {"clock_ms":source_brain.get("clock_milliseconds"),"action":actor.current_state,
         "normal":source_brain.get("current_normal"),"failure":source_brain.get("unsupported_failure"),
         "position":[actor.global_position.x,-actor.global_position.z,actor.global_position.y],
-        "on_floor":actor.is_on_floor(),"route_active":actor.source_route_active,
+        "heading":actor.global_rotation.y,"on_floor":actor.is_on_floor(),"route_active":actor.source_route_active,
         "route_point":actor.source_route_points[6],"contacts":contacts}
 
 func capture(name: String) -> String:
@@ -165,13 +165,25 @@ func run() -> void:
     report["after_walk"] = snapshot(game)
     report["image"] = await capture("new-game-opening-walk-end")
     print("GOGOUD_NORMAL_OPENING_OK ", JSON.stringify(report["gogoud"]["finish"]))
-    # Observe the real next transition even if unrelated source Brains stopped.
-    # This is evidence of the remaining blocker, not full intro acceptance.
-    await create_timer(2.0).timeout
+    # Follow the same source schedule through its turn and first dialogue.
+    # Other actor stops remain recorded; this does not accept the full intro.
+    var post_path_deadline := Time.get_ticks_msec() + 20000
+    var post_path_actions: Array[int] = [gogoud.current_state]
+    while Time.get_ticks_msec() < post_path_deadline:
+        await physics_frame
+        await process_frame
+        if post_path_actions[-1] != gogoud.current_state: post_path_actions.append(gogoud.current_state)
+        if not str(gogoud.get_node("Brain").get("unsupported_failure")).is_empty() or not bool(source_ui.call("source_dialog_is_over")): break
     report["gogoud"]["post_path"] = gogoud_snapshot(gogoud)
     report["post_path"] = snapshot(game)
     var dialog_position: Vector2 = source_ui.get("source_position")
     report["ui_after_path"] = {"position":[dialog_position.x,dialog_position.y],"dialogue_over":source_ui.call("source_dialog_is_over")}
+    report["gogoud"]["post_path_actions"] = post_path_actions
+    if not require(str(report["gogoud"]["post_path"]["failure"]).is_empty(),"Gogoud stopped after his path: " + str(report["gogoud"]["post_path"]["failure"])): return
+    if not require(not bool(report["ui_after_path"]["dialogue_over"]),"Gogoud did not reach his first original dialogue within 20 seconds after the path"): return
+    var active_dialog: Resource = source_ui.get("dialogue").get("item")
+    report["ui_after_path"]["identity"] = active_dialog.get("identity") if active_dialog != null else ""
+    if not require(report["ui_after_path"]["identity"] == "gogood_texte1_manoir" and post_path_actions == [23,20,31,32],"normal opening did not reach the source's first dialogue/action sequence"): return
     key(KEY_R)
     var restarted: Node = await wait_session(game)
     if not require(restarted != null and bool(restarted.get("new_game")) and restarted.scene_file_path == "res://game/new_game.tscn","R left the New Game route"): return
@@ -186,7 +198,7 @@ func run() -> void:
     report["save_preserved"] = true
     report["status"] = "passed"
     write_report()
-    print("NEW_GAME_OPENING_CHECKPOINT_OK")
+    print("NEW_GAME_FIRST_DIALOGUE_OK")
     await shutdown(0)
 
 func shutdown(exit_code: int) -> void:

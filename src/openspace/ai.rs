@@ -326,6 +326,30 @@ impl Parser<'_> {
                 (4, 214) => Statement::Turn {
                     degrees_per_second: self.expression(indent + 1)?,
                 },
+                (5, 23) => {
+                    let (target_at, target) = self.take(indent + 1)?;
+                    let target = match (target.kind, target.parameter) {
+                        (0, 4) => Some(ActorTarget::Keyword(ActorKeyword::SelfActor)),
+                        (0, 5) => Some(ActorTarget::Keyword(ActorKeyword::MainActor)),
+                        (24, _) => self
+                            .codec
+                            .actors
+                            .get(&target_at)
+                            .cloned()
+                            .map(ActorTarget::Reference),
+                        _ => None,
+                    };
+                    if let Some(target) = target {
+                        Statement::IncrementalTurnToward {
+                            target,
+                            frames: self.expression(indent + 1)?,
+                        }
+                    } else {
+                        Statement::Unsupported(
+                            self.unsupported(at, "unbound incremental turn target".into())?,
+                        )
+                    }
+                }
                 (4, 29) => Statement::SetVectorSpeed(self.expression(indent + 1)?),
                 (4, 30) => Statement::AddWind(self.expression(indent + 1)?),
                 (4, 220) | (5, 27) => {
@@ -863,6 +887,17 @@ impl Parser<'_> {
             (1, 9..=12) => {
                 let (operand, child) = self.take(indent + 1)?;
                 ensure!(child.kind == 14, "button query lacks logical input operand");
+                let query = match id {
+                    9 => ButtonQuery::Pressed,
+                    10 => ButtonQuery::JustPressed,
+                    11 => ButtonQuery::Released,
+                    _ => ButtonQuery::JustReleased,
+                };
+                if matches!(child.parameter, 0 | u32::MAX)
+                    && !self.codec.buttons.contains_key(&operand)
+                {
+                    return Ok(Expression::AbsentButton(query));
+                }
                 if !self.codec.buttons.contains_key(&operand) {
                     return Ok(Expression::Unsupported(
                         self.unsupported(at, format!("unbound input at node {operand}"))?,
@@ -875,12 +910,7 @@ impl Parser<'_> {
                         .get(&operand)
                         .with_context(|| format!("unbound button at node {operand}"))?
                         .clone(),
-                    query: match id {
-                        9 => ButtonQuery::Pressed,
-                        10 => ButtonQuery::JustPressed,
-                        11 => ButtonQuery::Released,
-                        _ => ButtonQuery::JustReleased,
-                    },
+                    query,
                 }
             }
             (2, 26) => Expression::ArrayElement {
@@ -1095,6 +1125,21 @@ impl Writer<'_> {
                 Statement::Turn { degrees_per_second } => {
                     self.node(4, 214, indent);
                     self.expression(degrees_per_second, indent + 1)?;
+                }
+                Statement::IncrementalTurnToward { target, frames } => {
+                    self.node(5, 23, indent);
+                    match target {
+                        ActorTarget::Keyword(keyword) => self.node(
+                            0,
+                            match keyword {
+                                ActorKeyword::SelfActor => 4,
+                                ActorKeyword::MainActor => 5,
+                            },
+                            indent + 1,
+                        ),
+                        ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
+                    }
+                    self.expression(frames, indent + 1)?;
                 }
                 Statement::SetVectorSpeed(value) => {
                     self.node(4, 29, indent);
@@ -1497,6 +1542,19 @@ impl Writer<'_> {
                     indent + 1,
                 );
                 self.behavior(target, indent + 1)?;
+            }
+            Expression::AbsentButton(query) => {
+                self.node(
+                    1,
+                    match query {
+                        ButtonQuery::Pressed => 9,
+                        ButtonQuery::JustPressed => 10,
+                        ButtonQuery::Released => 11,
+                        ButtonQuery::JustReleased => 12,
+                    },
+                    indent,
+                );
+                self.node(14, 0, indent + 1);
             }
             Expression::Button { action, query } => {
                 self.node(
@@ -2370,6 +2428,79 @@ mod partial_tests {
             ]
         ));
         assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn incremental_turn_keeps_target_frame_count_and_exact_source_nodes() -> Result<()> {
+        for frames in [5, 0, -7] {
+            let (mut codec, bytes) =
+                partial(&[(5, 23, 1), (24, 1234, 2), (12, frames as u32, 2), (8, 0, 0)]);
+            let actor = AssetRef::<Perso>::new("level:/persos/world/0/1")?;
+            codec.actors.insert(1, actor.clone());
+            codec.actor_handles.push((actor.clone(), 1234));
+            let script = codec.read(&bytes)?;
+            assert_eq!(
+                script.statements,
+                vec![Statement::IncrementalTurnToward {
+                    target: ActorTarget::Reference(actor),
+                    frames: Expression::Integer(frames),
+                }]
+            );
+            assert_eq!(codec.write(&script)?, bytes);
+        }
+        let (codec, bytes) = partial(&[(5, 23, 1), (0, 5, 2), (12, 5, 2), (8, 0, 0)]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[0],
+            Statement::IncrementalTurnToward {
+                target: ActorTarget::Keyword(ActorKeyword::MainActor),
+                ..
+            }
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        let (codec, bytes) = partial(&[(5, 23, 1), (24, 1234, 2), (12, 5, 2), (8, 0, 0)]);
+        assert!(matches!(
+            &codec.read(&bytes)?.statements[0],
+            Statement::Unsupported(_)
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn absent_input_queries_preserve_semantics_without_masking_unbound_handles() -> Result<()> {
+        for (operation, query) in [
+            (9, ButtonQuery::Pressed),
+            (10, ButtonQuery::JustPressed),
+            (11, ButtonQuery::Released),
+            (12, ButtonQuery::JustReleased),
+        ] {
+            let (codec, bytes) = partial(&[
+                (2, 11, 1),
+                (11, 0, 2),
+                (1, operation, 2),
+                (14, 0, 3),
+                (8, 0, 0),
+            ]);
+            let script = codec.read(&bytes)?;
+            assert_eq!(
+                script.statements,
+                vec![Statement::Assign {
+                    variable: 0,
+                    value: Expression::AbsentButton(query)
+                }]
+            );
+            assert_eq!(codec.write(&script)?, bytes);
+        }
+        let (codec, bytes) =
+            partial(&[(2, 11, 1), (11, 0, 2), (1, 10, 2), (14, 1234, 3), (8, 0, 0)]);
+        assert!(matches!(
+            &codec.read(&bytes)?.statements[0],
+            Statement::Assign {
+                value: Expression::Unsupported(_),
+                ..
+            }
+        ));
         Ok(())
     }
 

@@ -81,6 +81,72 @@ fn native_camera_api_stores_the_compiled_target_actor() -> Result<()> {
 }
 
 #[test]
+fn compiled_incremental_turn_snapshots_target_counts_frames_and_cancels() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    let project = temp.path().join("godot");
+    godot::support::initialize(&project)?;
+    let mut model = model()?;
+    model.normal.as_mut().unwrap().behaviors[0].schedule = Some(Script {
+        statements: vec![
+            Statement::IncrementalTurnToward {
+                target: ActorTarget::Keyword(ActorKeyword::MainActor),
+                frames: Expression::Variable(1),
+            },
+            Statement::Assign {
+                variable: 0,
+                value: Expression::AbsentButton(ButtonQuery::Released),
+            },
+            Statement::WaitFrames(Expression::Integer(100)),
+        ],
+    });
+    model.validate()?;
+    let reopened = rete::decode::<AiModel>(&rete::encode(&model)?)?;
+    assert_eq!(reopened, model);
+    let code = godot::ai::compile(&reopened, &[])?;
+    assert!(code.contains("if remaining_0 < 0: remaining_0 = 1"));
+    assert!(code.contains("source_turn_angles(main_actor)"));
+    assert!(code.contains("action_revision_0 != normal_action_revision"));
+    assert!(code.contains("source_turn_to_heading(turn_heading_0)"));
+    assert!(code.contains("dsg_0 = bool(true)"));
+    fs::write(project.join("turn.gd"), code)?;
+    fs::write(
+        project.join("check_incremental_turn.gd"),
+        include_bytes!("check_incremental_turn.gd"),
+    )?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    godot::run_godot(
+        &engine,
+        &project,
+        &[
+            "--headless",
+            "--check-only",
+            "--script",
+            "res://check_incremental_turn.gd",
+            "--log-file",
+            "turn-parser.log",
+        ],
+        Duration::from_secs(10),
+    )?;
+    let evidence = godot::run_godot(
+        &engine,
+        &project,
+        &[
+            "--headless",
+            "--script",
+            "res://check_incremental_turn.gd",
+            "--log-file",
+            "turn-runtime.log",
+        ],
+        Duration::from_secs(20),
+    )?;
+    assert!(
+        evidence.contains("COMPILED_INCREMENTAL_TURN_OK"),
+        "{evidence}"
+    );
+    Ok(())
+}
+
+#[test]
 fn fix_ai_programs_keep_distinct_level_projections() -> Result<()> {
     let temp = tempfile::tempdir()?;
     let project = temp.path().join("godot");

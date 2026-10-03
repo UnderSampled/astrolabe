@@ -119,7 +119,7 @@ fn menu_new_game_preserves_slot_and_restarts_original_opening() -> Result<()> {
         "unexpected New Game error: {log}"
     );
     ensure!(
-        log.contains("NEW_GAME_OPENING_CHECKPOINT_OK"),
+        log.contains("NEW_GAME_FIRST_DIALOGUE_OK"),
         "New Game checkpoint marker missing: {log}"
     );
     let result: serde_json::Value = serde_json::from_slice(&fs::read(report)?)?;

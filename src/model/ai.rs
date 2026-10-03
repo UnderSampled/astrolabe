@@ -169,6 +169,12 @@ pub enum Statement {
     Turn {
         degrees_per_second: Expression,
     },
+    /// Action_IncrementalTurnPerso snapshots the shortest horizontal turn and
+    /// applies equal steps over a source frame count; negative counts mean one.
+    IncrementalTurnToward {
+        target: ActorTarget,
+        frames: Expression,
+    },
     /// Source motion requests retain their order in the AI schedule. The
     /// character component owns their runtime effects.
     SetVectorSpeed(Expression),
@@ -288,6 +294,9 @@ pub enum FieldTarget {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Expression {
     Unsupported(UnsupportedFragment),
+    /// A source input operand with no logical entry. Pressed/edge queries are
+    /// false, while Released is true; this is distinct from an unbound handle.
+    AbsentButton(ButtonQuery),
     /// Source Keyword_Nobody: an absent actor reference.
     Nobody,
     /// Source Keyword_Nowhere: an absent waypoint reference.
@@ -766,6 +775,7 @@ impl AiModel {
                     | Statement::Turn {
                         degrees_per_second: value,
                     }
+                    | Statement::IncrementalTurnToward { frames: value, .. }
                     | Statement::ChangeSighting(value)
                     | Statement::SetVectorSpeed(value)
                     | Statement::AddWind(value)
@@ -1049,6 +1059,7 @@ impl Script {
                     | Statement::Turn {
                         degrees_per_second: value,
                     }
+                    | Statement::IncrementalTurnToward { frames: value, .. }
                     | Statement::ChangeSighting(value)
                     | Statement::SetVectorSpeed(value)
                     | Statement::AddWind(value)
@@ -1279,6 +1290,12 @@ impl Script {
                     }
                     Statement::Turn { degrees_per_second } => {
                         expression(degrees_per_second, variables, depth + 1, count)?
+                    }
+                    Statement::IncrementalTurnToward { target, frames } => {
+                        if let ActorTarget::Reference(actor) = target {
+                            ensure!(actor.path.member().is_none(), "turn target is a member");
+                        }
+                        expression(frames, variables, depth + 1, count)?;
                     }
                     Statement::CameraChangeState { camera, state } => {
                         ensure!(camera.path.member().is_none(), "camera is a member");

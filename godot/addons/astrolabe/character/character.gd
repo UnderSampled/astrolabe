@@ -142,6 +142,25 @@ func turn(degrees_per_second: float, seconds: float) -> void:
     assert(is_finite(degrees_per_second) and is_finite(seconds) and seconds >= 0.0)
     rotate_object_local(Vector3.UP, deg_to_rad(degrees_per_second) * seconds)
 
+## Action_IncrementalTurnPerso captures a horizontal target once. Its compiled
+## coroutine owns the frame count and cancellation; Godot owns the transform.
+## Source actor forward -Y maps to the native body's +Z axis.
+func source_turn_angles(target: Node3D) -> Vector2:
+    if not is_instance_valid(target): return Vector2(NAN, NAN)
+    var forward := global_basis.orthonormalized().z
+    var direction := target.global_position - global_position
+    var start := fposmod(atan2(forward.x, forward.z), TAU)
+    # The original angle helper chooses PI for a zero horizontal direction.
+    var finish := PI if direction.x == 0.0 and direction.z == 0.0 else fposmod(atan2(direction.x, direction.z), TAU)
+    var difference := finish - start
+    if difference > PI: difference -= TAU
+    elif difference < -PI: difference += TAU
+    return Vector2(start, difference)
+
+func source_turn_to_heading(heading: float) -> void:
+    assert(is_finite(heading))
+    global_rotation.y = heading
+
 ## GoRelative and jump impulses use the actor's orientation when their motion
 ## is committed. Airborne steering through a jump procedure uses it too.
 func _source_relative_vector(value: Vector3) -> Vector3:

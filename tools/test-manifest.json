@@ -3738,6 +3738,66 @@
       "timeout_seconds": 5,
       "ignored": false,
       "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::incremental_turn_keeps_target_frame_count_and_exact_source_nodes",
+      "areas": [
+        "source",
+        "ai"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic original turn nodes, bound target, positive/zero/negative frame counts",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::absent_input_queries_preserve_semantics_without_masking_unbound_handles",
+      "areas": [
+        "source",
+        "ai"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic absent source inputs and unresolved nonzero handle",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::ai::tests::source_opening_turn_and_absent_world_inputs_are_bound_deliberately",
+      "areas": [
+        "source",
+        "ai"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "unchanged English manor Gogoud node18 and eight World debug inputs",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
+      "test": "compiled_incremental_turn_snapshots_target_counts_frames_and_cancels",
+      "areas": [
+        "ai",
+        "movement"
+      ],
+      "kind": "native",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "compiled synthetic turn against maintained native character; frame count, target snapshot and cancellation",
+      "timeout_seconds": 40,
+      "ignored": false,
+      "release": true
     }
   ]
 }

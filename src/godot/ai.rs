@@ -871,6 +871,12 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             expression(array, model)?,
             expression(index, model)?
         ),
+        Expression::AbsentButton(query) => if *query == ButtonQuery::Released {
+            "true"
+        } else {
+            "false"
+        }
+        .into(),
         Expression::Button { action, query } => {
             let name = quoted(action);
             match query {
@@ -1010,7 +1016,9 @@ fn blocking(
         Statement::Wait { milliseconds } => {
             Some(guarded_expression(out, milliseconds, model, depth, flow)?)
         }
-        Statement::WaitFrames(frames) | Statement::ExecuteAction(frames) => {
+        Statement::WaitFrames(frames)
+        | Statement::ExecuteAction(frames)
+        | Statement::IncrementalTurnToward { frames, .. } => {
             Some(guarded_expression(out, frames, model, depth, flow)?)
         }
         Statement::ExecuteActionAndGenerateObject { action, .. } => {
@@ -1050,6 +1058,26 @@ fn blocking(
                 out,
                 "{pad}    var remaining_{id} := int({})",
                 operand.as_deref().expect("frame operand prepared")
+            )?;
+            format!("remaining_{id} <= 0")
+        }
+        Statement::IncrementalTurnToward { target, .. } => {
+            let target = match target {
+                ActorTarget::Keyword(ActorKeyword::SelfActor) => "character()".to_owned(),
+                ActorTarget::Keyword(ActorKeyword::MainActor) => "main_actor".to_owned(),
+                ActorTarget::Reference(actor) => format!(
+                    "character().source_actor_node({})",
+                    quoted(actor.path.as_str())
+                ),
+            };
+            writeln!(
+                out,
+                "{pad}    var remaining_{id} := int({})\n{pad}    if remaining_{id} < 0: remaining_{id} = 1\n{pad}    var turn_angles_{id}: Vector2 = character().source_turn_angles({target})\n{pad}    if not is_finite(turn_angles_{id}.x) or not is_finite(turn_angles_{id}.y):\n{pad}        fail_unsupported({})\n{pad}        {exit}\n{pad}    var turn_heading_{id} := turn_angles_{id}.x\n{pad}    var turn_step_{id} := 0.0 if remaining_{id} == 0 else turn_angles_{id}.y / float(remaining_{id})",
+                operand.as_deref().expect("turn frame operand prepared"),
+                quoted(&format!(
+                    "{} requires a valid native incremental turn target",
+                    model.path
+                ))
             )?;
             format!("remaining_{id} <= 0")
         }
@@ -1102,6 +1130,12 @@ fn blocking(
     writeln!(out, "{pad}        if {complete}: break")?;
     if matches!(statement, Statement::WaitFrames(_)) {
         writeln!(out, "{pad}        remaining_{id} -= 1")?;
+    }
+    if matches!(statement, Statement::IncrementalTurnToward { .. }) {
+        writeln!(
+            out,
+            "{pad}        turn_heading_{id} += turn_step_{id}\n{pad}        character().source_turn_to_heading(turn_heading_{id})\n{pad}        remaining_{id} -= 1"
+        )?;
     }
     writeln!(
         out,
@@ -1631,6 +1665,7 @@ fn statements(
             }
             Statement::Wait { .. }
             | Statement::WaitFrames(_)
+            | Statement::IncrementalTurnToward { .. }
             | Statement::ExecuteAction(_)
             | Statement::ExecuteActionAndGenerateObject { .. }
             | Statement::WaitEndOfAction

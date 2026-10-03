@@ -3,6 +3,63 @@ use super::*;
 use crate::model::ai::Expression;
 
 #[test]
+#[ignore = "requires local game data; selected opening API evidence"]
+fn source_opening_turn_and_absent_world_inputs_are_bound_deliberately() -> Result<()> {
+    let game = std::env::var_os("ASTROLABE_GAME_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| "disc".into());
+    let s = SourceSession::open(&game, &Selection::hype("manoir", "en")?)?;
+    let tree = s.tree()?;
+    let model_for = |path: &str| -> Result<Address> {
+        let node = tree
+            .iter()
+            .find(|n| n.path == path)
+            .context("opening actor missing")?;
+        let perso = s.required(node.address, 4)?;
+        let brain = s.required(perso, 16)?;
+        let mind = s.required(brain, 0)?;
+        s.required(mind, 0)
+    };
+    let gogoud = model_for("world/0/5")?;
+    let set = source_set(&s, gogoud, 0)?.context("Gogoud normal behavior set missing")?;
+    let script = set.behaviors[0]
+        .schedule
+        .as_ref()
+        .context("Gogoud schedule missing")?;
+    let nodes = script
+        .bytes
+        .as_chunks::<8>()
+        .0
+        .iter()
+        .map(|b| wire::<NodeWire>(b))
+        .collect::<Result<Vec<_>>>()?;
+    assert_eq!((nodes[18].kind, nodes[18].parameter), (5, 23));
+    assert_eq!(
+        (nodes[19].kind, nodes[20].kind, nodes[20].parameter),
+        (24, 12, 5)
+    );
+    let target = s.required(add(script.address, 19 * 8), 0)?;
+    let target_node = tree
+        .iter()
+        .find(|n| s.pointer(n.address, 4).ok().flatten() == Some(target))
+        .context("turn target isn't a rooted Perso")?;
+    println!("Gogoud turn: target {}, frames 5", target_node.path);
+    let world = model_for("world/0/3")?;
+    let reflex = source_set(&s, world, 4)?.context("World reflex set missing")?;
+    for rule in reflex.behaviors[0].rules.iter().skip(1).flatten() {
+        let node: NodeWire = wire(&rule.bytes[16..24])?;
+        assert_eq!(node.kind, 14);
+        assert!(
+            matches!(node.parameter, 0 | u32::MAX),
+            "World debug input is not actually absent"
+        );
+        assert!(s.pointer(add(rule.address, 16), 0)?.is_none());
+    }
+    assert_eq!(reflex.behaviors[0].rules.len(), 9);
+    Ok(())
+}
+
+#[test]
 #[ignore = "requires local game data; included by tools/test.py --local"]
 fn source_manor_lever_save_identity() -> Result<()> {
     let game = std::env::var_os("ASTROLABE_GAME_DIR")
