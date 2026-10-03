@@ -70,7 +70,11 @@ this does not exempt behavior demonstrated by this manor take.
 
 The camera effort should eventually cover the intro-to-gameplay follow-camera
 handoff at this endpoint. Framing and actor-view foundations are shared, but
-the present native checkpoint accepts no motion mode. The source initial
+the verified framing checkpoint accepts no motion mode. The next implementation
+adds mode-3 aiming, accepted by the v7 actual-model component test; its eye
+animation is authored test setup rather than reconstructed intro shot commands.
+All five native images were inspected: framing is recognizable, but character
+presentation, lighting and letterbox differ from this recorded intro. The source initial
 parameter mode is 0 and the v3 opening observation has mode 3; player tracking
 and obstruction remain separate behavior assertions. A fixed-boom presentation
 camera is not follow-camera acceptance.

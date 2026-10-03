@@ -1,5 +1,46 @@
 # In-engine manor opening — source checkpoint, 2026-10-03
 
+## Native mode-3 aiming acceptance, v7
+
+Support interface 43 exports the active mode and actor/look offsets into native
+properties. Mode 3 aims the meaningful camera actor with `Node3D.look_at` from
+its current eye toward the selected actor plus rotated offsets; zero look offset
+uses source [0,-0.05,0]. The actual compiled camera rule requests each update.
+Other motion modes and original shot commands remain unsupported.
+
+Luna's v7 run passed all 25 Rust cases (21 mandatory safeguards and four camera
+cases) and four Python modules in 240.348 seconds. The actual manor source is
+imported, saved/reopened in Rete and exported normally. The full camera model 437
+is unchanged (Rete hash `02d0dd557e54b068a088ad3f5e8a591ea57b143ff0d694876944d030f5141442`);
+the harness invokes only its original `normal_0_rule_0`. Four fixed eye/helper
+fixtures reproduce observed forward/up within 0.000006 normalized-vector error.
+There are 45 native eye-animation observations, maximum aim error 0.00000121,
+and 2.29133 units displacement. Guarded unsupported mode and absent, coincident
+or vertical target calls leave the pose intact. No new OpenSpace AI is authored.
+
+The file starts in mode 0; mode 3 is an explicit temporary Rete fixture edit.
+Recorded eye placements, helper targets, viewport selection and subsequent native
+AnimationPlayer motion are declared harness setup. Other Brains are held. This
+does not prove source ChangeState, shot commands, timing, viewport activation,
+follow/obstruction or the approximately 209-second intro handoff.
+
+Sol inspected all five 640×480 rendered PNGs. Courtyard/tree framing, the shield
+close-up and statue-base views are recognizable. The native initial scene has
+coloured/overlapping characters where the original presents a grey statue;
+lighting/fade and letterbox also differ. The original final opening screenshot
+shows Gogoud in the foreground, which this held-Brain fixture does not reproduce.
+The motion endpoint image changes the courtyard perspective without an empty
+frame or displaced target. These observations support usable native camera
+geometry, not pixel or opening-presentation parity.
+
+Source remained unchanged and cleanup completed. No GPU/device-loss markers
+appeared in assigned logs. External coredump status remains unverified because
+system-bus access was unavailable. Evidence:
+`TestResults/manor-camera-aim-selection-v7-sol-20261003.log.json` and
+`.log.d/manor-native-camera-rule-1791035598475331705/` (`fixture.json`,
+`report.json`, five PNGs and owned logs). Earlier source/framing checkpoints
+below retain their historical limitations.
+
 ## Camera framing checkpoint after fresh v3 capture
 
 Luna's fresh `TestResults/manor-intro-camera-source-v3-sol-20261003/`

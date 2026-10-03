@@ -47,10 +47,26 @@ Its helper-actor targets and actor/look offsets explain every observed forward
 direction within 0.00003 source units. These first 14 seconds show fixed shots
 and cuts, not continuous motion. Source remained unchanged, cleanup was clean,
 and no GPU/device-loss markers were reported in assigned logs.
-Camera position updates, motion modes,
-initial target binding and viewport selection remain unsupported. This is not a
-native intro or follow-camera pass. Orrery's next checked capture includes the
-target actor from the same camera pause to resolve the opening's separate target.
+Support interface 43 now implements mode-3 aiming from the camera actor's eye
+position toward the selected actor plus its rotated actor/look offsets. Other
+motion modes, source shot commands/timing, initial target binding and viewport
+selection remain unsupported. Luna's v7 selection passed all 25 Rust cases and
+four Python modules in 240.348 seconds, with unchanged source and complete cleanup.
+The new case exports the actual manor through Rete, preserves model 437 unchanged
+and calls its actual first compiled rule. Four captured fixed views agree within
+0.000006 in normalized forward/up vectors. Across 45 native eye-motion samples,
+maximum aim error is 0.00000121 and eye displacement is 2.29133 units. Unsupported
+mode, absent/coincident/vertical target guards pass. Mode 3 is a
+declared Rete fixture edit from the file's initial mode 0; helper binding, eye
+placement and viewport selection are explicit harness setup. This is a camera
+component check, not a native intro or follow-camera pass. Sol inspected all five
+rendered 640×480 PNGs: courtyard framing, shield close-up and statue-base views
+are recognizable, while coloured/overlapping characters, lighting and absent
+letterbox differ from the original intro. The native scene retains 3,440 mesh
+instances. No assigned-log GPU/device-loss markers were reported; external
+coredump status is unverified because the system bus was unavailable. Evidence:
+`TestResults/manor-camera-aim-selection-v7-sol-20261003.log.json` and its
+`.log.d/manor-native-camera-rule-1791035598475331705/` directory.
 
 At Stephen's explicit request, Proc_AddWind is now a documented intentional
 no-op, with typed source/Rete round-trip support. Initialization can pass the

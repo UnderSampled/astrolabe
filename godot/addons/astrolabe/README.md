@@ -1,4 +1,4 @@
-# Astrolabe support, interface 42
+# Astrolabe support, interface 43
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -131,10 +131,14 @@ store the requested target reference. A source camera component adds that native
 `Camera3D` to the saved actor scene, with the initial parameter set's horizontal
 FoV, source renderer clip planes and a half-turn matching the source viewing
 axis. Four framing parameter sets and their unknown scalar fields persist in
-Rete schema 37. Only projection is exported at this checkpoint; no motion mode
-is accepted yet. Follow motion, initial target binding, viewport selection,
-projection fields and the procedure's other reset fields remain unsupported;
-target assignment alone does not change the view.
+Rete schema 37. The active mode and rotated actor/look offsets export as native
+properties. Mode 3 aims the camera actor from its current eye position at the
+selected actor plus those offsets, using `Node3D.look_at`. A zero look offset
+uses the source default of [0,-0.05,0]. The compiled camera rule requests each
+update; an authored native AnimationPlayer can move the eye independently.
+Other motion modes, original shot commands, initial target binding, viewport
+selection and the procedure's other reset fields remain unsupported. Target
+assignment alone does not change the view.
 The rooted `StdCamer` now keeps its original model-437 Brain. Its source
 type-11 Perso list is saved as a typed, capacity-bounded designer value;
 compiled AI performs the original membership and append calls. The native
@@ -144,9 +148,9 @@ saved Godot actor references remains unsupported and fails explicitly during
 export. This support code supplies the called list operation; it does not
 choose camera targets or alter the source script's branches.
 The observed return-zero/camera-update pair compiles to the native camera
-update API. That API still reports unsupported until the source pose and
-projection contract is mapped; attaching this Brain does not yet make the
-view follow.
+update API. It accepts mode-3 aiming with a valid target, rejects unsupported
+modes and degenerate eye/target geometry, and does not select a viewport.
+Attaching this Brain does not yet reproduce the intro or follow camera.
 The compiled `Stats_DisplayMainActor*` calls retain their requested Boolean
 visibility in `source_hud_display` and emit `hud_visibility_requested`. An
 authored HUD can bind that signal to its native `Control` nodes. The current

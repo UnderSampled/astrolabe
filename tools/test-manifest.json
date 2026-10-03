@@ -115,6 +115,25 @@
       "release": true
     },
     {
+      "binary": "astrolabe::cameras",
+      "test": "imported_camera_rule_aims_at_manor_helpers_while_native_eye_moves",
+      "areas": [
+        "source",
+        "scene",
+        "ai",
+        "rete"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc",
+        "godot"
+      ],
+      "fixture": "actual manor/model-437 first rule, unchanged AI, declared mode-3 Rete fixture; captured fixed views and authored native eye animation",
+      "timeout_seconds": 180,
+      "ignored": true,
+      "release": true
+    },
+    {
       "binary": "astrolabe",
       "test": "openspace::level::way::tests::source_gogoud_opening_route_and_records",
       "areas": [

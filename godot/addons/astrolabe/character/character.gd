@@ -586,8 +586,8 @@ func source_camera_change_targeted_perso(camera_asset: String, target: Node3D) -
         return false
     return bool(camera.call("source_change_targeted_perso", target))
 
-## Called by the compiled camera Brain. The source pose calculation and its
-## persistent parameters are still unmapped, so this reports unsupported.
+## Called by the compiled camera Brain. The native camera accepts mode-3 aiming;
+## other source motion modes fail explicitly.
 func source_camera_update_position() -> bool:
     var camera := get_node_or_null("SourceCamera")
     if camera == null or not camera.has_method("source_update_position"):
