@@ -1,7 +1,8 @@
 //! Private PulseAudio-compatible graph for one Orrery game run.
 //!
 //! The Wine client sees only this socket and its null sink. No host monitor,
-//! microphone, default sink, or desktop-wide volume setting is involved.
+//! microphone or host monitor is involved. Interactive recording may forward
+//! this private monitor to the host default playback sink through a PCM pipe.
 use anyhow::{Context, Result, bail, ensure};
 use serde_json::{Value, json};
 use std::{
@@ -22,6 +23,21 @@ pub struct AudioRoute {
     pulse: Child,
     manager: Child,
     capture: Option<AudioCapture>,
+    playback: Option<AudioPlayback>,
+}
+
+struct AudioPlayback {
+    source: Child,
+    speaker: Option<Child>,
+}
+
+impl Drop for AudioPlayback {
+    fn drop(&mut self) {
+        if let Some(speaker) = &mut self.speaker {
+            stop(speaker);
+        }
+        stop(&mut self.source);
+    }
 }
 
 pub struct AudioCapture {
@@ -98,6 +114,7 @@ impl AudioRoute {
             pulse,
             manager,
             capture: None,
+            playback: None,
         };
         let ready_by = Instant::now() + Duration::from_secs(5);
         loop {
@@ -148,6 +165,99 @@ impl AudioRoute {
             .env("PIPEWIRE_RUNTIME_DIR", &self.runtime)
             .env("PULSE_SERVER", &self.server)
             .env("PULSE_SINK", SINK);
+    }
+
+    /// Read only the game monitor on the private server; the host connection
+    /// is playback-only and receives PCM over an owned anonymous pipe.
+    pub fn start_playback(&mut self, run: &Path) -> Result<()> {
+        ensure!(
+            self.playback.is_none(),
+            "game audio playback already started"
+        );
+        let source_log = File::create_new(run.join("audio-playback-source.log"))?;
+        let speaker_log = File::create_new(run.join("audio-playback-speaker.log"))?;
+        let source = private_command("parec", &self.runtime, &self.server)
+            .args([
+                "--record",
+                "--raw",
+                "--format=s16le",
+                "--rate=48000",
+                "--channels=2",
+                "--device=orrery_game.monitor",
+                "--latency-msec=50",
+            ])
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::from(source_log))
+            .spawn()
+            .context("start private game-only audio playback source")?;
+        let mut playback = AudioPlayback {
+            source,
+            speaker: None,
+        };
+        let pcm = playback
+            .source
+            .stdout
+            .take()
+            .context("game audio PCM pipe")?;
+        playback.speaker = Some(
+            Command::new("pacat")
+                .args([
+                    "--playback",
+                    "--raw",
+                    "--format=s16le",
+                    "--rate=48000",
+                    "--channels=2",
+                    "--latency-msec=100",
+                    "--client-name=Orrery",
+                    "--stream-name=Hype interactive game audio",
+                ])
+                .stdin(Stdio::from(pcm))
+                .stdout(Stdio::null())
+                .stderr(Stdio::from(speaker_log))
+                .spawn()
+                .context("start game audio playback on the user's desktop")?,
+        );
+        self.playback = Some(playback);
+        let ready_by = Instant::now() + Duration::from_secs(3);
+        loop {
+            self.check_playback()?;
+            // Full recording already has one private monitor reader. Wait for
+            // the additional forwarder to attach before launching the game.
+            if self
+                .pactl(&["list", "short", "source-outputs"])?
+                .lines()
+                .count()
+                > usize::from(self.capture.is_some())
+            {
+                break;
+            }
+            ensure!(
+                Instant::now() < ready_by,
+                "game audio playback did not attach to the private monitor"
+            );
+            thread::sleep(Duration::from_millis(25));
+        }
+        Ok(())
+    }
+
+    pub fn check_playback(&mut self) -> Result<()> {
+        if let Some(playback) = &mut self.playback {
+            ensure!(
+                playback.source.try_wait()?.is_none(),
+                "private game audio playback source exited"
+            );
+            ensure!(
+                playback
+                    .speaker
+                    .as_mut()
+                    .context("game audio playback sink")?
+                    .try_wait()?
+                    .is_none(),
+                "desktop game audio playback exited; inspect audio-playback-speaker.log"
+            );
+        }
+        Ok(())
     }
 
     fn start_capture(&mut self, path: &Path) -> Result<()> {
@@ -302,12 +412,14 @@ impl AudioRoute {
             "capture_start_from_launch_micros":offset,
             "timing_uncertainty":"PulseAudio buffering and FFmpeg startup are not sample-clock calibrated; capture was armed before Wine launch",
             "stream_provenance":"monitor of Orrery's private null sink; only this run's Wine client receives the server socket",
+            "desktop_playback_requested":self.playback.is_some(),
         })))
     }
 }
 
 impl Drop for AudioRoute {
     fn drop(&mut self) {
+        self.playback.take();
         if let Some(capture) = &mut self.capture {
             stop(&mut capture.child);
         }

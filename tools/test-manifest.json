@@ -2925,6 +2925,17 @@
     },
     {
       "binary": "orrery",
+      "test": "session::input_only_tests::interactive_rejects_unsupported_capture_before_accessing_game_or_saves",
+      "areas": ["runtime", "comparison"],
+      "kind": "source",
+      "prerequisites": [],
+      "fixture": "interactive mode rejected before opening missing game/save paths",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "orrery",
       "test": "original::probe_tests::elf32_observation_wrapper_forwards_gameplay_callback_exactly_once",
       "areas": [
         "runtime"

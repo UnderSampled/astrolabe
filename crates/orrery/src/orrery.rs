@@ -176,6 +176,54 @@ pub struct GameSession {
     started_unix_micros: u128,
     expires: Instant,
     _installation_lock: File,
+    interactive: bool,
+}
+
+struct RecordingLaunch<'a> {
+    directory: &'a Path,
+    interactive: bool,
+}
+
+pub(crate) fn validate_interactive_environment() -> Result<()> {
+    ensure!(
+        std::env::var_os("WAYLAND_DISPLAY").is_some_and(|value| !value.is_empty())
+            && std::env::var_os("XDG_RUNTIME_DIR").is_some_and(|value| !value.is_empty()),
+        "interactive recording needs the user's Wayland desktop environment (WAYLAND_DISPLAY and XDG_RUNTIME_DIR)"
+    );
+    Ok(())
+}
+
+fn gamescope_command(bridge: &Path, handoff: &Path, interactive: bool) -> Command {
+    let mut command = Command::new("gamescope");
+    command
+        .args([
+            "--backend",
+            if interactive { "wayland" } else { "headless" },
+            "-w",
+            "1040",
+            "-h",
+            "800",
+            "-W",
+            "1040",
+            "-H",
+            "800",
+            "-r",
+            "60",
+            "-o",
+            "60",
+            "--",
+        ])
+        .arg(bridge)
+        .arg("display-bridge")
+        .arg("--output")
+        .arg(handoff)
+        .env_remove("DISPLAY")
+        .env_remove("XDG_ACTIVATION_TOKEN")
+        .env_remove("DESKTOP_STARTUP_ID");
+    if !interactive {
+        command.env_remove("WAYLAND_DISPLAY");
+    }
+    command
 }
 
 impl GameSession {
@@ -263,6 +311,20 @@ impl GameSession {
         duration: Duration,
         recording_dir: &Path,
     ) -> Result<Self> {
+        Self::start_recording_session_in_mode(config_path, runs, duration, recording_dir, false)
+    }
+
+    /// Visible desktop output uses the same private Xwayland input and capture paths.
+    pub fn start_recording_session_in_mode(
+        config_path: &Path,
+        runs: &Path,
+        duration: Duration,
+        recording_dir: &Path,
+        interactive: bool,
+    ) -> Result<Self> {
+        if interactive {
+            validate_interactive_environment()?;
+        }
         Self::start_inner(
             config_path,
             runs,
@@ -270,7 +332,10 @@ impl GameSession {
             &std::env::current_exe()?,
             false,
             false,
-            Some(recording_dir),
+            Some(RecordingLaunch {
+                directory: recording_dir,
+                interactive,
+            }),
         )
     }
 
@@ -281,7 +346,7 @@ impl GameSession {
         bridge_binary: &Path,
         pinned_save: bool,
         wait_menu: bool,
-        recording_dir: Option<&Path>,
+        recording: Option<RecordingLaunch<'_>>,
     ) -> Result<Self> {
         ensure!(
             (60..=43_200).contains(&duration.as_secs()),
@@ -314,43 +379,25 @@ impl GameSession {
         let stamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
         let run = runs.join(format!("run-{stamp}"));
         fs::create_dir(&run)?;
-        let audio_route = crate::audio::AudioRoute::start(
+        let interactive = recording
+            .as_ref()
+            .is_some_and(|recording| recording.interactive);
+        let mut audio_route = crate::audio::AudioRoute::start(
             &run,
-            recording_dir
-                .map(|directory| directory.join("audio.mka"))
+            recording
+                .as_ref()
+                .map(|recording| recording.directory.join("audio.mka"))
                 .as_deref(),
         )?;
+        if interactive {
+            audio_route.start_playback(&run)?;
+        }
         let handoff = run.join("display.json");
         let game_log = File::create_new(run.join("gamescope.log"))?;
         let host_display = std::env::var("DISPLAY").unwrap_or_default();
         let mut owner = Owner::new()?;
-        let mut gamescope = Command::new("gamescope");
+        let mut gamescope = gamescope_command(bridge_binary, &handoff, interactive);
         gamescope
-            .args([
-                "--backend",
-                "headless",
-                "-w",
-                "1040",
-                "-h",
-                "800",
-                "-W",
-                "1040",
-                "-H",
-                "800",
-                "-r",
-                "60",
-                "-o",
-                "60",
-                "--",
-            ])
-            .arg(bridge_binary)
-            .arg("display-bridge")
-            .arg("--output")
-            .arg(&handoff)
-            .env_remove("DISPLAY")
-            .env_remove("WAYLAND_DISPLAY")
-            .env_remove("XDG_ACTIVATION_TOKEN")
-            .env_remove("DESKTOP_STARTUP_ID")
             .stdout(Stdio::from(game_log.try_clone()?))
             .stderr(Stdio::from(game_log));
         let display_process = owner.spawn(&mut gamescope)?;
@@ -440,6 +487,7 @@ impl GameSession {
             started_unix_micros,
             expires: Instant::now() + duration,
             _installation_lock: lock,
+            interactive,
         })
     }
 
@@ -456,7 +504,8 @@ impl GameSession {
         Ok(
             json!({"pid":self.process.identity().pid,"starttime":self.process.identity().start_ticks,
             "run":self.run,"display":self.desktop.display,"isolated_keyboard":true,
-            "backend":"gamescope-headless-private-xwayland","exe_sha256":self.config.exe_sha256,
+            "backend":if self.interactive { "gamescope-wayland-private-xwayland" } else { "gamescope-headless-private-xwayland" },
+            "interactive":self.interactive,"exe_sha256":self.config.exe_sha256,
             "remaining_seconds":self.expires.saturating_duration_since(Instant::now()).as_secs()}),
         )
     }
@@ -1653,6 +1702,9 @@ impl GameSession {
     }
     pub fn finish_audio(&mut self) -> Result<Option<Value>> {
         self.audio_route.finish_capture(self.started)
+    }
+    pub(crate) fn check_audio_playback(&mut self) -> Result<()> {
+        self.audio_route.check_playback()
     }
     pub fn close(mut self) -> Result<()> {
         let release = self.desktop.release();

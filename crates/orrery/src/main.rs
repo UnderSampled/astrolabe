@@ -117,6 +117,12 @@ enum Commands {
         mode: orrery::session::CaptureMode,
         #[arg(long)]
         input_script: Option<PathBuf>,
+        /// Show a playable Wayland window and forward only this game's audio to speakers.
+        #[arg(long)]
+        interactive: bool,
+        /// Continuous lossless video budget in MiB (64..65536); PNG checkpoints have a separate 2 GiB limit.
+        #[arg(long, default_value_t = 2048, value_parser = clap::value_parser!(u32).range(64..=65536))]
+        video_budget_mib: u32,
     },
     /// Replay a frozen session's captured physical edges at literal elapsed times.
     ReplaySession {
@@ -385,6 +391,8 @@ fn main() -> Result<()> {
             frame_ms,
             mode,
             input_script,
+            interactive,
+            video_budget_mib,
         } => {
             #[cfg(target_os = "linux")]
             {
@@ -399,6 +407,8 @@ fn main() -> Result<()> {
                     frame_ms,
                     mode,
                     script_path: input_script.as_deref(),
+                    interactive,
+                    video_budget_mib,
                 })?;
                 println!("{}", serde_json::to_string_pretty(&report)?);
                 Ok(())
@@ -416,6 +426,8 @@ fn main() -> Result<()> {
                     frame_ms,
                     mode,
                     input_script,
+                    interactive,
+                    video_budget_mib,
                 );
                 bail!("native session recording currently requires Linux");
             }

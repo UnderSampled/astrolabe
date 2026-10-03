@@ -5,7 +5,7 @@ use serde::Serialize;
 use serde_json::json;
 use std::{
     fs::{self, File},
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     thread,
@@ -166,6 +166,28 @@ impl VideoCapture {
 
     pub fn relative_path(&self) -> &str {
         &self.relative_path
+    }
+
+    /// A spawned encoder alone is not readiness. Require a video packet from
+    /// FFmpeg's existing debug timestamp stream and an opened output artifact.
+    pub fn wait_for_first_encoded_frame(&mut self, timeout: Duration) -> Result<()> {
+        let deadline = Instant::now() + timeout;
+        let marker = b"encoder -> type:video ";
+        loop {
+            let bytes = self.bytes()?;
+            let mut prefix = Vec::new();
+            File::open(&self.log_path)?
+                .take(256 * 1024)
+                .read_to_end(&mut prefix)?;
+            if bytes > 0 && prefix.windows(marker.len()).any(|line| line == marker) {
+                return Ok(());
+            }
+            ensure!(
+                Instant::now() < deadline,
+                "video encoder did not produce its first frame before readiness deadline"
+            );
+            thread::sleep(Duration::from_millis(20));
+        }
     }
 
     pub fn bytes(&mut self) -> Result<u64> {

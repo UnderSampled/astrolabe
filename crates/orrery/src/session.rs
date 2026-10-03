@@ -90,6 +90,8 @@ pub struct RecordOptions<'a> {
     pub frame_ms: u64,
     pub mode: CaptureMode,
     pub script_path: Option<&'a Path>,
+    pub interactive: bool,
+    pub video_budget_mib: u32,
 }
 
 fn validate_script(script: &[PlannedKey]) -> Result<()> {
@@ -347,6 +349,8 @@ struct RunResult {
 struct RunControls {
     replay: bool,
     navigation: Option<Navigation>,
+    interactive: bool,
+    video_budget_bytes: u64,
 }
 
 fn append_observed_keys(
@@ -724,7 +728,19 @@ fn run_loop(
     let RunControls {
         replay,
         mut navigation,
+        interactive,
+        video_budget_bytes,
     } = controls;
+    let stop_request = if interactive {
+        Some(
+            recording_dir
+                .parent()
+                .context("recording output parent")?
+                .join("stop-request"),
+        )
+    } else {
+        None
+    };
     writer.append(
         game.elapsed().as_micros(),
         "process_identified",
@@ -788,6 +804,20 @@ fn run_loop(
             "render_update_association_verified":false,
         }),
     )?;
+    if let Some(stop_request) = &stop_request {
+        video.wait_for_first_encoded_frame(Duration::from_secs(5))?;
+        writer.append(game.elapsed().as_micros(), "interactive_ready", json!({
+            "stop_request":stop_request, "keyboard_capture":"private_window_server_delivered_events",
+            "desktop_audio":"private_game_monitor_forwarded_to_host_playback",
+            "microphone_capture":false,
+            "first_video_frame_encoded":true,
+            "video_budget_bytes":video_budget_bytes,
+        }))?;
+        eprintln!(
+            "Orrery interactive recording ready. Play in the Gamescope window; finish by creating {}",
+            stop_request.display()
+        );
+    }
     let mut inputs = 0usize;
     let mut observed_held = BTreeSet::new();
     let mut next_input = 0usize;
@@ -798,6 +828,7 @@ fn run_loop(
     let mut next_video_geometry = Duration::ZERO;
     let mut next_frame = Duration::ZERO;
     let mut next_state = Duration::ZERO;
+    let mut next_audio_check = Duration::ZERO;
     let mut next_save_check = Duration::ZERO;
     let mut last_stable_saves = inspect_saves(&game.save_root())?;
     let mut pending_saves: Option<(SaveFixture, u128)> = None;
@@ -822,6 +853,20 @@ fn run_loop(
             ending = "interrupted".into();
             break;
         }
+        if stop_request
+            .as_ref()
+            .map(|path| path.try_exists())
+            .transpose()?
+            .unwrap_or(false)
+        {
+            ending = "interrupted".into();
+            writer.append(
+                game.elapsed().as_micros(),
+                "interactive_stop_requested",
+                json!({"stop_request":stop_request}),
+            )?;
+            break;
+        }
         let finished = pending_videos.iter().position(|pending| {
             pending
                 .finalizer
@@ -840,6 +885,10 @@ fn run_loop(
             )?;
         }
         let now = game.elapsed();
+        if interactive && now >= next_audio_check {
+            game.check_audio_playback()?;
+            next_audio_check = now + Duration::from_millis(250);
+        }
         let pending_bytes = pending_videos.iter().try_fold(0u64, |total, pending| {
             Ok::<_, anyhow::Error>(total.saturating_add(pending.stored_bytes()?))
         })?;
@@ -847,7 +896,7 @@ fn run_loop(
             .bytes
             .saturating_add(pending_bytes)
             .saturating_add(video.bytes()?)
-            >= FRAME_BUDGET_BYTES
+            >= video_budget_bytes
         {
             ending = "storage_budget".into();
             gaps.push("continuous video storage budget reached".into());
@@ -1436,7 +1485,25 @@ pub fn record(options: RecordOptions<'_>) -> Result<Value> {
         frame_ms,
         mode,
         script_path,
+        interactive,
+        video_budget_mib,
     } = options;
+    ensure!(
+        (64..=65_536).contains(&video_budget_mib),
+        "video budget outside 64..65536 MiB"
+    );
+    let video_budget_bytes = u64::from(video_budget_mib) * 1024 * 1024;
+    if interactive {
+        ensure!(
+            mode == CaptureMode::Full,
+            "interactive recording requires --mode full"
+        );
+        ensure!(
+            script_path.is_none(),
+            "interactive recording is human driven; omit --input-script"
+        );
+        crate::orrery::validate_interactive_environment()?;
+    }
     let absolute_output = if output.is_absolute() {
         output.to_owned()
     } else {
@@ -1516,11 +1583,12 @@ pub fn record(options: RecordOptions<'_>) -> Result<Value> {
     write_manifest(&recording.join("manifest.json"), &manifest)?;
     let mut writer = EventWriter::create(&recording.join("events.jsonl"))?;
     let started = if mode == CaptureMode::Full {
-        GameSession::start_recording_session(
+        GameSession::start_recording_session_in_mode(
             &config,
             &output.join("runtime"),
             Duration::from_secs(seconds.max(60) + 60),
             &recording,
+            interactive,
         )
     } else {
         GameSession::start_session(
@@ -1538,7 +1606,9 @@ pub fn record(options: RecordOptions<'_>) -> Result<Value> {
     writer.append(
         0,
         "launch",
-        json!({"recording_armed_before_process_launch":true}),
+        json!({"recording_armed_before_process_launch":true,"interactive":interactive,
+            "display_backend":if interactive { "wayland" } else { "headless" },
+            "video_budget_bytes":video_budget_bytes,"checkpoint_budget_bytes":FRAME_BUDGET_BYTES}),
     )?;
     let result = if mode == CaptureMode::InputOnly {
         run_input_only_loop(
@@ -1558,6 +1628,8 @@ pub fn record(options: RecordOptions<'_>) -> Result<Value> {
             RunControls {
                 replay: false,
                 navigation: None,
+                interactive,
+                video_budget_bytes,
             },
         )
     };
@@ -1724,6 +1796,8 @@ pub fn replay(
         RunControls {
             replay: true,
             navigation,
+            interactive: false,
+            video_budget_bytes: FRAME_BUDGET_BYTES,
         },
     );
     if let Err(error) = &result {
@@ -1879,6 +1953,53 @@ pub fn replay(
 #[cfg(test)]
 mod input_only_tests {
     use super::*;
+
+    #[test]
+    fn interactive_rejects_unsupported_capture_before_accessing_game_or_saves() {
+        let absent = Path::new("/orrery-no-game-or-save-access");
+        for (mode, script_path, expected) in [
+            (CaptureMode::InputOnly, None, "requires --mode full"),
+            (CaptureMode::Full, Some(absent), "human driven"),
+        ] {
+            let error = record(RecordOptions {
+                config_path: absent,
+                output: absent,
+                source_saves: Some(absent),
+                title: "interactive safety",
+                description: "",
+                tags: &[],
+                seconds: 60,
+                frame_ms: 125,
+                mode,
+                script_path,
+                interactive: true,
+                video_budget_mib: 2048,
+            })
+            .unwrap_err();
+            assert!(error.to_string().contains(expected), "{error:#}");
+        }
+        for video_budget_mib in [0, 63, 65_537, u32::MAX] {
+            let error = record(RecordOptions {
+                config_path: absent,
+                output: absent,
+                source_saves: Some(absent),
+                title: "budget safety",
+                description: "",
+                tags: &[],
+                seconds: 60,
+                frame_ms: 1000,
+                mode: CaptureMode::Full,
+                script_path: None,
+                interactive: false,
+                video_budget_mib,
+            })
+            .unwrap_err();
+            assert!(
+                error.to_string().contains("video budget outside"),
+                "{error:#}"
+            );
+        }
+    }
 
     fn fixture_manifest(fixture: SaveFixture) -> Manifest {
         Manifest {

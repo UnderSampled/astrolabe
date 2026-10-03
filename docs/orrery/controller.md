@@ -183,7 +183,39 @@ startup timing. The default `literal` profile retains the original event times.
 The visual thresholds are versioned for the captured 780×600 and 1024×768
 English Hype menus; a different edition needs recalibration.
 
-The live game window accepts human input. A scripted route can instead pass
+For human play on the user's Wayland desktop, add `--interactive` to a full
+`record-session` command. This opens a Gamescope window while keeping Hype,
+keyboard observation and video capture on the run's private Xwayland display.
+The private game-only audio monitor is also forwarded to the desktop playback
+sink with `parec` and `pacat`. It captures no microphone or desktop audio and
+does not change host audio settings. Other launches and replay remain headless.
+Interactive mode requires `--mode full` and omits `--input-script`; its driver
+is human. Start it from the desktop environment with `WAYLAND_DISPLAY` and
+`XDG_RUNTIME_DIR` available. Click the Gamescope window and wait for the
+`interactive_ready` event/message before playing. The recorder observes the
+physical keyboard events delivered to Hype's window through XRecord.
+
+Full recording has a separate continuous-video budget:
+`--video-budget-mib` accepts 64 through 65536 MiB and defaults to 2048 MiB.
+The PNG checkpoint budget stays at 2 GiB; `--frame-ms 1000` reduces checkpoint
+frequency without changing the lossless 30 Hz video. Choose an explicit budget
+appropriate to the duration and available disk space. Budget exhaustion seals
+the retained prefix with ending `storage_budget`, even when the duration remains.
+For interactive recording, `interactive_ready` now also requires FFmpeg's first
+encoded video packet and a nonempty video artifact. Audio and the keyboard tap
+are already attached before that cue; the game window can appear earlier.
+
+To finish and save the recording, create an empty `stop-request` file directly
+in that run's output directory, for example
+`touch TestResults/my-hype-recording/stop-request`. The recorder seals an
+`interrupted` recording through normal video/audio finalization, captures the
+output saves and cleans its owned processes. Ctrl+C in the recorder's terminal
+also requests graceful finalization. Wait for `report.json` with
+`cleanup_complete: true` before starting another run. The duration limit is a
+second stop boundary. Closing the game window can interrupt capture before
+finalization and is not the preferred stop control.
+
+A scripted headless route can instead pass
 `--input-script` with JSON events such as
 `[{"at_micros":15000000,"key":"Enter","edge":"press"},{"at_micros":15055000,"key":"Enter","edge":"release"}]`.
 The script uses physical key names from Orrery's current `Key` enum; the saved
