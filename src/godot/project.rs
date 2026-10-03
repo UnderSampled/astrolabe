@@ -259,6 +259,16 @@ environment = SubResource("environment")
                 format!("{}\n", resource_uid(&path)).as_bytes(),
             )?;
         }
+        if !self.dialogue_resources.is_empty() {
+            // Catch generated font/resource API syntax before importing media or
+            // running the native builder. This is cheap and owns the same stage.
+            run_godot(
+                godot,
+                self.stage.path(),
+                &["--headless", "--check-only", "--script", "res://build.gd"],
+                Duration::from_secs(10),
+            )?;
+        }
         run_godot(
             godot,
             self.stage.path(),

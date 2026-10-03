@@ -140,3 +140,22 @@ the presentation increment at a clean checkpoint after foundation integration.
 The presentation increment bumps support interface to 46 and Rete to schema39;
 regenerate selected data and update maintained support explicitly. Static package
 Clippy/check and the exact source/Rete case pass before native assignment.
+
+
+R4 at clean `8a296eaafa628f9b6488ff7a7098b409e9669bb1` passed 22/23 Rust
+cases and all 28 Python checks in 138.724s; all stages reported no timeout,
+leaked children or remaining processes. The new actual-resource case stopped
+on a generated-builder parser error in 4.795s: the bitmap-scale constant was
+incorrectly spelled and scoped to FontFile. The official TextServer enum is
+`FIXED_SIZE_SCALE_DISABLE`; the exporter now uses
+`TextServer.FIXED_SIZE_SCALE_DISABLE`. No presentation success marker or native
+font/frame validation is claimed from this failed run. Existing source and
+mandatory safeguards passed. The foundation checkpoint remains unaffected.
+
+The correction also adds a five-second pinned native ClassDB audit of every new
+FontFile method/argument count and property before source import. The exporter
+checks generated build.gd syntax in its owned stage before media import/build
+when dialogue resources are selected. The next assignment runs this affected
+resource case first and aborts on its failure before broader mandatory checks.
+Official FontFile/TextServer documentation and read-only installed-binary symbol
+inspection support the API audit; actual pinned runtime audit remains pending.

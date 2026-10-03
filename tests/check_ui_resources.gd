@@ -17,7 +17,25 @@ func require(condition: bool, message: String) -> bool:
     quit(1)
     return false
 func _initialize() -> void:
+    if not audit_font_api(): return
+    if "--font-api-only" in OS.get_cmdline_user_args():
+        print("UI_FONT_API_OK " + Engine.get_version_info().string)
+        quit(0)
+        return
     check.call_deferred()
+func audit_font_api() -> bool:
+    if not require(ClassDB.class_has_integer_constant("TextServer","FIXED_SIZE_SCALE_DISABLE"), "pinned bitmap scale enum namespace/name"): return false
+    var font := FontFile.new()
+    var expected := {"set_font_name":1,"set_cache_ascent":3,"set_cache_descent":3,"set_cache_scale":3,"set_texture_image":4,"set_glyph_advance":4,"set_glyph_offset":4,"set_glyph_size":4,"set_glyph_texture_idx":4,"set_glyph_uv_rect":4,"get_font_name":0,"get_glyph_index":3,"get_glyph_list":2,"get_texture_count":2,"get_glyph_advance":3,"get_glyph_offset":3,"get_glyph_size":3,"has_char":1,"get_ascent":1}
+    for method in font.get_method_list():
+        var name: String = str(method.name)
+        if expected.has(name):
+            if not require(method.args.size() == expected[name], "pinned FontFile argument count: " + name): return false
+            expected.erase(name)
+    if not require(expected.is_empty(), "pinned FontFile missing APIs: " + str(expected.keys())): return false
+    var properties := {"fixed_size":true,"fixed_size_scale_mode":true,"allow_system_fallback":true}
+    for property in font.get_property_list(): properties.erase(str(property.name))
+    return require(properties.is_empty(), "pinned FontFile properties: " + str(properties.keys()))
 func check() -> void:
     var emitter := Node3D.new()
     emitter.set_script(Emitter)

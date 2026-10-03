@@ -264,6 +264,22 @@ fn manor_dialogue_exports_native_translation_and_voice_resources() -> Result<()>
         ],
         Duration::from_secs(10),
     )?;
+    let log = project.join("ui-font-api.log");
+    let api = godot::run_godot(
+        &engine,
+        &project,
+        &[
+            "--headless",
+            "--log-file",
+            log.to_str().unwrap(),
+            "--script",
+            "res://check_ui_resources.gd",
+            "--",
+            "--font-api-only",
+        ],
+        Duration::from_secs(5),
+    )?;
+    assert!(api.contains("UI_FONT_API_OK"), "{api}");
     let game = std::env::var_os("ASTROLABE_GAME_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("disc"));
