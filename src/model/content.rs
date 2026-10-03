@@ -89,6 +89,7 @@ pub trait ContentSource:
     + Load<Light>
     + Load<Mechanics>
     + Load<Sprite>
+    + Load<super::particle::ParticleGenerator>
 {
 }
 impl<T> ContentSource for T where
@@ -122,12 +123,14 @@ impl<T> ContentSource for T where
         + Load<Light>
         + Load<Mechanics>
         + Load<Sprite>
+        + Load<super::particle::ParticleGenerator>
 {
 }
 
 /// Loaded built-in content. Exhaustive adapter matches make new domains visible
 /// at each target boundary. Custom Content types still use Load/Save directly.
 pub enum Asset {
+    ParticleGenerator(Arc<super::particle::ParticleGenerator>),
     Dialogue(Arc<Dialogue>),
     DialoguePresentation(Arc<DialoguePresentation>),
     MenuPresentation(Arc<MenuPresentation>),
@@ -168,6 +171,9 @@ impl Asset {
             Ok(value)
         }
         Ok(match root.kind.as_str() {
+            super::particle::ParticleGenerator::KIND => {
+                Self::ParticleGenerator(load(source, &root.reference)?)
+            }
             Dialogue::KIND => Self::Dialogue(load(source, &root.reference)?),
             DialoguePresentation::KIND => {
                 Self::DialoguePresentation(load(source, &root.reference)?)

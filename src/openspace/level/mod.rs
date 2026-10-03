@@ -82,7 +82,9 @@ mod mechanics;
 mod scene_record_probe;
 pub use family_export::{FamiliesExport, FamilyDependencies, write_families};
 pub use mechanics::{read_mechanics, write_mechanics};
+mod particle;
 mod sprite;
+pub use particle::write_settings as write_particle_settings;
 
 mod light;
 pub use light::{read_light, write_light};

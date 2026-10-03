@@ -191,6 +191,7 @@ pub enum Statement {
     JumpAbsolute,
     JumpWithoutAddingSpeed,
     SetParticleGeneratorEnabled(bool),
+    SetParticleGenerator(AssetRef<super::particle::ParticleGenerator>),
     /// Original laser-pointer presentation is global; aiming reads its last
     /// target independently of whether the pointer is visible.
     SetLaserPointerActive(bool),
@@ -590,6 +591,45 @@ impl Content for AiModel {
     }
 }
 impl AiModel {
+    pub fn particle_generators(&self) -> Vec<AssetRef<super::particle::ParticleGenerator>> {
+        fn visit(
+            statements: &[Statement],
+            out: &mut Vec<AssetRef<super::particle::ParticleGenerator>>,
+        ) {
+            for statement in statements {
+                match statement {
+                    Statement::SetParticleGenerator(reference) => {
+                        if !out.contains(reference) {
+                            out.push(reference.clone());
+                        }
+                    }
+                    Statement::If {
+                        then, otherwise, ..
+                    } => {
+                        visit(then, out);
+                        if let Some(branch) = otherwise {
+                            visit(branch, out);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let mut out = Vec::new();
+        for set in [&self.normal, &self.reflex].into_iter().flatten() {
+            for behavior in &set.behaviors {
+                for script in behavior
+                    .rules
+                    .iter()
+                    .flatten()
+                    .chain(behavior.schedule.iter())
+                {
+                    visit(&script.statements, &mut out);
+                }
+            }
+        }
+        out
+    }
     pub fn object_templates(&self) -> Vec<AssetRef<Perso>> {
         fn visit(statements: &[Statement], out: &mut Vec<AssetRef<Perso>>) {
             for statement in statements {

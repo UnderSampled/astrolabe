@@ -30,6 +30,9 @@ pub fn export<R: ContentSource>(
     }
     for root in roots {
         match Asset::load(source, root)? {
+            Asset::ParticleGenerator(value) => {
+                super::particle::export(&mut project, source, &value, &mut written)?;
+            }
             Asset::Environment(_)
             | Asset::PhysicalEnvironment(_)
             | Asset::VisualEnvironment(_)
@@ -151,7 +154,7 @@ pub fn export<R: ContentSource>(
     project.finish(engine)
 }
 
-fn texture<R: Load<Texture>>(
+pub(super) fn texture<R: Load<Texture>>(
     project: &mut super::Project,
     source: &mut R,
     id: &AssetPath,

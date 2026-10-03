@@ -3867,6 +3867,26 @@
       "timeout_seconds": 30,
       "ignored": true,
       "release": true
+    },
+    {
+      "binary": "astrolabe::particles",
+      "test": "imported_hype_particle_selection_survives_rete_and_uses_native_emitter",
+      "areas": [
+        "source",
+        "rete",
+        "scene",
+        "ai",
+        "runtime"
+      ],
+      "kind": "process",
+      "prerequisites": [
+        "disc",
+        "godot"
+      ],
+      "fixture": "actual Hype source nodes14..16 disclosed select/disable excerpt; fresh Rete generator/sprite/material/texture closure and native CPUParticles3D; active emission explicitly pending",
+      "timeout_seconds": 90,
+      "ignored": true,
+      "release": true
     }
   ]
 }

@@ -48,6 +48,7 @@ fn fixture() -> Result<(Scene, Perso, Family, ActorObservation)> {
         hit_points: None,
         routes: vec![],
         brain: None,
+        particles: None,
         collisions: None,
     };
     let scene = Scene {

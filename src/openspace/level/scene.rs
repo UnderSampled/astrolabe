@@ -76,6 +76,7 @@ pub struct SceneImport {
     pub sound_definitions: Vec<(AssetPath, crate::model::audio::SoundDefinitions)>,
     pub lights: Vec<crate::model::light::Light>,
     pub sprites: Vec<crate::model::sprite::Sprite>,
+    pub particle_generators: Vec<crate::model::particle::ParticleGenerator>,
     pub scene: Scene,
     pub families: Vec<crate::model::character::Family>,
     pub persos: Vec<crate::model::character::Perso>,
@@ -113,6 +114,7 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
         sound_definitions: Vec::new(),
         lights: Vec::new(),
         sprites: Vec::new(),
+        particle_generators: Vec::new(),
         families: Vec::new(),
         persos: Vec::new(),
         routes: Vec::new(),
@@ -347,6 +349,7 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
         &state_references,
         &actor_refs,
         &mut result,
+        &mut material_ids,
     )?;
     if selection.level == "manoir" {
         super::dialogue::import(&session, game, selection, &actor_refs, &mut result)?;

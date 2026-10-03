@@ -708,8 +708,8 @@ emission. The generator's typed 44-byte definition resolves source, system and
 environment records of 132, 40 and 68 bytes. The system has capacity 200, zero
 active particles and kind 4 (sprite particles). Unknown fields remain explicit
 byte arrays; the test reconstructs the interpreted component/definition bytes.
-This is source research, not a useful particle asset or native emitter
-implementation. No new no-op was added.
+At that earlier checkpoint this was source research, before the useful particle
+asset/native emitter slice described below. No new no-op was added.
 
 Raymap's partial Perso record was consulted first. Relevant particle handler,
 selection, disable and dispatch byte ranges were then checked identical between
@@ -738,3 +738,108 @@ results are separate from any actual presentation or full-opening acceptance.
 Next source work must implement the needed particle asset/API slice and trace
 the statue's field-0 Position and actor-directed initialization calls; no
 hardcoded hiding or pose substitution is justified by the present evidence.
+
+### Typed particle selection asset/API checkpoint, native acceptance pending
+
+The next local change promotes the real generator into one useful
+`ParticleGenerator` asset rather than skipping call194. The rooted manor/source
+AI scan finds one component (Hype), one generator, and no independently shared
+emission/system/environment definitions. Those settings therefore belong in
+one asset, with the original Sprite as a separately shared dependency. Minimal
+Fix/level block/allocation identity is retained; runtime counters, memory
+addresses, buffer pointers, lazy initialization and derived bounds remain at
+the OpenSpace boundary. Unknown non-pointer fields remain explicit. This
+boundary is provisional for levels with independent sharing.
+
+The typed source is emission mode1, number2, shape1 and coordinate mode2.
+Shape1 samples two independent scalars in [0,1], so the three supplied points
+span a parallelogram, not a triangle. Initial velocity is [0,-1,0.5], symmetric
+random extent [1.4,0,1], lifetime mode0 (infinite). The relative environment is
+a radius5 sphere with acceleration [-0.1,-0.1,-0.1]. These are source meanings,
+not accepted Godot particle motion. Static bytes for nine promoted definition,
+selection-boundary, generation and mechanics functions match the installed
+executable and reference: `TestResults/hype-particle-definition-static-byte-proof-sol-20261003.json`.
+This supplements the earlier five handler/callback ranges and the Raymap-first
+research. Neither static proof invokes the original engine.
+
+Rete schema40 persists this useful asset and the actor's optional component.
+The parser binds call194/category37 to a typed asset reference, and the compiler
+preloads a converted native emitter scene. The native actor component selects
+that scene and performs lazy relative-boundary initialization; call193 disables
+births only on that component. Repeated selection uses ordinary PackedScene
+resource identity. Invalid scenes are rejected without changing selection or
+leaving children. Actors genuinely without a source component retain the
+original API's skip. Hype's actual non-null component must succeed.
+
+The saved generator scene is `CPUParticles3D`, capacity200, disabled, with the
+converted QuadMesh, actual Sprite material and texture. Emission is deliberately
+an explicit unsupported API: call192 on a present component fails until source
+random velocity, infinite lifetime and boundary removal are implemented and
+validated. Initially selected/active component conversion also fails pending a
+saved-state contract. Source/environment record reconstruction covers the
+verified parallelogram profile and rebuilds its derived normal without replaying
+an encoded record. Whole particle-package reconstruction remains unsupported.
+This is the smallest source-backed selection/disabled initialization slice;
+it does not implement the full particle simulator.
+
+The source-only final check passed in53.930seconds, with unchanged source and
+clean cleanup: formatting0.495s, root all-target Clippy with warnings denied
+3.142s, library/new-test compilation49.527s, all36 partial AI codec cases0.006s,
+and the exact manor corpus case0.744s. Commands and supervised results are in
+`TestResults/hype-particle-source-final-r4-sol-20261003/report.json`. The corpus
+checks useful import, MessagePack equality, exact132/68-byte reconstruction,
+radius editing, bound194/37/193 reconstruction and rejection of unbound operands.
+Workspace/all-target `cargo check --locked --offline --workspace --all-targets`
+also passed during preparation. Earlier reporting attempts are retained: the
+first codec filter ran zero tests; the second actually passed36 cases but failed
+its stale33-case count guard. The third report passed; the fourth is the final combined pass after adding
+stable script UIDs to prevent native editor scans from changing frozen source.
+
+The new declared `astrolabe::particles` case reloads the actual generator,
+Sprite/material/texture closure and a disclosed excerpt of original nodes14..16
+from fresh Rete before native export. It executes that original select/disable
+pair and checks the real native resource, relative initialization, repeat/invalid
+selection and explicit emission rejection. It changes the fixture AI and accepts
+only that component slice. The normal New Game case separately keeps all rooted
+actor Brains automatic and full generated AI unchanged, captures Hype's real
+selected generator and subsequent failure, and requires selection/disable
+initialization to advance past194. It continues the existing Gogoud contact,
+first dialogue, restart and private-save checks. The native checks have not run
+on this checkpoint; no rendering, initialization or whole-opening acceptance is
+claimed from the Rust tests.
+
+Support interface49 avoids the inventory worker's reserved48. Integration must
+combine additions to `src/model/content.rs`, `src/godot/support.rs` and
+`tools/test-manifest.json`, retaining49 rather than reverting the version to48.
+The inventory worker remains independent of these Brain/NewGame changes and
+must retain the existing font cache-order fix. The published local generation
+is still interface47:4822 owned files, manor4785 plus menu37. Sol has neither
+regenerated it nor launched either engine.
+
+The frozen Luna recipe is
+`python3 -B TestResults/run-hype-particle-integration-v12-sol-20261003.py`.
+Its pin guards current source, commit, exact changed GDScript/preload bytes,
+valid published receipt and authored settings/save fixture. Five syntax checks
+precede release build and normal manor port. It copies/hash-verifies every prior
+owned generated file into `output/archived-manor-before-particles-v12-20261003/`
+and requires all37 unselected menu files to remain unchanged. The bounded
+selection declares25/287 cases,262 exclusions, all21 mandatory safeguards and
+four Python check modules. It includes source evidence, the new native component,
+actual New Game and crossbow free-flight cleanup regression because the shared
+particle-disable API changed. The overall budget is780s, selection420s, port180s,
+release build120s and parser checks10s each, with cleanup reserved; failure or
+timeout stops the recipe and preserves evidence. No source/schema/receipt edit
+is permitted to force a pass. Native result locations will be
+`TestResults/hype-particle-integration-v12-sol-20261003/result.json` and
+`TestResults/hype-particle-selection-v12-sol-20261003.log.json`.
+
+After native confirmation, Hype's next anticipated initialization barrier is
+procedure187 (transparency255) at node814, then185 (transparent display),267
+(display) and an unsupported expression at820. This is a hypothesis from the
+compiled source, not a current gameplay observation. A useful independent UI
+worker task is a native rendering component for187/185/186, corroborating
+handlers00543130/00543100, in new rendering/harness files; typed parser/compiler
+integration should remain coordinated. Statue model294's field0 Position and
+its actor-directed initialization calls are separate unresolved source leads.
+Neither colored-Hype/statue overlap nor the complete original opening endpoint
+is accepted or hidden by this particle slice.

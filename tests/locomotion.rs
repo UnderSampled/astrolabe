@@ -245,6 +245,7 @@ fn native_motion_survives_rete_and_drives_character_contact() -> Result<()> {
             unknown: 0,
             mind_unknown: [0; 4],
         }),
+        particles: None,
         collisions: Some(CharacterCollisions {
             groups,
             unknown: [0; 4],

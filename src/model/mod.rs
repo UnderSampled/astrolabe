@@ -23,3 +23,4 @@ pub mod mechanics;
 pub mod environment;
 
 pub mod menu;
+pub mod particle;

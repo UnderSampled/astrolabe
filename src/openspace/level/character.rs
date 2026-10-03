@@ -191,6 +191,7 @@ impl<'a> Importer<'a> {
                 .transpose()?,
             routes: super::way::import_bindings(self.session, perso, &path, types, self.result)?,
             brain: None,
+            particles: super::particle::component(self.session, perso)?,
             collisions: self
                 .session
                 .pointer(perso, 24)?

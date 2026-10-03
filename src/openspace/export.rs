@@ -82,6 +82,9 @@ pub fn export<R: ContentSource>(
     let mut gaps = Vec::new();
     for root in roots {
         match Asset::load(source, root)? {
+            Asset::ParticleGenerator(_) => anyhow::bail!(
+                "particle package reconstruction remains unsupported; source/environment record reconstruction is available separately"
+            ),
             Asset::CollisionProfile(value) => {
                 export_collision_profile(source, &value, &mut files, &mut gaps)?;
             }

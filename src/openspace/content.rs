@@ -130,6 +130,13 @@ pub fn import_scene(game: &Path, selection: Selection) -> Result<Imported> {
     for sprite in std::mem::take(&mut scene.sprites) {
         imported.put(&AssetRef::from_path(sprite.path.clone()), sprite, false)?;
     }
+    for generator in std::mem::take(&mut scene.particle_generators) {
+        imported.put(
+            &AssetRef::from_path(generator.path.clone()),
+            generator,
+            false,
+        )?;
+    }
     let archive = codec::Cnt {
         usage: TextureUsage::Material,
     }

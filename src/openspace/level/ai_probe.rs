@@ -98,6 +98,60 @@ fn source_hype_opening_particle_component_and_presentation() -> Result<()> {
     let mut rebuilt = std::io::Cursor::new(Vec::new());
     definition.write(&mut rebuilt)?;
     assert_eq!(rebuilt.into_inner(), generator_bytes);
+    // Establish real sharing before choosing useful particle asset boundaries.
+    let mut particle_components = Vec::new();
+    let mut particle_definitions = std::collections::BTreeSet::from([generator]);
+    let mut seen_models = std::collections::BTreeSet::new();
+    for node in &tree {
+        if u32_at(s.bytes(node.address, 4)?, 0)? != 4 {
+            continue;
+        }
+        let perso = s.required(node.address, 4)?;
+        let prefix: ParticleActorWire = wire(s.bytes(perso, 68)?)?;
+        if prefix.component != 0 {
+            let component = s.required(perso, 64)?;
+            let data: ParticleComponentWire = wire(s.bytes(component, 16)?)?;
+            let selected = s.pointer(component, 0)?;
+            if let Some(selected) = selected {
+                particle_definitions.insert(selected);
+            }
+            particle_components.push(serde_json::json!({"actor":node.path,"component":s.source_identity(component)?,"enabled":data.enabled,"selected":selected.map(|a|s.source_identity(a)).transpose()?}));
+        }
+        let Some(brain) = s.pointer(perso, 16)? else {
+            continue;
+        };
+        let model = s.required(s.required(brain, 0)?, 0)?;
+        if !seen_models.insert(model) {
+            continue;
+        }
+        for group in [0, 4] {
+            let Some(set) = source_set(&s, model, group)? else {
+                continue;
+            };
+            for behavior in &set.behaviors {
+                for script in behavior
+                    .rules
+                    .iter()
+                    .flatten()
+                    .chain(behavior.schedule.iter())
+                {
+                    for (index, node) in nodes(script)?.iter().enumerate() {
+                        if node.kind == 37
+                            && let Some(definition) =
+                                s.pointer(add(script.address, index * 8), 0)?
+                        {
+                            particle_definitions.insert(definition);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    let mut sharing = Vec::new();
+    for generator in particle_definitions {
+        let _: GeneratorWire = wire(s.bytes(generator, 44)?)?;
+        sharing.push(serde_json::json!({"generator":s.source_identity(generator)?,"source":s.source_identity(s.required(generator,0)?)?,"system":s.source_identity(s.required(generator,4)?)?,"environment":s.source_identity(s.required(generator,8)?)?}));
+    }
     let mut records = Vec::new();
     // Native constructors 004c1170/004c4c30/004c4e20 give these exact extents.
     for (field, size, name) in [
@@ -133,10 +187,82 @@ fn source_hype_opening_particle_component_and_presentation() -> Result<()> {
         "initial_selected_generator":null,"initial_component_enabled":false,
         "selection_node":14,"generator_operand_category":37,"disable_node":16,
         "selected_generator":s.source_identity(generator)?,"generator_bytes":generator_bytes,"records":records,
+        "particle_components":particle_components,"particle_definition_sharing":sharing,
         "next_hype_presentation_nodes":[{"node":814,"procedure":187},{"node":816,"procedure":185},{"node":817,"procedure":267}],
         "world_normal2_node22_actual_call":{"procedure":266,"receiver":world_hidden_actor.path},
         "world_normal2_first_nodes":world_nodes.iter().take(40).enumerate().map(|(i,n)|serde_json::json!({"node":i,"category":n.kind,"parameter":n.parameter,"indent":n.indent})).collect::<Vec<_>>()
     });
+    // Useful content, not a pointer-shaped stand-in: same generator through
+    // import, MessagePack and edited source settings reconstruction.
+    let imported = super::super::scene::import_scene(&game, &Selection::hype("manoir", "en")?)?;
+    assert_eq!(imported.particle_generators.len(), 1);
+    let particle = &imported.particle_generators[0];
+    assert_eq!(particle.capacity, 200);
+    assert_eq!(
+        (
+            particle.emission.mode,
+            particle.emission.number,
+            particle.emission.shape,
+            particle.emission.coordinate_mode
+        ),
+        (1, 2, 1, 2)
+    );
+    assert_eq!(particle.emission.velocity, [0., -1., 0.5]);
+    assert_eq!(particle.emission.velocity_spread, [1.4, 0., 1.]);
+    assert_eq!(particle.environment.sphere_radius, 5.);
+    let persisted = crate::rete::decode::<crate::model::particle::ParticleGenerator>(
+        &crate::rete::encode(particle)?,
+    )?;
+    assert_eq!(&persisted, particle);
+    let (rebuilt_source, rebuilt_environment) = super::super::particle::write_settings(&persisted)?;
+    assert_eq!(rebuilt_source, s.bytes(s.required(generator, 0)?, 132)?);
+    assert_eq!(rebuilt_environment, s.bytes(s.required(generator, 8)?, 68)?);
+    let mut edited = persisted.clone();
+    edited.environment.sphere_radius = 7.;
+    let (_, edited_environment) = super::super::particle::write_settings(&edited)?;
+    assert_eq!(&edited_environment[40..44], &7f32.to_le_bytes());
+    assert_ne!(edited_environment, rebuilt_environment);
+    let hype = imported
+        .persos
+        .iter()
+        .find(|p| p.path.as_str() == "level:/persos/world/0/0")
+        .context("useful Hype absent")?;
+    let component = hype
+        .particles
+        .as_ref()
+        .context("useful Hype particle component absent")?;
+    assert!(!component.enabled && component.selected.is_none());
+    let source_model = imported
+        .ai_models
+        .iter()
+        .find(|m| m.path.as_str() == "fix:/ai/models/28")
+        .context("useful Hype model absent")?;
+    assert_eq!(
+        source_model.particle_generators(),
+        vec![crate::model::AssetRef::from_path(particle.path.clone())]
+    );
+    let reference = crate::model::AssetRef::from_path(particle.path.clone());
+    let codec = crate::openspace::ai::AiScriptCodec {
+        particle_generators: std::collections::BTreeMap::from([(1, reference.clone())]),
+        particle_generator_handles: vec![(reference, init_nodes[15].parameter)],
+        ..Default::default()
+    };
+    let mut excerpt = init.bytes[14 * 8..17 * 8].to_vec();
+    excerpt.extend([0, 0, 0, 0, 0, 0, 0, 8]);
+    let script = codec.read(&excerpt)?;
+    assert!(matches!(
+        script.statements.as_slice(),
+        [
+            crate::model::ai::Statement::SetParticleGenerator(_),
+            crate::model::ai::Statement::SetParticleGeneratorEnabled(false)
+        ]
+    ));
+    assert_eq!(codec.write(&script)?, excerpt);
+    let unresolved = crate::openspace::ai::AiScriptCodec::default();
+    assert!(
+        unresolved.read(&excerpt).is_err(),
+        "unbound particle operands were accepted"
+    );
     println!("{}", serde_json::to_string_pretty(&report)?);
     if let Some(path) = std::env::var_os("ASTROLABE_OPENING_SOURCE_REPORT") {
         std::fs::write(path, serde_json::to_vec_pretty(&report)?)?;

@@ -39,45 +39,7 @@ pub(super) fn read_element(
         };
         let path = AssetPath::new(format!("{role}:/sprites/{index}"))?;
         if !definitions.contains_key(&path) {
-            let d: SpriteWire = wire(session.bytes(definition, 24)?)?;
-            ensure!(d.count > 0, "empty sprite definition");
-            let modes =
-                session.short_arrays::<1>(session.required(definition, 4)?, d.count as usize)?;
-            let thresholds =
-                session.floats::<1>(session.required(definition, 8)?, d.count as usize)?;
-            let sizes = session.floats::<2>(session.required(definition, 12)?, d.count as usize)?;
-            let displacements =
-                session.floats::<2>(session.required(definition, 16)?, d.count as usize)?;
-            let material_table = session.required(definition, 20)?;
-            let mut views = Vec::new();
-            for v in 0..d.count as usize {
-                let material = session
-                    .pointer(material_table, v * 4)?
-                    .map(|m| {
-                        super::import::load_material(
-                            session,
-                            m,
-                            &path.to_string(),
-                            materials,
-                            material_ids,
-                            notes,
-                        )
-                    })
-                    .transpose()?;
-                views.push(SpriteView {
-                    mode: modes[v][0],
-                    threshold: thresholds[v][0],
-                    half_size: sizes[v],
-                    displacement: displacements[v],
-                    material,
-                });
-            }
-            let value = Sprite {
-                path: path.clone(),
-                views,
-                unknown: d.unknown,
-            };
-            value.validate()?;
+            let value = read_definition(session, definition, materials, material_ids, notes)?;
             definitions.insert(path.clone(), value);
         }
         sprites.push(IndexedSprite {
@@ -97,6 +59,59 @@ pub(super) fn read_element(
         },
         definitions.into_values().collect(),
     ))
+}
+
+pub(super) fn read_definition(
+    session: &SourceSession,
+    definition: Address,
+    materials: &mut Vec<Material>,
+    material_ids: &mut BTreeMap<Address, AssetPath>,
+    notes: &mut Vec<String>,
+) -> Result<Sprite> {
+    let index = session.allocation_index(definition)?;
+    let role = if definition.owner == Owner::Fix {
+        "fix"
+    } else {
+        "level"
+    };
+    let path = AssetPath::new(format!("{role}:/sprites/{index}"))?;
+    let d: SpriteWire = wire(session.bytes(definition, 24)?)?;
+    ensure!(d.count > 0, "empty sprite definition");
+    let modes = session.short_arrays::<1>(session.required(definition, 4)?, d.count as usize)?;
+    let thresholds = session.floats::<1>(session.required(definition, 8)?, d.count as usize)?;
+    let sizes = session.floats::<2>(session.required(definition, 12)?, d.count as usize)?;
+    let displacements = session.floats::<2>(session.required(definition, 16)?, d.count as usize)?;
+    let material_table = session.required(definition, 20)?;
+    let mut views = Vec::new();
+    for v in 0..d.count as usize {
+        let material = session
+            .pointer(material_table, v * 4)?
+            .map(|m| {
+                super::import::load_material(
+                    session,
+                    m,
+                    &path.to_string(),
+                    materials,
+                    material_ids,
+                    notes,
+                )
+            })
+            .transpose()?;
+        views.push(SpriteView {
+            mode: modes[v][0],
+            threshold: thresholds[v][0],
+            half_size: sizes[v],
+            displacement: displacements[v],
+            material,
+        });
+    }
+    let value = Sprite {
+        path: path.clone(),
+        views,
+        unknown: d.unknown,
+    };
+    value.validate()?;
+    Ok(value)
 }
 
 pub(super) fn emit_definition(

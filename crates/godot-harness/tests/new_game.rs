@@ -37,6 +37,7 @@ fn menu_new_game_preserves_slot_and_restarts_original_opening() -> Result<()> {
         "generated/astrolabe-manifest.json",
         "generated/hype/levels/manoir/ai/models/154.gd",
         "generated/hype/levels/manoir/ai/models/210.gd",
+        "generated/hype/levels/manoir/ai/models/28.gd",
     ] {
         fs::copy(
             project.join(name),
@@ -124,6 +125,12 @@ fn menu_new_game_preserves_slot_and_restarts_original_opening() -> Result<()> {
     );
     let result: serde_json::Value = serde_json::from_slice(&fs::read(report)?)?;
     ensure!(result["status"] == "passed" && result["save_preserved"] == true);
+    ensure!(
+        result["hype_particle_initialization"]["initialized"] == true
+            && result["hype_particle_initialization"]["capacity"] == 200
+            && result["hype_particle_initialization"]["emitting"] == false,
+        "normal New Game did not validate source particle initialization"
+    );
     println!(
         "Normal New Game checkpoint evidence: {}",
         evidence.display()

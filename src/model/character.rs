@@ -111,6 +111,7 @@ pub struct Perso {
     pub routes: Vec<super::route::RouteBinding>,
     pub brain: Option<super::ai::Brain>,
     pub collisions: Option<CharacterCollisions>,
+    pub particles: Option<super::particle::ParticleComponent>,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HitPoints {

@@ -466,6 +466,13 @@ fn decode_script(
                 .context("AI sound operand has no localized SND binding")?;
             codec.sounds.insert(i, event.clone());
         }
+        if n.kind == 37
+            && let Some(target) = s.pointer(add(script.address, i * 8), 0)?
+        {
+            codec
+                .particle_generators
+                .insert(i, super::particle::reference(s, target)?);
+        }
     }
     codec.read(&script.bytes)
 }
@@ -666,6 +673,7 @@ pub(super) fn import(
     states: &BTreeMap<Address, StateRef>,
     actors: &BTreeMap<Address, AssetRef<Perso>>,
     result: &mut SceneImport,
+    material_ids: &mut BTreeMap<Address, AssetPath>,
 ) -> Result<()> {
     if u32_at(&s.gpt, 0x2ae0)? != 0 {
         let a = s.root(0x2ae0)?;
@@ -679,6 +687,13 @@ pub(super) fn import(
         result.scene.main_actor = Some(AssetRef::new(format!("level:/persos/{}", node.path))?);
     }
     let sounds = SoundSites::open(game, selection_value, s)?;
+    for &perso in actors.keys() {
+        if let Some(component) = s.pointer(perso, 64)?
+            && let Some(generator) = s.pointer(component, 0)?
+        {
+            super::particle::import(s, generator, result, material_ids)?;
+        }
+    }
     // Resolve kind-32 references against every Brain model in the active
     // rooted/template actor graph before decoding scripts. A behavior member
     // is an interior address in its owning model's allocation, so source
@@ -729,6 +744,11 @@ pub(super) fn import(
             {
                 for (i, bytes) in script.bytes.as_chunks::<8>().0.iter().enumerate() {
                     let node: NodeWire = wire(bytes)?;
+                    if node.kind == 37
+                        && let Some(target) = s.pointer(add(script.address, i * 8), 0)?
+                    {
+                        super::particle::import(s, target, result, material_ids)?;
+                    }
                     if node.kind == 29
                         && let Some(target) = s.pointer(add(script.address, i * 8), 0)?
                         && !waypoints.contains_key(&target)

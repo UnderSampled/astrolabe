@@ -97,6 +97,7 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
         }),
         routes: vec![],
         brain: None,
+        particles: None,
         collisions: None,
     };
     let selection = Selection::hype("manoir", "en")?;

@@ -1,4 +1,4 @@
-# Astrolabe support, interface 47
+# Astrolabe support, interface 49
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -235,3 +235,14 @@ repository for source API coverage, locale handling and remaining fidelity work.
 short audio feedback for generated editable menus. `action_selected(StringName)`
 keeps application routing outside converter support. Inherit a generated menu
 scene under `game/` and assign it to the bootstrap to preserve designer changes.
+
+The particle selection API uses an actor-local `ParticleSource` and converted
+`CPUParticles3D` scenes with the original sprite material/texture and capacity.
+`Proc_SetParticleGenerator` selects and initializes that scene; the following
+`Proc_DisableParticleGenerator` stops births on the selected component. Actors
+without a source component follow the original API's skip. Hype has a real
+component, so its initialization must select the real converted generator.
+Active emission, source random velocity, infinite lifetime and boundary removal
+remain unsupported: enabling a present component fails explicitly. Initially
+selected/active source components also fail conversion pending a validated
+saved-state contract. The first supported slice starts unselected and disabled.

@@ -411,14 +411,18 @@ func source_is_type_of_gmt_collide(kind: int) -> bool:
 func source_in_top_of_jump() -> bool:
     return source_airborne and not is_on_floor() and external_velocity.dot(up_direction) <= 0.0
 
-func source_set_particle_generator_enabled(enabled: bool) -> void:
+func source_set_particle_generator(template: PackedScene) -> bool:
+    var component := get_node_or_null("ParticleSource")
+    # 00542340 skips selection when the original actor has no component.
+    if component == null: return true
+    return bool(component.call("select_generator", template))
+
+func source_set_particle_generator_enabled(enabled: bool) -> bool:
+    var component := get_node_or_null("ParticleSource")
+    if component != null and not bool(component.call("set_generator_enabled", enabled)):
+        return false
     source_particle_generator_enabled = enabled
-    for particle in find_children("*", "GPUParticles3D", true, false):
-        var emitter := particle as GPUParticles3D
-        emitter.emitting = enabled
-    for particle in find_children("*", "CPUParticles3D", true, false):
-        var emitter := particle as CPUParticles3D
-        emitter.emitting = enabled
+    return true
 
 ## The exported rig retains source channel IDs on native Node3D parents.
 ## Set the parent visibility so animation tracks can still select child parts.

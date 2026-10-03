@@ -111,7 +111,21 @@ pub(super) fn export_program(
             point.relative_actor.is_none().then_some(point.position),
         ));
     }
-    let script = compile_with_templates(model, &events, family.as_deref(), &templates, &waypoints)?;
+    let mut particles = Vec::new();
+    for reference in model.particle_generators() {
+        let generator = source.load(&reference)?;
+        generator.validate_reference(&reference.path)?;
+        let path = super::particle::export(project, source, &generator, written)?;
+        particles.push((reference, format!("res://{path}")));
+    }
+    let script = compile_with_templates(
+        model,
+        &events,
+        family.as_deref(),
+        &templates,
+        &waypoints,
+        &particles,
+    )?;
     project.write(path.clone(), script.as_bytes())?;
     Ok(path)
 }
@@ -128,7 +142,7 @@ pub fn compile_for_family(
     events: &[(crate::model::audio::SoundEventLink, String)],
     family: Option<&crate::model::character::Family>,
 ) -> Result<String> {
-    compile_with_templates(model, events, family, &[], &[])
+    compile_with_templates(model, events, family, &[], &[], &[])
 }
 fn compile_with_templates(
     model: &AiModel,
@@ -138,6 +152,10 @@ fn compile_with_templates(
     waypoints: &[(
         crate::model::AssetRef<crate::model::route::Waypoint>,
         Option<[f32; 3]>,
+    )],
+    particles: &[(
+        crate::model::AssetRef<crate::model::particle::ParticleGenerator>,
+        String,
     )],
 ) -> Result<String> {
     model.validate()?;
@@ -165,6 +183,23 @@ fn compile_with_templates(
     for (reference, position) in waypoints {
         let value = position.map(super::vec3).unwrap_or_else(|| "null".into());
         writeln!(out, "const {} = {value}", waypoint_constant(reference))?;
+    }
+    for reference in model.particle_generators() {
+        let (_, resource) = particles
+            .iter()
+            .find(|(r, _)| r == &reference)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "particle generator requires native conversion binding: {}",
+                    reference.path
+                )
+            })?;
+        writeln!(
+            out,
+            "const {} = preload({})",
+            super::particle::constant(&reference),
+            quoted(resource)
+        )?;
     }
     let actor_targets = model.actor_field_targets();
     for (i, _) in actor_targets.iter().enumerate() {
@@ -1421,7 +1456,22 @@ fn statements(
             Statement::SetParticleGeneratorEnabled(enabled) => {
                 writeln!(
                     out,
-                    "{pad}character().source_set_particle_generator_enabled({enabled})"
+                    "{pad}if not character().source_set_particle_generator_enabled({enabled}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} requires supported native particle emission/selection state",
+                        model.path
+                    ))
+                )?;
+            }
+            Statement::SetParticleGenerator(reference) => {
+                writeln!(
+                    out,
+                    "{pad}if not character().source_set_particle_generator({}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    super::particle::constant(reference),
+                    quoted(&format!(
+                        "{} could not select converted particle generator {}",
+                        model.path, reference.path
+                    ))
                 )?;
             }
             Statement::SetLaserPointerActive(active) => {

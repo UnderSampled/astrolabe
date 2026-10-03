@@ -36,6 +36,8 @@ pub struct AiScriptCodec {
     pub actor_handles: Vec<(AssetRef<Perso>, u32)>,
     pub waypoints: BTreeMap<usize, AssetRef<Waypoint>>,
     pub waypoint_handles: Vec<(AssetRef<Waypoint>, u32)>,
+    pub particle_generators: BTreeMap<usize, AssetRef<crate::model::particle::ParticleGenerator>>,
+    pub particle_generator_handles: Vec<(AssetRef<crate::model::particle::ParticleGenerator>, u32)>,
 }
 impl FormatCodec for AiScriptCodec {
     type Value = Script;
@@ -382,6 +384,18 @@ impl Parser<'_> {
                 (4, 48) => Statement::JumpWithoutAddingSpeed,
                 (4, 192) => Statement::SetParticleGeneratorEnabled(true),
                 (4, 193) => Statement::SetParticleGeneratorEnabled(false),
+                (4, 194) => {
+                    let (operand, node) = self.take(indent + 1)?;
+                    if node.kind == 37
+                        && let Some(generator) = self.codec.particle_generators.get(&operand)
+                    {
+                        Statement::SetParticleGenerator(generator.clone())
+                    } else {
+                        Statement::Unsupported(
+                            self.unsupported(at, "unbound particle-generator operand".into())?,
+                        )
+                    }
+                }
                 (4, 337) => Statement::SetLaserPointerActive(true),
                 (4, 338) => Statement::SetLaserPointerActive(false),
                 (4, 342) => Statement::SetLaserPointerSniperMode(self.expression(indent + 1)?),
@@ -1177,6 +1191,17 @@ impl Writer<'_> {
                 Statement::JumpWithoutAddingSpeed => self.node(4, 48, indent),
                 Statement::SetParticleGeneratorEnabled(enabled) => {
                     self.node(4, if *enabled { 192 } else { 193 }, indent)
+                }
+                Statement::SetParticleGenerator(generator) => {
+                    let handle = self
+                        .codec
+                        .particle_generator_handles
+                        .iter()
+                        .find(|(r, _)| r == generator)
+                        .context("missing particle-generator source handle")?
+                        .1;
+                    self.node(4, 194, indent);
+                    self.node(37, handle, indent + 1);
                 }
                 Statement::SetLaserPointerActive(active) => {
                     self.node(4, if *active { 337 } else { 338 }, indent)

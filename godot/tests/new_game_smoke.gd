@@ -118,6 +118,18 @@ func run() -> void:
     await process_frame
     report["first"] = snapshot(game)
     var first: Dictionary = report["first"]
+    var hype := game.get("actor") as CharacterBody3D
+    var particle_source := hype.get_node_or_null("ParticleSource")
+    var selected: CPUParticles3D = particle_source.get("selected") if particle_source != null else null
+    var hype_failure: String = hype.get_node("Brain").get("unsupported_failure")
+    report["hype_particle_initialization"] = {"component_present":particle_source != null,
+        "generator":selected.get("generator_uri") if selected != null else "",
+        "initialized":selected.get("initialized") if selected != null else false,
+        "capacity":selected.amount if selected != null else 0,
+        "emitting":selected.emitting if selected != null else false,
+        "failure":hype_failure}
+    if not require(selected != null and selected.get("generator_uri") == "fix:/particles/generators/5-0-22092" and selected.amount == 200 and selected.get("initialized") and not selected.emitting,"normal New Game failed source Hype particle selection/disable initialization"): return
+    if not require(not hype_failure.contains("operation 194") and not hype_failure.contains("could not select converted particle generator"),"Hype still stops at particle selection"): return
     if not require(first["scene"] == "res://game/new_game.tscn" and first["loading_stage"] == "opening" and first["save_disabled"],"New Game mode or opening state differs"): return
     if not require(first["global_data_brains"].size() == 1 and first["global_data_brains"][0]["model"] == "fix:/ai/models/1" and not first["global_data_brains"][0]["automatic"],"exported global-data role changed"): return
     if not require(first["automatic_brains"] == first["brain_count"] and first["brain_count"] > 0,"opening held generated Brains"): return
