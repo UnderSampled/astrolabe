@@ -48,7 +48,7 @@ const AIM_ACTIONS := {
 }
 
 func _ready() -> void:
-    inventory_host.unavailable.connect(func(message: String): status_label.text = message)
+    inventory_host.connect("unavailable", func(message: String): status_label.text = message)
     configure_crossbow_inputs()
     load_started_usec = Time.get_ticks_usec()
     stage("session", "Loading New Game..." if new_game else "Loading saved game...")
