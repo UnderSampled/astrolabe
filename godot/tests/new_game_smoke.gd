@@ -181,7 +181,9 @@ func run() -> void:
     report["gogoud"]["post_path_actions"] = post_path_actions
     if not require(str(report["gogoud"]["post_path"]["failure"]).is_empty(),"Gogoud stopped after his path: " + str(report["gogoud"]["post_path"]["failure"])): return
     if not require(not bool(report["ui_after_path"]["dialogue_over"]),"Gogoud did not reach his first original dialogue within 20 seconds after the path"): return
-    var active_dialog: Resource = source_ui.get("dialogue").get("item")
+    var dialog_owner := source_ui.get("adopted_screen") as Node
+    if dialog_owner == null: dialog_owner = source_ui
+    var active_dialog: Resource = dialog_owner.get("dialogue").get("item")
     report["ui_after_path"]["identity"] = active_dialog.get("identity") if active_dialog != null else ""
     if not require(report["ui_after_path"]["identity"] == "gogood_texte1_manoir" and post_path_actions == [23,20,31,32],"normal opening did not reach the source's first dialogue/action sequence"): return
     key(KEY_R)

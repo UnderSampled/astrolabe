@@ -32,7 +32,8 @@ once, adds the captured angular increment, updates heading and returns the
 continuation status. Completion occurs on the following call with zero count.
 The source angle helper 0052eb70 chooses PI for a zero horizontal direction.
 Evidence: `TestResults/opening-turn-step-source-20261003.txt`, alongside the
-existing initializer/angle helper decompilation. No original-game session or
+existing initializer/angle helper decompilation. The inspected patch executable
+SHA-256 is `ed105a423f6e1bcf0460aa8f7357e2bae3783ca8aadfff8ef8a13b93d967d97d`. No original-game session or
 operand intervention was needed for this interpretation.
 
 The useful AST now retains a typed actor target and frame expression. OpenSpace
@@ -78,3 +79,11 @@ gogood_texte1_manoir. It keeps private save preservation, restart and menu check
 This is an affected gameplay regression, not acceptance of the full intro.
 Stephen knows how to run the game; notification of regenerated changes must not
 wait for an additional visual acceptance run or launch instructions.
+
+Completed UI font/frame commits were cherry-picked as `259ae71`, `3fb3cf7`,
+`8e1382b`, `fa9005b`; root support includes both APIs at interface 46 and Rete
+schema 39. All 281 declared tests and 21 safeguards remain. Combined format,
+scoped strict Clippy and six selection checks passed in 7.111 seconds:
+`TestResults/opening-turn-ui-source-preflight-r2-sol-20261003.json`. The first
+preflight wrapper mistakenly called a nonexistent supervisor helper and stopped
+before running a check; r2 uses the existing supervise API.

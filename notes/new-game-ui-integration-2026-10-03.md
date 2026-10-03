@@ -9,7 +9,7 @@ about 210 seconds after manor entry, with no gameplay input during the cutscene.
 
 ## Integrated source and recovery
 
-Only the four validated UI commits were cherry-picked from the isolated worker:
+The initial four validated UI commits were cherry-picked from the isolated worker:
 
 | Worker commit | Main commit | Change |
 | --- | --- | --- |
@@ -83,7 +83,7 @@ unchanged and all stages cleaned up without timeout or remaining children.
 Evidence: `TestResults/new-game-ui-integration-source-preflight-r2-sol-20261003.json`.
 Sol ran no Godot or original-game session.
 
-The next fixed-Luna assignment puts owned syntax and receipt checks before the
+That fixed-Luna v5 assignment put owned syntax and receipt checks before the
 release build and required one-time regeneration. It runs one combined
 integration selection with mandatory safeguards, both affected game/save cases
 and the six UI cases, checking the complete discovery/manifest inventory.
@@ -91,3 +91,9 @@ Native execution, screenshots, regression passes and post-path behavior remain
 pending. The concrete question is what the actual original Gogoud AI does after
 its first path with the maintained UI now integrated. No source initialization,
 World trigger or actor behavior is substituted by an isolated fixture.
+
+V5 subsequently regenerated interface 45 and passed actual first-path/private
+save/restart/menu observation, with the real node18 turn stop recorded. It
+passed 28/29 cases; the save write proof marker mismatch prevented later stages.
+The next integrated source also includes the completed bitmap-font/frame work
+and source-backed turn/absent-input API. See [the next opening change](./new-game-turn-2026-10-03.md).

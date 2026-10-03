@@ -1,5 +1,20 @@
 # Rust implementation evidence
 
+2026-10-03 next opening integration: v5 regenerated support 45 and passed
+28/29 affected cases, including actual New Game first path, floor contact,
+private save preservation, restart and menu return. It then observed the real
+model210/node18 incremental-turn stop before dialogue. The native save write
+succeeded; stale proof text stopped the classifier before reload/rejection.
+Source now compiles the original five-frame turn and distinguishes actually
+absent debug inputs from unresolved handles, with native transform API and
+focused wire/contract checks. Completed dialogue bitmap-font/frame commits
+through `d0e90ef` are integrated alongside that change as `259ae71`, `3fb3cf7`,
+`8e1382b`, `fa9005b`. Combined source is support 46/Rete 39, with all 281 manifest
+cases and 21 mandatory safeguards retained. The next necessary regeneration
+must include these changes; the current generated game is still v5. No new
+visible improvement or complete intro parity is claimed before that work.
+See [the source turn and input evidence](./new-game-turn-2026-10-03.md).
+
 2026-10-03 main integration: the four validated UI commits through `f2eb446`
 are cherry-picked as `fae35ea`, `b4cf144`, `eeb5ec0`, `72725d0`, preserving
 the current camera and actual New Game path. Support 45/Rete 38 require one
