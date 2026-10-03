@@ -258,6 +258,21 @@ fn source_hype_opening_particle_component_and_presentation() -> Result<()> {
         ]
     ));
     assert_eq!(codec.write(&script)?, excerpt);
+    let mut presentation = init.bytes[814 * 8..818 * 8].to_vec();
+    presentation.extend([0, 0, 0, 0, 0, 0, 0, 8]);
+    let display_codec = crate::openspace::ai::AiScriptCodec::default();
+    let display = display_codec.read(&presentation)?;
+    assert!(matches!(
+        display.statements.as_slice(),
+        [
+            crate::model::ai::Statement::SetTransparency(crate::model::ai::Expression::Integer(
+                255
+            )),
+            crate::model::ai::Statement::SetTransparentDisplay(true),
+            crate::model::ai::Statement::SetDisplayVisible(true)
+        ]
+    ));
+    assert_eq!(display_codec.write(&display)?, presentation);
     let unresolved = crate::openspace::ai::AiScriptCodec::default();
     assert!(
         unresolved.read(&excerpt).is_err(),

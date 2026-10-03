@@ -1494,6 +1494,27 @@ fn statements(
                     "{pad}character().source_set_display_visible({visible})"
                 )?;
             }
+            Statement::SetTransparency(value) => {
+                let value = guarded_expression(out, value, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if not character().source_set_transparency(int({value})):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} requires supported native opacity materials",
+                        model.path
+                    ))
+                )?;
+            }
+            Statement::SetTransparentDisplay(enabled) => {
+                writeln!(
+                    out,
+                    "{pad}if not character().source_set_transparent_display({enabled}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} requires supported native transparent display materials",
+                        model.path
+                    ))
+                )?;
+            }
             Statement::ChangeSighting(direction) => {
                 let value = guarded_expression(out, direction, model, depth, flow)?;
                 writeln!(

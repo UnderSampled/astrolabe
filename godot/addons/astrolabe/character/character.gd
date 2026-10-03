@@ -16,6 +16,9 @@ const SOURCE_COLLISION_QUERY_MAX_RESULTS := 4096
 @export var physical_environment: Resource
 @export var source_inventory: Resource
 var source_display_hidden_layers: Dictionary = {}
+var source_opacity: int = 255
+var source_transparent_display: bool = false
+var source_opacity_materials: Array[Dictionary] = []
 @export var source_hit_points: Resource
 @export var source_magick: Resource
 @export var source_laser_pointer: Resource
@@ -356,6 +359,48 @@ func source_set_display_visible(display_visible: bool) -> void:
             if not source_display_hidden_layers.has(instance_id):
                 source_display_hidden_layers[instance_id] = visual.layers
             visual.layers = 0
+
+## 00543130 clamps opacity separately from transparent/default display mode.
+## Material alpha works on the project's Compatibility renderer; the native
+## GeometryInstance3D transparency property is Forward+-only.
+func source_set_transparency(opacity: int) -> bool:
+    source_opacity = clampi(opacity,0,255)
+    return _apply_source_opacity()
+
+func source_set_transparent_display(enabled: bool) -> bool:
+    source_transparent_display = enabled
+    return _apply_source_opacity()
+
+func _apply_source_opacity() -> bool:
+    # 00499ed0 leaves the ordinary material pipeline at opacity >=254.
+    var faded := source_transparent_display and source_opacity < 254
+    if faded and source_opacity_materials.is_empty():
+        var pending: Array[Dictionary] = []
+        for visual in find_children("*", "MeshInstance3D", true, false):
+            var mesh_instance := visual as MeshInstance3D
+            if _is_generated_child(mesh_instance) or mesh_instance.has_meta("family_bounds_debug") or mesh_instance.mesh == null: continue
+            for surface in mesh_instance.mesh.get_surface_count():
+                var material := mesh_instance.get_active_material(surface)
+                if material == null: continue
+                if not material is StandardMaterial3D: return false
+                var original := material as StandardMaterial3D
+                # Source shaded blending must be enabled on this material.
+                if original.has_meta("source_material_flags") and (int(original.get_meta("source_material_flags")) & 0x20000000) == 0: continue
+                var owned := original.duplicate() as StandardMaterial3D
+                pending.append({"mesh":mesh_instance,"surface":surface,"original":original,"owned":owned})
+        source_opacity_materials = pending
+        for entry in source_opacity_materials:
+            var mesh_instance := entry["mesh"] as MeshInstance3D
+            if mesh_instance.material_override != null: mesh_instance.material_override = entry["owned"]
+            else: mesh_instance.set_surface_override_material(entry["surface"],entry["owned"])
+    for entry in source_opacity_materials:
+        var original := entry["original"] as StandardMaterial3D
+        var owned := entry["owned"] as StandardMaterial3D
+        var color := original.albedo_color
+        color.a *= float(source_opacity) / 255.0 if faded else 1.0
+        owned.albedo_color = color
+        owned.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA if faded else original.transparency
+    return true
 
 func _is_generated_child(candidate: Node) -> bool:
     var current: Node = candidate

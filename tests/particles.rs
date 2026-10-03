@@ -85,6 +85,26 @@ fn imported_hype_particle_selection_survives_rete_and_uses_native_emitter() -> R
     normal.behaviors.retain(|b| b.id == 0);
     normal.behaviors[0].rules.clear();
     normal.behaviors[0].schedule.as_mut().unwrap().statements = pair.to_vec();
+    let presentation = schedule
+        .statements
+        .windows(3)
+        .find(|part| {
+            matches!(
+                part,
+                [
+                    Statement::SetTransparency(astrolabe::model::ai::Expression::Integer(255)),
+                    Statement::SetTransparentDisplay(true),
+                    Statement::SetDisplayVisible(true)
+                ]
+            )
+        })
+        .context("source presentation triple absent")?;
+    normal.behaviors[0]
+        .schedule
+        .as_mut()
+        .unwrap()
+        .statements
+        .extend_from_slice(presentation);
     normal.default_behavior = Some(0);
     excerpt.reflex = None;
     // Designer defaults are unchanged; the fixture removes all other schedules
@@ -92,7 +112,7 @@ fn imported_hype_particle_selection_survives_rete_and_uses_native_emitter() -> R
     fs::write(
         evidence.join("fixture.json"),
         serde_json::to_vec_pretty(&serde_json::json!({
-            "scope":"source nodes 14..16 select/disable excerpt; component regression, full intro pending",
+            "scope":"source nodes14..16 and814..817 select/disable and opacity/display excerpt; component regression, full intro pending",
             "ai_modified":true,"model":full.path,"generator":generator.path,
             "full_model_sha256":format!("{:x}",Sha256::digest(rete::encode(full.as_ref())?)),
             "excerpt_sha256":format!("{:x}",Sha256::digest(rete::encode(&excerpt)?)),

@@ -37,6 +37,9 @@ func run() -> void:
     var actor := CHARACTER.new()
     actor.autoplay = false
     actor.position = Vector3(2,3,4)
+    var animation_player := AnimationPlayer.new()
+    animation_player.name = "AnimationPlayer"
+    actor.add_child(animation_player)
     var source := PARTICLE_SOURCE.new()
     source.name = "ParticleSource"
     actor.add_child(source)
@@ -59,6 +62,7 @@ func run() -> void:
     if not require(material != null and material.albedo_texture is Texture2D,"converted source sprite/material/texture missing"): return
     if not require(selected.get("generator_uri") == fixture["generator_uri"] and selected.amount == 200 and selected.get("initialized"),"selected source generator identity/capacity/initialization differs"): return
     if not require(not source.enabled and not selected.emitting and not actor.source_particle_generator_enabled,"following original disable call failed"): return
+    if not require(actor.source_opacity == 255 and actor.source_transparent_display,"original opacity/display excerpt failed"): return
     if not require(selected.get("relative_environment") and is_equal_approx(selected.get("sphere_radius"),5.0) and selected.call("environment_center").is_equal_approx(actor.global_position),"relative source sphere initialization differs"): return
     if not require(actor.source_set_particle_generator(template) and source.selected == selected and source.get_child_count() == 1,"repeat selection duplicated the emitter"): return
     var invalid_root := Node3D.new()
@@ -74,6 +78,21 @@ func run() -> void:
     report["compiled_excerpt_failure"] = brain.unsupported_failure
     report["repeat_selection_reused"] = true
     report["invalid_selection_rejected"] = true
+    # A second native visual exercises nontrivial opacity and borrowed-resource
+    # preservation independently of Hype's source request for full opacity.
+    var visual := MeshInstance3D.new()
+    visual.mesh = QuadMesh.new()
+    var original := StandardMaterial3D.new()
+    original.albedo_color = Color(0.3,0.6,0.9,0.75)
+    visual.material_override = original
+    actor.add_child(visual)
+    if not require(actor.source_set_transparency(128),"partial opacity rejected"): return
+    var owned := visual.material_override as StandardMaterial3D
+    if not require(owned != original and is_equal_approx(owned.albedo_color.a,0.75*128.0/255.0) and is_equal_approx(original.albedo_color.a,0.75) and owned.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA,"native opacity had no effect or mutated shared source material"): return
+    if not require(actor.source_set_transparent_display(false) and owned.albedo_color == original.albedo_color and owned.transparency == original.transparency,"default display did not restore native material mode/alpha"): return
+    if not require(actor.source_set_transparent_display(true) and actor.source_set_transparency(-10) and actor.source_opacity == 0 and is_zero_approx(owned.albedo_color.a),"source lower clamp failed"): return
+    if not require(actor.source_set_transparency(999) and actor.source_opacity == 255 and owned.albedo_color == original.albedo_color,"source upper clamp/full opacity failed"): return
+    report["opacity_material_api"] = {"partial_alpha":0.75*128.0/255.0,"shared_material_preserved":true,"default_mode_restored":true,"clamps_passed":true}
     brain.stop()
     actor.queue_free()
     await process_frame

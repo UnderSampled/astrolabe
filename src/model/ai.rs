@@ -200,6 +200,10 @@ pub enum Statement {
     /// Proc_InvisibleDisplay / Proc_VisibleDisplay toggle rendered visibility
     /// while leaving the actor's native physics and AI active.
     SetDisplayVisible(bool),
+    /// Source opacity in 0..255, clamped by the actor API independently of mode.
+    SetTransparency(Expression),
+    /// TransparentDisplay enables actor opacity; DefaultDisplay disables it.
+    SetTransparentDisplay(bool),
     ChangeSighting(Expression),
     /// Camera procedure 160 stores a keyword or referenced target actor.
     CameraChangeTargetedPerso {
@@ -817,6 +821,7 @@ impl AiModel {
                     }
                     | Statement::IncrementalTurnToward { frames: value, .. }
                     | Statement::ChangeSighting(value)
+                    | Statement::SetTransparency(value)
                     | Statement::SetVectorSpeed(value)
                     | Statement::AddWind(value)
                     | Statement::SetImpulse(value)
@@ -1101,6 +1106,7 @@ impl Script {
                     }
                     | Statement::IncrementalTurnToward { frames: value, .. }
                     | Statement::ChangeSighting(value)
+                    | Statement::SetTransparency(value)
                     | Statement::SetVectorSpeed(value)
                     | Statement::AddWind(value)
                     | Statement::SetImpulse(value)
@@ -1357,7 +1363,8 @@ impl Script {
                     Statement::SetVectorSpeed(value)
                     | Statement::AddWind(value)
                     | Statement::SetImpulse(value)
-                    | Statement::ChangeSighting(value) => {
+                    | Statement::ChangeSighting(value)
+                    | Statement::SetTransparency(value) => {
                         expression(value, variables, depth + 1, count)?
                     }
                     Statement::ArrayAssign {

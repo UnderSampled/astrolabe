@@ -401,6 +401,9 @@ impl Parser<'_> {
                 (4, 342) => Statement::SetLaserPointerSniperMode(self.expression(indent + 1)?),
                 (4, 266) => Statement::SetDisplayVisible(false),
                 (4, 267) => Statement::SetDisplayVisible(true),
+                (4, 187) => Statement::SetTransparency(self.expression(indent + 1)?),
+                (4, 185) => Statement::SetTransparentDisplay(true),
+                (4, 186) => Statement::SetTransparentDisplay(false),
                 (4, 445) => Statement::ChangeSighting(self.expression(indent + 1)?),
                 (4, 157 | 160) => {
                     let operand = self.at;
@@ -1212,6 +1215,13 @@ impl Writer<'_> {
                 }
                 Statement::SetDisplayVisible(visible) => {
                     self.node(4, if *visible { 267 } else { 266 }, indent)
+                }
+                Statement::SetTransparency(value) => {
+                    self.node(4, 187, indent);
+                    self.expression(value, indent + 1)?;
+                }
+                Statement::SetTransparentDisplay(enabled) => {
+                    self.node(4, if *enabled { 185 } else { 186 }, indent);
                 }
                 Statement::ChangeSighting(direction) => {
                     self.node(4, 445, indent);
