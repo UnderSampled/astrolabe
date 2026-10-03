@@ -1,6 +1,22 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://game/bootstrap.gd" id="bootstrap"]
+[ext_resource type="Theme" path="res://game/menu/theme.tres" id="theme"]
+
+[sub_resource type="StyleBoxFlat" id="FallbackFrame"]
+bg_color = Color(0.18, 0.085, 0.045, 1)
+border_width_left = 16
+border_width_top = 16
+border_width_right = 16
+border_width_bottom = 16
+border_color = Color(0.43, 0.22, 0.08, 1)
+
+[sub_resource type="StyleBoxFlat" id="StatusPlate"]
+bg_color = Color(0.08, 0.035, 0.01, 0.7)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_left = 4
+corner_radius_bottom_right = 4
 
 [node name="Astrolabe" type="Control"]
 layout_mode = 3
@@ -9,4 +25,122 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+theme = ExtResource("theme")
 script = ExtResource("bootstrap")
+
+[node name="Matte" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.015, 0.01, 0.008, 1)
+
+[node name="MenuCanvas" type="Control" parent="."]
+layout_mode = 0
+offset_right = 640.0
+offset_bottom = 480.0
+mouse_filter = 2
+
+[node name="Fallback" type="Panel" parent="MenuCanvas"]
+layout_mode = 0
+offset_right = 640.0
+offset_bottom = 480.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("FallbackFrame")
+
+[node name="Title" type="Label" parent="MenuCanvas/Fallback"]
+layout_mode = 0
+offset_left = 40.0
+offset_top = 44.0
+offset_right = 600.0
+offset_bottom = 150.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.48, 0.83, 0.94, 1)
+theme_override_font_sizes/font_size = 80
+text = "HYPE"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="MenuCanvas/Fallback"]
+layout_mode = 0
+offset_left = 40.0
+offset_top = 143.0
+offset_right = 600.0
+offset_bottom = 190.0
+mouse_filter = 2
+theme_override_font_sizes/font_size = 26
+text = "The Time Quest"
+horizontal_alignment = 1
+
+[node name="Background" type="TextureRect" parent="MenuCanvas"]
+layout_mode = 0
+offset_right = 640.0
+offset_bottom = 480.0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 0
+
+[node name="NewGame" type="Button" parent="MenuCanvas"]
+layout_mode = 0
+offset_left = 299.0
+offset_top = 214.0
+offset_right = 489.0
+offset_bottom = 248.0
+focus_neighbor_top = NodePath("../Quit")
+focus_neighbor_bottom = NodePath("../LoadGame")
+focus_next = NodePath("../LoadGame")
+focus_previous = NodePath("../Quit")
+text = "New Game"
+tooltip_text = "Start the manor opening. It is still in development; your existing save is preserved."
+
+[node name="LoadGame" type="Button" parent="MenuCanvas"]
+layout_mode = 0
+offset_left = 276.0
+offset_top = 251.0
+offset_right = 466.0
+offset_bottom = 285.0
+focus_neighbor_top = NodePath("../NewGame")
+focus_neighbor_bottom = NodePath("../Quit")
+focus_next = NodePath("../Quit")
+focus_previous = NodePath("../NewGame")
+text = "Load Game"
+tooltip_text = "Continue your manor save, or begin from the supplied English save when no local slot exists."
+
+[node name="StatusPlate" type="Panel" parent="MenuCanvas"]
+layout_mode = 0
+offset_left = 253.0
+offset_top = 295.0
+offset_right = 499.0
+offset_bottom = 381.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StatusPlate")
+
+[node name="Details" type="Label" parent="MenuCanvas"]
+layout_mode = 0
+offset_left = 263.0
+offset_top = 300.0
+offset_right = 489.0
+offset_bottom = 376.0
+mouse_filter = 2
+text = "Prepare the game data from your Hype copy to play."
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="Quit" type="Button" parent="MenuCanvas"]
+layout_mode = 0
+offset_left = 206.0
+offset_top = 392.0
+offset_right = 306.0
+offset_bottom = 426.0
+focus_neighbor_top = NodePath("../LoadGame")
+focus_neighbor_bottom = NodePath("../NewGame")
+focus_next = NodePath("../NewGame")
+focus_previous = NodePath("../LoadGame")
+text = "Quit"
+
+[connection signal="pressed" from="MenuCanvas/NewGame" to="." method="_on_new_game_pressed"]
+[connection signal="pressed" from="MenuCanvas/LoadGame" to="." method="_on_load_game_pressed"]
+[connection signal="pressed" from="MenuCanvas/Quit" to="." method="_on_quit_pressed"]
