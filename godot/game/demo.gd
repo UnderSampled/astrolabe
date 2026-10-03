@@ -16,6 +16,7 @@ signal loading_stage_changed(stage: String, elapsed_ms: float)
 @onready var status_label: Label = $Hud/Panel/Margin/Rows/Status
 @onready var mana_label: Label = $Hud/Panel/Margin/Rows/Mana
 @onready var content_cache: Node = get_node_or_null("/root/GameContent")
+@onready var inventory_host: Node = $InventoryHost
 
 var level: Node3D
 var actor: CharacterBody3D
@@ -47,6 +48,7 @@ const AIM_ACTIONS := {
 }
 
 func _ready() -> void:
+    inventory_host.unavailable.connect(func(message: String): status_label.text = message)
     configure_crossbow_inputs()
     load_started_usec = Time.get_ticks_usec()
     stage("session", "Loading New Game..." if new_game else "Loading saved game...")
@@ -308,6 +310,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
         leave_session("res://game/bootstrap.tscn")
 
 func leave_session(destination: String) -> void:
+    inventory_host.call("close_inventory")
     ready_to_play = false
     if is_instance_valid(brain):
         brain.call("stop")
@@ -318,6 +321,11 @@ func leave_session(destination: String) -> void:
         if str(action).begins_with("Button_"):
             Input.action_release(action)
     get_tree().change_scene_to_file(destination)
+
+func inventory_available() -> bool:
+    if not ready_to_play or not is_instance_valid(actor) or not is_instance_valid(level): return false
+    var ui := level.get_node_or_null("AstrolabeUI")
+    return ui == null or not bool(ui.get("widescreen"))
 
 func _exit_tree() -> void:
     restore_frame_limit()

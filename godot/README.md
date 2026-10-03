@@ -17,6 +17,7 @@ repository root:
 cargo build --release --locked
 target/release/astrolabe port disc godot --level manoir --locale en
 target/release/astrolabe port disc godot --level manoir --locale en --content menu
+target/release/astrolabe port disc godot --level manoir --locale en --content inventory
 ```
 
 Open `project.godot` in the Godot editor, wait for texture and sound imports to
@@ -35,7 +36,10 @@ investigation.
 Controls: **Arrows** move and turn, **Shift** runs, **Ctrl** jumps, **X** draws
 the sword, and **Space** uses it. To prepare the saved character for Fire, step
 back with **Down**, press **X**, then press **Enter** to cast. **R** reloads the
-provisional save start; **Esc** returns to the menu. The supported slice includes
+provisional save start; **Esc** returns to the menu. **I** opens the inventory during gameplay; **I** or
+**Esc** closes its modal view. Selecting an owned weapon updates the existing
+inventory Resource; other item effects remain explicit unfinished actions.
+[inventory ownership](game/inventory/README.md) explains source content and editor overrides. The supported slice includes
 movement with contact, stationary/moving/wall jumps, sword selection and beam lifetime, and Fire cast
 with mana cost. Combat hit/damage, crossbow play, spell contact/lifetime, cliff
 death and complete camera parity are not established. Generated animation
