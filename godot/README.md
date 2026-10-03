@@ -1,7 +1,7 @@
 # Hype Godot game
 
 Open `project.godot` with Godot **4.7.2**. The menu requires its installed Hype
-artwork; play requires the generated manor. `addons/astrolabe/` is maintained converter support;
+artwork and native menu scene; play requires the generated manor. `addons/astrolabe/` is maintained converter support;
 `game/` is independently authored content. All extracted/generated content and
 Godot caches are ignored by location.
 
@@ -16,6 +16,7 @@ repository root:
 ```sh
 cargo build --release --locked
 target/release/astrolabe port disc godot --level manoir --locale en
+target/release/astrolabe port disc godot --level manoir --locale en --content menu
 ```
 
 Open `project.godot` in the Godot editor, wait for texture and sound imports to
@@ -43,8 +44,8 @@ editable and seekable in the AnimationPlayer inspector. Load Game prepares the
 saved native scene in the background and reports its loading stage. Reload and
 return-to-menu retain one loaded scene resource while creating fresh gameplay
 instances. See the [loading measurements](../notes/godot-loading-efficiency-2026-09-27.md)
-for the remaining fresh-process cost and retained-memory tradeoff. UI parity
-work will replace the current menu presentation.
+for the remaining fresh-process cost and retained-memory tradeoff. The menu is imported independently from its source layout;
+[menu ownership](game/menu/README.md) explains editor overrides and remaining submenus.
 
 The current session still uses the historical `game/demo.*` and `demo_camera.gd`
 filenames. They are game code; the names do not define a separate demo product.

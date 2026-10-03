@@ -14,7 +14,7 @@ func run() -> void:
     current_scene = menu
     var load_button := menu.find_child("LoadGame",true,false) as Button
     var new_button := menu.find_child("NewGame",true,false) as Button
-    if load_button == null or load_button.text != "Load Game" or load_button.disabled or new_button == null or new_button.disabled:
+    if load_button == null or load_button.text.to_lower() != "load game" or load_button.disabled or new_button == null or new_button.disabled:
         fail("Game menu must offer enabled Load Game and New Game actions after manor generation")
         return
     load_button.pressed.emit()

@@ -1,50 +1,82 @@
 extends Control
-## Authored main menu presentation around the existing game-session entries.
+## Application/session routes around a generated, editable native menu scene.
 const MANOR := "res://generated/hype/levels/manoir/level.tscn"
-const MENU_BACKGROUND := "res://generated/hype/textures/MENU/menu_princ.gf.png"
+const MENU_SCENE := "res://generated/hype/shared/menu/main/en/menu.tscn"
+const MENU_VIEW = preload("res://addons/astrolabe/ui/menu/menu.gd")
 const SAVE_STATE = preload("res://game/save_state.gd")
 
-@export var background_texture: Texture2D
-@onready var canvas: Control = $MenuCanvas
-@onready var background: TextureRect = $MenuCanvas/Background
-@onready var details: Label = $MenuCanvas/Details
-@onready var load_game: Button = $MenuCanvas/LoadGame
-@onready var new_game: Button = $MenuCanvas/NewGame
-@onready var quit_game: Button = $MenuCanvas/Quit
+## Assign an inherited scene saved under game/ to preserve designer improvements.
+@export var menu_scene: PackedScene
+@onready var details: Label = $Status/Details
+@onready var status: PanelContainer = $Status
+@onready var error_quit: Button = $ErrorQuit
+var menu: MENU_VIEW
+var load_game: Button
+var new_game: Button
+var quit_game: Button
 var opening_game := false
 
 func _ready() -> void:
-    resized.connect(_fit_canvas)
-    _fit_canvas()
-    if background_texture == null and ResourceLoader.exists(MENU_BACKGROUND):
-        background_texture = load(MENU_BACKGROUND) as Texture2D
-    background.texture = background_texture
-    if background_texture == null:
-        new_game.disabled = true
-        load_game.disabled = true
-        details.text = "Required menu artwork is missing.\nRestore the installed menu assets."
-        quit_game.grab_focus()
-        push_error("Required menu artwork is missing: " + MENU_BACKGROUND + ". Restore the installed menu assets.")
+    if menu_scene == null and ResourceLoader.exists(MENU_SCENE):
+        menu_scene = load(MENU_SCENE) as PackedScene
+    if menu_scene == null:
+        _show_menu_error()
+        return
+    menu = menu_scene.instantiate() as MENU_VIEW
+    if menu == null or not menu.has_required_media():
+        if menu != null: menu.free()
+        menu = null
+        _show_menu_error()
+        return
+    $MenuHost.add_child(menu)
+    menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    menu.action_selected.connect(_on_menu_action)
+    new_game = menu.button_for_action(&"NewGame")
+    load_game = menu.button_for_action(&"SavedGames")
+    quit_game = menu.button_for_action(&"Quit")
+    if new_game == null or load_game == null or quit_game == null:
+        details.text = "Required menu actions are missing from the selected scene."
+        status.show()
+        error_quit.show()
+        error_quit.grab_focus()
+        push_error(details.text)
         return
     var slot: Dictionary = SAVE_STATE.read()
-    details.text = "Prepare the game data from your Hype copy to play."
-    if ResourceLoader.exists(MANOR):
-        details.text = "Continue from your local manor save." if slot["status"] == "loaded" else "Load Game begins from the supplied English manor save."
-        if slot["status"] == "error":
-            details.text = "Load Game unavailable: " + str(slot["message"])
-    load_game.disabled = not ResourceLoader.exists(MANOR) or slot["status"] == "error"
-    new_game.disabled = not ResourceLoader.exists(MANOR)
-    if not load_game.disabled:
+    var manor_available := ResourceLoader.exists(MANOR)
+    load_game.disabled = not manor_available or slot["status"] == "error"
+    new_game.disabled = not manor_available
+    if not manor_available:
+        details.text = "Prepare the game data from your Hype copy to play."
+        status.show()
+    elif slot["status"] == "error":
+        details.text = "Load Game unavailable: " + str(slot["message"])
+        status.show()
+    var initial := menu.get_node_or_null(menu.initial_focus) as Button
+    if initial != null and not initial.disabled:
+        initial.grab_focus()
+    elif not load_game.disabled:
         load_game.grab_focus()
     elif not new_game.disabled:
         new_game.grab_focus()
     else:
         quit_game.grab_focus()
 
-func _fit_canvas() -> void:
-    var factor := minf(size.x / 640.0, size.y / 480.0)
-    canvas.scale = Vector2.ONE * factor
-    canvas.position = (size - Vector2(640.0, 480.0) * factor) * 0.5
+func _show_menu_error() -> void:
+    status.show()
+    details.text = "Required menu assets are missing.\nRestore the installed menu assets."
+    error_quit.show()
+    error_quit.grab_focus()
+    push_error("Required menu assets are missing: " + MENU_SCENE + ". Restore the installed menu assets.")
+
+func _on_menu_action(action: StringName) -> void:
+    match action:
+        &"NewGame": _on_new_game_pressed()
+        &"SavedGames": _on_load_game_pressed()
+        &"Quit": _on_quit_pressed()
+        _:
+            var selected := menu.button_for_action(action)
+            details.text = (selected.text.capitalize() if selected != null else str(action)) + " is not implemented yet."
+            status.show()
 
 func _on_new_game_pressed() -> void:
     open_game("res://game/new_game.tscn", new_game)
