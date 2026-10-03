@@ -49,11 +49,22 @@ func audit_font_api() -> bool:
     if not require(ResourceSaver.save(font,"res://ui-font-api.tres") == OK, "native bitmap metric preflight save"): return false
     var saved: FontFile = load("res://ui-font-api.tres")
     var advance := saved.get_glyph_advance(0,21,65).x
-    var shaped := saved.get_string_size("AA",HORIZONTAL_ALIGNMENT_LEFT,-1,21).x
-    print("UI_FONT_METRIC_PREFLIGHT " + JSON.stringify({"glyph_a":saved.get_glyph_index(21,65,0),"has_e_acute":saved.has_char(233),"advance_a":advance,"shaped_aa":shaped}))
+    # Native string bounds are ceiled; inspect the shaped glyph advances instead.
+    var bounds := saved.get_string_size("AA",HORIZONTAL_ALIGNMENT_LEFT,-1,21).x
+    var line := TextLine.new()
+    if not require(line.add_string("AA",saved,21), "native bitmap metric preflight shaping"): return false
+    line.get_size()
+    var glyphs: Array = TextServerManager.get_primary_interface().shaped_text_get_glyphs(line.get_rid())
+    var shaped: float = 0.0
+    var advances: Array[float] = []
+    for glyph in glyphs:
+        advances.append(float(glyph.advance))
+        shaped += float(glyph.advance) * int(glyph.repeat)
+    print("UI_FONT_METRIC_PREFLIGHT " + JSON.stringify({"glyph_a":saved.get_glyph_index(21,65,0),"has_e_acute":saved.has_char(233),"advance_a":advance,"shaped_aa":shaped,"glyph_advances":advances,"bounds_aa":bounds}))
     if not require(saved.get_glyph_index(21,65,0) == 65 and saved.has_char(233), "native bitmap metric preflight Unicode"): return false
     if not require(is_equal_approx(advance,16.2338), "native bitmap metric preflight fractional advance"): return false
-    return require(absf(shaped-2.0*16.2338) <= 1.0/32.0, "native bitmap metric preflight shaped advance")
+    if not require(glyphs.size() == 2 and absf(shaped-2.0*16.2338) <= 1.0/32.0, "native bitmap metric preflight shaped advance"): return false
+    return require(is_equal_approx(bounds,ceilf(shaped)), "native bitmap metric preflight integer bounds")
 func check() -> void:
     var emitter := Node3D.new()
     emitter.set_script(Emitter)

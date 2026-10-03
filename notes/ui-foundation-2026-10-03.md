@@ -186,3 +186,20 @@ New Game/camera files, tests, UID entries and inventory/save corrections remain
 as integrated. The pre-integration branch is retained for earlier evidence;
 main was inspected read-only and not edited. The next assignment validates this
 reconciled branch at a fresh immutable checkpoint and output path.
+
+R6 at clean `05cf773588aaacac28ff1248f45e3f572cead69c` failed the new tiny
+pre-import metric gate in 0.665s, before any original-media conversion. The
+serialized cache advance is correctly 16.2338, Unicode A maps to65 and é is
+available. `Font.get_string_size("AA")` returned33.0; the test wrongly compared
+that bounding size to a fractional sum. Official Godot source confirms
+`TextServerAdvanced::_shaped_text_get_size` applies ceil to its bounds. This
+does not establish a displayed-layout error. The revised assertion inspects
+the actual native shaped glyph advances, then checks the integer bounds against
+their ceil. It retains the fractional cache check.
+
+Overall R6 took70.240s, including62.932s build/discovery. All28 Python checks
+passed before the resource gate; the21 mandatory safeguards were unrun after
+the early failure. Supervisor cleanup reported no leaked children or remaining
+processes. The parent requested a minimal native metric-only diagnostic before
+another build cycle. Isolated commits/tests are milestones; a user checkpoint
+requires integration/regeneration and visible improvements in actual New Game.
