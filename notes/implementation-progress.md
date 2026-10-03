@@ -81,6 +81,12 @@ waits, and records that AI fixture modification explicitly. Native syntax,
 three-shot behavior and pixels remain pending Luna; this is not full opening
 acceptance. See the [shot checkpoint](cinematic-opening-source-2026-10-03.md).
 
+V8 passed 28/29 Rust cases; the shot case stopped in its 0.355-second syntax
+preflight because two camera-derived error variables needed explicit float
+types. Conversion and shot gameplay did not run. The suite completed in
+134.938 seconds with unchanged source and clean cleanup. The two-line harness
+correction is prepared for v9; native shot acceptance remains pending.
+
 At Stephen's explicit request, Proc_AddWind is now a documented intentional
 no-op, with typed source/Rete round-trip support. Initialization can pass the
 call; nonzero drift and zero-reset physics remain technical debt. The following

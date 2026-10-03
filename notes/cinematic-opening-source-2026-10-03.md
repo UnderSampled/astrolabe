@@ -1,6 +1,6 @@
 # In-engine manor opening — source checkpoint, 2026-10-03
 
-## Original shot-command slice, v8 prepared; native validation pending
+## Original shot-command slice, v8 parser failure; v9 prepared
 
 Validated aiming is checkpointed as `b436f7c14cf4b68965b5503c7c60924d5b283684`.
 The next commands come from `IWorld_Manoir` model 154, its actual initial normal
@@ -44,6 +44,28 @@ Syntax preflight precedes conversion; gameplay has a 25-second deadline. Native
 syntax, behavior and rendered evidence are still pending. Full initialization,
 remaining shots, dialogue/presentation and the approximately 209-second handoff
 remain open. No original script-memory edits were needed for this slice.
+
+V8 completed with 28/29 Rust cases passing in 134.938 seconds, unchanged source
+and clean cleanup. The new shot harness failed its early syntax preflight in
+0.355 seconds: Godot could not infer `forward_error` and `up_error` through the
+dynamic camera reference. Neither conversion nor shot gameplay ran. Explicit
+float declarations correct those two lines; v9 retains the same 29-case scope
+and budgets. Existing v8 logs and source checkpoint remain unchanged. Native
+syntax/shot acceptance is still pending.
+
+A read-only source inspection also identifies the fourth-cut producer:
+Gogoud/model210 normal0 completes route6 and actions26/24, selects action23,
+then assigns World.dsg_0 = 4. World/model154 behavior3 rule0 selects helper20,
+waypoint67 and mode3. All three camera calls in that branch are now typed; the
+World instance begins dsg_0 = 0, so a harness must not invent the trigger value.
+The next integration hypothesis joins the existing actual Gogoud route/animation
+sequence to this unchanged camera branch. Evidence is
+`TestResults/manor-next-camera-source-sol-20261003.json` (1.364-second supervised
+source-only import, clean cleanup; v8 digest preserved during execution).
+Gogoud's following calls are dialogue position328, incremental actor turn23
+and dialogue325. The separate UI worker owns dialogue and source fade/widescreen
+calls317–323; camera/non-UI work must consume that interface rather than duplicate
+presentation or independently choose cut timing.
 
 ## Native mode-3 aiming acceptance, v7
 

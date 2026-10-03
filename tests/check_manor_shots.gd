@@ -66,8 +66,8 @@ func check() -> void:
             if not require(eye_error < 0.00005, "source waypoint placement differs"): return
             var eye := camera_actor.global_position
             if not require(bool(camera_brain.call("normal_0_rule_0",camera_brain.get("normal_revision"))) and str(camera_brain.get("unsupported_failure")).is_empty(), "unchanged camera aiming rule failed"): return
-            var forward_error := (-camera.global_basis.z.normalized()).distance_to(native(observed[index][2]).normalized())
-            var up_error := camera.global_basis.y.normalized().distance_to(native(observed[index][3]).normalized())
+            var forward_error: float = (-camera.global_basis.z.normalized()).distance_to(native(observed[index][2]).normalized())
+            var up_error: float = camera.global_basis.y.normalized().distance_to(native(observed[index][3]).normalized())
             var clock := float(world.get("clock_milliseconds"))
             if not require(forward_error < 0.00003 and up_error < 0.00003 and camera_actor.global_position.is_equal_approx(eye), "source-selected camera orientation differs"): return
             if not require(clock >= observed[index][4] - 0.0001 and clock <= observed[index][4] + 40.0, "original Wait duration or order differs"): return
