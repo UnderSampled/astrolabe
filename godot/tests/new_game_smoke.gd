@@ -134,7 +134,7 @@ func run() -> void:
     var paths: Dictionary = level.get_meta("source_actor_nodes")
     var gogoud := level.get_node(paths["level:/persos/world/0/5"]) as CharacterBody3D
     var turn_target := level.get_node(paths["level:/persos/world/0/28"]) as Node3D
-    var resolved_target := gogoud.source_actor_node("level:/persos/world/0/28")
+    var resolved_target: Node3D = gogoud.source_actor_node("level:/persos/world/0/28")
     report["turn_target"] = {"asset":"level:/persos/world/0/28","path":str(turn_target.get_path()),"resolved":resolved_target == turn_target}
     if not require(resolved_target == turn_target,"wrapped New Game did not resolve Gogoud's exported statue target"): return
     var gogoud_start := gogoud.global_position
@@ -179,7 +179,7 @@ func run() -> void:
         if post_path_actions[-1] != gogoud.current_state: post_path_actions.append(gogoud.current_state)
         if not str(gogoud.get_node("Brain").get("unsupported_failure")).is_empty() or not bool(source_ui.call("source_dialog_is_over")): break
     report["gogoud"]["post_path"] = gogoud_snapshot(gogoud)
-    var remaining_turn := gogoud.source_turn_angles(turn_target)
+    var remaining_turn: Vector2 = gogoud.source_turn_angles(turn_target)
     report["turn_target"]["remaining_angle"] = remaining_turn.y
     report["post_path"] = snapshot(game)
     var dialog_position: Vector2 = source_ui.get("source_position")

@@ -198,3 +198,41 @@ V9 selects the four affected turn/camera/UI/New Game cases plus all 21 mandatory
 safeguards and four mandatory Python modules, without repeating conversion or
 the unaffected save case. The separately owned glyph fix and full intro/Hype/
 widescreen/camera acceptance remain pending.
+
+## V9 referenced-turn pass, smoke parser failure and parser-first retry
+
+V9 passed 24/25 selected cases, including all 21 mandatory safeguards, the
+extended compiled/native reference-target turn contract (0.606s), camera lookup
+and UI timing/adoption. Actual New Game was unrun: my two reporting declarations
+used inferred types for dynamically attached character-script methods on a
+`CharacterBody3D`, which cannot supply static return types. Its smoke parser
+reported `resolved_target` at line137 and `remaining_turn` at line182. The setup
+took 142.28 seconds; source/generated hashes stayed unchanged and cleanup was
+complete. Evidence: `TestResults/new-game-preview-setup-v9-sol-20261003/` and
+`TestResults/new-game-preview-selection-v9-sol-20261003.log.d/new-game-opening/parser-smoke.log`.
+
+Only those declarations change: explicit `Node3D` and `Vector2`. No production
+behavior, compiled original AI, generated assets, inventory or Rust test logic
+changes. Replacing only the current smoke bytes with their committed v9 bytes
+in a read-only source-digest calculation reproduces the complete prior digest
+`bbb472139835957871c86cb0c46e42481f961d123ff573af325a6eb60a90da8c`.
+This proves every other source input remains identical, supporting reuse of
+the 24 individual passes and four clean mandatory Python module runs rather
+than rerunning a broad selection before the failed opening.
+
+V10 first stages the exact current smoke and its actual unchanged SAVE_STATE
+preload in a fresh minimal project. It checks source/staged SHA256 hashes and
+parses the changed script under a ten-second deadline with an owned engine log,
+before any Cargo build or gameplay. Every changed GDScript must be included in
+that hash-checked gate; prior parse evidence cannot stand in for changed bytes.
+A failure stops immediately. The successful proof records all input hashes and
+the parser-log hash, verifies the pinned Godot build, then builds only the New
+Game test executable and runs only the actual opening under its existing
+180-second deadline. The outer budget is 300 seconds, including a 15-second
+cleanup reserve. Current native parsing and opening remain unrun.
+
+Retained v9 safeguards, declared 281-case inventory, complete v8 save pass and
+all 4,785 generated hashes remain checked. V10 reports one fresh native opening
+case separately from 24 reused passes. No regeneration, release build, broad
+selection, original-game run or additional visual gate is needed for this
+harness-only correction. The UI glyph work remains separately owned.
