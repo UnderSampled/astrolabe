@@ -3794,7 +3794,7 @@
       "prerequisites": [
         "godot"
       ],
-      "fixture": "compiled synthetic turn against maintained native character; frame count, target snapshot and cancellation",
+      "fixture": "compiled synthetic turn against maintained native character; frame count, snapshot, cancellation and referenced actors in a wrapped level with separate owning index",
       "timeout_seconds": 40,
       "ignored": false,
       "release": true

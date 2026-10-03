@@ -574,13 +574,16 @@ func source_collide_with_nothing() -> bool:
     return get_slide_collision_count() == 0
 
 ## Resolve a compiled Perso identity in the active level's saved actor graph.
+## The nearest owning index stays authoritative inside authored scene wrappers.
 func source_actor_node(actor_asset: String) -> Node3D:
     var level: Node = self
-    while level.get_parent() != null and level.get_parent() != get_tree().root:
+    while level != null:
+        if level.has_meta("source_actor_nodes"):
+            var actors: Dictionary = level.get_meta("source_actor_nodes")
+            if not actors.has(actor_asset): return null
+            return level.get_node_or_null(actors[actor_asset]) as Node3D
         level = level.get_parent()
-    var actors: Dictionary = level.get_meta("source_actor_nodes", {})
-    if not actors.has(actor_asset): return null
-    return level.get_node_or_null(actors[actor_asset]) as Node3D
+    return null
 
 ## Source type-11 Perso lists append without deduplication and cannot grow
 ## beyond their declared capacity. The compiled AI owns the decision to add.

@@ -109,6 +109,24 @@ fn compiled_incremental_turn_snapshots_target_counts_frames_and_cancels() -> Res
     assert!(code.contains("source_turn_to_heading(turn_heading_0)"));
     assert!(code.contains("dsg_0 = bool(true)"));
     fs::write(project.join("turn.gd"), code)?;
+    let mut referenced = reopened;
+    referenced.normal.as_mut().unwrap().behaviors[0]
+        .schedule
+        .as_mut()
+        .unwrap()
+        .statements[0] = Statement::IncrementalTurnToward {
+        target: ActorTarget::Reference(AssetRef::from_path(AssetPath::new(
+            "level:/persos/target",
+        )?)),
+        frames: Expression::Variable(1),
+    };
+    let code = godot::ai::compile(&referenced, &[])?;
+    assert!(
+        code.contains(
+            "source_turn_angles(character().source_actor_node(\"level:/persos/target\"))"
+        )
+    );
+    fs::write(project.join("referenced_turn.gd"), code)?;
     fs::write(
         project.join("check_incremental_turn.gd"),
         include_bytes!("check_incremental_turn.gd"),
@@ -143,6 +161,11 @@ fn compiled_incremental_turn_snapshots_target_counts_frames_and_cancels() -> Res
         evidence.contains("COMPILED_INCREMENTAL_TURN_OK"),
         "{evidence}"
     );
+    assert!(
+        evidence.contains("COMPILED_ACTOR_REFERENCE_TURN_OK"),
+        "{evidence}"
+    );
+    println!("{evidence}");
     Ok(())
 }
 

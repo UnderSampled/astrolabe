@@ -152,3 +152,49 @@ seconds within the unchanged 600-second outer budget, with 15 seconds reserved
 for cleanup. No duplicate native font probe or visual acceptance gate is added.
 Native recovery, first dialogue, fresh save reload/rejection and full intro
 acceptance remain pending.
+
+## V8 generation/save pass and actual wrapped-level target diagnosis
+
+V8's ordinary manor port succeeded in 108.21 seconds, with interface46 and
+4,785 owned files. The isolated font syntax gate no longer blocked conversion.
+The later selection passed 29/31 cases, including all 21 mandatory safeguards
+and the full native save write/fresh-process reload/rejection case (30.93s).
+Source stayed unchanged and process cleanup was complete. The two failures
+were actual New Game after the first path and the separately owned UI font
+Unicode mapping case (`has_e_acute=false`). Do not describe this as a clean
+full selection. Evidence: `TestResults/new-game-preview-setup-v8-sol-20261003/`
+and `TestResults/new-game-preview-selection-v8-sol-20261003.log.json`.
+
+Actual Gogoud again completed actions0/26/24/23 with floor/source contact. At
+clock12183.33ms he stopped because the incremental turn target resolved null.
+The generated `level.tscn` already contains both the statue node and the exact
+`level:/persos/world/0/28` entry, while unchanged compiled model210 calls
+`character().source_actor_node` with that URI. The helper incorrectly climbed
+past the exported manor to its authored `ManorNewGame` wrapper, which owns no
+actor index. This is native scene ownership, not a missing source binding or
+missing exported asset. Evidence:
+`TestResults/new-game-preview-selection-v8-sol-20261003.log.d/new-game-opening/report.json`
+and its retained model210/receipt, corroborated against current generated
+`level.tscn` and the maintained character helper.
+
+`source_actor_node` now resolves against the nearest ancestor owning
+`source_actor_nodes`. A missing identity in that owner returns null rather than
+escaping into another scene's index. The existing compiled/native turn contract
+now adds a reference-target variant in a wrapped level, with a conflicting
+outer target and an outer-only identity; all earlier keyword-target, frame,
+snapshot and cancellation assertions remain. Actual New Game reports/asserts
+the exact resolved statue and records its post-turn remaining angle. Original
+AI, generated files and user saves remain unchanged. This API fix needs no
+regeneration and keeps support interface46.
+
+Current source-only checks passed: both AI and New Game test executables compile
+(0.76s and 14.81s), formatting (0.50s), and scoped strict Clippy (3.00s), using
+locked/offline commands in
+`TestResults/opening-actor-owner-source-v9-r2-sol-20261003/result.json`.
+The first source compilation caught a test constructor typo; its failed evidence
+remains in the v9 directory, with the corrected pass separately in v9-r2.
+The extended native contract and actual first-dialogue acceptance are unrun.
+V9 selects the four affected turn/camera/UI/New Game cases plus all 21 mandatory
+safeguards and four mandatory Python modules, without repeating conversion or
+the unaffected save case. The separately owned glyph fix and full intro/Hype/
+widescreen/camera acceptance remain pending.
