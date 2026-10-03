@@ -16,6 +16,10 @@ func check() -> void:
         var item: Resource = load("res://generated/hype/levels/manoir/dialogue/en/" + str(record[0]) + ".tres")
         if not require(item != null and item.translation is Translation and item.locale == "en", "native Translation/dialogue load"): return
         if not require(item.box == record[1] and item.lines.size() == record[2] and item.completion_normal == record[4], "native box/line/callback source meaning"): return
+        if record[1] == 3:
+            if not require(item.lines[0].end_seconds > 3.0e38 and is_equal_approx(item.lines[1].end_seconds, 1.4) and is_equal_approx(item.lines[2].end_seconds, 4.14), "intro native finite/untimed deadline meaning"): return
+        else:
+            if not require(item.lines[-1].end_seconds > 3.0e38 and is_equal_approx(item.lines[3].end_seconds, 3.75) and is_equal_approx(item.lines[8].end_seconds, 8.45) and is_equal_approx(item.lines[15].end_seconds, 16.25), "ordinary native finite/untimed deadline meaning"): return
         if not require(item.voice != null and str(item.voice.identity).ends_with("#" + str(record[3])), "localized voice binding"): return
         var voice: Resource = item.voice.select(emitter)
         if not require(voice != null and voice.stream is AudioStreamWAV and voice.stream.get_length() > 1.0, "dialogue event selects native waveform"): return

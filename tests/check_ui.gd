@@ -46,8 +46,13 @@ func check() -> void:
     actor.source_hit_points.current = 7
     actor.source_hit_points.maximum = 12
     actor.autoplay = false
-    actor.set_process(false)
+    # Match the maintained Character's exported node contract. Tree entry can
+    # enable its _process even when a detached fixture was disabled beforehand.
+    var player := AnimationPlayer.new()
+    player.name = "AnimationPlayer"
+    actor.add_child(player)
     level.add_child(actor)
+    actor.set_process(false)
     var brain: Node = Brain.new()
     brain.name = "Brain"
     actor.add_child(brain)

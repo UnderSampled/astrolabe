@@ -55,3 +55,25 @@ Full-workspace Clippy also exposed an unchanged baseline lint in
 The normal package Clippy invocation passes; this unrelated full-workspace lint
 is reported and left with its owner. Full-workspace compile/discovery passes with 275 tests, and the reviewed
 manifest matches every discovered case.
+
+The first serialized native assignment ran at frozen revision `3c92664` and
+finished in 150.635s. Its four Python modules passed 28 checks; 20 of 23 Rust
+checks passed. Every stage reported no timeout, leaked children or remaining
+processes. Both UI cases emitted success markers but failed on engine errors,
+so neither was accepted. The resource writer's Display formatting expanded
+`3.4e38` into an integer-looking decimal, overflowing Godot's signed integer
+parser. It now writes round-trippable float literals. The component fixture
+omitted Character's required AnimationPlayer and disabled processing before
+tree entry; it now supplies that node and disables processing after entry.
+The resource check also asserts actual finite and untimed deadlines.
+
+Native conversion independently resolved intro voice
+`sound:/Sound/English/V_Manoir.csb#25` (4.12954648526077s), 3 lines and normal 4;
+ordinary voice `#20` (20.2173242630385s), 21 lines and normal 17. The mandatory
+Orrery scratch-lifetime safeguard failed with bare `No such process (os error
+3)` after 0.085s. That unchanged test reports no operation context, so the
+failing syscall/phase cannot be identified from this evidence. It remains a
+separate unresolved safeguard failure, not a UI pass or proven baseline flake.
+The parent queues the next bounded native assignment; this branch launches no
+native sessions. Evidence is local and uncommitted under task workspace
+`ui-native-20261003-r1/`.

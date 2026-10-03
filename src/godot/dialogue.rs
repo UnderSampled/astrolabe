@@ -26,6 +26,9 @@ pub(super) fn export(
     let mut resources = String::new();
     let mut ids = Vec::new();
     let mut count = 0;
+    // Debug uses round-trippable float literals, including an exponent for the
+    // 3.4e38 untimed sentinel. Display can produce an integer-looking decimal
+    // that Godot attempts to parse as an overflowing signed 64-bit integer.
     for (i, line) in value.lines.iter().enumerate() {
         let mut spans = Vec::new();
         for (j, span) in line.spans.iter().enumerate() {
@@ -44,7 +47,7 @@ pub(super) fn export(
             count += 1;
             writeln!(
                 resources,
-                "[sub_resource type=\"Resource\" id=\"{id}\"]\nscript = ExtResource(\"span\")\nkey = {}\nsource_offset = {}\nemphasis = {}\n",
+                "[sub_resource type=\"Resource\" id=\"{id}\"]\nscript = ExtResource(\"span\")\nkey = {}\nsource_offset = {:?}\nemphasis = {}\n",
                 quoted(&key),
                 span.offset,
                 span.emphasis
@@ -55,7 +58,7 @@ pub(super) fn export(
         count += 1;
         writeln!(
             resources,
-            "[sub_resource type=\"Resource\" id=\"{id}\"]\nscript = ExtResource(\"line\")\nspans = Array[Resource]([{}])\nend_seconds = {}\nflags = {}\n",
+            "[sub_resource type=\"Resource\" id=\"{id}\"]\nscript = ExtResource(\"line\")\nspans = Array[Resource]([{}])\nend_seconds = {:?}\nflags = {}\n",
             spans.join(", "),
             line.end_seconds,
             line.flags
