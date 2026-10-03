@@ -47,12 +47,21 @@ Orrery and uses a separate Godot harness. Follow the
 and [session contract](./docs/astrolabe/session-recordings.md). Preserve existing
 scenario evidence while correcting code ownership.
 
-The current Godot "demo" is the game implementation, and its basic menu is the
-actual menu. The fixed manor start is a provisional Load Game route; New Game
-will begin with the intro. Loading-efficiency work can organize the shared
-game-session lifecycle, savegame work replaces fixed restoration, and UI work
-replaces the current presentation. Develop this one application, following
+The authored Godot project is the actual game, with its current main menu.
+New Game starts the complete generated manor and full imported AI and is the
+canonical intro integration and acceptance entry. The fixed manor start remains
+a provisional Load Game route. Loading, savegame and UI work evolve the shared
+game-session lifecycle, following
 [the project ownership contract](./docs/astrolabe/godot-project.md#one-project-in-two-states).
+
+Compare intro behavior and presentation from this normal New Game entry through
+the unskipped [recorded original endpoint](./notes/manor-intro-reference-2026-10-03.md):
+Gogoud's approach, conversation, Hype's transformation, continued dialogue, then
+normal gameplay with the dialogue letterbox removed. Keep the complete imported
+AI active. Isolated and excerpt tests remain diagnostic coverage; they cannot
+substitute for this full-path acceptance. The current normal Gogoud walk smoke
+ends before its first dialogue and does not accept the approximately 210-second
+intro or the camera/UI handoff.
 
 September 24–25 evidence includes a saved player Brain, input-driven native
 movement/contact, bounded jump, sword and Fire comparisons, and a playable

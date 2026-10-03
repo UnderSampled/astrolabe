@@ -1,5 +1,11 @@
 # In-engine manor opening — source checkpoint, 2026-10-03
 
+Current acceptance uses the actual authored main-menu New Game entry and the
+full imported AI through the unskipped
+[original endpoint](./manor-intro-reference-2026-10-03.md). The excerpt/component
+results below remain diagnostic evidence. The prepared fourth-cut fixture is
+deferred; it cannot substitute for the normal opening and UI integration.
+
 ## Original shot-command slice, bounded v9 acceptance
 
 Validated aiming is checkpointed as `b436f7c14cf4b68965b5503c7c60924d5b283684`.

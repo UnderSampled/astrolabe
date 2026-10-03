@@ -1,5 +1,25 @@
 # Live loading, comparison, and behavior testing
 
+## Canonical intro acceptance entry — 2026-10-03
+
+Use the actual authored Godot main menu and New Game for intro integration and
+cross-engine acceptance. Run the full imported manor AI from the source starting
+state. Compare the complete sequence against the unskipped
+[original take](./manor-intro-reference-2026-10-03.md) through its recorded return
+to normal gameplay: observed main normal/reflex 4/3, final placement and camera,
+and the dialogue letterbox removed. The reference has no recorded keyboard edges
+after manor entry and lasts about 210 seconds from that entry. Its failed
+recorder finalization remains explicit; retained footage and state are reference
+evidence, not an accepted automated original replay.
+
+The menu/save and Gogoud walk smoke is a normal-path checkpoint ending before
+first dialogue. Isolated route/camera fixtures, source excerpts, launch and
+displacement tests remain diagnostics, not complete intro parity. A full-path
+run must declare any stopping initialization/API/UI behavior and compare sampled
+state, camera, dialogue/voice and rendered sequence without skipped source
+initialization, held Brains or an invented World trigger. Integrate the maintained
+UI work through its source API; preserve independent component evidence.
+
 ## Session-recording direction — 2026-09-27
 
 This is the recording/tooling track of the [current roadmap](./remaining-work.md#current-roadmap--2026-09-27).

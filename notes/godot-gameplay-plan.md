@@ -10,12 +10,20 @@ milestone; unrelated cinematics remain later. Orrery supplies OpenSpace runtime
 analysis and recording/replay to the external behavior suite; Godot has a
 separate harness. This scope update does not assert new implementation coverage.
 
-The existing "demo" is the game implementation, with its basic menu as the
-actual main menu. Treat the current fixed manor start as provisional Load Game;
-New Game will start with the intro. Loading-efficiency work can organize that
-flow now, savegame work replaces its fixed restoration, and UI work replaces
-its presentation. Continue this application rather than building another game
-beside it. See [game project ownership](../docs/astrolabe/godot-project.md#one-project-in-two-states).
+The authored Godot project is the actual game, with its current main menu.
+New Game now runs the complete generated manor and full imported AI from its
+original starting state. It is the canonical intro integration and acceptance
+entry. The provisional Load Game route and New Game share the game-session
+lifecycle; loading, savegame and UI work evolve this application.
+See [game project ownership](../docs/astrolabe/godot-project.md#one-project-in-two-states).
+
+2026-10-03 acceptance clarification: compare the normal authored New Game path
+with the unskipped [original take](./manor-intro-reference-2026-10-03.md), from
+menu entry through the recorded return to gameplay after the approach,
+conversation, transformation and continued dialogue. Keep all imported AI
+active and unmodified. Component and excerpt checks diagnose API behavior but
+do not accept intro parity. The current Gogoud walk checkpoint ends before the
+first dialogue; passing it advances this path without accepting the full intro.
 
 Direction after the 2026-09-14 rollback. This refines milestone 8 of
 [the main plan](../plan.md), within the existing [adapter architecture](../docs/astrolabe/rust-architecture.md)

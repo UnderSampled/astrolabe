@@ -1,4 +1,15 @@
-# Current-state New Game menu preview, 2026-10-03
+# Normal New Game integration and acceptance, 2026-10-03
+
+Stephen confirmed that this authored New Game entry is the actual game and the
+canonical start for Godot intro parity. Compare its full imported AI path with
+the unskipped [original reference](./manor-intro-reference-2026-10-03.md) through
+the recorded return to gameplay. Component/excerpt checks remain diagnostics.
+The normal Gogoud walk smoke is an intermediate checkpoint before first dialogue,
+not acceptance of the conversation, transformation or final camera/UI handoff.
+Earlier dated "preview" descriptions below record the initial limited request;
+they do not define a separate game or the current acceptance target. Existing
+`game/demo.*` paths are historical session filenames.
+
 
 Stephen requested a way to see the current buggy opening without waiting for
 complete cinematic/UI fidelity. The existing menu now adds **New Game**, entering
@@ -179,3 +190,18 @@ command is `python3 TestResults/run-new-game-preview-v4-sol-20261003.py`: a
 450-second outer budget containing the unchanged 420-second selection. It
 verifies all 4,679 generated owned-file hashes before launch and performs no
 regeneration or original-game launch.
+
+V4 used the successful v3 conversion and completed in 159.799 seconds, with
+21/23 Rust cases passing and all four Python modules passing 29 checks. Source
+was unchanged and the supervisor left no children, processes or timeout. Both
+New Game and existing native save persistence failed; no walk, rendered image,
+restart/menu or later reload/corrupt-save acceptance was reached. New Game
+reported 70 Brains with 69 automatic and 27 stopped actor behaviors. The extra
+inactive Brain is the generated `Globals/Global/Brain` data container; actor
+checks must distinguish that intentional exporter role from held actor AI.
+Save validation also rejects the measured native inventory's existing `-1`
+quantity sentinel, preventing the tested F5 write. Both failures remain tracked
+until corrected native cases run. Failed exits also reported 900/907 ObjectDB
+instances; supervisor cleanup does not establish clean Godot object teardown.
+Evidence: `TestResults/new-game-preview-setup-v4-sol-20261003/result.json`, the
+selection JSON, `new-game-preview/report.json` and `godot-save-persistence/write.log`.

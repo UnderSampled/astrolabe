@@ -21,14 +21,21 @@ current material slice need not wait for AI work.
 
 ## One project in two states
 
-The repository's authored Hype game is the Godot implementation of the game.
-What earlier notes call the "demo" is this application, and its basic menu is
-the actual current main menu. The provisional manor start represents **Load
-Game**, restoring the measured supplied-save state. **New Game** now exposes
-the incomplete generated opening from its original starting state, with an
-explicit authored preview view while source camera initialization is blocked.
-It preserves existing saves and does not use a narrowed AI test fixture. The current `game/demo.*` filenames
-are historical names for the game session, not ownership of a separate preview.
+The repository's authored Hype project is the actual Godot game, and its menu
+is the main menu. **New Game** is the canonical entry for intro integration and
+acceptance: it loads the complete generated manor from the original starting
+state and runs the full imported AI. The provisional **Load Game** route restores
+the measured supplied-save state. Both routes share one game-session lifecycle.
+The current `game/demo.*` filenames are historical session filenames.
+
+New Game initialization, camera and presentation remain incomplete. The authored
+follow camera provides a view until source camera initialization runs, and
+saving during the unfinished opening is disabled. Those are fidelity gaps in
+the game. Intro parity must compare this normal menu entry with the unskipped
+[original reference](../../notes/manor-intro-reference-2026-10-03.md) through its
+recorded return to gameplay. Isolated or excerpt fixtures are diagnostics and
+cannot replace the full path. Preserve existing saves and keep source Brains
+and imported behavior unchanged in that acceptance run.
 
 Evolve one menu and game-session flow. Loading-efficiency work can establish
 clear resource preparation, saved-state restoration, readiness and session

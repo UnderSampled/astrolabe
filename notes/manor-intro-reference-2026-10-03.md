@@ -1,5 +1,10 @@
 # Unskipped manor intro reference — 2026-10-03
 
+The normal authored Godot main-menu New Game entry is now the canonical
+integration and acceptance start for comparison with this take. Run its complete
+imported AI through the endpoint below; isolated or excerpt fixtures provide
+diagnostics only. The game is the existing authored Godot project.
+
 Stephen's second human take defines the current in-engine intro endpoint. He
 selected New Game, skipped no dialogue, supplied no input during the cutscene,
 and closed the game after the normal gameplay view returned. The proposed

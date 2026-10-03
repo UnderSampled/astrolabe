@@ -38,6 +38,15 @@ bundled without weakening source protection. Fresh interface-44 outputs and
 compiled original Gogoud reset/route calls are present; the old complete output
 is archived reversibly. The next Luna run reuses that output for bounded normal
 opening/save validation, avoiding another conversion.
+V4 then passed all 21 mandatory Rust safeguards and all 29 Python checks, but
+normal New Game and native save persistence failed (159.799 seconds total,
+source unchanged, supervisor cleanup complete). The actor assertion counted
+the intentionally inactive Global data Brain; native save validation rejects
+the measured inventory's `-1` sentinel. Neither Gogoud's walk nor images or
+restart/reload acceptance ran. Failed exits reported 900/907 Godot ObjectDB
+instances, separately from clean process cleanup. The corrected normal path is
+the canonical intro integration/acceptance entry through the recorded gameplay
+return; component/excerpt results remain diagnostics.
 
 2026-10-03 in-engine opening implementation checkpoint: the revised isolated
 New Game capture succeeded with 69 Hype and 69 Gogoud observations and no
