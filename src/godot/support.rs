@@ -5,7 +5,7 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, path::Path};
 
-pub const INTERFACE: u32 = 44;
+pub const INTERFACE: u32 = 45;
 const PACKAGE: &str = "addons/astrolabe";
 const RECEIPT: &str = "addons/astrolabe/installed.json";
 
@@ -26,6 +26,8 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/character/route.gd.uid",
     "addons/astrolabe/character/inventory.gd",
     "addons/astrolabe/character/magick.gd",
+    "addons/astrolabe/character/hit_points.gd",
+    "addons/astrolabe/character/hit_points.gd.uid",
     "addons/astrolabe/character/laser_pointer.gd",
     "addons/astrolabe/character/cue.gd",
     "addons/astrolabe/character/mechanics.gd",
@@ -33,6 +35,22 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/camera/source_camera.gd",
     "addons/astrolabe/audio/emitter.gd",
     "addons/astrolabe/audio/voice.gd",
+    "addons/astrolabe/ui/screen.gd",
+    "addons/astrolabe/ui/screen.gd.uid",
+    "addons/astrolabe/ui/screen.tscn",
+    "addons/astrolabe/ui/dialogue.gd",
+    "addons/astrolabe/ui/dialogue.gd.uid",
+    "addons/astrolabe/ui/dialogue.tscn",
+    "addons/astrolabe/ui/dialogue_item.gd",
+    "addons/astrolabe/ui/dialogue_item.gd.uid",
+    "addons/astrolabe/ui/dialogue_line.gd",
+    "addons/astrolabe/ui/dialogue_line.gd.uid",
+    "addons/astrolabe/ui/dialogue_span.gd",
+    "addons/astrolabe/ui/dialogue_span.gd.uid",
+    "addons/astrolabe/ui/hud.gd",
+    "addons/astrolabe/ui/hud.gd.uid",
+    "addons/astrolabe/ui/hud.tscn",
+    "addons/astrolabe/ui/theme.tres",
     "addons/astrolabe/version.json",
     "addons/astrolabe/README.md",
     "addons/astrolabe/rendering/sprite.gd",

@@ -105,10 +105,18 @@ pub struct Perso {
     pub initial_configuration: Option<AssetRef<ObjectList>>,
     pub object_types: [u32; 3],
     pub camera: Option<super::camera::Camera>,
+    /// Source StandardGame bytes read by the life HUD; actor-local mutable state.
+    pub hit_points: Option<HitPoints>,
     /// Category-23 AI operands address these local slots, including empty ones.
     pub routes: Vec<super::route::RouteBinding>,
     pub brain: Option<super::ai::Brain>,
     pub collisions: Option<CharacterCollisions>,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HitPoints {
+    pub current: u8,
+    pub maximum: u8,
+    pub limit: u8,
 }
 /// Each actor keeps its active selection; reusable definitions belong to a profile.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

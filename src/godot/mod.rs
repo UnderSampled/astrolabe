@@ -6,6 +6,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
 mod collision;
+mod dialogue;
 mod engine;
 mod material;
 mod project;

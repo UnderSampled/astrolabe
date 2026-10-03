@@ -63,6 +63,7 @@ pub(super) fn global_perso_source(
 }
 
 pub struct SceneImport {
+    pub dialogues: Vec<crate::model::dialogue::Dialogue>,
     pub ai_models: Vec<crate::model::ai::AiModel>,
     pub environments: Vec<crate::model::environment::Environment>,
     pub physical_environments: Vec<crate::model::environment::PhysicalEnvironment>,
@@ -91,10 +92,14 @@ pub struct SceneImport {
 }
 
 pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
-    let session = SourceSession::open(game, selection)?;
+    let mut session = SourceSession::open(game, selection)?;
+    if selection.level == "manoir" {
+        super::dialogue::load_language(&mut session, game, selection)?;
+    }
     let tree = session.tree()?;
     let source = summary(&session, selection, &tree)?;
     let mut result = SceneImport {
+        dialogues: Vec::new(),
         ai_models: Vec::new(),
         environments: Vec::new(),
         physical_environments: Vec::new(),
@@ -341,6 +346,9 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
         &actor_refs,
         &mut result,
     )?;
+    if selection.level == "manoir" {
+        super::dialogue::import(&session, game, selection, &actor_refs, &mut result)?;
+    }
     result.scene.validate()?;
     Ok(result)
 }

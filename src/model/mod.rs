@@ -14,6 +14,7 @@ pub mod ai;
 pub mod animation;
 pub mod camera;
 pub mod character;
+pub mod dialogue;
 pub mod route;
 
 pub mod light;

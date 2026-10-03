@@ -16,6 +16,7 @@ const SOURCE_COLLISION_QUERY_MAX_RESULTS := 4096
 @export var physical_environment: Resource
 @export var source_inventory: Resource
 var source_display_hidden_layers: Dictionary = {}
+@export var source_hit_points: Resource
 @export var source_magick: Resource
 @export var source_laser_pointer: Resource
 @export var autoplay: bool = true

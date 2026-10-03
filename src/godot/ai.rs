@@ -461,6 +461,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::CollideWithNothing
         | Expression::LaserDirection
         | Expression::MagicCurrentSpell
+        | Expression::DialogIsOver
         | Expression::MagicPoints
         | Expression::MagicRemovePoints(_) => true,
         Expression::IsInBehavior {
@@ -525,6 +526,13 @@ fn guarded_expression(
                 ))
             )?;
             local
+        }
+        Expression::DialogIsOver => {
+            writeln!(
+                out,
+                "{pad}if source_ui() == null:\n{pad}    fail_unsupported(\"Dialogue query requires scene UI\")\n{pad}    {exit}"
+            )?;
+            expression(e, model)?
         }
         Expression::Unsupported(fragment) => {
             let id = flow.local;
@@ -835,6 +843,7 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             "character().is_in_action(int({}))",
             expression(action, model)?
         ),
+        Expression::DialogIsOver => "source_ui().source_dialog_is_over()".into(),
         Expression::ActionFinished => "character().action_complete".into(),
         Expression::CollideWithGround => "character().source_collide_with_ground()".into(),
         Expression::CollideWithNothing => "character().source_collide_with_nothing()".into(),
@@ -1499,6 +1508,55 @@ fn statements(
                         model.path
                     ))
                 )?;
+            }
+            Statement::ToggleWideScreen
+            | Statement::PositionDialog { .. }
+            | Statement::RunDialog { .. }
+            | Statement::ScrollDialog(_)
+            | Statement::SelectDialog
+            | Statement::EndDialog
+            | Statement::ChangeDialogBehavior => {
+                writeln!(
+                    out,
+                    "{pad}if source_ui() == null:\n{pad}    fail_unsupported(\"Presentation call requires scene UI\")\n{pad}    {exit}"
+                )?;
+                match statement {
+                    Statement::ToggleWideScreen => {
+                        writeln!(out, "{pad}source_ui().source_toggle_widescreen()")?
+                    }
+                    Statement::PositionDialog { x, y } => {
+                        let x = guarded_expression(out, x, model, depth, flow)?;
+                        let y = guarded_expression(out, y, model, depth, flow)?;
+                        writeln!(
+                            out,
+                            "{pad}source_ui().source_position_dialog(float({x}), float({y}))"
+                        )?;
+                    }
+                    Statement::RunDialog { name, mode } => {
+                        let mode = guarded_expression(out, mode, model, depth, flow)?;
+                        writeln!(
+                            out,
+                            "{pad}if not source_ui().source_run_dialog({}, int({mode}), self):\n{pad}    fail_unsupported(\"Dialogue resource/binding or mode unavailable\")\n{pad}    {exit}",
+                            quoted(name)
+                        )?;
+                    }
+                    Statement::ScrollDialog(direction) => {
+                        let direction = guarded_expression(out, direction, model, depth, flow)?;
+                        writeln!(
+                            out,
+                            "{pad}source_ui().source_scroll_dialog(int({direction}))"
+                        )?;
+                    }
+                    Statement::EndDialog => writeln!(out, "{pad}source_ui().source_end_dialog()")?,
+                    Statement::ChangeDialogBehavior => writeln!(
+                        out,
+                        "{pad}if not source_ui().source_change_dialog_behavior():\n{pad}    fail_unsupported(\"Dialogue callback binding unavailable\")\n{pad}    {exit}"
+                    )?,
+                    Statement::SelectDialog => {
+                        writeln!(out, "{pad}source_ui().source_select_dialog()")?
+                    }
+                    _ => unreachable!(),
+                }
             }
             Statement::SetHudVisible { indicator, visible } => {
                 let visible = guarded_expression(out, visible, model, depth, flow)?;

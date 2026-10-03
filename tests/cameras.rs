@@ -88,6 +88,7 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
         configuration: None,
         initial_configuration: None,
         object_types: [7, 0, 0],
+        hit_points: None,
         camera: Some(Camera {
             source: identity(1),
             clip_planes: [0.25, 10000.],

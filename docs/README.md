@@ -8,7 +8,7 @@
 
 ## Astrolabe design
 
-[`astrolabe/rust-architecture.md`](astrolabe/rust-architecture.md) explains the shared model and modular OpenSpace, Rete, and Godot adapters. [`astrolabe/contributing-rust.md`](astrolabe/contributing-rust.md) maps the code and extension workflow. [`astrolabe/godot-project.md`](astrolabe/godot-project.md) covers project ownership and regeneration. The [[docs/astrolabe/testing|testing guide]] describes validation practice. Current coverage and changing priorities are in notes and [`../plan.md`](../plan.md).
+[`astrolabe/rust-architecture.md`](astrolabe/rust-architecture.md) explains the shared model and modular OpenSpace, Rete, and Godot adapters. [`astrolabe/contributing-rust.md`](astrolabe/contributing-rust.md) maps the code and extension workflow. [`astrolabe/godot-project.md`](astrolabe/godot-project.md) covers project ownership and regeneration. [`astrolabe/ui.md`](astrolabe/ui.md) defines maintained screen-space UI and its current manor boundary. The [[docs/astrolabe/testing|testing guide]] describes validation practice. Current coverage and changing priorities are in notes and [`../plan.md`](../plan.md).
 
 [`astrolabe/session-recordings.md`](astrolabe/session-recordings.md) defines complete-session evidence, initial save-file fixtures, independent OpenSpace/Godot harnesses and extensible recording comparison.
 

@@ -85,7 +85,8 @@ pub fn import_scene(game: &Path, selection: Selection) -> Result<Imported> {
                 }
                 _ => None,
             })
-            .chain(scene.ai_models.iter().flat_map(|m| m.sound_events())),
+            .chain(scene.ai_models.iter().flat_map(|m| m.sound_events()))
+            .chain(scene.dialogues.iter().filter_map(|d| d.voice.as_ref())),
     )?;
     scene.sound_definitions = sound_graph.definitions.into_iter().collect();
     for (path, bank) in sound_graph.banks {
@@ -174,6 +175,9 @@ pub fn import_scene(game: &Path, selection: Selection) -> Result<Imported> {
     }
     for asset in scene.waypoints {
         imported.put(&AssetRef::from_path(asset.path.clone()), asset, false)?;
+    }
+    for asset in scene.dialogues {
+        imported.put(&AssetRef::from_path(asset.path.clone()), asset, true)?;
     }
     for asset in scene.ai_models {
         imported.put(&AssetRef::from_path(asset.path.clone()), asset, false)?;

@@ -57,6 +57,7 @@ pub enum PreservedAiOperand {
     /// source virtual-address ranges. Its meaning remains unclassified.
     NonRelocated([u8; 4]),
     Input(String),
+    String(String),
     Action(Option<StateRef>),
     Behavior(BehaviorRef),
     Sound(Option<SoundEventLink>),
@@ -227,6 +228,19 @@ pub enum Statement {
         channel: u32,
         active: bool,
     },
+    ToggleWideScreen,
+    PositionDialog {
+        x: Expression,
+        y: Expression,
+    },
+    RunDialog {
+        name: String,
+        mode: Expression,
+    },
+    ScrollDialog(Expression),
+    SelectDialog,
+    EndDialog,
+    ChangeDialogBehavior,
     /// Source HUD visibility request; Godot owns the presentation component.
     SetHudVisible {
         indicator: HudIndicator,
@@ -311,6 +325,7 @@ pub enum Expression {
     Action(Option<StateRef>),
     IsInAction(Box<Expression>),
     ActionFinished,
+    DialogIsOver,
     /// Current actor's native floor contact.
     CollideWithGround,
     /// Source Cond_CollideWithNothing reads the actor contact result. The
@@ -779,7 +794,13 @@ impl AiModel {
                         expression(arg0, out);
                         expression(arg1, out);
                     }
-                    Statement::SetHudVisible { visible, .. } => expression(visible, out),
+                    Statement::SetHudVisible { visible, .. }
+                    | Statement::ScrollDialog(visible)
+                    | Statement::RunDialog { mode: visible, .. } => expression(visible, out),
+                    Statement::PositionDialog { x, y } => {
+                        expression(x, out);
+                        expression(y, out);
+                    }
                     _ => {}
                 }
             }
@@ -1056,7 +1077,13 @@ impl Script {
                         expression(arg0, out);
                         expression(arg1, out);
                     }
-                    Statement::SetHudVisible { visible, .. } => expression(visible, out),
+                    Statement::SetHudVisible { visible, .. }
+                    | Statement::ScrollDialog(visible)
+                    | Statement::RunDialog { mode: visible, .. } => expression(visible, out),
+                    Statement::PositionDialog { x, y } => {
+                        expression(x, out);
+                        expression(y, out);
+                    }
                     _ => {}
                 }
             }
@@ -1229,6 +1256,20 @@ impl Script {
                                 ensure!(*variable < 255, "main actor designer field out of range");
                             }
                         }
+                    }
+                    Statement::RunDialog { name, mode } => {
+                        ensure!(
+                            !name.is_empty() && name.len() <= 255,
+                            "invalid dialogue identity"
+                        );
+                        expression(mode, variables, depth + 1, count)?;
+                    }
+                    Statement::ScrollDialog(value) => {
+                        expression(value, variables, depth + 1, count)?
+                    }
+                    Statement::PositionDialog { x, y } => {
+                        expression(x, variables, depth + 1, count)?;
+                        expression(y, variables, depth + 1, count)?;
                     }
                     Statement::Wait { milliseconds } => {
                         expression(milliseconds, variables, depth + 1, count)?

@@ -19,6 +19,15 @@ pub fn export<R: ContentSource>(
 ) -> Result<super::Manifest> {
     let mut project = super::Project::new(output, selection)?;
     let mut written = BTreeSet::<AssetPath>::new();
+    // Export localized native dialogue resources before saving the scene composition.
+    for root in roots
+        .iter()
+        .filter(|r| r.kind == crate::model::dialogue::Dialogue::KIND)
+    {
+        if let Asset::Dialogue(value) = Asset::load(source, root)? {
+            super::dialogue::export(&mut project, source, &value, &mut written)?;
+        }
+    }
     for root in roots {
         match Asset::load(source, root)? {
             Asset::Environment(_)
@@ -31,6 +40,7 @@ pub fn export<R: ContentSource>(
                     "environment/light/mechanics export requires a scene for placement or state context"
                 )
             }
+            Asset::Dialogue(_) => {}
             Asset::Sprite(_) => anyhow::bail!("sprite export requires its owning model"),
             Asset::AiModel(model) => {
                 super::ai::export_program(&mut project, source, &model, &mut written)?;

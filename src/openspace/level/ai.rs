@@ -58,6 +58,20 @@ struct InputEntryWire {
     _active: u8,
     _tail: [u8; 3],
 }
+fn source_string(s: &SourceSession, site: Address) -> Result<String> {
+    let target = s.required(site, 0)?;
+    let bytes = &s.block(target)?.data[target.offset..];
+    let end = bytes
+        .iter()
+        .take(256)
+        .position(|&b| b == 0)
+        .context("unterminated AI string")?;
+    ensure!(
+        end > 0 && bytes[..end].is_ascii(),
+        "unsupported AI string encoding"
+    );
+    Ok(std::str::from_utf8(&bytes[..end])?.to_owned())
+}
 fn input_action(s: &SourceSession, site: Address) -> Result<String> {
     let entry = s.required(site, 0)?;
     let _: InputEntryWire = wire(s.bytes(entry, 28)?)?;
@@ -337,6 +351,7 @@ fn preserve_script(
                     Some(_) => PreservedAiOperand::Input(input_action(s, site)?),
                     None => PreservedAiOperand::Source(None),
                 },
+                20 => PreservedAiOperand::String(source_string(s, site)?),
                 25 => PreservedAiOperand::Action(state_reference(s, states, site)?),
                 32 if matches!(n.parameter, 0 | u32::MAX) => PreservedAiOperand::Source(None),
                 32 => match s.pointer(site, 0)? {
@@ -414,6 +429,11 @@ fn decode_script(
             codec
                 .buttons
                 .insert(i, input_action(s, add(script.address, i * 8))?);
+        }
+        if n.kind == 20 {
+            codec
+                .strings
+                .insert(i, source_string(s, add(script.address, i * 8))?);
         }
         if n.kind == 25 {
             codec

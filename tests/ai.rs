@@ -621,3 +621,39 @@ fn generated_gdscript_runs_native_waits_branches_and_persistent_instance_variabl
     println!("{evidence}");
     Ok(())
 }
+
+#[test]
+fn dialogue_bridge_checks_scene_ui_before_query_and_compiles_source_calls() -> Result<()> {
+    let mut model = model()?;
+    model.normal.as_mut().unwrap().behaviors[0].schedule = Some(Script {
+        statements: vec![
+            Statement::ToggleWideScreen,
+            Statement::PositionDialog {
+                x: Expression::Integer(0),
+                y: Expression::Integer(405),
+            },
+            Statement::RunDialog {
+                name: "fixture_dialogue".into(),
+                mode: Expression::Integer(1),
+            },
+            Statement::ScrollDialog(Expression::Integer(-1)),
+            Statement::SelectDialog,
+            Statement::If {
+                condition: Expression::DialogIsOver,
+                then: vec![Statement::ChangeDialogBehavior],
+                otherwise: None,
+            },
+            Statement::EndDialog,
+        ],
+    });
+    let reopened: AiModel = rete::decode(&rete::encode(&model)?)?;
+    let code = godot::ai::compile(&reopened, &[])?;
+    assert!(code.contains("source_run_dialog(\"fixture_dialogue\", int(1), self)"));
+    let guarded = code.find("Dialogue query requires scene UI").unwrap();
+    let query = code.find("source_dialog_is_over()").unwrap();
+    assert!(guarded < query);
+    assert!(
+        code.contains("source_change_dialog_behavior()") && code.contains("source_end_dialog()")
+    );
+    Ok(())
+}

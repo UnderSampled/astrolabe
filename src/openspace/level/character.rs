@@ -177,6 +177,18 @@ impl<'a> Importer<'a> {
                 .pointer(perso, 20)?
                 .map(|a| super::camera::import(self.session, a))
                 .transpose()?,
+            hit_points: self
+                .session
+                .pointer(perso, 4)?
+                .map(|a| -> Result<HitPoints> {
+                    let standard: StandardSaveWire = wire(self.session.bytes(a, 56)?)?;
+                    Ok(HitPoints {
+                        current: standard.hit_points_init,
+                        maximum: standard.hit_points_max_init,
+                        limit: standard.hit_points_max_max,
+                    })
+                })
+                .transpose()?,
             routes: super::way::import_bindings(self.session, perso, &path, types, self.result)?,
             brain: None,
             collisions: self

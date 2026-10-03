@@ -13,7 +13,7 @@ use std::{
     sync::Arc,
 };
 
-pub const SCHEMA: u32 = 37;
+pub const SCHEMA: u32 = 38;
 const MAGIC: &str = "astrolabe-rete";
 const MAX_ASSET_BYTES: u64 = 256 * 1024 * 1024;
 
@@ -236,6 +236,7 @@ impl Store {
     ) -> Result<()> {
         use crate::model::content::Asset;
         match asset {
+            Asset::Dialogue(value) => self.save(&AssetRef::from_path(path.clone()), value.as_ref()),
             Asset::AiModel(value) => self.save(&AssetRef::from_path(path.clone()), value.as_ref()),
             Asset::Texture(value) => self.save(&AssetRef::from_path(path.clone()), value.as_ref()),
             Asset::TextureSet(value) => {
@@ -297,6 +298,7 @@ impl Store {
         use crate::model::content::Asset;
         let asset = Asset::load(self, entry)?;
         Ok(match asset {
+            Asset::Dialogue(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::AiModel(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::Texture(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::TextureSet(value) => serde_json::to_string_pretty(value.as_ref())?,

@@ -26,6 +26,8 @@ pub struct AiScriptCodec {
     pub sound_handles: Vec<(Option<SoundEventLink>, u32)>,
     pub actions: BTreeMap<usize, Option<crate::model::character::StateRef>>,
     pub action_handles: Vec<(Option<crate::model::character::StateRef>, u32)>,
+    pub strings: BTreeMap<usize, String>,
+    pub string_handles: Vec<(String, u32)>,
     pub buttons: BTreeMap<usize, String>,
     pub button_handles: Vec<(String, u32)>,
     pub behaviors: BTreeMap<usize, BehaviorRef>,
@@ -468,6 +470,30 @@ impl Parser<'_> {
                         active: id == 104,
                     }
                 }
+                (4, 323) => Statement::ToggleWideScreen,
+                (4, 328) => Statement::PositionDialog {
+                    x: self.expression(indent + 1)?,
+                    y: self.expression(indent + 1)?,
+                },
+                (4, 325) => {
+                    let operand = self.at;
+                    let (_, name) = self.take(indent + 1)?;
+                    ensure!(name.kind == 20, "RunDialog requires string operand");
+                    if let Some(name) = self.codec.strings.get(&operand).cloned() {
+                        Statement::RunDialog {
+                            name,
+                            mode: self.expression(indent + 1)?,
+                        }
+                    } else {
+                        Statement::Unsupported(
+                            self.unsupported(at, "unbound dialogue name".into())?,
+                        )
+                    }
+                }
+                (4, 326) => Statement::ScrollDialog(self.expression(indent + 1)?),
+                (4, 327) => Statement::SelectDialog,
+                (4, 324) => Statement::EndDialog,
+                (4, 330) => Statement::ChangeDialogBehavior,
                 (4, 422..=426) => Statement::SetHudVisible {
                     indicator: match id {
                         422 => HudIndicator::Life,
@@ -726,6 +752,7 @@ impl Parser<'_> {
                     .clone(),
             ),
             (1, 59) => Expression::IsInAction(Box::new(self.expression(indent + 1)?)),
+            (1, 121) => Expression::DialogIsOver,
             (1, 123) => Expression::ActionFinished,
             (1, 31) => Expression::CollideWithGround,
             (1, 33) => Expression::CollideWithNothing,
@@ -1172,6 +1199,31 @@ impl Writer<'_> {
                     self.node(4, if *active { 104 } else { 105 }, indent);
                     self.node(18, *channel, indent + 1);
                 }
+                Statement::ToggleWideScreen => self.node(4, 323, indent),
+                Statement::PositionDialog { x, y } => {
+                    self.node(4, 328, indent);
+                    self.expression(x, indent + 1)?;
+                    self.expression(y, indent + 1)?;
+                }
+                Statement::RunDialog { name, mode } => {
+                    self.node(4, 325, indent);
+                    let handle = self
+                        .codec
+                        .string_handles
+                        .iter()
+                        .find(|(v, _)| v == name)
+                        .context("missing dialogue name handle")?
+                        .1;
+                    self.node(20, handle, indent + 1);
+                    self.expression(mode, indent + 1)?;
+                }
+                Statement::ScrollDialog(direction) => {
+                    self.node(4, 326, indent);
+                    self.expression(direction, indent + 1)?;
+                }
+                Statement::SelectDialog => self.node(4, 327, indent),
+                Statement::EndDialog => self.node(4, 324, indent),
+                Statement::ChangeDialogBehavior => self.node(4, 330, indent),
                 Statement::SetHudVisible { indicator, visible } => {
                     self.node(
                         4,
@@ -1405,6 +1457,7 @@ impl Writer<'_> {
                 self.node(1, 59, indent);
                 self.expression(action, indent + 1)?;
             }
+            Expression::DialogIsOver => self.node(1, 121, indent),
             Expression::ActionFinished => self.node(1, 123, indent),
             Expression::CollideWithGround => self.node(1, 31, indent),
             Expression::CollideWithNothing => self.node(1, 33, indent),
@@ -1674,6 +1727,40 @@ mod partial_tests {
             },
             bytes.into_inner(),
         )
+    }
+
+    #[test]
+    fn dialogue_procedures_and_over_condition_reconstruct_exact_nodes() -> Result<()> {
+        let (mut codec, bytes) = partial(&[
+            (4, 323, 1),
+            (4, 328, 1),
+            (12, 0, 2),
+            (12, 405, 2),
+            (4, 325, 1),
+            (20, 1234, 2),
+            (12, 1, 2),
+            (4, 326, 1),
+            (12, u32::MAX, 2),
+            (4, 327, 1),
+            (0, 0, 1),
+            (1, 121, 2),
+            (0, 1, 1),
+            (4, 330, 2),
+            (4, 324, 1),
+            (8, 0, 0),
+        ]);
+        codec.strings.insert(5, "fixture_dialogue".into());
+        codec.string_handles.push(("fixture_dialogue".into(), 1234));
+        let script = codec.read(&bytes)?;
+        assert!(matches!(script.statements[0], Statement::ToggleWideScreen));
+        assert!(
+            matches!(&script.statements[2], Statement::RunDialog { name, mode } if name == "fixture_dialogue" && *mode == Expression::Integer(1))
+        );
+        assert!(
+            matches!(&script.statements[5], Statement::If { condition: Expression::DialogIsOver, then, .. } if matches!(then.as_slice(), [Statement::ChangeDialogBehavior]))
+        );
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
     }
 
     #[test]

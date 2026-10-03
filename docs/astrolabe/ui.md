@@ -1,0 +1,134 @@
+# Screen-space UI
+
+The maintained UI lives in `godot/addons/astrolabe/ui/`. Its scenes, theme and
+scripts are authored Godot support. Text, voices, fonts and original textures
+are converted inputs under ignored `generated/`; content regeneration does not
+rewrite the maintained scenes. This slice targets manor and does not add menu
+or loading-screen ownership.
+
+## Composition and layout
+
+`screen.tscn` is a CanvasLayer named `AstrolabeUI`, at layer 20. Its Control tree
+owns HUD, letterboxes, dialogue and a fade ColorRect in source draw order.
+Dialogue is drawn above the bars; fade is drawn above dialogue. The camera,
+projection and world viewport belong to the existing camera implementation.
+ToggleWideScreen changes presentation only: top/bottom rectangles each cover
+12.5%, the HUD is suppressed, and the fade rectangle covers the middle 75%.
+
+Positions use the original 640x480 coordinate system. The root Control scales
+independently in X and Y to the current viewport, preserving source screen
+positions and the fractional bar coverage. Nodes use ordinary Godot layout and
+mouse-filter settings; there is no renderer shim. `source_position_dialog`
+retains the source position. ItemBox3 selects an unframed two-line page; ItemBox1
+selects a framed six-line page regardless of widescreen state. Panel art and
+font metrics are provisional in this first behavioral slice.
+
+An exported level owns one instance of the maintained PackedScene. The exporter
+binds its main actor and converted dialogue resources before saving the level.
+The existing support install/update receipt protects authored support edits;
+regeneration publishes only generated content. A consumer can inherit the
+maintained screen or instance a customized screen in an authored composition.
+If an already-ready ancestor child named `AstrolabeUI` implements `adopt_level`,
+the generated child delegates to it and hides its own canvas. The authored
+screen accepts one active level, borrows its resources and actor bindings, then
+releases translations, active dialogue and callbacks when the level exits.
+Place that authored screen before attaching the generated level. No second HUD
+or dialogue state machine should be introduced by bootstrap code.
+
+## Content and text
+
+`model::dialogue::Dialogue` stores stable name/locale, box style, ordered text
+spans, line deadlines, actor owner, a compiled voice-event link and a normal
+behavior completion target. Rete schema 38 persists those values. Source
+addresses and relocation decisions remain in OpenSpace import.
+
+The manor adapter reuses SNA/LZO, pointer-file and relocation codecs for English
+`.lng/.rtg/.dlg/.rtd/.snd/.rts` inputs. `.dlg` word zero is the name table; word
+one is the circular item catalogue. Installed manor RTG has header byte 11 but
+only two groups; its header meaning is unresolved. A narrowly scoped adapter
+recognizes the evidenced Fix/level headers, checks every actual group and
+requires all populated language blocks to be covered. The general relocation
+reader remains strict. Source text is Windows-1252, decoded to Unicode with
+undefined bytes rejected.
+
+Export produces native Translation resources plus dialogue/line/span resources,
+with stable keys `hype.dialogue.<name>.<locale>.line<N>.span<N>`. RichTextLabel
+renders messages as literal text and applies emphasis with native text spans.
+It does not interpret source strings as BBCode. TranslationServer registers the
+active level's catalogues; an unsupported runtime locale selects the complete
+English bundle, including voice, timing and pagination. Missing translations
+fall back to that bundle's native Translation. Extraction rejects unevidenced
+locales instead of relabeling English data.
+
+This follows Godot's [Translation resources and TranslationServer](https://docs.godotengine.org/en/stable/tutorials/i18n/internationalizing_games.html).
+Original bitmap-font conversion should supply native FontFile resources (Godot
+[supports BMFont](https://docs.godotengine.org/en/stable/classes/class_fontfile.html))
+and authored theme overrides. Font textures remain generated inputs. Source
+span offsets are retained for that work; the current renderer concatenates
+spans and uses the authored default font.
+
+## State and the AI bridge
+
+The existing compiled Behavior resolves `AstrolabeUI` through scene ancestors.
+Typed source opcodes map to the maintained presentation methods; missing UI,
+unsupported modes or missing item/owner bindings stop the reached compiled flow
+with a diagnostic. There is no runtime source opcode interpreter.
+
+| Installed source API | Native method / effect |
+| --- | --- |
+| Proc_ToggleWideScreen, 323 | Toggle global presentation state |
+| Proc_EndDialog, 324 | Cancel active dialogue and its pending callback |
+| Proc_RunDialog, 325(name, mode) | Select localized item and start its existing SoundEmitter event |
+| Proc_ScrollDialog, 326(direction) | Cycle answers; no text-page advance in this selected non-branching slice |
+| Proc_SelectDialog, 327 | Advance a page or finish |
+| Proc_PositionDialog, 328(x, y) | Set source screen-space position |
+| Proc_DLG_ChangeComport, 330 | Explicitly apply a pending owner/behavior callback |
+| Cond_DLG_IsDialogOver, 121 | Query completion after closing presentation |
+
+The dialogue node owns page index, elapsed time, voice-player reference and
+native Tween fade. The voice event runs through the existing actor SoundEmitter
+and compiled native waveform resources. Page deadlines are cumulative: scan
+finite timestamps within the displayed page, since blank padding can be
+untimed. The installed untimed sentinel is `3.4e38`, not IEEE FLT_MAX. An entirely
+untimed final page waits for selection. Cancellation invalidates deferred work.
+
+Completion emits a native signal and stores a pending callback. The source
+explicitly invokes ChangeComport; querying IsDialogOver alone must not change a
+Brain. The screen validates owner/model identity, consumes the request and
+applies the normal behavior through the existing Brain on a deferred turn.
+It does not resume the old compiled coroutine from a drawing callback.
+
+The HUD binds the existing Character visibility signal and state dictionary.
+Widescreen suppresses drawing while retaining requested state. Life values come
+from promoted StandardGame hit-point bytes in an actor-local native Resource;
+magic uses the existing Magick Resource. It does not invent missing totals.
+TextureRect slots and native ProgressBars are authored extension points.
+
+## Current boundary and next increments
+
+The import slice includes `gogood_texte1_manoir` (3 lines, two per page, voice
+bank 142 member 0, Gogoud normal 4) and `gogood_master_whatif01` (21 lines, six per
+page, member 12, MasterYoda normal 17). The other catalogue entries emit coverage
+debt; reaching an unavailable item stops explicitly. They have not been declared
+unsupported by manor scope and remain subsequent implementation work.
+
+Still required for manor fidelity: original font glyph/advance metrics and frame
+tiles, source span offsets, line reveal and fade pacing, additional dialogue
+items and branching answers, channel/action/icon side effects, armor and
+selected-inventory/weapon values/icons, saved life-state restoration, and original
+vs Godot captures. The current flat panel, text font, emphasis color and HUD
+positions are provisional. Fade geometry exists but unrelated source fade
+procedures are not promoted by this slice. Native voice teardown follows the
+existing emitter's stoppable-event policy; dialogue-specific interruption parity
+remains to be checked. Native completion currently waits for the full closing
+Tween, whereas source panel completion tests alpha <= 0.1.
+
+Dialogue-to-OpenSpace reconstruction rejects the newly promoted dialogue root
+explicitly. Unknown item/line/font/channel fields and RTG header semantics must
+be preserved/promoted before a source writer is added. This is a Godot semantic
+slice and is not a claim of language-package byte reconstruction.
+
+`tests/ui.rs` declares pure source/Rete checks, a native maintained-component
+contract and a native actual-dialogue/resource export check. Native tests have
+bounded parser preflight and owned temporary output. Original-game parity and
+full-intro acceptance remain separate from those component checks.

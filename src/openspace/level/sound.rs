@@ -51,7 +51,14 @@ impl SoundSites {
                     .context("SND site lacks RTS relocation")?;
                 // Promoted animation descriptors and AI node operands consume these
                 // bindings; unrelated domains are not traversed here.
-                if !matches!(key.0, 5 | 17) {
+                if !matches!(key.0, 5 | 17 | 20)
+                    || (key.0 == 20
+                        && !session
+                            .blocks
+                            .get(&owner)
+                            .and_then(|b| b.get(&key))
+                            .is_some_and(|b| !b.data.is_empty()))
+                {
                     continue;
                 }
                 let site = session.resolve(owner, key, entry.site)?;

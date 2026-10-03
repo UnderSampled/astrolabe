@@ -222,3 +222,11 @@ Define the same names in Project Settings > Input Map to override them. Runtime
 adoption does not save or rewrite `project.godot`. Automatic Brain startup waits
 until the parent's initial pose has been selected; `stop()` also cancels that
 pending start. Action-array element assignments are ordinary native array writes.
+
+
+The maintained `ui/screen.tscn` composes letterboxes, dialogue and HUD on one
+CanvasLayer. Generated levels instance it and provide converted native dialogue
+resources and the main-actor binding. Authored scene compositions may adopt the
+level through an already-ready `AstrolabeUI` parent; content regeneration does
+not replace customized support scenes. See `docs/astrolabe/ui.md` in the source
+repository for source API coverage, locale handling and remaining fidelity work.

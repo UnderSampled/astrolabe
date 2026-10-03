@@ -151,6 +151,14 @@ func send_sound(event: Resource) -> void:
 	event.execute(sound_emitter)
 	sound_requested.emit(event.identity)
 
+func source_ui() -> Node:
+	var ancestor := get_parent()
+	while ancestor != null:
+		var screen := ancestor.get_node_or_null("AstrolabeUI")
+		if screen != null and screen.has_method("source_run_dialog"): return screen
+		ancestor = ancestor.get_parent()
+	return null
+
 func character() -> NativeCharacter:
 	var body := get_parent() as NativeCharacter
 	assert(body != null, "Action calls require the native character component")

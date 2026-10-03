@@ -15,6 +15,7 @@ use std::{
 };
 /// A fresh staging project keeps failed conversion from damaging an existing project.
 pub struct Project {
+    pub(super) dialogue_resources: Vec<String>,
     pub(super) has_level_scene: bool,
     pub(super) scene_fog: Option<Option<crate::model::environment::Fog>>,
     pub(super) scene_fog_conflict: bool,
@@ -42,6 +43,7 @@ impl Project {
         let stage = tempfile::tempdir()?;
         super::support::stage(stage.path(), &output)?;
         Ok(Self {
+            dialogue_resources: Vec::new(),
             has_level_scene: false,
             scene_ambient: None,
             scene_fog: None,

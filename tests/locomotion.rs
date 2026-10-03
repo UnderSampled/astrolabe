@@ -229,6 +229,7 @@ fn native_motion_survives_rete_and_drives_character_contact() -> Result<()> {
         configuration: None,
         initial_configuration: None,
         object_types: [0; 3],
+        hit_points: None,
         camera: None,
         routes: vec![],
         brain: Some(Brain {

@@ -38,6 +38,22 @@ impl Project {
             "    var {scene_id} = Node3D.new()\n    {scene_id}.name = {}",
             quoted(&scene.name)
         )?;
+        writeln!(
+            self.builder,
+            "    var {scene_id}_ui = load(\"res://addons/astrolabe/ui/screen.tscn\").instantiate()\n    {scene_id}.add_child({scene_id}_ui)\n    {scene_id}_ui.owner = {scene_id}"
+        )?;
+        if !self.dialogue_resources.is_empty() {
+            let resources = self
+                .dialogue_resources
+                .iter()
+                .map(|p| format!("load({})", quoted(&format!("res://{p}"))))
+                .collect::<Vec<_>>()
+                .join(", ");
+            writeln!(
+                self.builder,
+                "    {scene_id}_ui.dialogue_items.assign([{resources}])"
+            )?;
+        }
         self.scene_environment(scene, source, &scene_id)?;
         let physical_environment = self.scene_physical_environment(scene, source, &scene_id)?;
         let mut names: BTreeMap<String, String> = BTreeMap::new();
@@ -331,6 +347,10 @@ impl Project {
             writeln!(
                 self.builder,
                 "    {scene_id}.set_editable_instance({main}, true)\n    {main}.motion_enabled = true"
+            )?;
+            writeln!(
+                self.builder,
+                "    {scene_id}_ui.actor_path = {scene_id}_ui.get_path_to({main})"
             )?;
             if let Some(physical) = &physical_environment {
                 writeln!(self.builder, "    {main}.physical_environment = {physical}")?;
