@@ -236,3 +236,44 @@ all 4,785 generated hashes remain checked. V10 reports one fresh native opening
 case separately from 24 reused passes. No regeneration, release build, broad
 selection, original-game run or additional visual gate is needed for this
 harness-only correction. The UI glyph work remains separately owned.
+
+Before V10 froze, the parent authorized integrating UI commit
+`3b2ba700d6bcf8e91246c27fa4f24c512fc6ff63`; it is cherry-picked as `23d4afe`.
+Its named-font A/B reload passed in 2.06s with all133 Unicode codes, source glyph
+metrics and no empty16px cache. The exact changed resource-test script and its
+entire emitter preload closure hash-match that passing parser evidence, so
+that parse can be reused. The newly typed opening still requires its first
+fresh native parse before any build. Current release inventory adds exactly
+two pure font normalization tests, retaining all281 old rows for283 total.
+Evidence: `/home/stephen/Documents/Codex/2026-10-03/task-2/ui-font-reload-20261003-r9/report.json`.
+
+The current owned FontFile hash exactly matched the A/B probe's original. The
+parent authorized narrow resource normalization rather than a full level port.
+The validated ordered file differs only by moving fixed_size21 before font_name;
+all native glyph/cache/image/settings bytes are retained. I copied those exact
+validated bytes after checking every owned hash, archived the original font and
+full receipt, and updated only that font's ownership hash in the existing
+receipt. All4,785 owned files validate; interface46 and level ownership stay
+unchanged. The old font hash is
+`48cd6c3ea68a63daafebed609d924689ca76c48f66a778ab3ce5520509cb56cf`,
+new hash `ab409595e5191d16a2b7a257e5884505971b647854277aee2ef1c72cda1591dc`;
+new receipt hash
+`27ced4a5135f12815c730110f81171dfca7539dcfd1cdd7bbc72b0018e0708b3`.
+Backup: `output/archived-godot-manor-font-cache-order-20261003/`.
+Repair evidence: `TestResults/manor-font-cache-order-repair-v10-sol-20261003/report.json`.
+This reuses native resource validation, not actual New Game visual acceptance.
+Interface47 remains reserved for the separately owned source-menu layout work.
+
+The revised V10 keeps actual opening first after fresh hash-checked parsing and
+its targeted test build. If that passes, it runs both added pure normalization
+cases, the changed source/Rete é assertion, and the actual nine-dialogue native
+resource case in its temporary project, then integrated format/scoped Clippy.
+There are five fresh cases, with24 unchanged v9 passes retained separately.
+The exact prior global source digest is reproduced by overriding only the five
+scoped source inputs changed by smoke/font integration, and the current manifest
+must equal the prior manifest with only the two declared cases added. Process,
+input, movement and ownership safeguard evidence stays retained; font-specific
+normalization/new UI assertions get fresh checks. The revised outer budget is
+420 seconds with15 seconds cleanup reserved, original180-second opening/resource
+deadlines, and no full level port, release build or extra visual acceptance run.
+Fresh current-byte parsing and actual opening are still unrun.
