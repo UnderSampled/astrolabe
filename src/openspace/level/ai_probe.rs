@@ -43,10 +43,17 @@ fn source_opening_turn_and_absent_world_inputs_are_bound_deliberately() -> Resul
         .iter()
         .find(|n| s.pointer(n.address, 4).ok().flatten() == Some(target))
         .context("turn target isn't a rooted Perso")?;
+    assert_eq!(target_node.path, "world/0/28");
     println!("Gogoud turn: target {}, frames 5", target_node.path);
     let world = model_for("world/0/3")?;
     let reflex = source_set(&s, world, 4)?.context("World reflex set missing")?;
-    for rule in reflex.behaviors[0].rules.iter().skip(1).flatten() {
+    let rules = &reflex.behaviors[0].rules;
+    assert_eq!(rules.len(), 8);
+    let mut absent_queries = 0;
+    for rule in rules.iter().skip(1) {
+        let rule = rule.as_ref().context("World debug rule is absent")?;
+        let condition: NodeWire = wire(&rule.bytes[8..16])?;
+        assert_eq!((condition.kind, condition.parameter), (1, 10));
         let node: NodeWire = wire(&rule.bytes[16..24])?;
         assert_eq!(node.kind, 14);
         assert!(
@@ -54,8 +61,10 @@ fn source_opening_turn_and_absent_world_inputs_are_bound_deliberately() -> Resul
             "World debug input is not actually absent"
         );
         assert!(s.pointer(add(rule.address, 16), 0)?.is_none());
+        absent_queries += 1;
     }
-    assert_eq!(reflex.behaviors[0].rules.len(), 9);
+    assert_eq!(absent_queries, 7);
+    println!("World reflex0: eight populated rules, seven absent JustPressed inputs");
     Ok(())
 }
 

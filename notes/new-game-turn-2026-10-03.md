@@ -43,7 +43,7 @@ angle is captured once, equal steps preserve source frame counting, zero frames
 do not move, and negative frames become one. A missing actor remains an explicit
 error. This introduces no source opcode interpreter or replacement game AI.
 
-World model 154's eight debug-input edge queries were preserved as unbound inputs.
+World model 154's seven debug-input edge queries were preserved as unbound inputs.
 The retained operands are absent; the new corpus check verifies actual current
 zero/absent handles. Engine functions 00533520, 005335a0, 00533620 and 005336c0
 explicitly handle null input: Pressed, JustPressed and JustReleased are false,
@@ -87,3 +87,26 @@ scoped strict Clippy and six selection checks passed in 7.111 seconds:
 `TestResults/opening-turn-ui-source-preflight-r2-sol-20261003.json`. The first
 preflight wrapper mistakenly called a nonexistent supervisor helper and stopped
 before running a check; r2 uses the existing supervise API.
+
+V6 stopped at its early source-only corpus case before release build or
+regeneration (32.269 seconds total). Its current source decode verifies Gogoud
+node18 targets `world/0/28` (`iHypeStatue_Manoir_MAD`, model294) for five frames.
+All absent-input checks passed before an incorrect final rule-count assertion:
+there are eight total rules, comprising one startup rule and seven absent
+JustPressed queries. The unchanged generated World code's rules 0 through 7 and
+retained Rete independently corroborate that count. The test now requires all
+eight slots populated, each of the seven conditions actually JustPressed, and
+the exact turn target. The production implementation is unchanged.
+
+The ten parsers and ordinary menu import passed in v6; menu assets are available
+independently of intro repair. Evidence is
+`TestResults/new-game-preview-setup-v6-sol-20261003/`. Source stayed unchanged,
+with no timeout or remaining process; the native turn contract and later stages
+were unrun. The fresh assignment reuses those parser/import passes and retains
+the early source/native turn gate before expensive conversion.
+
+The corrected read-only source case passed under
+`cargo test --locked --offline -p astrolabe --lib openspace::level::ai::tests::source_opening_turn_and_absent_world_inputs_are_bound_deliberately -- --exact --ignored --nocapture`:
+3.31 seconds of build and 1.27 seconds of test. No Godot or original-game process
+was launched by Sol. Log:
+`TestResults/opening-source-operands-correction-v7-sol-20261003.log`.

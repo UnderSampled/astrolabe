@@ -3778,7 +3778,7 @@
       "prerequisites": [
         "disc"
       ],
-      "fixture": "unchanged English manor Gogoud node18 and eight World debug inputs",
+      "fixture": "unchanged English manor Gogoud node18 targeting world/0/28 for five frames, eight populated World rules with seven absent JustPressed inputs",
       "timeout_seconds": 30,
       "ignored": true,
       "release": true
