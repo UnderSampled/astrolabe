@@ -4,7 +4,7 @@ const VIEW = preload("res://addons/astrolabe/ui/inventory/screen.gd")
 const DEFAULT_SCENE := "res://generated/hype/shared/inventory/en/inventory.tscn"
 signal unavailable(message: String)
 @export var inventory_scene: PackedScene
-@export var inventory_key: Key = KEY_I
+@export var inventory_key: Key = KEY_TAB
 var view: VIEW
 var owns_pause: bool = false
 
@@ -69,9 +69,11 @@ func _item_requested(item_id: int, kind: String) -> void:
     else:
         view.report("Using this item is not implemented yet.")
 
-func _unhandled_key_input(event: InputEvent) -> void:
+func _input(event: InputEvent) -> void:
     var key := event as InputEventKey
     if key == null or not key.pressed or key.echo or key.physical_keycode != inventory_key: return
+    # Tab is also Godot's focus-next key. Consume its non-echo press before GUI
+    # focus navigation; release/echo events never toggle the modal a second time.
     get_viewport().set_input_as_handled()
     if is_instance_valid(view) and view.visible: close_inventory()
     else: open_inventory()

@@ -36,9 +36,10 @@ investigation.
 Controls: **Arrows** move and turn, **Shift** runs, **Ctrl** jumps, **X** draws
 the sword, and **Space** uses it. To prepare the saved character for Fire, step
 back with **Down**, press **X**, then press **Enter** to cast. **R** reloads the
-provisional save start; **Esc** returns to the menu. **I** opens the inventory during gameplay; **I** or
+provisional save start; **Esc** currently returns to the main menu. **Tab** opens the inventory during gameplay; **Tab** or
 **Esc** closes its modal view. Selecting an owned weapon updates the existing
 inventory Resource; other item effects remain explicit unfinished actions.
+The original game's separate Esc pause menu remains unfinished.
 [inventory ownership](game/inventory/README.md) explains source content and editor overrides. The supported slice includes
 movement with contact, stationary/moving/wall jumps, sword selection and beam lifetime, and Fire cast
 with mana cost. Combat hit/damage, crossbow play, spell contact/lifetime, cliff

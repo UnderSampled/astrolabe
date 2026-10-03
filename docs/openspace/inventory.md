@@ -57,3 +57,10 @@ semantics or implement source rendering, inventory memory machinery, consumption
 magic effects, wheel animation, permissions or a new HUD. Native runtime/visual
 checks must be run by the shared authorized runner; source-only checks stop before
 Project::finish and do not establish original-game or actual session parity.
+
+The supplied manual (`disc/HypeManual.pdf`, printed pages 12–15 and 18) establishes
+Tab as the default inventory key and configurable controls. Esc opens a separate
+pause menu (Resume, Load another adventure, Configuration, Return to main menu).
+The native inventory host consumes a non-echo Tab press before GUI focus navigation
+and ignores releases. The separate pause menu and configuration backend remain
+unsupported; this increment does not substitute inventory for that menu.
