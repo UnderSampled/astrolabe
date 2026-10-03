@@ -23,8 +23,7 @@ finish, press **F5**, and select **Load Game**. Running the project player
 before that first editor import leaves generated textures unavailable. The
 current load route restores the measured starting state of the supplied English `SaveGame0` using
 `game/english_save_manoir.json`. This is a provisional saved-game restoration;
-general savegame support will replace it. New Game is not implemented yet and
-will start with the intro. The normal generated `manoir/level.tscn` and compiled
+general savegame support will replace it. The normal generated `manoir/level.tscn` and compiled
 Hype Brain make the gameplay decisions. Authored game code provides the camera,
 control guide, mana display, reload and menu. The session currently starts with
 the bridge gate raised as a temporary workaround, separate from the restored
@@ -49,6 +48,22 @@ work will replace the current menu presentation.
 
 The current session still uses the historical `game/demo.*` and `demo_camera.gd`
 filenames. They are game code; the names do not define a separate demo product.
+
+## Preview New Game
+
+After generating the manor and importing its assets, run the project and select
+**New Game**. This opens the complete generated manor at its original starting
+state, with its compiled AI running. It does not restore a save, lift the bridge
+gate or substitute the camera-test excerpt. Existing saves are preserved; saving
+is disabled in this unfinished opening preview. **R** restarts New Game and
+**Esc** returns to the menu. **Load Game** keeps its existing save route.
+
+The opening is incomplete and can stop at unsupported behavior. The status
+display reports stopped actors, and the console retains their exact AI failures.
+An existing authored follow camera provides a preview view while source camera
+initialization is blocked; it switches to the generated camera if that camera's
+AI runs and obtains a target. This is a usable view of the current rough state,
+not acceptance of the original cinematic, dialogue, fade or letterbox.
 
 The project needs the locally generated assets to play. They are ignored by
 Git and must be regenerated on another machine. Open

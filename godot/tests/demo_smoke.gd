@@ -12,11 +12,12 @@ func run() -> void:
     var menu := menu_packed.instantiate()
     root.add_child(menu)
     current_scene = menu
-    var menu_buttons := menu.find_children("*", "Button", true, false)
-    if menu_buttons.size() != 1 or menu_buttons[0].text != "Load Game" or menu_buttons[0].disabled:
-        fail("Game menu must offer one enabled Load Game action after manor generation")
+    var load_button := menu.find_child("LoadGame",true,false) as Button
+    var new_button := menu.find_child("NewGame",true,false) as Button
+    if load_button == null or load_button.text != "Load Game" or load_button.disabled or new_button == null or new_button.disabled:
+        fail("Game menu must offer enabled Load Game and New Game actions after manor generation")
         return
-    menu_buttons[0].pressed.emit()
+    load_button.pressed.emit()
     var transition_deadline := Time.get_ticks_msec() + 5000
     while (current_scene == null or current_scene == menu) and Time.get_ticks_msec() < transition_deadline:
         await process_frame

@@ -6,10 +6,25 @@ import tempfile
 import unittest
 
 from selection import expression, identity, select, validate_inventory
-from suites import junit_results
+from suites import junit_results, source_digest
 
 
 class SelectionTests(unittest.TestCase):
+    def test_source_freeze_covers_authored_game_and_harness_edits(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ('Cargo.toml', 'Cargo.lock', 'godot/project.godot',
+                         'godot/game/session.gd', 'godot/tests/menu.gd'):
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('before')
+            before = source_digest(root)
+            (root / 'godot/game/session.gd').write_text('after')
+            game_changed = source_digest(root)
+            self.assertNotEqual(before, game_changed)
+            (root / 'godot/tests/menu.gd').write_text('after')
+            self.assertNotEqual(game_changed, source_digest(root))
+
     def setUp(self):
         self.manifest = json.loads(Path(__file__).with_name('test-manifest.json').read_text())
         suites = {}

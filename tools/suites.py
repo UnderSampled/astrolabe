@@ -24,7 +24,7 @@ from supervisor import Interrupted, interrupted, remove_temporary_tree, supervis
 def source_digest(root):
     """Include untracked implementation files; a Git revision alone is insufficient."""
     paths = [root/'Cargo.toml', root/'Cargo.lock', root/'godot/project.godot']
-    for directory in ('src', 'tests', 'tools', 'godot/addons', 'crates'):
+    for directory in ('src', 'tests', 'tools', 'godot/addons', 'godot/game', 'godot/tests', 'crates'):
         paths.extend(p for p in (root/directory).rglob('*')
                      if p.is_file() and '__pycache__' not in p.parts)
     hasher = hashlib.sha256()

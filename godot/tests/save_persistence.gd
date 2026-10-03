@@ -27,12 +27,13 @@ func run() -> void:
     var menu := (load("res://game/bootstrap.tscn") as PackedScene).instantiate()
     root.add_child(menu)
     current_scene = menu
-    var buttons := menu.find_children("*", "Button", true, false)
-    if buttons.size() != 1:
+    var load_button := menu.find_child("LoadGame",true,false) as Button
+    var new_button := menu.find_child("NewGame",true,false) as Button
+    if load_button == null or new_button == null or new_button.disabled:
         fail("Game menu did not expose its Load Game operation")
         return
     if stage == "corrupt":
-        if not buttons[0].disabled or not str(menu.find_children("*", "Label", true, false)[1].text).contains("Save"):
+        if not load_button.disabled or not str(menu.find_children("*", "Label", true, false)[1].text).contains("Save"):
             fail("Corrupt slot did not fail visibly before session launch")
             return
         var unsupported := FileAccess.open(SAVE_STATE.path(), FileAccess.WRITE)
@@ -46,8 +47,8 @@ func run() -> void:
             return
         var unsupported_menu := (load("res://game/bootstrap.tscn") as PackedScene).instantiate()
         root.add_child(unsupported_menu)
-        var unsupported_buttons := unsupported_menu.find_children("*", "Button", true, false)
-        if unsupported_buttons.size() != 1 or not unsupported_buttons[0].disabled:
+        var unsupported_button := unsupported_menu.find_child("LoadGame",true,false) as Button
+        if unsupported_button == null or not unsupported_button.disabled:
             fail("Unsupported save did not block session launch")
             return
         var extra_state := valid_state.duplicate(true)
@@ -63,8 +64,8 @@ func run() -> void:
             return
         var extra_menu := (load("res://game/bootstrap.tscn") as PackedScene).instantiate()
         root.add_child(extra_menu)
-        var extra_buttons := extra_menu.find_children("*", "Button", true, false)
-        if extra_buttons.size() != 1 or not extra_buttons[0].disabled:
+        var extra_button := extra_menu.find_child("LoadGame",true,false) as Button
+        if extra_button == null or not extra_button.disabled:
             fail("Unsupported extra state did not block session launch")
             return
         var extra_actor := valid_state.duplicate(true)
@@ -85,10 +86,10 @@ func run() -> void:
         print("SAVE_PROOF corrupt, unsupported version, extra state, and noncanonical inventory keys rejected")
         await shutdown(0)
         return
-    if buttons[0].disabled:
+    if load_button.disabled:
         fail("Load Game is disabled")
         return
-    buttons[0].pressed.emit()
+    load_button.pressed.emit()
     var deadline := Time.get_ticks_msec() + 90000
     while (current_scene == null or current_scene == menu) and Time.get_ticks_msec() < deadline:
         await process_frame

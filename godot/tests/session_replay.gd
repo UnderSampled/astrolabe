@@ -112,6 +112,9 @@ func current_state() -> Dictionary:
     var brain = scene.get("brain") as Node
     var ready := bool(scene.get("ready_to_play"))
     result["phase"] = "gameplay" if ready else "loading"
+    if ready and bool(scene.get("new_game")):
+        result["phase"] = "opening_preview"
+        result["opening_failures"] = scene.get("opening_failures").duplicate()
     if actor != null:
         var position: Vector3 = actor.global_position
         result["actor"] = {

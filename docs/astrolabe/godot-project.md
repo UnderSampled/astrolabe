@@ -24,8 +24,10 @@ current material slice need not wait for AI work.
 The repository's authored Hype game is the Godot implementation of the game.
 What earlier notes call the "demo" is this application, and its basic menu is
 the actual current main menu. The provisional manor start represents **Load
-Game**, restoring the measured supplied-save state. **New Game** starts through
-the intro when that route is implemented. The current `game/demo.*` filenames
+Game**, restoring the measured supplied-save state. **New Game** now exposes
+the incomplete generated opening from its original starting state, with an
+explicit authored preview view while source camera initialization is blocked.
+It preserves existing saves and does not use a narrowed AI test fixture. The current `game/demo.*` filenames
 are historical names for the game session, not ownership of a separate preview.
 
 Evolve one menu and game-session flow. Loading-efficiency work can establish

@@ -2736,6 +2736,17 @@
       "release": true
     },
     {
+      "binary": "godot-harness::new_game",
+      "test": "menu_new_game_preserves_slot_and_restarts_original_opening",
+      "areas": ["runtime", "ai", "scene", "save"],
+      "kind": "process",
+      "prerequisites": ["godot", "xvfb", "disc"],
+      "fixture": "freshly generated local manor; actual New Game menu/session, unmodified original initial AI, private bad-slot preservation probe, native restart/Escape and rendered preview",
+      "timeout_seconds": 180,
+      "ignored": true,
+      "release": true
+    },
+    {
       "binary": "godot-harness::save_persistence",
       "test": "tests::accepts_clean_success_and_known_scene_diagnostics",
       "areas": ["runtime", "save"],

@@ -1,5 +1,19 @@
 # Rust implementation evidence
 
+2026-10-03 requested New Game preview: the existing menu now has a New Game
+entry using an inherited ordinary game session. It instantiates the complete
+generated manor at its original starting state, leaving all generated Brains
+automatic. It skips save restoration and the bridge-gate workaround and does
+not use the narrowed camera test fixture. Saving is disabled in the incomplete
+opening; R restarts that entry and Esc returns to the menu. Existing authored
+camera code provides a preview view until source camera AI runs with a target.
+Stopped actor behaviors remain visible in the status and console. The shared
+content cache and existing Load Game route remain the owners of level loading
+and restoration. UI presentation components remain owned by the separate worker.
+Native syntax, menu/save/restart smoke and pixels are pending Luna. The source
+freeze now includes authored game/test files as well as support assets. See
+[the prepared preview evidence](./new-game-preview-2026-10-03.md).
+
 2026-10-03 in-engine opening implementation checkpoint: the revised isolated
 New Game capture succeeded with 69 Hype and 69 Gogoud observations and no
 inspection errors. Sol inspected its statue and Gogoud shots. Typed route and

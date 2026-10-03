@@ -326,7 +326,7 @@ fn run(cli: Cli) -> Result<Value> {
             audio:"not captured".into(),
             gaps:vec![
                 "original save files retained as fixture evidence; Godot save import/mapping is not implemented".into(),
-                "Godot New Game and original intro/menu structure are not implemented".into(),
+                "Godot New Game is an incomplete opening preview; original intro/menu fidelity is not established".into(),
                 "Godot derived .godot import cache is excluded from the content hash".into(),
             ],
         },
