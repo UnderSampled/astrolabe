@@ -3,6 +3,148 @@ use super::*;
 use crate::model::ai::Expression;
 
 #[test]
+#[ignore = "requires local game data; opening initialization source evidence"]
+fn source_hype_opening_particle_component_and_presentation() -> Result<()> {
+    // 00542340 resolves the acting Perso's particle component at +0x40.
+    // 00450fd0 assigns its selected generator at +0; 00450c30 gives size 16.
+    #[derive(BinRead, BinWrite)]
+    #[brw(little)]
+    struct ParticleActorWire {
+        prefix: [u8; 64],
+        component: u32,
+    }
+    #[derive(BinRead, BinWrite)]
+    #[brw(little)]
+    struct ParticleComponentWire {
+        generator: u32,
+        unknown_4: [u8; 4],
+        enabled: u8,
+        unknown_9: [u8; 7],
+    }
+    // 0044fd30's registered ParticleGenerator reader binds PrtSrc, PrtSys,
+    // PrtEnv at +0/+4/+8. 00451ed0 allocates 44 bytes for this definition.
+    #[derive(BinRead, BinWrite)]
+    #[brw(little)]
+    struct GeneratorWire {
+        source: u32,
+        system: u32,
+        environment: u32,
+        unknown: [u8; 32],
+    }
+    // 004c1900 compares capacity/active count at +0/+2 and dispatches kind +0x1c.
+    #[derive(BinRead, BinWrite)]
+    #[brw(little)]
+    struct ParticleSystemWire {
+        capacity: u16,
+        active: u16,
+        unknown_4: [u8; 24],
+        kind: u16,
+        unknown_30: [u8; 10],
+    }
+    fn nodes(script: &SourceScript) -> Result<Vec<NodeWire>> {
+        script
+            .bytes
+            .as_chunks::<8>()
+            .0
+            .iter()
+            .map(|b| wire(b))
+            .collect()
+    }
+    let game = std::env::var_os("ASTROLABE_GAME_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| "disc".into());
+    let s = SourceSession::open(&game, &Selection::hype("manoir", "en")?)?;
+    let tree = s.tree()?;
+    let model_for = |path: &str| -> Result<(Address, Address)> {
+        let node = tree
+            .iter()
+            .find(|n| n.path == path)
+            .context("opening actor missing")?;
+        let perso = s.required(node.address, 4)?;
+        let brain = s.required(perso, 16)?;
+        let mind = s.required(brain, 0)?;
+        Ok((perso, s.required(mind, 0)?))
+    };
+    let (perso, model) = model_for("world/0/0")?;
+    let actor: ParticleActorWire = wire(s.bytes(perso, 68)?)?;
+    assert_ne!(
+        actor.component, 0,
+        "the original API's absent-component skip does not apply to Hype"
+    );
+    let component = s.required(perso, 64)?;
+    let component_bytes = s.bytes(component, 16)?;
+    let state: ParticleComponentWire = wire(component_bytes)?;
+    assert_eq!((state.generator, state.enabled), (0, 0));
+    let mut rebuilt = std::io::Cursor::new(Vec::new());
+    state.write(&mut rebuilt)?;
+    assert_eq!(rebuilt.into_inner(), component_bytes);
+    let normals = source_set(&s, model, 0)?.context("Hype normals missing")?;
+    let init = normals.behaviors[0]
+        .schedule
+        .as_ref()
+        .context("Hype init missing")?;
+    let init_nodes = nodes(init)?;
+    assert_eq!((init_nodes[14].kind, init_nodes[14].parameter), (4, 194));
+    assert_eq!((init_nodes[15].kind, init_nodes[15].indent), (37, 2));
+    assert_eq!((init_nodes[16].kind, init_nodes[16].parameter), (4, 193));
+    assert_eq!((init_nodes[814].kind, init_nodes[814].parameter), (4, 187));
+    assert_eq!((init_nodes[815].kind, init_nodes[815].parameter), (12, 255));
+    assert_eq!((init_nodes[816].kind, init_nodes[816].parameter), (4, 185));
+    assert_eq!((init_nodes[817].kind, init_nodes[817].parameter), (4, 267));
+    let generator = s.required(add(init.address, 15 * 8), 0)?;
+    let generator_bytes = s.bytes(generator, 44)?;
+    let definition: GeneratorWire = wire(generator_bytes)?;
+    assert!(definition.source != 0 && definition.system != 0 && definition.environment != 0);
+    let mut rebuilt = std::io::Cursor::new(Vec::new());
+    definition.write(&mut rebuilt)?;
+    assert_eq!(rebuilt.into_inner(), generator_bytes);
+    let mut records = Vec::new();
+    // Native constructors 004c1170/004c4c30/004c4e20 give these exact extents.
+    for (field, size, name) in [
+        (0, 132, "source"),
+        (4, 40, "system"),
+        (8, 68, "environment"),
+    ] {
+        let record = s.required(generator, field)?;
+        if field == 4 {
+            let system: ParticleSystemWire = wire(s.bytes(record, size)?)?;
+            assert_eq!((system.capacity, system.active, system.kind), (200, 0, 4));
+        }
+        records.push(serde_json::json!({"kind":name,"identity":s.source_identity(record)?,"bytes":s.bytes(record,size)?}));
+    }
+    let (_, world_model) = model_for("world/0/3")?;
+    let world_normal = source_set(&s, world_model, 0)?.context("World normal missing")?;
+    let world_init = world_normal.behaviors[2]
+        .schedule
+        .as_ref()
+        .context("World initialization missing")?;
+    let world_nodes = nodes(world_init)?;
+    assert_eq!((world_nodes[0].kind, world_nodes[0].parameter), (4, 411));
+    assert_eq!((world_nodes[22].kind, world_nodes[22].parameter), (2, 24));
+    assert_eq!((world_nodes[24].kind, world_nodes[24].parameter), (4, 266));
+    let world_receiver = s.required(add(world_init.address, 23 * 8), 0)?;
+    let world_hidden_actor = tree
+        .iter()
+        .find(|n| s.pointer(n.address, 4).ok().flatten() == Some(world_receiver))
+        .context("World NoDisplay receiver isn't rooted")?;
+    let report = serde_json::json!({
+        "scope":"unchanged manor source initialization evidence; no engine execution or presentation acceptance",
+        "hype_particle_component":s.source_identity(component)?,
+        "initial_selected_generator":null,"initial_component_enabled":false,
+        "selection_node":14,"generator_operand_category":37,"disable_node":16,
+        "selected_generator":s.source_identity(generator)?,"generator_bytes":generator_bytes,"records":records,
+        "next_hype_presentation_nodes":[{"node":814,"procedure":187},{"node":816,"procedure":185},{"node":817,"procedure":267}],
+        "world_normal2_node22_actual_call":{"procedure":266,"receiver":world_hidden_actor.path},
+        "world_normal2_first_nodes":world_nodes.iter().take(40).enumerate().map(|(i,n)|serde_json::json!({"node":i,"category":n.kind,"parameter":n.parameter,"indent":n.indent})).collect::<Vec<_>>()
+    });
+    println!("{}", serde_json::to_string_pretty(&report)?);
+    if let Some(path) = std::env::var_os("ASTROLABE_OPENING_SOURCE_REPORT") {
+        std::fs::write(path, serde_json::to_vec_pretty(&report)?)?;
+    }
+    Ok(())
+}
+
+#[test]
 #[ignore = "requires local game data; selected opening API evidence"]
 fn source_opening_turn_and_absent_world_inputs_are_bound_deliberately() -> Result<()> {
     let game = std::env::var_os("ASTROLABE_GAME_DIR")

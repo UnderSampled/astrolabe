@@ -447,9 +447,16 @@ impl Parser<'_> {
                             position: self.expression(indent + 2)?,
                         }
                     } else {
+                        let operation = self
+                            .nodes
+                            .get(self.at)
+                            .map(|n| format!("category {} operation {}", n.kind, n.parameter));
                         Statement::Unsupported(self.unsupported(
                             at,
-                            "Ultra requires a bound SetPersoAbsolutePosition receiver".into(),
+                            format!(
+                                "Ultra receiver/category {receiver_kind} does not support {}",
+                                operation.as_deref().unwrap_or("a missing child operation")
+                            ),
                         )?)
                     }
                 }
@@ -2232,6 +2239,20 @@ mod partial_tests {
         // An unresolved reference remains preserved; no invented point or actor.
         codec.waypoints.clear();
         assert!(!codec.read(&bytes)?.unsupported_fragments().is_empty());
+        // World startup also uses Ultra for NoDisplay. Unsupported diagnostics
+        // must identify that actual call instead of inventing a position call.
+        let (mut unsupported, hidden) =
+            partial(&[(2, 24, 1), (24, 1234, 2), (4, 266, 2), (8, 0, 0)]);
+        unsupported
+            .actors
+            .insert(1, AssetRef::new("level:/persos/world/0/0")?);
+        let hidden_script = unsupported.read(&hidden)?;
+        let Statement::Unsupported(fragment) = &hidden_script.statements[0] else {
+            anyhow::bail!("unimplemented actor display call was silently accepted");
+        };
+        assert!(fragment.reason.contains("category 4 operation 266"));
+        assert!(!fragment.reason.contains("SetPersoAbsolutePosition"));
+        assert_eq!(fragment.nodes, unsupported.preserved_nodes[..3]);
         Ok(())
     }
 

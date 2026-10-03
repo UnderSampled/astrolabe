@@ -224,12 +224,13 @@ mod tests {
     #[ignore = "local source-only menu import/Rete/native-text conversion; never starts an engine"]
     fn local_menu_source_and_rete_native_conversion() -> Result<()> {
         use crate::model::{Selection, io::Load, menu::MenuPresentation};
-        let game = std::path::PathBuf::from(
-            std::env::var_os("ASTROLABE_GAME_DIR").context("ASTROLABE_GAME_DIR required")?,
-        );
-        let output = std::path::PathBuf::from(
-            std::env::var_os("ASTROLABE_MENU_OUTPUT").context("ASTROLABE_MENU_OUTPUT required")?,
-        );
+        let game = std::env::var_os("ASTROLABE_GAME_DIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| "disc".into());
+        let temporary = tempfile::tempdir()?;
+        let output = std::env::var_os("ASTROLABE_MENU_OUTPUT")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| temporary.path().join("menu"));
         ensure!(!output.exists(), "source evidence path must be fresh");
         let mut imported =
             crate::openspace::content::import_menu(&game, Selection::hype("manoir", "en")?)?;

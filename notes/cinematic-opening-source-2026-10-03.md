@@ -689,3 +689,52 @@ forward is [0.786991,0.555323,0.268816] at original clock 666 ms and
 [-0.082333,0.996541,0.011291] at 12309 ms. Projecting a point one unit along
 each corrected direction gives view [0,0,1] within 0.000011 units. This is a
 calculation on existing evidence, not a new game run or calibrated render match.
+
+### Hype presentation: non-null particle component and truthful call diagnostics
+
+The later actual New Game V10 checkpoint reached Gogoud's first dialogue with
+all 69 rooted actor Brains automatic; full opening handoff remains unaccepted.
+The user observed colored Hype breathing over the grey statue. Hype still stops
+in Fix model 28, normal-0 schedule node 14, at procedure 194
+(`SetParticleGenerator`). Its native character starts the initial action even
+though the Brain stops; this explains how animation can remain visible, but
+does not prove the full cause of the overlapping pose.
+
+The new source corpus check proves Hype has a non-null 16-byte particle component
+(`Fix/[5,0]/23321`), initially disabled with no selected generator. Therefore
+the original API's null-component skip cannot legitimately unblock this call.
+Node 15 is category 37 and binds generator `Fix/[5,0]/22092`; node 16 disables
+emission. The generator's typed 44-byte definition resolves source, system and
+environment records of 132, 40 and 68 bytes. The system has capacity 200, zero
+active particles and kind 4 (sprite particles). Unknown fields remain explicit
+byte arrays; the test reconstructs the interpreted component/definition bytes.
+This is source research, not a useful particle asset or native emitter
+implementation. No new no-op was added.
+
+Raymap's partial Perso record was consulted first. Relevant particle handler,
+selection, disable and dispatch byte ranges were then checked identical between
+the decompilation reference and the pinned installed executable (SHA-256
+`048ff4f4f0447a1f54a5a73ff588df78b484015c78df99a8f2d7acd3469df7da`).
+Proof: `TestResults/hype-particle-handler-static-byte-proof-sol-20261003.json`.
+The corpus report records bound identities, bytes and the later presentation
+calls at nodes 814/816/817: transparency 255, transparent display, then display.
+Fixing the first particle call alone does not establish correct visibility or
+placement.
+
+World model 154 normal-2 node 22 was misleadingly described by the compiler as
+a missing `SetPersoAbsolutePosition` receiver. It is actually an actor-directed
+`NoDisplay` (procedure 266) targeting `world/0/174`, not Hype. Unsupported Ultra
+diagnostics now name the actual child category/operation. A negative control in
+the existing compiled-camera reconstruction test preserves all unsupported
+source nodes and proves that call is still unsupported rather than silently
+accepted. Generated manor AI was not regenerated merely to update a diagnostic.
+
+The source assertion and corrected diagnostic test passed, along with the two
+menu source checks, with clean supervised cleanup and unchanged source:
+`TestResults/menu-opening-integration-source-final-sol-20261003/report.json`
+and `opening-source.json`. Formatting and root-package all-target Clippy with
+warnings denied passed. The new corpus assertion is inventoried; the source-only
+results are separate from any actual presentation or full-opening acceptance.
+Next source work must implement the needed particle asset/API slice and trace
+the statue's field-0 Position and actor-directed initialization calls; no
+hardcoded hiding or pose substitution is justified by the present evidence.
