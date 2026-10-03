@@ -3615,6 +3615,17 @@
       "timeout_seconds": 180,
       "ignored": true,
       "release": true
+    },
+    {
+      "binary": "astrolabe::cameras",
+      "test": "imported_gogoud_opening_ai_drives_fourth_camera_cut",
+      "areas": ["source", "ai", "scene", "rete", "animation", "movement"],
+      "kind": "corpus",
+      "prerequisites": ["disc", "godot"],
+      "fixture": "unchanged Gogoud route/action AI produces World.dsg_0=4 and unchanged World behavior 3 consumes it for helper20/waypoint67; original World initialization shot excerpt, reflex and other Brains held, viewport/aim-rule invocation are harness setup",
+      "timeout_seconds": 180,
+      "ignored": true,
+      "release": true
     }
   ]
 }

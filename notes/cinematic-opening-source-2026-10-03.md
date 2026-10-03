@@ -1,6 +1,6 @@
 # In-engine manor opening — source checkpoint, 2026-10-03
 
-## Original shot-command slice, v8 parser failure; v9 prepared
+## Original shot-command slice, bounded v9 acceptance
 
 Validated aiming is checkpointed as `b436f7c14cf4b68965b5503c7c60924d5b283684`.
 The next commands come from `IWorld_Manoir` model 154, its actual initial normal
@@ -40,8 +40,7 @@ original camera rule aims each selected shot. Assertions alone contain the
 recorded eyes and helpers; the harness does not assign camera eye/target/mode.
 Viewport activation remains setup. Three cuts at 0/3600/8100 ms and transition
 to behavior 3 are the bounded hypothesis, not full original opening acceptance.
-Syntax preflight precedes conversion; gameplay has a 25-second deadline. Native
-syntax, behavior and rendered evidence are still pending. Full initialization,
+Syntax preflight precedes conversion; gameplay has a 25-second deadline. Full initialization,
 remaining shots, dialogue/presentation and the approximately 209-second handoff
 remain open. No original script-memory edits were needed for this slice.
 
@@ -49,9 +48,26 @@ V8 completed with 28/29 Rust cases passing in 134.938 seconds, unchanged source
 and clean cleanup. The new shot harness failed its early syntax preflight in
 0.355 seconds: Godot could not infer `forward_error` and `up_error` through the
 dynamic camera reference. Neither conversion nor shot gameplay ran. Explicit
-float declarations correct those two lines; v9 retains the same 29-case scope
-and budgets. Existing v8 logs and source checkpoint remain unchanged. Native
-syntax/shot acceptance is still pending.
+float declarations correct those two lines; v9 retained the same 29-case scope
+and budgets. Existing v8 logs and source checkpoint remain unchanged.
+
+V9 passed 29/29 Rust cases and all four Python modules in 184.421 seconds,
+with unchanged source `f33cf17` and complete cleanup. The excerpt case took
+119.308 seconds including fresh conversion. Native cuts select helpers33/18/19
+at clocks0/3600/8100ms, then enter World behavior3. Maximum eye error is
+0.00003282 units; maximum forward/up error is 0.00000198/0.00000183. All
+three state guards pass, with 3,440 meshes retained. Sol inspected all three
+640×480 PNGs: courtyard/tree, overhead statue-base and shield-close-up frames
+are usable, while coloured/overlapping characters and absent fade/letterbox
+remain presentation differences. Gogoud is held in this fixture. There were
+114 nonfatal unbound InputMap warnings, no assigned-log GPU/device-loss/display
+error markers, no timeout or leaked processes. Coredump enumeration remains
+unverified because access to the system bus was denied. Evidence is
+`TestResults/manor-source-shots-selection-v9-sol-20261003.log.json` and
+`.log.d/manor-source-shot-excerpt-1791042072961288188/`, including source/fixture
+hashes, compiled excerpt, logs, numeric report and PNGs. This accepts source
+shot commands and waits in the declared excerpt; it does not accept full,
+unchanged World initialization or the complete opening.
 
 A read-only source inspection also identifies the fourth-cut producer:
 Gogoud/model210 normal0 completes route6 and actions26/24, selects action23,
@@ -66,6 +82,30 @@ Gogoud's following calls are dialogue position328, incremental actor turn23
 and dialogue325. The separate UI worker owns dialogue and source fade/widescreen
 calls317–323; camera/non-UI work must consume that interface rather than duplicate
 presentation or independently choose cut timing.
+
+The prepared `imported_gogoud_opening_ai_drives_fourth_camera_cut` case shares
+the fresh source/Rete/export setup with the accepted excerpt case. It preserves
+Gogoud/model210 and its actor byte-for-byte through Rete, checks the actual source
+producer/consumer statements and records their hashes. World normal2 still uses
+the same declared excerpt, while its normal3 and all Gogoud AI are unchanged.
+The harness starts Gogoud normally and runs World's generated normal coroutine
+on ordinary automatic Brain physics updates. World reflex stays held because
+its unbound input expressions remain unsupported. No harness assignment supplies
+World.dsg_0, camera eye, helper or mode. Assertions require original action
+order, source-associated native contact, four cuts, the original fixed-eye/axis
+values, and consumption of the generated trigger within 40 native milliseconds.
+The case stops before Gogoud's subsequent 1200-ms wait reaches dialogue. Syntax
+preflight owns both inherited harness files and its log before conversion;
+gameplay is bounded at 25 seconds, the case at 180 seconds. Native execution
+and four rendered images are pending Luna. This is integration preparation,
+not a new original-game comparison or full-opening acceptance.
+
+Source-only preparation passed locked offline release build, all-target strict
+Clippy, formatting and the expanded original source/Rete case (1.31-second body).
+The supervised four-stage check took 92.176 seconds, with unchanged source and
+clean cleanup: `TestResults/manor-gogoud-fourth-shot-v10-preflight-sol-20261003.json`
+and its four logs. Stephen's subsequent request for a New Game menu preview
+takes priority; this fourth-cut native assignment is deferred.
 
 ## Native mode-3 aiming acceptance, v7
 

@@ -77,15 +77,34 @@ shared waypoints and the opening's mode-3 requests. Source-only checks pass:
 fixed waypoint positions match original captured eyes within 0.00005 units;
 the camera's file mode remains 0. A bounded native test extracts those 12
 original statements after unsupported initialization, retains the 3600/4500-ms
-waits, and records that AI fixture modification explicitly. Native syntax,
-three-shot behavior and pixels remain pending Luna; this is not full opening
-acceptance. See the [shot checkpoint](cinematic-opening-source-2026-10-03.md).
+waits, and records that AI fixture modification explicitly. See the
+[shot checkpoint](cinematic-opening-source-2026-10-03.md).
 
 V8 passed 28/29 Rust cases; the shot case stopped in its 0.355-second syntax
 preflight because two camera-derived error variables needed explicit float
 types. Conversion and shot gameplay did not run. The suite completed in
 134.938 seconds with unchanged source and clean cleanup. The two-line harness
-correction is prepared for v9; native shot acceptance remains pending.
+correction was tested in v9: all 29 Rust cases and four Python modules passed
+in 184.421 seconds, with unchanged source, no timeout and clean cleanup. The
+119.308-second fresh-conversion case selected helpers33/18/19 at clocks0/3600/8100ms
+and reached World behavior3. Maximum eye error was 0.00003282 units; forward/up
+errors stayed below 0.00000198. All three state guards passed and 3,440 meshes
+were present. Sol inspected its three 640×480 PNGs; camera geometry is usable,
+with coloured/overlapping characters and absent fade/letterbox still differing
+from the original. The fixture retains its declared World schedule excerpt and
+held Gogoud; complete initialization and full opening remain unverified. There
+were 114 nonfatal InputMap warnings; no assigned-log GPU/device-loss markers or
+leaked processes. External coredump enumeration is unverified (system bus denied).
+Evidence: `TestResults/manor-source-shots-selection-v9-sol-20261003.log.json`
+and `.log.d/manor-source-shot-excerpt-1791042072961288188/`.
+
+A next native integration case is prepared: unchanged Gogoud route/actions
+produce World.dsg_0=4, then unchanged World behavior3 selects helper20/waypoint67.
+It retains the declared World initialization excerpt and held reflex, verifies
+source-associated native contact, and stops at the fourth cut before dialogue.
+No harness assignment supplies the trigger or camera shot state. Native syntax,
+behavior and four images are pending Luna. UI presentation remains owned by
+the separate UI worker; this case implements no replacement dialogue or fade.
 
 At Stephen's explicit request, Proc_AddWind is now a documented intentional
 no-op, with typed source/Rete round-trip support. Initialization can pass the

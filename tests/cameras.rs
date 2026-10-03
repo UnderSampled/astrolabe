@@ -395,7 +395,10 @@ fn manor_opening_camera_commands_and_waypoints_survive_rete() -> Result<()> {
     let reference = AssetRef::<AiModel>::new("level:/ai/models/154")?;
     let original = imported.load(&reference)?;
     let shots = opening_shot_excerpt(&original)?;
-    let points = [86, 84, 82]
+    let gogoud_ref = AssetRef::<AiModel>::new("level:/ai/models/210")?;
+    let gogoud = imported.load(&gogoud_ref)?;
+    verify_fourth_shot_source(&original, &gogoud)?;
+    let points = [86, 84, 82, 67]
         .into_iter()
         .map(|n| {
             imported.load(&AssetRef::<Waypoint>::new(format!(
@@ -403,10 +406,11 @@ fn manor_opening_camera_commands_and_waypoints_survive_rete() -> Result<()> {
             ))?)
         })
         .collect::<Result<Vec<_>>>()?;
-    let observed: [[f64; 3]; 3] = [
+    let observed: [[f64; 3]; 4] = [
         [-16.6989136, 155.743668, 33.2094803],
         [-8.26678085, 147.569885, 41.2058792],
         [-11.9290009, 158.426208, 34.5001259],
+        [-17.185480118, 146.039352417, 34.619735718],
     ];
     for (point, eye) in points.iter().zip(observed) {
         ensure!(point.relative_actor.is_none());
@@ -424,6 +428,7 @@ fn manor_opening_camera_commands_and_waypoints_survive_rete() -> Result<()> {
     astrolabe::app::save_rete(&mut imported, temp.path())?;
     let (mut reopened, _) = rete::Store::open(temp.path())?;
     ensure!(*reopened.load(&reference)? == *original);
+    ensure!(*reopened.load(&gogoud_ref)? == *gogoud);
     ensure!(opening_shot_excerpt(reopened.load(&reference)?.as_ref())? == shots);
     for point in points {
         ensure!(*reopened.load(&AssetRef::<Waypoint>::from_path(point.path.clone()))? == *point);
@@ -436,8 +441,104 @@ fn manor_opening_camera_commands_and_waypoints_survive_rete() -> Result<()> {
 #[test]
 #[ignore = "requires local Hype and Godot; actual three-shot excerpt, not full intro acceptance"]
 fn imported_manor_opening_shot_excerpt_selects_eyes_targets_and_waits() -> Result<()> {
-    use astrolabe::model::ai::{AiModel, Script};
+    run_manor_shot_excerpt(false)
+}
+
+#[test]
+#[ignore = "requires local Hype and Godot; original Gogoud AI with a declared World initialization excerpt"]
+fn imported_gogoud_opening_ai_drives_fourth_camera_cut() -> Result<()> {
+    run_manor_shot_excerpt(true)
+}
+
+fn verify_fourth_shot_source(
+    world: &astrolabe::model::ai::AiModel,
+    gogoud: &astrolabe::model::ai::AiModel,
+) -> Result<()> {
+    use astrolabe::model::ai::{ActorTarget, Comparison, Expression, Statement};
+    let behavior = |model: &astrolabe::model::ai::AiModel, id| {
+        model
+            .normal
+            .as_ref()
+            .unwrap()
+            .behaviors
+            .iter()
+            .find(|b| b.id == id)
+            .cloned()
+    };
+    ensure!(
+        behavior(world, 2)
+            .context("World normal 2")?
+            .rules
+            .is_empty()
+    );
+    let producer = behavior(gogoud, 0).context("Gogoud route behavior")?;
+    let statements = &producer
+        .schedule
+        .context("Gogoud route schedule")?
+        .statements;
+    ensure!(statements.len() >= 6);
+    ensure!(matches!(statements[0], Statement::GoOverRoute(6)));
+    for (index, state) in [(1, 26), (2, 24)] {
+        ensure!(
+            matches!(&statements[index], Statement::ExecuteAction(Expression::Action(Some(action))) if action.family.path.as_str()=="level:/families/27" && action.state==state)
+        );
+    }
+    ensure!(
+        matches!(&statements[3], Statement::ChangeAction(Expression::Action(Some(action))) if action.family.path.as_str()=="level:/families/27" && action.state==23)
+    );
+    ensure!(
+        matches!(&statements[4], Statement::ActorFieldAssign {actor,variable:0,value:Expression::Integer(4)} if actor.path.as_str()=="level:/persos/world/0/3")
+    );
+    ensure!(matches!(
+        &statements[5],
+        Statement::Wait {
+            milliseconds: Expression::Integer(1200)
+        }
+    ));
+    let receiver = behavior(world, 3).context("World fourth-shot behavior")?;
+    let rule = receiver.rules[0]
+        .as_ref()
+        .context("World fourth-shot rule")?;
+    let Statement::If {
+        condition, then, ..
+    } = &rule.statements[0]
+    else {
+        anyhow::bail!("World fourth-shot branch missing");
+    };
+    ensure!(
+        matches!(condition, Expression::Compare {left,operation:Comparison::Equal,right} if **left==Expression::Variable(0) && **right==Expression::Integer(4))
+    );
+    ensure!(then.len() == 3);
+    ensure!(
+        matches!(&then[0], Statement::CameraChangeTargetedPerso {camera,target:ActorTarget::Reference(target)} if camera.path.as_str()=="level:/persos/world/0/2" && target.path.as_str()=="level:/persos/world/0/20")
+    );
+    ensure!(
+        matches!(&then[1], Statement::SetActorAbsolutePosition {actor,position:Expression::WaypointPosition(point)} if actor.path.as_str()=="level:/persos/world/0/2" && point.path.as_str()=="level:/waypoints/17-1/67")
+    );
+    ensure!(
+        matches!(&then[2], Statement::CameraChangeState {camera,state:Expression::Integer(3)} if camera.path.as_str()=="level:/persos/world/0/2")
+    );
+    Ok(())
+}
+
+fn run_manor_shot_excerpt(with_gogoud: bool) -> Result<()> {
+    use astrolabe::model::ai::{AiModel, DesignerValue, Script};
     use sha2::{Digest, Sha256};
+    let (stem, harness, script, marker) = if with_gogoud {
+        (
+            "manor-gogoud-fourth-shot",
+            "check_gogoud_camera.gd",
+            include_bytes!("check_gogoud_camera.gd").as_slice(),
+            "MANOR_GOGOUD_FOURTH_SHOT_OK",
+        )
+    } else {
+        (
+            "manor-source-shot-excerpt",
+            "check_manor_shots.gd",
+            include_bytes!("check_manor_shots.gd").as_slice(),
+            "MANOR_SOURCE_SHOT_EXCERPT_OK",
+        )
+    };
     let temp = tempfile::tempdir()?;
     let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
     let evidence_root = std::env::var_os("ASTROLABE_EVIDENCE_DIR")
@@ -445,7 +546,7 @@ fn imported_manor_opening_shot_excerpt_selects_eyes_targets_and_waits() -> Resul
         .unwrap_or_else(|| "TestResults".into());
     fs::create_dir_all(&evidence_root)?;
     let evidence = evidence_root.canonicalize()?.join(format!(
-        "manor-source-shot-excerpt-{}",
+        "{stem}-{}",
         SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
     ));
     fs::create_dir(&evidence)?;
@@ -456,6 +557,8 @@ fn imported_manor_opening_shot_excerpt_selects_eyes_targets_and_waits() -> Resul
         syntax.join("check_manor_shots.gd"),
         include_bytes!("check_manor_shots.gd"),
     )?;
+    fs::write(syntax.join(harness), script)?;
+    let harness_argument = format!("res://{harness}");
     let parser_log = evidence.join("parser.log");
     godot::run_godot(
         &engine,
@@ -466,7 +569,7 @@ fn imported_manor_opening_shot_excerpt_selects_eyes_targets_and_waits() -> Resul
             parser_log.to_str().context("parser log path")?,
             "--check-only",
             "--script",
-            "res://check_manor_shots.gd",
+            &harness_argument,
         ],
         Duration::from_secs(10),
     )?;
@@ -486,6 +589,19 @@ fn imported_manor_opening_shot_excerpt_selects_eyes_targets_and_waits() -> Resul
     let camera_model_ref = AssetRef::<AiModel>::new("fix:/ai/models/437")?;
     let camera_model = imported.load(&camera_model_ref)?;
     let camera_hash = format!("{:x}", Sha256::digest(rete::encode(camera_model.as_ref())?));
+    let gogoud_model_ref = AssetRef::<AiModel>::new("level:/ai/models/210")?;
+    let gogoud_model = imported.load(&gogoud_model_ref)?;
+    let gogoud_hash = format!("{:x}", Sha256::digest(rete::encode(gogoud_model.as_ref())?));
+    let gogoud_ref = AssetRef::<Perso>::new("level:/persos/world/0/5")?;
+    let gogoud = imported.load(&gogoud_ref)?;
+    if with_gogoud {
+        verify_fourth_shot_source(&original, &gogoud_model)?;
+        let world = imported.load(&AssetRef::<Perso>::new("level:/persos/world/0/3")?)?;
+        ensure!(
+            world.brain.as_ref().context("World Brain")?.variables[0] == DesignerValue::Integer(0)
+        );
+        ensure!(gogoud.brain.as_ref().context("Gogoud Brain")?.model == gogoud_model_ref);
+    }
     let rete_root = temp.path().join("rete");
     astrolabe::app::save_rete(&mut imported, &rete_root)?;
     let (mut reopened, _) = rete::Store::open(&rete_root)?;
@@ -519,15 +635,26 @@ fn imported_manor_opening_shot_excerpt_selects_eyes_targets_and_waits() -> Resul
         *reopened.load(&camera_model_ref)? == *camera_model,
         "camera AI changed in excerpt fixture"
     );
+    ensure!(
+        *reopened.load(&gogoud_model_ref)? == *gogoud_model
+            && *reopened.load(&gogoud_ref)? == *gogoud,
+        "Gogoud AI or actor changed in excerpt fixture"
+    );
+    let setup = if with_gogoud {
+        "World normal coroutine runs the declared excerpt and unchanged behavior 3; World reflex and other Brains held. Actual unchanged Gogoud AI starts normally and drives native route/action/contact, then assigns World.dsg_0=4. Viewport activated and unchanged camera aiming rule invoked by harness; no shot/trigger assignments. Stops at fourth cut before following dialogue."
+    } else {
+        "Other Brains held; viewport activated by harness. World excerpt clock/coroutine driven on native physics frames; unchanged camera rule invoked for aiming. Camera eye/target/mode selected only by the imported source commands."
+    };
     fs::write(
         evidence.join("fixture.json"),
         serde_json::to_vec_pretty(&serde_json::json!({
             "scene":"manoir","model":model_ref.path,"original_model_rete_sha256":original_hash,
         "fixture_model_rete_sha256":fixture_hash,"ai_modified":true,
         "camera_model_rete_sha256":camera_hash,"camera_ai_modified":false,
+        "gogoud_model_rete_sha256":gogoud_hash,"gogoud_ai_modified":false,"with_gogoud":with_gogoud,
             "extraction":"World behavior 2, first-visit branch, final 12 original statements (source nodes 909 through 947); earlier initialization/branch guards are excluded",
             "commands":shots,"source_mode":0,"fixture_mode_edit":false,
-            "setup":"Other Brains held; viewport activated by harness. World excerpt clock/coroutine driven on native physics frames; unchanged camera rule invoked for aiming. Camera eye/target/mode selected only by the imported source commands.",
+            "setup":setup,
             "pending":["complete initialization and first-visit guards","remaining opening shots","dialogue and presentation","full approximately 209-second intro"]
         }))?,
     )?;
@@ -537,11 +664,18 @@ fn imported_manor_opening_shot_excerpt_selects_eyes_targets_and_waits() -> Resul
         project.join("check_manor_shots.gd"),
         include_bytes!("check_manor_shots.gd"),
     )?;
+    fs::write(project.join(harness), script)?;
     // Preserve the compiled source section after the disposable project exits.
     fs::copy(
         project.join("generated/hype/levels/manoir/ai/models/154.gd"),
         evidence.join("compiled-world-excerpt.gd"),
     )?;
+    if with_gogoud {
+        fs::copy(
+            project.join("generated/hype/levels/manoir/ai/models/210.gd"),
+            evidence.join("compiled-gogoud.gd"),
+        )?;
+    }
     let log = evidence.join("godot.log");
     let report = evidence.join("report.json");
     let output = godot::run_godot_gameplay(
@@ -552,16 +686,16 @@ fn imported_manor_opening_shot_excerpt_selects_eyes_targets_and_waits() -> Resul
             "--log-file",
             log.to_str().context("Godot log path")?,
             "--script",
-            "res://check_manor_shots.gd",
+            &harness_argument,
             "--",
             report.to_str().context("shot report path")?,
         ],
         Duration::from_secs(25),
     )?;
     fs::write(evidence.join("stdout.log"), &output)?;
-    ensure!(output.contains("MANOR_SOURCE_SHOT_EXCERPT_OK"), "{output}");
+    ensure!(output.contains(marker), "{output}");
     println!(
-        "Original three-shot excerpt evidence: {}",
+        "Original shot excerpt (Gogoud integration: {with_gogoud}) evidence: {}",
         evidence.display()
     );
     Ok(())
