@@ -59,7 +59,9 @@ static func validate(value: Variant) -> String:
     if not quantities is Dictionary:
         return "Save is missing inventory quantities."
     for item in quantities:
-        if not item is String or not str(item).is_valid_int() or str(int(item)) != item or not _integer(int(item), 0, 32767) or not _integer(quantities[item], 0, 32767):
+        # The measured source inventory and native quantity API retain -1 as
+        # their absent/unavailable sentinel. Preserve it through native saves.
+        if not item is String or not str(item).is_valid_int() or str(int(item)) != item or not _integer(int(item), 0, 32767) or not _integer(quantities[item], -1, 32767):
             return "Save has an invalid inventory quantity."
     # Older schema-1 slots predate world flags; missing world state starts from
     # the measured manor seed. When present, validate the complete supported

@@ -83,7 +83,12 @@ func run() -> void:
         if SAVE_STATE.validate(noncanonical_quantity).is_empty():
             fail("Noncanonical inventory quantity key was silently accepted")
             return
-        print("SAVE_PROOF corrupt, unsupported version, extra state, and noncanonical inventory keys rejected")
+        var invalid_quantity := valid_state.duplicate(true)
+        invalid_quantity["actors"][SAVE_STATE.ACTOR]["inventory"]["quantities"]["21"] = -2
+        if SAVE_STATE.validate(invalid_quantity).is_empty():
+            fail("Inventory quantity below the measured -1 sentinel was accepted")
+            return
+        print("SAVE_PROOF corrupt, unsupported version, extra state, noncanonical inventory keys and quantity=-2 rejected")
         await shutdown(0)
         return
     if load_button.disabled:
@@ -128,6 +133,9 @@ func run() -> void:
         if not bool(saved["state"]["world"][SAVE_STATE.DUMMY]["dsg_8"]):
             fail("F5 did not write the exported dummy's DSG[8]")
             return
+        if int(saved["state"]["actors"][SAVE_STATE.ACTOR]["inventory"]["quantities"]["61"]) != -1:
+            fail("F5 did not preserve the measured unavailable-item sentinel")
+            return
         var original := FileAccess.get_file_as_string(SAVE_STATE.path())
         magick.set("current_points", 1000)
         key(KEY_F5, true)
@@ -135,13 +143,16 @@ func run() -> void:
         if FileAccess.get_file_as_string(SAVE_STATE.path()) != original:
             fail("Invalid state overwrote a valid slot")
             return
-        print("SAVE_PROOF wrote mana=23, inventory=2, and dummy dsg_8=true; invalid write preserved slot")
+        print("SAVE_PROOF wrote mana=23, inventory=2, sentinel=-1 and dummy dsg_8=true; invalid write preserved slot")
     else:
         if int(magick.get("current_points")) != 23 or int(inventory.call("quantity", 21)) != 2:
             fail("Fresh process did not restore mana and inventory")
             return
         if not bool(dummy_brain.get("dsg_8")):
             fail("Fresh process did not restore the exported dummy's DSG[8]")
+            return
+        if int(inventory.call("quantity", 61)) != -1:
+            fail("Fresh process did not restore the unavailable-item sentinel")
             return
         if int(magick.call("remove_points", 5)) != 1 or int(magick.get("current_points")) != 18:
             fail("Restored mana was not usable by the native component")
@@ -170,4 +181,4 @@ func key(code: Key, pressed: bool) -> void:
 
 func fail(message: String) -> void:
     push_error(message)
-    quit(1)
+    shutdown.call_deferred(1)

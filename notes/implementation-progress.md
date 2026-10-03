@@ -1,5 +1,17 @@
 # Rust implementation evidence
 
+2026-10-03 main integration: the four validated UI commits through `f2eb446`
+are cherry-picked as `fae35ea`, `b4cf144`, `eeb5ec0`, `72725d0`, preserving
+the current camera and actual New Game path. Support 45/Rete 38 require one
+fresh manor conversion. The 277-case manifest union is retained. The Global
+data-Brain assertion and rejection of the measured inventory's -1 sentinel
+are corrected in source; failed test exits now drain the scene. Stephen's
+actual-game observation confirms the first Gogoud path, with a stall afterward.
+The next normal-path checkpoint observes that transition with the nine dialogue
+resources; no excerpt replaces intro acceptance. Source checks pass in 19.244
+seconds, native integration/regression and full intro acceptance remain pending.
+See [the integration checkpoint](./new-game-ui-integration-2026-10-03.md).
+
 2026-10-03 requested New Game preview: the existing menu now has a New Game
 entry using an inherited ordinary game session. It instantiates the complete
 generated manor at its original starting state, leaving all generated Brains

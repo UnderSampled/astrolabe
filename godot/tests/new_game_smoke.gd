@@ -2,7 +2,7 @@ extends SceneTree
 ## Actual menu/session path. Run only with an isolated XDG_DATA_HOME; the
 ## slot below is test-owned. Full generated AI remains unmodified and unheld.
 const SAVE_STATE = preload("res://game/save_state.gd")
-var report: Dictionary = {"scope":"current-state New Game menu preview, not cinematic acceptance"}
+var report: Dictionary = {"scope":"normal New Game walk/contact checkpoint and post-path diagnosis", "intro_acceptance":"pending"}
 var evidence_path: String
 var gogoud_actions: Array[int] = []
 var gogoud_frames: Array[Dictionary] = []
@@ -16,7 +16,7 @@ func require(ok: bool, message: String) -> bool:
     report["failure"] = message
     write_report()
     push_error(message)
-    quit(1)
+    shutdown.call_deferred(1)
     return false
 
 func write_report() -> void:
@@ -41,14 +41,22 @@ func snapshot(game: Node) -> Dictionary:
     var brain := actor.get_node("Brain")
     var automatic := 0
     var brains := level.find_children("Brain","Node",true,false)
+    var actor_brain_count := 0
+    var global_data: Array[Dictionary] = []
     for source_brain in brains:
+        # Exported nonvisual Globals keep designer values with automatic=false
+        # (scene.rs). They are not rooted actor behaviors held by this session.
+        if source_brain.get_parent().get_parent() == level.get_node("Globals"):
+            global_data.append({"path":str(source_brain.get_path()),"model":source_brain.get("source_model_path"),"automatic":source_brain.get("automatic")})
+            continue
+        actor_brain_count += 1
         if bool(source_brain.get("automatic")): automatic += 1
     return {"scene":game.scene_file_path,"new_game":game.get("new_game"),
         "loading_stage":game.get("loading_stage"),"position":[actor.global_position.x,-actor.global_position.z,actor.global_position.y],
         "normal":brain.get("current_normal"),"reflex":brain.get("current_reflex"),
         "brain_running":brain.get("running"),"opening_failures":game.get("opening_failures").duplicate(),
         "gate_height":gate.position.y,"gate_automatic":gate.get_node("Brain").get("automatic"),
-        "automatic_brains":automatic,"brain_count":brains.size(),
+        "automatic_brains":automatic,"brain_count":actor_brain_count,"total_brains":brains.size(),"global_data_brains":global_data,
         "status":game.get_node("Hud/Panel/Margin/Rows/Status").text,
         "save_disabled":game.get_node("Hud/Panel/Margin/Rows/Save").disabled,
         "camera":root.get_camera_3d().get_path()}
@@ -85,7 +93,7 @@ func capture(name: String) -> String:
     RenderingServer.force_draw()
     var picture := root.get_texture().get_image()
     var path := evidence_path.get_base_dir().path_join(name + ".png")
-    if not require(picture != null and not picture.is_empty() and picture.save_png(path) == OK,"preview image failed"): return ""
+    if not require(picture != null and not picture.is_empty() and picture.save_png(path) == OK,"opening image failed"): return ""
     return path
 
 func run() -> void:
@@ -110,11 +118,19 @@ func run() -> void:
     await process_frame
     report["first"] = snapshot(game)
     var first: Dictionary = report["first"]
-    if not require(first["scene"] == "res://game/new_game.tscn" and first["loading_stage"] == "opening_preview" and first["save_disabled"],"New Game mode or preview state differs"): return
+    if not require(first["scene"] == "res://game/new_game.tscn" and first["loading_stage"] == "opening" and first["save_disabled"],"New Game mode or opening state differs"): return
+    if not require(first["global_data_brains"].size() == 1 and first["global_data_brains"][0]["model"] == "fix:/ai/models/1" and not first["global_data_brains"][0]["automatic"],"exported global-data role changed"): return
     if not require(first["automatic_brains"] == first["brain_count"] and first["brain_count"] > 0,"opening held generated Brains"): return
     if not require(absf(float(first["gate_height"])) < 0.1 and first["gate_automatic"],"New Game used the saved-game gate workaround"): return
     if not require(Vector3(first["position"][0],first["position"][2],-first["position"][1]).distance_to(Vector3(-13.548369,32.932507,-158.19508)) < 1.0,"New Game restored the manor save instead of original starting pose"): return
     var level := game.get("level") as Node3D
+    var source_ui := level.get_node_or_null("AstrolabeUI")
+    if not require(source_ui != null,"normal generated level lacks maintained UI"): return
+    var dialogue_names: Array[String] = []
+    for item in source_ui.get("dialogue_items"): dialogue_names.append(str(item.get("identity")))
+    dialogue_names.sort()
+    report["dialogue_items"] = dialogue_names
+    if not require(dialogue_names == ["gogood_master_whatif01","gogood_texte1_manoir","gogood_texte1a_manoir","gogood_texte1b_manoir","gogood_texte1c_manoir","gogood_texte2_manoir","gogood_texte2a_manoir","hype_texte1_manoir","hype_texte2_manoir"],"normal New Game lacks the nine integrated dialogue resources"): return
     var paths: Dictionary = level.get_meta("source_actor_nodes")
     var gogoud := level.get_node(paths["level:/persos/world/0/5"]) as CharacterBody3D
     var gogoud_start := gogoud.global_position
@@ -125,10 +141,10 @@ func run() -> void:
     var first_actor_id := (game.get("actor") as Node).get_instance_id()
     var initial_resource: Variant = root.get_node("GameContent").get("level_scene")
     key(KEY_F5)
-    if not require(FileAccess.get_file_as_string(SAVE_STATE.path()) == SLOT_PROBE,"preview save input overwrote existing slot"): return
+    if not require(FileAccess.get_file_as_string(SAVE_STATE.path()) == SLOT_PROBE,"New Game save input overwrote existing slot"): return
     await create_timer(2.0).timeout
     report["after_two_seconds"] = snapshot(game)
-    report["image_initial"] = await capture("new-game-preview-start")
+    report["image_initial"] = await capture("new-game-opening-start")
     for tick in range(900):
         await physics_frame
         await process_frame
@@ -147,8 +163,15 @@ func run() -> void:
     if not require(gogoud_actions == [0,26,24,23] and has_contact and gogoud.is_on_floor(),"normal opening did not complete Gogoud's walk/actions with native contact"): return
     if not require(gogoud.global_position.distance_to(gogoud_start) > 8.0 and gogoud.global_position.distance_to(Vector3(-18.638809,32.910141,-149.097321)) < 0.75,"normal-opening Gogoud motion/end pose differs from source reference"): return
     report["after_walk"] = snapshot(game)
-    report["image"] = await capture("new-game-preview")
+    report["image"] = await capture("new-game-opening-walk-end")
     print("GOGOUD_NORMAL_OPENING_OK ", JSON.stringify(report["gogoud"]["finish"]))
+    # Observe the real next transition even if unrelated source Brains stopped.
+    # This is evidence of the remaining blocker, not full intro acceptance.
+    await create_timer(2.0).timeout
+    report["gogoud"]["post_path"] = gogoud_snapshot(gogoud)
+    report["post_path"] = snapshot(game)
+    var dialog_position: Vector2 = source_ui.get("source_position")
+    report["ui_after_path"] = {"position":[dialog_position.x,dialog_position.y],"dialogue_over":source_ui.call("source_dialog_is_over")}
     key(KEY_R)
     var restarted: Node = await wait_session(game)
     if not require(restarted != null and bool(restarted.get("new_game")) and restarted.scene_file_path == "res://game/new_game.tscn","R left the New Game route"): return
@@ -163,8 +186,11 @@ func run() -> void:
     report["save_preserved"] = true
     report["status"] = "passed"
     write_report()
-    print("NEW_GAME_PREVIEW_SMOKE_OK")
+    print("NEW_GAME_OPENING_CHECKPOINT_OK")
+    await shutdown(0)
+
+func shutdown(exit_code: int) -> void:
     current_scene = null
     for child in root.get_children(): child.queue_free()
     for frame in range(3): await process_frame
-    quit(0)
+    quit(exit_code)

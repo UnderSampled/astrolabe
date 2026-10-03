@@ -181,10 +181,10 @@ func open_new_game() -> void:
     if not is_inside_tree(): return
     ready_to_play = true
     loading = false
-    stage("opening_preview","New Game preview — opening incomplete. R restarts; Esc returns to menu.")
-    update_opening_preview()
+    stage("opening","New Game — opening incomplete. R restarts; Esc returns to menu.")
+    update_opening_status()
 
-func update_opening_preview() -> void:
+func update_opening_status() -> void:
     for source_brain in opening_brains:
         if not is_instance_valid(source_brain): continue
         var failure := str(source_brain.get("unsupported_failure"))
@@ -225,7 +225,7 @@ func _process(delta: float) -> void:
     if not ready_to_play or not is_instance_valid(actor) or not is_instance_valid(brain):
         return
     if new_game:
-        update_opening_preview()
+        update_opening_status()
         return
     var magick: Resource = actor.get("source_magick")
     if magick != null:

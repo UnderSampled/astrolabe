@@ -32,9 +32,9 @@ func _ready() -> void:
     new_game.disabled = not ResourceLoader.exists(MANOR)
     new_game.pressed.connect(func(): open_game("res://game/new_game.tscn",new_game))
     panel.add_child(new_game)
-    var preview_note := Label.new()
-    preview_note.text = "New Game previews the unfinished opening."
-    panel.add_child(preview_note)
+    var opening_note := Label.new()
+    opening_note.text = "New Game starts the unfinished opening."
+    panel.add_child(opening_note)
     if not play.disabled:
         play.grab_focus()
     elif not new_game.disabled:

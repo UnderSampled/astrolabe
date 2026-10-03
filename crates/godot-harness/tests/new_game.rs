@@ -1,9 +1,9 @@
-//! Current rough opening through the actual menu, with private saves and logs.
+//! Normal New Game checkpoint through the actual menu, with private saves and logs.
 use anyhow::{Context, Result, ensure};
 use std::{fs, path::PathBuf, process::Command};
 
 #[test]
-#[ignore = "requires freshly generated local manor and Godot; current-state preview, not cinematic parity"]
+#[ignore = "requires current generated manor and Godot; walk checkpoint, full intro parity pending"]
 fn menu_new_game_preserves_slot_and_restarts_original_opening() -> Result<()> {
     let project = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../godot");
     ensure!(
@@ -30,8 +30,19 @@ fn menu_new_game_preserves_slot_and_restarts_original_opening() -> Result<()> {
     let evidence = std::env::var_os("ASTROLABE_EVIDENCE_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| temporary.path().join("evidence"))
-        .join("new-game-preview");
+        .join("new-game-opening");
     fs::create_dir_all(&evidence)?;
+    // Keep the actual full source compilation even when a runtime assertion fails.
+    for name in [
+        "generated/astrolabe-manifest.json",
+        "generated/hype/levels/manoir/ai/models/154.gd",
+        "generated/hype/levels/manoir/ai/models/210.gd",
+    ] {
+        fs::copy(
+            project.join(name),
+            evidence.join(PathBuf::from(name).file_name().unwrap()),
+        )?;
+    }
     let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
     let syntax = temporary.path().join("syntax");
     astrolabe::godot::support::initialize(&syntax)?;
@@ -86,7 +97,7 @@ fn menu_new_game_preserves_slot_and_restarts_original_opening() -> Result<()> {
         .env_remove("WAYLAND_DISPLAY")
         .env("XDG_SESSION_TYPE", "x11")
         .output()
-        .context("launch New Game preview in isolated Xvfb")?;
+        .context("launch normal New Game in isolated Xvfb")?;
     let log = format!(
         "status: {}\nstdout:\n{}\nstderr:\n{}",
         output.status,
@@ -96,33 +107,26 @@ fn menu_new_game_preserves_slot_and_restarts_original_opening() -> Result<()> {
     fs::write(evidence.join("stdout.log"), &log)?;
     // A rough opening deliberately retains unsupported-AI failures. All
     // parser, renderer, exit-status and other engine errors remain fatal.
-    ensure!(output.status.success(), "preview process failed: {log}");
+    ensure!(output.status.success(), "New Game process failed: {log}");
     ensure!(
         !log.contains("SCRIPT ERROR:"),
-        "preview script failed: {log}"
+        "New Game script failed: {log}"
     );
     ensure!(
         log.lines()
             .filter(|line| line.starts_with("ERROR:"))
             .all(|line| line.starts_with("ERROR: Unsupported compiled behavior:")),
-        "unexpected preview error: {log}"
+        "unexpected New Game error: {log}"
     );
     ensure!(
-        log.contains("NEW_GAME_PREVIEW_SMOKE_OK"),
-        "preview marker missing: {log}"
+        log.contains("NEW_GAME_OPENING_CHECKPOINT_OK"),
+        "New Game checkpoint marker missing: {log}"
     );
     let result: serde_json::Value = serde_json::from_slice(&fs::read(report)?)?;
     ensure!(result["status"] == "passed" && result["save_preserved"] == true);
-    for name in [
-        "generated/astrolabe-manifest.json",
-        "generated/hype/levels/manoir/ai/models/154.gd",
-        "generated/hype/levels/manoir/ai/models/210.gd",
-    ] {
-        fs::copy(
-            project.join(name),
-            evidence.join(PathBuf::from(name).file_name().unwrap()),
-        )?;
-    }
-    println!("Current New Game preview evidence: {}", evidence.display());
+    println!(
+        "Normal New Game checkpoint evidence: {}",
+        evidence.display()
+    );
     Ok(())
 }
