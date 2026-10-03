@@ -4,6 +4,13 @@ use crate::model::{AssetPath, ai::*, character::Perso, content::ContentSource, i
 use anyhow::{Result, ensure};
 use std::{collections::BTreeSet, fmt::Write as _};
 
+fn waypoint_constant(reference: &crate::model::AssetRef<crate::model::route::Waypoint>) -> String {
+    format!(
+        "waypoint_{}",
+        super::digest(reference.path.as_str().as_bytes())
+    )
+}
+
 pub(super) fn export_program(
     project: &mut Project,
     source: &mut impl ContentSource,
@@ -88,7 +95,23 @@ pub(super) fn export_program(
         .first()
         .map(|r| source.load(&r.family))
         .transpose()?;
-    let script = compile_with_templates(model, &events, family.as_deref(), &templates)?;
+    let mut waypoints = Vec::new();
+    for reference in model.waypoint_references() {
+        if waypoints.iter().any(|(r, _)| r == reference) {
+            continue;
+        }
+        let point = source.load(reference)?;
+        point.validate_reference(&reference.path)?;
+        point.validate()?;
+        // Fixed waypoints lower to native vector constants at conversion,
+        // just as route points lower to Curve3D control points. Relative
+        // bindings remain explicit failures when the source reaches them.
+        waypoints.push((
+            reference.clone(),
+            point.relative_actor.is_none().then_some(point.position),
+        ));
+    }
+    let script = compile_with_templates(model, &events, family.as_deref(), &templates, &waypoints)?;
     project.write(path.clone(), script.as_bytes())?;
     Ok(path)
 }
@@ -105,13 +128,17 @@ pub fn compile_for_family(
     events: &[(crate::model::audio::SoundEventLink, String)],
     family: Option<&crate::model::character::Family>,
 ) -> Result<String> {
-    compile_with_templates(model, events, family, &[])
+    compile_with_templates(model, events, family, &[], &[])
 }
 fn compile_with_templates(
     model: &AiModel,
     events: &[(crate::model::audio::SoundEventLink, String)],
     family: Option<&crate::model::character::Family>,
     templates: &[(crate::model::AssetRef<Perso>, String)],
+    waypoints: &[(
+        crate::model::AssetRef<crate::model::route::Waypoint>,
+        Option<[f32; 3]>,
+    )],
 ) -> Result<String> {
     model.validate()?;
     for action in model.state_references() {
@@ -128,6 +155,17 @@ fn compile_with_templates(
         "@export var source_model_path: String = {}",
         quoted(model.path.as_str())
     )?;
+    for reference in model.waypoint_references() {
+        ensure!(
+            waypoints.iter().any(|(r, _)| r == reference),
+            "AI waypoint requires conversion binding: {}",
+            reference.path
+        );
+    }
+    for (reference, position) in waypoints {
+        let value = position.map(super::vec3).unwrap_or_else(|| "null".into());
+        writeln!(out, "const {} = {value}", waypoint_constant(reference))?;
+    }
     let actor_targets = model.actor_field_targets();
     for (i, _) in actor_targets.iter().enumerate() {
         writeln!(out, "@export var actor_brain_{i}_path: NodePath")?;
@@ -419,6 +457,7 @@ fn comparison_code(
 fn needs_guard(e: &Expression, model: &AiModel) -> bool {
     match e {
         Expression::Unsupported(_)
+        | Expression::WaypointPosition(_)
         | Expression::CollideWithNothing
         | Expression::LaserDirection
         | Expression::MagicCurrentSpell
@@ -473,6 +512,20 @@ fn guarded_expression(
     let pad = "    ".repeat(depth);
     let exit = flow.exit();
     Ok(match e {
+        Expression::WaypointPosition(reference) => {
+            let value = waypoint_constant(reference);
+            let local = format!("waypoint_position_{}", flow.local);
+            flow.local += 1;
+            writeln!(
+                out,
+                "{pad}var {local} = {value}\n{pad}if typeof({local}) != TYPE_VECTOR3:\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                quoted(&format!(
+                    "{} requires resolved absolute waypoint {}",
+                    model.path, reference.path
+                ))
+            )?;
+            local
+        }
         Expression::Unsupported(fragment) => {
             let id = flow.local;
             flow.local += 1;
@@ -742,6 +795,7 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         Expression::Real(v) => format!("{v:?}"),
         Expression::IntegerCast(value) => format!("int({})", expression(value, model)?),
         Expression::SelfPosition => "character().source_position()".into(),
+        Expression::WaypointPosition(reference) => waypoint_constant(reference),
         Expression::GameTime => "character().source_game_time()".into(),
         Expression::TimeElapsed { start, duration } => format!(
             "source_time_elapsed(int({}), int({}))",
@@ -1359,18 +1413,52 @@ fn statements(
                 )?;
             }
             Statement::CameraChangeTargetedPerso { camera, target } => {
-                ensure!(
-                    *target == ActorKeyword::MainActor,
-                    "camera targeting requires MainActor"
-                );
+                let target = match target {
+                    ActorTarget::Keyword(ActorKeyword::MainActor) => "main_actor".to_string(),
+                    ActorTarget::Keyword(ActorKeyword::SelfActor) => "character()".to_string(),
+                    ActorTarget::Reference(reference) => {
+                        let local = format!("camera_target_{}", flow.local);
+                        flow.local += 1;
+                        writeln!(
+                            out,
+                            "{pad}var {local} := character().source_actor_node({})",
+                            quoted(reference.path.as_str())
+                        )?;
+                        local
+                    }
+                };
                 let failure = quoted(&format!(
                     "{} requires camera target state for {}",
                     model.path, camera.path
                 ));
                 writeln!(
                     out,
-                    "{pad}if not is_instance_valid(main_actor):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if not character().source_camera_change_targeted_perso({}, main_actor):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}",
+                    "{pad}if not is_instance_valid({target}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if not character().source_camera_change_targeted_perso({}, {target}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}",
                     quoted(&camera.path.to_string())
+                )?;
+            }
+            Statement::CameraChangeState { camera, state } => {
+                let value = guarded_expression(out, state, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if not character().source_camera_change_state({}, int({value})):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(camera.path.as_str()),
+                    quoted(&format!(
+                        "{} requires supported camera state for {}",
+                        model.path, camera.path
+                    ))
+                )?;
+            }
+            Statement::SetActorAbsolutePosition { actor, position } => {
+                let value = guarded_expression(out, position, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if not character().source_actor_set_absolute_position({}, {value}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(actor.path.as_str()),
+                    quoted(&format!(
+                        "{} requires absolute position receiver {}",
+                        model.path, actor.path
+                    ))
                 )?;
             }
             Statement::CameraUpdatePosition { .. } => {

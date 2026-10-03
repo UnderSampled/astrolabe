@@ -4,6 +4,7 @@ extends Camera3D
 ## Follow modes, viewport selection and procedure reset fields remain separate.
 
 @export var motion_mode: int = 0
+@export var initial_motion_mode: int = 0
 @export var actor_offset: Vector3 = Vector3.ZERO
 @export var look_offset: Vector3 = Vector3.ZERO
 
@@ -16,6 +17,18 @@ func source_change_targeted_perso(actor: Node3D) -> bool:
     if not is_instance_valid(actor):
         return false
     targeted_actor = actor
+    return true
+
+## 00547be0 restores the original preset for -1 and leaves equal modes alone.
+## The observed opening transition 0 -> 3 has no extra reset branches.
+## Other transitions require follow/obstruction state that is not mapped yet.
+func source_change_state(state: int) -> bool:
+    var selected := initial_motion_mode if state == -1 else state
+    if selected == motion_mode:
+        return true
+    if motion_mode not in [0,3] or selected not in [0,3]:
+        return false
+    motion_mode = selected
     return true
 
 ## Hype 0051c8d0/0051d140 rotate the two offsets through the target's rotation.

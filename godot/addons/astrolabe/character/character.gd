@@ -594,6 +594,27 @@ func source_camera_update_position() -> bool:
         return false
     return bool(camera.call("source_update_position"))
 
+## Procedure 157 selects the referenced camera's supported motion state.
+func source_camera_change_state(camera_asset: String, state: int) -> bool:
+    var actor := source_actor_node(camera_asset)
+    if actor == null:
+        return false
+    var camera := actor.get_node_or_null("SourceCamera")
+    if camera == null or not camera.has_method("source_change_state"):
+        return false
+    return bool(camera.call("source_change_state", state))
+
+## Procedure 253 on a bound Ultra receiver writes its world translation.
+## AI vectors use source coordinates; convert once at this native boundary.
+func source_actor_set_absolute_position(actor_asset: String, point: Vector3) -> bool:
+    if not point.is_finite():
+        return false
+    var actor := source_actor_node(actor_asset)
+    if actor == null or not actor.is_inside_tree():
+        return false
+    actor.global_position = Vector3(point.x, point.z, -point.y)
+    return true
+
 func source_collide_with_slope() -> bool:
     if not is_on_floor(): return false
     # A steep wall can have a positive vertical component. Use the native

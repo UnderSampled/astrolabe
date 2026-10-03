@@ -316,3 +316,253 @@ fn imported_camera_rule_aims_at_manor_helpers_while_native_eye_moves() -> Result
     );
     Ok(())
 }
+
+/// A checked, contiguous section of the original World initialization schedule.
+/// The prefix has unsupported presentation/game-state calls, so this excerpt
+/// is component evidence and must never be reported as the full opening.
+fn opening_shot_excerpt(
+    model: &astrolabe::model::ai::AiModel,
+) -> Result<Vec<astrolabe::model::ai::Statement>> {
+    use astrolabe::model::ai::{ActorTarget, BehaviorGroup, Comparison, Expression, Statement};
+    ensure!(model.path.as_str() == "level:/ai/models/154" && model.name == "IWorld_Manoir");
+    let behavior = model
+        .normal
+        .as_ref()
+        .context("World normal set")?
+        .behaviors
+        .iter()
+        .find(|b| b.id == 2)
+        .context("World initial behavior 2")?;
+    let original = &behavior
+        .schedule
+        .as_ref()
+        .context("World initialization schedule")?
+        .statements;
+    let then = original.iter().find_map(|s| match s {
+        Statement::If { condition: Expression::Compare { left, operation: Comparison::Equal, right }, then, .. }
+            if matches!(left.as_ref(), Expression::ActorFieldRead {actor, variable:147} if actor.path.as_str()=="fix:/persos/15") && **right == Expression::Integer(0) => Some(then),
+        _ => None,
+    }).context("first-visit opening branch")?;
+    ensure!(then.len() >= 12);
+    let shots = then[then.len() - 12..].to_vec();
+    ensure!(
+        astrolabe::model::ai::Script {
+            statements: shots.clone()
+        }
+        .unsupported_fragments()
+        .is_empty()
+    );
+    for (shot, (helper, waypoint)) in [(33, 86), (18, 84), (19, 82)].into_iter().enumerate() {
+        let offset = shot * 4;
+        let camera_path = "level:/persos/world/0/2";
+        ensure!(
+            matches!(&shots[offset], Statement::CameraChangeTargetedPerso {camera,target:ActorTarget::Reference(target)} if camera.path.as_str()==camera_path && target.path.as_str()==format!("level:/persos/world/0/{helper}"))
+        );
+        ensure!(
+            matches!(&shots[offset+1], Statement::SetActorAbsolutePosition {actor,position:Expression::WaypointPosition(point)} if actor.path.as_str()==camera_path && point.path.as_str()==format!("level:/waypoints/17-1/{waypoint}"))
+        );
+        ensure!(
+            matches!(&shots[offset+2], Statement::CameraChangeState {camera,state:Expression::Integer(3)} if camera.path.as_str()==camera_path)
+        );
+    }
+    ensure!(
+        shots[3]
+            == Statement::Wait {
+                milliseconds: Expression::Integer(3600)
+            }
+    );
+    ensure!(
+        shots[7]
+            == Statement::Wait {
+                milliseconds: Expression::Integer(4500)
+            }
+    );
+    ensure!(
+        matches!(&shots[11], Statement::ChangeBehavior {target,pause_after:false} if target.model.path==model.path && target.group==BehaviorGroup::Normal && target.behavior==3)
+    );
+    Ok(shots)
+}
+
+#[test]
+#[ignore = "requires local Hype; source/Rete evidence without native execution"]
+fn manor_opening_camera_commands_and_waypoints_survive_rete() -> Result<()> {
+    use astrolabe::model::{ai::AiModel, route::Waypoint};
+    let game = std::env::var_os("ASTROLABE_GAME_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "disc".into());
+    let mut imported =
+        astrolabe::openspace::content::import_scene(&game, Selection::hype("manoir", "en")?)?;
+    let reference = AssetRef::<AiModel>::new("level:/ai/models/154")?;
+    let original = imported.load(&reference)?;
+    let shots = opening_shot_excerpt(&original)?;
+    let points = [86, 84, 82]
+        .into_iter()
+        .map(|n| {
+            imported.load(&AssetRef::<Waypoint>::new(format!(
+                "level:/waypoints/17-1/{n}"
+            ))?)
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let observed: [[f64; 3]; 3] = [
+        [-16.6989136, 155.743668, 33.2094803],
+        [-8.26678085, 147.569885, 41.2058792],
+        [-11.9290009, 158.426208, 34.5001259],
+    ];
+    for (point, eye) in points.iter().zip(observed) {
+        ensure!(point.relative_actor.is_none());
+        ensure!(
+            point
+                .position
+                .iter()
+                .zip(eye)
+                .all(|(a, b)| (f64::from(*a) - b).abs() < 0.00005),
+            "waypoint {} differs from observed original eye",
+            point.path
+        );
+    }
+    let temp = tempfile::tempdir()?;
+    astrolabe::app::save_rete(&mut imported, temp.path())?;
+    let (mut reopened, _) = rete::Store::open(temp.path())?;
+    ensure!(*reopened.load(&reference)? == *original);
+    ensure!(opening_shot_excerpt(reopened.load(&reference)?.as_ref())? == shots);
+    for point in points {
+        ensure!(*reopened.load(&AssetRef::<Waypoint>::from_path(point.path.clone()))? == *point);
+    }
+    let camera = reopened.load(&AssetRef::<Perso>::new("level:/persos/world/0/2")?)?;
+    ensure!(camera.camera.as_ref().context("source camera")?.parameters[1].mode == 0);
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires local Hype and Godot; actual three-shot excerpt, not full intro acceptance"]
+fn imported_manor_opening_shot_excerpt_selects_eyes_targets_and_waits() -> Result<()> {
+    use astrolabe::model::ai::{AiModel, Script};
+    use sha2::{Digest, Sha256};
+    let temp = tempfile::tempdir()?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    let evidence_root = std::env::var_os("ASTROLABE_EVIDENCE_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "TestResults".into());
+    fs::create_dir_all(&evidence_root)?;
+    let evidence = evidence_root.canonicalize()?.join(format!(
+        "manor-source-shot-excerpt-{}",
+        SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos()
+    ));
+    fs::create_dir(&evidence)?;
+    let syntax = temp.path().join("syntax");
+    fs::create_dir(&syntax)?;
+    fs::write(syntax.join("project.godot"), "config_version=5\n")?;
+    fs::write(
+        syntax.join("check_manor_shots.gd"),
+        include_bytes!("check_manor_shots.gd"),
+    )?;
+    let parser_log = evidence.join("parser.log");
+    godot::run_godot(
+        &engine,
+        &syntax,
+        &[
+            "--headless",
+            "--log-file",
+            parser_log.to_str().context("parser log path")?,
+            "--check-only",
+            "--script",
+            "res://check_manor_shots.gd",
+        ],
+        Duration::from_secs(10),
+    )?;
+    ensure!(
+        fs::metadata(&parser_log)?.len() <= 1024 * 1024
+            && !fs::read_to_string(&parser_log)?.contains("ERROR:")
+    );
+    let game = std::env::var_os("ASTROLABE_GAME_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "disc".into());
+    let selection = Selection::hype("manoir", "en")?;
+    let mut imported = astrolabe::openspace::content::import_scene(&game, selection.clone())?;
+    let model_ref = AssetRef::<AiModel>::new("level:/ai/models/154")?;
+    let original = imported.load(&model_ref)?;
+    let shots = opening_shot_excerpt(&original)?;
+    let original_hash = format!("{:x}", Sha256::digest(rete::encode(original.as_ref())?));
+    let camera_model_ref = AssetRef::<AiModel>::new("fix:/ai/models/437")?;
+    let camera_model = imported.load(&camera_model_ref)?;
+    let camera_hash = format!("{:x}", Sha256::digest(rete::encode(camera_model.as_ref())?));
+    let rete_root = temp.path().join("rete");
+    astrolabe::app::save_rete(&mut imported, &rete_root)?;
+    let (mut reopened, _) = rete::Store::open(&rete_root)?;
+    ensure!(
+        *reopened.load(&model_ref)? == *original,
+        "full source model changed during Rete round trip"
+    );
+    let camera_ref = AssetRef::<Perso>::new("level:/persos/world/0/2")?;
+    let camera = reopened.load(&camera_ref)?;
+    ensure!(camera.camera.as_ref().context("source camera")?.parameters[1].mode == 0);
+    let mut excerpt = (*original).clone();
+    let behavior = excerpt
+        .normal
+        .as_mut()
+        .unwrap()
+        .behaviors
+        .iter_mut()
+        .find(|b| b.id == 2)
+        .unwrap();
+    behavior.schedule = Some(Script {
+        statements: shots.clone(),
+    });
+    let fixture_hash = format!("{:x}", Sha256::digest(rete::encode(&excerpt)?));
+    // Only the temporary World schedule is narrowed. All selected commands,
+    // waits, references and other behaviors remain those of the source model.
+    reopened.save(&model_ref, &excerpt)?;
+    drop(reopened);
+    let (mut reopened, package) = rete::Store::open(&rete_root)?;
+    ensure!(*reopened.load(&model_ref)? == excerpt && *reopened.load(&camera_ref)? == *camera);
+    ensure!(
+        *reopened.load(&camera_model_ref)? == *camera_model,
+        "camera AI changed in excerpt fixture"
+    );
+    fs::write(
+        evidence.join("fixture.json"),
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "scene":"manoir","model":model_ref.path,"original_model_rete_sha256":original_hash,
+        "fixture_model_rete_sha256":fixture_hash,"ai_modified":true,
+        "camera_model_rete_sha256":camera_hash,"camera_ai_modified":false,
+            "extraction":"World behavior 2, first-visit branch, final 12 original statements (source nodes 909 through 947); earlier initialization/branch guards are excluded",
+            "commands":shots,"source_mode":0,"fixture_mode_edit":false,
+            "setup":"Other Brains held; viewport activated by harness. World excerpt clock/coroutine driven on native physics frames; unchanged camera rule invoked for aiming. Camera eye/target/mode selected only by the imported source commands.",
+            "pending":["complete initialization and first-visit guards","remaining opening shots","dialogue and presentation","full approximately 209-second intro"]
+        }))?,
+    )?;
+    let project = temp.path().join("project");
+    godot::export(&mut reopened, &package.roots, selection, &project, &engine)?;
+    fs::write(
+        project.join("check_manor_shots.gd"),
+        include_bytes!("check_manor_shots.gd"),
+    )?;
+    // Preserve the compiled source section after the disposable project exits.
+    fs::copy(
+        project.join("generated/hype/levels/manoir/ai/models/154.gd"),
+        evidence.join("compiled-world-excerpt.gd"),
+    )?;
+    let log = evidence.join("godot.log");
+    let report = evidence.join("report.json");
+    let output = godot::run_godot_gameplay(
+        &engine,
+        &project,
+        &[
+            "--headless",
+            "--log-file",
+            log.to_str().context("Godot log path")?,
+            "--script",
+            "res://check_manor_shots.gd",
+            "--",
+            report.to_str().context("shot report path")?,
+        ],
+        Duration::from_secs(25),
+    )?;
+    fs::write(evidence.join("stdout.log"), &output)?;
+    ensure!(output.contains("MANOR_SOURCE_SHOT_EXCERPT_OK"), "{output}");
+    println!(
+        "Original three-shot excerpt evidence: {}",
+        evidence.display()
+    );
+    Ok(())
+}

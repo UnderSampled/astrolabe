@@ -1,5 +1,50 @@
 # In-engine manor opening — source checkpoint, 2026-10-03
 
+## Original shot-command slice, v8 prepared; native validation pending
+
+Validated aiming is checkpointed as `b436f7c14cf4b68965b5503c7c60924d5b283684`.
+The next commands come from `IWorld_Manoir` model 154, its actual initial normal
+behavior 2. In the first-visit branch (`Global.dsg_147 == 0`), source nodes
+909–947 select helper 33/waypoint 86, wait 3600 ms, select helper 18/waypoint 84,
+wait 4500 ms, then select helper 19/waypoint 82 and change to behavior 3.
+Each cut calls procedure 160, Ultra(camera, procedure 253(function 3(waypoint)))
+and procedure 157(camera, 3), in that order. Controller 334 is a later load
+trigger gated on World behavior 0, not evidence of the first opening driver.
+
+Support interface 44 implements these calls through native target references,
+global position and scoped 0/3 mode transitions. Script-only waypoints now use
+the same promoted 28-byte decoder and meaningful asset identity as route points.
+Godot resolves fixed positions to vector constants during conversion; relative
+bindings fail when reached. Source keyword target serialization remains byte
+compatible, so Rete schema remains 37. The scoped mode handler also supports
+equal-state requests and -1 restoring the initial preset, without viewport
+activation or follow/obstruction/reset internals.
+
+Source/Rete checks confirm all three waypoint positions match the original
+captured eyes within 0.00005 units and that the full source model and waypoint
+assets survive save/reload; the camera stays in its original mode 0. All 33
+partial-AI codec checks pass, including exact reconstruction of target, Ultra
+placement, waypoint and state nodes and unresolved-binding preservation. The
+keyword camera compiler regression also passes. Owned preflight evidence is
+`TestResults/manor-source-shots-v8-{codec,source,target}-preflight-sol-20261003`
+(`.log` and `.json`). The codec reporting wrapper raised an AttributeError
+after its supervised child passed; its saved supervisor result records exit 0,
+41.191 seconds and clean cleanup. Later wrappers use the actual Result fields.
+
+The next Luna case deliberately extracts the last 12 unchanged statements from
+that source branch into the temporary World schedule. `fixture.json` records
+both full-source and excerpt hashes and `ai_modified: true`; camera model 437
+remains unchanged. Earlier initialization/branch guards and other Brains are
+held. Native physics frames drive the existing Brain clock/coroutine, and the
+original camera rule aims each selected shot. Assertions alone contain the
+recorded eyes and helpers; the harness does not assign camera eye/target/mode.
+Viewport activation remains setup. Three cuts at 0/3600/8100 ms and transition
+to behavior 3 are the bounded hypothesis, not full original opening acceptance.
+Syntax preflight precedes conversion; gameplay has a 25-second deadline. Native
+syntax, behavior and rendered evidence are still pending. Full initialization,
+remaining shots, dialogue/presentation and the approximately 209-second handoff
+remain open. No original script-memory edits were needed for this slice.
+
 ## Native mode-3 aiming acceptance, v7
 
 Support interface 43 exports the active mode and actor/look offsets into native

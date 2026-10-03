@@ -1,7 +1,9 @@
 //! Hype's eight-byte AI nodes map directly into useful typed trees.
 //! 005217d0 initializes reserved bytes; 00521780 counts through kind-8 sentinel.
 use super::codec::FormatCodec;
-use crate::model::{AssetRef, ai::*, audio::SoundEventLink, character::Perso, io::FormatSupport};
+use crate::model::{
+    AssetRef, ai::*, audio::SoundEventLink, character::Perso, io::FormatSupport, route::Waypoint,
+};
 use anyhow::{Context, Result, bail, ensure};
 use binrw::{BinRead, BinWrite};
 use std::{collections::BTreeMap, io::Cursor};
@@ -30,6 +32,8 @@ pub struct AiScriptCodec {
     pub behavior_handles: Vec<(BehaviorRef, u32)>,
     pub actors: BTreeMap<usize, AssetRef<Perso>>,
     pub actor_handles: Vec<(AssetRef<Perso>, u32)>,
+    pub waypoints: BTreeMap<usize, AssetRef<Waypoint>>,
+    pub waypoint_handles: Vec<(AssetRef<Waypoint>, u32)>,
 }
 impl FormatCodec for AiScriptCodec {
     type Value = Script;
@@ -358,7 +362,7 @@ impl Parser<'_> {
                 (4, 266) => Statement::SetDisplayVisible(false),
                 (4, 267) => Statement::SetDisplayVisible(true),
                 (4, 445) => Statement::ChangeSighting(self.expression(indent + 1)?),
-                (4, 160) => {
+                (4, 157 | 160) => {
                     let operand = self.at;
                     if !self
                         .nodes
@@ -373,16 +377,54 @@ impl Parser<'_> {
                         continue;
                     }
                     self.take(indent + 1)?;
-                    let (_, target) = self.take(indent + 1)?;
-                    if target.kind != 0 || target.parameter != 5 {
-                        Statement::Unsupported(
-                            self.unsupported(at, "camera targeting requires MainActor".into())?,
-                        )
-                    } else {
-                        Statement::CameraChangeTargetedPerso {
-                            camera: self.codec.actors[&operand].clone(),
-                            target: ActorKeyword::MainActor,
+                    let camera = self.codec.actors[&operand].clone();
+                    if id == 157 {
+                        Statement::CameraChangeState {
+                            camera,
+                            state: self.expression(indent + 1)?,
                         }
+                    } else {
+                        let (target_at, target) = self.take(indent + 1)?;
+                        let target = match (target.kind, target.parameter) {
+                            (0, 4) => Some(ActorTarget::Keyword(ActorKeyword::SelfActor)),
+                            (0, 5) => Some(ActorTarget::Keyword(ActorKeyword::MainActor)),
+                            (24, _) => self
+                                .codec
+                                .actors
+                                .get(&target_at)
+                                .cloned()
+                                .map(ActorTarget::Reference),
+                            _ => None,
+                        };
+                        if let Some(target) = target {
+                            Statement::CameraChangeTargetedPerso { camera, target }
+                        } else {
+                            Statement::Unsupported(
+                                self.unsupported(at, "unbound camera target actor".into())?,
+                            )
+                        }
+                    }
+                }
+                (2, 24) => {
+                    let (receiver_at, receiver) = self.take(indent + 1)?;
+                    let receiver_kind = receiver.kind;
+                    let actor = self.codec.actors.get(&receiver_at).cloned();
+                    if receiver_kind == 24
+                        && let Some(actor) = actor
+                        && self.nodes.get(self.at).is_some_and(|n| {
+                            n.kind == 4 && n.parameter == 253 && n.indent == indent + 1
+                        })
+                    {
+                        self.take(indent + 1)?;
+                        Statement::SetActorAbsolutePosition {
+                            actor,
+                            position: self.expression(indent + 2)?,
+                        }
+                    } else {
+                        Statement::Unsupported(self.unsupported(
+                            at,
+                            "Ultra requires a bound SetPersoAbsolutePosition receiver".into(),
+                        )?)
                     }
                 }
                 (4, 69) => {
@@ -875,6 +917,18 @@ impl Parser<'_> {
             ),
             (3, 164) => Expression::SelfSighting,
             (3, 0) => Expression::SelfPosition,
+            (3, 3) => {
+                let (operand, point) = self.take(indent + 1)?;
+                if point.kind == 29
+                    && let Some(reference) = self.codec.waypoints.get(&operand)
+                {
+                    Expression::WaypointPosition(reference.clone())
+                } else {
+                    Expression::Unsupported(
+                        self.unsupported(at, "unbound absolute waypoint position".into())?,
+                    )
+                }
+            }
             (3, 41) => Expression::GameTime,
             (3, 27) => Expression::RandomInt {
                 lower: Box::new(self.expression(indent + 1)?),
@@ -898,6 +952,17 @@ struct Writer<'a> {
     codec: &'a AiScriptCodec,
 }
 impl Writer<'_> {
+    fn actor_node(&mut self, actor: &AssetRef<Perso>, indent: u8) -> Result<()> {
+        let handle = self
+            .codec
+            .actor_handles
+            .iter()
+            .find(|(r, _)| r == actor)
+            .context("missing actor handle")?
+            .1;
+        self.node(24, handle, indent);
+        Ok(())
+    }
     fn node(&mut self, kind: u8, parameter: u32, indent: u8) {
         self.nodes.push(NodeWire {
             parameter,
@@ -1049,10 +1114,6 @@ impl Writer<'_> {
                     self.expression(direction, indent + 1)?;
                 }
                 Statement::CameraChangeTargetedPerso { camera, target } => {
-                    ensure!(
-                        *target == ActorKeyword::MainActor,
-                        "camera targeting requires MainActor"
-                    );
                     let handle = self
                         .codec
                         .actor_handles
@@ -1062,7 +1123,29 @@ impl Writer<'_> {
                         .1;
                     self.node(4, 160, indent);
                     self.node(24, handle, indent + 1);
-                    self.node(0, 5, indent + 1);
+                    match target {
+                        ActorTarget::Keyword(keyword) => self.node(
+                            0,
+                            if *keyword == ActorKeyword::MainActor {
+                                5
+                            } else {
+                                4
+                            },
+                            indent + 1,
+                        ),
+                        ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
+                    }
+                }
+                Statement::CameraChangeState { camera, state } => {
+                    self.node(4, 157, indent);
+                    self.actor_node(camera, indent + 1)?;
+                    self.expression(state, indent + 1)?;
+                }
+                Statement::SetActorAbsolutePosition { actor, position } => {
+                    self.node(2, 24, indent);
+                    self.actor_node(actor, indent + 1)?;
+                    self.node(4, 253, indent + 1);
+                    self.expression(position, indent + 2)?;
                 }
                 Statement::CameraUpdatePosition {
                     preceded_by_return_zero,
@@ -1427,6 +1510,17 @@ impl Writer<'_> {
             }
             Expression::SelfSighting => self.node(3, 164, indent),
             Expression::SelfPosition => self.node(3, 0, indent),
+            Expression::WaypointPosition(reference) => {
+                let handle = self
+                    .codec
+                    .waypoint_handles
+                    .iter()
+                    .find(|(r, _)| r == reference)
+                    .context("missing waypoint handle")?
+                    .1;
+                self.node(3, 3, indent);
+                self.node(29, handle, indent + 1);
+            }
             Expression::GameTime => self.node(3, 41, indent),
             Expression::RandomInt { lower, upper } => {
                 self.node(3, 27, indent);
@@ -1925,10 +2019,74 @@ mod partial_tests {
             &script.statements[0],
             Statement::CameraChangeTargetedPerso {
                 camera: bound,
-                target: ActorKeyword::MainActor,
+                target: ActorTarget::Keyword(ActorKeyword::MainActor),
             } if bound == &camera
         ));
         assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn camera_shot_commands_reconstruct_bound_actors_waypoint_and_state() -> Result<()> {
+        let (mut codec, bytes) = partial(&[
+            (4, 160, 1),
+            (24, 1234, 2),
+            (24, 5678, 2),
+            (2, 24, 1),
+            (24, 1234, 2),
+            (4, 253, 2),
+            (3, 3, 3),
+            (29, 9012, 4),
+            (4, 157, 1),
+            (24, 1234, 2),
+            (12, 3, 2),
+            (5, 37, 1),
+            (12, 3600, 2),
+            (8, 0, 0),
+        ]);
+        let camera = AssetRef::<Perso>::new("level:/persos/world/0/2")?;
+        let target = AssetRef::<Perso>::new("level:/persos/world/0/33")?;
+        let point = AssetRef::<Waypoint>::new("level:/waypoints/17-1/86")?;
+        for i in [1, 4, 9] {
+            codec.actors.insert(i, camera.clone());
+        }
+        codec.actors.insert(2, target.clone());
+        codec.actor_handles = vec![(camera.clone(), 1234), (target.clone(), 5678)];
+        codec.waypoints.insert(7, point.clone());
+        codec.waypoint_handles.push((point.clone(), 9012));
+        let script = codec.read(&bytes)?;
+        assert_eq!(
+            script.statements,
+            vec![
+                Statement::CameraChangeTargetedPerso {
+                    camera: camera.clone(),
+                    target: ActorTarget::Reference(target)
+                },
+                Statement::SetActorAbsolutePosition {
+                    actor: camera.clone(),
+                    position: Expression::WaypointPosition(point)
+                },
+                Statement::CameraChangeState {
+                    camera,
+                    state: Expression::Integer(3)
+                },
+                Statement::Wait {
+                    milliseconds: Expression::Integer(3600)
+                },
+            ]
+        );
+        assert_eq!(codec.write(&script)?, bytes);
+        assert_eq!(
+            rmp_serde::from_slice::<Script>(&rmp_serde::to_vec_named(&script)?)?,
+            script
+        );
+        let old = rmp_serde::to_vec_named(&ActorKeyword::MainActor)?;
+        let keyword = ActorTarget::Keyword(ActorKeyword::MainActor);
+        assert_eq!(old, rmp_serde::to_vec_named(&keyword)?);
+        assert_eq!(rmp_serde::from_slice::<ActorTarget>(&old)?, keyword);
+        // An unresolved reference remains preserved; no invented point or actor.
+        codec.waypoints.clear();
+        assert!(!codec.read(&bytes)?.unsupported_fragments().is_empty());
         Ok(())
     }
 

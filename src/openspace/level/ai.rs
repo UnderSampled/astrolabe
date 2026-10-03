@@ -397,6 +397,7 @@ fn decode_script(
     sounds: &SoundSites,
     states: &BTreeMap<Address, StateRef>,
     actors: &BTreeMap<Address, AssetRef<Perso>>,
+    waypoints: &BTreeMap<Address, AssetRef<crate::model::route::Waypoint>>,
     behaviors: &BTreeMap<Address, BehaviorRef>,
     script: &SourceScript,
 ) -> Result<Script> {
@@ -425,6 +426,12 @@ fn decode_script(
         {
             codec.actors.insert(i, actor.clone());
         }
+        if n.kind == 29
+            && let Some(target) = s.pointer(add(script.address, i * 8), 0)?
+            && let Some(point) = waypoints.get(&target)
+        {
+            codec.waypoints.insert(i, point.clone());
+        }
         if n.kind == 32
             && !matches!(n.parameter, 0 | u32::MAX)
             && let Some(target) = s.pointer(add(script.address, i * 8), 0)?
@@ -447,6 +454,7 @@ fn decode_set(
     sounds: &SoundSites,
     states: &BTreeMap<Address, StateRef>,
     actors: &BTreeMap<Address, AssetRef<Perso>>,
+    waypoints: &BTreeMap<Address, AssetRef<crate::model::route::Waypoint>>,
     behaviors: &BTreeMap<Address, BehaviorRef>,
     set: &SourceSet,
 ) -> Result<BehaviorSet> {
@@ -464,7 +472,9 @@ fn decode_set(
                         .map(|slot| {
                             slot.as_ref()
                                 .map(|script| {
-                                    decode_script(s, sounds, states, actors, behaviors, script)
+                                    decode_script(
+                                        s, sounds, states, actors, waypoints, behaviors, script,
+                                    )
                                 })
                                 .transpose()
                         })
@@ -472,7 +482,9 @@ fn decode_set(
                     schedule: b
                         .schedule
                         .as_ref()
-                        .map(|script| decode_script(s, sounds, states, actors, behaviors, script))
+                        .map(|script| {
+                            decode_script(s, sounds, states, actors, waypoints, behaviors, script)
+                        })
                         .transpose()?,
                     unknown: b.unknown,
                 })
@@ -684,6 +696,29 @@ pub(super) fn import(
             }
         }
     }
+    // Script-only waypoints are meaningful shared assets too. Use the same
+    // promoted declaration and identity cache as actor-local route points.
+    let mut waypoints = BTreeMap::new();
+    for set in source_sets.values().flat_map(|sets| sets.iter().flatten()) {
+        for behavior in &set.behaviors {
+            for script in behavior
+                .rules
+                .iter()
+                .flatten()
+                .chain(behavior.schedule.iter())
+            {
+                for (i, bytes) in script.bytes.as_chunks::<8>().0.iter().enumerate() {
+                    let node: NodeWire = wire(bytes)?;
+                    if node.kind == 29
+                        && let Some(target) = s.pointer(add(script.address, i * 8), 0)?
+                        && !waypoints.contains_key(&target)
+                    {
+                        waypoints.insert(target, super::way::import_waypoint(s, target, result)?);
+                    }
+                }
+            }
+        }
+    }
     let mut cache: BTreeMap<Address, CachedModel> = BTreeMap::new();
     for (&p, perso_reference) in actors {
         let header: PersoHeaderWire = wire(s.bytes(p, 20)?)?;
@@ -742,11 +777,15 @@ pub(super) fn import(
                     name: perso.name.clone(),
                     normal: sets[0]
                         .as_ref()
-                        .map(|set| decode_set(s, &sounds, states, actors, &behavior_index, set))
+                        .map(|set| {
+                            decode_set(s, &sounds, states, actors, &waypoints, &behavior_index, set)
+                        })
                         .transpose()?,
                     reflex: sets[1]
                         .as_ref()
-                        .map(|set| decode_set(s, &sounds, states, actors, &behavior_index, set))
+                        .map(|set| {
+                            decode_set(s, &sounds, states, actors, &waypoints, &behavior_index, set)
+                        })
                         .transpose()?,
                     variables: infos
                         .iter()

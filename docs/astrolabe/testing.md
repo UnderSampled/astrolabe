@@ -16,6 +16,13 @@ python3 tools/test.py --area movement --local --offline --no-headless
 
 Area runs include declared dependencies and mandatory safeguards. `--local` enables tests that need ignored local game data; without an area it selects the full existing converter inventory. `--release` selects the complete declared matrix. `--list` discovers the selected tests and reports `not_run`, never a pass. See `python3 tools/test.py --help` for fixture and budget options.
 
+The manor camera checks distinguish unchanged camera-rule aiming from the
+original World three-shot excerpt. The latter preserves source targets,
+waypoints, mode requests and 3600/4500-ms waits, while excluding unsupported
+earlier initialization/guards in its explicit temporary AI fixture. Its harness
+supplies viewport activation and native clock stepping, not camera placement.
+Neither component test establishes the complete opening or its final handoff.
+
 For temporary native harnesses, follow [the probe workflow](./probe-workflow.md): syntax before conversion, explicit owned Godot logs, and Orrery's existing isolated-session and display-bridge APIs. It also records the contact shape-index lookup and the boundaries between compile checks and behavior evidence.
 
 Godot runs headless by default. `--no-headless` runs rendered gameplay inside a

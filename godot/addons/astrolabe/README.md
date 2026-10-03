@@ -1,4 +1,4 @@
-# Astrolabe support, interface 43
+# Astrolabe support, interface 44
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -136,9 +136,15 @@ properties. Mode 3 aims the camera actor from its current eye position at the
 selected actor plus those offsets, using `Node3D.look_at`. A zero look offset
 uses the source default of [0,-0.05,0]. The compiled camera rule requests each
 update; an authored native AnimationPlayer can move the eye independently.
-Other motion modes, original shot commands, initial target binding, viewport
-selection and the procedure's other reset fields remain unsupported. Target
-assignment alone does not change the view.
+Camera procedure 160 accepts source keyword and rooted actor targets. Procedure
+157 supports the opening's 0/3 transitions, equal-state requests and -1 restoring
+the exported initial preset; other transitions fail explicitly. A referenced
+Ultra receiver's procedure 253 writes native global position, converting source
+coordinates once. Fixed AI waypoint positions become native vector constants
+during export, using the same meaningful waypoint assets as route curves.
+Actor-relative waypoints fail when reached until their bindings are promoted.
+Initial target binding, viewport selection, follow/obstruction and other reset
+fields remain unsupported. Target assignment alone does not change the view.
 The rooted `StdCamer` now keeps its original model-437 Brain. Its source
 type-11 Perso list is saved as a typed, capacity-bounded designer value;
 compiled AI performs the original membership and append calls. The native

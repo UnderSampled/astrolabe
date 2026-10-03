@@ -179,7 +179,7 @@ fn camera_target_call_keeps_source_actor_and_main_actor() -> Result<()> {
         .unwrap()
         .statements = vec![Statement::CameraChangeTargetedPerso {
         camera: AssetRef::new("level:/persos/world/0/2")?,
-        target: ActorKeyword::MainActor,
+        target: astrolabe::model::ai::ActorTarget::Keyword(ActorKeyword::MainActor),
     }];
     let code = godot::ai::compile(&model, &[])?;
     assert!(

@@ -4,6 +4,7 @@ use super::{
     audio::SoundEventLink,
     character::{Perso, StateRef},
     io::Content,
+    route::Waypoint,
 };
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
@@ -192,11 +193,21 @@ pub enum Statement {
     /// while leaving the actor's native physics and AI active.
     SetDisplayVisible(bool),
     ChangeSighting(Expression),
-    /// Camera procedure 160 receives an AI-referenced camera Perso and the
-    /// source MainActor keyword. The native API stores the target actor.
+    /// Camera procedure 160 stores a keyword or referenced target actor.
     CameraChangeTargetedPerso {
         camera: AssetRef<Perso>,
-        target: ActorKeyword,
+        target: ActorTarget,
+    },
+    /// Source camera procedure 157 selects a motion mode; -1 restores the
+    /// original preset's mode. Unsupported transitions fail at the target API.
+    CameraChangeState {
+        camera: AssetRef<Perso>,
+        state: Expression,
+    },
+    /// Proc_SetPersoAbsolutePosition evaluated on a referenced Ultra receiver.
+    SetActorAbsolutePosition {
+        actor: AssetRef<Perso>,
+        position: Expression,
     },
     /// Source camera procedure 135 requests a position update. The preceding
     /// return-zero form is retained for source reconstruction only; Godot
@@ -275,6 +286,8 @@ pub enum Expression {
     Vector(Box<[Expression; 3]>),
     /// Current actor's world position in source coordinates.
     SelfPosition,
+    /// Func_GetWPAbsolutePosition resolves a meaningful shared waypoint asset.
+    WaypointPosition(AssetRef<Waypoint>),
     /// Source gameplay clock value; its target implementation is owned by Godot.
     GameTime,
     /// Cond_IsTimeElapsed checks the shared gameplay clock against a saved
@@ -377,6 +390,13 @@ pub enum Expression {
 pub enum ActorKeyword {
     SelfActor,
     MainActor,
+}
+/// Preserve existing keyword serialization while allowing a rooted Perso link.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ActorTarget {
+    Keyword(ActorKeyword),
+    Reference(AssetRef<Perso>),
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ButtonQuery {
@@ -734,7 +754,11 @@ impl AiModel {
                     | Statement::ChangeSighting(value)
                     | Statement::SetVectorSpeed(value)
                     | Statement::AddWind(value)
-                    | Statement::SetImpulse(value) => expression(value, out),
+                    | Statement::SetImpulse(value)
+                    | Statement::CameraChangeState { state: value, .. }
+                    | Statement::SetActorAbsolutePosition {
+                        position: value, ..
+                    } => expression(value, out),
                     Statement::ArrayAssign {
                         array,
                         index,
@@ -789,6 +813,18 @@ impl AiModel {
             }
         }));
         out
+    }
+    pub fn waypoint_references(&self) -> Vec<&AssetRef<Waypoint>> {
+        self.expressions()
+            .into_iter()
+            .filter_map(|e| {
+                if let Expression::WaypointPosition(r) = e {
+                    Some(r)
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
     pub fn behavior_references(&self) -> Vec<&BehaviorRef> {
         self.behavior_references_with_owner()
@@ -996,6 +1032,10 @@ impl Script {
                     | Statement::SetVectorSpeed(value)
                     | Statement::AddWind(value)
                     | Statement::SetImpulse(value)
+                    | Statement::CameraChangeState { state: value, .. }
+                    | Statement::SetActorAbsolutePosition {
+                        position: value, ..
+                    }
                     | Statement::Wait {
                         milliseconds: value,
                     } => expression(value, out),
@@ -1037,6 +1077,9 @@ impl Script {
             match e {
                 Expression::Unsupported(fragment) => fragment.validate()?,
                 Expression::Real(v) => ensure!(v.is_finite(), "nonfinite AI real"),
+                Expression::WaypointPosition(r) => {
+                    ensure!(r.path.member().is_none(), "waypoint is a member")
+                }
                 Expression::Variable(id) => {
                     ensure!(usize::from(*id) < variables, "AI variable out of range")
                 }
@@ -1195,6 +1238,23 @@ impl Script {
                     }
                     Statement::Turn { degrees_per_second } => {
                         expression(degrees_per_second, variables, depth + 1, count)?
+                    }
+                    Statement::CameraChangeState { camera, state } => {
+                        ensure!(camera.path.member().is_none(), "camera is a member");
+                        expression(state, variables, depth + 1, count)?;
+                    }
+                    Statement::CameraChangeTargetedPerso { camera, target } => {
+                        ensure!(camera.path.member().is_none(), "camera is a member");
+                        if let ActorTarget::Reference(actor) = target {
+                            ensure!(actor.path.member().is_none(), "camera target is a member");
+                        }
+                    }
+                    Statement::SetActorAbsolutePosition { actor, position } => {
+                        ensure!(
+                            actor.path.member().is_none(),
+                            "position receiver is a member"
+                        );
+                        expression(position, variables, depth + 1, count)?;
                     }
                     Statement::SetVectorSpeed(value)
                     | Statement::AddWind(value)

@@ -1,7 +1,9 @@
 //! Bounded source observations for Hype's actor-local routes. These are research
 //! projections, not persisted assets or a Godot route interpreter.
 use super::{container::wire, records::*, session::SourceSession};
-use crate::model::{AssetPath, Selection, ai::SourceObjectIdentity};
+use crate::model::{
+    AssetPath, AssetRef, Selection, ai::SourceObjectIdentity, io::Content, route::*,
+};
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, path::Path};
@@ -209,6 +211,50 @@ fn read_point(s: &SourceSession, p: Address) -> Result<WaypointInspection> {
     })
 }
 
+fn path(source: &SourceObjectIdentity, kind: &str) -> Result<AssetPath> {
+    let role = match source.role {
+        crate::model::ai::SourceRole::Fix => "fix",
+        crate::model::ai::SourceRole::Level => "level",
+    };
+    AssetPath::new(format!(
+        "{role}:/{kind}/{}-{}/{}",
+        source.block[0], source.block[1], source.allocation
+    ))
+}
+fn point(
+    p: WaypointInspection,
+    result: &mut super::scene::SceneImport,
+) -> Result<AssetRef<Waypoint>> {
+    let value = Waypoint {
+        path: path(&p.source, "waypoints")?,
+        source: p.source,
+        position: p.position,
+        radius: p.radius,
+        relative_actor: p.actor,
+        unknown: p.unknown,
+        tail: p.tail,
+    };
+    value.validate()?;
+    let reference = AssetRef::from_path(value.path.clone());
+    if let Some(existing) = result.waypoints.iter().find(|p| p.path == value.path) {
+        ensure!(
+            *existing == value,
+            "shared waypoint identity has conflicting values"
+        );
+    } else {
+        result.waypoints.push(value);
+    }
+    Ok(reference)
+}
+
+pub(super) fn import_waypoint(
+    s: &SourceSession,
+    address: Address,
+    result: &mut super::scene::SceneImport,
+) -> Result<AssetRef<Waypoint>> {
+    point(read_point(s, address)?, result)
+}
+
 /// Promote the same declarations used by inspection into the useful asset graph.
 pub(super) fn import_bindings(
     s: &SourceSession,
@@ -217,42 +263,6 @@ pub(super) fn import_bindings(
     types: [u32; 3],
     result: &mut super::scene::SceneImport,
 ) -> Result<Vec<crate::model::route::RouteBinding>> {
-    use crate::model::{AssetRef, io::Content, route::*};
-    fn path(source: &SourceObjectIdentity, kind: &str) -> Result<AssetPath> {
-        let role = match source.role {
-            crate::model::ai::SourceRole::Fix => "fix",
-            crate::model::ai::SourceRole::Level => "level",
-        };
-        AssetPath::new(format!(
-            "{role}:/{kind}/{}-{}/{}",
-            source.block[0], source.block[1], source.allocation
-        ))
-    }
-    fn point(
-        p: WaypointInspection,
-        result: &mut super::scene::SceneImport,
-    ) -> Result<AssetRef<Waypoint>> {
-        let value = Waypoint {
-            path: path(&p.source, "waypoints")?,
-            source: p.source,
-            position: p.position,
-            radius: p.radius,
-            relative_actor: p.actor,
-            unknown: p.unknown,
-            tail: p.tail,
-        };
-        value.validate()?;
-        let reference = AssetRef::from_path(value.path.clone());
-        if let Some(existing) = result.waypoints.iter().find(|p| p.path == value.path) {
-            ensure!(
-                *existing == value,
-                "shared waypoint identity has conflicting values"
-            );
-        } else {
-            result.waypoints.push(value);
-        }
-        Ok(reference)
-    }
     let observed = read_actor_ways(s, perso, actor.clone(), types)?;
     let mut bindings = Vec::new();
     for (slot, progress) in observed.slots.into_iter().zip(observed.progress) {

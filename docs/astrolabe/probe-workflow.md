@@ -22,6 +22,30 @@ reuse its output directory or restart its session. `--list` builds and discovers
 tests without executing them; it reports `not_run`. A build or parser check is
 preflight evidence, not a behavior pass.
 
+## Checked original AI operand experiments
+
+An original-game experiment may change a script operand in an isolated Orrery
+session to distinguish competing API interpretations. Use `prepare_isolated_config`
+and `GameSession::write_memory` (expected-old comparison, stopped threads and
+read-back), with an unchanged control. Preserve original files and saves. This is
+a diagnostic variation, separate from unchanged-source or rebuilt-package acceptance.
+
+Resolve the checked live actor, shared AI model, behavior and script slot first;
+record executable/save hashes, script extent and original bytes. Shared script
+storage can affect every instance of that model. Keep node count, category,
+indentation, sentinel and allocation/layout intact; prefer one scalar operand.
+Do not substitute a file address for a live pointer or change a reference whose
+binding is unresolved. The encoder and guarded-write primitives exist, but there
+is no general script-injection or script-resolution API.
+
+Establish that the edit precedes the relevant execution. A pause after an
+initialization call is insufficient for a one-shot test. Record changed bytes,
+read-back, reached state and the observations that distinguish the alternatives.
+Restore with the expected edited bytes or stop the owned process on uncertainty.
+Stopped-byte observations alone do not prove completed-update consumption or
+API call timing. Give the authorized native worker exact edits, deadlines and
+capture instructions; keep this within the existing probe workflow.
+
 ## Parse Godot harnesses before converting a level
 
 Place syntax preflight before source import, Rete setup and full-scene export.

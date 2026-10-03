@@ -68,6 +68,19 @@ coredump status is unverified because the system bus was unavailable. Evidence:
 `TestResults/manor-camera-aim-selection-v7-sol-20261003.log.json` and its
 `.log.d/manor-native-camera-rule-1791035598475331705/` directory.
 
+The next source-grounded slice is World model 154's initial behavior-2 shot
+section (nodes 909–947), rather than the later manor load trigger. Support
+interface 44 now compiles referenced helper targets, absolute placement at
+shared waypoints and the opening's mode-3 requests. Source-only checks pass:
+33 AI codec cases, the original three-shot command/waypoint Rete round trip
+(2.09-second test body), and the keyword target compiler regression. The three
+fixed waypoint positions match original captured eyes within 0.00005 units;
+the camera's file mode remains 0. A bounded native test extracts those 12
+original statements after unsupported initialization, retains the 3600/4500-ms
+waits, and records that AI fixture modification explicitly. Native syntax,
+three-shot behavior and pixels remain pending Luna; this is not full opening
+acceptance. See the [shot checkpoint](cinematic-opening-source-2026-10-03.md).
+
 At Stephen's explicit request, Proc_AddWind is now a documented intentional
 no-op, with typed source/Rete round-trip support. Initialization can pass the
 call; nonzero drift and zero-reset physics remain technical debt. The following
