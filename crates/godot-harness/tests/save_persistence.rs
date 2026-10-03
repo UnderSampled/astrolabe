@@ -27,7 +27,7 @@ fn native_manor_save_survives_fresh_process_and_rejects_bad_slots() -> Result<()
     for (stage, expected) in [
         (
             "write",
-            "SAVE_PROOF wrote mana=23, inventory=2, and dummy dsg_8=true",
+            "SAVE_PROOF wrote mana=23, inventory=2, sentinel=-1 and dummy dsg_8=true; invalid write preserved slot",
         ),
         (
             "reload",
@@ -35,7 +35,7 @@ fn native_manor_save_survives_fresh_process_and_rejects_bad_slots() -> Result<()
         ),
         (
             "corrupt",
-            "SAVE_PROOF corrupt, unsupported version, extra state, and noncanonical inventory keys rejected",
+            "SAVE_PROOF corrupt, unsupported version, extra state, noncanonical inventory keys and quantity=-2 rejected",
         ),
     ] {
         let output = Command::new(&xvfb_run)
