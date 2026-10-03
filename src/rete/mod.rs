@@ -236,6 +236,9 @@ impl Store {
     ) -> Result<()> {
         use crate::model::content::Asset;
         match asset {
+            Asset::DialoguePresentation(value) => {
+                self.save(&AssetRef::from_path(path.clone()), value.as_ref())
+            }
             Asset::Dialogue(value) => self.save(&AssetRef::from_path(path.clone()), value.as_ref()),
             Asset::AiModel(value) => self.save(&AssetRef::from_path(path.clone()), value.as_ref()),
             Asset::Texture(value) => self.save(&AssetRef::from_path(path.clone()), value.as_ref()),
@@ -298,6 +301,7 @@ impl Store {
         use crate::model::content::Asset;
         let asset = Asset::load(self, entry)?;
         Ok(match asset {
+            Asset::DialoguePresentation(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::Dialogue(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::AiModel(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::Texture(value) => serde_json::to_string_pretty(value.as_ref())?,

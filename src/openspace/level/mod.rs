@@ -93,6 +93,7 @@ mod sector_export;
 pub use sector_export::write_sectors;
 
 mod dialogue;
+mod dialogue_presentation;
 mod sound;
 
 mod environment;

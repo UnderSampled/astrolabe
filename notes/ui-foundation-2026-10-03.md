@@ -102,3 +102,41 @@ checks alongside the UI support list, new optional Perso life state in fixtures
 and UI test entries. Main has not changed the support-interface or Rete-schema
 constants from this branch's base. Integration still needs the normal manifest
 inventory check; original inputs and generated output must stay uncommitted.
+
+
+The serialized r3 assignment at clean `f2eb446c7fec15d2c1e3b09865eb28299131970b`
+passed 24 Rust cases and 28 Python checks in 121.984s, with no engine errors,
+timeouts, leaked children or remaining processes. All nine items total 58 lines,
+23 finite and 35 untimed deadlines; voice/callback mappings passed. This is
+component/resource evidence. The accepted end-to-end path is authored New Game
+with imported source AI, compared against the actual original opening.
+
+The subsequent isolated presentation increment promotes one shared source asset
+and generates a native FontFile with 133 Unicode glyphs, fractional metrics,
+source atlas UVs and a native red outline cache. Native Label spans adopt the
+source offsets and first-glyph-center origin. The authored 320x192 frame uses
+nine TextureRects with eight horizontal/four vertical edge tiles and a stretched
+center. Actual Fix GPT/RTP dependencies and CNT samples are read separately from
+maintained support; extracted media stays uncommitted. All five inputs are
+ARGB4444, so their source alpha is retained; center alpha is 170/255. The atlas
+uses no color key. Read-only research
+corroborated Fix GPT stencil slots 18084/18088/18092/18096 against
+DLG_fn_vSNAWriteInFix (0056bbe0). The importer uses explicit bounded profile roots
+through RTP; a provisional PTX channel parser was removed as unnecessary. Fonts
+normal/emphasis have matching geometry and white/red ambient colors. J's UV
+reaches 256/255; preserving that one-texel extrapolation avoids rounding away
+source coverage. Runtime/cache diagnostics and New Game visual comparison are
+pending for this increment. Source reconstruction, letter effects and exact
+fade pacing remain documented debt.
+
+The foundation handoff includes only the four commits through f2eb446. At main
+`e5460cfb38d8c5e4f37cd9e856fac9aa84e534ee`, the three shared paths are support.rs
+(union New Game/route UID and UI support, interface45), cameras.rs (keep new
+camera checks and add optional fixture life state), and test-manifest.json
+(union entries and validate inventory). Sol owns main integration after its
+current New Game session; no main checkout edits are made by this task. Reconcile
+the presentation increment at a clean checkpoint after foundation integration.
+
+The presentation increment bumps support interface to 46 and Rete to schema39;
+regenerate selected data and update maintained support explicitly. Static package
+Clippy/check and the exact source/Rete case pass before native assignment.

@@ -20,8 +20,8 @@ independently in X and Y to the current viewport, preserving source screen
 positions and the fractional bar coverage. Nodes use ordinary Godot layout and
 mouse-filter settings; there is no renderer shim. `source_position_dialog`
 retains the source position. ItemBox3 selects an unframed two-line page; ItemBox1
-selects a framed six-line page regardless of widescreen state. Panel art and
-font metrics are provisional in this first behavioral slice.
+selects a framed six-line page regardless of widescreen state. Source items use a generated native bitmap font and the authored 320x192
+frame scene. Precise rendered parity remains a New Game comparison gate.
 
 An exported level owns one instance of the maintained PackedScene. The exporter
 binds its main actor and converted dialogue resources before saving the level.
@@ -39,7 +39,7 @@ or dialogue state machine should be introduced by bootstrap code.
 
 `model::dialogue::Dialogue` stores stable name/locale, box style, ordered text
 spans, line deadlines, actor owner, a compiled voice-event link and a normal
-behavior completion target. Rete schema 38 persists those values. Source
+behavior completion target. Rete schema 39 persists those values and a shared presentation reference. Source
 addresses and relocation decisions remain in OpenSpace import.
 
 The manor adapter reuses SNA/LZO, pointer-file and relocation codecs for English
@@ -52,20 +52,41 @@ reader remains strict. Source text is Windows-1252, decoded to Unicode with
 undefined bytes rejected.
 
 Export produces native Translation resources plus dialogue/line/span resources,
-with stable keys `hype.dialogue.<name>.<locale>.line<N>.span<N>`. RichTextLabel
-renders messages as literal text and applies emphasis with native text spans.
-It does not interpret source strings as BBCode. TranslationServer registers the
+with stable keys `hype.dialogue.<name>.<locale>.line<N>.span<N>`. Native Label
+instances from the maintained span scene render source items at recorded span
+positions; an authored RichTextLabel fallback supports items without extracted
+presentation. Both treat text literally, including brackets. TranslationServer registers the
 active level's catalogues; an unsupported runtime locale selects the complete
 English bundle, including voice, timing and pagination. Missing translations
 fall back to that bundle's native Translation. Extraction rejects unevidenced
 locales instead of relabeling English data.
 
 This follows Godot's [Translation resources and TranslationServer](https://docs.godotengine.org/en/stable/tutorials/i18n/internationalizing_games.html).
-Original bitmap-font conversion should supply native FontFile resources (Godot
-[supports BMFont](https://docs.godotengine.org/en/stable/classes/class_fontfile.html))
-and authored theme overrides. Font textures remain generated inputs. Source
-span offsets are retained for that work; the current renderer concatenates
-spans and uses the authored default font.
+One shared `DialoguePresentation` asset retains font geometry/UVs/tracking,
+normal/emphasis colors and four frame dependencies. It is useful source data,
+not an engine font allocation or renderer. Installed Fix GPT stencil roots resolve the
+coin/top/middle/side texture inputs through RTP and verified relocations. The
+profile checks GPT extent, explicit root slots, names and dimensions; other Fix
+layouts require additional evidence. Canonical CNT samples and alpha
+are preserved, with the existing semantic color-key conversion used only when
+requested by TextureInfo. No extracted image or generated font is committed.
+
+The exporter creates a native [FontFile](https://docs.godotengine.org/en/stable/classes/class_fontfile.html)
+with all 133 Windows-1252 glyphs mapped to Unicode. Fractional advances, bearings,
+sizes and UV rectangles survive; normal/emphasis fonts have identical geometry
+and differ in material color. Font texture UVs retain the source's one-texel
+edge extrapolation. No system-font fallback substitutes missing glyphs. A
+conversion-time coverage atlas provides the native outline cache for red
+emphasis; native controls draw the white glyph over it. Original subpixel
+blending and final pixels still need comparison on the pinned renderer.
+
+`dialogue_frame.tscn` uses nine TextureRects. The center stretches; top/bottom
+repeat eight 32px tiles and sides repeat four, with mirrored corners. The authored
+fallback panel and theme remain editable. `dialogue_presentation.gd` calibrates
+source font units to 640x480 coordinates. Each span starts at the center of its
+first glyph in the original draw API, so its native label receives a half-first-
+glyph origin adjustment. Lines retain fractional 0.3-font-unit spacing. This
+preserves the API's screen-space result using Godot font resources and controls.
 
 ## State and the AI bridge
 
@@ -132,12 +153,11 @@ establish branching or whole-catalogue coverage. Other entries in the 67-item
 catalogue emit coverage debt; reaching an unavailable item stops explicitly.
 They remain subsequent manor implementation work.
 
-Still required for manor fidelity: original font glyph/advance metrics and frame
-tiles, source span offsets, line reveal and fade pacing, additional dialogue
+Still required for manor fidelity: native font/frame pixel comparisons,
+line reveal and fade pacing, additional dialogue
 items and branching answers, channel/action/icon side effects, armor and
 selected-inventory/weapon values/icons, saved life-state restoration, and original
-vs Godot captures. The current flat panel, text font, emphasis color and HUD
-positions are provisional. Fade geometry exists but unrelated source fade
+vs Godot captures. HUD positions remain provisional. Fade geometry exists but unrelated source fade
 procedures are not promoted by this slice. Native voice teardown follows the
 existing emitter's stoppable-event policy; dialogue-specific interruption parity
 remains to be checked.
@@ -150,4 +170,7 @@ slice and is not a claim of language-package byte reconstruction.
 `tests/ui.rs` declares pure source/Rete checks, a native maintained-component
 contract and a native actual-dialogue/resource export check. Native tests have
 bounded parser preflight and owned temporary output. Original-game parity and
-full-intro acceptance remain separate from those component checks.
+component checks are diagnostic gates. Canonical end-to-end acceptance is the
+normal authored New Game entry with the original imported AI, compared against
+the actual original opening. A demo or a synthetic UI fixture cannot establish
+that integrated result.

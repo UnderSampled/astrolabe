@@ -41,6 +41,9 @@ pub fn export<R: ContentSource>(
                 )
             }
             Asset::Dialogue(_) => {}
+            Asset::DialoguePresentation(value) => {
+                super::dialogue_presentation::export(&mut project, source, &value, &mut written)?;
+            }
             Asset::Sprite(_) => anyhow::bail!("sprite export requires its owning model"),
             Asset::AiModel(model) => {
                 super::ai::export_program(&mut project, source, &model, &mut written)?;

@@ -116,7 +116,7 @@ pub fn export<R: ContentSource>(
                     &super::level::write_light(&light)?,
                 )?;
             }
-            Asset::Dialogue(_) => {
+            Asset::Dialogue(_) | Asset::DialoguePresentation(_) => {
                 anyhow::bail!("dialogue source reconstruction remains unsupported")
             }
             Asset::Sprite(_) => anyhow::bail!("sprite export requires its owning model"),

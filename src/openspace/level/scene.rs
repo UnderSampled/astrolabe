@@ -63,6 +63,7 @@ pub(super) fn global_perso_source(
 }
 
 pub struct SceneImport {
+    pub dialogue_presentation: Option<crate::model::dialogue::DialoguePresentation>,
     pub dialogues: Vec<crate::model::dialogue::Dialogue>,
     pub ai_models: Vec<crate::model::ai::AiModel>,
     pub environments: Vec<crate::model::environment::Environment>,
@@ -99,6 +100,7 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
     let tree = session.tree()?;
     let source = summary(&session, selection, &tree)?;
     let mut result = SceneImport {
+        dialogue_presentation: None,
         dialogues: Vec::new(),
         ai_models: Vec::new(),
         environments: Vec::new(),

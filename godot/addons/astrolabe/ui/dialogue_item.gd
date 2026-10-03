@@ -5,6 +5,7 @@ extends Resource
 @export var translation: Translation
 @export var box: int = 1
 @export var lines: Array[Resource] = []
+@export var presentation: Resource
 @export var voice: Resource
 @export var owner_identity: String
 @export var completion_model: String

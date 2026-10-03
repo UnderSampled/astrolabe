@@ -2,7 +2,12 @@
 use anyhow::Result;
 use astrolabe::{
     godot,
-    model::{Selection, ai::BehaviorGroup, dialogue::Dialogue, io::Content},
+    model::{
+        Selection,
+        ai::BehaviorGroup,
+        dialogue::{Dialogue, DialoguePresentation},
+        io::Content,
+    },
     openspace::level::import_scene,
     rete,
 };
@@ -16,6 +21,41 @@ fn manor_dialogue_localization_voice_and_callback_survive_rete() -> Result<()> {
         .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("disc"));
     let imported = import_scene(&game, &Selection::hype("manoir", "en")?)?;
     assert_eq!(imported.dialogues.len(), 9);
+    let style = imported.dialogue_presentation.as_ref().unwrap();
+    style.validate()?;
+    assert_eq!(style.font_name, "Playmo_Font2_0");
+    assert_eq!(style.glyphs.len(), 133);
+    assert_eq!(style.atlas.size, [256, 256]);
+    assert!(!style.atlas.color_key);
+    assert_eq!(style.normal_color, [1.0; 4]);
+    assert_eq!(style.emphasis_color, [1.0, 0.0, 0.0, 1.0]);
+    assert_eq!(style.tracking, 0.01);
+    let a = style.glyphs.iter().find(|g| g.character == 'A').unwrap();
+    assert_eq!(
+        (a.width, a.half_height, a.vertical_offset),
+        (0.22588237, -0.12705882, -0.01)
+    );
+    let space = style.glyphs.iter().find(|g| g.character == ' ').unwrap();
+    assert_eq!(
+        (space.width, space.half_height, space.uv),
+        (0.1, -0.15, None)
+    );
+    let reopened: DialoguePresentation = rete::decode(&rete::encode(style)?)?;
+    assert_eq!(*style, reopened);
+    for (t, name) in style.frame.iter().zip(["coin", "top", "middle", "side"]) {
+        assert_eq!(
+            t.texture.as_str(),
+            format!("texture:/fixtex/stencil/{name}.tga")
+        );
+        assert_eq!(t.size, [32, 32]);
+    }
+    println!(
+        "MANOR_UI_SOURCE glyphs={} atlas={} frame={:?}",
+        style.glyphs.len(),
+        style.atlas.texture,
+        style.frame
+    );
+
     let library = &imported
         .sound_definitions
         .iter()
@@ -91,6 +131,16 @@ fn manor_dialogue_localization_voice_and_callback_survive_rete() -> Result<()> {
     ] {
         let value = imported.dialogues.iter().find(|d| d.name == name).unwrap();
         value.validate()?;
+        assert!(
+            value
+                .lines
+                .iter()
+                .flat_map(|l| &l.spans)
+                .flat_map(|s| s.text.chars())
+                .all(|c| style.glyphs.iter().any(|g| g.character == c)),
+            "selected source text has a missing native glyph"
+        );
+        assert_eq!(value.presentation.as_ref().unwrap().path, style.path);
         assert_eq!((value.box_style, value.lines.len()), (box_style, count));
         let voice = value.voice.as_ref().unwrap();
         assert_eq!((voice.bank, voice.member), (142, member));

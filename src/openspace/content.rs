@@ -134,6 +134,29 @@ pub fn import_scene(game: &Path, selection: Selection) -> Result<Imported> {
         usage: TextureUsage::Material,
     }
     .read(&read(&game.join("Gamedata/Textures.cnt"))?)?;
+    if let Some(mut presentation) = scene.dialogue_presentation.take() {
+        for texture in std::iter::once(&mut presentation.atlas).chain(&mut presentation.frame) {
+            let found = archive
+                .find_entry(texture.texture.file())
+                .with_context(|| format!("dialogue texture {} absent from CNT", texture.texture))?;
+            ensure!(
+                (
+                    archive.image(found)?.width(),
+                    archive.image(found)?.height()
+                ) == (texture.size[0], texture.size[1]),
+                "dialogue texture/CNT dimensions differ"
+            );
+            texture.texture = found.texture.path.clone();
+            if !imported.assets.contains(&texture.texture) {
+                imported.put(&found.texture, archive.image(found)?.clone(), false)?;
+            }
+        }
+        imported.put(
+            &AssetRef::from_path(presentation.path.clone()),
+            presentation,
+            false,
+        )?;
+    }
     for material in &mut scene.materials {
         if let Some(original) = material.texture() {
             let found = archive

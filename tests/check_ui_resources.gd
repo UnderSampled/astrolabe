@@ -23,11 +23,28 @@ func check() -> void:
     emitter.set_script(Emitter)
     root.add_child(emitter)
     var facts: Array[Dictionary] = []
+    var shared_style: Resource
+    var dialogue: Control = load("res://addons/astrolabe/ui/dialogue.tscn").instantiate()
+    root.add_child(dialogue)
+    dialogue.set_process(false)
     for record in RECORDS:
         var item: Resource = load("res://generated/hype/levels/manoir/dialogue/en/" + str(record[0]) + ".tres")
         if not require(item != null and item.translation is Translation and item.locale == "en", "native Translation/dialogue load"): return
         if not require(item.box == record[1] and item.lines.size() == record[2] and item.completion_normal == record[4], "native box/line/callback source meaning"): return
         if not require(item.completion_model == "level:/ai/models/" + str(record[5]), "native callback model identity"): return
+        if not require(item.presentation != null and item.presentation.font is FontFile, "native source presentation/FontFile"): return
+        var style: Resource = item.presentation
+        if shared_style == null: shared_style = style
+        if not require(style == shared_style, "all nine items share one presentation resource"): return
+        var font: FontFile = style.font
+        var scale: float = 640.0 / 9.3
+        if not require(font.get_font_name() == "Playmo_Font2_0" and not font.allow_system_fallback and font.fixed_size == 21, "native bitmap font identity and fallback policy"): return
+        if not require(font.get_glyph_list(0,Vector2i(21,0)).size() == 133 and font.get_texture_count(0,Vector2i(21,1)) == 1, "native glyph and outline caches"): return
+        var glyph_a: int = font.get_glyph_index(21,65,0)
+        if not require(glyph_a == 65 and font.has_char(233) and is_equal_approx(font.get_glyph_advance(0,21,glyph_a).x,(0.22588237+0.01)*scale), "Unicode mapping/fractional source advances"): return
+        if not require(font.get_glyph_offset(0,Vector2i(21,0),glyph_a).is_equal_approx(Vector2(0.0,(-2.0*0.12705882+0.01)*scale)), "source glyph baseline bearing"): return
+        if not require(style.normal_color == Color.WHITE and style.emphasis_color == Color.RED and is_equal_approx(style.line_spacing(),0.3*scale), "source white text/red emphasis/line spacing"): return
+        if not require(style.corner.get_size() == Vector2(32,32) and style.border.get_size() == Vector2(32,32) and style.center.get_size() == Vector2(32,32) and style.side.get_size() == Vector2(32,32), "source frame texture sizes"): return
         for index in range(item.lines.size()):
             var expected: float = record[6].get(index, 3.4e38)
             var actual: float = item.lines[index].end_seconds
@@ -38,7 +55,21 @@ func check() -> void:
         var span: Resource = item.lines[0].spans[0]
         if not require(item.translation.get_message(span.key) != &"" and not str(span.key).contains("0x"), "stable line/span translation key"): return
         facts.append({"dialogue":item.identity,"lines":item.lines.size(),"voice":item.voice.identity,"seconds":voice.stream.get_length(),"model":item.completion_model,"normal":item.completion_normal})
+        if item.box == 1 or item.identity == "gogood_texte1_manoir":
+            dialogue.position = Vector2(305,10) if item.box == 1 else Vector2(0,405)
+            if not require(dialogue.run(item,1), "actual source item adopts native presentation"): return
+            if not require(not dialogue.text.visible and dialogue.panel.visible == (item.box == 1), "source labels and frame visibility"): return
+            var labels: Array[Node] = dialogue.source_text.get_children()
+            if not require(not labels.is_empty() and labels[0] is Label, "native span controls"): return
+            var label: Label = labels[0]
+            var expected_origin: Vector2 = style.text_origin(dialogue.position,item.box) + Vector2(style.span_origin(item.message(span.key),span.source_offset),0.0)
+            if not require(label.position.is_equal_approx(expected_origin) and label.text == item.message(span.key) and label.get_theme_font("font") == font, "source span offsets and literal native text"): return
+            var panel: Control = dialogue.panel
+            if not require(panel.size == Vector2(320,192) and panel.get_node("Top").stretch_mode == TextureRect.STRETCH_TILE and panel.get_node("Left").stretch_mode == TextureRect.STRETCH_TILE and panel.get_node("Center").stretch_mode == TextureRect.STRETCH_SCALE and not panel.get_node("Fallback").visible, "authored frame repeats edges/stretch center"): return
+            dialogue.cancel()
     print("UI_MANOR_RESOURCES_OK " + JSON.stringify(facts))
+    print("UI_NATIVE_PRESENTATION_OK glyphs=133 source_span_labels=1 frame=320x192")
+    dialogue.queue_free()
     emitter.queue_free()
     await process_frame
     quit(0)

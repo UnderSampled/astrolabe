@@ -1,0 +1,110 @@
+[gd_scene load_steps=3 format=3]
+[ext_resource type="Script" path="res://addons/astrolabe/ui/dialogue_frame.gd" id="script"]
+[sub_resource type="StyleBoxFlat" id="fallback"]
+bg_color = Color(0.16, 0.12, 0.08, 0.92)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0.58, 0.43, 0.23, 1)
+[node name="Panel" type="Control"]
+layout_mode = 0
+offset_right = 320.0
+offset_bottom = 192.0
+mouse_filter = 2
+texture_filter = 2
+script = ExtResource("script")
+[node name="Fallback" type="Panel" parent="."]
+layout_mode = 0
+offset_right = 320.0
+offset_bottom = 192.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("fallback")
+[node name="Center" type="TextureRect" parent="."]
+visible = false
+layout_mode = 0
+offset_left = 32.0
+offset_top = 32.0
+offset_right = 288.0
+offset_bottom = 160.0
+mouse_filter = 2
+expand_mode = 1
+flip_v = true
+[node name="Top" type="TextureRect" parent="."]
+visible = false
+layout_mode = 0
+offset_left = 32.0
+offset_right = 288.0
+offset_bottom = 32.0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 1
+[node name="Bottom" type="TextureRect" parent="."]
+visible = false
+layout_mode = 0
+offset_left = 32.0
+offset_top = 160.0
+offset_right = 288.0
+offset_bottom = 192.0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 1
+flip_v = true
+[node name="Left" type="TextureRect" parent="."]
+visible = false
+layout_mode = 0
+offset_top = 32.0
+offset_right = 32.0
+offset_bottom = 160.0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 1
+flip_v = true
+[node name="Right" type="TextureRect" parent="."]
+visible = false
+layout_mode = 0
+offset_left = 288.0
+offset_top = 32.0
+offset_right = 320.0
+offset_bottom = 160.0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 1
+flip_h = true
+flip_v = true
+[node name="TopLeft" type="TextureRect" parent="."]
+visible = false
+layout_mode = 0
+offset_right = 32.0
+offset_bottom = 32.0
+mouse_filter = 2
+expand_mode = 1
+[node name="TopRight" type="TextureRect" parent="."]
+visible = false
+layout_mode = 0
+offset_left = 288.0
+offset_right = 320.0
+offset_bottom = 32.0
+mouse_filter = 2
+expand_mode = 1
+flip_h = true
+[node name="BottomLeft" type="TextureRect" parent="."]
+visible = false
+layout_mode = 0
+offset_top = 160.0
+offset_right = 32.0
+offset_bottom = 192.0
+mouse_filter = 2
+expand_mode = 1
+flip_v = true
+[node name="BottomRight" type="TextureRect" parent="."]
+visible = false
+layout_mode = 0
+offset_left = 288.0
+offset_top = 160.0
+offset_right = 320.0
+offset_bottom = 192.0
+mouse_filter = 2
+expand_mode = 1
+flip_h = true
+flip_v = true

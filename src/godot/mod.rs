@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 
 mod collision;
 mod dialogue;
+mod dialogue_presentation;
 mod engine;
 mod material;
 mod project;

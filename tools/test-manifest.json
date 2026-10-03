@@ -3683,7 +3683,7 @@
       "prerequisites": [
         "disc"
       ],
-      "fixture": "nine evidenced unchanged English manor dialogues, native text spans, source voice/callback identities",
+      "fixture": "nine evidenced unchanged English manor dialogues, shared source font/frame, native text spans, source voice/callback identities",
       "timeout_seconds": 45,
       "ignored": true,
       "release": true
@@ -3720,7 +3720,7 @@
         "disc",
         "godot"
       ],
-      "fixture": "actual manor text/timing/voice to native Translation/dialogue/audio resources, original rendering parity pending",
+      "fixture": "actual nine-item manor Translation/voice and shared FontFile/frame resources, positioned native spans, New Game parity pending",
       "timeout_seconds": 180,
       "ignored": true,
       "release": true

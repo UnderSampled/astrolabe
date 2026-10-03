@@ -1,11 +1,13 @@
 extends Control
 ## Shared cinematic/gameplay presentation. Select advances; Scroll cycles answers.
 signal completed(item: Resource)
+const SpanView = preload("res://addons/astrolabe/ui/dialogue_span_view.tscn")
 @export var font: Font
 @export var panel_style: StyleBox
 @export var fade_seconds: float = 0.11
-@onready var panel: Panel = $Panel
+@onready var panel: Control = $Panel
 @onready var text: RichTextLabel = $Text
+@onready var source_text: Control = $SourceText
 @onready var answers: ItemList = $Answers
 var item: Resource
 var page_start: int = 0
@@ -22,7 +24,7 @@ func _ready() -> void:
     modulate.a = 0.0
     hide()
     if font != null: text.add_theme_font_override("normal_font", font)
-    if panel_style != null: panel.add_theme_stylebox_override("panel", panel_style)
+    panel.configure(null, panel_style)
 
 func run(value: Resource, run_mode: int, emitter: Node = null) -> bool:
     if value == null or run_mode != 1 or value.box not in [1, 3]: return false
@@ -36,7 +38,8 @@ func run(value: Resource, run_mode: int, emitter: Node = null) -> bool:
     modulate.a = 0.0
     show()
     panel.visible = item.box != 3
-    # Source has the same 20.5px line spacing in both modes. Box 3 is unframed.
+    panel.configure(item.presentation, panel_style)
+    # Authored fallback is used by fixtures or a user-authored item without source art.
     text.position = Vector2(4, 0) if item.box == 3 else Vector2(28, 28)
     text.size = Vector2(632, 44) if item.box == 3 else Vector2(278, 126)
     answers.hide()
@@ -72,14 +75,31 @@ func _process(delta: float) -> void:
 func _render_page() -> void:
     var end: int = mini(page_start + item.lines_per_page(), item.lines.size())
     text.clear()
+    text.visible = item.presentation == null
+    _clear_source_text()
+    var style: Resource = item.presentation
+    var origin: Vector2 = Vector2.ZERO if style == null else style.text_origin(position, item.box)
     for index in range(page_start, end):
         if index > page_start: text.add_text("\n")
         for span in item.lines[index].spans:
+            if style != null:
+                var view: Label = SpanView.instantiate()
+                view.text = item.message(span.key)
+                view.add_theme_font_override("font", style.font)
+                view.add_theme_color_override("font_color", style.normal_color)
+                if span.emphasis:
+                    view.add_theme_color_override("font_outline_color", style.emphasis_color)
+                    view.add_theme_constant_override("outline_size", 1)
+                view.position = origin + Vector2(style.span_origin(view.text, span.source_offset), (index - page_start) * style.line_spacing())
+                source_text.add_child(view)
             if span.emphasis: text.push_color(Color(1.0, 0.83, 0.32))
             # add_text treats source brackets literally, without interpreting
-            # game text as BBCode. Exact source-font offsets remain data.
+            # game text as BBCode. Source items use the positioned native labels.
             text.add_text(item.message(span.key))
             if span.emphasis: text.pop()
+
+func refresh_layout() -> void:
+    if item != null: _render_page()
 
 func scroll(direction: int) -> void:
     if item == null or closing or not answers.visible or answers.item_count < 2: return
@@ -125,6 +145,14 @@ func cancel() -> void:
     modulate.a = 0.0
     closing = false
     hide()
+    _clear_source_text()
+    if is_instance_valid(panel) and panel.is_inside_tree(): panel.configure(null, panel_style)
+
+func _clear_source_text() -> void:
+    if not is_instance_valid(source_text) or not source_text.is_inside_tree(): return
+    for child in source_text.get_children():
+        source_text.remove_child(child)
+        child.queue_free()
 
 func _stop_voice() -> void:
     if is_instance_valid(voice_emitter) and active_voice_identity != "":

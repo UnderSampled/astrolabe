@@ -22,7 +22,7 @@ pub(super) fn png(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>> {
 /// The selected palette entry has identity even when another entry has the same
 /// RGB. Hype substitutes its GF color-key RGB into that entry on upload
 /// (00481310, 0049a2e0). Never erase all black pixels or alter canonical samples.
-fn keyed_rgba(texture: &Texture, rgba: &[u8]) -> Vec<u8> {
+pub(super) fn keyed_rgba(texture: &Texture, rgba: &[u8]) -> Vec<u8> {
     let mut out = rgba.to_vec();
     let level = &texture.levels[0];
     for (i, pixel) in out.as_chunks_mut::<4>().0.iter_mut().enumerate() {

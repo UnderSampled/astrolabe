@@ -18,6 +18,14 @@ pub(super) fn export(
         "    var dialogue_translation_{n} = Translation.new()\n    dialogue_translation_{n}.locale = {}",
         quoted(&value.locale)
     )?;
+    let presentation = value
+        .presentation
+        .as_ref()
+        .map(|r| {
+            let p = source.load(r)?;
+            super::dialogue_presentation::export(project, source, &p, written)
+        })
+        .transpose()?;
     let voice = value
         .voice
         .as_ref()
@@ -79,9 +87,23 @@ pub(super) fn export(
             )
         })
         .unwrap_or_default();
+    let presentation_ext = presentation
+        .as_ref()
+        .map(|p| {
+            format!(
+                "[ext_resource type=\"Resource\" path={} id=\"presentation\"]\n",
+                quoted(p)
+            )
+        })
+        .unwrap_or_default();
+    let presentation_value = if presentation.is_some() {
+        "presentation = ExtResource(\"presentation\")\n"
+    } else {
+        ""
+    };
     let text = format!(
-        "[gd_resource type=\"Resource\" load_steps={} format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/ui/dialogue_item.gd\" id=\"item\"]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/ui/dialogue_line.gd\" id=\"line\"]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/ui/dialogue_span.gd\" id=\"span\"]\n[ext_resource type=\"Translation\" path={} id=\"translation\"]\n{voice_ext}\n{resources}\n[resource]\nscript = ExtResource(\"item\")\nidentity = {}\nlocale = {}\ntranslation = ExtResource(\"translation\")\nbox = {}\nlines = Array[Resource]([{}])\nowner_identity = {}\ncompletion_model = {}\ncompletion_normal = {}\n{}",
-        count + 5 + usize::from(voice.is_some()),
+        "[gd_resource type=\"Resource\" load_steps={} format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/ui/dialogue_item.gd\" id=\"item\"]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/ui/dialogue_line.gd\" id=\"line\"]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/ui/dialogue_span.gd\" id=\"span\"]\n[ext_resource type=\"Translation\" path={} id=\"translation\"]\n{voice_ext}{presentation_ext}\n{resources}\n[resource]\nscript = ExtResource(\"item\")\nidentity = {}\nlocale = {}\ntranslation = ExtResource(\"translation\")\nbox = {}\nlines = Array[Resource]([{}])\nowner_identity = {}\ncompletion_model = {}\ncompletion_normal = {}\n{presentation_value}{}",
+        count + 5 + usize::from(voice.is_some()) + usize::from(presentation.is_some()),
         quoted(&format!("res://{translation}")),
         quoted(&value.name),
         quoted(&value.locale),
@@ -98,6 +120,6 @@ pub(super) fn export(
     );
     project.write(path.clone(), text.as_bytes())?;
     project.dialogue_resources.push(path);
-    project.diagnostic(format!("{}: localized native text/voice/timing/callback; font metrics/span offsets and line-reveal animation await fidelity validation",value.path));
+    project.diagnostic(format!("{}: localized native text/voice/timing/callback; native source font/frame/offsets; line-reveal animation and New Game visual parity await fidelity validation",value.path));
     Ok(())
 }

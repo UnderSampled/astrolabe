@@ -1,6 +1,6 @@
 //! Content kinds and in-memory session loading shared by all adapters.
 use super::ai::AiModel;
-use super::dialogue::Dialogue;
+use super::dialogue::{Dialogue, DialoguePresentation};
 use super::environment::{Environment, Fog, PhysicalEnvironment, VisualEnvironment};
 use super::mechanics::Mechanics;
 use super::route::{Route, Waypoint};
@@ -76,6 +76,7 @@ pub trait ContentSource:
     + Load<Route>
     + Load<Waypoint>
     + Load<Dialogue>
+    + Load<DialoguePresentation>
     + Load<AiModel>
     + Load<Collision>
     + Load<CollisionProfile>
@@ -107,6 +108,7 @@ impl<T> ContentSource for T where
         + Load<Route>
         + Load<Waypoint>
         + Load<Dialogue>
+        + Load<DialoguePresentation>
         + Load<AiModel>
         + Load<Collision>
         + Load<CollisionProfile>
@@ -124,6 +126,7 @@ impl<T> ContentSource for T where
 /// at each target boundary. Custom Content types still use Load/Save directly.
 pub enum Asset {
     Dialogue(Arc<Dialogue>),
+    DialoguePresentation(Arc<DialoguePresentation>),
     AiModel(Arc<AiModel>),
     Environment(Arc<Environment>),
     PhysicalEnvironment(Arc<PhysicalEnvironment>),
@@ -162,6 +165,9 @@ impl Asset {
         }
         Ok(match root.kind.as_str() {
             Dialogue::KIND => Self::Dialogue(load(source, &root.reference)?),
+            DialoguePresentation::KIND => {
+                Self::DialoguePresentation(load(source, &root.reference)?)
+            }
             AiModel::KIND => Self::AiModel(load(source, &root.reference)?),
             Environment::KIND => Self::Environment(load(source, &root.reference)?),
             PhysicalEnvironment::KIND => Self::PhysicalEnvironment(load(source, &root.reference)?),

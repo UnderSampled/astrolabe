@@ -92,6 +92,7 @@ func source_position_dialog(x: float, y: float) -> void:
         return
     source_position = Vector2(x, y)
     dialogue.position = source_position
+    dialogue.refresh_layout()
 
 func source_run_dialog(identity: String, run_mode: int, caller: Node = null) -> bool:
     if is_instance_valid(adopted_screen): return adopted_screen.source_run_dialog(identity, run_mode, caller)

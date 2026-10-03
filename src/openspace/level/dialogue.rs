@@ -163,7 +163,7 @@ fn string(s: &SourceSession, a: Address) -> Result<String> {
         .context("unterminated dialogue text")?;
     decode_cp1252(&bytes[..end])
 }
-fn decode_cp1252(bytes: &[u8]) -> Result<String> {
+pub(super) fn decode_cp1252(bytes: &[u8]) -> Result<String> {
     const HIGH: [u32; 32] = [
         0x20ac, 0, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021, 0x02c6, 0x2030, 0x0160, 0x2039,
         0x0152, 0, 0x017d, 0, 0, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014, 0x02dc,
@@ -206,6 +206,9 @@ pub(super) fn import(
     };
     let normal_font = resolve(8)?;
     let emphasis = resolve(12)?;
+    let presentation = super::dialogue_presentation::import(s, game, normal_font, emphasis)?;
+    let presentation_ref = AssetRef::from_path(presentation.path.clone());
+    result.dialogue_presentation = Some(presentation);
     // +0 is the text-name table; +4 is the circular dialogue catalogue.
     let root = resolve(4)?;
     let mut list = root;
@@ -363,6 +366,7 @@ pub(super) fn import(
                 lines,
                 voice,
                 completion: callback,
+                presentation: Some(presentation_ref.clone()),
             };
             value.validate()?;
             result.dialogues.push(value);
@@ -373,7 +377,7 @@ pub(super) fn import(
         list == root && result.dialogues.len() == supported.len(),
         "dialogue catalogue/selected names differ"
     );
-    result.diagnostics.push(Diagnostic { code:"openspace.dialogue.manor_slice".into(),asset:Some(result.scene.path.clone()),severity:Severity::Warning,message:format!("Imported {} evidenced manor dialogues out of {} items (eight opening items and one ordinary conversation); other dialogue choices, channel effects, source reconstruction and font metrics remain pending",result.dialogues.len(),seen.len()) });
+    result.diagnostics.push(Diagnostic { code:"openspace.dialogue.manor_slice".into(),asset:Some(result.scene.path.clone()),severity:Severity::Warning,message:format!("Imported {} evidenced manor dialogues out of {} items (eight opening items and one ordinary conversation); other dialogue choices, channel effects, source reconstruction and visual parity remain pending",result.dialogues.len(),seen.len()) });
     Ok(())
 }
 #[cfg(test)]
