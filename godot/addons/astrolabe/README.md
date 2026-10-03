@@ -1,4 +1,4 @@
-# Astrolabe support, interface 49
+# Astrolabe support, interface 50
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -246,3 +246,14 @@ Active emission, source random velocity, infinite lifetime and boundary removal
 remain unsupported: enabling a present component fails explicitly. Initially
 selected/active source components also fail conversion pending a validated
 saved-state contract. The first supported slice starts unselected and disabled.
+
+
+`ui/inventory/` composes native category Buttons, six item Buttons, original
+TextureRects, a bitmap FontFile and native item Resources. `screen.gd.bind_state`
+reads an existing actor inventory Resource; quantities and selected weapon retain
+their gameplay/save ownership. It emits `item_requested` without implementing
+item effects. Layout, texture and font conversion happen ahead of runtime; no
+source records or font tables are interpreted by the UI. The authored
+`game/inventory_host.gd` owns modal pause and the weapon-selection adapter.
+See [inventory ownership](../../game/inventory/README.md) for generation,
+inherited scene overrides and the current limits.

@@ -3887,6 +3887,24 @@
       "timeout_seconds": 90,
       "ignored": true,
       "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::inventory::tests::local_inventory_source_and_rete_native_conversion",
+      "areas": [
+        "source",
+        "rete",
+        "scene",
+        "media"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "supplied Hype English inventory; source-only import, fresh complete Rete reload, native scene/resource text and original PNGs; no engine launch",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
     }
   ]
 }

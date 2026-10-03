@@ -54,14 +54,14 @@ fn texture(s: &SourceSession, address: Address) -> Result<DialogueTexture> {
         color_key: h.flags & 2 != 0,
     })
 }
-struct FontInputs {
-    name: String,
-    tracking: f32,
-    glyphs: Vec<DialogueGlyph>,
-    atlas: DialogueTexture,
-    color: [f32; 4],
+pub(super) struct FontInputs {
+    pub(super) name: String,
+    pub(super) tracking: f32,
+    pub(super) glyphs: Vec<DialogueGlyph>,
+    pub(super) atlas: DialogueTexture,
+    pub(super) color: [f32; 4],
 }
-fn font(s: &SourceSession, address: Address) -> Result<FontInputs> {
+pub(super) fn font(s: &SourceSession, address: Address) -> Result<FontInputs> {
     let h: FontWire = wire(s.bytes(address, 32)?)?;
     ensure!(
         h.encoding == 0x11 && h.count > 0 && h.count <= 1024,

@@ -119,6 +119,9 @@ pub fn export<R: ContentSource>(
                     &super::level::write_light(&light)?,
                 )?;
             }
+            Asset::InventoryPresentation(_) => {
+                anyhow::bail!("inventory presentation source reconstruction is not supported")
+            }
             Asset::MenuPresentation(_) => {
                 anyhow::bail!("main menu presentation source reconstruction is not supported")
             }

@@ -22,5 +22,6 @@ pub mod mechanics;
 
 pub mod environment;
 
+pub mod inventory;
 pub mod menu;
 pub mod particle;

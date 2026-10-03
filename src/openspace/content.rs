@@ -452,3 +452,55 @@ pub fn import_menu(game: &Path, selection: Selection) -> Result<Imported> {
     imported.put(&AssetRef::from_path(menu.path.clone()), menu, true)?;
     Ok(imported)
 }
+
+pub fn import_inventory(game: &Path, selection: Selection) -> Result<Imported> {
+    let mut imported = Imported::new(Selection::hype("inventory", selection.locale.clone())?);
+    let mut value = level::import_inventory_presentation(game, &selection)?;
+    let archive = codec::Cnt {
+        usage: TextureUsage::Material,
+    }
+    .read(&read(&game.join("Gamedata/Textures.cnt"))?)?;
+    for image in value
+        .categories
+        .iter_mut()
+        .flat_map(|c| &mut c.images)
+        .chain(value.items.iter_mut().flat_map(|i| &mut i.images))
+    {
+        let entry = archive
+            .find_entry(image.texture.path.file())
+            .context("inventory image absent from CNT")?;
+        image.texture = entry.texture.clone();
+        if !imported.assets.contains(&entry.texture.path) {
+            imported.put(&entry.texture, archive.image(entry)?.clone(), false)?;
+        }
+    }
+    let entry = archive
+        .find_entry(value.font.atlas.texture.file())
+        .context("InventoryFont atlas absent from CNT")?;
+    ensure!(
+        [
+            archive.image(entry)?.width(),
+            archive.image(entry)?.height()
+        ] == value.font.atlas.size,
+        "inventory atlas dimensions differ"
+    );
+    value.font.atlas.texture = entry.texture.path.clone();
+    if !imported.assets.contains(&entry.texture.path) {
+        imported.put(&entry.texture, archive.image(entry)?.clone(), false)?;
+    }
+    let vignette = codec::Cnt {
+        usage: TextureUsage::Screen,
+    }
+    .read(&read(&game.join("Gamedata/Vignette.cnt"))?)?;
+    let entry = vignette
+        .find_entry(
+            &Path::new(value.background.path.file())
+                .with_extension("gf")
+                .to_string_lossy(),
+        )
+        .context("required inventory backdrop absent")?;
+    value.background = entry.texture.clone();
+    imported.put(&entry.texture, vignette.image(entry)?.clone(), false)?;
+    imported.put(&AssetRef::from_path(value.path.clone()), value, true)?;
+    Ok(imported)
+}

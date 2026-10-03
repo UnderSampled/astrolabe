@@ -1,0 +1,42 @@
+# Inventory ownership
+
+Generate the independent original inventory closure:
+
+```sh
+target/release/astrolabe port disc godot --level manoir --locale en --content inventory
+```
+
+`generated/hype/shared/inventory/en/inventory.tscn` contains native Control,
+Button, TextureRect and Label nodes. Its item catalogue consists of editable
+native Resources, original texture layers and English labels. The five category
+centres, three magic groups, six-slot row, focus links, scale/colour values and
+bitmap glyph metrics come from serialized source values. Media and Godot caches
+are ignored; there is no replacement art.
+
+`game/demo.tscn` composes `inventory_host.gd`, shared by actual New Game and Load
+Game. **I** opens it when gameplay is ready and the cinematic letterbox is closed.
+**I** or **Esc** closes it. Opening pauses the tree; closing releases only the
+pause owned by this host. The view binds the actor's existing inventory Resource.
+It never inserts items into New Game, restores a fixture or changes save schema.
+A missing generated scene/font/artwork reports an explicit required-assets error.
+
+Selecting an owned `Weapon` updates the same `selected_weapon` used by gameplay
+and saving. Item quantity queries/removal retain their existing semantics,
+including present negative sentinels. Potion/magic/object effects, dynamic item
+permission changes, source pickup-order preservation, category-wheel motion,
+item-scroll animation, stats and source-configured keyboard mapping remain
+unfinished. The initial catalogue includes 46 items with corroborated Stock
+category bindings; 16 source entries without those bindings are omitted rather
+than assigned to an invented category. This is an inventory presentation and
+owned-weapon selection increment, not complete original inventory parity.
+
+For designer changes, inherit the generated scene and save it under
+`game/inventory/`. Assign it to the `InventoryHost.inventory_scene` property in
+an authored inherited session scene. Change native offsets, Theme, textures,
+labels or item Resources there. The exported `inventory_key` changes the authored
+keyboard shortcut. Regeneration preserves authored scenes and unrelated generated
+packages; modifying a generated base in place triggers the existing safeguard.
+
+[Source format and evidence](../../../docs/openspace/inventory.md) describe
+conversion boundaries. Runtime QA is delegated exclusively to the shared Luna
+runner, and evidence must distinguish this presentation from actual session entry.

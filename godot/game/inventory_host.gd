@@ -1,0 +1,81 @@
+extends CanvasLayer
+## Authored session composition; generated presentation remains independently owned.
+const VIEW = preload("res://addons/astrolabe/ui/inventory/screen.gd")
+const DEFAULT_SCENE := "res://generated/hype/shared/inventory/en/inventory.tscn"
+signal unavailable(message: String)
+@export var inventory_scene: PackedScene
+@export var inventory_key: Key = KEY_I
+var view: VIEW
+var owns_pause: bool = false
+
+func _ready() -> void:
+    process_mode = Node.PROCESS_MODE_ALWAYS
+    layer = 20
+
+func open_inventory() -> bool:
+    if is_instance_valid(view) and view.visible: return true
+    var session := get_parent()
+    if not session.has_method("inventory_available") or not bool(session.call("inventory_available")): return false
+    if get_tree().paused: return false
+    var actor := session.get("actor") as Node
+    var state := actor.get("source_inventory") as Resource if actor != null else null
+    if state == null: return false
+    if not is_instance_valid(view):
+        var scene := inventory_scene
+        if scene == null and ResourceLoader.exists(DEFAULT_SCENE): scene = load(DEFAULT_SCENE) as PackedScene
+        if scene == null:
+            unavailable.emit("The inventory assets have not been generated. Required: " + DEFAULT_SCENE)
+            return false
+        view = scene.instantiate() as VIEW
+        if view == null:
+            unavailable.emit("The inventory scene is invalid.")
+            return false
+        view.hide()
+        add_child(view)
+        if not view.has_required_media():
+            unavailable.emit("The inventory is missing required original artwork or font resources.")
+            view.queue_free()
+            view = null
+            return false
+        view.closed.connect(close_inventory)
+        view.item_requested.connect(_item_requested)
+    if not view.bind_state(state): return false
+    # Modal pause is owned only while this view is open. No Brain, actor state,
+    # quantities, fixture, or save is replaced to show the inventory.
+    owns_pause = true
+    get_tree().paused = true
+    view.show()
+    view.report("")
+    view.focus_initial()
+    return true
+
+func close_inventory() -> void:
+    if is_instance_valid(view): view.hide()
+    if owns_pause and is_inside_tree(): get_tree().paused = false
+    owns_pause = false
+
+func _item_requested(item_id: int, kind: String) -> void:
+    if not is_instance_valid(view) or view.inventory == null: return
+    var amount := int(view.inventory.call("quantity", item_id))
+    var quantities: Dictionary = view.inventory.get("quantities")
+    if not quantities.has(item_id) or amount == 0:
+        view.report("This item is not available.")
+        return
+    if kind == "Weapon":
+        view.inventory.set("selected_weapon", item_id)
+        view.inventory.emit_changed()
+        view.report("")
+        view.refresh()
+    else:
+        view.report("Using this item is not implemented yet.")
+
+func _unhandled_key_input(event: InputEvent) -> void:
+    var key := event as InputEventKey
+    if key == null or not key.pressed or key.echo or key.physical_keycode != inventory_key: return
+    get_viewport().set_input_as_handled()
+    if is_instance_valid(view) and view.visible: close_inventory()
+    else: open_inventory()
+
+func _exit_tree() -> void:
+    if owns_pause: get_tree().paused = false
+    owns_pause = false

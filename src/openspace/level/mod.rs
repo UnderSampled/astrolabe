@@ -96,7 +96,9 @@ pub use sector_export::write_sectors;
 
 mod dialogue;
 mod dialogue_presentation;
+mod inventory;
 mod menu;
+pub(crate) use inventory::import as import_inventory_presentation;
 pub(crate) use menu::import_main_menu;
 mod sound;
 

@@ -2,6 +2,7 @@
 use super::ai::AiModel;
 use super::dialogue::{Dialogue, DialoguePresentation};
 use super::environment::{Environment, Fog, PhysicalEnvironment, VisualEnvironment};
+use super::inventory::InventoryPresentation;
 use super::mechanics::Mechanics;
 use super::menu::MenuPresentation;
 use super::route::{Route, Waypoint};
@@ -79,6 +80,7 @@ pub trait ContentSource:
     + Load<Dialogue>
     + Load<DialoguePresentation>
     + Load<MenuPresentation>
+    + Load<InventoryPresentation>
     + Load<AiModel>
     + Load<Collision>
     + Load<CollisionProfile>
@@ -113,6 +115,7 @@ impl<T> ContentSource for T where
         + Load<Dialogue>
         + Load<DialoguePresentation>
         + Load<MenuPresentation>
+        + Load<InventoryPresentation>
         + Load<AiModel>
         + Load<Collision>
         + Load<CollisionProfile>
@@ -134,6 +137,7 @@ pub enum Asset {
     Dialogue(Arc<Dialogue>),
     DialoguePresentation(Arc<DialoguePresentation>),
     MenuPresentation(Arc<MenuPresentation>),
+    InventoryPresentation(Arc<InventoryPresentation>),
     AiModel(Arc<AiModel>),
     Environment(Arc<Environment>),
     PhysicalEnvironment(Arc<PhysicalEnvironment>),
@@ -179,6 +183,9 @@ impl Asset {
                 Self::DialoguePresentation(load(source, &root.reference)?)
             }
             MenuPresentation::KIND => Self::MenuPresentation(load(source, &root.reference)?),
+            InventoryPresentation::KIND => {
+                Self::InventoryPresentation(load(source, &root.reference)?)
+            }
             AiModel::KIND => Self::AiModel(load(source, &root.reference)?),
             Environment::KIND => Self::Environment(load(source, &root.reference)?),
             PhysicalEnvironment::KIND => Self::PhysicalEnvironment(load(source, &root.reference)?),

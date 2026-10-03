@@ -17,3 +17,5 @@ The [save-game format notes](save-games.md) document the verified PC save envelo
 ## Media and rendering
 
 The [CNT archive](cnt-format.md) contains [GF images](gf-format.md); the [[docs/openspace/texture|texture model]] retains palette, index, and mip information as needed. [Standalone audio formats](audio.md) and their [[docs/openspace/audio|useful model values]] preserve more than a playback waveform where required. [Material transparency](material-transparency.md) records the renderer-side interpretation.
+
+- [Inventory presentation](inventory.md): source layout, category/item bindings, localization and native export boundaries.

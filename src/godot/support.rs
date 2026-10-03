@@ -5,7 +5,7 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, path::Path};
 
-pub const INTERFACE: u32 = 49;
+pub const INTERFACE: u32 = 50;
 const PACKAGE: &str = "addons/astrolabe";
 const RECEIPT: &str = "addons/astrolabe/installed.json";
 
@@ -39,6 +39,14 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/camera/source_camera.gd",
     "addons/astrolabe/audio/emitter.gd",
     "addons/astrolabe/audio/voice.gd",
+    "addons/astrolabe/ui/inventory/item.gd",
+    "addons/astrolabe/ui/inventory/item.gd.uid",
+    "addons/astrolabe/ui/inventory/category.gd",
+    "addons/astrolabe/ui/inventory/category.gd.uid",
+    "addons/astrolabe/ui/inventory/slot.gd",
+    "addons/astrolabe/ui/inventory/slot.gd.uid",
+    "addons/astrolabe/ui/inventory/screen.gd",
+    "addons/astrolabe/ui/inventory/screen.gd.uid",
     "addons/astrolabe/ui/menu/menu.gd",
     "addons/astrolabe/ui/menu/menu.gd.uid",
     "addons/astrolabe/ui/menu/button.gd",
@@ -82,6 +90,8 @@ const STARTER: &[(&str, &[u8])] = assets![
     "game/bootstrap.tscn",
     "game/content_cache.gd",
     "game/content_cache.gd.uid",
+    "game/inventory_host.gd",
+    "game/inventory_host.gd.uid",
     "game/demo.gd",
     "game/demo.gd.uid",
     "game/demo.tscn",
