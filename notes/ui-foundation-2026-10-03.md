@@ -159,3 +159,30 @@ when dialogue resources are selected. The next assignment runs this affected
 resource case first and aborts on its failure before broader mandatory checks.
 Official FontFile/TextServer documentation and read-only installed-binary symbol
 inspection support the API audit; actual pinned runtime audit remains pending.
+
+R5 at clean `a4fb98888886e8e9c3a0a41974f40b20de228caa` ran the correct immutable
+assignment after the parent replaced its experimenter. It passed the native API
+and generated-builder syntax preflights and exported the shared 133-glyph font,
+but the combined Unicode/fractional-advance assertion failed. Total assignment
+time was 80.049s, including 62.007s workspace build/discovery; the resource case
+took 11.525s. All 28 Python checks passed. Broader safeguards were intentionally
+not started after the affected case failed; cleanup reported no leaks or remaining
+processes. No font/frame parity or New Game acceptance is claimed.
+
+Godot's documented automatic subpixel setting and backend source show that AUTO
+rounds advances at the selected size21. The correction explicitly selects native
+quarter subpixel positioning, separates Unicode and metric assertions, and prints
+their values. A tiny synthetic FontFile save/reload and shaping check now runs in
+the existing pre-import API preflight. It verifies fractional cache advances and
+shaping within native precision before original media conversion. This is a native
+font setting, not a custom glyph renderer. The corrected resource gate remains
+pending the parent's serialized experiment queue.
+
+The three presentation commits were reconciled in the isolated branch onto the
+parent's integrated foundation `b9c5949d1c3bd4eb915fbe190334327f292cc1f6`.
+The only conflict was a source-fixture description in test-manifest.json; the
+combined description retains unchanged-source identity plus font/frame coverage.
+New Game/camera files, tests, UID entries and inventory/save corrections remain
+as integrated. The pre-integration branch is retained for earlier evidence;
+main was inspected read-only and not edited. The next assignment validates this
+reconciled branch at a fresh immutable checkpoint and output path.

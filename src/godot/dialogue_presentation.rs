@@ -54,7 +54,7 @@ pub(super) fn export(
     // the next begins. Images and cache entries serialize with the native resource.
     writeln!(
         project.builder,
-        "    var ui_font = FontFile.new()\n    ui_font.fixed_size = {FONT_SIZE}\n    ui_font.fixed_size_scale_mode = TextServer.FIXED_SIZE_SCALE_DISABLE\n    ui_font.allow_system_fallback = false\n    ui_font.set_font_name({})\n    ui_font.set_cache_ascent(0, {FONT_SIZE}, {:?})\n    ui_font.set_cache_descent(0, {FONT_SIZE}, {:?})\n    ui_font.set_cache_scale(0, {FONT_SIZE}, 1.0)\n    ui_font.set_texture_image(0, Vector2i({FONT_SIZE},0), 0, Image.load_from_file({}))\n    ui_font.set_texture_image(0, Vector2i({FONT_SIZE},1), 0, Image.load_from_file({}))",
+        "    var ui_font = FontFile.new()\n    ui_font.fixed_size = {FONT_SIZE}\n    ui_font.fixed_size_scale_mode = TextServer.FIXED_SIZE_SCALE_DISABLE\n    ui_font.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_ONE_QUARTER\n    ui_font.allow_system_fallback = false\n    ui_font.set_font_name({})\n    ui_font.set_cache_ascent(0, {FONT_SIZE}, {:?})\n    ui_font.set_cache_descent(0, {FONT_SIZE}, {:?})\n    ui_font.set_cache_scale(0, {FONT_SIZE}, 1.0)\n    ui_font.set_texture_image(0, Vector2i({FONT_SIZE},0), 0, Image.load_from_file({}))\n    ui_font.set_texture_image(0, Vector2i({FONT_SIZE},1), 0, Image.load_from_file({}))",
         quoted(&value.font_name),
         SCALE * 0.25,
         SCALE * 0.05,

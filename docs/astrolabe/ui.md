@@ -73,7 +73,9 @@ requested by TextureInfo. No extracted image or generated font is committed.
 
 The exporter creates a native [FontFile](https://docs.godotengine.org/en/stable/classes/class_fontfile.html)
 with all 133 Windows-1252 glyphs mapped to Unicode. Fractional advances, bearings,
-sizes and UV rectangles survive; normal/emphasis fonts have identical geometry
+sizes and UV rectangles are retained. Explicit native subpixel positioning avoids
+Godot's size-dependent automatic rounding of advances; shaped runs may still
+quantize within Godot's native precision. Normal/emphasis fonts have identical geometry
 and differ in material color. Font texture UVs retain the source's one-texel
 edge extrapolation. No system-font fallback substitutes missing glyphs. A
 conversion-time coverage atlas provides the native outline cache for red

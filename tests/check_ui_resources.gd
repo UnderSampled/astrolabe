@@ -24,7 +24,8 @@ func _initialize() -> void:
         return
     check.call_deferred()
 func audit_font_api() -> bool:
-    if not require(ClassDB.class_has_integer_constant("TextServer","FIXED_SIZE_SCALE_DISABLE"), "pinned bitmap scale enum namespace/name"): return false
+    for constant in ["FIXED_SIZE_SCALE_DISABLE","SUBPIXEL_POSITIONING_ONE_QUARTER"]:
+        if not require(ClassDB.class_has_integer_constant("TextServer",constant), "pinned bitmap enum namespace/name: " + constant): return false
     var font := FontFile.new()
     var expected := {"set_font_name":1,"set_cache_ascent":3,"set_cache_descent":3,"set_cache_scale":3,"set_texture_image":4,"set_glyph_advance":4,"set_glyph_offset":4,"set_glyph_size":4,"set_glyph_texture_idx":4,"set_glyph_uv_rect":4,"get_font_name":0,"get_glyph_index":3,"get_glyph_list":2,"get_texture_count":2,"get_glyph_advance":3,"get_glyph_offset":3,"get_glyph_size":3,"has_char":1,"get_ascent":1}
     for method in font.get_method_list():
@@ -33,9 +34,26 @@ func audit_font_api() -> bool:
             if not require(method.args.size() == expected[name], "pinned FontFile argument count: " + name): return false
             expected.erase(name)
     if not require(expected.is_empty(), "pinned FontFile missing APIs: " + str(expected.keys())): return false
-    var properties := {"fixed_size":true,"fixed_size_scale_mode":true,"allow_system_fallback":true}
+    var properties := {"fixed_size":true,"fixed_size_scale_mode":true,"subpixel_positioning":true,"allow_system_fallback":true}
     for property in font.get_property_list(): properties.erase(str(property.name))
-    return require(properties.is_empty(), "pinned FontFile properties: " + str(properties.keys()))
+    if not require(properties.is_empty(), "pinned FontFile properties: " + str(properties.keys())): return false
+    # Cheap native serialization/metric check before the original-data import.
+    font.fixed_size = 21
+    font.fixed_size_scale_mode = TextServer.FIXED_SIZE_SCALE_DISABLE
+    font.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_ONE_QUARTER
+    font.allow_system_fallback = false
+    font.set_cache_ascent(0,21,17.2)
+    font.set_cache_descent(0,21,3.4)
+    for code in [65,233]:
+        font.set_glyph_advance(0,21,code,Vector2(16.2338,0.0))
+    if not require(ResourceSaver.save(font,"res://ui-font-api.tres") == OK, "native bitmap metric preflight save"): return false
+    var saved: FontFile = load("res://ui-font-api.tres")
+    var advance := saved.get_glyph_advance(0,21,65).x
+    var shaped := saved.get_string_size("AA",HORIZONTAL_ALIGNMENT_LEFT,-1,21).x
+    print("UI_FONT_METRIC_PREFLIGHT " + JSON.stringify({"glyph_a":saved.get_glyph_index(21,65,0),"has_e_acute":saved.has_char(233),"advance_a":advance,"shaped_aa":shaped}))
+    if not require(saved.get_glyph_index(21,65,0) == 65 and saved.has_char(233), "native bitmap metric preflight Unicode"): return false
+    if not require(is_equal_approx(advance,16.2338), "native bitmap metric preflight fractional advance"): return false
+    return require(absf(shaped-2.0*16.2338) <= 1.0/32.0, "native bitmap metric preflight shaped advance")
 func check() -> void:
     var emitter := Node3D.new()
     emitter.set_script(Emitter)
@@ -56,10 +74,13 @@ func check() -> void:
         if not require(style == shared_style, "all nine items share one presentation resource"): return
         var font: FontFile = style.font
         var scale: float = 640.0 / 9.3
-        if not require(font.get_font_name() == "Playmo_Font2_0" and not font.allow_system_fallback and font.fixed_size == 21, "native bitmap font identity and fallback policy"): return
+        if not require(font.get_font_name() == "Playmo_Font2_0" and not font.allow_system_fallback and font.fixed_size == 21 and font.subpixel_positioning == TextServer.SUBPIXEL_POSITIONING_ONE_QUARTER, "native bitmap font identity and fallback/positioning policy"): return
         if not require(font.get_glyph_list(0,Vector2i(21,0)).size() == 133 and font.get_texture_count(0,Vector2i(21,1)) == 1, "native glyph and outline caches"): return
         var glyph_a: int = font.get_glyph_index(21,65,0)
-        if not require(glyph_a == 65 and font.has_char(233) and is_equal_approx(font.get_glyph_advance(0,21,glyph_a).x,(0.22588237+0.01)*scale), "Unicode mapping/fractional source advances"): return
+        if facts.is_empty():
+            print("UI_NATIVE_FONT_METRICS " + JSON.stringify({"glyph_a":glyph_a,"has_e_acute":font.has_char(233),"advance_a":font.get_glyph_advance(0,21,glyph_a),"bearing_a":font.get_glyph_offset(0,Vector2i(21,0),glyph_a)}))
+        if not require(glyph_a == 65 and font.has_char(233), "Unicode mapping"): return
+        if not require(is_equal_approx(font.get_glyph_advance(0,21,glyph_a).x,(0.22588237+0.01)*scale), "fractional source advances"): return
         if not require(font.get_glyph_offset(0,Vector2i(21,0),glyph_a).is_equal_approx(Vector2(0.0,(-2.0*0.12705882+0.01)*scale)), "source glyph baseline bearing"): return
         if not require(style.normal_color == Color.WHITE and style.emphasis_color == Color.RED and is_equal_approx(style.line_spacing(),0.3*scale), "source white text/red emphasis/line spacing"): return
         if not require(style.corner.get_size() == Vector2(32,32) and style.border.get_size() == Vector2(32,32) and style.center.get_size() == Vector2(32,32) and style.side.get_size() == Vector2(32,32), "source frame texture sizes"): return

@@ -280,6 +280,7 @@ fn manor_dialogue_exports_native_translation_and_voice_resources() -> Result<()>
         Duration::from_secs(5),
     )?;
     assert!(api.contains("UI_FONT_API_OK"), "{api}");
+    println!("{api}");
     let game = std::env::var_os("ASTROLABE_GAME_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("disc"));
