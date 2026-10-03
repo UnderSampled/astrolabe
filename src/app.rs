@@ -26,6 +26,7 @@ struct Cli {
 #[derive(Clone, Copy, ValueEnum)]
 enum Scope {
     Scene,
+    Menu,
     Model,
     Textures,
     Audio,
@@ -105,6 +106,7 @@ fn import(
 ) -> Result<openspace::content::Imported> {
     match scope {
         Scope::Scene => openspace::content::import_scene(game, selection),
+        Scope::Menu => openspace::content::import_menu(game, selection),
         Scope::Model => openspace::content::import_model(game, selection),
         Scope::Textures => openspace::content::import_textures(game, selection),
         Scope::Audio => openspace::content::import_audio(game, selection, files),

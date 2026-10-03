@@ -403,3 +403,45 @@ fn collect_audio(dir: &Path, game: &Path, out: &mut Vec<PathBuf>) -> Result<()> 
     Ok(())
 }
 pub use super::texture::write_cnt as rebuild_texture_set;
+
+/// Main menu artwork/audio is a separate small closure from gameplay scene import.
+pub fn import_menu(game: &Path, selection: Selection) -> Result<Imported> {
+    // Publish menu independently: regeneration must not replace the manor closure.
+    let mut imported = Imported::new(Selection::hype("menu", selection.locale.clone())?);
+    let (mut menu, sounds) = level::import_main_menu(game, &selection)?;
+    let archive = codec::Cnt {
+        usage: TextureUsage::Material,
+    }
+    .read(&read(&game.join("Gamedata/Textures.cnt"))?)?;
+    for sprite in menu
+        .items
+        .iter_mut()
+        .flat_map(|i| i.normal.iter_mut().chain(&mut i.selected))
+    {
+        let entry = archive
+            .find_entry(sprite.texture.path.file())
+            .context("menu atlas absent from CNT")?;
+        sprite.texture = entry.texture.clone();
+        if !imported.assets.contains(&entry.texture.path) {
+            imported.put(&entry.texture, archive.image(entry)?.clone(), false)?;
+        }
+    }
+    for (path, sound) in sounds {
+        imported.put(&AssetRef::from_path(path), sound, false)?;
+    }
+    let vignette = codec::Cnt {
+        usage: TextureUsage::Screen,
+    }
+    .read(&read(&game.join("Gamedata/Vignette.cnt"))?)?;
+    let entry = vignette
+        .find_entry(
+            &Path::new(menu.background.path.file())
+                .with_extension("gf")
+                .to_string_lossy(),
+        )
+        .context("required main menu backdrop absent")?;
+    menu.background = entry.texture.clone();
+    imported.put(&entry.texture, vignette.image(entry)?.clone(), false)?;
+    imported.put(&AssetRef::from_path(menu.path.clone()), menu, true)?;
+    Ok(imported)
+}

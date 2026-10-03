@@ -116,6 +116,9 @@ pub fn export<R: ContentSource>(
                     &super::level::write_light(&light)?,
                 )?;
             }
+            Asset::MenuPresentation(_) => {
+                anyhow::bail!("main menu presentation source reconstruction is not supported")
+            }
             Asset::Dialogue(_) | Asset::DialoguePresentation(_) => {
                 anyhow::bail!("dialogue source reconstruction remains unsupported")
             }

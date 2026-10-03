@@ -94,6 +94,8 @@ pub use sector_export::write_sectors;
 
 mod dialogue;
 mod dialogue_presentation;
+mod menu;
+pub(crate) use menu::import_main_menu;
 mod sound;
 
 mod environment;

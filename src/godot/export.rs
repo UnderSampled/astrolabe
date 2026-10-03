@@ -40,6 +40,7 @@ pub fn export<R: ContentSource>(
                     "environment/light/mechanics export requires a scene for placement or state context"
                 )
             }
+            Asset::MenuPresentation(value) => super::menu::export(&mut project, source, &value)?,
             Asset::Dialogue(_) => {}
             Asset::DialoguePresentation(value) => {
                 super::dialogue_presentation::export(&mut project, source, &value, &mut written)?;

@@ -1,4 +1,4 @@
-# Astrolabe support, interface 44
+# Astrolabe support, interface 47
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -230,3 +230,8 @@ resources and the main-actor binding. Authored scene compositions may adopt the
 level through an already-ready `AstrolabeUI` parent; content regeneration does
 not replace customized support scenes. See `docs/astrolabe/ui.md` in the source
 repository for source API coverage, locale handling and remaining fidelity work.
+
+`ui/menu/menu.gd` and `ui/menu/button.gd` provide native focus, texture states and
+short audio feedback for generated editable menus. `action_selected(StringName)`
+keeps application routing outside converter support. Inherit a generated menu
+scene under `game/` and assign it to the bootstrap to preserve designer changes.
