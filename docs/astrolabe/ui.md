@@ -92,7 +92,8 @@ finite timestamps within the displayed page, since blank padding can be
 untimed. The installed untimed sentinel is `3.4e38`, not IEEE FLT_MAX. An entirely
 untimed final page waits for selection. Cancellation invalidates deferred work.
 
-Completion emits a native signal and stores a pending callback. The source
+Ending the text emits a native signal and stores a pending callback;
+IsDialogOver waits until the closing presentation reaches alpha <= 0.1. The source
 explicitly invokes ChangeComport; querying IsDialogOver alone must not change a
 Brain. The screen validates owner/model identity, consumes the request and
 applies the normal behavior through the existing Brain on a deferred turn.
@@ -120,8 +121,7 @@ vs Godot captures. The current flat panel, text font, emphasis color and HUD
 positions are provisional. Fade geometry exists but unrelated source fade
 procedures are not promoted by this slice. Native voice teardown follows the
 existing emitter's stoppable-event policy; dialogue-specific interruption parity
-remains to be checked. Native completion currently waits for the full closing
-Tween, whereas source panel completion tests alpha <= 0.1.
+remains to be checked.
 
 Dialogue-to-OpenSpace reconstruction rejects the newly promoted dialogue root
 explicitly. Unknown item/line/font/channel fields and RTG header semantics must

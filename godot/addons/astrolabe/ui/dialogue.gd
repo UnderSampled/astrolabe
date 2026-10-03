@@ -19,6 +19,7 @@ var active_voice_identity: String = ""
 var _generation: int = 0
 
 func _ready() -> void:
+    modulate.a = 0.0
     hide()
     if font != null: text.add_theme_font_override("normal_font", font)
     if panel_style != null: panel.add_theme_stylebox_override("panel", panel_style)
@@ -100,6 +101,7 @@ func request_select() -> void:
 func _finish() -> void:
     closing = true
     var finished := item
+    item = null
     var generation := _generation
     _stop_voice()
     if fade != null and fade.is_running(): fade.kill()
@@ -109,17 +111,18 @@ func _finish() -> void:
         if generation != _generation: return
         item = null
         closing = false
-        hide()
-        completed.emit(finished))
+        hide())
+    completed.emit(finished)
 
 func is_over() -> bool:
-    return item == null and not closing
+    return item == null and modulate.a <= 0.1
 
 func cancel() -> void:
     _generation += 1
     _stop_voice()
     if fade != null and fade.is_running(): fade.kill()
     item = null
+    modulate.a = 0.0
     closing = false
     hide()
 

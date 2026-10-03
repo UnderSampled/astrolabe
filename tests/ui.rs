@@ -112,6 +112,7 @@ fn native_ui_timing_layers_callbacks_and_adoption() -> Result<()> {
         Duration::from_secs(20),
     )?;
     assert!(evidence.contains("UI_CONTRACT_OK"), "{evidence}");
+    println!("{evidence}");
     Ok(())
 }
 
@@ -167,5 +168,6 @@ fn manor_dialogue_exports_native_translation_and_voice_resources() -> Result<()>
         Duration::from_secs(20),
     )?;
     assert!(evidence.contains("UI_MANOR_RESOURCES_OK"), "{evidence}");
+    println!("{evidence}");
     Ok(())
 }

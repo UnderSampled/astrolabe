@@ -45,6 +45,7 @@ fn fixture() -> Result<(Scene, Perso, Family, ActorObservation)> {
         initial_configuration: None,
         object_types: [7, 3, 9],
         camera: None,
+        hit_points: None,
         routes: vec![],
         brain: None,
         collisions: None,

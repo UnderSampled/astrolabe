@@ -40,3 +40,18 @@ Review conflicts in AI source/compiler code, support interface/version, scene
 composition and the test manifest against concurrent camera/menu changes. The
 UI does not change camera scripts or menu scenes. The whole-catalogue dialogue
 and presentation-fidelity backlog is explicit in the architecture document.
+
+
+Static full-workspace discovery found one Orrery comparison fixture that also
+constructs Perso; it now supplies the new optional life state. Native UI checks
+print their success markers/resource facts into captured test output. Dialogue
+completion uses the original alpha <= 0.1 predicate while retaining the pending
+callback from text end. These corrections supersede the initial frozen commit
+before the serialized native assignment.
+
+
+Full-workspace Clippy also exposed an unchanged baseline lint in
+`crates/orrery/src/orrery.rs:722` (`observe_magick_behavior` has eight arguments).
+The normal package Clippy invocation passes; this unrelated full-workspace lint
+is reported and left with its owner. Full-workspace compile/discovery passes with 275 tests, and the reviewed
+manifest matches every discovered case.
