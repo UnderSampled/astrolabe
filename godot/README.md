@@ -1,7 +1,7 @@
 # Hype Godot game
 
-Open `project.godot` with Godot **4.7.2**. The menu works without Hype data;
-play requires the generated manor. `addons/astrolabe/` is maintained converter support;
+Open `project.godot` with Godot **4.7.2**. The menu requires its installed Hype
+artwork; play requires the generated manor. `addons/astrolabe/` is maintained converter support;
 `game/` is independently authored content. All extracted/generated content and
 Godot caches are ignored by location.
 

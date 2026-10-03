@@ -7,7 +7,6 @@ const SAVE_STATE = preload("res://game/save_state.gd")
 @export var background_texture: Texture2D
 @onready var canvas: Control = $MenuCanvas
 @onready var background: TextureRect = $MenuCanvas/Background
-@onready var fallback: Control = $MenuCanvas/Fallback
 @onready var details: Label = $MenuCanvas/Details
 @onready var load_game: Button = $MenuCanvas/LoadGame
 @onready var new_game: Button = $MenuCanvas/NewGame
@@ -20,7 +19,13 @@ func _ready() -> void:
     if background_texture == null and ResourceLoader.exists(MENU_BACKGROUND):
         background_texture = load(MENU_BACKGROUND) as Texture2D
     background.texture = background_texture
-    fallback.visible = background_texture == null
+    if background_texture == null:
+        new_game.disabled = true
+        load_game.disabled = true
+        details.text = "Required menu artwork is missing.\nRestore the installed menu assets."
+        quit_game.grab_focus()
+        push_error("Required menu artwork is missing: " + MENU_BACKGROUND + ". Restore the installed menu assets.")
+        return
     var slot: Dictionary = SAVE_STATE.read()
     details.text = "Prepare the game data from your Hype copy to play."
     if ResourceLoader.exists(MANOR):

@@ -1,15 +1,7 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://game/bootstrap.gd" id="bootstrap"]
 [ext_resource type="Theme" path="res://game/menu/theme.tres" id="theme"]
-
-[sub_resource type="StyleBoxFlat" id="FallbackFrame"]
-bg_color = Color(0.18, 0.085, 0.045, 1)
-border_width_left = 16
-border_width_top = 16
-border_width_right = 16
-border_width_bottom = 16
-border_color = Color(0.43, 0.22, 0.08, 1)
 
 [sub_resource type="StyleBoxFlat" id="StatusPlate"]
 bg_color = Color(0.08, 0.035, 0.01, 0.7)
@@ -43,36 +35,6 @@ layout_mode = 0
 offset_right = 640.0
 offset_bottom = 480.0
 mouse_filter = 2
-
-[node name="Fallback" type="Panel" parent="MenuCanvas"]
-layout_mode = 0
-offset_right = 640.0
-offset_bottom = 480.0
-mouse_filter = 2
-theme_override_styles/panel = SubResource("FallbackFrame")
-
-[node name="Title" type="Label" parent="MenuCanvas/Fallback"]
-layout_mode = 0
-offset_left = 40.0
-offset_top = 44.0
-offset_right = 600.0
-offset_bottom = 150.0
-mouse_filter = 2
-theme_override_colors/font_color = Color(0.48, 0.83, 0.94, 1)
-theme_override_font_sizes/font_size = 80
-text = "HYPE"
-horizontal_alignment = 1
-
-[node name="Subtitle" type="Label" parent="MenuCanvas/Fallback"]
-layout_mode = 0
-offset_left = 40.0
-offset_top = 143.0
-offset_right = 600.0
-offset_bottom = 190.0
-mouse_filter = 2
-theme_override_font_sizes/font_size = 26
-text = "The Time Quest"
-horizontal_alignment = 1
 
 [node name="Background" type="TextureRect" parent="MenuCanvas"]
 layout_mode = 0
