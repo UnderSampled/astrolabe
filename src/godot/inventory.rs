@@ -184,25 +184,41 @@ pub(super) fn export(
             .parent
             .as_ref()
             .map_or("Canvas/Categories".to_owned(), |p| {
-                format!("Canvas/Categories/{p}")
+                format!("Canvas/Categories/{p}/Artwork")
             });
         let pos = c.position;
+        let half = if c.parent.is_some() { 32. } else { 64. };
         writeln!(
             text,
-            "\n[node name={} type=\"Button\" parent={}]\noffset_left = {:?}\noffset_top = {:?}\noffset_right = {:?}\noffset_bottom = {:?}\nscript = ExtResource(\"category\")\ncategory = &{}\nparent_category = &{}\nsource_position = {}\nnormal_scale = {:?}\nselected_scale = {:?}\nnormal_color = {}\nselected_color = {}\ntext = {}",
+            "\n[node name={} type=\"Button\" parent={}]\noffset_left = {:?}\noffset_top = {:?}\noffset_right = {:?}\noffset_bottom = {:?}\nscript = ExtResource(\"category\")\ncategory = &{}\nparent_category = &{}\nnormal_scale = {:?}\nselected_scale = {:?}\nnormal_color = {}\nselected_color = {}\ntext = {}",
             quoted(&c.key),
             quoted(&parent),
-            pos[0] - 64.,
-            pos[1] - 64.,
-            pos[0] + 64.,
-            pos[1] + 64.,
+            pos[0] - half,
+            pos[1] - half,
+            pos[0] + half,
+            pos[1] + half,
             quoted(&c.key),
             quoted(c.parent.as_deref().unwrap_or("")),
-            vector(c.position),
-            value.category_scale[0],
-            value.category_scale[1],
-            color(value.category_color[0]),
-            color(value.category_color[1]),
+            if c.parent.is_some() {
+                1.
+            } else {
+                value.category_scale[0]
+            },
+            if c.parent.is_some() {
+                1.
+            } else {
+                value.category_scale[1]
+            },
+            color(if c.parent.is_some() {
+                [1.; 4]
+            } else {
+                value.category_color[0]
+            }),
+            color(if c.parent.is_some() {
+                [1.; 4]
+            } else {
+                value.category_color[1]
+            }),
             quoted(&c.key)
         )?;
         for (n, side) in ["top", "bottom", "left", "right"].iter().enumerate() {
@@ -218,8 +234,10 @@ pub(super) fn export(
         }
         writeln!(
             text,
-            "\n[node name=\"Artwork\" type=\"Control\" parent={}]\noffset_left = 64.0\noffset_top = 64.0\nmouse_filter = 2",
-            quoted(&format!("{parent}/{}", c.key))
+            "\n[node name=\"Artwork\" type=\"Control\" parent={}]\noffset_left = {:?}\noffset_top = {:?}\nmouse_filter = 2",
+            quoted(&format!("{parent}/{}", c.key)),
+            half,
+            half
         )?;
         for (n, l) in c.images.iter().enumerate() {
             writeln!(

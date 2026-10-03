@@ -60,10 +60,6 @@ func select_category(key: StringName) -> void:
     for value in category_views.values():
         var view := value as CATEGORY
         view.select(view.category == key or view.category == selected.parent_category)
-    # Root refresh runs last so children inherit the current parent transform.
-    for value in category_views.values():
-        var root := value as CATEGORY
-        if root.parent_category.is_empty(): root.refresh()
     if changed: window_start = 0
     refresh()
 
@@ -89,7 +85,7 @@ func refresh() -> void:
         var item: ITEM = shown[index + window_start] if index + window_start < shown.size() else null
         slot_views[index].display(item, int(_quantities[item.item_id]) if item != null else 0, item != null and item.item_id == _weapon)
         var category_path := "../../Categories/" + str(category.category)
-        if not category.parent_category.is_empty(): category_path = "../../Categories/" + str(category.parent_category) + "/" + str(category.category)
+        if not category.parent_category.is_empty(): category_path = "../../Categories/" + str(category.parent_category) + "/Artwork/" + str(category.category)
         slot_views[index].focus_neighbor_top = NodePath(category_path)
         slot_views[index].focus_neighbor_bottom = NodePath(category_path)
     var focused := get_viewport().gui_get_focus_owner() as SLOT
