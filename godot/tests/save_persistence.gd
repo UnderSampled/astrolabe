@@ -33,7 +33,7 @@ func run() -> void:
         fail("Game menu did not expose its Load Game operation")
         return
     if stage == "corrupt":
-        if not load_button.disabled or not str(menu.find_children("*", "Label", true, false)[1].text).contains("Save"):
+        if not load_button.disabled or not str(menu.find_child("Details", true, false).text).contains("Save"):
             fail("Corrupt slot did not fail visibly before session launch")
             return
         var unsupported := FileAccess.open(SAVE_STATE.path(), FileAccess.WRITE)
