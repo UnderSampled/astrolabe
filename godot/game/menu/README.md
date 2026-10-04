@@ -40,3 +40,37 @@ when extending the supplied bootstrap; other consumers can handle the generic
 `action_selected` signal themselves.
 
 Source details are documented in [the menu format note](../../../docs/openspace/menu.md).
+
+## Pause menu composition
+
+Generate the installed game's separate pause presentation:
+
+```sh
+target/release/astrolabe port disc godot --level manoir --locale en --content pause-menu
+```
+
+Its independent `pause-menu` owner publishes
+`generated/hype/shared/menu/pause/en/menu.tscn`. Four native Buttons preserve
+the source labels, font/glow images, initial Resume selection, depth-projected
+anchors and keyboard neighbors. The original root has no backdrop; the native
+Control overlays the existing paused game. Original item images and feedback
+streams are mandatory. Missing media reports an error; it does not supply
+replacement artwork or route away from the session.
+
+`game/pause_host.tscn` composes it in the real session. Esc opens and closes
+pause; Esc in inventory closes inventory first and does not fall through to
+pause or the main menu. Resume releases only the host's own pause, retains the
+same gameplay objects and writes no save. The installed `NextGame` action says
+"start a new adventure" and uses the existing New Game route after session
+teardown. The manual's contradictory load description is documented in the
+source note. Main menu uses the existing bootstrap route. Configure reports
+that configuration remains unimplemented; no settings backend is synthesized.
+Tab retains its manual inventory default. Closing a menu cancels pending audio
+confirmation so an old timer cannot route after closing or reopening.
+
+For layout/art changes, inherit the generated Control scene under `game/menu/`
+and assign it to `PauseHost.pause_scene` in an authored inherited session scene.
+Edit native offsets, Theme, textures or node properties there; generated asset
+regeneration preserves the authored composition. Game routing and pause
+ownership remain in the authored host. No gameplay, loading or HUD system is
+introduced by this slice.

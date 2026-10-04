@@ -17,6 +17,7 @@ signal loading_stage_changed(stage: String, elapsed_ms: float)
 @onready var mana_label: Label = $Hud/Panel/Margin/Rows/Mana
 @onready var content_cache: Node = get_node_or_null("/root/GameContent")
 @onready var inventory_host: Node = $InventoryHost
+@onready var pause_host: Node = $PauseHost
 
 var level: Node3D
 var actor: CharacterBody3D
@@ -49,6 +50,7 @@ const AIM_ACTIONS := {
 
 func _ready() -> void:
     inventory_host.connect("unavailable", func(message: String): status_label.text = message)
+    pause_host.connect("unavailable", func(message: String): status_label.text = message)
     configure_crossbow_inputs()
     load_started_usec = Time.get_ticks_usec()
     stage("session", "Loading New Game..." if new_game else "Loading saved game...")
@@ -56,7 +58,7 @@ func _ready() -> void:
     $Hud/Panel/Margin/Rows/Save.pressed.connect(save_game)
     if new_game:
         $Hud/Panel/Margin/Rows/Save.disabled = true
-        $Hud/Panel/Margin/Rows/Controls.text = "R  restart opening     Esc  menu"
+        $Hud/Panel/Margin/Rows/Controls.text = "Tab  inventory     R  restart opening     Esc  pause"
     call_deferred("open_level")
 
 func open_level() -> void:
@@ -186,7 +188,7 @@ func open_new_game() -> void:
     if not is_inside_tree(): return
     ready_to_play = true
     loading = false
-    stage("opening","New Game — opening incomplete. R restarts; Esc returns to menu.")
+    stage("opening","New Game — opening incomplete. R restarts; Esc pauses.")
     update_opening_status()
 
 func update_opening_status() -> void:
@@ -195,7 +197,7 @@ func update_opening_status() -> void:
         var failure := str(source_brain.get("unsupported_failure"))
         if not failure.is_empty(): opening_failures[str(source_brain.get_path())] = failure
     if not opening_failures.is_empty():
-        status_label.text = "Opening incomplete: %d actor behaviors stopped. R restarts; Esc returns to menu." % opening_failures.size()
+        status_label.text = "Opening incomplete: %d actor behaviors stopped. R restarts; Esc pauses." % opening_failures.size()
     if is_instance_valid(opening_camera):
         var camera_brain := opening_camera.get_parent().get_node_or_null("Brain")
         if camera_brain != null and bool(camera_brain.get("running")) and is_instance_valid(opening_camera.get("targeted_actor")):
@@ -308,11 +310,13 @@ func _unhandled_key_input(event: InputEvent) -> void:
     elif key.physical_keycode == KEY_R:
         get_viewport().set_input_as_handled()
         leave_session("res://game/new_game.tscn" if new_game else "res://game/demo.tscn")
-    elif key.physical_keycode == KEY_ESCAPE:
+    elif key.physical_keycode == KEY_ESCAPE and not pause_available():
+        # Keep the existing exit route while loading or after a failed entry.
         get_viewport().set_input_as_handled()
         leave_session("res://game/bootstrap.tscn")
 
 func leave_session(destination: String) -> void:
+    pause_host.call("close_pause")
     inventory_host.call("close_inventory")
     ready_to_play = false
     if is_instance_valid(brain):
@@ -324,6 +328,9 @@ func leave_session(destination: String) -> void:
         if str(action).begins_with("Button_"):
             Input.action_release(action)
     get_tree().change_scene_to_file(destination)
+
+func pause_available() -> bool:
+    return ready_to_play and is_instance_valid(actor) and is_instance_valid(level)
 
 func inventory_available() -> bool:
     if not ready_to_play or not is_instance_valid(actor) or not is_instance_valid(level): return false

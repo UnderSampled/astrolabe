@@ -33,9 +33,10 @@ owned-weapon selection increment, not complete original inventory parity.
 
 The original manual (`disc/HypeManual.pdf`, printed pages 12–15 and 18) specifies
 Tab for inventory and Esc for a separate pause menu, with Resume, Load another
-adventure, Configuration and Return to main menu. That pause menu remains
-unfinished; outside this inventory view, the current session's Esc action still
-returns directly to the main menu.
+adventure, Configuration and Return to main menu. The separate
+[pause composition](../menu/README.md#pause-menu-composition) follows the installed
+English source's "start a new adventure" action where it differs from that
+manual. Esc closes inventory without opening pause or leaving the session.
 
 For designer changes, inherit the generated scene and save it under
 `game/inventory/`. Assign it to the `InventoryHost.inventory_scene` property in

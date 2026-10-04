@@ -1,14 +1,17 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://game/demo.gd" id="demo"]
 [ext_resource type="Script" path="res://game/demo_camera.gd" id="camera"]
 [ext_resource type="Script" path="res://game/inventory_host.gd" id="inventory"]
+[ext_resource type="PackedScene" path="res://game/pause_host.tscn" id="pause"]
 
 [node name="ManorDemo" type="Node3D"]
 script = ExtResource("demo")
 
 [node name="InventoryHost" type="CanvasLayer" parent="."]
 script = ExtResource("inventory")
+
+[node name="PauseHost" parent="." instance=ExtResource("pause")]
 
 [node name="DemoCamera" type="Camera3D" parent="."]
 current = true
@@ -52,4 +55,4 @@ text = "Save Game"
 
 [node name="Controls" type="Label" parent="Hud/Panel/Margin/Rows"]
 layout_mode = 2
-text = "Arrows  move and turn     Shift  run     Ctrl  jump\nX  draw sword     Space  use sword\nFire: step Down, press X, then Enter\nTab  inventory     F5  save     R  reload save     Esc  menu"
+text = "Arrows  move and turn     Shift  run     Ctrl  jump\nX  draw sword     Space  use sword\nFire: step Down, press X, then Enter\nTab  inventory     F5  save     R  reload save     Esc  pause"

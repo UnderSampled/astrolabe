@@ -18,6 +18,7 @@ cargo build --release --locked
 target/release/astrolabe port disc godot --level manoir --locale en
 target/release/astrolabe port disc godot --level manoir --locale en --content menu
 target/release/astrolabe port disc godot --level manoir --locale en --content inventory
+target/release/astrolabe port disc godot --level manoir --locale en --content pause-menu
 ```
 
 Open `project.godot` in the Godot editor, wait for texture and sound imports to
@@ -36,10 +37,12 @@ investigation.
 Controls: **Arrows** move and turn, **Shift** runs, **Ctrl** jumps, **X** draws
 the sword, and **Space** uses it. To prepare the saved character for Fire, step
 back with **Down**, press **X**, then press **Enter** to cast. **R** reloads the
-provisional save start; **Esc** currently returns to the main menu. **Tab** opens the inventory during gameplay; **Tab** or
+provisional save start; **Esc** opens the separate pause menu. Resume or **Esc**
+returns to the same session; "start a new adventure" uses the existing New Game
+route, and "main menu" returns to the main menu. Configure remains unfinished.
+**Tab** opens the inventory during gameplay; **Tab** or
 **Esc** closes its modal view. Selecting an owned weapon updates the existing
 inventory Resource; other item effects remain explicit unfinished actions.
-The original game's separate Esc pause menu remains unfinished.
 [inventory ownership](game/inventory/README.md) explains source content and editor overrides. The supported slice includes
 movement with contact, stationary/moving/wall jumps, sword selection and beam lifetime, and Fire cast
 with mana cost. Combat hit/damage, crossbow play, spell contact/lifetime, cliff
@@ -62,7 +65,7 @@ After generating the manor and importing its assets, run the project and select
 state, with its compiled AI running. It does not restore a save, lift the bridge
 gate or substitute the camera-test excerpt. Existing saves are preserved; saving
 is disabled in this unfinished opening preview. **R** restarts New Game and
-**Esc** returns to the menu. **Load Game** keeps its existing save route.
+**Esc** pauses. **Load Game** keeps its existing save route.
 
 The opening is incomplete and can stop at unsupported behavior. The status
 display reports stopped actors, and the console retains their exact AI failures.
