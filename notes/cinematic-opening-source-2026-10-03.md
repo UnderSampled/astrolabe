@@ -1013,3 +1013,58 @@ It preserves menu/inventory/font/settings/saves, backs up the prior publication,
 uses480s including cleanup reserve and runs only the existing actual New Game
 case. It requires the life read50/field128=50 as well as prior opening assertions.
 Native continuation is pending; no V15 pass or repaired visual overlap is claimed.
+
+### V15 native checkpoint — 2026-10-04
+
+Fixed Luna executed that frozen recipe once and it **passed in 248.115s**.
+Interface 52 publication owns 4,972 files; all 37 menu/146 inventory files, font,
+settings and save fixtures were preserved. Source stayed unchanged and all
+stages/syntax cleanup were clean. The actual New Game case reached first
+dialogue, preserved the private slot and observed Hype life 50/field128=50,
+particle capacity 200 initialized/disabled, and opacity 255/transparent display.
+There are no unexpected engine errors; the V14 `stable_8` error is absent in
+this run. This verifies the bounded checkpoint with serialized dependency
+loading, not a general proof of the engine race's cause.
+
+Evidence: `TestResults/actual-opening-v15-sol-20261004/result.json` and sibling
+`new-game-opening/report.json`, `engine.log`, actual generated models and
+`new-game-opening-start.png`/`new-game-opening-walk-end.png`. Sol inspected both
+images; the colored Hype and grey statue still overlap. That visible defect and
+the complete intro endpoint remain unresolved.
+
+Hype's new reached failure is procedure 429/node987. The verified installed
+executable catalog calls this `Fight_ChangeArmor`; Raymap's older procedure
+table is shifted here and calls 429 a different operation. Static 0053dd60
+subtracts 429, dispatches that first arm to 0053ddc8 and calls 0043a9b0 with one
+integer. That helper selects a linked armor definition by byte index from the
+shared armor root; the reached original node988 is integer 0 (the alternate
+node984/985 branch selects 2). This is not enemy damage. The definitions also
+own source armor artwork/resistance state, so a dummy no-op would conceal the
+next gap. Source-based armor selection needs its actual useful definition/state
+and native consumer; the separately requested HUD-layout investigation can
+inform that boundary without broadening this checkpoint into unrelated APIs.
+The verified executable hash, dispatch table, call bytes and decompilation hashes
+are recorded in `TestResults/hype-armor429-handler-static-proof-sol-20261004.json`.
+
+### Pause gate review — 2026-10-04
+
+The separate pause worker's native gate at
+`/home/stephen/Documents/Codex/2026-10-03/task-4/astrolabe-pause/output/pause-qa-2047ea0-r1/run/results.json`
+is **failed**, in 13.369s. Its five syntax checks, pause-only conversion and
+synthetic modal probe exited successfully with clean owned-process cleanup.
+However, the probe logged two leaked ObjectDB instances and one resource still
+in use at engine shutdown, which the gate correctly rejects. The missing-assets
+variant was never executed. Frozen bundle hashes still match; no result or source
+was rewritten. The probe's internal report passes Resume/state preservation,
+Esc/Tab, delayed-confirmation cancellation, routes and editable scene checks.
+Those are component observations, not a passing gate or actual manor acceptance.
+
+Sol inspected the 4:3 and wide Resume screenshots: original source glyph artwork,
+selected appearance and aspect fitting are present over a synthetic flat-color
+stand-in. The smallest next check is one bounded verbose reproduction by fixed
+Luna to identify the leaked owners, followed by the pause worker's lifecycle fix
+and complete gate including the missing-assets control. Main integration and
+publication are pending that result. When integrated, bump support to 53 after
+the already published interface 52; the worker's reserved 51 must not downgrade
+the main tree. Preserve all 4,972 prior generated files and unrelated ownership.
+Read-only audit: `TestResults/pause-gate-review-sol-20261004.json`.
