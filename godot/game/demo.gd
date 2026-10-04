@@ -8,6 +8,8 @@ const BRIDGE_GATE := "world/0/15/iMGrille_Manoir_Pont"
 const GATE_LIFT := 5.2
 const MANOIR_START = preload("res://game/manoir_start.gd")
 const SAVE_STATE = preload("res://game/save_state.gd")
+const LEVEL_PREPARATION = preload("res://game/level_preparation.gd")
+const CROSSBOW_INPUT = preload("res://game/crossbow_input.gd")
 @export var new_game: bool = false
 
 signal loading_stage_changed(stage: String, elapsed_ms: float)
@@ -28,27 +30,30 @@ var loading := false
 var loading_stage := "idle"
 var load_started_usec := 0
 var load_timings_ms: Dictionary = {}
-var saved_max_fps := -1
-var crossbow_aim_mode := false
-var crossbow_aim_pitch := 0.0
+var level_preparation: LEVEL_PREPARATION = LEVEL_PREPARATION.new()
+var crossbow_input: CROSSBOW_INPUT = CROSSBOW_INPUT.new()
+# Retain the session's observable state while focused components own the work.
+var saved_max_fps: int:
+    get: return level_preparation.saved_max_fps
+    set(value): level_preparation.saved_max_fps = value
+var crossbow_aim_mode: bool:
+    get: return crossbow_input.aim_mode
+    set(value): crossbow_input.aim_mode = value
+var crossbow_aim_pitch: float:
+    get: return crossbow_input.aim_pitch
+    set(value): crossbow_input.aim_pitch = value
 var opening_brains: Array[Node] = []
 var opening_failures: Dictionary = {}
 var opening_camera: Camera3D
 
-const AIM_ACTIONS := {
-    "Button_Left": KEY_LEFT,
-    "Button_Right": KEY_RIGHT,
-    "Button_Up": KEY_UP,
-    "Button_Down": KEY_DOWN,
-    "Button_Hit": KEY_SPACE,
-    "BT_Camera_LookLeft": KEY_LEFT,
-    "BT_Camera_LookRight": KEY_RIGHT,
-    "BT_Camera_LookUp": KEY_UP,
-    "BT_Camera_LookDown": KEY_DOWN,
-    "BT_Camera_TireArbalete": KEY_SPACE,
-}
+const AIM_ACTIONS = CROSSBOW_INPUT.ACTIONS
 
 func _ready() -> void:
+    level_preparation.name = "LevelPreparation"
+    crossbow_input.name = "CrossbowInput"
+    add_child(level_preparation)
+    add_child(crossbow_input)
+    level_preparation.loading_started.connect(func(): stage("resource_loading", "Loading the manor..."))
     inventory_host.connect("unavailable", func(message: String): status_label.text = message)
     pause_host.connect("unavailable", func(message: String): status_label.text = message)
     configure_crossbow_inputs()
@@ -72,39 +77,18 @@ func open_level() -> void:
     if saved["status"] == "error":
         fail(str(saved["message"]))
         return
-    var packed: PackedScene = content_cache.call("get_level", LEVEL) as PackedScene if content_cache != null else null
+    var packed: PackedScene = await level_preparation.prepare(LEVEL, content_cache)
+    if not is_inside_tree(): return
     if packed == null:
-        stage("resource_loading", "Loading the manor...")
-        limit_loading_frames()
-        # The manor reaches the same meshes through level and instance scenes.
-        # Keep dependency loading in one worker to avoid competing subresource
-        # cache registrations, while the session remains responsive.
-        var request := ResourceLoader.load_threaded_request(
-            LEVEL, "PackedScene", false, ResourceLoader.CACHE_MODE_REUSE)
-        if request != OK:
-            fail("The manor scene could not begin loading.")
-            return
-        while is_inside_tree() and ResourceLoader.load_threaded_get_status(LEVEL) == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
-            await get_tree().process_frame
-        if not is_inside_tree():
-            return
-        if ResourceLoader.load_threaded_get_status(LEVEL) != ResourceLoader.THREAD_LOAD_LOADED:
-            fail("The manor scene failed to load.")
-            return
-        packed = ResourceLoader.load_threaded_get(LEVEL) as PackedScene
-        restore_frame_limit()
-    if packed == null:
-        fail("The generated manor scene could not be opened.")
+        if not level_preparation.failure.is_empty(): fail(level_preparation.failure)
         return
-    if content_cache != null:
-        content_cache.call("retain_level", LEVEL, packed)
     stage("resource_ready", "Preparing the manor...")
     level = packed.instantiate() as Node3D
     if level == null:
         fail("The generated manor scene is invalid.")
         return
     stage("instantiated", "Starting the opening..." if new_game else "Restoring saved game...")
-    actor = level.get_node_or_null("world/0/0/Hype") as CharacterBody3D
+    actor = SAVE_STATE.resolve_player(level)
     brain = actor.get_node_or_null("Brain") if actor != null else null
     var source_brains: Variant = level.get_meta("source_actor_brains", {})
     if source_brains is Dictionary and source_brains.has(SAVE_STATE.DUMMY):
@@ -219,14 +203,10 @@ func stage(name: String, message: String) -> void:
         print("GAME_LOAD ", JSON.stringify({"stage": name, "elapsed_ms": elapsed_ms, "static_memory_bytes": OS.get_static_memory_usage()}))
 
 func limit_loading_frames() -> void:
-    if Engine.max_fps == 0 or Engine.max_fps > 30:
-        saved_max_fps = Engine.max_fps
-        Engine.max_fps = 30
+    level_preparation.limit_frames()
 
 func restore_frame_limit() -> void:
-    if saved_max_fps >= 0:
-        Engine.max_fps = saved_max_fps
-        saved_max_fps = -1
+    level_preparation.restore_frames()
 
 func _process(delta: float) -> void:
     if not ready_to_play or not is_instance_valid(actor) or not is_instance_valid(brain):
@@ -240,65 +220,27 @@ func _process(delta: float) -> void:
     var inventory: Resource = actor.get("source_inventory")
     if inventory != null and int(inventory.get("selected_weapon")) == 80:
         mana_label.text = "Crossbow  %d bolts" % int(inventory.call("quantity", 80))
-    var aiming := inventory != null and int(inventory.get("selected_weapon")) == 80 and Input.is_action_pressed("BT_Camera_Look")
-    if aiming != crossbow_aim_mode:
-        set_crossbow_aim_mode(aiming)
-    if crossbow_aim_mode:
-        if Input.is_action_pressed("BT_Camera_LookUp"): crossbow_aim_pitch = minf(crossbow_aim_pitch + 45.0 * delta, 35.0)
-        if Input.is_action_pressed("BT_Camera_LookDown"): crossbow_aim_pitch = maxf(crossbow_aim_pitch - 45.0 * delta, -35.0)
-        demo_camera.crossbow_aim_pitch_degrees = crossbow_aim_pitch
-        update_crossbow_aim_target()
+    crossbow_input.update(delta, actor, demo_camera)
     var failure := str(brain.get("unsupported_failure"))
     if not failure.is_empty():
         status_label.text = "This behavior is not supported yet. Press R to reload."
 
 func configure_crossbow_inputs() -> void:
-    for action in ["BT_Camera_Look", "BT_Camera_LookLeft", "BT_Camera_LookRight", "BT_Camera_LookUp", "BT_Camera_LookDown", "BT_Camera_TireArbalete"]:
-        if not InputMap.has_action(action): InputMap.add_action(action)
-    bind_physical_key("BT_Camera_Look", KEY_KP_0)
-    bind_physical_key("BT_Camera_Look", KEY_INSERT)
-    bind_physical_key("Button_Left", KEY_LEFT)
-    bind_physical_key("Button_Right", KEY_RIGHT)
-    bind_physical_key("Button_Up", KEY_UP)
-    bind_physical_key("Button_Down", KEY_DOWN)
-    bind_physical_key("Button_Hit", KEY_SPACE)
+    crossbow_input.configure()
 
 func bind_physical_key(action: StringName, key: Key) -> void:
-    if not InputMap.has_action(action): InputMap.add_action(action)
-    var event := InputEventKey.new()
-    event.physical_keycode = key
-    if not InputMap.action_has_event(action, event): InputMap.action_add_event(action, event)
+    crossbow_input.bind_key(action, key)
 
 func route_physical_key(action: StringName, key: Key, enabled: bool) -> void:
-    var event := InputEventKey.new()
-    event.physical_keycode = key
-    if enabled:
-        if not InputMap.action_has_event(action, event): InputMap.action_add_event(action, event)
-    elif InputMap.action_has_event(action, event):
-        InputMap.action_erase_event(action, event)
+    crossbow_input.route_key(action, key, enabled)
 
 func set_crossbow_aim_mode(enabled: bool) -> void:
-    crossbow_aim_mode = enabled
-    var movement_actions := ["Button_Left", "Button_Right", "Button_Up", "Button_Down"]
-    var camera_actions := ["BT_Camera_LookLeft", "BT_Camera_LookRight", "BT_Camera_LookUp", "BT_Camera_LookDown"]
-    for i in movement_actions.size():
-        route_physical_key(movement_actions[i], AIM_ACTIONS[movement_actions[i]], not enabled)
-        route_physical_key(camera_actions[i], AIM_ACTIONS[camera_actions[i]], enabled)
-    route_physical_key("Button_Hit", KEY_SPACE, not enabled)
-    route_physical_key("BT_Camera_TireArbalete", KEY_SPACE, enabled)
-    if not enabled: crossbow_aim_pitch = 0.0
+    crossbow_input.set_mode(enabled)
 
 func update_crossbow_aim_target() -> void:
-    if not is_instance_valid(actor): return
-    var viewport := get_viewport()
-    var center := viewport.get_visible_rect().size * 0.5
-    var origin := demo_camera.project_ray_origin(center)
-    var direction := demo_camera.project_ray_normal(center)
-    var query := PhysicsRayQueryParameters3D.create(origin, origin + direction * 2000.0, 1)
-    query.exclude = [actor.get_rid()]
-    var hit := actor.get_world_3d().direct_space_state.intersect_ray(query)
-    var target := hit["position"] as Vector3 if not hit.is_empty() else origin + direction * 2000.0
-    actor.call("source_set_laser_pointer_target", target)
+    crossbow_input.actor = actor
+    crossbow_input.camera = demo_camera
+    crossbow_input.update_target()
 
 func _unhandled_key_input(event: InputEvent) -> void:
     var key := event as InputEventKey
@@ -323,7 +265,8 @@ func leave_session(destination: String) -> void:
         brain.call("stop")
     if is_instance_valid(actor):
         actor.set_physics_process(false)
-    if crossbow_aim_mode: set_crossbow_aim_mode(false)
+    level_preparation.cancel()
+    crossbow_input.teardown()
     for action in InputMap.get_actions():
         if str(action).begins_with("Button_"):
             Input.action_release(action)
@@ -338,13 +281,15 @@ func inventory_available() -> bool:
     return ui == null or not bool(ui.get("widescreen"))
 
 func _exit_tree() -> void:
-    restore_frame_limit()
+    level_preparation.cancel()
+    crossbow_input.teardown()
     if is_instance_valid(brain):
         brain.call("stop")
 
 func fail(message: String) -> void:
     push_error(message)
-    restore_frame_limit()
+    level_preparation.cancel()
+    crossbow_input.teardown()
     if is_instance_valid(brain):
         brain.call("stop")
     if is_instance_valid(actor):

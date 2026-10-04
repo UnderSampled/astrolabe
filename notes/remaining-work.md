@@ -1,5 +1,12 @@
 # Ongoing and upcoming work
 
+The [2026-10-04 static port ledger](./static-port-plan-2026-10-04.md) records the
+active dependency order, source-first changes and remaining translation work.
+Release build and all four `prepare-game` scopes now pass; regression and
+gameplay tests remain deferred. The roadmap below still defines
+the intended scope; its historical verification reports do not validate the
+new source changes.
+
 ## Current roadmap — 2026-09-27
 
 This is the current scope agreed with the user. It supersedes the older ordering

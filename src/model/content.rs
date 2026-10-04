@@ -1,8 +1,10 @@
 //! Content kinds and in-memory session loading shared by all adapters.
 use super::ai::AiModel;
+use super::armor::ArmorCatalog;
 use super::dialogue::{Dialogue, DialoguePresentation};
 use super::environment::{Environment, Fog, PhysicalEnvironment, VisualEnvironment};
 use super::inventory::InventoryPresentation;
+use super::inventory_gameplay::InventoryCatalog;
 use super::mechanics::Mechanics;
 use super::menu::MenuPresentation;
 use super::route::{Route, Waypoint};
@@ -81,7 +83,9 @@ pub trait ContentSource:
     + Load<DialoguePresentation>
     + Load<MenuPresentation>
     + Load<InventoryPresentation>
+    + Load<InventoryCatalog>
     + Load<AiModel>
+    + Load<ArmorCatalog>
     + Load<Collision>
     + Load<CollisionProfile>
     + Load<Environment>
@@ -116,7 +120,9 @@ impl<T> ContentSource for T where
         + Load<DialoguePresentation>
         + Load<MenuPresentation>
         + Load<InventoryPresentation>
+        + Load<InventoryCatalog>
         + Load<AiModel>
+        + Load<ArmorCatalog>
         + Load<Collision>
         + Load<CollisionProfile>
         + Load<Environment>
@@ -138,7 +144,9 @@ pub enum Asset {
     DialoguePresentation(Arc<DialoguePresentation>),
     MenuPresentation(Arc<MenuPresentation>),
     InventoryPresentation(Arc<InventoryPresentation>),
+    InventoryCatalog(Arc<InventoryCatalog>),
     AiModel(Arc<AiModel>),
+    ArmorCatalog(Arc<ArmorCatalog>),
     Environment(Arc<Environment>),
     PhysicalEnvironment(Arc<PhysicalEnvironment>),
     VisualEnvironment(Arc<VisualEnvironment>),
@@ -186,7 +194,9 @@ impl Asset {
             InventoryPresentation::KIND => {
                 Self::InventoryPresentation(load(source, &root.reference)?)
             }
+            InventoryCatalog::KIND => Self::InventoryCatalog(load(source, &root.reference)?),
             AiModel::KIND => Self::AiModel(load(source, &root.reference)?),
+            ArmorCatalog::KIND => Self::ArmorCatalog(load(source, &root.reference)?),
             Environment::KIND => Self::Environment(load(source, &root.reference)?),
             PhysicalEnvironment::KIND => Self::PhysicalEnvironment(load(source, &root.reference)?),
             VisualEnvironment::KIND => Self::VisualEnvironment(load(source, &root.reference)?),

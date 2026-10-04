@@ -43,7 +43,29 @@ pub(super) fn normalize_native(path: &str, text: &str) -> Result<String> {
             .context("native node field truncated")?
             .to_string())
     };
-    let mut normalized = String::new();
+    // Reserve all initial hashes before probing, so a collision cannot steal
+    // the otherwise unchanged ID of a node appearing later in this file.
+    let initial_ids = text
+        .lines()
+        .skip(1)
+        .filter(|line| line.starts_with("[node "))
+        .map(|line| {
+            let name = field(line, "name")?;
+            let parent = if line.contains(" parent=\"") {
+                field(line, "parent")?
+            } else {
+                String::new()
+            };
+            Ok((identity(&format!("{path}:{parent}/{name}")) & i32::MAX as u64).max(1))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    ensure!(
+        initial_ids.len() <= i32::MAX as usize,
+        "native node identity space exhausted in {path}"
+    );
+    let reserved_ids: std::collections::BTreeSet<_> = initial_ids.iter().copied().collect();
+    let mut initial_ids = initial_ids.into_iter();
+    let mut normalized = String::with_capacity(text.len());
     let mut node_ids = std::collections::BTreeSet::new();
     for (i, line) in text.lines().enumerate() {
         if i == 0 {
@@ -52,17 +74,22 @@ pub(super) fn normalize_native(path: &str, text: &str) -> Result<String> {
                 .context("native resource header missing")?;
             normalized.push_str(&format!("{prefix} uid=\"{}\"]\n", resource_uid(path)));
         } else if line.starts_with("[node ") {
-            let name = field(line, "name")?;
-            let parent = if line.contains(" parent=\"") {
-                field(line, "parent")?
-            } else {
-                String::new()
-            };
-            let id = (identity(&format!("{path}:{parent}/{name}")) & i32::MAX as u64).max(1);
-            ensure!(
-                node_ids.insert(id),
-                "native node identity collision in {path}"
-            );
+            let initial = initial_ids
+                .next()
+                .expect("one initial hash per native node");
+            let mut id = initial;
+            if !node_ids.insert(id) {
+                loop {
+                    id = if id == i32::MAX as u64 { 1 } else { id + 1 };
+                    ensure!(
+                        id != initial,
+                        "native node identity space exhausted in {path}"
+                    );
+                    if !reserved_ids.contains(&id) && node_ids.insert(id) {
+                        break;
+                    }
+                }
+            }
             normalized.push_str(&format!(
                 "{} unique_id={id}]\n",
                 line.strip_suffix(']')
@@ -102,56 +129,136 @@ fn normalize_font_properties(text: &str) -> Result<String> {
     Ok(normalized)
 }
 
+/// Remove engine-generated identities and rewrite resource IDs in bounded
+/// passes. Each input span is copied once; new IDs never become rewrite input.
 pub(super) fn strip_uids(text: &str) -> String {
-    let mut value = text.to_owned();
-    while let Some(start) = value.find(" uid=\"uid://") {
-        if let Some(end) = value[start + 6..].find('"') {
-            value.replace_range(start..start + 6 + end + 1, "");
-        } else {
-            break;
+    let value = strip_native_identity_attributes(text);
+    let mut declarations = std::collections::BTreeMap::new();
+    let mut index = 0usize;
+    for line in value.lines() {
+        if let Some((kind, range)) = resource_declaration(line) {
+            index += 1;
+            // Duplicate IDs are invalid native content, but keeping the first
+            // mapping retains the previous normalizer's deterministic choice.
+            declarations
+                .entry((kind, &line[range]))
+                .or_insert_with(|| format!("stable_{index}"));
         }
     }
-    // Godot 4.7 assigns random editor node identities on PackedScene.save.
-    // These provisional standalone assets use node paths, not persistent editor IDs.
-    while let Some(start) = value.find(" unique_id=") {
-        let end = value[start + 11..]
-            .find(|c: char| !c.is_ascii_digit())
-            .map_or(value.len(), |n| start + 11 + n);
-        value.replace_range(start..end, "");
-    }
-    // Inherited overrides can also retain ResourceSaver's random parent IDs.
-    // They no longer identify the normalized nodes. Godot's text loader accepts
-    // the explicit parent path without this optional rename-recovery hint.
-    // Keep that path instead of publishing stale references to random IDs.
-    while let Some(start) = value.find(" parent_id_path=PackedInt32Array(") {
-        let Some(end) = value[start..].find(')') else {
-            break;
-        };
-        value.replace_range(start..start + end + 1, "");
-    }
-    // ResourceSaver also chooses opaque IDs. File-local IDs only connect references;
-    // name them by declaration order so independent engine processes agree.
-    let declarations = value
-        .lines()
-        .filter_map(|line| {
-            let kind = if line.starts_with("[ext_resource ") {
-                "ExtResource"
-            } else if line.starts_with("[sub_resource ") {
-                "SubResource"
+    let mut normalized = String::with_capacity(value.len());
+    for line in value.split_inclusive('\n') {
+        let declaration = resource_declaration(line);
+        let mut declaration_pending = true;
+        let bytes = line.as_bytes();
+        let mut copied = 0;
+        let mut cursor = 0;
+        while cursor < bytes.len() {
+            if declaration_pending
+                && let Some((kind, range)) = &declaration
+                && cursor == range.start
+            {
+                normalized.push_str(&line[copied..cursor]);
+                normalized.push_str(&declarations[&(*kind, &line[range.clone()])]);
+                cursor = range.end;
+                copied = cursor;
+                declaration_pending = false;
+                continue;
+            }
+            let reference = if bytes[cursor..].starts_with(b"ExtResource(\"") {
+                Some(("ExtResource", b"ExtResource(\"".len()))
+            } else if bytes[cursor..].starts_with(b"SubResource(\"") {
+                Some(("SubResource", b"SubResource(\"".len()))
             } else {
-                return None;
+                None
             };
-            let start = line.find(" id=\"")? + 5;
-            let end = line[start..].find('"')? + start;
-            Some((kind, line[start..end].to_owned()))
-        })
-        .collect::<Vec<_>>();
-    for (index, (kind, old)) in declarations.iter().enumerate() {
-        let new = format!("stable_{}", index + 1);
-        value = value.replace(&format!(" id=\"{old}\""), &format!(" id=\"{new}\""));
-        value = value.replace(&format!("{kind}(\"{old}\")"), &format!("{kind}(\"{new}\")"));
+            if let Some((kind, prefix)) = reference {
+                let start = cursor + prefix;
+                let Some(relative_end) = bytes[start..].iter().position(|&b| b == b'"') else {
+                    break;
+                };
+                let end = start + relative_end;
+                if bytes.get(end + 1) == Some(&b')') {
+                    if let Some(new) = declarations.get(&(kind, &line[start..end])) {
+                        normalized.push_str(&line[copied..start]);
+                        normalized.push_str(new);
+                        copied = end;
+                    }
+                    cursor = end + 2;
+                } else {
+                    cursor = end + 1;
+                }
+            } else {
+                cursor += 1;
+            }
+        }
+        normalized.push_str(&line[copied..]);
     }
-    value
+    normalized
+}
+
+fn resource_declaration(line: &str) -> Option<(&'static str, std::ops::Range<usize>)> {
+    let kind = if line.starts_with("[ext_resource ") {
+        "ExtResource"
+    } else if line.starts_with("[sub_resource ") {
+        "SubResource"
+    } else {
+        return None;
+    };
+    let start = line.find(" id=\"")? + 5;
+    let end = line[start..].find('"')? + start;
+    Some((kind, start..end))
+}
+
+fn strip_native_identity_attributes(text: &str) -> String {
+    const UID: &[u8] = b" uid=\"uid://";
+    const NODE_ID: &[u8] = b" unique_id=";
+    const PARENT_ID: &[u8] = b" parent_id_path=PackedInt32Array(";
+    let bytes = text.as_bytes();
+    let mut normalized = String::with_capacity(text.len());
+    let mut copied = 0;
+    let mut cursor = 0;
+    let mut scan_uid = true;
+    let mut scan_parent = true;
+    while cursor < bytes.len() {
+        let suffix = &bytes[cursor..];
+        let end = if scan_uid && suffix.starts_with(UID) {
+            match bytes[cursor + UID.len()..].iter().position(|&b| b == b'"') {
+                Some(end) => Some(cursor + UID.len() + end + 1),
+                None => {
+                    scan_uid = false;
+                    None
+                }
+            }
+        } else if suffix.starts_with(NODE_ID) {
+            let mut end = cursor + NODE_ID.len();
+            while bytes.get(end).is_some_and(u8::is_ascii_digit) {
+                end += 1;
+            }
+            Some(end)
+        } else if scan_parent && suffix.starts_with(PARENT_ID) {
+            match bytes[cursor + PARENT_ID.len()..]
+                .iter()
+                .position(|&b| b == b')')
+            {
+                Some(end) => Some(cursor + PARENT_ID.len() + end + 1),
+                None => {
+                    scan_parent = false;
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        if let Some(end) = end {
+            normalized.push_str(&text[copied..cursor]);
+            copied = end;
+            cursor = end;
+        } else {
+            cursor += 1;
+        }
+    }
+    normalized.push_str(&text[copied..]);
+    normalized
 }
 
 /// Whether a gameplay launch should show its rendered window.

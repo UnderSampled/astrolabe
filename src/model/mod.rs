@@ -12,6 +12,7 @@ pub mod texture;
 
 pub mod ai;
 pub mod animation;
+pub mod armor;
 pub mod camera;
 pub mod character;
 pub mod dialogue;
@@ -23,5 +24,6 @@ pub mod mechanics;
 pub mod environment;
 
 pub mod inventory;
+pub mod inventory_gameplay;
 pub mod menu;
 pub mod particle;

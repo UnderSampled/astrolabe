@@ -86,6 +86,8 @@ fn godot_signed_lights_and_sector_sharing() -> Result<()> {
     source.insert(&reference, light)?;
     let scene = Scene {
         main_actor: None,
+        armor: None,
+        inventory: None,
         global_actors: vec![],
         path: AssetPath::new("level:/scene")?,
         name: "Lights".into(),

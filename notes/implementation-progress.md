@@ -1,5 +1,14 @@
 # Rust implementation evidence
 
+2026-10-04 source-first continuation: the [static port ledger](./static-port-plan-2026-10-04.md)
+tracks the current startup repair, refactors and source-supported translation.
+Regression and gameplay tests remain deferred. After preparation failures, the
+user authorized release builds and conversion retries. The final release build
+passed, and `prepare-game disk godot` completed scene, main menu, inventory and
+pause menu in 162.494 seconds, including native resource construction and Godot
+import. The ledger records fixes, failures and evidence paths. Those results do
+not extend the gameplay acceptance below.
+
 2026-10-03 next opening integration: v5 regenerated support 45 and passed
 28/29 affected cases, including actual New Game first path, floor contact,
 private save preservation, restart and menu return. It then observed the real

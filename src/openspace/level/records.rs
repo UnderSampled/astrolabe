@@ -801,15 +801,17 @@ pub(super) struct InfoWire {
     pub(super) initialize: u32,
 }
 /// The first six pointers of Perso3dData; the rest is not inferred by this view.
-/// Raymap Object/Properties/Perso3dData.Read and the Hype source-rule probes.
+/// Hype getters 00442550/00442530 and setter 00442540 distinguish the initial
+/// ObjectList at +12 from the current selection at +16. Raymap labels these
+/// two fields in the opposite order.
 #[derive(BinRead, BinWrite)]
 #[brw(little)]
 pub(super) struct PersoData3dPrefixWire {
     pub(super) initial_state: u32,
     pub(super) current_state: u32,
     pub(super) secondary_state: u32,
-    pub(super) configuration: u32,
     pub(super) initial_configuration: u32,
+    pub(super) configuration: u32,
     pub(super) family: u32,
 }
 /// Hype StandardGame's family/model/instance type-table entries. Other standard

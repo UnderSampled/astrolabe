@@ -67,12 +67,26 @@ func expose_scene_tree(path: String) -> void:
             paths.append(str(root.get_path_to(node)))
     root.free()
     paths.sort()
-    var text := FileAccess.get_file_as_string(path)
+    var file := FileAccess.open(path, FileAccess.READ_WRITE)
+    var length := file.get_length()
+    var existing_paths: Dictionary = {}
+    # Scan once, then append only missing editor sections; never rewrite scene data.
+    while file.get_position() < length:
+        var line := file.get_line().strip_edges()
+        if not line.begins_with("[editable path=") or not line.ends_with("]"):
+            continue
+        var existing: Variant = JSON.parse_string(line.trim_prefix("[editable path=").trim_suffix("]"))
+        if existing is String:
+            existing_paths[existing] = true
+    var entries := PackedStringArray()
     for instance_path in paths:
-        var entry := "[editable path=%s]" % JSON.stringify(instance_path)
-        if not text.contains(entry): text += "\n" + entry + "\n"
-    var file := FileAccess.open(path, FileAccess.WRITE)
-    file.store_string(text)
+        if existing_paths.has(instance_path):
+            continue
+        existing_paths[instance_path] = true
+        entries.append("[editable path=%s]" % JSON.stringify(instance_path))
+    if not entries.is_empty():
+        file.seek_end()
+        file.store_string("\n" + "\n\n".join(entries) + "\n")
 
 # Conversion only: assign native first keys before the scene ever enters a tree.
 func apply_initial_pose(actor: Node, animation: Animation) -> void:

@@ -39,7 +39,7 @@ or dialogue state machine should be introduced by bootstrap code.
 
 `model::dialogue::Dialogue` stores stable name/locale, box style, ordered text
 spans, line deadlines, actor owner, a compiled voice-event link and a normal
-behavior completion target. Rete schema 39 persists those values and a shared presentation reference. Source
+behavior completion target. Rete persists those values and a shared presentation reference. Source
 addresses and relocation decisions remain in OpenSpace import.
 
 The manor adapter reuses SNA/LZO, pointer-file and relocation codecs for English
@@ -137,9 +137,11 @@ TextureRect slots and native ProgressBars are authored extension points.
 
 ## Current boundary and next increments
 
-The import slice includes the eight dialogue items called by the normal manor
-opening, plus one ordinary conversation. Opening items use ItemBox3 (two lines
-per page); the ordinary item uses ItemBox1 (six). Voice links use bank 142.
+The importer walks the complete bounded manor catalogue and selects entries by
+supported structure, independently of their names. The earlier validated slice
+included the eight dialogue items called by the normal manor opening, plus one
+ordinary conversation. Opening items use ItemBox3 (two lines per page); the
+ordinary item uses ItemBox1 (six). These voice links use bank 142.
 The callback targets below come from actual answer behavior pointers, and are
 independent of the normal behaviors that call RunDialog.
 
@@ -155,12 +157,16 @@ independent of the normal behaviors that call RunDialog.
 | hype_texte2_manoir | 8 | 7 | 294 / 3 |
 | gogood_master_whatif01 | 21 | 12 | 991 / 17 |
 
-All nine selected items have a single nonbranching answer, zero line flags, no
-item icon/channel effects and spans using the two recognized dialogue fonts.
-The importer checks those constraints before promoting content. This does not
-establish branching or whole-catalogue coverage. Other entries in the 67-item
-catalogue emit coverage debt; reaching an unavailable item stops explicitly.
-They remain subsequent manor implementation work.
+All nine previously validated items have a single nonbranching answer, zero
+line flags, no item icon/channel effects and spans using the two recognized
+dialogue fonts. The importer now applies those constraints to every entry and
+requires an imported owner and valid completion target. Nonzero unpromoted item
+or line-effect fields also exclude an item pending source interpretation.
+Each unsupported item has its own identity and reason in coverage diagnostics;
+malformed fields encountered during supported traversal remain import errors.
+Unsupported items are not traversed further. Reaching an unavailable item
+stops explicitly. This broadening was statically reviewed on 2026-10-04; no new
+conversion was run, so the resulting item count and visual coverage are pending.
 
 Still required for manor fidelity: native font/frame pixel comparisons,
 line reveal and fade pacing, additional dialogue

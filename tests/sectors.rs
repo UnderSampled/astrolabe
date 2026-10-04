@@ -16,6 +16,8 @@ use std::{collections::BTreeMap, fs, time::Duration};
 fn fixture() -> Result<Scene> {
     let mut scene = Scene {
         main_actor: None,
+        armor: None,
+        inventory: None,
         global_actors: vec![],
         path: AssetPath::new("level:/scene")?,
         name: "Sectors".into(),

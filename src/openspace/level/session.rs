@@ -164,6 +164,20 @@ impl SourceSession {
             .copied()
             .ok_or_else(|| anyhow!("reference is not an allocation start: {a:?}"))
     }
+    /// Read one whole MMG allocation, excluding its source-only size header.
+    /// Validate the boundary before allowing a typed record to traverse fields.
+    pub(super) fn allocation_bytes(&self, a: Address) -> Result<&[u8]> {
+        self.allocation_index(a)?;
+        let header = Address {
+            offset: a.offset - 4,
+            ..a
+        };
+        let size = (u32_at(self.bytes(header, 4)?, 0)? as usize)
+            .checked_mul(4)
+            .and_then(|size| size.checked_sub(4))
+            .ok_or_else(|| anyhow!("invalid allocation size at {a:?}"))?;
+        self.bytes(a, size)
+    }
     pub(super) fn bytes(&self, a: Address, n: usize) -> Result<&[u8]> {
         self.block(a)?
             .data
@@ -331,7 +345,9 @@ impl SourceSession {
         ))
     }
     // Stable Rust cannot use N * 4 as an as_chunks const argument.
-    #[allow(clippy::chunks_exact_to_as_chunks)]
+    // This lint was added after Rust 1.96; keep its narrow exception compatible
+    // with older Clippy while const-generic arithmetic remains unavailable.
+    #[allow(unknown_lints, clippy::chunks_exact_to_as_chunks)]
     pub(super) fn floats<const N: usize>(&self, a: Address, count: usize) -> Result<Vec<[f32; N]>> {
         let data = self.bytes(
             a,
@@ -350,7 +366,7 @@ impl SourceSession {
             .collect()
     }
     // Stable Rust cannot use N * 2 as an as_chunks const argument.
-    #[allow(clippy::chunks_exact_to_as_chunks)]
+    #[allow(unknown_lints, clippy::chunks_exact_to_as_chunks)]
     pub(super) fn short_arrays<const N: usize>(
         &self,
         a: Address,

@@ -333,6 +333,64 @@ fn behavior_bindings(
     }
     Ok(bindings)
 }
+/// Category35 is the original evaluator's ObjectTableRef literal, not a
+/// guessed pointer inside another expression. Import these before finishing
+/// character geometry/material dependencies, including lists outside Family.
+pub(super) fn configuration_sources(
+    s: &SourceSession,
+    actors: &BTreeMap<Address, AssetRef<Perso>>,
+) -> Result<Vec<Address>> {
+    ensure!(
+        actors.len() <= 2048,
+        "AI configuration actor graph is too large"
+    );
+    let mut models = BTreeSet::new();
+    let mut configurations = BTreeSet::new();
+    for &actor in actors.keys() {
+        let header: PersoHeaderWire = wire(s.bytes(actor, 20)?)?;
+        if header.brain == 0 {
+            continue;
+        }
+        let Some(brain) = s.pointer(actor, 16)? else {
+            continue;
+        };
+        let model = s.required(s.required(brain, 0)?, 0)?;
+        if !models.insert(model) {
+            continue;
+        }
+        for set in [source_set(s, model, 0)?, source_set(s, model, 4)?]
+            .into_iter()
+            .flatten()
+        {
+            for behavior in set.behaviors {
+                for script in behavior
+                    .rules
+                    .iter()
+                    .flatten()
+                    .chain(behavior.schedule.iter())
+                {
+                    for (index, bytes) in script.bytes.as_chunks::<8>().0.iter().enumerate() {
+                        let node: NodeWire = wire(bytes)?;
+                        if node.kind != 35 {
+                            continue;
+                        }
+                        let Some(target) = s.pointer(add(script.address, index * 8), 0)? else {
+                            continue;
+                        };
+                        s.allocation_index(target)?;
+                        let _: ObjectListWire = wire(s.bytes(target, 24)?)?;
+                        configurations.insert(target);
+                        ensure!(
+                            configurations.len() <= 65536,
+                            "AI configuration graph is too large"
+                        );
+                    }
+                }
+            }
+        }
+    }
+    Ok(configurations.into_iter().collect())
+}
 fn preserve_script(
     s: &SourceSession,
     sounds: &SoundSites,
@@ -445,6 +503,23 @@ fn decode_script(
             && let Some(actor) = actors.get(&target)
         {
             codec.actors.insert(i, actor.clone());
+        }
+        if n.kind == 35 {
+            let configuration = s
+                .pointer(add(script.address, i * 8), 0)?
+                .map(|target| -> Result<_> {
+                    AssetRef::new(format!(
+                        "{}:/configurations/{}",
+                        if target.owner == Owner::Fix {
+                            "fix"
+                        } else {
+                            "level"
+                        },
+                        s.allocation_index(target)?
+                    ))
+                })
+                .transpose()?;
+            codec.configurations.insert(i, configuration);
         }
         if n.kind == 29
             && let Some(target) = s.pointer(add(script.address, i * 8), 0)?

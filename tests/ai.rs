@@ -501,7 +501,29 @@ fn hype_sound_fade_call_remains_typed_through_source_rete_and_godot() -> Result<
     let reopened = rete::decode::<AiModel>(&rete::encode(&model)?)?;
     assert_eq!(reopened, model);
     let compiled = godot::ai::compile(&reopened, &[])?;
-    assert!(compiled.contains("sound_fade_music(int(127), int(1))"));
+    assert!(
+        compiled
+            .lines()
+            .collect::<Vec<_>>()
+            .windows(3)
+            .any(|lines| {
+                let Some(first) = lines[0]
+                    .trim()
+                    .strip_prefix("var ")
+                    .and_then(|line| line.strip_suffix(": Variant = 127"))
+                else {
+                    return false;
+                };
+                let Some(second) = lines[1]
+                    .trim()
+                    .strip_prefix("var ")
+                    .and_then(|line| line.strip_suffix(": Variant = 1"))
+                else {
+                    return false;
+                };
+                lines[2].trim() == format!("sound_fade_music(int({first}), int({second}))")
+            })
+    );
     Ok(())
 }
 

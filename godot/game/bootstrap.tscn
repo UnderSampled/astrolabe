@@ -63,7 +63,7 @@ horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 3
 
-[node name="ErrorQuit" type="Button" parent="."]
+[node name="Setup" type="PanelContainer" parent="."]
 visible = false
 layout_mode = 1
 anchors_preset = 8
@@ -71,10 +71,40 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -60.0
-offset_top = -18.0
-offset_right = 60.0
-offset_bottom = 18.0
+offset_left = -330.0
+offset_top = -240.0
+offset_right = 330.0
+offset_bottom = 240.0
+theme_override_styles/panel = SubResource("StatusPlate")
+
+[node name="Rows" type="VBoxContainer" parent="Setup"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Title" type="Label" parent="Setup/Rows"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Prepare Hype for Godot"
+
+[node name="Details" type="Label" parent="Setup/Rows"]
+layout_mode = 2
+size_flags_vertical = 3
+autowrap_mode = 3
+
+[node name="Commands" type="TextEdit" parent="Setup/Rows"]
+custom_minimum_size = Vector2(0, 110)
+layout_mode = 2
+text = "cargo build --release --locked\ntarget/release/astrolabe prepare-game disk godot\ngodot --editor --path godot"
+editable = false
+wrap_mode = 1
+
+[node name="Help" type="Label" parent="Setup/Rows"]
+layout_mode = 2
+text = "See README.md for setup and current coverage.\nThe native support example is available at tests/example.tscn."
+autowrap_mode = 3
+
+[node name="Quit" type="Button" parent="Setup/Rows"]
+layout_mode = 2
 text = "Quit"
 
-[connection signal="pressed" from="ErrorQuit" to="." method="_on_quit_pressed"]
+[connection signal="pressed" from="Setup/Rows/Quit" to="." method="_on_quit_pressed"]

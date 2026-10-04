@@ -1,5 +1,6 @@
 # Game data (user-provided)
 disc
+disk/
 full-disk
 *.iso
 

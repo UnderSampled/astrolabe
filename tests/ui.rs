@@ -20,7 +20,9 @@ fn manor_dialogue_localization_voice_and_callback_survive_rete() -> Result<()> {
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("disc"));
     let imported = import_scene(&game, &Selection::hype("manoir", "en")?)?;
-    assert_eq!(imported.dialogues.len(), 9);
+    // Preserve the named examples below while allowing other catalogue entries
+    // with the same supported structure to be converted as well.
+    assert!(imported.dialogues.len() >= 9);
     let style = imported.dialogue_presentation.as_ref().unwrap();
     style.validate()?;
     assert_eq!(style.font_name, "Playmo_Font2_0");
@@ -298,7 +300,7 @@ fn manor_dialogue_exports_native_translation_and_voice_resources() -> Result<()>
         .filter(|r| r.kind == Dialogue::KIND)
         .cloned()
         .collect::<Vec<_>>();
-    assert_eq!(roots.len(), 9);
+    assert!(roots.len() >= 9);
     godot::export(&mut imported, &roots, selection, &project, &engine)?;
     let log = project.join("ui-resource-runtime.log");
     let evidence = godot::run_godot(

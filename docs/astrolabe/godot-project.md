@@ -46,6 +46,122 @@ support; test harnesses observe and drive the actual game rather than provide
 another player implementation. Temporary gate/camera/initialization limitations
 remain explicit fidelity debt in the game and its evidence.
 
+### Authored session components
+
+`game/demo.gd` coordinates both the saved-start and New Game routes. Its
+historical path is retained; it is the shared game session. It owns start-state
+selection, native level instantiation, actor binding, save application, readiness
+stages, UI routes and generated-Brain startup. Its existing observable fields,
+stage signal and methods remain the entry points for game observers.
+
+Two focused native components keep infrastructure out of that coordinator:
+
+- `game/level_preparation.gd` loads the saved PackedScene in one background
+  dependency worker, uses the optional `GameContent` resource cache, and owns
+  the temporary loading frame limit. Cancellation ends the departing session's
+  wait and restores that limit; Godot retains ownership of an in-flight request.
+  Every game session still instantiates fresh nodes from the prepared resource.
+- `game/crossbow_input.gd` routes physical keys between movement and camera aim,
+  projects the authored camera sight ray, and restores the pre-session input
+  bindings on teardown. The generated Brain continues to own shooting,
+  ammunition and projectile behavior. This presentation component supplies no
+  alternate gameplay rules.
+
+Leaving, failing or freeing a session tears down both components. The same
+resource preparation and lifecycle serve New Game and Load Game; their distinct
+initialization remains explicit. The saved-start route retains its measured
+fixture and temporary raised gate. New Game preserves the complete imported AI,
+without fixture application or gate intervention. These limitations are not
+removed by extracting infrastructure into components.
+
+### Native checkpoint save contract
+
+The shared native inventory now separates complete item definitions from
+admitted category slots. See the [source inventory contract](../openspace/inventory-gameplay.md)
+for the supported AddObject/weapon-selection/capacity paths and source evidence.
+Legacy sparse fixture values still load when admission cannot be established;
+pickup and selection report that narrower state explicitly. Native schema 3
+captures admitted slots, gold, capacities, represented selections and admission
+status, together with the current armor damage state.
+
+`game/save_state.gd` now writes native **schema 3** into the existing
+`user://manoir-save-v1.json` slot. Its `manor-idle-v1` checkpoint includes the
+player's native `global_transform` (origin and three Basis columns),
+`source_hit_points.current`/`maximum`/`limit`, `source_magick` points and spell
+selection, `source_inventory` snapshot, `source_armor` snapshot, and the dummy
+Brain's `dsg_8`. The legacy player payload key remains readable; schema 2 and 3 explicitly
+identify `level:/persos/world/0/0`; both session loading and persistence resolve
+that asset through `source_actor_nodes` and verify its `source_perso` identity.
+The world flag owner is resolved through `source_actor_brains`.
+
+Capture is deliberately limited to the measured controllable idle: action 47,
+Brain normal 4/reflex 3, a running supported Brain, native floor contact and
+settled velocity/action transitions. Gameplay controls must be released and no
+held or active generated projectiles may remain. These are authored checkpoint
+admission rules, not a reconstruction of original save scheduling. A rejected
+save explains the unmet condition and leaves the previous slot intact. Life
+values are positive byte-sized integers with current <= maximum <= cap;
+placement must remain finite in Godot's native vector precision and have a
+nonsingular Basis. Unknown payload fields, identities and versions are rejected.
+
+The supplied English fixture still seeds the player and supported manor state.
+Schema 3 then restores placement/life and equipment before physics or Hype Brain
+startup. Both equipment Resources expose capture, validation and application
+contracts; shape checks, source identity/order checks and application on private
+clones finish before changing any live owner. Inventory quantities/categories
+and capacity-owning definitions are copied; armor definitions and pieces are
+copied. Reordered or regenerated definitions/pieces with different source keys
+cannot silently receive an old snapshot.
+
+**Schema 1 and 2 remain loadable:** schema 1 retains seeded placement/life;
+schema 2 restores those values. Both retain seeded armor/gold/other selections
+and migrate their sparse inventory view, preserving unknown admission as an
+explicit native limitation. Reading/loading does not rewrite an old slot; only
+an accepted explicit save upgrades it to schema 3. Temporary-file replacement
+remains in use. New Game saving stays disabled.
+
+Source grounding is deliberately narrower than full original-save parity:
+Raymap's `StandardGame` is the first structural reference, while the pinned-build
+[save field evidence](../openspace/save-games.md#registration-and-restoration-findings)
+corrects the Hype current/maximum/cap fields and identifies saved player position
+prefixes. The current useful `HitPoints` model and native exporter project those
+three source bytes into the Resource. The supplied fixture and
+[recorded control observations](../../notes/hype-control-progress.md#original-game-observations)
+identify idle normal/reflex 4/3 and settled action 47. Local decompilation is
+absent in this checkout; exact original checkpoint restoration and arbitrary
+actor-state continuation remain unverified.
+
+This extension is implemented but has only source review in the current work.
+Deferred acceptance must save after changed placement and life, reload in a
+fresh session/process, and demonstrate restored placement, life, inventory
+slots/quantities/gold/selections/capacities, armor rank/piece damage/current
+piece, mana and the existing world flag without changing the source fixture. It must
+also exercise schema-1/2 loading/upgrading, invalid placement/life/equipment rejection and
+saving during movement, casting or active projectiles. Complete actor/world
+progression, source-save decoding, arbitrary animation/AI continuation and
+original checkpoint behavior remain outside this bounded native contract.
+Armor snapshots retain selected definition, resistance rank, broken-piece
+count, current damage piece, and each piece's broken/strikes values. Artwork,
+damage coefficients and thresholds remain authored assets. Inventory Resource
+snapshot version 2 retains ordered catalogue member quantities, selected flags
+and capacities, admitted slots, gold and admission status. Distinct members
+with repeated info IDs remain distinct; per-member flags retain exact-kind
+Weapon/Magic replacement selection effects. The first-ID quantities and
+Weapon/Object/Magic selection properties are derived views of those members.
+Ordered replacement rules remain generated definitions rather than mutable
+snapshot state. These branches are source-reviewed; native gameplay acceptance
+remains unverified.
+
+Inventory presentation uses `presentation_quantities()`, rather than treating
+the full catalogue quantity dictionary as ownership. With known admission it
+projects admitted slots; sparse legacy saves with unknown admission retain
+their saved ownership in `legacy_owned_ids`. This keeps the saved-start UI
+usable without exposing every imported sentinel or claiming a recovered slot
+order. Admission-dependent pickup and selection still report the unresolved
+membership. Schema 3 snapshots retain that fallback and its diagnostic.
+Native RNG state and other unrepresented actor/world state are omitted;
+schema 3 is not general continuation or source-save interoperability.
+
 Design from a Godot developer's workflow: find a level or character, open its
 scene, inspect its resources, make an authored variation, and regenerate source
 content without losing that work. Use the same `res://` arrangement in both

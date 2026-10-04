@@ -8,6 +8,16 @@ func require(ok: bool, message: String) -> bool:
 
 func _initialize(): call_deferred("check")
 
+func saved_visible(node: Node3D, actor: Node3D) -> bool:
+    # Saved slot anchors now own visibility; native payload meshes inherit it.
+    # This check still runs before the scene enters the tree.
+    var current: Node = node
+    while current != null:
+        if current is Node3D and not (current as Node3D).visible: return false
+        if current == actor: return true
+        current = current.get_parent()
+    return false
+
 func check():
     var expected_state = int(OS.get_cmdline_user_args()[0])
     var expected_radius = float(OS.get_cmdline_user_args()[1])
@@ -47,7 +57,7 @@ func check():
         if not require(not brain.main_actor_path.is_empty() and brain.get_node(brain.main_actor_path) == hero, "saved AI main actor reference missing"): return
         if not require(brain.dsg_0 == false, "saved AI instance value differs"): return
     if not require(hero.initial_state == expected_state and hero.current_state == expected_state, "saved initial state differs before ready"): return
-    var visible = hero.get_node("Channels").find_children("*", "MeshInstance3D", true, false).filter(func(n):return n.visible)
+    var visible = hero.get_node("Channels").find_children("*", "MeshInstance3D", true, false).filter(func(n):return saved_visible(n, hero))
     if not require(not visible.is_empty(), "saved hero pose is empty"): return
     var body = hero.get_node("Channels/channel_0")
     var initial_transform = body.transform

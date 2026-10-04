@@ -1,6 +1,12 @@
 //! Typed AI trees become ordinary GDScript control flow and native resource calls.
 use super::{Project, quoted};
-use crate::model::{AssetPath, ai::*, character::Perso, content::ContentSource, io::Content};
+use crate::model::{
+    AssetPath, AssetRef,
+    ai::*,
+    character::{ObjectList, Perso},
+    content::ContentSource,
+    io::Content,
+};
 use anyhow::{Result, ensure};
 use std::{collections::BTreeSet, fmt::Write as _};
 
@@ -9,6 +15,22 @@ fn waypoint_constant(reference: &crate::model::AssetRef<crate::model::route::Way
         "waypoint_{}",
         super::digest(reference.path.as_str().as_bytes())
     )
+}
+fn configuration_constant(reference: &AssetRef<ObjectList>) -> String {
+    format!(
+        "configuration_{}",
+        super::digest(reference.path.as_str().as_bytes())
+    )
+}
+
+#[derive(Default)]
+struct CompileBindings<'a> {
+    events: &'a [(crate::model::audio::SoundEventLink, String)],
+    family: Option<&'a crate::model::character::Family>,
+    templates: &'a [(AssetRef<Perso>, String)],
+    waypoints: &'a [(AssetRef<crate::model::route::Waypoint>, Option<[f32; 3]>)],
+    particles: &'a [(AssetRef<crate::model::particle::ParticleGenerator>, String)],
+    configurations: &'a [(AssetRef<ObjectList>, String)],
 }
 
 pub(super) fn export_program(
@@ -118,13 +140,26 @@ pub(super) fn export_program(
         let path = super::particle::export(project, source, &generator, written)?;
         particles.push((reference, format!("res://{path}")));
     }
+    let mut configurations = Vec::new();
+    for reference in model.configuration_references() {
+        if configurations.iter().any(|(value, _)| value == reference) {
+            continue;
+        }
+        let configuration = source.load(reference)?;
+        configuration.validate_reference(&reference.path)?;
+        let resource = super::character::export_configuration(project, &configuration)?;
+        configurations.push((reference.clone(), resource));
+    }
     let script = compile_with_templates(
         model,
-        &events,
-        family.as_deref(),
-        &templates,
-        &waypoints,
-        &particles,
+        CompileBindings {
+            events: &events,
+            family: family.as_deref(),
+            templates: &templates,
+            waypoints: &waypoints,
+            particles: &particles,
+            configurations: &configurations,
+        },
     )?;
     project.write(path.clone(), script.as_bytes())?;
     Ok(path)
@@ -142,22 +177,24 @@ pub fn compile_for_family(
     events: &[(crate::model::audio::SoundEventLink, String)],
     family: Option<&crate::model::character::Family>,
 ) -> Result<String> {
-    compile_with_templates(model, events, family, &[], &[], &[])
+    compile_with_templates(
+        model,
+        CompileBindings {
+            events,
+            family,
+            ..Default::default()
+        },
+    )
 }
-fn compile_with_templates(
-    model: &AiModel,
-    events: &[(crate::model::audio::SoundEventLink, String)],
-    family: Option<&crate::model::character::Family>,
-    templates: &[(crate::model::AssetRef<Perso>, String)],
-    waypoints: &[(
-        crate::model::AssetRef<crate::model::route::Waypoint>,
-        Option<[f32; 3]>,
-    )],
-    particles: &[(
-        crate::model::AssetRef<crate::model::particle::ParticleGenerator>,
-        String,
-    )],
-) -> Result<String> {
+fn compile_with_templates(model: &AiModel, bindings: CompileBindings<'_>) -> Result<String> {
+    let CompileBindings {
+        events,
+        family,
+        templates,
+        waypoints,
+        particles,
+        configurations,
+    } = bindings;
     model.validate()?;
     for action in model.state_references() {
         action.validate_family(
@@ -198,6 +235,23 @@ fn compile_with_templates(
             out,
             "const {} = preload({})",
             super::particle::constant(&reference),
+            quoted(resource)
+        )?;
+    }
+    for reference in model.configuration_references() {
+        let (_, resource) = configurations
+            .iter()
+            .find(|(value, _)| value == reference)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "configuration requires native conversion binding: {}",
+                    reference.path
+                )
+            })?;
+        writeln!(
+            out,
+            "const {} = preload({})",
+            configuration_constant(reference),
             quoted(resource)
         )?;
     }
@@ -432,19 +486,93 @@ fn unresolved_variable(model: &AiModel, index: u16) -> bool {
 }
 fn actor_expression(e: &Expression, model: &AiModel) -> bool {
     match e {
-        Expression::Variable(index) => {
-            model
-                .variables
-                .get(usize::from(*index))
-                .is_some_and(|variable| {
-                    matches!(
-                        variable.default,
-                        DesignerValue::Actor(_) | DesignerValue::SourceActor(_)
-                    )
-                })
-        }
+        Expression::Actor(_) | Expression::Configuration(_) => true,
+        Expression::Variable(index) | Expression::SelfFieldRead(index) => model
+            .variables
+            .get(usize::from(*index))
+            .is_some_and(|variable| {
+                matches!(
+                    variable.default,
+                    DesignerValue::Actor(_) | DesignerValue::SourceActor(_)
+                )
+            }),
         _ => false,
     }
+}
+fn actor_target_code(actor: &ActorTarget) -> String {
+    match actor {
+        ActorTarget::Keyword(ActorKeyword::SelfActor) => "get_parent()".into(),
+        ActorTarget::Keyword(ActorKeyword::MainActor) => "main_actor".into(),
+        ActorTarget::Reference(reference) => {
+            format!("source_actor_node({})", quoted(reference.path.as_str()))
+        }
+    }
+}
+fn armor_receiver(
+    out: &mut String,
+    model: &AiModel,
+    depth: usize,
+    flow: &mut Flow,
+    selected: bool,
+) -> Result<String> {
+    let local = format!("armor_state_{}", flow.local);
+    flow.local += 1;
+    let pad = "    ".repeat(depth);
+    let exit = flow.exit();
+    let failure = quoted(&format!(
+        "{} requires native shared armor{}",
+        model.path,
+        if selected {
+            " with a selected definition"
+        } else {
+            ""
+        }
+    ));
+    writeln!(
+        out,
+        "{pad}var {local}: Resource = source_armor_state()\n{pad}if {local} == null or not {local}.has_method(\"active\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
+    )?;
+    if selected {
+        writeln!(
+            out,
+            "{pad}if {local}.call(\"active\") == null:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
+        )?;
+    }
+    Ok(local)
+}
+fn inventory_call(
+    out: &mut String,
+    model: &AiModel,
+    depth: usize,
+    flow: &mut Flow,
+    method: &str,
+    operands: &[&Expression],
+) -> Result<String> {
+    let mut arguments = Vec::new();
+    for operand in operands {
+        let value = evaluated_operand(out, operand, model, depth, flow)?;
+        arguments.push(format!("int({value})"));
+    }
+    let id = flow.local;
+    flow.local += 1;
+    let pad = "    ".repeat(depth);
+    let exit = flow.exit();
+    let failure = quoted(&format!(
+        "{} requires native shared source inventory {method}",
+        model.path
+    ));
+    let arguments = if arguments.is_empty() {
+        String::new()
+    } else {
+        format!(", {}", arguments.join(", "))
+    };
+    writeln!(
+        out,
+        "{pad}var inventory_state_{id}: Resource = source_inventory_state()\n{pad}if inventory_state_{id} == null or not inventory_state_{id}.has_method({}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var inventory_result_{id}: int = int(inventory_state_{id}.call({}{arguments}))\n{pad}var inventory_failure_{id}: String = str(inventory_state_{id}.get(\"last_failure\"))\n{pad}if not inventory_failure_{id}.is_empty():\n{pad}    fail_unsupported(inventory_failure_{id})\n{pad}    {exit}",
+        quoted(method),
+        quoted(method)
+    )?;
+    Ok(format!("inventory_result_{id}"))
 }
 fn actor_list_capacity(model: &AiModel, index: u16) -> Result<usize> {
     match model.variables.get(usize::from(index)).map(|v| &v.default) {
@@ -499,7 +627,28 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::DialogIsOver
         | Expression::MagicPoints
         | Expression::SelfHitPoints
+        | Expression::ApplyArmoredDamage(_)
+        | Expression::InventoryChangeWeapon(_)
+        | Expression::InventoryAddActorObject(_)
+        | Expression::InventoryMaximumCapacity(_)
+        | Expression::InventoryGold
+        | Expression::InventoryAddGold(_)
+        | Expression::InventorySubtractGold(_)
+        | Expression::InventoryObject
+        | Expression::InventorySelectObject(_)
+        | Expression::InventoryWeapon
+        | Expression::InventoryQuantity(_)
+        | Expression::InventoryRemove { .. }
         | Expression::MagicRemovePoints(_) => true,
+        Expression::ArmorResistance | Expression::ArmorCount => true,
+        Expression::Square(_)
+        | Expression::AbsoluteValue(_)
+        | Expression::IsValidActor(_)
+        | Expression::ActorDistance(_)
+        | Expression::MainActorDistance => true,
+        Expression::SeePerso { receiver, target } => {
+            *receiver == ActorKeyword::MainActor || *target == ActorKeyword::MainActor
+        }
         Expression::IsInBehavior {
             actor: ActorKeyword::MainActor,
             ..
@@ -517,7 +666,6 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
             duration: b,
         }
         | Expression::RandomInt { lower: a, upper: b }
-        | Expression::InventoryRemove { item: a, count: b }
         | Expression::VectorCos(a, b)
         | Expression::ArrayElement { array: a, index: b }
         | Expression::And(a, b)
@@ -528,7 +676,6 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         Expression::Negate(value)
         | Expression::IsInAction(value)
         | Expression::Not(value)
-        | Expression::InventoryQuantity(value)
         | Expression::IntegerCast(value) => needs_guard(value, model),
         Expression::VectorComponent { vector, .. } => needs_guard(vector, model),
         _ => false,
@@ -536,6 +683,26 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
 }
 /// A fragment emits a failure and exits the enclosing coroutine before a
 /// branch, assignment, or action request can use a fabricated fallback value.
+fn evaluated_operand(
+    out: &mut String,
+    expression: &Expression,
+    model: &AiModel,
+    depth: usize,
+    flow: &mut Flow,
+) -> Result<String> {
+    let value = guarded_expression(out, expression, model, depth, flow)?;
+    let local = format!("evaluated_operand_{}", flow.local);
+    flow.local += 1;
+    writeln!(
+        out,
+        "{}var {local}: Variant = {value}",
+        "    ".repeat(depth)
+    )?;
+    Ok(local)
+}
+
+/// Each multi-operand parent captures a completed child before generating the
+/// next child's prelude, so native mutations retain source evaluation order.
 fn guarded_expression(
     out: &mut String,
     e: &Expression,
@@ -549,6 +716,130 @@ fn guarded_expression(
     let pad = "    ".repeat(depth);
     let exit = flow.exit();
     Ok(match e {
+        Expression::IsValidActor(actor) => {
+            let value = guarded_expression(out, actor, model, depth, flow)?;
+            let local = format!("actor_value_{}", flow.local);
+            flow.local += 1;
+            writeln!(out, "{pad}var {local} = {value}")?;
+            format!("(typeof({local}) == TYPE_OBJECT and is_instance_valid({local}))")
+        }
+        Expression::ActorDistance(actor) => {
+            let value = guarded_expression(out, actor, model, depth, flow)?;
+            let local = format!("distance_actor_{}", flow.local);
+            flow.local += 1;
+            writeln!(
+                out,
+                "{pad}var {local} = {value}\n{pad}if typeof({local}) != TYPE_OBJECT or not is_instance_valid({local}) or not ({local} is Node3D) or not {local}.is_inside_tree():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                quoted(&format!(
+                    "{} distance requires a bound native actor",
+                    model.path
+                ))
+            )?;
+            writeln!(
+                out,
+                "{pad}var distance_target_{id}: Node3D = {local} as Node3D\n{pad}var distance_source_{id}: Node3D = get_parent() as Node3D\n{pad}if distance_source_{id} == null or not distance_source_{id}.is_inside_tree():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                quoted(&format!(
+                    "{} distance requires a positioned native caller",
+                    model.path
+                )),
+                id = flow.local
+            )?;
+            let id = flow.local;
+            flow.local += 1;
+            format!(
+                "distance_source_{id}.global_position.distance_to(distance_target_{id}.global_position)"
+            )
+        }
+        Expression::InventoryAddActorObject(actor) => {
+            let actor = guarded_expression(out, actor, model, depth, flow)?;
+            let id = flow.local;
+            flow.local += 1;
+            let failure = quoted(&format!(
+                "{} requires native source actor stock/inventory admission",
+                model.path
+            ));
+            writeln!(
+                out,
+                "{pad}var inventory_actor_{id} = {actor}\n{pad}var inventory_result_{id}: int = 0\n{pad}if inventory_actor_{id} != null:\n{pad}    if typeof(inventory_actor_{id}) != TYPE_OBJECT or not is_instance_valid(inventory_actor_{id}) or not (inventory_actor_{id} is Node):\n{pad}        fail_unsupported({failure})\n{pad}        {exit}\n{pad}    var inventory_state_{id}: Resource = source_inventory_state()\n{pad}    if inventory_state_{id} == null or not inventory_state_{id}.has_method(\"add_actor_object\"):\n{pad}        fail_unsupported({failure})\n{pad}        {exit}\n{pad}    inventory_result_{id} = int(inventory_state_{id}.call(\"add_actor_object\", inventory_actor_{id} as Node))\n{pad}    var inventory_failure_{id}: String = str(inventory_state_{id}.get(\"last_failure\"))\n{pad}    if not inventory_failure_{id}.is_empty():\n{pad}        fail_unsupported(inventory_failure_{id})\n{pad}        {exit}"
+            )?;
+            format!("inventory_result_{id}")
+        }
+        Expression::InventoryGold => inventory_call(out, model, depth, flow, "gold_value", &[])?,
+        Expression::InventoryObject => {
+            inventory_call(out, model, depth, flow, "selected_object_value", &[])?
+        }
+        Expression::InventoryWeapon => {
+            inventory_call(out, model, depth, flow, "selected_weapon_value", &[])?
+        }
+        Expression::InventoryAddGold(value)
+        | Expression::InventorySubtractGold(value)
+        | Expression::InventorySelectObject(value)
+        | Expression::InventoryChangeWeapon(value)
+        | Expression::InventoryMaximumCapacity(value)
+        | Expression::InventoryQuantity(value) => {
+            let method = match e {
+                Expression::InventoryAddGold(_) => "add_gold",
+                Expression::InventorySubtractGold(_) => "subtract_gold",
+                Expression::InventorySelectObject(_) => "select_object",
+                Expression::InventoryChangeWeapon(_) => "change_weapon",
+                Expression::InventoryMaximumCapacity(_) => "maximum_capacity",
+                _ => "quantity_source",
+            };
+            inventory_call(out, model, depth, flow, method, &[value])?
+        }
+        Expression::InventoryRemove { item, count } => {
+            inventory_call(out, model, depth, flow, "remove_source", &[item, count])?
+        }
+        Expression::ApplyArmoredDamage(value) => {
+            let value = guarded_expression(out, value, model, depth, flow)?;
+            let id = flow.local;
+            flow.local += 1;
+            let armor = armor_receiver(out, model, depth, flow, false)?;
+            let failure = quoted(&format!(
+                "{} requires native shared armor and main actor hit points for damage",
+                model.path
+            ));
+            writeln!(
+                out,
+                "{pad}var armor_damage_input_{id}: int = int({value})\n{pad}if not {armor}.has_method(\"damage\") or not is_instance_valid(main_actor):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var armor_hit_points_{id}: Resource = main_actor.get(\"source_hit_points\") as Resource\n{pad}if armor_hit_points_{id} == null or not armor_hit_points_{id}.has_method(\"subtract_damage\") or not armor_hit_points_{id}.has_method(\"can_receive_damage\") or not bool(armor_hit_points_{id}.call(\"can_receive_damage\")):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var effective_damage_{id}: int = int({armor}.call(\"damage\", armor_damage_input_{id}))\n{pad}if effective_damage_{id} < 0:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var remaining_hit_points_{id}: int = int(armor_hit_points_{id}.call(\"subtract_damage\", effective_damage_{id}))"
+            )?;
+            format!("remaining_hit_points_{id}")
+        }
+        Expression::ArmorResistance | Expression::ArmorCount => {
+            let armor = armor_receiver(
+                out,
+                model,
+                depth,
+                flow,
+                matches!(e, Expression::ArmorResistance),
+            )?;
+            if matches!(e, Expression::ArmorResistance) {
+                format!("int({armor}.call(\"resistance\"))")
+            } else {
+                format!("({armor}.get(\"definitions\") as Array).size()")
+            }
+        }
+        Expression::MainActorDistance => {
+            writeln!(
+                out,
+                "{pad}if not is_instance_valid(main_actor):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                quoted(&format!("{} distance requires the main actor", model.path))
+            )?;
+            expression(e, model)?
+        }
+        Expression::Square(value) | Expression::AbsoluteValue(value) => {
+            let value = guarded_expression(out, value, model, depth, flow)?;
+            let local = format!("real_operand_{}", flow.local);
+            flow.local += 1;
+            writeln!(out, "{pad}var {local} := float({value})")?;
+            // Both pinned handlers write a source real with fstps. Evaluate
+            // side-effecting input once and round the result to that precision.
+            if matches!(e, Expression::Square(_)) {
+                format!("PackedFloat32Array([{local} * {local}])[0]")
+            } else {
+                format!("PackedFloat32Array([-{local} if {local} <= 0.0 else {local}])[0]")
+            }
+        }
         Expression::WaypointPosition(reference) => {
             let value = waypoint_constant(reference);
             let local = format!("waypoint_position_{}", flow.local);
@@ -664,13 +955,13 @@ fn guarded_expression(
         }
         Expression::Multiply(left, right) => format!(
             "(float({}) * float({}))",
-            guarded_expression(out, left, model, depth, flow)?,
-            guarded_expression(out, right, model, depth, flow)?
+            evaluated_operand(out, left, model, depth, flow)?,
+            evaluated_operand(out, right, model, depth, flow)?
         ),
         Expression::TimeElapsed { start, duration } => format!(
             "source_time_elapsed(int({}), int({}))",
-            guarded_expression(out, start, model, depth, flow)?,
-            guarded_expression(out, duration, model, depth, flow)?
+            evaluated_operand(out, start, model, depth, flow)?,
+            evaluated_operand(out, duration, model, depth, flow)?
         ),
         Expression::Plus(left, right)
         | Expression::Minus(left, right)
@@ -682,15 +973,15 @@ fn guarded_expression(
             };
             format!(
                 "(float({}) {operator} float({}))",
-                guarded_expression(out, left, model, depth, flow)?,
-                guarded_expression(out, right, model, depth, flow)?
+                evaluated_operand(out, left, model, depth, flow)?,
+                evaluated_operand(out, right, model, depth, flow)?
             )
         }
         Expression::Vector(values) => format!(
             "Vector3(float({}), float({}), float({}))",
-            guarded_expression(out, &values[0], model, depth, flow)?,
-            guarded_expression(out, &values[1], model, depth, flow)?,
-            guarded_expression(out, &values[2], model, depth, flow)?
+            evaluated_operand(out, &values[0], model, depth, flow)?,
+            evaluated_operand(out, &values[1], model, depth, flow)?,
+            evaluated_operand(out, &values[2], model, depth, flow)?
         ),
         Expression::IntegerCast(value) => {
             format!(
@@ -700,17 +991,8 @@ fn guarded_expression(
         }
         Expression::RandomInt { lower, upper } => format!(
             "random_int(int({}), int({}))",
-            guarded_expression(out, lower, model, depth, flow)?,
-            guarded_expression(out, upper, model, depth, flow)?
-        ),
-        Expression::InventoryQuantity(item) => format!(
-            "character().source_inventory_quantity(int({}))",
-            guarded_expression(out, item, model, depth, flow)?
-        ),
-        Expression::InventoryRemove { item, count } => format!(
-            "character().source_inventory_remove(int({}), int({}))",
-            guarded_expression(out, item, model, depth, flow)?,
-            guarded_expression(out, count, model, depth, flow)?
+            evaluated_operand(out, lower, model, depth, flow)?,
+            evaluated_operand(out, upper, model, depth, flow)?
         ),
         Expression::SelfHitPoints => {
             writeln!(
@@ -792,8 +1074,8 @@ fn guarded_expression(
         }
         Expression::VectorCos(a, b) => format!(
             "character().source_vector_cos({}, {})",
-            guarded_expression(out, a, model, depth, flow)?,
-            guarded_expression(out, b, model, depth, flow)?
+            evaluated_operand(out, a, model, depth, flow)?,
+            evaluated_operand(out, b, model, depth, flow)?
         ),
         Expression::Negate(value) => format!(
             "(-float({}))",
@@ -805,8 +1087,8 @@ fn guarded_expression(
         ),
         Expression::ArrayElement { array, index } => format!(
             "{}[int({})]",
-            guarded_expression(out, array, model, depth, flow)?,
-            guarded_expression(out, index, model, depth, flow)?
+            evaluated_operand(out, array, model, depth, flow)?,
+            evaluated_operand(out, index, model, depth, flow)?
         ),
         Expression::ActorListContains { list, actor } => {
             actor_list_capacity(model, *list)?;
@@ -823,8 +1105,8 @@ fn guarded_expression(
             *operation,
             left,
             right,
-            guarded_expression(out, left, model, depth, flow)?,
-            guarded_expression(out, right, model, depth, flow)?,
+            evaluated_operand(out, left, model, depth, flow)?,
+            evaluated_operand(out, right, model, depth, flow)?,
             model,
         ),
         Expression::Not(value) => format!(
@@ -849,6 +1131,20 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         Expression::Integer(v) => v.to_string(),
         Expression::Real(v) => format!("{v:?}"),
         Expression::IntegerCast(value) => format!("int({})", expression(value, model)?),
+        Expression::Actor(actor) => actor_target_code(actor),
+        Expression::Configuration(reference) => reference
+            .as_ref()
+            .map_or("null".into(), configuration_constant),
+        Expression::IsValidActor(_)
+        | Expression::ApplyArmoredDamage(_)
+        | Expression::InventoryChangeWeapon(_)
+        | Expression::InventoryAddActorObject(_)
+        | Expression::InventoryMaximumCapacity(_)
+        | Expression::ActorDistance(_)
+        | Expression::Square(_)
+        | Expression::AbsoluteValue(_) => {
+            anyhow::bail!("actor/numeric expression requires guarded compilation")
+        }
         Expression::SelfPosition => "character().source_position()".into(),
         Expression::WaypointPosition(reference) => waypoint_constant(reference),
         Expression::GameTime => "character().source_game_time()".into(),
@@ -935,16 +1231,19 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         }
         Expression::MainActorDistance => "distance_to_main_actor()".into(),
         Expression::SelfHitPoints => "character().source_get_hit_points()".into(),
-        Expression::InventoryWeapon => "character().source_inventory_weapon()".into(),
-        Expression::InventoryQuantity(item) => format!(
-            "character().source_inventory_quantity(int({}))",
-            expression(item, model)?
-        ),
-        Expression::InventoryRemove { item, count } => format!(
-            "character().source_inventory_remove(int({}), int({}))",
-            expression(item, model)?,
-            expression(count, model)?
-        ),
+        Expression::ArmorResistance | Expression::ArmorCount => {
+            anyhow::bail!("armor query requires guarded compilation")
+        }
+        Expression::InventoryGold
+        | Expression::InventoryObject
+        | Expression::InventoryWeapon
+        | Expression::InventoryAddGold(_)
+        | Expression::InventorySubtractGold(_)
+        | Expression::InventorySelectObject(_)
+        | Expression::InventoryQuantity(_)
+        | Expression::InventoryRemove { .. } => {
+            anyhow::bail!("inventory query requires guarded compilation")
+        }
         Expression::MagicCurrentSpell => "character().source_magic_current_spell()".into(),
         Expression::MagicPoints => "character().source_magic_points()".into(),
         Expression::MagicRemovePoints(amount) => format!(
@@ -1070,12 +1369,12 @@ fn blocking(
             Some(guarded_expression(out, frames, model, depth, flow)?)
         }
         Statement::ExecuteActionAndGenerateObject { action, .. } => {
-            Some(guarded_expression(out, action, model, depth, flow)?)
+            Some(evaluated_operand(out, action, model, depth, flow)?)
         }
         _ => None,
     };
     let vector = if let Statement::ExecuteActionAndGenerateObject { vector, .. } = statement {
-        Some(guarded_expression(out, vector, model, depth, flow)?)
+        Some(evaluated_operand(out, vector, model, depth, flow)?)
     } else {
         None
     };
@@ -1093,6 +1392,11 @@ fn blocking(
         )?;
     }
     let complete = match statement {
+        Statement::WaitBoolean { value, .. } => {
+            let value = guarded_expression(out, value, model, depth + 1, flow)?;
+            writeln!(out, "{pad}    var expected_boolean_{id} := int({value})")?;
+            format!("int(boolean_field_{id}) == expected_boolean_{id}")
+        }
         Statement::Wait { .. } => {
             writeln!(
                 out,
@@ -1175,6 +1479,10 @@ fn blocking(
     if group == "reflex" {
         writeln!(out, "{pad}        reflex_controls_tick = true")?;
     }
+    if let Statement::WaitBoolean { field, .. } = statement {
+        let field = guarded_expression(out, field, model, depth + 2, flow)?;
+        writeln!(out, "{pad}        var boolean_field_{id} = {field}")?;
+    }
     writeln!(out, "{pad}        if {complete}: break")?;
     if matches!(statement, Statement::WaitFrames(_)) {
         writeln!(out, "{pad}        remaining_{id} -= 1")?;
@@ -1242,7 +1550,8 @@ fn statements(
                     statements(out, otherwise, model, events, depth + 1, flow)?;
                 }
             }
-            Statement::Assign { variable, value } => {
+            Statement::Assign { variable, value }
+            | Statement::SelfFieldAssign { variable, value } => {
                 let kind = &model.variables[usize::from(*variable)].default;
                 let clears_source_reference = matches!(
                     (kind, value),
@@ -1501,11 +1810,95 @@ fn statements(
                     quoted(&format!("{} has no native laser-pointer state", model.path))
                 )?;
             }
+            Statement::ChangeConfiguration(value) => {
+                let value = evaluated_operand(out, value, model, depth, flow)?;
+                let id = flow.local;
+                flow.local += 1;
+                writeln!(
+                    out,
+                    "{pad}var configuration_receiver_{id}: Node = get_parent()\n{pad}if not is_instance_valid(configuration_receiver_{id}) or not configuration_receiver_{id}.has_method(\"source_change_configuration\") or not bool(configuration_receiver_{id}.call(\"source_change_configuration\", {value})):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} requires a bound native configuration choice",
+                        model.path
+                    ))
+                )?;
+            }
+            Statement::SwapConfiguredParts { first, second } => {
+                let id = flow.local;
+                flow.local += 1;
+                let first = guarded_expression(out, first, model, depth, flow)?;
+                writeln!(out, "{pad}var configured_first_{id}: int = int({first})")?;
+                let second = guarded_expression(out, second, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}var configured_second_{id}: int = int({second})\n{pad}var configuration_receiver_{id}: Node = get_parent()\n{pad}if not is_instance_valid(configuration_receiver_{id}) or not configuration_receiver_{id}.has_method(\"source_swap_configured_parts\") or not bool(configuration_receiver_{id}.call(\"source_swap_configured_parts\", configured_first_{id}, configured_second_{id})):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} requires supported shared configuration part slots",
+                        model.path
+                    ))
+                )?;
+            }
+            Statement::ChangeArmor(value) | Statement::SetArmorResistance(value) => {
+                let value = guarded_expression(out, value, model, depth, flow)?;
+                let selected = matches!(statement, Statement::SetArmorResistance(_));
+                let armor = armor_receiver(out, model, depth, flow, selected)?;
+                let method = if selected { "set_resistance" } else { "select" };
+                writeln!(out, "{pad}{armor}.call({}, int({value}))", quoted(method))?;
+            }
+            Statement::RepairArmor => {
+                let armor = armor_receiver(out, model, depth, flow, true)?;
+                writeln!(out, "{pad}{armor}.call(\"repair\")")?;
+            }
             Statement::SetDisplayVisible(visible) => {
                 writeln!(
                     out,
                     "{pad}character().source_set_display_visible({visible})"
                 )?;
+            }
+            Statement::ActorDisplayVisible { actor, .. }
+            | Statement::ActorTransparency { actor, .. }
+            | Statement::ActorTransparentDisplay { actor, .. } => {
+                let target = actor_target_code(actor);
+                let local = format!("display_actor_{}", flow.local);
+                flow.local += 1;
+                // Resolve the receiver before evaluating its operation argument,
+                // matching Ultra's ordinary actor-directed source evaluation.
+                writeln!(out, "{pad}var {local} = {target}")?;
+                let (method, argument, checked) = match statement {
+                    Statement::ActorDisplayVisible { visible, .. } => {
+                        ("source_set_display_visible", visible.to_string(), false)
+                    }
+                    Statement::ActorTransparency { opacity, .. } => (
+                        "source_set_transparency",
+                        format!(
+                            "int({})",
+                            guarded_expression(out, opacity, model, depth, flow)?
+                        ),
+                        true,
+                    ),
+                    Statement::ActorTransparentDisplay { enabled, .. } => {
+                        ("source_set_transparent_display", enabled.to_string(), true)
+                    }
+                    _ => unreachable!(),
+                };
+                let failure = quoted(&format!(
+                    "{} requires a native actor rendering receiver for {method}",
+                    model.path
+                ));
+                writeln!(
+                    out,
+                    "{pad}if not is_instance_valid({local}) or not {local}.has_method({}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}",
+                    quoted(method)
+                )?;
+                if checked {
+                    writeln!(
+                        out,
+                        "{pad}if not bool({local}.call({}, {argument})):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}",
+                        quoted(method)
+                    )?;
+                } else {
+                    writeln!(out, "{pad}{local}.call({}, {argument})", quoted(method))?;
+                }
             }
             Statement::SetTransparency(value) => {
                 let value = guarded_expression(out, value, model, depth, flow)?;
@@ -1643,8 +2036,8 @@ fn statements(
                         writeln!(out, "{pad}source_ui().source_toggle_widescreen()")?
                     }
                     Statement::PositionDialog { x, y } => {
-                        let x = guarded_expression(out, x, model, depth, flow)?;
-                        let y = guarded_expression(out, y, model, depth, flow)?;
+                        let x = evaluated_operand(out, x, model, depth, flow)?;
+                        let y = evaluated_operand(out, y, model, depth, flow)?;
                         writeln!(
                             out,
                             "{pad}source_ui().source_position_dialog(float({x}), float({y}))"
@@ -1714,7 +2107,7 @@ fn statements(
                     DesignerValue::VectorArray(_) => "Vector3",
                     _ => anyhow::bail!("AI assignment target dsg_{variable} is not an array"),
                 };
-                let index = guarded_expression(out, index, model, depth, flow)?;
+                let index = evaluated_operand(out, index, model, depth, flow)?;
                 let value = guarded_expression(out, value, model, depth, flow)?;
                 writeln!(
                     out,
@@ -1748,6 +2141,7 @@ fn statements(
                 )?;
             }
             Statement::Wait { .. }
+            | Statement::WaitBoolean { .. }
             | Statement::WaitFrames(_)
             | Statement::IncrementalTurnToward { .. }
             | Statement::ExecuteAction(_)
@@ -1755,6 +2149,24 @@ fn statements(
             | Statement::WaitEndOfAction
             | Statement::WaitEndOfAnimation => {
                 blocking(out, statement, model, depth, flow)?;
+            }
+            Statement::ChangeActorBehavior { actor, target } => {
+                let actor = guarded_expression(out, actor, model, depth, flow)?;
+                let id = flow.local;
+                flow.local += 1;
+                let method = format!("change_{}", group_name(target.group));
+                let failure = quoted(&format!(
+                    "{} requires actor Brain {} behavior {}",
+                    model.path, target.model.path, target.behavior
+                ));
+                writeln!(
+                    out,
+                    "{pad}var behavior_actor_{id} = {actor}\n{pad}if typeof(behavior_actor_{id}) != TYPE_OBJECT or not is_instance_valid(behavior_actor_{id}) or not (behavior_actor_{id} is Node):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var behavior_brain_{id}: Node = (behavior_actor_{id} as Node).get_node_or_null(\"Brain\")\n{pad}if not is_instance_valid(behavior_brain_{id}) or str(behavior_brain_{id}.get(\"source_model_path\")) != {} or not behavior_brain_{id}.has_method({}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}behavior_brain_{id}.call({}, {})\n{pad}if not active_{group}(token): {exit}",
+                    quoted(target.model.path.as_str()),
+                    quoted(&method),
+                    quoted(&method),
+                    target.behavior
+                )?;
             }
             Statement::ChangeBehavior {
                 target,
@@ -1819,8 +2231,8 @@ fn statements(
                 )?;
             }
             Statement::SoundFadeMusic { arg0, arg1 } => {
-                let arg0 = guarded_expression(out, arg0, model, depth, flow)?;
-                let arg1 = guarded_expression(out, arg1, model, depth, flow)?;
+                let arg0 = evaluated_operand(out, arg0, model, depth, flow)?;
+                let arg1 = evaluated_operand(out, arg1, model, depth, flow)?;
                 writeln!(
                     out,
                     "{pad}sound_fade_music(int({arg0}), int({arg1}))\n{pad}if not active_{group}(token): {exit}"

@@ -63,6 +63,8 @@ pub(super) fn global_perso_source(
 }
 
 pub struct SceneImport {
+    pub armor: Option<crate::model::armor::ArmorCatalog>,
+    pub inventory: Option<crate::model::inventory_gameplay::InventoryCatalog>,
     pub dialogue_presentation: Option<crate::model::dialogue::DialoguePresentation>,
     pub dialogues: Vec<crate::model::dialogue::Dialogue>,
     pub ai_models: Vec<crate::model::ai::AiModel>,
@@ -101,6 +103,8 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
     let tree = session.tree()?;
     let source = summary(&session, selection, &tree)?;
     let mut result = SceneImport {
+        armor: None,
+        inventory: None,
         dialogue_presentation: None,
         dialogues: Vec::new(),
         ai_models: Vec::new(),
@@ -126,6 +130,8 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
             path: AssetPath::new("level:/scene")?,
             name: selection.level.clone(),
             main_actor: None,
+            armor: None,
+            inventory: None,
             global_actors: Vec::new(),
             nodes: Vec::new(),
         },
@@ -330,6 +336,12 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
             ));
         }
     }
+    // Typed ObjectTableRef literals may name configurations outside the owning
+    // family's catalogue. Import that dependency closure before sealing the
+    // character importer; the AI adapter later resolves the same useful assets.
+    for configuration in super::ai::configuration_sources(&session, &actor_refs)? {
+        characters.configuration(configuration)?;
+    }
     let state_references = characters.finish()?;
     if let Some(actor) = global_actor {
         result.scene.global_actors.push(actor);
@@ -354,6 +366,39 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
     if selection.level == "manoir" {
         super::dialogue::import(&session, game, selection, &actor_refs, &mut result)?;
     }
+    let armor = super::armor::import(game, selection).context("import shared armor catalog")?;
+    result.scene.armor = Some(AssetRef::from_path(armor.path.clone()));
+    result.armor = Some(armor);
+    let mut inventory = super::inventory_gameplay::import(game, selection)
+        .context("import shared inventory catalog")?;
+    // Stock records are reached through typed Perso links. Allocation size or
+    // coincidental pointers alone do not establish an inventory membership.
+    for item in &mut inventory.items {
+        let mut categories = Vec::new();
+        for stock in result.persos.iter().filter_map(|p| p.stock.as_ref()) {
+            if stock.item.as_ref() != Some(&item.source) {
+                continue;
+            }
+            if let Some(category) = &stock.category
+                && inventory.categories.iter().any(|c| &c.source == category)
+                && !categories.contains(category)
+            {
+                categories.push(category.clone());
+            }
+        }
+        if categories.len() == 1 {
+            item.pickup_category = categories.pop();
+        } else if categories.len() > 1 {
+            result.diagnostics.push(Diagnostic {
+                code: "openspace.inventory.ambiguous_pickup_category".into(),
+                asset: Some(inventory.path.clone()),
+                severity: Severity::Warning,
+                message: format!("Item {} has multiple typed pickup categories; legacy admission cannot be inferred", item.id),
+            });
+        }
+    }
+    result.scene.inventory = Some(AssetRef::from_path(inventory.path.clone()));
+    result.inventory = Some(inventory);
     result.scene.validate()?;
     Ok(result)
 }

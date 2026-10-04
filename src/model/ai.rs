@@ -8,6 +8,8 @@ use super::{
 };
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
+mod walk;
+pub use walk::{AstNode, AstWalk};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AiModel {
@@ -119,6 +121,11 @@ pub enum Statement {
         variable: u16,
         value: Expression,
     },
+    /// Explicit source Dot(Me, field) retains its source tree shape.
+    SelfFieldAssign {
+        variable: u16,
+        value: Expression,
+    },
     /// Assignment through a typed actor reference, such as Hype's shared
     /// Fix-owned Global actor. The destination is ordinary actor Brain state.
     ActorFieldAssign {
@@ -159,11 +166,21 @@ pub enum Statement {
         milliseconds: Expression,
     },
     WaitFrames(Expression),
+    /// Capture the expected Boolean once; reread the named designer field
+    /// until it equals that value (0054db40 / 0054dbd0).
+    WaitBoolean {
+        field: Expression,
+        value: Expression,
+    },
     ChangeBehavior {
         target: BehaviorRef,
         /// Yield the calling flow after the request; a change to that same
         /// behavior group consequently enters its new behavior next tick.
         pause_after: bool,
+    },
+    ChangeActorBehavior {
+        actor: Expression,
+        target: BehaviorRef,
     },
     ChangeAction(Expression),
     Turn {
@@ -178,8 +195,8 @@ pub enum Statement {
     /// Source motion requests retain their order in the AI schedule. The
     /// character component owns their runtime effects.
     SetVectorSpeed(Expression),
-    /// Proc_AddWind assigns an actor-local drift vector in Hype. The native
-    /// target currently accepts this call as an explicitly deferred no-op.
+    /// Proc_AddWind assigns an actor-local world-axis drift vector in Hype.
+    /// The native character composes that persistent drift with motion.
     AddWind(Expression),
     /// Hype category-23 operands are actor-local route slot indices.
     ResetRoute(u8),
@@ -204,6 +221,30 @@ pub enum Statement {
     SetTransparency(Expression),
     /// TransparentDisplay enables actor opacity; DefaultDisplay disables it.
     SetTransparentDisplay(bool),
+    /// Operator_Ultra applies the existing rendering API to another actor.
+    ActorDisplayVisible {
+        actor: ActorTarget,
+        visible: bool,
+    },
+    ActorTransparency {
+        actor: ActorTarget,
+        opacity: Expression,
+    },
+    ActorTransparentDisplay {
+        actor: ActorTarget,
+        enabled: bool,
+    },
+    ChangeArmor(Expression),
+    SetArmorResistance(Expression),
+    RepairArmor,
+    /// Proc82 swaps complete parts in the shared selected configuration.
+    /// Arguments retain source one-based integer indices.
+    SwapConfiguredParts {
+        first: Expression,
+        second: Expression,
+    },
+    /// Proc83 replaces the current ObjectList reference without resetting it.
+    ChangeConfiguration(Expression),
     ChangeSighting(Expression),
     /// Camera procedure 160 stores a keyword or referenced target actor.
     CameraChangeTargetedPerso {
@@ -310,6 +351,20 @@ pub enum Expression {
     Real(f32),
     /// Source Func_Int truncates a real-valued expression to an integer.
     IntegerCast(Box<Expression>),
+    /// 00538350 converts integer/real input and stores its square as a real.
+    Square(Box<Expression>),
+    /// 00538650 returns a real and negates nonpositive input (including zero).
+    AbsoluteValue(Box<Expression>),
+    /// Func224 applies shared armor damage to the main actor and returns its
+    /// remaining byte hit points (00536452 / 0043aa20 / 00460b10).
+    ApplyArmoredDamage(Box<Expression>),
+    /// Useful actor values, including source keywords and rooted references.
+    Actor(ActorTarget),
+    /// Category35 ObjectTableRef, including a null current configuration.
+    Configuration(Option<AssetRef<super::character::ObjectList>>),
+    IsValidActor(Box<Expression>),
+    /// Func_DistanceToPerso measures from the evaluating actor to its argument.
+    ActorDistance(Box<Expression>),
     /// Source vector literal (category 16); components remain source-space.
     Vector(Box<[Expression; 3]>),
     /// Current actor's world position in source coordinates.
@@ -385,6 +440,20 @@ pub enum Expression {
     /// Source inventory functions operate on the game inventory, not on a
     /// projectile's own designer fields.
     InventoryWeapon,
+    InventoryGold,
+    InventoryAddGold(Box<Expression>),
+    InventorySubtractGold(Box<Expression>),
+    InventoryObject,
+    InventorySelectObject(Box<Expression>),
+    /// Function196 admits the evaluated actor's StockAction into shared
+    /// inventory and returns its signed item ID; null actor returns zero.
+    InventoryAddActorObject(Box<Expression>),
+    /// Function202 selects an admitted Weapon item and returns source 1/0.
+    InventoryChangeWeapon(Box<Expression>),
+    /// Function210 reads catalog capacity, including source special item -1.
+    InventoryMaximumCapacity(Box<Expression>),
+    ArmorResistance,
+    ArmorCount,
     InventoryQuantity(Box<Expression>),
     InventoryRemove {
         item: Box<Expression>,
@@ -598,125 +667,45 @@ impl Content for AiModel {
 }
 impl AiModel {
     pub fn particle_generators(&self) -> Vec<AssetRef<super::particle::ParticleGenerator>> {
-        fn visit(
-            statements: &[Statement],
-            out: &mut Vec<AssetRef<super::particle::ParticleGenerator>>,
-        ) {
-            for statement in statements {
-                match statement {
-                    Statement::SetParticleGenerator(reference) => {
-                        if !out.contains(reference) {
-                            out.push(reference.clone());
-                        }
-                    }
-                    Statement::If {
-                        then, otherwise, ..
-                    } => {
-                        visit(then, out);
-                        if let Some(branch) = otherwise {
-                            visit(branch, out);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
         let mut out = Vec::new();
-        for set in [&self.normal, &self.reflex].into_iter().flatten() {
-            for behavior in &set.behaviors {
-                for script in behavior
-                    .rules
-                    .iter()
-                    .flatten()
-                    .chain(behavior.schedule.iter())
-                {
-                    visit(&script.statements, &mut out);
+        for statement in self.statements() {
+            if let Statement::SetParticleGenerator(reference) = statement {
+                if !out.contains(reference) {
+                    out.push(reference.clone());
                 }
             }
         }
         out
     }
     pub fn object_templates(&self) -> Vec<AssetRef<Perso>> {
-        fn visit(statements: &[Statement], out: &mut Vec<AssetRef<Perso>>) {
-            for statement in statements {
-                match statement {
-                    Statement::ExecuteActionAndGenerateObject { template, .. } => {
-                        if !out.contains(template) {
-                            out.push(template.clone());
-                        }
-                    }
-                    Statement::If {
-                        then, otherwise, ..
-                    } => {
-                        visit(then, out);
-                        if let Some(otherwise) = otherwise {
-                            visit(otherwise, out);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
         let mut out = Vec::new();
-        for set in [&self.normal, &self.reflex].into_iter().flatten() {
-            for behavior in &set.behaviors {
-                for script in behavior
-                    .rules
-                    .iter()
-                    .flatten()
-                    .chain(behavior.schedule.iter())
-                {
-                    visit(&script.statements, &mut out);
+        for statement in self.statements() {
+            if let Statement::ExecuteActionAndGenerateObject { template, .. } = statement {
+                if !out.contains(template) {
+                    out.push(template.clone());
                 }
             }
         }
         out
     }
     pub fn actor_field_writes(&self) -> Vec<(AssetRef<Perso>, u16)> {
-        fn visit(statements: &[Statement], out: &mut Vec<(AssetRef<Perso>, u16)>) {
-            for statement in statements {
-                match statement {
-                    Statement::ActorFieldAssign {
-                        actor, variable, ..
-                    } => {
-                        let entry = (actor.clone(), *variable);
-                        if !out.contains(&entry) {
-                            out.push(entry);
-                        }
-                    }
-                    Statement::Increment {
-                        target: FieldTarget::ActorField { actor, variable },
-                    }
-                    | Statement::Decrement {
-                        target: FieldTarget::ActorField { actor, variable },
-                    } => {
-                        let entry = (actor.clone(), *variable);
-                        if !out.contains(&entry) {
-                            out.push(entry);
-                        }
-                    }
-                    Statement::If {
-                        then, otherwise, ..
-                    } => {
-                        visit(then, out);
-                        if let Some(otherwise) = otherwise {
-                            visit(otherwise, out);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
         let mut out = Vec::new();
-        for set in [&self.normal, &self.reflex].into_iter().flatten() {
-            for behavior in &set.behaviors {
-                for script in behavior
-                    .rules
-                    .iter()
-                    .flatten()
-                    .chain(behavior.schedule.iter())
-                {
-                    visit(&script.statements, &mut out);
+        for statement in self.statements() {
+            let entry = match statement {
+                Statement::ActorFieldAssign {
+                    actor, variable, ..
+                }
+                | Statement::Increment {
+                    target: FieldTarget::ActorField { actor, variable },
+                }
+                | Statement::Decrement {
+                    target: FieldTarget::ActorField { actor, variable },
+                } => Some((actor.clone(), *variable)),
+                _ => None,
+            };
+            if let Some(entry) = entry {
+                if !out.contains(&entry) {
+                    out.push(entry);
                 }
             }
         }
@@ -752,130 +741,35 @@ impl AiModel {
         }
         out
     }
-    pub fn expressions(&self) -> Vec<&Expression> {
-        fn expression<'a>(e: &'a Expression, out: &mut Vec<&'a Expression>) {
-            out.push(e);
-            match e {
-                Expression::Compare { left, right, .. }
-                | Expression::And(left, right)
-                | Expression::Or(left, right)
-                | Expression::Multiply(left, right)
-                | Expression::Plus(left, right)
-                | Expression::Minus(left, right)
-                | Expression::Divide(left, right)
-                | Expression::TimeElapsed {
-                    start: left,
-                    duration: right,
-                }
-                | Expression::RandomInt {
-                    lower: left,
-                    upper: right,
-                }
-                | Expression::InventoryRemove {
-                    item: left,
-                    count: right,
-                }
-                | Expression::VectorCos(left, right) => {
-                    expression(left, out);
-                    expression(right, out);
-                }
-                Expression::Not(v)
-                | Expression::Negate(v)
-                | Expression::IsInAction(v)
-                | Expression::InventoryQuantity(v)
-                | Expression::MagicRemovePoints(v)
-                | Expression::ActorListContains { actor: v, .. } => expression(v, out),
-                Expression::Vector(values) => {
-                    for value in values.iter() {
-                        expression(value, out);
-                    }
-                }
-                Expression::VectorComponent { vector, .. } => expression(vector, out),
-                Expression::ArrayElement { array, index } => {
-                    expression(array, out);
-                    expression(index, out);
-                }
-                _ => {}
-            }
-        }
-        fn statements<'a>(values: &'a [Statement], out: &mut Vec<&'a Expression>) {
-            for s in values {
-                match s {
-                    Statement::If {
-                        condition,
-                        then,
-                        otherwise,
-                    } => {
-                        expression(condition, out);
-                        statements(then, out);
-                        if let Some(v) = otherwise {
-                            statements(v, out);
-                        }
-                    }
-                    Statement::Assign { value, .. }
-                    | Statement::ActorFieldAssign { value, .. }
-                    | Statement::MainActorFieldAssign { value, .. }
-                    | Statement::VectorComponentAssign { value, .. }
-                    | Statement::SubtractAssign { value, .. }
-                    | Statement::AddAssign { value, .. }
-                    | Statement::Turn {
-                        degrees_per_second: value,
-                    }
-                    | Statement::IncrementalTurnToward { frames: value, .. }
-                    | Statement::ChangeSighting(value)
-                    | Statement::SetTransparency(value)
-                    | Statement::SetVectorSpeed(value)
-                    | Statement::AddWind(value)
-                    | Statement::SetImpulse(value)
-                    | Statement::CameraChangeState { state: value, .. }
-                    | Statement::SetActorAbsolutePosition {
-                        position: value, ..
-                    } => expression(value, out),
-                    Statement::ArrayAssign {
-                        array,
-                        index,
-                        value,
-                    } => {
-                        expression(array, out);
-                        expression(index, out);
-                        expression(value, out);
-                    }
-                    Statement::Wait { milliseconds } => expression(milliseconds, out),
-                    Statement::WaitFrames(frames) => expression(frames, out),
-                    Statement::ChangeAction(a) | Statement::ExecuteAction(a) => expression(a, out),
-                    Statement::ExecuteActionAndGenerateObject { action, vector, .. } => {
-                        expression(action, out);
-                        expression(vector, out);
-                    }
-                    Statement::SoundFadeMusic { arg0, arg1 } => {
-                        expression(arg0, out);
-                        expression(arg1, out);
-                    }
-                    Statement::SetHudVisible { visible, .. }
-                    | Statement::ScrollDialog(visible)
-                    | Statement::RunDialog { mode: visible, .. } => expression(visible, out),
-                    Statement::PositionDialog { x, y } => {
-                        expression(x, out);
-                        expression(y, out);
-                    }
-                    _ => {}
-                }
-            }
-        }
-        let mut out = Vec::new();
-        for set in [&self.normal, &self.reflex].into_iter().flatten() {
-            for behavior in &set.behaviors {
-                for script in behavior
+    pub fn scripts(&self) -> impl Iterator<Item = &Script> {
+        [&self.normal, &self.reflex]
+            .into_iter()
+            .flatten()
+            .flat_map(|set| &set.behaviors)
+            .flat_map(|behavior| {
+                behavior
                     .rules
                     .iter()
                     .flatten()
                     .chain(behavior.schedule.iter())
-                {
-                    statements(&script.statements, &mut out);
-                }
-            }
-        }
-        out
+            })
+    }
+    fn statements(&self) -> impl Iterator<Item = &Statement> {
+        self.scripts()
+            .flat_map(Script::walk)
+            .filter_map(|(node, _)| match node {
+                AstNode::Statement(statement) => Some(statement),
+                AstNode::Expression(_) => None,
+            })
+    }
+    pub fn expressions(&self) -> Vec<&Expression> {
+        self.scripts()
+            .flat_map(Script::walk)
+            .filter_map(|(node, _)| match node {
+                AstNode::Expression(expression) => Some(expression),
+                AstNode::Statement(_) => None,
+            })
+            .collect()
     }
     pub fn state_references(&self) -> Vec<&StateRef> {
         let mut out: Vec<_> = self
@@ -904,6 +798,17 @@ impl AiModel {
             })
             .collect()
     }
+    pub fn configuration_references(&self) -> Vec<&AssetRef<super::character::ObjectList>> {
+        let mut out = Vec::new();
+        for expression in self.expressions() {
+            if let Expression::Configuration(Some(reference)) = expression
+                && !out.contains(&reference)
+            {
+                out.push(reference);
+            }
+        }
+        out
+    }
     pub fn behavior_references(&self) -> Vec<&BehaviorRef> {
         self.behavior_references_with_owner()
             .into_iter()
@@ -911,72 +816,31 @@ impl AiModel {
             .collect()
     }
     fn behavior_references_with_owner(&self) -> Vec<(&BehaviorRef, bool)> {
-        fn visit<'a>(statements: &'a [Statement], out: &mut Vec<(&'a BehaviorRef, bool)>) {
-            for statement in statements {
-                match statement {
-                    Statement::ChangeBehavior { target, .. } => out.push((target, true)),
-                    Statement::If {
-                        then, otherwise, ..
-                    } => {
-                        visit(then, out);
-                        if let Some(otherwise) = otherwise {
-                            visit(otherwise, out);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-        let mut out = Vec::new();
-        for set in [&self.normal, &self.reflex].into_iter().flatten() {
-            for behavior in &set.behaviors {
-                for script in behavior
-                    .rules
-                    .iter()
-                    .flatten()
-                    .chain(behavior.schedule.iter())
-                {
-                    visit(&script.statements, &mut out);
-                }
-            }
-        }
-        out.extend(self.expressions().into_iter().filter_map(|e| match e {
-            Expression::IsInBehavior { target, .. } => Some((target, false)),
-            _ => None,
-        }));
+        let mut out: Vec<_> = self
+            .statements()
+            .filter_map(|statement| match statement {
+                Statement::ChangeBehavior { target, .. } => Some((target, true)),
+                Statement::ChangeActorBehavior { target, .. } => Some((target, false)),
+                _ => None,
+            })
+            .collect();
+        out.extend(
+            self.expressions()
+                .into_iter()
+                .filter_map(|expression| match expression {
+                    Expression::IsInBehavior { target, .. } => Some((target, false)),
+                    _ => None,
+                }),
+        );
         out
     }
     pub fn sound_events(&self) -> Vec<&SoundEventLink> {
-        fn visit<'a>(statements: &'a [Statement], out: &mut Vec<&'a SoundEventLink>) {
-            for statement in statements {
-                match statement {
-                    Statement::Sound { event: Some(event) } => out.push(event),
-                    Statement::If {
-                        then, otherwise, ..
-                    } => {
-                        visit(then, out);
-                        if let Some(otherwise) = otherwise {
-                            visit(otherwise, out);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-        let mut out = Vec::new();
-        for set in [&self.normal, &self.reflex].into_iter().flatten() {
-            for behavior in &set.behaviors {
-                for script in behavior
-                    .rules
-                    .iter()
-                    .flatten()
-                    .chain(behavior.schedule.iter())
-                {
-                    visit(&script.statements, &mut out);
-                }
-            }
-        }
-        out
+        self.statements()
+            .filter_map(|statement| match statement {
+                Statement::Sound { event: Some(event) } => Some(event),
+                _ => None,
+            })
+            .collect()
     }
 }
 impl DesignerValue {
@@ -1036,263 +900,80 @@ impl DesignerValue {
 }
 impl Script {
     pub fn unsupported_fragments(&self) -> Vec<&UnsupportedFragment> {
-        fn expression<'a>(e: &'a Expression, out: &mut Vec<&'a UnsupportedFragment>) {
-            match e {
-                Expression::Unsupported(f) => out.push(f),
-                Expression::Compare { left, right, .. }
-                | Expression::And(left, right)
-                | Expression::Or(left, right)
-                | Expression::Multiply(left, right)
-                | Expression::Plus(left, right)
-                | Expression::Minus(left, right)
-                | Expression::Divide(left, right)
-                | Expression::TimeElapsed {
-                    start: left,
-                    duration: right,
-                }
-                | Expression::RandomInt {
-                    lower: left,
-                    upper: right,
-                }
-                | Expression::InventoryRemove {
-                    item: left,
-                    count: right,
-                }
-                | Expression::VectorCos(left, right) => {
-                    expression(left, out);
-                    expression(right, out);
-                }
-                Expression::Not(v)
-                | Expression::Negate(v)
-                | Expression::IsInAction(v)
-                | Expression::MagicRemovePoints(v)
-                | Expression::ActorListContains { actor: v, .. } => expression(v, out),
-                Expression::Vector(values) => {
-                    for value in values.iter() {
-                        expression(value, out);
-                    }
-                }
-                Expression::VectorComponent { vector, .. } => expression(vector, out),
-                Expression::ArrayElement { array, index } => {
-                    expression(array, out);
-                    expression(index, out);
-                }
-                _ => {}
-            }
-        }
-        fn block<'a>(statements: &'a [Statement], out: &mut Vec<&'a UnsupportedFragment>) {
-            for statement in statements {
-                match statement {
-                    Statement::Unsupported(f) => out.push(f),
-                    Statement::If {
-                        condition,
-                        then,
-                        otherwise,
-                    } => {
-                        expression(condition, out);
-                        block(then, out);
-                        if let Some(otherwise) = otherwise {
-                            block(otherwise, out);
-                        }
-                    }
-                    Statement::Assign { value, .. }
-                    | Statement::ActorFieldAssign { value, .. }
-                    | Statement::MainActorFieldAssign { value, .. }
-                    | Statement::SubtractAssign { value, .. }
-                    | Statement::AddAssign { value, .. }
-                    | Statement::ChangeAction(value)
-                    | Statement::ExecuteAction(value)
-                    | Statement::WaitFrames(value)
-                    | Statement::Turn {
-                        degrees_per_second: value,
-                    }
-                    | Statement::IncrementalTurnToward { frames: value, .. }
-                    | Statement::ChangeSighting(value)
-                    | Statement::SetTransparency(value)
-                    | Statement::SetVectorSpeed(value)
-                    | Statement::AddWind(value)
-                    | Statement::SetImpulse(value)
-                    | Statement::CameraChangeState { state: value, .. }
-                    | Statement::SetActorAbsolutePosition {
-                        position: value, ..
-                    }
-                    | Statement::Wait {
-                        milliseconds: value,
-                    } => expression(value, out),
-                    Statement::ExecuteActionAndGenerateObject { action, vector, .. } => {
-                        expression(action, out);
-                        expression(vector, out);
-                    }
-                    Statement::ArrayAssign {
-                        array,
-                        index,
-                        value,
-                    } => {
-                        expression(array, out);
-                        expression(index, out);
-                        expression(value, out);
-                    }
-                    Statement::SoundFadeMusic { arg0, arg1 } => {
-                        expression(arg0, out);
-                        expression(arg1, out);
-                    }
-                    Statement::SetHudVisible { visible, .. }
-                    | Statement::ScrollDialog(visible)
-                    | Statement::RunDialog { mode: visible, .. } => expression(visible, out),
-                    Statement::PositionDialog { x, y } => {
-                        expression(x, out);
-                        expression(y, out);
-                    }
-                    _ => {}
-                }
-            }
-        }
-        let mut out = Vec::new();
-        block(&self.statements, &mut out);
-        out
+        self.walk()
+            .filter_map(|(node, _)| match node {
+                AstNode::Statement(Statement::Unsupported(fragment))
+                | AstNode::Expression(Expression::Unsupported(fragment)) => Some(fragment),
+                _ => None,
+            })
+            .collect()
     }
     pub fn validate(&self, variables: usize) -> Result<()> {
-        fn expression(
-            e: &Expression,
-            variables: usize,
-            depth: usize,
-            count: &mut usize,
-        ) -> Result<()> {
-            *count += 1;
-            ensure!(depth <= 64 && *count <= 65535, "excessive AI tree");
-            match e {
-                Expression::Unsupported(fragment) => fragment.validate()?,
-                Expression::Real(v) => ensure!(v.is_finite(), "nonfinite AI real"),
-                Expression::WaypointPosition(r) => {
-                    ensure!(r.path.member().is_none(), "waypoint is a member")
-                }
-                Expression::Variable(id) => {
-                    ensure!(usize::from(*id) < variables, "AI variable out of range")
-                }
-                Expression::ActorListContains { list, actor } => {
-                    ensure!(usize::from(*list) < variables, "AI list out of range");
-                    expression(actor, variables, depth + 1, count)?;
-                }
-                Expression::ActorFieldRead { actor, variable } => {
-                    ensure!(
-                        actor.path.member().is_none(),
-                        "actor field read is a member"
-                    );
-                    ensure!(*variable < 255, "actor designer field out of range");
-                }
-                Expression::SelfFieldRead(variable) => {
-                    ensure!(
-                        usize::from(*variable) < variables,
-                        "own designer field out of range"
-                    );
-                }
-                Expression::MainActorFieldRead(variable) => {
-                    ensure!(*variable < 255, "main actor designer field out of range");
-                }
-                Expression::Compare { left, right, .. }
-                | Expression::And(left, right)
-                | Expression::Or(left, right)
-                | Expression::Multiply(left, right)
-                | Expression::Plus(left, right)
-                | Expression::Minus(left, right)
-                | Expression::Divide(left, right)
-                | Expression::TimeElapsed {
-                    start: left,
-                    duration: right,
-                }
-                | Expression::RandomInt {
-                    lower: left,
-                    upper: right,
-                }
-                | Expression::InventoryRemove {
-                    item: left,
-                    count: right,
-                }
-                | Expression::VectorCos(left, right) => {
-                    expression(left, variables, depth + 1, count)?;
-                    expression(right, variables, depth + 1, count)?;
-                }
-                Expression::Not(value)
-                | Expression::Negate(value)
-                | Expression::IsInAction(value)
-                | Expression::InventoryQuantity(value)
-                | Expression::MagicRemovePoints(value)
-                | Expression::VectorComponent { vector: value, .. } => {
-                    expression(value, variables, depth + 1, count)?
-                }
-                Expression::Vector(values) => {
-                    for value in values.iter() {
-                        expression(value, variables, depth + 1, count)?;
+        for (count, (node, depth)) in self.walk().enumerate() {
+            ensure!(depth <= 64 && count < 65535, "excessive AI tree");
+            match node {
+                AstNode::Expression(expression) => match expression {
+                    Expression::Unsupported(fragment) => fragment.validate()?,
+                    Expression::Real(value) => ensure!(value.is_finite(), "nonfinite AI real"),
+                    Expression::WaypointPosition(reference) => {
+                        ensure!(reference.path.member().is_none(), "waypoint is a member")
                     }
-                }
-                Expression::ArrayElement { array, index } => {
-                    expression(array, variables, depth + 1, count)?;
-                    expression(index, variables, depth + 1, count)?;
-                }
-                Expression::Button { action, .. } => ensure!(
-                    !action.is_empty()
-                        && action.len() <= 1024
-                        && !action.chars().any(char::is_control),
-                    "invalid logical button name"
-                ),
-                _ => {}
-            }
-            Ok(())
-        }
-        fn statements(
-            values: &[Statement],
-            variables: usize,
-            depth: usize,
-            count: &mut usize,
-        ) -> Result<()> {
-            ensure!(depth <= 64, "excessive AI tree");
-            for s in values {
-                *count += 1;
-                ensure!(*count <= 65535, "excessive AI tree");
-                match s {
+                    Expression::Actor(ActorTarget::Reference(actor)) => {
+                        ensure!(actor.path.member().is_none(), "actor is a member")
+                    }
+                    Expression::Configuration(Some(reference)) => {
+                        ensure!(
+                            reference.path.member().is_none(),
+                            "configuration is a member"
+                        )
+                    }
+                    Expression::Variable(index) | Expression::SelfFieldRead(index) => {
+                        ensure!(usize::from(*index) < variables, "AI variable out of range")
+                    }
+                    Expression::ActorListContains { list, .. } => {
+                        ensure!(usize::from(*list) < variables, "AI list out of range")
+                    }
+                    Expression::ActorFieldRead { actor, variable } => {
+                        ensure!(
+                            actor.path.member().is_none(),
+                            "actor field read is a member"
+                        );
+                        ensure!(*variable < 255, "actor designer field out of range");
+                    }
+                    Expression::MainActorFieldRead(variable) => {
+                        ensure!(*variable < 255, "main actor designer field out of range")
+                    }
+                    Expression::Button { action, .. } => ensure!(
+                        !action.is_empty()
+                            && action.len() <= 1024
+                            && !action.chars().any(char::is_control),
+                        "invalid logical button name"
+                    ),
+                    _ => {}
+                },
+                AstNode::Statement(statement) => match statement {
                     Statement::Unsupported(fragment) => fragment.validate()?,
-                    Statement::If {
-                        condition,
-                        then,
-                        otherwise,
-                    } => {
-                        expression(condition, variables, depth + 1, count)?;
-                        statements(then, variables, depth + 1, count)?;
-                        if let Some(v) = otherwise {
-                            statements(v, variables, depth + 1, count)?;
-                        }
-                    }
-                    Statement::Assign { variable, value }
-                    | Statement::SubtractAssign { variable, value }
-                    | Statement::AddAssign { variable, value } => {
-                        ensure!(
-                            usize::from(*variable) < variables,
-                            "AI assignment out of range"
-                        );
-                        expression(value, variables, depth + 1, count)?;
-                    }
-                    Statement::VectorComponentAssign { vector, value, .. } => {
-                        ensure!(
-                            usize::from(*vector) < variables,
-                            "AI vector assignment out of range"
-                        );
-                        expression(value, variables, depth + 1, count)?;
-                    }
+                    Statement::Assign { variable, .. }
+                    | Statement::SelfFieldAssign { variable, .. }
+                    | Statement::SubtractAssign { variable, .. }
+                    | Statement::AddAssign { variable, .. }
+                    | Statement::VectorComponentAssign {
+                        vector: variable, ..
+                    } => ensure!(
+                        usize::from(*variable) < variables,
+                        "AI assignment out of range"
+                    ),
                     Statement::ActorFieldAssign {
-                        actor,
-                        variable,
-                        value,
+                        actor, variable, ..
                     } => {
                         ensure!(
                             actor.path.member().is_none(),
                             "actor field target is a member"
                         );
                         ensure!(*variable < 255, "actor designer field out of range");
-                        expression(value, variables, depth + 1, count)?;
                     }
-                    Statement::MainActorFieldAssign { variable, value } => {
-                        ensure!(*variable < 255, "main actor designer field out of range");
-                        expression(value, variables, depth + 1, count)?;
+                    Statement::MainActorFieldAssign { variable, .. } => {
+                        ensure!(*variable < 255, "main actor designer field out of range")
                     }
                     Statement::ActorListAdd { list, actor } => {
                         ensure!(usize::from(*list) < variables, "AI list out of range");
@@ -1312,42 +993,38 @@ impl Script {
                                 ensure!(*variable < 255, "actor designer field out of range");
                             }
                             FieldTarget::MainActorField(variable) => {
-                                ensure!(*variable < 255, "main actor designer field out of range");
+                                ensure!(*variable < 255, "main actor designer field out of range")
                             }
                         }
                     }
-                    Statement::RunDialog { name, mode } => {
-                        ensure!(
-                            !name.is_empty() && name.len() <= 255,
-                            "invalid dialogue identity"
-                        );
-                        expression(mode, variables, depth + 1, count)?;
-                    }
-                    Statement::ScrollDialog(value) => {
-                        expression(value, variables, depth + 1, count)?
-                    }
-                    Statement::PositionDialog { x, y } => {
-                        expression(x, variables, depth + 1, count)?;
-                        expression(y, variables, depth + 1, count)?;
-                    }
-                    Statement::Wait { milliseconds } => {
-                        expression(milliseconds, variables, depth + 1, count)?
-                    }
-                    Statement::WaitFrames(frames) => {
-                        expression(frames, variables, depth + 1, count)?
-                    }
-                    Statement::Turn { degrees_per_second } => {
-                        expression(degrees_per_second, variables, depth + 1, count)?
-                    }
-                    Statement::IncrementalTurnToward { target, frames } => {
+                    Statement::RunDialog { name, .. } => ensure!(
+                        !name.is_empty() && name.len() <= 255,
+                        "invalid dialogue identity"
+                    ),
+                    Statement::WaitBoolean { field, .. } => ensure!(
+                        matches!(
+                            field,
+                            Expression::Variable(_)
+                                | Expression::SelfFieldRead(_)
+                                | Expression::ActorFieldRead { .. }
+                                | Expression::MainActorFieldRead(_)
+                        ),
+                        "Boolean wait requires a designer field reference"
+                    ),
+                    Statement::ChangeConfiguration(value) => ensure!(
+                        matches!(value, Expression::Configuration(_)),
+                        "configuration change requires a resolved literal reference"
+                    ),
+                    Statement::IncrementalTurnToward { target, .. }
+                    | Statement::ActorDisplayVisible { actor: target, .. }
+                    | Statement::ActorTransparency { actor: target, .. }
+                    | Statement::ActorTransparentDisplay { actor: target, .. } => {
                         if let ActorTarget::Reference(actor) = target {
-                            ensure!(actor.path.member().is_none(), "turn target is a member");
+                            ensure!(actor.path.member().is_none(), "actor target is a member");
                         }
-                        expression(frames, variables, depth + 1, count)?;
                     }
-                    Statement::CameraChangeState { camera, state } => {
-                        ensure!(camera.path.member().is_none(), "camera is a member");
-                        expression(state, variables, depth + 1, count)?;
+                    Statement::CameraChangeState { camera, .. } => {
+                        ensure!(camera.path.member().is_none(), "camera is a member")
                     }
                     Statement::CameraChangeTargetedPerso { camera, target } => {
                         ensure!(camera.path.member().is_none(), "camera is a member");
@@ -1355,54 +1032,19 @@ impl Script {
                             ensure!(actor.path.member().is_none(), "camera target is a member");
                         }
                     }
-                    Statement::SetActorAbsolutePosition { actor, position } => {
-                        ensure!(
-                            actor.path.member().is_none(),
-                            "position receiver is a member"
-                        );
-                        expression(position, variables, depth + 1, count)?;
-                    }
-                    Statement::SetVectorSpeed(value)
-                    | Statement::AddWind(value)
-                    | Statement::SetImpulse(value)
-                    | Statement::ChangeSighting(value)
-                    | Statement::SetTransparency(value) => {
-                        expression(value, variables, depth + 1, count)?
-                    }
-                    Statement::ArrayAssign {
-                        array,
-                        index,
-                        value,
-                    } => {
-                        expression(array, variables, depth + 1, count)?;
-                        expression(index, variables, depth + 1, count)?;
-                        expression(value, variables, depth + 1, count)?;
-                    }
-                    Statement::ChangeAction(action) | Statement::ExecuteAction(action) => {
-                        expression(action, variables, depth + 1, count)?
-                    }
-                    Statement::ExecuteActionAndGenerateObject {
-                        template,
-                        action,
-                        vector,
-                    } => {
-                        ensure!(
-                            template.path.member().is_none(),
-                            "object template is a member"
-                        );
-                        expression(action, variables, depth + 1, count)?;
-                        expression(vector, variables, depth + 1, count)?;
-                    }
-                    Statement::SoundFadeMusic { arg0, arg1 } => {
-                        expression(arg0, variables, depth + 1, count)?;
-                        expression(arg1, variables, depth + 1, count)?;
-                    }
+                    Statement::SetActorAbsolutePosition { actor, .. } => ensure!(
+                        actor.path.member().is_none(),
+                        "position receiver is a member"
+                    ),
+                    Statement::ExecuteActionAndGenerateObject { template, .. } => ensure!(
+                        template.path.member().is_none(),
+                        "object template is a member"
+                    ),
                     _ => {}
-                }
+                },
             }
-            Ok(())
         }
-        statements(&self.statements, variables, 0, &mut 0)
+        Ok(())
     }
 }
 impl Brain {

@@ -2,7 +2,7 @@
 
 This directory contains reference material used while building Astrolabe. Repository references include this README, `reference/.gitignore`, the supplied Lutris installer JSON, and the Git submodule entries. Large downloads, proprietary/game-derived files, and generated decompilation output are intentionally ignored.
 
-The Astrolabe snapshots and edited serializer commits were created locally and have not been pushed. They are available in this checkout, including each archived implementation's exact `lib/` dependencies. A fresh clone from the hosted repositories cannot fetch unpublished commits until they are published to repositories that contain them and the relevant submodule URLs are updated as needed. No push was performed as part of this archive operation.
+The Astrolabe snapshots and edited serializer commits were created locally and have not been pushed. Their availability depends on the checkout: a fresh clone cannot fetch unpublished commits until they are published to repositories that contain them and the relevant submodule URLs are updated as needed. No push was performed as part of the archive operation. The 2026-10-04 checkout has the C# snapshot in the parent repository's Git object database, but its reference worktrees are uninitialized. `git show <pinned-commit>:<path>` can read that retained source without changing a reference.
 
 The submodule gitlinks pin the exact snapshots. The `gltf` branch setting records its provenance; ordinary `git submodule update` uses the pinned commit. Avoid `--remote` when restoring these historical snapshots.
 
@@ -118,6 +118,13 @@ These paths are ignored by `reference/.gitignore` and will not exist in a clean 
 | `raymap-webgl/` | Download a local snapshot of <https://raym.app/maps/> into `reference/raymap-webgl/`. | Raymap's Unity WebGL build for browser automation comparisons. Include `Build/raymap.loader.js`, `Build/raymap.data.unityweb`, `Build/raymap.framework.js.unityweb`, `Build/raymap.wasm.unityweb`, the page shell, shared CSS/JS assets, `json/content.json`, and `json/raymap/playmobil_hype/pc.json`. Serve this directory with a local static server before using Playwright, for example `python3 -m http.server 8899 --directory reference/raymap-webgl`. To test against local Hype disc data, create local symlinks such as `ln -s ../../disc/Gamedata reference/raymap-webgl/Gamedata` and `ln -s ../../disc/LangData reference/raymap-webgl/LangData`; these symlinks live inside the ignored snapshot and are not tracked. |
 
 ## Hype Decompilation Notes
+
+On 2026-10-04 the documented patch archive was recovered through its HTTP URL
+after HTTPS attempts failed. Only `MaiDFXvr_bleu.exe` was extracted locally;
+SHA-256 `ed105a423f6e1bcf0460aa8f7357e2bae3783ca8aadfff8ef8a13b93d967d97d`
+matches the tracked executable-derived API catalog. This establishes the build
+used for the new static disassembly, not a working game installation. Neither
+the executable nor a runtime probe was run during that source-only pass.
 
 The nGlide patch `.sdb` file is a Windows application compatibility database, not a debug-symbol database. Its useful context is:
 

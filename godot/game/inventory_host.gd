@@ -56,14 +56,20 @@ func close_inventory() -> void:
 
 func _item_requested(item_id: int, kind: String) -> void:
     if not is_instance_valid(view) or view.inventory == null: return
-    var amount := int(view.inventory.call("quantity", item_id))
-    var quantities: Dictionary = view.inventory.get("quantities")
+    var quantities: Dictionary = view.inventory.call("presentation_quantities") if view.inventory.has_method("presentation_quantities") else view.inventory.get("quantities")
+    var amount := int(quantities.get(item_id, 0))
     if not quantities.has(item_id) or amount == 0:
         view.report("This item is not available.")
         return
     if kind == "Weapon":
-        view.inventory.set("selected_weapon", item_id)
-        view.inventory.emit_changed()
+        if view.inventory.get("source_initialized"):
+            if int(view.inventory.call("change_weapon", item_id)) != 1:
+                var failure := str(view.inventory.get("last_failure"))
+                view.report(failure if not failure.is_empty() else "This weapon is not admitted to the inventory.")
+                return
+        else:
+            view.inventory.set("selected_weapon", item_id)
+            view.inventory.emit_changed()
         view.report("")
         view.refresh()
     else:

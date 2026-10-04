@@ -57,6 +57,39 @@ func _bind_inputs() -> void:
 func source_external_actor_brains() -> PackedStringArray:
 	return PackedStringArray()
 
+## Actor values also exist on nonvisual Global holders. Resolve them through
+## the active native scene, without requiring a CharacterBody3D receiver.
+func source_actor_node(asset: String) -> Node3D:
+	var ancestor := get_parent()
+	while ancestor != null:
+		if ancestor.has_meta("source_actor_nodes"):
+			var actors: Dictionary = ancestor.get_meta("source_actor_nodes")
+			if not actors.has(asset): return null
+			return ancestor.get_node_or_null(actors[asset]) as Node3D
+		ancestor = ancestor.get_parent()
+	return null
+
+func source_armor_state() -> Resource:
+	return _shared_state("source_armor")
+
+func source_inventory_state() -> Resource:
+	return _shared_state("source_inventory")
+
+func _shared_state(property: String) -> Resource:
+	var ancestor := get_parent()
+	while ancestor != null:
+		if ancestor.has_meta(property):
+			return ancestor.get_meta(property) as Resource
+		ancestor = ancestor.get_parent()
+	# Standalone authored characters can bind the same maintained Resources
+	# directly. A generated level's shared binding always takes precedence.
+	var actor := get_parent()
+	if actor != null:
+		for field in actor.get_property_list():
+			if field.name == property:
+				return actor.get(property) as Resource
+	return null
+
 func adopt_input(action: StringName, physical_key: Key = KEY_NONE) -> void:
 	# Existing InputMap entries belong to the project, including empty entries
 	# deliberately used to disable a control. Defaults are adopted only once.

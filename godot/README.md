@@ -10,23 +10,37 @@ current game menu; loading, savegame and UI work evolve this same application.
 
 ## Load the manor save
 
-With the supplied English Hype disc under `disc/`, generate the manor from the
-repository root:
+From the Astrolabe repository root, prepare a local Hype directory containing
+`Gamedata/` and `LangData/`. This example uses ignored `disk/`; any mounted or
+extracted game directory can replace it:
 
 ```sh
 cargo build --release --locked
-target/release/astrolabe port disc godot --level manoir --locale en
-target/release/astrolabe port disc godot --level manoir --locale en --content menu
-target/release/astrolabe port disc godot --level manoir --locale en --content inventory
-target/release/astrolabe port disc godot --level manoir --locale en --content pause-menu
+target/release/astrolabe prepare-game disk godot
+godot --editor --path godot
 ```
 
-Open `project.godot` in the Godot editor, wait for texture and sound imports to
-finish, press **F5**, and select **Load Game**. Running the project player
-before that first editor import leaves generated textures unavailable. The
-current load route restores the measured starting state of the supplied English `SaveGame0` using
-`game/english_save_manoir.json`. This is a provisional saved-game restoration;
-general savegame support will replace it. The normal generated `manoir/level.tscn` and compiled
+One preparation command converts the manor, main menu, inventory and pause
+menu and imports their native resources. It defaults to manor/English;
+`--godot` selects the Godot executable. Each scope keeps its own publication
+ownership. If preparation fails, its report identifies completed, failed and
+remaining scopes; resolve the reported problem and repeat the command.
+Ordinary regeneration preserves adopted settings and authored files and rejects
+edited generated-file collisions.
+
+Press **F5** and select **Load Game**. An unprepared project shows a native setup
+screen instead of trying to play without its required content. The current load
+route seeds the measured starting state of the supplied English `SaveGame0`
+using `game/english_save_manoir.json`, then restores a native save's supported
+checkpoint placement, life, armor, mana, inventory and manor world flag when present.
+The native schema-3 checkpoint saves only a settled grounded idle (action 47,
+normal/reflex 4/3), with gameplay controls released and no active projectiles.
+A rejected save leaves the previous slot intact and explains its unmet condition.
+Equipment snapshots preserve the current supported armor state, ordered inventory
+slots, quantities, capacities, gold and represented selections. Schema-1/2 slots
+remain readable, retaining seeded values for fields they omitted; an explicit
+save upgrades the slot. Complete native persistence and general source-save import
+remain unfinished. The normal generated `manoir/level.tscn` and compiled
 Hype Brain make the gameplay decisions. Authored game code provides the camera,
 control guide, mana display, reload and menu. The session currently starts with
 the bridge gate raised as a temporary workaround, separate from the restored
@@ -45,8 +59,11 @@ route, and "main menu" returns to the main menu. Configure remains unfinished.
 inventory Resource; other item effects remain explicit unfinished actions.
 [inventory ownership](game/inventory/README.md) explains source content and editor overrides. The supported slice includes
 movement with contact, stationary/moving/wall jumps, sword selection and beam lifetime, and Fire cast
-with mana cost. Combat hit/damage, crossbow play, spell contact/lifetime, cliff
-death and complete camera parity are not established. Generated animation
+with mana cost. Crossbow selection, aiming, ammunition, checkpoint contact
+and native free-flight cleanup have bounded
+[recorded evidence](../notes/crossbow-free-flight-2026-10-02.md). Enemy damage,
+original missed-shot expiry, spell contact/lifetime, cliff death and complete
+camera parity are not established. Generated animation
 libraries use compressed native `.res` resources; their named states remain
 editable and seekable in the AnimationPlayer inspector. Load Game prepares the
 saved native scene in the background and reports its loading stage. Reload and
@@ -85,7 +102,9 @@ Open generated level and perso scenes directly to inspect their saved contents
 and AnimationPlayer libraries. The project menu is the game's normal entry point.
 
 To adopt this structure elsewhere, run `astrolabe init-godot PROJECT` once.
-`port` also initializes a missing project. Project settings and authored files
+`prepare-game` and `port` also initialize a missing project. `port` converts
+one developer-selected scope; the authored game's complete current preparation
+uses `prepare-game`. Project settings and authored files
 belong to the adopter after initialization. Use `update-godot-support` for an
 explicit support update. Ordinary content regeneration preserves these files
 and unselected generated levels, and rejects modified generated files.

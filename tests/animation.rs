@@ -470,6 +470,7 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
         configuration: Some(AssetRef::from_path(configuration.path.clone())),
         initial_configuration: None,
         object_types: [0; 3],
+        stock: None,
         hit_points: None,
         camera: None,
         routes: vec![],
@@ -479,6 +480,8 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
     };
     let scene = Scene {
         main_actor: None,
+        armor: None,
+        inventory: None,
         global_actors: vec![],
         path: AssetPath::new("level:/scene")?,
         name: "AnimationTest".into(),
@@ -633,14 +636,14 @@ func check():
     player.seek(0.5, true, true)
     if not require(actor.frame_index == 1 and actor.current_state == 0, "state rate overrides clip fps"): return
     if not require(not initial.visible and channel0.get_node("part_1").visible, "native object visibility switch"): return
-    if not require(channel0.get_node("part_1").scale.is_equal_approx(Vector3(2,2,2)), "configuration scale"): return
+    if not require(channel0.get_node("part_1/payload_1").scale.is_equal_approx(Vector3(2,2,2)), "configuration scale"): return
     player.seek(1.0, true, true)
     if not require(channel0.position.is_equal_approx(Vector3(1,3,-2)) and channel1.position.is_zero_approx(), "logical identity follows swapped columns"): return
     player.seek(0.0, true, true)
     if not require(initial.visible and not channel0.get_node("part_1").visible and channel1.position.is_equal_approx(Vector3(1,3,-2)), "backward seek did not restore pose/configuration"): return
     if not require(cues.is_empty(), "editor seek dispatched cue side effects"): return
     if not require(actor.restore_configuration(), "reset library missing"): return
-    if not require(not initial.visible and channel1.get_node("reset_part_300").visible and channel1.get_node("reset_part_300").scale.is_equal_approx(Vector3(3,5,4)), "native reset configuration edit"): return
+    if not require(not initial.visible and channel1.get_node("reset_part_300").visible and channel1.get_node("reset_part_300/payload_300").scale.is_equal_approx(Vector3(3,5,4)), "native reset configuration edit"): return
     if not require(cues.is_empty() and actor.frame_index == 0, "configuration restore replayed cues or changed time: " + str(cues) + " frame " + str(actor.frame_index)): return
     actor.select_state(5)
     player.advance(0.25)
@@ -682,7 +685,7 @@ func check():
     var repeated = actor.get_node("Channels/channel_257")
     if not require(channel1.position.is_equal_approx(Vector3(13,3,-2)), "native parent composition"): return
     if not require(channel1.basis.is_equal_approx(Basis(Vector3(2,0,0),Vector3(0,1,0),Vector3(-0.5,0,1))), "native affine shear was decomposed: " + str(channel1.basis)): return
-    if not require(is_equal_approx(channel1.get_node("reset_part_300").transparency, 1.0 - 127.0/255.0), "native opacity missing"): return
+    if not require(is_equal_approx(channel1.get_node("reset_part_300/payload_300/Visual").transparency, 1.0 - 127.0/255.0), "native opacity missing"): return
     if not require(repeated.position.is_equal_approx(Vector3(1,3,-2)) and repeated.get_meta("source_channel") == 1 and repeated.get_meta("source_channel_occurrence") == 1, "duplicate logical channel lost"): return
     player.seek(0.5, true, true)
     if not require(repeated.position.is_equal_approx(Vector3(13,3,-2)) and repeated.get_node("reset_part_300").visible and not channel1.get_node("reset_part_300").visible, "duplicate occurrence object selection"): return

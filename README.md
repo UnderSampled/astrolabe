@@ -2,43 +2,85 @@
 
 **Make a tool to repeatably port this OpenSpace game to Godot.**
 
-Astrolabe converts **Hype: The Time Quest** (1999), built on Ubisoft's OpenSpace Montreal engine, into useful, deterministic Godot content. Downstream fan-remaster and game-parity projects can depend on assets generated locally from the user's game copy. Those projects own their durable game assets and depend on Astrolabe, even if packaged together.
-
-The target is native Godot project files: editor-visible level scenes and instanced props/persos, native resources and animations, and AI ASTs converted into GDScript. Conversion should make full use of Godot's scene tree and asset pipeline. The supported scene/character slice uses saved native scenes and animations. Compiled AI runs the torch sound controllers and the demonstrated Hype movement, jump, sword and Fire slices in `manoir`; see the [implementation evidence](./notes/implementation-progress.md), [conversion contract](./docs/astrolabe/rust-architecture.md#godot-adapter-native-project-conversion) and [next priorities](./notes/remaining-work.md).
-
-The Rust library and CLI restore LZO, textures, and standalone audio, and convert supported levels and characters into a native Godot development project. Rete persists the same useful values. The previous C# implementation and the `gltf` branch remain pinned reference submodules. This remains a partial game port; see the [coverage and evidence](./notes/implementation-progress.md).
-
-Astrolabe has **one useful intermediate model**: textures, models, animations, scenes, sounds, and behaviors with meaningful fields and relationships. **Rete is the serialized form of that model**, using Serde/MessagePack. The binrw codecs declaratively map OpenSpace encodings to and from these same useful types, through a unified interface so independent formats can be documented and implemented alongside one another. See the [binary codec boundary](./docs/astrolabe/rust-architecture.md#binary-codecs-with-binrw).
-
-**Three modular I/O adapters organize the tool:** OpenSpace reads and reconstructs game data, Rete loads and saves the shared model, and Godot exports it into the target engine. Application code composes them through the model. These module boundaries matter independently of how many Rust crates are used; Godot import remains optional future work. See the [architectural overview](./docs/astrolabe/rust-architecture.md#three-modular-io-targets-one-useful-model).
+Astrolabe is a Rust library and CLI that converts **Hype: The Time Quest**
+OpenSpace data into a native Godot project using your local game copy. This is
+still a partial game port; [coverage and evidence](./notes/implementation-progress.md)
+distinguish implemented code from demonstrated gameplay.
 
 ## Open the native Godot project
 
-Requires Rust/Cargo, Godot 4 (verified with `4.7.2.stable.arch_linux.ed1daf0bf`), and the local game files under `disc/`:
+Requires Rust/Cargo, Godot **4.7.2**, and a local Hype game directory containing
+`Gamedata/` and `LangData/`. The example uses the ignored `disk/` directory;
+any mounted or extracted game directory can be supplied instead.
+
+From the repository root:
 
 ```sh
 cargo build --release --locked
-target/release/astrolabe port disc godot --level manoir --locale en
+target/release/astrolabe prepare-game disk godot
 godot --editor --path godot
 ```
 
-Let the editor finish importing the generated textures and sounds, then press
-**F5** and select **Load Game**. The menu works without game data. This is the
-Godot implementation of the game: its current load route uses the saved level,
-compiled Hype scripts and a measured English-save fixture for the working
-movement, jump, sword and Fire slices. General save loading will replace that
-fixed restoration; New Game will begin with the intro when implemented.
-Combat damage, crossbow play, spell contact/lifetime, death and source camera
-parity remain open. Open
-generated scenes and native animation libraries directly in the editor when
-examining converted content. The default selects the supported scene slice;
-`--content model` selects the first rooted model explicitly. See the
+Preparation converts the manor, main menu, inventory and pause menu, imports
+native Godot resources, and reports each stage. It defaults to `manoir` and
+English (`en`), the current authored game's supported selection; `--godot`
+selects another Godot executable. Successful scopes retain their separate
+ownership if a later scope fails. Resolve the reported failure and repeat the
+command; authored files, edited generated files and unrelated levels retain
+the existing publication protections.
+
+Press **F5**, then choose **Load Game** for the supported saved-start slice or
+**New Game** for the incomplete original opening. Without prepared content,
+the project opens to setup instructions; its original menu artwork requires
+conversion. Load Game seeds a measured English-save fixture and restores the
+native save's supported checkpoint placement, life, armor, inventory, mana and
+world flag. Saving requires a settled grounded idle with gameplay controls
+released and no active projectiles. Older native slots remain readable; fields
+they omitted retain the fixture's seeded state until an explicit save upgrades
+the slot. General source save import and complete
+native persistence remain unfinished. New Game uses
+the full generated manor and compiled AI; saving during its unfinished opening
+is disabled.
+
+Movement/contact, jump, sword selection and Fire casting have bounded evidence.
+Crossbow selection, aiming, ammunition, checkpoint contact and native free-flight
+cleanup also have [recorded evidence](./notes/crossbow-free-flight-2026-10-02.md).
+Enemy damage, original missed-shot expiry, spell contact/lifetime, death,
+source camera and complete intro/UI parity remain open. Open generated scenes
+and native animation libraries directly in the editor to inspect converted
+content. See the [game guide](./godot/README.md) and
 [native migration evidence](./notes/native-godot-migration.md).
+
+## How it works
+
+The **OpenSpace** adapter decodes game files into one shared model of textures,
+audio, geometry, scenes, characters and typed AI. **Rete** persists those same
+assets as individual MessagePack files. The **Godot** adapter writes saved native
+scenes, Resources and animations, and compiles supported AI into GDScript that
+calls maintained gameplay components. Generated content opens in the editor;
+the port does not reconstruct assets or interpret AI opcode tables at runtime.
+See the [architecture](./docs/astrolabe/rust-architecture.md) and
+[Rete design](./docs/rete/rete-design.md).
+
+The committed `godot/game/` project owns authored application/session behavior;
+`godot/addons/astrolabe/` is converter support; ignored `generated/` content comes
+from the local game copy. Downstream remaster projects can own their authored
+assets and depend on the same generated content. The archived C# implementations
+remain research references, independent of the Rust implementation.
+
+The [static port ledger](./notes/static-port-plan-2026-10-04.md) records the
+current survey, completed source translation batches and ordered remaining work.
+Its source-only changes have not yet received the deferred regression and
+gameplay pass. Earlier runtime evidence keeps its original scope.
+
+`port GAME PROJECT` remains the developer command for one selected asset scope:
+it defaults to scene conversion, accepts explicit level/locale selection, and
+supports `--content model`, `menu`, `inventory`, `pause-menu`, `textures` or `audio`.
 
 To save and inspect Rete, then reconstruct supported source content:
 
 ```sh
-cargo run --release --locked -- import-openspace disc output/rete --level astrolabe
+cargo run --release --locked -- import-openspace disk output/rete --level astrolabe --content model
 cargo run --release --locked -- inspect output/rete --asset level:/models/world/1/0/0 --kind model
 cargo run --release --locked -- export-godot output/rete output/godot-from-rete
 cargo run --release --locked -- export-openspace output/rete output/reconstructed
@@ -50,7 +92,7 @@ Use `--content textures` or `--content audio` on `port`/`import-openspace` for s
 Run selected development checks or the complete release matrix with the repository test supervisor:
 
 ```sh
-python3 tools/test.py --local --offline
+python3 tools/test.py --local --game disk --offline
 ```
 
 Keep individual tests and active development-area checks bounded; the full release matrix may take longer. Use `python3 tools/test.py --offline` for synthetic checks, `python3 tools/test.py --local --offline` for the complete local corpus and Godot suite, and `python3 tools/test.py --release --offline` for the declared release matrix. Focused selections use `--area`. See [testing](./docs/astrolabe/testing.md) for commands and policy; current coverage and runtime evidence are recorded in [notes](./notes/implementation-progress.md).
@@ -98,7 +140,7 @@ notes/         Dated status, plans, experiments, handoffs, and historical resear
 reference/     Archived Astrolabe versions and third-party submodules
 tools/lzo1x/   Existing standalone C compressor helper
 tmp_probe/     Retained Python investigation scripts
-disc/          Local raw game data (gitignored)
+disk/          Local raw game data (gitignored; any source directory is accepted)
 output/        Converted/exported assets (gitignored)
 ```
 

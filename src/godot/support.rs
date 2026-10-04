@@ -5,7 +5,7 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, path::Path};
 
-pub const INTERFACE: u32 = 53;
+pub const INTERFACE: u32 = 54;
 const PACKAGE: &str = "addons/astrolabe";
 const RECEIPT: &str = "addons/astrolabe/installed.json";
 
@@ -22,6 +22,20 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/audio/voice.gd.uid",
     "addons/astrolabe/audio/emitter.gd.uid",
     "addons/astrolabe/character/character.gd",
+    "addons/astrolabe/character/rendering.gd",
+    "addons/astrolabe/character/rendering.gd.uid",
+    "addons/astrolabe/character/armor_catalog.gd",
+    "addons/astrolabe/character/armor_catalog.gd.uid",
+    "addons/astrolabe/character/armor_definition.gd",
+    "addons/astrolabe/character/armor_definition.gd.uid",
+    "addons/astrolabe/character/armor_piece.gd",
+    "addons/astrolabe/character/armor_piece.gd.uid",
+    "addons/astrolabe/character/configuration.gd",
+    "addons/astrolabe/character/configuration.gd.uid",
+    "addons/astrolabe/character/configured_slot.gd",
+    "addons/astrolabe/character/configured_slot.gd.uid",
+    "addons/astrolabe/character/configured_payload.gd",
+    "addons/astrolabe/character/configured_payload.gd.uid",
     "addons/astrolabe/character/particle_source.gd",
     "addons/astrolabe/character/particle_source.gd.uid",
     "addons/astrolabe/character/particle_generator.gd",
@@ -29,6 +43,12 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/character/route.gd",
     "addons/astrolabe/character/route.gd.uid",
     "addons/astrolabe/character/inventory.gd",
+    "addons/astrolabe/character/inventory_definition.gd",
+    "addons/astrolabe/character/inventory_definition.gd.uid",
+    "addons/astrolabe/character/inventory_stock.gd",
+    "addons/astrolabe/character/inventory_stock.gd.uid",
+    "addons/astrolabe/character/snapshot_values.gd",
+    "addons/astrolabe/character/snapshot_values.gd.uid",
     "addons/astrolabe/character/magick.gd",
     "addons/astrolabe/character/hit_points.gd",
     "addons/astrolabe/character/hit_points.gd.uid",
@@ -90,6 +110,10 @@ const STARTER: &[(&str, &[u8])] = assets![
     "game/bootstrap.tscn",
     "game/content_cache.gd",
     "game/content_cache.gd.uid",
+    "game/level_preparation.gd",
+    "game/level_preparation.gd.uid",
+    "game/crossbow_input.gd",
+    "game/crossbow_input.gd.uid",
     "game/inventory_host.gd",
     "game/inventory_host.gd.uid",
     "game/pause_host.gd",

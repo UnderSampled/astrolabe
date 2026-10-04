@@ -39,13 +39,26 @@ pub(super) fn perso_path(project: &Project, perso: &Perso) -> String {
         &super::digest(perso.path.as_str().as_bytes())[..10]
     ))
 }
+pub(super) fn export_stock(project: &mut Project, perso: &Perso) -> Result<Option<String>> {
+    let Some(stock) = &perso.stock else {
+        return Ok(None);
+    };
+    let path = disk_path(&project.selection, &perso.path, "stock.tres");
+    if !project.generated.contains(&path) {
+        let fields = super::inventory_gameplay::stock_fields(stock)?;
+        project.write(path.clone(), format!("[gd_resource type=\"Resource\" load_steps=2 format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/character/inventory_stock.gd\" id=\"script\"]\n[resource]\nresource_local_to_scene = true\nscript = ExtResource(\"script\")\n{fields}").as_bytes())?;
+    }
+    Ok(Some(format!("res://{path}")))
+}
 struct Part {
     channel: u16,
     slot: u16,
     restored: bool,
-    instance: String,
+    instance: Option<String>,
+    action: Option<String>,
     scale: Option<[f32; 3]>,
-    geometries: Vec<String>,
+    configuration: String,
+    selected: bool,
 }
 impl Part {
     fn node(&self) -> String {
@@ -56,6 +69,22 @@ impl Part {
             self.slot
         )
     }
+}
+pub(super) fn export_configuration(project: &mut Project, config: &ObjectList) -> Result<String> {
+    config.validate()?;
+    let path = disk_path(
+        &project.selection,
+        &config.path,
+        "native-configuration.tres",
+    );
+    if !project.generated.contains(&path) {
+        let order = (0..config.parts.len())
+            .map(|n| n.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        project.write(path.clone(), format!("[gd_resource type=\"Resource\" load_steps=2 format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/character/configuration.gd\" id=\"script\"]\n[resource]\nresource_local_to_scene = true\nscript = ExtResource(\"script\")\nsource_id = {}\npayload_order = PackedInt32Array({order})\nhas_reset_payloads = {}\nrestored = false\n", quoted(config.path.as_str()), config.reset_parts.is_some()).as_bytes())?;
+    }
+    Ok(format!("res://{path}"))
 }
 struct State {
     state: CharacterState,
@@ -298,21 +327,41 @@ pub(super) fn export_perso(
             "perso state missing from family"
         );
     }
-    let configuration = perso
+    let configuration = perso.configuration.as_ref();
+    let mut references: BTreeSet<AssetPath> = perso
         .configuration
-        .as_ref()
-        .or(family.default_configuration.as_ref())
-        .or(perso.initial_configuration.as_ref());
-    let config = configuration.map(|r| source.load(r)).transpose()?;
-    if let (Some(reference), Some(config)) = (configuration, &config) {
-        config.validate_reference(&reference.path)?;
-        config.validate()?;
+        .iter()
+        .chain(perso.initial_configuration.iter())
+        .map(|r| r.path.clone())
+        .collect();
+    if let Some(brain) = &perso.brain {
+        let model = source.load(&brain.model)?;
+        model.validate_reference(&brain.model.path)?;
+        references.extend(
+            model
+                .configuration_references()
+                .into_iter()
+                .map(|r| r.path.clone()),
+        );
+    }
+    let mut configurations = Vec::new();
+    for path in &references {
+        let reference = AssetRef::<ObjectList>::from_path(path.clone());
+        let value = source.load(&reference)?;
+        value.validate_reference(path)?;
+        value.validate()?;
+        configurations.push(value);
     }
     // The target library is specialized in this active level; no Fix binding is cached globally.
     let key = format!(
-        "{}|{}",
+        "{}|{}|{}",
         family.path,
-        configuration.map_or("none", |r| r.path.as_str())
+        configuration.map_or("none", |r| r.path.as_str()),
+        references
+            .iter()
+            .map(AssetPath::as_str)
+            .collect::<Vec<_>>()
+            .join("|")
     );
     let rig_id = format!("rig_{}", &super::digest(key.as_bytes())[..12]);
     if !project.character_rigs.contains(&rig_id) {
@@ -320,7 +369,8 @@ pub(super) fn export_perso(
             project,
             source,
             &family,
-            config.as_deref(),
+            &configurations,
+            configuration.map(|r| &r.path),
             &rig_id,
             written,
         )?;
@@ -368,6 +418,53 @@ pub(super) fn export_perso(
     movement_collision(project, source, perso, &name, &controller)?;
     // Installing the generated collision script resets inherited properties.
     // Attach mutable life only after the actor's final script is installed.
+    if let Some(stock) = export_stock(project, perso)? {
+        writeln!(
+            project.builder,
+            "    {name}.source_stock = native_resource({})",
+            quoted(&stock)
+        )?;
+    }
+    let choices = configurations
+        .iter()
+        .map(|config| {
+            export_configuration(project, config)
+                .map(|path| format!("native_resource({})", quoted(&path)))
+        })
+        .collect::<Result<Vec<_>>>()?
+        .join(",");
+    writeln!(
+        project.builder,
+        "    var {name}_configurations: Array[Resource] = [{choices}]\n    {name}.source_configuration_choices = {name}_configurations"
+    )?;
+    if let Some(config) = configuration {
+        writeln!(
+            project.builder,
+            "    {name}.source_configuration = native_resource({})",
+            quoted(&format!(
+                "res://{}",
+                disk_path(
+                    &project.selection,
+                    &config.path,
+                    "native-configuration.tres"
+                )
+            ))
+        )?;
+    }
+    if let Some(initial) = &perso.initial_configuration {
+        writeln!(
+            project.builder,
+            "    {name}.source_initial_configuration = native_resource({})",
+            quoted(&format!(
+                "res://{}",
+                disk_path(
+                    &project.selection,
+                    &initial.path,
+                    "native-configuration.tres"
+                )
+            ))
+        )?;
+    }
     if let Some(points) = perso.hit_points {
         writeln!(
             project.builder,
@@ -449,14 +546,15 @@ fn export_rig(
     project: &mut Project,
     source: &mut impl ContentSource,
     family: &Family,
-    config: Option<&ObjectList>,
+    configurations: &[Arc<ObjectList>],
+    selected: Option<&AssetPath>,
     rig_id: &str,
     written: &mut BTreeSet<AssetPath>,
 ) -> Result<()> {
     let directory = rig_directory(project, family, rig_id);
     let mut states = Vec::new();
     let mut channels = BTreeSet::new();
-    let mut slots: BTreeMap<u16, BTreeSet<u16>> = BTreeMap::new();
+    let mut sampled_slots: BTreeMap<u16, BTreeSet<u16>> = BTreeMap::new();
     for state in &family.states {
         let clip = state
             .animation
@@ -492,7 +590,7 @@ fn export_rig(
             for (&channel, sample) in pose {
                 channels.insert(channel);
                 if let Some(slot) = sample.object {
-                    slots.entry(channel).or_default().insert(slot);
+                    sampled_slots.entry(channel).or_default().insert(slot);
                 }
             }
         }
@@ -506,7 +604,30 @@ fn export_rig(
         });
     }
     let mut parts = Vec::new();
-    if let Some(config) = config {
+    // Only channels that sample objects need saved payload banks. Transform and
+    // cue targets remain native channels even when they never display content.
+    // Keep every nonempty original slot: an arbitrary Proc82 swap can move it
+    // into a sampled slot. Empty entries are explicit bank metadata, not nodes.
+    const MAX_CONFIGURED_PAYLOADS: usize = 65_536;
+    let payload_count = configurations.iter().try_fold(0usize, |total, config| {
+        let nonempty = config
+            .all_parts()
+            .filter(|part| part.kind != ObjectPartKind::Absent)
+            .count();
+        nonempty
+            .checked_mul(sampled_slots.len())
+            .and_then(|n| total.checked_add(n))
+    });
+    let payload_count = payload_count
+        .ok_or_else(|| anyhow::anyhow!("{} configured payload count overflow", family.path))?;
+    ensure!(
+        payload_count <= MAX_CONFIGURED_PAYLOADS,
+        "{} needs {payload_count} native configured payloads across {} object-bearing channels; supported rig budget is {MAX_CONFIGURED_PAYLOADS}",
+        family.path,
+        sampled_slots.len()
+    );
+    for config in configurations {
+        export_configuration(project, config)?;
         for (restored, table) in [
             (false, Some(&config.parts)),
             (true, config.reset_parts.as_ref()),
@@ -514,51 +635,58 @@ fn export_rig(
             let Some(table) = table else {
                 continue;
             };
-            for (&channel, slots) in &slots {
-                for &slot in slots {
-                    let Some(part) = table.get(usize::from(slot)) else {
+            for &channel in sampled_slots.keys() {
+                for (slot, part) in table.iter().enumerate() {
+                    if part.kind == ObjectPartKind::Absent {
                         continue;
-                    };
-                    let Some(reference) = &part.instance else {
-                        continue;
-                    };
-                    let instance = source.load(reference)?;
-                    instance.validate_reference(&reference.path)?;
-                    let model = source.load(&instance.model)?;
-                    if written.insert(instance.path.clone()) {
-                        super::export::export_instance(
-                            project, source, &model, &instance, written,
-                        )?;
                     }
-                    let mut geometries = vec![String::new()];
-                    for (e, element) in model.sprite_elements.iter().enumerate() {
-                        for (i, placement) in element.sprites.iter().enumerate() {
-                            let sprite = source.load(&placement.sprite)?;
-                            for (v, view) in sprite.views.iter().enumerate() {
-                                if view.material.is_some() {
-                                    geometries.push(format!("/Sprite_{e}_{i}/View_{v}"));
-                                }
-                            }
+                    let instance = if let Some(reference) = &part.instance {
+                        let instance = source.load(reference)?;
+                        instance.validate_reference(&reference.path)?;
+                        let model = source.load(&instance.model)?;
+                        if written.insert(instance.path.clone()) {
+                            super::export::export_instance(
+                                project, source, &model, &instance, written,
+                            )?;
                         }
-                    }
-                    parts.push(Part {
-                        channel,
-                        slot,
-                        restored,
-                        instance: format!(
+                        Some(format!(
                             "res://{}",
                             disk_path(&project.selection, &instance.path, "tscn")
-                        ),
+                        ))
+                    } else {
+                        None
+                    };
+                    let action = if let Some(reference) = &part.action {
+                        export_action(project, source, reference, written)?;
+                        Some(format!(
+                            "res://{}",
+                            disk_path(&project.selection, &reference.path, "tres")
+                        ))
+                    } else {
+                        None
+                    };
+                    parts.push(Part {
+                        channel,
+                        slot: slot.try_into()?,
+                        restored,
+                        instance,
+                        action,
                         scale: part.scale,
-                        geometries,
+                        configuration: config.path.to_string(),
+                        selected: selected == Some(&config.path),
                     });
                 }
             }
         }
     }
+    ensure!(
+        parts.len() == payload_count,
+        "{} generated configured payload count differs from its checked budget",
+        family.path
+    );
     let mut libraries = Vec::new();
     for restored in [false, true] {
-        if restored && config.is_none_or(|c| c.reset_parts.is_none()) {
+        if restored && !configurations.iter().any(|c| c.reset_parts.is_some()) {
             continue;
         }
         let library_id = format!(
@@ -576,7 +704,15 @@ fn export_rig(
                 if restored { "restored/" } else { "" }
             );
             export_animation(
-                project, source, state, &channels, &parts, restored, &input, written,
+                project,
+                source,
+                state,
+                &channels,
+                &sampled_slots,
+                configurations.iter().any(|c| c.reset_parts.is_some()),
+                restored,
+                &input,
+                written,
             )?;
             writeln!(
                 project.builder,
@@ -608,7 +744,7 @@ fn export_rig(
         quoted(&format!("res://{controller}")),
         quoted(family.path.as_str())
     );
-    for channel in channels {
+    for channel in &channels {
         writeln!(
             function,
             "    var c_{channel} = Node3D.new()\n    c_{channel}.name = \"channel_{channel}\"\n    channels.add_child(c_{channel})\n    c_{channel}.owner = actor\n    c_{channel}.set_meta(\"source_channel\", {})\n    c_{channel}.set_meta(\"source_channel_occurrence\", {})",
@@ -616,17 +752,92 @@ fn export_rig(
             channel / 256
         )?;
     }
+    for config in configurations {
+        let identity = &super::digest(config.path.as_str().as_bytes())[..12];
+        for &channel in sampled_slots.keys() {
+            for (restored, table) in [
+                (false, Some(&config.parts)),
+                (true, config.reset_parts.as_ref()),
+            ] {
+                let Some(table) = table else { continue };
+                let empty_slots = table
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, part)| part.kind == ObjectPartKind::Absent)
+                    .map(|(slot, _)| slot.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let bank = format!(
+                    "bank_{identity}_{}",
+                    if restored { "reset" } else { "normal" }
+                );
+                writeln!(
+                    function,
+                    "    var {bank}_{channel} = Node3D.new()\n    {bank}_{channel}.name = {}\n    {bank}_{channel}.visible = false\n    {bank}_{channel}.set_meta(\"source_configuration\", {})\n    {bank}_{channel}.set_meta(\"source_restored\", {})\n    {bank}_{channel}.set_meta(\"empty_payload_slots\", PackedInt32Array([{empty_slots}]))\n    c_{channel}.add_child({bank}_{channel})\n    {bank}_{channel}.owner = actor",
+                    quoted(&bank),
+                    quoted(config.path.as_str()),
+                    restored
+                )?;
+            }
+        }
+    }
+    let mut anchors = BTreeMap::new();
+    let has_restored = configurations.iter().any(|c| c.reset_parts.is_some());
+    for (&channel, slots) in &sampled_slots {
+        for restored in [false, true] {
+            if restored && !has_restored {
+                continue;
+            }
+            for &slot in slots {
+                let name = format!("{}part_{slot}", if restored { "reset_" } else { "" });
+                let key = format!("Channels/channel_{channel}/{name}");
+                let anchor = anchors.len();
+                anchors.insert(key, anchor);
+                writeln!(
+                    function,
+                    "    var part_{anchor} = Node3D.new()\n    part_{anchor}.set_script(native_resource(\"res://addons/astrolabe/character/configured_slot.gd\"))\n    part_{anchor}.name = {}\n    c_{channel}.add_child(part_{anchor})\n    part_{anchor}.owner = actor\n    part_{anchor}.visible = false\n    part_{anchor}.set_meta(\"configuration_slot\", {slot})",
+                    quoted(&name)
+                )?;
+            }
+        }
+    }
     for (i, part) in parts.iter().enumerate() {
+        let identity = &super::digest(part.configuration.as_bytes())[..12];
+        let bank = format!(
+            "bank_{identity}_{}",
+            if part.restored { "reset" } else { "normal" }
+        );
+        let parent = if part.selected
+            && !part.restored
+            && let Some(anchor) = anchors.get(&part.node())
+        {
+            format!("part_{anchor}")
+        } else {
+            format!("{bank}_{}", part.channel)
+        };
         writeln!(
             function,
-            "    var part_{i} = native_resource({}).instantiate()\n    part_{i}.name = {}\n    c_{}.add_child(part_{i})\n    part_{i}.owner = actor\n    part_{i}.visible = false\n    part_{i}.set_meta(\"configuration_slot\", {})",
-            quoted(&part.instance),
-            quoted(part.node().rsplit('/').next().unwrap()),
-            part.channel,
-            part.slot
+            "    var payload_{i} = Node3D.new()\n    payload_{i}.set_script(native_resource(\"res://addons/astrolabe/character/configured_payload.gd\"))\n    payload_{i}.name = \"payload_{}\"\n    payload_{i}.original_slot = {}\n    payload_{i}.set_meta(\"source_configuration_bank\", NodePath({}))\n    {parent}.add_child(payload_{i})\n    payload_{i}.owner = actor",
+            part.slot,
+            part.slot,
+            quoted(&format!("Channels/channel_{}/{bank}", part.channel))
         )?;
+        if let Some(action) = &part.action {
+            writeln!(
+                function,
+                "    payload_{i}.action = native_resource({})",
+                quoted(action)
+            )?;
+        }
+        if let Some(instance) = &part.instance {
+            writeln!(
+                function,
+                "    var visual_{i} = native_resource({}).instantiate()\n    visual_{i}.name = \"Visual\"\n    payload_{i}.add_child(visual_{i})\n    visual_{i}.owner = actor",
+                quoted(instance)
+            )?;
+        }
         if let Some([x, y, z]) = part.scale {
-            writeln!(function, "    part_{i}.scale = {}", vec3([x, z, y]))?;
+            writeln!(function, "    payload_{i}.scale = {}", vec3([x, z, y]))?;
         }
     }
     writeln!(
@@ -658,7 +869,8 @@ fn export_animation(
     source: &mut impl ContentSource,
     state: &State,
     channels: &BTreeSet<u16>,
-    parts: &[Part],
+    sampled_slots: &BTreeMap<u16, BTreeSet<u16>>,
+    has_restored: bool,
     restored: bool,
     input: &str,
     written: &mut BTreeSet<AssetPath>,
@@ -700,29 +912,42 @@ fn export_animation(
             fps,
         )?;
     }
-    for part in parts {
-        let active = |f: &BTreeMap<u16, Pose>| {
-            f.get(&part.channel)
-                .filter(|s| restored == part.restored && s.object == Some(part.slot))
-                .map(|s| (s.visible, s.opacity))
-        };
-        anim.values(
-            &format!("{}:visible", part.node()),
-            frames
-                .iter()
-                .map(|f| active(f).is_some_and(|s| s.0).to_string()),
-            fps,
-        )?;
-        for geometry in &part.geometries {
-            anim.values(
-                &format!("{}{geometry}:transparency", part.node()),
-                frames.iter().map(|f| {
-                    active(f)
-                        .map_or(0., |s| 1. - f32::from(s.1) / 255.)
-                        .to_string()
-                }),
-                fps,
-            )?;
+    // Stable sampled anchors must exist even if every initial payload at a
+    // slot is absent: a later swap can bring saved content into that slot.
+    for (&channel, slots) in sampled_slots {
+        for anchor_restored in [false, true] {
+            // Normal libraries hide reset anchors and restored libraries hide
+            // normal anchors, without rebuilding content on selection changes.
+            if anchor_restored && !has_restored {
+                continue;
+            }
+            for &slot in slots {
+                let node = format!(
+                    "Channels/channel_{channel}/{}part_{slot}",
+                    if anchor_restored { "reset_" } else { "" }
+                );
+                let active = |f: &BTreeMap<u16, Pose>| {
+                    f.get(&channel)
+                        .filter(|s| restored == anchor_restored && s.object == Some(slot))
+                        .map(|s| (s.visible, s.opacity))
+                };
+                anim.values(
+                    &format!("{node}:visible"),
+                    frames
+                        .iter()
+                        .map(|f| active(f).is_some_and(|s| s.0).to_string()),
+                    fps,
+                )?;
+                anim.values(
+                    &format!("{node}:transparency"),
+                    frames.iter().map(|f| {
+                        active(f)
+                            .map_or(0., |s| 1. - f32::from(s.1) / 255.)
+                            .to_string()
+                    }),
+                    fps,
+                )?;
+            }
         }
     }
     if let Some(clip) = &state.clip {

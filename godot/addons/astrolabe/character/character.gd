@@ -9,17 +9,29 @@ signal generated_object_released(actor: Node3D, attachment: Node3D)
 const SOURCE_INVENTORY = preload("res://addons/astrolabe/character/inventory.gd")
 const SOURCE_MAGICK = preload("res://addons/astrolabe/character/magick.gd")
 const SOURCE_LASER_POINTER = preload("res://addons/astrolabe/character/laser_pointer.gd")
+const SOURCE_RENDERING = preload("res://addons/astrolabe/character/rendering.gd")
 const SOURCE_COLLISION_QUERY_MAX_RESULTS := 4096
 @export var initial_state: int = -1
 @export var current_state: int = -1
 @export var current_mechanics: Resource
 @export var physical_environment: Resource
 @export var source_inventory: Resource
-var source_display_hidden_layers: Dictionary = {}
-var source_opacity: int = 255
-var source_transparent_display: bool = false
-var source_opacity_materials: Array[Dictionary] = []
+@export var source_stock: Resource
+var source_rendering := SOURCE_RENDERING.new()
+var source_opacity: int:
+    get: return source_rendering.opacity
+    set(value): source_rendering.opacity = value
+var source_transparent_display: bool:
+    get: return source_rendering.transparent_display
+    set(value): source_rendering.transparent_display = value
 @export var source_hit_points: Resource
+## Shared by actors in the active scene; armor is not actor-local state.
+@export var source_armor: Resource
+## One mutable permutation per canonical ObjectList, shared within the level.
+@export var source_configuration: Resource
+## Saved selections available to this actor, each shared by canonical identity.
+@export var source_configuration_choices: Array[Resource] = []
+@export var source_initial_configuration: Resource
 @export var source_magick: Resource
 @export var source_laser_pointer: Resource
 @export var autoplay: bool = true
@@ -29,6 +41,9 @@ var source_opacity_materials: Array[Dictionary] = []
 @export var gravity: Vector3 = Vector3.ZERO
 ## Velocity from forces/impulses, separate from the next animation displacement.
 var external_velocity: Vector3 = Vector3.ZERO
+## Proc_AddWind assigns a persistent world-space drift rate, independent of
+## impulses and gravity. Contact consumes it once per physics movement step.
+var source_wind_drift: Vector3 = Vector3.ZERO
 ## AI speed is committed by GoRelative or a jump procedure, then moved by
 ## CharacterBody3D with the current native animation and contact state.
 var source_vector_speed: Vector3 = Vector3.ZERO
@@ -80,6 +95,7 @@ func _ready() -> void:
         source_magick = SOURCE_MAGICK.new()
     if source_laser_pointer == null:
         source_laser_pointer = SOURCE_LASER_POINTER.new()
+    _bind_source_configuration()
     if motion_enabled: _configure_motion()
     # Selection only; the saved initial pose is usable without this callback.
     if autoplay and initial_state >= 0:
@@ -120,7 +136,7 @@ func _physics_process(delta: float) -> void:
     if current_mechanics != null:
         gravity_ratio = float(current_mechanics.ratio)
     external_velocity += gravity * gravity_ratio * delta
-    velocity = motion + external_velocity
+    velocity = motion + external_velocity + source_wind_drift
     move_and_slide()
     for i in get_slide_collision_count():
         var normal := get_slide_collision(i).get_normal()
@@ -174,11 +190,38 @@ func source_set_vector_speed(value: Vector3) -> void:
     assert(value.is_finite())
     source_vector_speed = value
 
-## Deliberately deferred no-op, authorized for the opening slice. Hype assigns
-## this actor's world-space drift, then adds it to calculated linear velocity
-## (00540782 / 00589bfa). Nonzero wind and resetting prior drift are not ported.
+## Despite its name, Proc_AddWind overwrites the actor's world-axis drift
+## (00540782 / 00589bfa). It is a velocity, not accumulated acceleration, and
+## uses no actor-facing rotation. A zero vector clears the previous assignment.
 func source_add_wind(value: Vector3) -> void:
     assert(value.is_finite())
+    source_wind_drift = Vector3(value.x, value.z, -value.y)
+
+func source_change_armor(index: int) -> void:
+    assert(source_armor != null, "Fight_ChangeArmor needs the converted shared armor catalog")
+    source_armor.call("select", index)
+
+func source_set_armor_resistance(rank: int) -> void:
+    assert(source_armor != null, "Fight_SetArmorResistance needs the converted shared armor catalog")
+    source_armor.call("set_resistance", rank)
+
+func source_repair_armor() -> void:
+    assert(source_armor != null, "Fight_RepairArmor needs the converted shared armor catalog")
+    source_armor.call("repair")
+
+func source_armor_resistance() -> int:
+    assert(source_armor != null, "Fight_GetArmorResistance needs the converted shared armor catalog")
+    return int(source_armor.call("resistance"))
+
+func source_armor_count() -> int:
+    assert(source_armor != null, "Fight_GetArmorCount needs the converted shared armor catalog")
+    return (source_armor.get("definitions") as Array).size()
+
+## Authored callers can inspect source_inventory.last_failure after this call;
+## compiled source AI uses the shared service and propagates failures directly.
+func source_inventory_add_object(target: Node) -> int:
+    assert(source_inventory != null, "AddObject needs the converted shared inventory")
+    return int(source_inventory.call("add_actor_object", target))
 
 func source_reset_route(slot: int) -> bool:
     if slot < 0 or slot >= source_routes.size(): return false
@@ -308,15 +351,15 @@ func source_game_time() -> int:
 
 func source_inventory_weapon() -> int:
     assert(source_inventory != null)
-    return int(source_inventory.get("selected_weapon"))
+    return int(source_inventory.call("selected_weapon_value"))
 
 func source_inventory_quantity(item: int) -> int:
     assert(source_inventory != null)
-    return int(source_inventory.call("quantity", item))
+    return int(source_inventory.call("quantity_source", item))
 
 func source_inventory_remove(item: int, count: int) -> int:
     assert(source_inventory != null)
-    return int(source_inventory.call("remove", item, count))
+    return int(source_inventory.call("remove_source", item, count))
 
 func source_magic_ready() -> bool:
     return source_magick != null and bool(source_magick.call("ready"))
@@ -357,66 +400,16 @@ func source_set_laser_pointer_target(target: Vector3) -> void:
     source_laser_pointer.set("target_valid", true)
 
 func source_set_display_visible(display_visible: bool) -> void:
-    for visual in find_children("*", "VisualInstance3D", true, false):
-        if not visual is VisualInstance3D or _is_generated_child(visual): continue
-        var instance_id := visual.get_instance_id()
-        if display_visible:
-            if source_display_hidden_layers.has(instance_id):
-                visual.layers = int(source_display_hidden_layers[instance_id])
-                source_display_hidden_layers.erase(instance_id)
-        else:
-            if not source_display_hidden_layers.has(instance_id):
-                source_display_hidden_layers[instance_id] = visual.layers
-            visual.layers = 0
+    source_rendering.set_display_visible(self, display_visible)
 
 ## 00543130 clamps opacity separately from transparent/default display mode.
 ## Material alpha works on the project's Compatibility renderer; the native
 ## GeometryInstance3D transparency property is Forward+-only.
 func source_set_transparency(opacity: int) -> bool:
-    source_opacity = clampi(opacity,0,255)
-    return _apply_source_opacity()
+    return source_rendering.set_transparency(self, opacity)
 
 func source_set_transparent_display(enabled: bool) -> bool:
-    source_transparent_display = enabled
-    return _apply_source_opacity()
-
-func _apply_source_opacity() -> bool:
-    # 00499ed0 leaves the ordinary material pipeline at opacity >=254.
-    var faded := source_transparent_display and source_opacity < 254
-    if faded and source_opacity_materials.is_empty():
-        var pending: Array[Dictionary] = []
-        for visual in find_children("*", "MeshInstance3D", true, false):
-            var mesh_instance := visual as MeshInstance3D
-            if _is_generated_child(mesh_instance) or mesh_instance.has_meta("family_bounds_debug") or mesh_instance.mesh == null: continue
-            for surface in mesh_instance.mesh.get_surface_count():
-                var material := mesh_instance.get_active_material(surface)
-                if material == null: continue
-                if not material is StandardMaterial3D: return false
-                var original := material as StandardMaterial3D
-                # Source shaded blending must be enabled on this material.
-                if original.has_meta("source_material_flags") and (int(original.get_meta("source_material_flags")) & 0x20000000) == 0: continue
-                var owned := original.duplicate() as StandardMaterial3D
-                pending.append({"mesh":mesh_instance,"surface":surface,"original":original,"owned":owned})
-        source_opacity_materials = pending
-        for entry in source_opacity_materials:
-            var mesh_instance := entry["mesh"] as MeshInstance3D
-            if mesh_instance.material_override != null: mesh_instance.material_override = entry["owned"]
-            else: mesh_instance.set_surface_override_material(entry["surface"],entry["owned"])
-    for entry in source_opacity_materials:
-        var original := entry["original"] as StandardMaterial3D
-        var owned := entry["owned"] as StandardMaterial3D
-        var color := original.albedo_color
-        color.a *= float(source_opacity) / 255.0 if faded else 1.0
-        owned.albedo_color = color
-        owned.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA if faded else original.transparency
-    return true
-
-func _is_generated_child(candidate: Node) -> bool:
-    var current: Node = candidate
-    while current != null and current != self:
-        if current.has_meta("astrolabe_generated_template"): return true
-        current = current.get_parent()
-    return false
+    return source_rendering.set_transparent_display(self, enabled)
 
 func source_laser_pointer_ready() -> bool:
     return source_laser_pointer != null and bool(source_laser_pointer.get("target_valid"))
@@ -560,6 +553,7 @@ func source_execute_action_and_generate_object(template_path: String, action: in
         generated.set("motion_enabled", true)
         generated.set("physical_environment", physical_environment)
         generated.set("source_inventory", source_inventory)
+        generated.set("source_armor", source_armor)
         generated.set("source_magick", source_magick)
         generated.set("source_laser_pointer", source_laser_pointer)
     # The source helper copies the caller's global SuperObject transform.
@@ -903,17 +897,123 @@ func seek_frame(index: int) -> void:
     animation_player.seek(float(index) / maxf(sample_rate, 1.0), true, true)
 
 func restore_configuration() -> bool:
-    var clip := StringName("restored/state_%d" % current_state)
-    if not animation_player.has_animation(clip): return false
-    var time := animation_player.current_animation_position
-    var was_playing := playing
-    restored_configuration = true
-    suppress_cues = true
-    animation_player.play(clip)
-    animation_player.seek(time, true, true)
-    if not was_playing: animation_player.pause()
-    suppress_cues = false
+    if source_configuration == null: return false
+    return bool(source_configuration.call("restore"))
+
+func _bind_source_configuration() -> void:
+    var ancestor := get_parent()
+    var shared: Dictionary = {}
+    while ancestor != null:
+        if ancestor.has_meta("source_configurations"):
+            shared = ancestor.get_meta("source_configurations")
+            break
+        ancestor = ancestor.get_parent()
+    for index in source_configuration_choices.size():
+        var choice: Resource = source_configuration_choices[index]
+        var identity: String = str(choice.get("source_id"))
+        if not shared.has(identity):
+            var owned: Resource = choice.duplicate(true)
+            owned.resource_local_to_scene = true
+            shared[identity] = owned
+        source_configuration_choices[index] = shared[identity]
+    if ancestor != null: ancestor.set_meta("source_configurations", shared)
+    if source_configuration != null:
+        source_configuration = shared[str(source_configuration.get("source_id"))]
+    if source_initial_configuration != null:
+        source_initial_configuration = shared[str(source_initial_configuration.get("source_id"))]
+    if source_configuration != null and not source_configuration.changed.is_connected(_apply_source_configuration):
+        source_configuration.changed.connect(_apply_source_configuration)
+    _apply_source_configuration()
+
+## Proc83 replaces only this actor's selection. Shared table state is retained.
+## Null is an empty visual selection, without an animation or gameplay reset.
+func source_change_configuration(value: Resource) -> bool:
+    var selected: Resource = null
+    if value != null:
+        var identity: String = str(value.get("source_id"))
+        for choice in source_configuration_choices:
+            if str(choice.get("source_id")) == identity:
+                selected = choice
+                break
+        if selected == null: return false
+    if source_configuration != null and source_configuration.changed.is_connected(_apply_source_configuration):
+        source_configuration.changed.disconnect(_apply_source_configuration)
+    source_configuration = selected
+    if selected != null: selected.changed.connect(_apply_source_configuration)
+    _apply_source_configuration()
     return true
+
+## 004421f2 restores the initial table's saved values without selecting it.
+func source_restore_initial_configuration() -> bool:
+    if source_initial_configuration == null: return false
+    return bool(source_initial_configuration.call("restore"))
+
+func source_swap_configured_parts(first: int, second: int) -> bool:
+    if source_configuration == null: return false
+    return bool(source_configuration.call("swap_slots", first, second))
+
+func _apply_source_configuration() -> void:
+    var order := PackedInt32Array()
+    var restored: bool = restored_configuration
+    var identity: String = ""
+    if source_configuration != null:
+        order = source_configuration.get("payload_order")
+        restored = bool(source_configuration.get("restored"))
+        identity = str(source_configuration.get("source_id"))
+    var prefix: String = "reset_part_" if restored else "part_"
+    for channel in $Channels.get_children():
+        var anchors: Array[Node] = []
+        # Return existing payloads to their saved hidden banks. Object-free
+        # channels remain native transform/cue targets without payload banks.
+        for anchor in channel.get_children():
+            if not str(anchor.name).begins_with("part_") and not str(anchor.name).begins_with("reset_part_"): continue
+            anchors.append(anchor)
+            for payload in anchor.get_children():
+                var bank_path: NodePath = payload.get_meta("source_configuration_bank")
+                payload.reparent(get_node(bank_path), false)
+        if source_configuration == null or anchors.is_empty(): continue
+        var bank: Node3D = null
+        for candidate in channel.get_children():
+            if str(candidate.get_meta("source_configuration", "")) == identity and bool(candidate.get_meta("source_restored", false)) == restored:
+                bank = candidate as Node3D
+                break
+        assert(bank != null, "Selected configuration needs its saved native bank")
+        var payloads: Dictionary = {}
+        for payload in bank.get_children():
+            var original_slot: int = int(payload.get("original_slot"))
+            assert(original_slot >= 0 and original_slot < order.size() and not payloads.has(original_slot), "Converted native payload identity is invalid")
+            payloads[original_slot] = payload
+        var empty_slots: PackedInt32Array = bank.get_meta("empty_payload_slots")
+        var absent: Dictionary = {}
+        for original_slot in empty_slots:
+            assert(original_slot >= 0 and original_slot < order.size() and not absent.has(original_slot) and not payloads.has(original_slot), "Converted native absent-slot identity is invalid")
+            absent[original_slot] = true
+        assert(payloads.size() + absent.size() == order.size(), "Converted native configuration payload count differs")
+        # Only sampled slots have anchors. Every nonempty original payload is
+        # still saved in this channel's bank, so arbitrary swaps remain valid.
+        for anchor in anchors:
+            if not str(anchor.name).begins_with(prefix): continue
+            var slot: int = int(anchor.get_meta("configuration_slot"))
+            if slot >= order.size(): continue
+            var original_slot: int = order[slot]
+            if not payloads.has(original_slot):
+                assert(absent.has(original_slot), "Selected native configuration payload is missing")
+                continue
+            var payload: Node3D = payloads[original_slot]
+            payload.reparent(anchor, false)
+            anchor.call("refresh_transparency")
+    if restored_configuration != restored:
+        var time := animation_player.current_animation_position
+        var was_playing := playing
+        restored_configuration = restored
+        if current_state >= 0:
+            var clip := StringName(("restored/" if restored else "") + "state_%d" % current_state)
+            assert(animation_player.has_animation(clip), "Restored configuration needs native animation library")
+            suppress_cues = true
+            animation_player.play(clip)
+            animation_player.seek(time, true, true)
+            if not was_playing: animation_player.pause()
+            suppress_cues = false
 
 func set_bounds_visible(value: bool) -> void:
     var bounds := get_node_or_null("FamilyBounds") as Node3D

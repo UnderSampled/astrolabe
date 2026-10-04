@@ -214,172 +214,237 @@ pub(super) fn import(
     let mut list = root;
     let mut seen = BTreeSet::new();
     let sounds = SoundSites::open(game, selection, s)?;
-    // The normal manor opening alternates the six Gogoud and two Hype-statue
-    // items. Keep this bounded set explicit until branching/channel semantics
-    // are promoted; one representative gameplay item exercises framed pages.
-    let supported = [
-        "gogood_texte1_manoir",
-        "gogood_texte1a_manoir",
-        "gogood_texte1b_manoir",
-        "gogood_texte1c_manoir",
-        "gogood_texte2_manoir",
-        "gogood_texte2a_manoir",
-        "hype_texte1_manoir",
-        "hype_texte2_manoir",
-        "gogood_master_whatif01",
-    ];
+    let mut names = BTreeSet::new();
+    let mut omitted = 0;
     while seen.insert(list) {
         ensure!(seen.len() <= 1024, "dialogue list exceeds bound");
         let item = s.required(list, 8)?;
         let name = string(s, s.required(item, 24)?)?;
-        if supported.contains(&name.as_str()) {
-            let h: ItemWire = wire(s.bytes(item, 52)?)?;
-            ensure!(
-                h.answers == 1 && matches!(h.box_style, 1 | 3),
-                "{name}: unsupported selected dialogue structure"
-            );
-            ensure!(
-                s.pointer(item, 36)?.is_none()
-                    && s.pointer(item, 40)?.is_none()
-                    && s.pointer(item, 44)?.is_none(),
-                "{name}: selected dialogue needs item icon/channel side effects"
-            );
-            let object = s.required(item, 16)?;
-            let actor = s.required(object, 4)?;
-            let owner = actors
-                .get(&actor)
-                .context("dialogue owner absent from imported actor graph")?
-                .clone();
-            let answer = s.required(s.required(item, 4)?, 0)?;
-            ensure!(
-                s.pointer(answer, 24)?.is_none()
-                    && u32_at(s.bytes(answer, 80)?, 40)? == 0
-                    && u32_at(s.bytes(answer, 80)?, 76)? == u32::MAX - 1,
-                "{name}: selected dialogue has branching/answer text/icon"
-            );
-            let callback = s
-                .pointer(answer, 28)?
-                .map(|target| -> Result<BehaviorRef> {
-                    let brain = s.required(actor, 16)?;
-                    let mind = s.required(brain, 0)?;
-                    let model = s.required(mind, 0)?;
-                    let set = s.required(model, 0)?;
-                    let raw: SetWire = wire(s.bytes(set, 16)?)?;
-                    let entries = s.required(set, 0)?;
-                    ensure!(
-                        target.owner == entries.owner
-                            && target.key == entries.key
-                            && target.offset >= entries.offset
-                            && (target.offset - entries.offset).is_multiple_of(12),
-                        "dialogue callback misses normal behavior table"
-                    );
-                    let behavior = (target.offset - entries.offset) / 12;
-                    ensure!(
-                        behavior < raw.count as usize,
-                        "dialogue behavior index out of range"
-                    );
-                    let path = result
-                        .persos
-                        .iter()
-                        .find(|p| p.path == owner.path)
-                        .and_then(|p| p.brain.as_ref())
-                        .context("dialogue owner lacks compiled Brain")?
-                        .model
-                        .clone();
-                    let reference = BehaviorRef {
-                        model: path,
-                        group: BehaviorGroup::Normal,
-                        behavior: behavior.try_into()?,
-                    };
-                    reference.validate_model(
-                        result
-                            .ai_models
-                            .iter()
-                            .find(|m| m.path == reference.model.path)
-                            .context("dialogue callback model missing")?,
-                    )?;
-                    Ok(reference)
-                })
-                .transpose()?;
-            let mut lines = Vec::new();
-            let mut line = s.pointer(item, 12)?;
-            let mut line_seen = BTreeSet::new();
-            while let Some(a) = line {
-                ensure!(
-                    line_seen.insert(a) && lines.len() < 1024,
-                    "cyclic/excessive dialogue lines"
-                );
-                let h: LineWire = wire(s.bytes(a, 28)?)?;
-                ensure!(
-                    h.ordinal as usize == lines.len() && h.flags == 0,
-                    "{name}: dialogue line order/flags need additional behavior"
-                );
-                let mut spans = Vec::new();
-                let mut span = s.pointer(a, 4)?;
-                let mut span_seen = BTreeSet::new();
-                while let Some(a) = span {
-                    ensure!(
-                        span_seen.insert(a) && spans.len() < 64,
-                        "cyclic/excessive dialogue spans"
-                    );
-                    let h: SpanWire = wire(s.bytes(a, 16)?)?;
-                    let font = s.required(a, 12)?;
-                    ensure!(
-                        font == normal_font || font == emphasis,
-                        "{name}: dialogue span uses an unpromoted font"
-                    );
-                    spans.push(DialogueSpan {
-                        text: s
-                            .pointer(a, 4)?
-                            .map(|a| string(s, a))
-                            .transpose()?
-                            .unwrap_or_default(),
-                        offset: h.offset,
-                        emphasis: font == emphasis,
-                    });
-                    span = s.pointer(a, 0)?;
-                }
-                lines.push(DialogueLine {
-                    spans,
-                    end_seconds: h.end_seconds,
-                    flags: h.flags,
+        ensure!(names.insert(name.clone()), "duplicate dialogue name {name}");
+        let decoded = ItemDecoder {
+            source: s,
+            selection,
+            actors,
+            scene: result,
+            sounds: &sounds,
+            fonts: [normal_font, emphasis],
+            presentation: &presentation_ref,
+        }
+        .read(item, name.clone())?;
+        match decoded {
+            ItemImport::Supported(value) => result.dialogues.push(value),
+            ItemImport::Unsupported(reason) => {
+                omitted += 1;
+                result.diagnostics.push(Diagnostic {
+                    code: "openspace.dialogue.unsupported_item".into(),
+                    asset: Some(AssetPath::new(format!("level:/dialogue/en/{name}"))?),
+                    severity: Severity::Warning,
+                    message: reason,
                 });
-                line = s.pointer(a, 0)?;
             }
-            let voice = s
-                .pointer(item, 48)?
-                .map(|a| {
-                    sounds
-                        .events
-                        .get(&add(a, 12))
-                        .cloned()
-                        .context("dialogue voice lacks localized SND binding")
-                })
-                .transpose()?
-                .flatten();
-            let value = Dialogue {
-                path: AssetPath::new(format!("level:/dialogue/en/{name}"))?,
-                name,
-                locale: selection.locale.clone(),
-                box_style: h.box_style,
-                owner,
-                lines,
-                voice,
-                completion: callback,
-                presentation: Some(presentation_ref.clone()),
-            };
-            value.validate()?;
-            result.dialogues.push(value);
         }
         list = s.required(list, 0)?;
     }
-    ensure!(
-        list == root && result.dialogues.len() == supported.len(),
-        "dialogue catalogue/selected names differ"
-    );
-    result.diagnostics.push(Diagnostic { code:"openspace.dialogue.manor_slice".into(),asset:Some(result.scene.path.clone()),severity:Severity::Warning,message:format!("Imported {} evidenced manor dialogues out of {} items (eight opening items and one ordinary conversation); other dialogue choices, channel effects, source reconstruction and visual parity remain pending",result.dialogues.len(),seen.len()) });
+    ensure!(list == root, "dialogue catalogue closes outside its root");
+    result.diagnostics.push(Diagnostic {
+        code: "openspace.dialogue.coverage".into(),
+        asset: Some(result.scene.path.clone()),
+        severity: if omitted == 0 { Severity::Info } else { Severity::Warning },
+        message: format!(
+            "Imported {} structurally supported dialogues out of {} items; {} unsupported items have individual diagnostics. Source reconstruction and visual parity remain pending",
+            result.dialogues.len(), seen.len(), omitted
+        ),
+    });
     Ok(())
 }
+
+/// Unsupported semantics are distinct from invalid decoded structure. Pointer,
+/// cycle and record errors in the supported traversal remain fatal. An item
+/// rejected for unsupported semantics is not traversed further.
+enum ItemImport {
+    Supported(Dialogue),
+    Unsupported(String),
+}
+
+struct ItemDecoder<'a> {
+    source: &'a SourceSession,
+    selection: &'a Selection,
+    actors: &'a BTreeMap<Address, AssetRef<Perso>>,
+    scene: &'a SceneImport,
+    sounds: &'a SoundSites,
+    fonts: [Address; 2],
+    presentation: &'a AssetRef<DialoguePresentation>,
+}
+
+impl ItemDecoder<'_> {
+    fn read(&self, item: Address, name: String) -> Result<ItemImport> {
+        let s = self.source;
+        let h: ItemWire = wire(s.bytes(item, 52)?)?;
+        if h.answers != 1 || !matches!(h.box_style, 1 | 3) {
+            return Ok(ItemImport::Unsupported(format!(
+                "{name}: {} answers and box style {} require additional dialogue semantics",
+                h.answers, h.box_style
+            )));
+        }
+        if h._reserved != 0 || h._unknown != 0 || h._unknown32 != 0 {
+            return Ok(ItemImport::Unsupported(format!(
+                "{name}: nonzero unpromoted item fields require source interpretation"
+            )));
+        }
+        if s.pointer(item, 36)?.is_some()
+            || s.pointer(item, 40)?.is_some()
+            || s.pointer(item, 44)?.is_some()
+        {
+            return Ok(ItemImport::Unsupported(format!(
+                "{name}: item icon or channel side effects are not represented"
+            )));
+        }
+        let object = s.required(item, 16)?;
+        let actor = s.required(object, 4)?;
+        let Some(owner) = self.actors.get(&actor).cloned() else {
+            return Ok(ItemImport::Unsupported(format!(
+                "{name}: dialogue owner is outside the imported actor graph"
+            )));
+        };
+        let answer = s.required(s.required(item, 4)?, 0)?;
+        let answer_bytes = s.bytes(answer, 80)?;
+        if s.pointer(answer, 24)?.is_some()
+            || u32_at(answer_bytes, 40)? != 0
+            || u32_at(answer_bytes, 76)? != u32::MAX - 1
+        {
+            return Ok(ItemImport::Unsupported(format!(
+                "{name}: answer text, branching or icon behavior is not represented"
+            )));
+        }
+        let callback = if let Some(target) = s.pointer(answer, 28)? {
+            let brain = s.required(actor, 16)?;
+            let mind = s.required(brain, 0)?;
+            let model = s.required(mind, 0)?;
+            let set = s.required(model, 0)?;
+            let raw: SetWire = wire(s.bytes(set, 16)?)?;
+            let entries = s.required(set, 0)?;
+            ensure!(
+                target.owner == entries.owner
+                    && target.key == entries.key
+                    && target.offset >= entries.offset
+                    && (target.offset - entries.offset).is_multiple_of(12),
+                "dialogue callback misses normal behavior table"
+            );
+            let behavior = (target.offset - entries.offset) / 12;
+            ensure!(
+                behavior < raw.count as usize,
+                "dialogue behavior index out of range"
+            );
+            let Some(brain) = self
+                .scene
+                .persos
+                .iter()
+                .find(|p| p.path == owner.path)
+                .and_then(|p| p.brain.as_ref())
+            else {
+                return Ok(ItemImport::Unsupported(format!(
+                    "{name}: completion callback owner lacks an imported Brain"
+                )));
+            };
+            let reference = BehaviorRef {
+                model: brain.model.clone(),
+                group: BehaviorGroup::Normal,
+                behavior: behavior.try_into()?,
+            };
+            reference.validate_model(
+                self.scene
+                    .ai_models
+                    .iter()
+                    .find(|m| m.path == reference.model.path)
+                    .context("dialogue callback model missing")?,
+            )?;
+            Some(reference)
+        } else {
+            None
+        };
+        let mut lines = Vec::new();
+        let mut line = s.pointer(item, 12)?;
+        let mut line_seen = BTreeSet::new();
+        while let Some(a) = line {
+            ensure!(
+                line_seen.insert(a) && lines.len() < 1024,
+                "cyclic/excessive dialogue lines"
+            );
+            let h: LineWire = wire(s.bytes(a, 28)?)?;
+            ensure!(
+                h.ordinal as usize == lines.len(),
+                "{name}: dialogue line order differs"
+            );
+            if h.flags != 0 || h._effect != 0 || h._unknown != 0 {
+                return Ok(ItemImport::Unsupported(format!(
+                    "{name}: dialogue line flags/effect/unknown fields require additional behavior"
+                )));
+            }
+            let mut spans = Vec::new();
+            let mut span = s.pointer(a, 4)?;
+            let mut span_seen = BTreeSet::new();
+            while let Some(a) = span {
+                ensure!(
+                    span_seen.insert(a) && spans.len() < 64,
+                    "cyclic/excessive dialogue spans"
+                );
+                let h: SpanWire = wire(s.bytes(a, 16)?)?;
+                let font = s.required(a, 12)?;
+                if !self.fonts.contains(&font) {
+                    return Ok(ItemImport::Unsupported(format!(
+                        "{name}: dialogue span uses an unpromoted font"
+                    )));
+                }
+                spans.push(DialogueSpan {
+                    text: s
+                        .pointer(a, 4)?
+                        .map(|a| string(s, a))
+                        .transpose()?
+                        .unwrap_or_default(),
+                    offset: h.offset,
+                    emphasis: font == self.fonts[1],
+                });
+                span = s.pointer(a, 0)?;
+            }
+            lines.push(DialogueLine {
+                spans,
+                end_seconds: h.end_seconds,
+                flags: h.flags,
+            });
+            line = s.pointer(a, 0)?;
+        }
+        if lines.is_empty() {
+            return Ok(ItemImport::Unsupported(format!(
+                "{name}: textless dialogue behavior is not represented"
+            )));
+        }
+        let voice = s
+            .pointer(item, 48)?
+            .map(|a| {
+                self.sounds
+                    .events
+                    .get(&add(a, 12))
+                    .cloned()
+                    .context("dialogue voice lacks localized SND binding")
+            })
+            .transpose()?
+            .flatten();
+        let value = Dialogue {
+            path: AssetPath::new(format!("level:/dialogue/en/{name}"))?,
+            name,
+            locale: self.selection.locale.clone(),
+            box_style: h.box_style,
+            owner,
+            lines,
+            voice,
+            completion: callback,
+            presentation: Some(self.presentation.clone()),
+        };
+        value.validate()?;
+        Ok(ItemImport::Supported(value))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

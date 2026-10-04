@@ -151,12 +151,12 @@ impl<'a> Importer<'a> {
         let family = self.family(parts.family)?;
         let config = self
             .session
-            .pointer(data, 12)?
+            .pointer(data, 16)?
             .map(|a| self.configuration(a))
             .transpose()?;
         let initial = self
             .session
-            .pointer(data, 16)?
+            .pointer(data, 12)?
             .map(|a| self.configuration(a))
             .transpose()?;
         let value = Perso {
@@ -190,6 +190,7 @@ impl<'a> Importer<'a> {
                 })
                 .transpose()?,
             routes: super::way::import_bindings(self.session, perso, &path, types, self.result)?,
+            stock: super::inventory_gameplay::stock(self.session, perso)?,
             brain: None,
             particles: super::particle::component(self.session, perso)?,
             collisions: self
@@ -367,7 +368,7 @@ impl<'a> Importer<'a> {
         self.result.mechanics.push(value);
         Ok(AssetRef::from_path(path))
     }
-    fn configuration(&mut self, address: Address) -> Result<AssetRef<ObjectList>> {
+    pub(super) fn configuration(&mut self, address: Address) -> Result<AssetRef<ObjectList>> {
         if let Some(path) = self.configs.get(&address) {
             return Ok(AssetRef::from_path(path.clone()));
         }

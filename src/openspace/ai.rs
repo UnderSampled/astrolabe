@@ -34,6 +34,8 @@ pub struct AiScriptCodec {
     pub behavior_handles: Vec<(BehaviorRef, u32)>,
     pub actors: BTreeMap<usize, AssetRef<Perso>>,
     pub actor_handles: Vec<(AssetRef<Perso>, u32)>,
+    pub configurations: BTreeMap<usize, Option<AssetRef<crate::model::character::ObjectList>>>,
+    pub configuration_handles: Vec<(Option<AssetRef<crate::model::character::ObjectList>>, u32)>,
     pub waypoints: BTreeMap<usize, AssetRef<Waypoint>>,
     pub waypoint_handles: Vec<(AssetRef<Waypoint>, u32)>,
     pub particle_generators: BTreeMap<usize, AssetRef<crate::model::particle::ParticleGenerator>>,
@@ -206,7 +208,7 @@ impl Parser<'_> {
                             .nodes
                             .get(actor_at)
                             .map(|node| (node.kind, node.parameter));
-                        if !matches!(receiver, Some((0, 5)))
+                        if !matches!(receiver, Some((0, 4 | 5)))
                             && !self.codec.actors.contains_key(&actor_at)
                         {
                             out.push(Statement::Unsupported(self.unsupported(
@@ -219,15 +221,19 @@ impl Parser<'_> {
                         ensure!(dot.kind == 2 && dot.parameter == 12, "actor dot differs");
                         let (actor_at, actor) = self.take(indent + 2)?;
                         ensure!(
-                            actor.kind == 24 || (actor.kind == 0 && actor.parameter == 5),
+                            actor.kind == 24
+                                || (actor.kind == 0 && matches!(actor.parameter, 4 | 5)),
                             "actor dot lacks actor operand"
                         );
-                        let main_actor = actor.kind == 0;
+                        let self_actor = actor.kind == 0 && actor.parameter == 4;
+                        let main_actor = actor.kind == 0 && actor.parameter == 5;
                         let (_, field) = self.take(indent + 2)?;
                         ensure!(field.kind == 11, "actor dot lacks designer field");
                         let variable = field.parameter.try_into()?;
                         let value = self.expression(indent + 1)?;
-                        if main_actor {
+                        if self_actor {
+                            Statement::SelfFieldAssign { variable, value }
+                        } else if main_actor {
                             Statement::MainActorFieldAssign { variable, value }
                         } else {
                             Statement::ActorFieldAssign {
@@ -267,6 +273,26 @@ impl Parser<'_> {
                 (5, 37) => Statement::Wait {
                     milliseconds: self.expression(indent + 1)?,
                 },
+                (5, 38) => {
+                    let field = self.expression(indent + 1)?;
+                    if matches!(
+                        field,
+                        Expression::Variable(_)
+                            | Expression::SelfFieldRead(_)
+                            | Expression::ActorFieldRead { .. }
+                            | Expression::MainActorFieldRead(_)
+                    ) {
+                        Statement::WaitBoolean {
+                            field,
+                            value: self.expression(indent + 1)?,
+                        }
+                    } else {
+                        Statement::Unsupported(self.unsupported(
+                            at,
+                            "Boolean wait requires a bound designer field".into(),
+                        )?)
+                    }
+                }
                 (2, 6) => {
                     let (_, target) = self.take(indent + 1)?;
                     ensure!(
@@ -279,10 +305,10 @@ impl Parser<'_> {
                     }
                 }
                 (2, 5) => {
-                    if !self
+                    if self
                         .nodes
                         .get(self.at)
-                        .is_some_and(|target| target.kind == 11)
+                        .is_none_or(|target| target.kind != 11)
                     {
                         out.push(Statement::Unsupported(self.unsupported(
                             at,
@@ -451,9 +477,40 @@ impl Parser<'_> {
                 (2, 24) => {
                     let (receiver_at, receiver) = self.take(indent + 1)?;
                     let receiver_kind = receiver.kind;
-                    let actor = self.codec.actors.get(&receiver_at).cloned();
-                    if receiver_kind == 24
-                        && let Some(actor) = actor
+                    let actor = match (receiver.kind, receiver.parameter) {
+                        (0, 4) => Some(ActorTarget::Keyword(ActorKeyword::SelfActor)),
+                        (0, 5) => Some(ActorTarget::Keyword(ActorKeyword::MainActor)),
+                        (24, _) => self
+                            .codec
+                            .actors
+                            .get(&receiver_at)
+                            .cloned()
+                            .map(ActorTarget::Reference),
+                        _ => None,
+                    };
+                    if let Some(actor) = actor.as_ref()
+                        && self.nodes.get(self.at).is_some_and(|n| {
+                            n.kind == 4
+                                && matches!(n.parameter, 185..=187 | 266 | 267)
+                                && n.indent == indent + 1
+                        })
+                    {
+                        let (_, operation) = self.take(indent + 1)?;
+                        match operation.parameter {
+                            266 | 267 => Statement::ActorDisplayVisible {
+                                actor: actor.clone(),
+                                visible: operation.parameter == 267,
+                            },
+                            185 | 186 => Statement::ActorTransparentDisplay {
+                                actor: actor.clone(),
+                                enabled: operation.parameter == 185,
+                            },
+                            _ => Statement::ActorTransparency {
+                                actor: actor.clone(),
+                                opacity: self.expression(indent + 2)?,
+                            },
+                        }
+                    } else if let Some(ActorTarget::Reference(actor)) = actor
                         && self.nodes.get(self.at).is_some_and(|n| {
                             n.kind == 4 && n.parameter == 253 && n.indent == indent + 1
                         })
@@ -554,6 +611,45 @@ impl Parser<'_> {
                 },
                 (5, 68) => Statement::WaitFrames(self.expression(indent + 1)?),
                 (4, 209 | 210) => self.change_behavior(id, indent, false, at)?,
+                (4, 207 | 208) => {
+                    let actor = self.expression(indent + 1)?;
+                    if !self.codec.behaviors.contains_key(&self.at) {
+                        Statement::Unsupported(
+                            self.unsupported(at, "unbound external behavior target".into())?,
+                        )
+                    } else {
+                        let target = self.behavior(indent + 1)?;
+                        ensure!(
+                            target.group
+                                == if id == 207 {
+                                    BehaviorGroup::Normal
+                                } else {
+                                    BehaviorGroup::Reflex
+                                },
+                            "external behavior target group differs"
+                        );
+                        Statement::ChangeActorBehavior { actor, target }
+                    }
+                }
+                (4, 82) => Statement::SwapConfiguredParts {
+                    first: self.expression(indent + 1)?,
+                    second: self.expression(indent + 1)?,
+                },
+                (4, 83) => {
+                    if self.nodes.get(self.at).is_none_or(|node| node.kind != 35) {
+                        Statement::Unsupported(self.unsupported(at, "configuration change requires an ObjectTableRef literal; dynamic configuration dependency is unsupported".into())?)
+                    } else {
+                        let value = self.expression(indent + 1)?;
+                        if matches!(value, Expression::Configuration(_)) {
+                            Statement::ChangeConfiguration(value)
+                        } else {
+                            Statement::Unsupported(self.unsupported(at, "unbound configuration literal".into())?)
+                        }
+                    }
+                }
+                (4, 429) => Statement::ChangeArmor(self.expression(indent + 1)?),
+                (4, 430) => Statement::SetArmorResistance(self.expression(indent + 1)?),
+                (4, 431) => Statement::RepairArmor,
                 (4, 6) => {
                     // The observed return-zero/camera-update pair proceeds to
                     // the camera handler. Locomotion's return-one/behavior
@@ -713,6 +809,14 @@ impl Parser<'_> {
         let value = match (kind, id) {
             (0, 7) => Expression::Nobody,
             (0, 8) => Expression::Nowhere,
+            (0, 4) => Expression::Actor(ActorTarget::Keyword(ActorKeyword::SelfActor)),
+            (0, 5) => Expression::Actor(ActorTarget::Keyword(ActorKeyword::MainActor)),
+            (24, _) => match self.codec.actors.get(&at) {
+                Some(actor) => Expression::Actor(ActorTarget::Reference(actor.clone())),
+                None => Expression::Unsupported(
+                    self.unsupported(at, format!("unbound actor value at node {at}"))?,
+                ),
+            },
             (12, n) => Expression::Integer(n as i32),
             (13, n) => Expression::Real(f32::from_bits(n)),
             (16, 0) => Expression::Vector(Box::new([
@@ -800,6 +904,7 @@ impl Parser<'_> {
                     .clone(),
             ),
             (1, 59) => Expression::IsInAction(Box::new(self.expression(indent + 1)?)),
+            (1, 64) => Expression::IsValidActor(Box::new(self.expression(indent + 1)?)),
             (1, 121) => Expression::DialogIsOver,
             (1, 123) => Expression::ActionFinished,
             (1, 31) => Expression::CollideWithGround,
@@ -972,16 +1077,16 @@ impl Parser<'_> {
                 right: Box::new(self.expression(indent + 1)?),
             },
             (3, 4) => {
-                let (_, actor) = self.take(indent + 1)?;
-                if actor.kind != 0 || actor.parameter != 5 {
-                    return Ok(Expression::Unsupported(self.unsupported(
-                        at,
-                        "distance requires an unsupported actor expression".into(),
-                    )?));
+                let actor = self.expression(indent + 1)?;
+                if actor == Expression::Actor(ActorTarget::Keyword(ActorKeyword::MainActor)) {
+                    Expression::MainActorDistance
+                } else {
+                    Expression::ActorDistance(Box::new(actor))
                 }
-                Expression::MainActorDistance
             }
             (3, 22) => Expression::IntegerCast(Box::new(self.expression(indent + 1)?)),
+            (3, 25) => Expression::Square(Box::new(self.expression(indent + 1)?)),
+            (3, 33) => Expression::AbsoluteValue(Box::new(self.expression(indent + 1)?)),
             (3, 35) => {
                 let (_, actor) = self.take(indent + 1)?;
                 if actor.kind == 0 && actor.parameter == 4 {
@@ -993,13 +1098,44 @@ impl Parser<'_> {
                     )?)
                 }
             }
+            (35, 0 | u32::MAX)
+                if self
+                    .codec
+                    .configurations
+                    .get(&at)
+                    .is_none_or(Option::is_none) =>
+            {
+                Expression::Configuration(None)
+            }
+            (35, _) => {
+                if let Some(reference) = self.codec.configurations.get(&at) {
+                    Expression::Configuration(reference.clone())
+                } else {
+                    Expression::Unsupported(
+                        self.unsupported(at, "unbound ObjectTableRef literal".into())?,
+                    )
+                }
+            }
+            (3, 198) => Expression::InventoryGold,
+            (3, 199) => Expression::InventoryAddGold(Box::new(self.expression(indent + 1)?)),
+            (3, 200) => Expression::InventorySubtractGold(Box::new(self.expression(indent + 1)?)),
             (3, 201) => Expression::InventoryWeapon,
+            (3, 205) => Expression::InventoryObject,
+            (3, 206) => Expression::InventorySelectObject(Box::new(self.expression(indent + 1)?)),
             (3, 208) => Expression::InventoryQuantity(Box::new(self.expression(indent + 1)?)),
             (3, 209) => Expression::InventoryRemove {
                 item: Box::new(self.expression(indent + 1)?),
                 count: Box::new(self.expression(indent + 1)?),
             },
             (3, 228) => Expression::MagicPoints,
+            (3, 196) => Expression::InventoryAddActorObject(Box::new(self.expression(indent + 1)?)),
+            (3, 202) => Expression::InventoryChangeWeapon(Box::new(self.expression(indent + 1)?)),
+            (3, 210) => {
+                Expression::InventoryMaximumCapacity(Box::new(self.expression(indent + 1)?))
+            }
+            (3, 224) => Expression::ApplyArmoredDamage(Box::new(self.expression(indent + 1)?)),
+            (3, 226) => Expression::ArmorResistance,
+            (3, 227) => Expression::ArmorCount,
             (3, 230) => Expression::MagicRemovePoints(Box::new(self.expression(indent + 1)?)),
             (3, 232) => Expression::MagicCurrentSpell,
             (3, 211) => Expression::LaserDirection,
@@ -1044,6 +1180,20 @@ struct Writer<'a> {
     codec: &'a AiScriptCodec,
 }
 impl Writer<'_> {
+    fn actor_target(&mut self, actor: &ActorTarget, indent: u8) -> Result<()> {
+        match actor {
+            ActorTarget::Keyword(keyword) => self.node(
+                0,
+                match keyword {
+                    ActorKeyword::SelfActor => 4,
+                    ActorKeyword::MainActor => 5,
+                },
+                indent,
+            ),
+            ActorTarget::Reference(reference) => self.actor_node(reference, indent)?,
+        }
+        Ok(())
+    }
     fn actor_node(&mut self, actor: &AssetRef<Perso>, indent: u8) -> Result<()> {
         let handle = self
             .codec
@@ -1087,6 +1237,13 @@ impl Writer<'_> {
                 Statement::Assign { variable, value } => {
                     self.node(2, 11, indent);
                     self.node(11, u32::from(*variable), indent + 1);
+                    self.expression(value, indent + 1)?;
+                }
+                Statement::SelfFieldAssign { variable, value } => {
+                    self.node(2, 11, indent);
+                    self.node(2, 12, indent + 1);
+                    self.node(0, 4, indent + 2);
+                    self.node(11, u32::from(*variable), indent + 2);
                     self.expression(value, indent + 1)?;
                 }
                 Statement::ActorFieldAssign {
@@ -1179,6 +1336,22 @@ impl Writer<'_> {
                 Statement::SetVectorSpeed(value) => {
                     self.node(4, 29, indent);
                     self.expression(value, indent + 1)?;
+                }
+                Statement::ActorDisplayVisible { actor, visible } => {
+                    self.node(2, 24, indent);
+                    self.actor_target(actor, indent + 1)?;
+                    self.node(4, if *visible { 267 } else { 266 }, indent + 1);
+                }
+                Statement::ActorTransparentDisplay { actor, enabled } => {
+                    self.node(2, 24, indent);
+                    self.actor_target(actor, indent + 1)?;
+                    self.node(4, if *enabled { 185 } else { 186 }, indent + 1);
+                }
+                Statement::ActorTransparency { actor, opacity } => {
+                    self.node(2, 24, indent);
+                    self.actor_target(actor, indent + 1)?;
+                    self.node(4, 187, indent + 1);
+                    self.expression(opacity, indent + 2)?;
                 }
                 Statement::AddWind(value) => {
                     self.node(4, 30, indent);
@@ -1373,6 +1546,46 @@ impl Writer<'_> {
                     self.node(5, 68, indent);
                     self.expression(frames, indent + 1)?;
                 }
+                Statement::WaitBoolean { field, value } => {
+                    self.node(5, 38, indent);
+                    self.expression(field, indent + 1)?;
+                    self.expression(value, indent + 1)?;
+                }
+                Statement::ChangeActorBehavior { actor, target } => {
+                    self.node(
+                        4,
+                        if target.group == BehaviorGroup::Normal {
+                            207
+                        } else {
+                            208
+                        },
+                        indent,
+                    );
+                    self.expression(actor, indent + 1)?;
+                    self.behavior(target, indent + 1)?;
+                }
+                Statement::ChangeArmor(value) | Statement::SetArmorResistance(value) => {
+                    self.node(
+                        4,
+                        if matches!(s, Statement::ChangeArmor(_)) {
+                            429
+                        } else {
+                            430
+                        },
+                        indent,
+                    );
+                    self.expression(value, indent + 1)?;
+                }
+                Statement::RepairArmor => self.node(4, 431, indent),
+                Statement::SwapConfiguredParts { first, second } => {
+                    self.node(4, 82, indent);
+                    self.expression(first, indent + 1)?;
+                    self.expression(second, indent + 1)?;
+                }
+                Statement::ChangeConfiguration(value) => {
+                    self.node(4, 83, indent);
+                    self.expression(value, indent + 1)?;
+                }
                 Statement::ChangeBehavior {
                     target,
                     pause_after,
@@ -1462,6 +1675,44 @@ impl Writer<'_> {
             Expression::IntegerCast(value) => {
                 self.node(3, 22, indent);
                 self.expression(value, indent + 1)?;
+            }
+            Expression::Actor(actor) => self.actor_target(actor, indent)?,
+            Expression::Configuration(reference) => {
+                let handle = if reference.is_none() {
+                    0
+                } else {
+                    self.codec
+                        .configuration_handles
+                        .iter()
+                        .find(|(value, _)| value == reference)
+                        .context("missing assigned AI ObjectTableRef handle")?
+                        .1
+                };
+                ensure!(
+                    reference.is_none() || !matches!(handle, 0 | u32::MAX),
+                    "nonnull AI configuration has a null handle"
+                );
+                self.node(35, handle, indent);
+            }
+            Expression::Square(value) | Expression::AbsoluteValue(value) => {
+                self.node(
+                    3,
+                    if matches!(e, Expression::Square(_)) {
+                        25
+                    } else {
+                        33
+                    },
+                    indent,
+                );
+                self.expression(value, indent + 1)?;
+            }
+            Expression::IsValidActor(actor) => {
+                self.node(1, 64, indent);
+                self.expression(actor, indent + 1)?;
+            }
+            Expression::ActorDistance(actor) => {
+                self.node(3, 4, indent);
+                self.expression(actor, indent + 1)?;
             }
             Expression::SelfHitPoints => {
                 self.node(3, 35, indent);
@@ -1655,6 +1906,45 @@ impl Writer<'_> {
                 self.node(0, 5, indent + 1);
             }
             Expression::InventoryWeapon => self.node(3, 201, indent),
+            Expression::InventoryGold => self.node(3, 198, indent),
+            Expression::InventoryObject => self.node(3, 205, indent),
+            Expression::InventoryAddGold(value)
+            | Expression::InventorySubtractGold(value)
+            | Expression::InventorySelectObject(value) => {
+                self.node(
+                    3,
+                    match e {
+                        Expression::InventoryAddGold(_) => 199,
+                        Expression::InventorySubtractGold(_) => 200,
+                        _ => 206,
+                    },
+                    indent,
+                );
+                self.expression(value, indent + 1)?;
+            }
+            Expression::InventoryAddActorObject(value) => {
+                self.node(3, 196, indent);
+                self.expression(value, indent + 1)?;
+            }
+            Expression::InventoryChangeWeapon(value)
+            | Expression::InventoryMaximumCapacity(value) => {
+                self.node(
+                    3,
+                    if matches!(e, Expression::InventoryChangeWeapon(_)) {
+                        202
+                    } else {
+                        210
+                    },
+                    indent,
+                );
+                self.expression(value, indent + 1)?;
+            }
+            Expression::ApplyArmoredDamage(value) => {
+                self.node(3, 224, indent);
+                self.expression(value, indent + 1)?;
+            }
+            Expression::ArmorResistance => self.node(3, 226, indent),
+            Expression::ArmorCount => self.node(3, 227, indent),
             Expression::InventoryQuantity(item) => {
                 self.node(3, 208, indent);
                 self.expression(item, indent + 1)?;

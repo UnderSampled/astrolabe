@@ -53,11 +53,11 @@ impl SoundSites {
                 // bindings; unrelated domains are not traversed here.
                 if !matches!(key.0, 5 | 17 | 20)
                     || (key.0 == 20
-                        && !session
+                        && session
                             .blocks
                             .get(&owner)
                             .and_then(|b| b.get(&key))
-                            .is_some_and(|b| !b.data.is_empty()))
+                            .is_none_or(|b| b.data.is_empty()))
                 {
                     continue;
                 }

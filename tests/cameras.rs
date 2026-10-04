@@ -88,6 +88,7 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
         configuration: None,
         initial_configuration: None,
         object_types: [7, 0, 0],
+        stock: None,
         hit_points: None,
         camera: Some(Camera {
             source: identity(1),
@@ -112,6 +113,8 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
         path: AssetPath::new("level:/scene")?,
         name: "CameraCheck".into(),
         main_actor: None,
+        armor: None,
+        inventory: None,
         global_actors: vec![],
         nodes: vec![
             SceneNode {

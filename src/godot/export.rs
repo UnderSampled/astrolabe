@@ -30,6 +30,16 @@ pub fn export<R: ContentSource>(
     }
     for root in roots {
         match Asset::load(source, root)? {
+            Asset::InventoryCatalog(value) => {
+                if written.insert(value.path.clone()) {
+                    super::inventory_gameplay::export(&mut project, source, &value)?;
+                }
+            }
+            Asset::ArmorCatalog(value) => {
+                if written.insert(value.path.clone()) {
+                    super::armor::export(&mut project, source, &value)?;
+                }
+            }
             Asset::ParticleGenerator(value) => {
                 super::particle::export(&mut project, source, &value, &mut written)?;
             }
@@ -74,6 +84,20 @@ pub fn export<R: ContentSource>(
                 anyhow::bail!("collision export requires its owning scene")
             }
             Asset::Scene(scene) => {
+                if let Some(reference) = &scene.inventory {
+                    let value = source.load(reference)?;
+                    value.validate_reference(&reference.path)?;
+                    if written.insert(value.path.clone()) {
+                        super::inventory_gameplay::export(&mut project, source, &value)?;
+                    }
+                }
+                if let Some(reference) = &scene.armor {
+                    let value = source.load(reference)?;
+                    value.validate_reference(&reference.path)?;
+                    if written.insert(value.path.clone()) {
+                        super::armor::export(&mut project, source, &value)?;
+                    }
+                }
                 let preview_start = project.preview_instances.len();
                 for node in &scene.nodes {
                     if let Some(reference) = &node.perso {

@@ -72,6 +72,13 @@ fn read(path: &Path) -> Result<Vec<u8>> {
 pub fn import_scene(game: &Path, selection: Selection) -> Result<Imported> {
     let mut imported = Imported::new(selection.clone());
     let mut scene = level::import_scene(game, &selection)?;
+    if let Some(inventory) = scene.inventory.take() {
+        imported.put(
+            &AssetRef::from_path(inventory.path.clone()),
+            inventory,
+            false,
+        )?;
+    }
     let sound_graph = super::audio::graph::SoundGraph::import(
         game,
         &selection,
@@ -141,6 +148,24 @@ pub fn import_scene(game: &Path, selection: Selection) -> Result<Imported> {
         usage: TextureUsage::Material,
     }
     .read(&read(&game.join("Gamedata/Textures.cnt"))?)?;
+    if let Some(mut armor) = scene.armor.take() {
+        for artwork in armor
+            .definitions
+            .iter_mut()
+            .flat_map(|d| d.artwork.iter_mut().flatten())
+        {
+            let found = archive
+                .find_entry(artwork.texture.path.file())
+                .with_context(|| {
+                    format!("armor texture {} absent from CNT", artwork.texture.path)
+                })?;
+            artwork.texture = found.texture.clone();
+            if !imported.assets.contains(&found.texture.path) {
+                imported.put(&found.texture, archive.image(found)?.clone(), false)?;
+            }
+        }
+        imported.put(&AssetRef::from_path(armor.path.clone()), armor, false)?;
+    }
     if let Some(mut presentation) = scene.dialogue_presentation.take() {
         for texture in std::iter::once(&mut presentation.atlas).chain(&mut presentation.frame) {
             let found = archive

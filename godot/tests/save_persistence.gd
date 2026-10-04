@@ -84,11 +84,24 @@ func run() -> void:
             fail("Noncanonical inventory quantity key was silently accepted")
             return
         var invalid_quantity := valid_state.duplicate(true)
-        invalid_quantity["actors"][SAVE_STATE.ACTOR]["inventory"]["quantities"]["21"] = -2
+        invalid_quantity["actors"][SAVE_STATE.ACTOR]["inventory"]["quantities"]["21"] = -32769
         if SAVE_STATE.validate(invalid_quantity).is_empty():
-            fail("Inventory quantity below the measured -1 sentinel was accepted")
+            fail("Inventory quantity below the signed source range was accepted")
             return
-        print("SAVE_PROOF corrupt, unsupported version, extra state, noncanonical inventory keys and quantity=-2 rejected")
+        var legacy_quantity := valid_state.duplicate(true)
+        legacy_quantity["schema"] = 2
+        var legacy_player: Dictionary = legacy_quantity["actors"][SAVE_STATE.ACTOR]
+        var snapshot: Dictionary = legacy_player["inventory"]
+        legacy_player.erase("armor")
+        legacy_player["inventory"] = {"selected_weapon": snapshot["selected_weapon"], "quantities": snapshot["quantities"].duplicate()}
+        if not SAVE_STATE.validate(legacy_quantity).is_empty():
+            fail("Supported schema-2 sparse inventory shape was rejected")
+            return
+        legacy_player["inventory"]["quantities"]["21"] = -2
+        if SAVE_STATE.validate(legacy_quantity).is_empty():
+            fail("Legacy inventory quantity below its -1 sentinel was accepted")
+            return
+        print("SAVE_PROOF corrupt, unsupported version, extra state, noncanonical inventory keys, schema-3 out-of-range quantity and legacy quantity=-2 rejected")
         await shutdown(0)
         return
     if load_button.disabled:
@@ -117,6 +130,13 @@ func run() -> void:
     var magick := actor.get("source_magick") as Resource
     var inventory := actor.get("source_inventory") as Resource
     if stage == "write":
+        var checkpoint_error := SAVE_STATE.checkpoint_error(actor, level)
+        while not checkpoint_error.is_empty() and Time.get_ticks_msec() < deadline:
+            await physics_frame
+            checkpoint_error = SAVE_STATE.checkpoint_error(actor, level)
+        if not checkpoint_error.is_empty():
+            fail("Manor did not reach a supported save checkpoint: " + checkpoint_error)
+            return
         if int(magick.get("current_points")) != 30 or int(magick.call("remove_points", 7)) != 1:
             fail("Measured starting mana or native consumption differs")
             return

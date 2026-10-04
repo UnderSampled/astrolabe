@@ -38,7 +38,7 @@ func _ready() -> void:
     select_category(initial_category)
 
 func bind_state(value: Resource) -> bool:
-    if value == null or not value.has_method("quantity"): return false
+    if value == null or not value.has_method("presentation_quantities"): return false
     inventory = value
     _quantities.clear()
     _weapon = -2
@@ -65,7 +65,7 @@ func select_category(key: StringName) -> void:
 
 func refresh() -> void:
     if inventory == null: return
-    _quantities = (inventory.get("quantities") as Dictionary).duplicate()
+    _quantities = inventory.call("presentation_quantities") as Dictionary
     _weapon = int(inventory.get("selected_weapon"))
     shown.clear()
     var category := category_views.get(current_category) as CATEGORY
@@ -75,7 +75,8 @@ func refresh() -> void:
         if item == null: continue
         var group := category_views.get(item.category) as CATEGORY
         if group == null or (item.category != current_category and group.parent_category != current_category): continue
-        # A present -1 is a supported source sentinel. A missing key is absence.
+        # The presentation view contains admitted items only; -1 remains a
+        # supported quantity sentinel on an owned item.
         if not _quantities.has(item.item_id): continue
         var amount := int(_quantities[item.item_id])
         if amount == 0 and not item.draw_when_zero: continue
@@ -93,7 +94,7 @@ func refresh() -> void:
 
 func _process(_delta: float) -> void:
     if not visible or inventory == null: return
-    if inventory.get("quantities") != _quantities or int(inventory.get("selected_weapon")) != _weapon: refresh()
+    if inventory.call("presentation_quantities") != _quantities or int(inventory.get("selected_weapon")) != _weapon: refresh()
 
 func _scroll(direction: int) -> void:
     var next := clampi(window_start + direction, 0, maxi(shown.size() - slot_views.size(), 0))

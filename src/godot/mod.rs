@@ -70,6 +70,7 @@ pub use export::export;
 
 pub mod ai;
 mod animation;
+mod armor;
 mod character;
 mod sprite;
 
@@ -84,5 +85,6 @@ pub mod action;
 
 mod bitmap_font;
 mod inventory;
+mod inventory_gameplay;
 mod menu;
 mod particle;

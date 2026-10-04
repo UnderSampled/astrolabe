@@ -1,7 +1,8 @@
 extends RefCounted
 ## Restores the measured starting state of the supplied English SaveGame0.
-## Provisional Load Game restoration from a measured fixture. General save
-## decoding and persistence will replace this implementation.
+## Seeds fields that native save schemas do not represent. General source-save
+## decoding remains separate from the native checkpoint contract.
+const SNAPSHOT = preload("res://addons/astrolabe/character/snapshot_values.gd")
 
 static func load_fixture() -> Dictionary:
     var path := "res://game/english_save_manoir.json"
@@ -45,7 +46,7 @@ static func apply(actor: CharacterBody3D, brain: Node, fixture: Dictionary) -> S
         restored_actor.global_transform = Transform3D(saved_basis, source_vector(saved["source_translation"]))
     var seen: Dictionary = {}
     for value in fixture.get("deactivated_channels", []):
-        if not (value is int or value is float):
+        if not SNAPSHOT.integer(value, 0, 255):
             return "Saved Hype deactivated channel list is malformed"
         var channel := int(value)
         if float(channel) != float(value) or channel < 0 or channel > 255 or seen.has(channel):
@@ -58,25 +59,27 @@ static func apply(actor: CharacterBody3D, brain: Node, fixture: Dictionary) -> S
     if native_inventory == null or not inventory.has("selected_weapon") or not inventory.has("quantities"):
         return "Saved Hype inventory fixture is missing"
     var selected: Variant = inventory["selected_weapon"]
-    if not (selected is int or selected is float) or float(int(selected)) != float(selected) or int(selected) < -1 or int(selected) > 32767:
+    if not SNAPSHOT.integer(selected, -1, 32767):
         return "Saved Hype selected weapon is malformed"
     var restored_quantities: Dictionary = {}
     for key in inventory["quantities"]:
-        if not str(key).is_valid_int():
+        if not SNAPSHOT.item_key(key) or int(key) < 0:
             return "Saved Hype inventory item is malformed"
         var item := int(key)
         var amount: Variant = inventory["quantities"][key]
-        if item < 0 or item > 32767 or not (amount is int or amount is float) or float(int(amount)) != float(amount):
+        if not SNAPSHOT.integer(amount, -1, 32767):
             return "Saved Hype inventory quantity is malformed"
         restored_quantities[item] = int(amount)
-    native_inventory.set("selected_weapon", int(selected))
-    native_inventory.set("quantities", restored_quantities)
+    if not native_inventory.has_method("restore_legacy"):
+        return "Saved Hype inventory support is incompatible"
+    var inventory_error: String = native_inventory.call("restore_legacy", int(selected), restored_quantities)
+    if not inventory_error.is_empty(): return inventory_error
     var magick: Dictionary = fixture.get("magick", {})
     var native_magick: Resource = actor.get("source_magick")
     if native_magick == null or not magick.has("source_code") or not magick.has("current_points") or not magick.has("maximum_points"):
         return "Saved Hype magick fixture is missing"
     for value in [magick["source_code"], magick["current_points"], magick["maximum_points"]]:
-        if not (value is int or value is float) or float(int(value)) != float(value):
+        if not SNAPSHOT.integer(value, 0, 32767):
             return "Saved Hype magick value is malformed"
     if int(magick["source_code"]) < 0 or int(magick["source_code"]) > 32767 or int(magick["maximum_points"]) <= 0 or int(magick["current_points"]) < 0 or int(magick["current_points"]) > int(magick["maximum_points"]):
         return "Saved Hype magick value is out of range"

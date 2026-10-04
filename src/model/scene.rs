@@ -14,6 +14,9 @@ pub struct Scene {
     pub name: String,
     /// Explicit actor role, independent of a perso's display name or tree order.
     pub main_actor: Option<AssetRef<super::character::Perso>>,
+    /// Shared gameplay definitions and initial state bound to this active level.
+    pub armor: Option<AssetRef<super::armor::ArmorCatalog>>,
+    pub inventory: Option<AssetRef<super::inventory_gameplay::InventoryCatalog>>,
     /// Shared source actors referenced by AI but not rooted in this level's scene tree.
     /// These are useful assets with source identity, not fabricated scene nodes.
     #[serde(default)]
@@ -131,6 +134,17 @@ impl Content for Scene {
         Some(&self.path)
     }
     fn validate(&self) -> Result<()> {
+        for path in self
+            .armor
+            .iter()
+            .map(|reference| &reference.path)
+            .chain(self.inventory.iter().map(|reference| &reference.path))
+        {
+            ensure!(
+                path.role() == super::PackageRole::Fix,
+                "shared gameplay catalogue must be Fix-owned"
+            );
+        }
         if let Some(actor) = &self.main_actor {
             ensure!(
                 self.nodes

@@ -1,4 +1,4 @@
-# Astrolabe support, interface 53
+# Astrolabe support, interface 54
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -41,6 +41,21 @@ side-effect-free inspection. The saved initial pose needs no script execution.
 The `restored/` library and reset parts are generated ahead of time from the
 canonical reset configuration. Editing Rete and regenerating updates them.
 
+`character/configuration.gd` owns the scene's shared configuration permutation.
+`source_swap_configured_parts(first, second)` accepts the source's one-based
+slot indices. Stable `configured_slot.gd` anchors carry animation tracks;
+`configured_payload.gd` nodes contain the saved normal/reset visuals and action
+references. A swap reparents these existing payloads and notifies other actors
+using the same configuration. It does not construct assets or advance animation.
+The exporter bounds each rig's payload/bank expansion at 65,536. Compiled
+whole-configuration selection accepts resolved ObjectTableRef literals or null.
+Only current, initial and explicitly referenced choices are precreated. Selecting
+null parks the visuals while preserving playback; dynamic configuration operands
+remain unsupported. The source initial and current configurations stay distinct:
+`source_restore_initial_configuration()` restores the initial shared table without
+selecting it, while the authored `restore_configuration()` hook restores the
+currently selected table. See the [source evidence](../../../notes/configured-part-swap-source-2026-10-04.md).
+
 The character root is a `CharacterBody3D`. `motion_enabled` opts into physics
 playback, applying native root translation once through `move_and_slide`.
 The source object-generation API copies the caller's transform and initializes
@@ -66,14 +81,32 @@ supplied, active motion uses the Godot project's default gravity; that value
 is provisional until the original manor trajectory is measured.
 Other collision purposes and moving point/triangle shapes remain diagnosed.
 
-`source_add_wind(Vector3)` is an **intentional no-op**, explicitly requested for
-the opening implementation. The compiler still evaluates its typed vector and
-preserves procedure 30 through OpenSpace and Rete. Hype's misleadingly named
-`Proc_AddWind` assigns actor-local world-axis drift, which callback `00589bfa`
-adds to calculated linear velocity; zero clears that drift. Neither nonzero
-wind nor resetting prior drift has physics parity here. Follow-up: add a separate
-actor drift property, map its units and consumers, compose it with native velocity
-without accumulation, and test nonzero assignment/overwrite/zero reset with contact.
+`source_add_wind(Vector3)` assigns actor-local world-axis drift. Hype's
+`Proc_AddWind` handler `00540782` replaces the prior drift; callback `00589bfa`
+adds it to calculated linear velocity. The native character converts the source
+vector once, retains `source_wind_drift` separately from forces and gravity,
+and adds it once to each movement step. Zero clears it. This implementation
+supersedes the earlier intentional no-op; nonzero assignment, overwrite and
+zero reset with contact await the deferred gameplay/regression pass.
+
+`character/rendering.gd` owns each actor's visibility-layer cache and material
+copies. The character keeps the existing presentation methods as forwarding
+entry points; visibility, display mode and opacity remain independent state.
+The component takes its actor as an argument and does not retain an owner cycle.
+
+`character/armor_catalog.gd` owns the scene's shared armor selection, rank,
+piece damage and repair state. Definitions, artwork and piece rectangles are
+native Resources converted from the Fix catalog, shared by the level's actors
+and isolated from later level instances. Compiled function224 uses that catalog
+and the main actor's `character/hit_points.gd`: it applies byte damage, armor
+threshold/scaling rules and zero-floor life subtraction, returning remaining
+life. Native randomness chooses an intact armor piece; exact original random
+sequence matching is not claimed. AI still owns reactions and death. See the
+[source contract](../../../notes/armor-source-2026-10-04.md); source-only
+implementation does not establish combat or armor-HUD acceptance.
+Compiled equipment APIs resolve the level's shared Resources. A standalone
+authored character may instead bind its `source_armor` and `source_inventory`
+properties directly; missing or incompatible state still fails explicitly.
 
 `character/route.gd` holds a saved native `Curve3D`, arrival radii and loop closure.
 Shared source waypoints remain shared useful assets; conversion resolves their
@@ -98,12 +131,19 @@ The compiled `Proc_ActivateChannel` and `Proc_DeactivateChannel` calls use
 exported channel parent whose `source_channel` metadata matches the script's
 typed channel operand; native animation tracks continue to select child parts.
 Compiled inventory functions read and update `character/inventory.gd`, a shared
-native Resource holding the selected weapon and item quantities. Generated
-Persos share the spawning character's inventory reference. The Resource
-implements AI-requested inventory operations only; attack selection, arrow
+native Resource holding ordered category slots, quantities, capacities, gold and
+selections. Immutable definitions come from the Fix catalogue; actor pickups
+carry typed `inventory_stock.gd` values. Ordinary admission, Weapon selection and
+capacity calls preserve their distinct source return values. Replacement chains
+and per-kind Magic selection still fail explicitly. Generated Persos share the
+spawning character's inventory reference. The Resource implements AI-requested
+inventory operations only; attack selection, arrow
 creation, motion and lifetime must come from compiled source AI. The current
 manor behavior fixture restores inventory values observed in the supplied
-English save; exported content does not hardcode those values.
+English save; exported content does not hardcode those values. Its sparse
+inventory cannot establish all original category memberships. Missing membership
+preserves legacy reads while admission-dependent operations report the gap; see
+the [inventory contract](../../../docs/openspace/inventory-gameplay.md).
 Compiled magick reads use `character/magick.gd`, another Resource shared with
 generated Persos. It holds current/maximum points and the raw AI selected-spell
 code. Its function-230 deduction follows the verified source dispatch: it
