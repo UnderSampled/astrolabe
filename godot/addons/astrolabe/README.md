@@ -1,4 +1,4 @@
-# Astrolabe support, interface 52
+# Astrolabe support, interface 53
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -235,6 +235,11 @@ repository for source API coverage, locale handling and remaining fidelity work.
 short audio feedback for generated editable menus. `action_selected(StringName)`
 keeps application routing outside converter support. Inherit a generated menu
 scene under `game/` and assign it to the bootstrap to preserve designer changes.
+The source pause overlay deliberately has no backdrop; `background_required`
+is false only for that generated composition. `focus_initial()` supports modal
+reopening, and `cancel_activation()` prevents a closed confirmation timer from
+dispatching an action later. Authored `game/pause_host.gd` owns pause and game
+routes, without replacing current session state.
 
 The particle selection API uses an actor-local `ParticleSource` and converted
 `CPUParticles3D` scenes with the original sprite material/texture and capacity.

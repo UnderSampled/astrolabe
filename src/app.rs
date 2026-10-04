@@ -27,6 +27,7 @@ struct Cli {
 enum Scope {
     Scene,
     Menu,
+    PauseMenu,
     Inventory,
     Model,
     Textures,
@@ -108,6 +109,7 @@ fn import(
     match scope {
         Scope::Scene => openspace::content::import_scene(game, selection),
         Scope::Menu => openspace::content::import_menu(game, selection),
+        Scope::PauseMenu => openspace::content::import_pause_menu(game, selection),
         Scope::Inventory => openspace::content::import_inventory(game, selection),
         Scope::Model => openspace::content::import_model(game, selection),
         Scope::Textures => openspace::content::import_textures(game, selection),

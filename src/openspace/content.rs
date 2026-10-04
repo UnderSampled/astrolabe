@@ -413,9 +413,21 @@ pub use super::texture::write_cnt as rebuild_texture_set;
 
 /// Main menu artwork/audio is a separate small closure from gameplay scene import.
 pub fn import_menu(game: &Path, selection: Selection) -> Result<Imported> {
-    // Publish menu independently: regeneration must not replace the manor closure.
-    let mut imported = Imported::new(Selection::hype("menu", selection.locale.clone())?);
-    let (mut menu, sounds) = level::import_main_menu(game, &selection)?;
+    import_menu_variant(game, selection, false)
+}
+pub fn import_pause_menu(game: &Path, selection: Selection) -> Result<Imported> {
+    import_menu_variant(game, selection, true)
+}
+fn import_menu_variant(game: &Path, selection: Selection, pause: bool) -> Result<Imported> {
+    let mut imported = Imported::new(Selection::hype(
+        if pause { "pause-menu" } else { "menu" },
+        selection.locale.clone(),
+    )?);
+    let (mut menu, sounds) = if pause {
+        level::import_pause_menu(game, &selection)?
+    } else {
+        level::import_main_menu(game, &selection)?
+    };
     let archive = codec::Cnt {
         usage: TextureUsage::Material,
     }
@@ -436,19 +448,21 @@ pub fn import_menu(game: &Path, selection: Selection) -> Result<Imported> {
     for (path, sound) in sounds {
         imported.put(&AssetRef::from_path(path), sound, false)?;
     }
-    let vignette = codec::Cnt {
-        usage: TextureUsage::Screen,
+    if let Some(background) = &menu.background {
+        let vignette = codec::Cnt {
+            usage: TextureUsage::Screen,
+        }
+        .read(&read(&game.join("Gamedata/Vignette.cnt"))?)?;
+        let entry = vignette
+            .find_entry(
+                &Path::new(background.path.file())
+                    .with_extension("gf")
+                    .to_string_lossy(),
+            )
+            .context("required main menu backdrop absent")?;
+        menu.background = Some(entry.texture.clone());
+        imported.put(&entry.texture, vignette.image(entry)?.clone(), false)?;
     }
-    .read(&read(&game.join("Gamedata/Vignette.cnt"))?)?;
-    let entry = vignette
-        .find_entry(
-            &Path::new(menu.background.path.file())
-                .with_extension("gf")
-                .to_string_lossy(),
-        )
-        .context("required main menu backdrop absent")?;
-    menu.background = entry.texture.clone();
-    imported.put(&entry.texture, vignette.image(entry)?.clone(), false)?;
     imported.put(&AssetRef::from_path(menu.path.clone()), menu, true)?;
     Ok(imported)
 }

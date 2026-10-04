@@ -77,8 +77,10 @@ pub(super) fn export(
         let sound = source.load(reference)?;
         project.save(reference, sound.as_ref())?;
     }
-    let background = source.load(&value.background)?;
-    project.save(&value.background, background.as_ref())?;
+    if let Some(reference) = &value.background {
+        let background = source.load(reference)?;
+        project.save(reference, background.as_ref())?;
+    }
     project.write(
         format!("{directory}/menu.tscn"),
         scene(project, value, directory)?.as_bytes(),
@@ -97,7 +99,7 @@ fn node_name(name: &str) -> String {
 fn scene(project: &Project, value: &MenuPresentation, directory: &str) -> Result<String> {
     let mut text = format!(
         "[gd_scene load_steps={} format=3]\n\n",
-        value.items.len() * 2 + 8
+        value.items.len() * 2 + 7 + usize::from(value.background.is_some())
     );
     for (id, kind, path) in [
         ("menu", "Script", "addons/astrolabe/ui/menu/menu.gd"),
@@ -112,14 +114,16 @@ fn scene(project: &Project, value: &MenuPresentation, directory: &str) -> Result
             quoted(id)
         )?;
     }
-    writeln!(
-        text,
-        "[ext_resource type=\"Texture2D\" path={} id=\"background\"]",
-        quoted(&format!(
-            "res://{}",
-            disk_path(&project.selection, &value.background.path, "png")
-        ))
-    )?;
+    if let Some(reference) = &value.background {
+        writeln!(
+            text,
+            "[ext_resource type=\"Texture2D\" path={} id=\"background\"]",
+            quoted(&format!(
+                "res://{}",
+                disk_path(&project.selection, &reference.path, "png")
+            ))
+        )?;
+    }
     for item in &value.items {
         for state in ["normal", "selected"] {
             writeln!(
@@ -144,7 +148,18 @@ fn scene(project: &Project, value: &MenuPresentation, directory: &str) -> Result
             quoted(name)
         )?;
     }
-    text.push_str("\n[sub_resource type=\"CanvasItemMaterial\" id=\"Additive\"]\nblend_mode = 1\n\n[node name=\"MainMenu\" type=\"Control\"]\nlayout_mode = 3\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\ngrow_horizontal = 2\ngrow_vertical = 2\ntheme = ExtResource(\"theme\")\nscript = ExtResource(\"menu\")\n");
+    let root_name = if value.background.is_some() {
+        "MainMenu"
+    } else {
+        "PauseMenu"
+    };
+    writeln!(
+        text,
+        "\n[sub_resource type=\"CanvasItemMaterial\" id=\"Additive\"]\nblend_mode = 1\n\n[node name=\"{root_name}\" type=\"Control\"]\nlayout_mode = 3\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\ngrow_horizontal = 2\ngrow_vertical = 2\ntheme = ExtResource(\"theme\")\nscript = ExtResource(\"menu\")"
+    )?;
+    if value.background.is_none() {
+        text.push_str("background_required = false\n");
+    }
     let initial = value
         .items
         .iter()
@@ -155,7 +170,10 @@ fn scene(project: &Project, value: &MenuPresentation, directory: &str) -> Result
         "initial_focus = NodePath({})",
         quoted(&format!("Canvas/{}", node_name(&initial.name)))
     )?;
-    text.push_str("\n[node name=\"Canvas\" type=\"Control\" parent=\".\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\n\n[node name=\"Background\" type=\"TextureRect\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\ntexture = ExtResource(\"background\")\nexpand_mode = 1\nstretch_mode = 0\n");
+    text.push_str("\n[node name=\"Canvas\" type=\"Control\" parent=\".\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\n");
+    if value.background.is_some() {
+        text.push_str("\n[node name=\"Background\" type=\"TextureRect\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\ntexture = ExtResource(\"background\")\nexpand_mode = 1\nstretch_mode = 0\n");
+    }
     for item in &value.items {
         let name = node_name(&item.name);
         let [relative_x, relative_y, w, h] = item.rect;
@@ -223,23 +241,66 @@ mod tests {
     #[test]
     #[ignore = "local source-only menu import/Rete/native-text conversion; never starts an engine"]
     fn local_menu_source_and_rete_native_conversion() -> Result<()> {
+        local_menu_conversion(false)
+    }
+    #[test]
+    #[ignore = "local source-only pause import/Rete/native-text conversion; never starts an engine"]
+    fn local_pause_source_and_rete_native_conversion() -> Result<()> {
+        local_menu_conversion(true)
+    }
+    fn local_menu_conversion(pause: bool) -> Result<()> {
         use crate::model::{Selection, io::Load, menu::MenuPresentation};
         let game = std::env::var_os("ASTROLABE_GAME_DIR")
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| "disc".into());
         let temporary = tempfile::tempdir()?;
-        let output = std::env::var_os("ASTROLABE_MENU_OUTPUT")
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|| temporary.path().join("menu"));
+        let output = std::env::var_os(if pause {
+            "ASTROLABE_PAUSE_OUTPUT"
+        } else {
+            "ASTROLABE_MENU_OUTPUT"
+        })
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| temporary.path().join("menu"));
         ensure!(!output.exists(), "source evidence path must be fresh");
-        let mut imported =
-            crate::openspace::content::import_menu(&game, Selection::hype("manoir", "en")?)?;
+        let mut imported = if pause {
+            crate::openspace::content::import_pause_menu(&game, Selection::hype("manoir", "en")?)?
+        } else {
+            crate::openspace::content::import_menu(&game, Selection::hype("manoir", "en")?)?
+        };
+        let owner = if pause { "pause-menu" } else { "menu" };
+        let variant = if pause { "pause" } else { "main" };
         ensure!(
-            imported.selection.level == "menu",
+            imported.selection.level == owner,
             "menu must have independent publication ownership"
         );
-        let reference = AssetRef::<MenuPresentation>::new("fix:/menu/main/en")?;
+        let reference = AssetRef::<MenuPresentation>::new(format!("fix:/menu/{variant}/en"))?;
         let menu = imported.load(&reference)?;
+        if pause {
+            ensure!(
+                menu.background.is_none() && menu.initial_item == "Resume Game",
+                "pause root/default differs"
+            );
+            ensure!(
+                menu.items
+                    .iter()
+                    .map(|i| (i.action.as_str(), i.label.as_str()))
+                    .collect::<Vec<_>>()
+                    == vec![
+                        ("Resume Game", "resume game"),
+                        ("NextGame", "start a new adventure"),
+                        ("Options", "configure"),
+                        ("Main Menu", "main menu")
+                    ],
+                "installed pause actions/localization differ"
+            );
+            for (i, item) in menu.items.iter().enumerate() {
+                ensure!(
+                    (item.position[0] - 320.).abs() < 0.001
+                        && (item.position[1] - (171.527 + i as f32 * 45.763)).abs() < 0.02,
+                    "pause source depth/anchor differs"
+                );
+            }
+        }
         let mut store = crate::rete::Store::new(output.join("rete"), imported.selection.clone())?;
         for root in &imported.inventory.clone() {
             let asset = crate::model::content::Asset::load(&mut imported, root)?;
@@ -255,14 +316,27 @@ mod tests {
         let scene = project
             .stage
             .path()
-            .join("generated/hype/shared/menu/main/en/menu.tscn");
+            .join(format!("generated/hype/shared/menu/{variant}/en/menu.tscn"));
         let text = std::fs::read_to_string(&scene)?;
-        ensure!(
-            text.matches(" type=\"Button\"").count() == 6
-                && text.contains("action = &\"SavedGames\"")
-                && text.contains("focus_neighbor_top = NodePath(\"../Quit\")"),
-            "native menu layout/action/nav differs"
-        );
+        if pause {
+            ensure!(
+                text.matches(" type=\"Button\"").count() == 4
+                    && text.contains("action = &\"NextGame\"")
+                    && text.contains("initial_focus = NodePath(\"Canvas/ResumeGame\")")
+                    && text.contains("focus_neighbor_top = NodePath(\"../MainMenu\")")
+                    && text.contains("background_required = false")
+                    && !text.contains("id=\"background\"")
+                    && !text.contains("type=\"Texture2D\" path=\"res://generated/hype/texture/"),
+                "native pause actions/overlay/nav differ"
+            );
+        } else {
+            ensure!(
+                text.matches(" type=\"Button\"").count() == 6
+                    && text.contains("action = &\"SavedGames\"")
+                    && text.contains("focus_neighbor_top = NodePath(\"../Quit\")"),
+                "native menu layout/action/nav differs"
+            );
+        }
         std::fs::create_dir_all(&project_output)?;
         for path in &project.generated {
             let source = project.stage.path().join(path);

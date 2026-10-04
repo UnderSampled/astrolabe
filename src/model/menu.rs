@@ -7,7 +7,8 @@ use serde::{Deserialize, Serialize};
 pub struct MenuPresentation {
     pub path: AssetPath,
     pub locale: String,
-    pub background: AssetRef<super::texture::Texture>,
+    /// None is a source text-only overlay over the existing session viewport.
+    pub background: Option<AssetRef<super::texture::Texture>>,
     pub initial_item: String,
     pub items: Vec<MenuItem>,
     pub navigation: AssetRef<Sound>,
@@ -45,11 +46,13 @@ impl Content for MenuPresentation {
     }
     fn validate(&self) -> Result<()> {
         ensure!(
-            self.locale == "en" && self.items.len() == 6,
-            "unsupported main menu profile"
+            self.locale == "en" && (1..=32).contains(&self.items.len()),
+            "unsupported menu profile"
         );
         ensure!(
-            self.background.path.role() == super::PackageRole::Texture
+            self.background
+                .as_ref()
+                .is_none_or(|r| r.path.role() == super::PackageRole::Texture)
                 && [self.navigation_gain, self.confirmation_gain]
                     .iter()
                     .all(|v| v.is_finite() && (0.0..=1.0).contains(v)),

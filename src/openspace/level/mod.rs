@@ -99,7 +99,7 @@ mod dialogue_presentation;
 mod inventory;
 mod menu;
 pub(crate) use inventory::import as import_inventory_presentation;
-pub(crate) use menu::import_main_menu;
+pub(crate) use menu::{import_main_menu, import_pause_menu};
 mod sound;
 
 mod environment;

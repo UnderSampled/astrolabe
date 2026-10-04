@@ -1,4 +1,4 @@
-//! Bounded English main-menu presentation import. Source records end at this boundary.
+//! Bounded English menu presentation import. Source records end at this boundary.
 use super::{container::wire, dialogue, records::*, session::SourceSession, sound::SoundSites};
 use crate::model::{
     AssetPath, AssetRef, Selection,
@@ -178,7 +178,7 @@ fn font(s: &SourceSession, name: &str) -> Result<Font> {
     found.with_context(|| format!("required source menu font {name} absent"))
 }
 fn artwork(font: &Font, label: &str, [x, y, z]: [f32; 3]) -> Result<Vec<MenuSprite>> {
-    ensure!(z == 0., "menu depth differs from flat main-menu profile");
+    let (half_x, half_y, scale) = projection(z)?;
     let glyphs = label
         .chars()
         .map(|c| {
@@ -203,7 +203,6 @@ fn artwork(font: &Font, label: &str, [x, y, z]: [f32; 3]) -> Result<Vec<MenuSpri
     let mut center = x - width * 0.5;
     // Original FON_fn_vDraw3DString (005bb730), centered single line.
     // Convert observable 640×480 quads ahead of runtime; no font VM is retained.
-    let scale = 640. / 9.3;
     let line_half = font
         .glyphs
         .get(&' ')
@@ -216,8 +215,8 @@ fn artwork(font: &Font, label: &str, [x, y, z]: [f32; 3]) -> Result<Vec<MenuSpri
                 texture: AssetRef::from_path(texture.clone()),
                 uv: *uv,
                 rect: [
-                    (4.65 + center - g.width * 0.5) * scale,
-                    (3.49 - y - line_half * 0.5 + 2. * g.half_height - g.vertical_offset) * scale,
+                    (half_x + center - g.width * 0.5) * scale,
+                    (half_y - y - line_half * 0.5 + 2. * g.half_height - g.vertical_offset) * scale,
                     g.width * scale,
                     -2. * g.half_height * scale,
                 ],
@@ -230,67 +229,149 @@ fn artwork(font: &Font, label: &str, [x, y, z]: [f32; 3]) -> Result<Vec<MenuSpri
     }
     Ok(result)
 }
+/// FON_fn_vDraw3DString (005bb730) projects depth into observable pixel extent.
+fn projection(depth: f32) -> Result<(f32, f32, f32)> {
+    ensure!(
+        depth.is_finite() && (0.0..=1.0).contains(&depth),
+        "invalid menu text depth"
+    );
+    let factor = 1. - depth * 0.16666667;
+    let half_x = 4.65 / factor;
+    Ok((half_x, 3.49 / factor, 640. / (half_x + half_x)))
+}
+#[derive(Clone, Copy)]
+enum MenuVariant {
+    Main,
+    Pause,
+}
+impl MenuVariant {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Main => "main",
+            Self::Pause => "pause",
+        }
+    }
+    fn background(self) -> Option<&'static str> {
+        match self {
+            Self::Main => Some("Menu/menu_princ.bmp"),
+            Self::Pause => None,
+        }
+    }
+    fn depth(self) -> f32 {
+        match self {
+            Self::Main => 0.,
+            Self::Pause => 0.3,
+        }
+    }
+}
 pub(crate) fn import_main_menu(
     game: &Path,
     selection: &Selection,
 ) -> Result<(MenuPresentation, Vec<(AssetPath, Sound)>)> {
+    import_menu(game, selection, MenuVariant::Main)
+}
+pub(crate) fn import_pause_menu(
+    game: &Path,
+    selection: &Selection,
+) -> Result<(MenuPresentation, Vec<(AssetPath, Sound)>)> {
+    import_menu(game, selection, MenuVariant::Pause)
+}
+fn import_menu(
+    game: &Path,
+    selection: &Selection,
+    variant: MenuVariant,
+) -> Result<(MenuPresentation, Vec<(AssetPath, Sound)>)> {
     ensure!(
         selection.locale == "en",
-        "main menu currently supports English source data"
+        "menu currently supports English source data"
     );
     let mut s = SourceSession::open(game, selection)?;
     dialogue::load_language(&mut s, game, selection)?;
     let normal = font(&s, "MenuFont")?;
     let selected = font(&s, "MenuFont_H")?;
-    let definitions = [
-        ("NewGame", "new_game", "new game"),
-        ("SavedGames", "load_game", "load game"),
-        ("Options", "configure", "configure"),
-        ("Credits", "credits", "credits"),
-        ("Internet", "internet", "internet"),
-        ("Quit", "quit", "quit"),
-    ];
+    let definitions: &[(&str, &str, &str)] = match variant {
+        MenuVariant::Main => &[
+            ("NewGame", "new_game", "new game"),
+            ("SavedGames", "load_game", "load game"),
+            ("Options", "configure", "configure"),
+            ("Credits", "credits", "credits"),
+            ("Internet", "internet", "internet"),
+            ("Quit", "quit", "quit"),
+        ],
+        MenuVariant::Pause => &[
+            ("Resume Game", "resume_game", "resume game"),
+            ("NextGame", "new_adventure", "start a new adventure"),
+            ("Options", "configure", "configure"),
+            ("Main Menu", "main_menu", "main menu"),
+        ],
+    };
     let mut nodes = BTreeMap::new();
     let key = BlockKey(18, 0);
-    // Source MenuTextureAndTextList header links the background name to its
-    // text-list body. Select that root, rather than similarly named pause items.
-    let mut main_parent = None;
+    // Main owns a source texture declaration. Pause selects the installed
+    // Resume Game text root, whose texture-header absence is checked below.
+    let mut menu_parent = None;
     for (offset, _) in s.allocation_indices(Owner::Fix, key)? {
         let a = Address {
             owner: Owner::Fix,
             key,
             offset,
         };
-        let Ok(data) = s.bytes(a, 12) else { continue };
-        let header: MenuTextureListWire = wire(data)?;
-        if header.mode != 1 {
-            continue;
+        if let Some(expected) = variant.background() {
+            let Ok(data) = s.bytes(a, 12) else { continue };
+            let header: MenuTextureListWire = wire(data)?;
+            if header.mode != 1 {
+                continue;
+            }
+            let Ok(background) = s.required(a, 4) else {
+                continue;
+            };
+            let Ok(name) = string(&s, background) else {
+                continue;
+            };
+            if !name.replace('\\', "/").eq_ignore_ascii_case(expected) {
+                continue;
+            }
+            let body = s.required(a, 8)?;
+            ensure!(
+                menu_parent.replace(body).is_none(),
+                "ambiguous source menu background root"
+            );
+        } else {
+            let Ok(data) = s.bytes(a, 177) else {
+                continue;
+            };
+            let h: MenuTextWire = wire(data)?;
+            if fixed_string(&h.name).ok() != Some("Resume Game")
+                || fixed_string(&h.normal_font).ok() != Some("MenuFont")
+            {
+                continue;
+            }
+            let label = string(&s, s.required(a, 76)?)?;
+            if label != "resume game" {
+                continue;
+            }
+            let body = s.required(a, 8)?;
+            ensure!(
+                menu_parent.replace(body).is_none(),
+                "ambiguous source pause text root"
+            );
         }
-        let Ok(background) = s.required(a, 4) else {
-            continue;
-        };
-        let Ok(name) = string(&s, background) else {
-            continue;
-        };
-        if !name
-            .replace('\\', "/")
-            .eq_ignore_ascii_case("Menu/menu_princ.bmp")
-        {
-            continue;
-        }
-        let Ok(body) = s.required(a, 8) else { continue };
-        ensure!(
-            main_parent.replace(body).is_none(),
-            "ambiguous main menu background root"
-        );
     }
-    let parent = main_parent.context("main menu source background/layout root absent")?;
+    let parent = menu_parent.context("menu source layout root absent")?;
     for (offset, _) in s.allocation_indices(Owner::Fix, key)? {
         let a = Address {
             owner: Owner::Fix,
             key,
             offset,
         };
+        if variant.background().is_none() {
+            let Ok(data) = s.bytes(a, 12) else { continue };
+            let header: MenuTextureListWire = wire(data)?;
+            ensure!(
+                header.mode != 1 || s.pointer(a, 8)? != Some(parent),
+                "pause root unexpectedly declares a texture backdrop"
+            );
+        }
         let Ok(data) = s.bytes(a, 177) else { continue };
         let h: MenuTextWire = wire(data)?;
         let Ok(name) = fixed_string(&h.name) else {
@@ -320,21 +401,41 @@ pub(crate) fn import_main_menu(
             "ambiguous original menu item"
         );
     }
-    ensure!(nodes.len() == 6, "six original main menu items required");
+    ensure!(
+        nodes.len() == definitions.len(),
+        "original menu item count differs"
+    );
     let initial_address = s.required(parent, 8)?;
     let initial_item = nodes
         .iter()
         .find(|(_, v)| v.0 == initial_address)
         .map(|(name, _)| name.clone())
-        .context("source initial main menu item absent")?;
+        .context("source initial menu item absent")?;
     let node_actions: BTreeMap<_, _> = nodes.iter().map(|(name, v)| (v.0, name.clone())).collect();
     let mut items = Vec::new();
-    for (source_name, name, _) in definitions {
+    for &(source_name, name, _) in definitions {
         let (a, h, label) = nodes.remove(source_name).unwrap();
         ensure!(
             s.required(a, 8)? == parent,
-            "main menu items belong to different menus"
+            "menu items belong to different menus"
         );
+        ensure!(
+            h.position[2] == variant.depth(),
+            "source menu depth differs"
+        );
+        let (half_x, half_y, scale) = projection(h.position[2])?;
+        // Retain unchanged main anchor arithmetic; nonzero source depth scales pause.
+        let anchor = if h.position[2] == 0. {
+            [
+                (4.65 + h.position[0]) * 640. / 9.3,
+                (3.49 - h.position[1]) * 640. / 9.3,
+            ]
+        } else {
+            [
+                (half_x + h.position[0]) * scale,
+                (half_y - h.position[1]) * scale,
+            ]
+        };
         let mut normal = artwork(&normal, &label, h.position)?;
         let mut selected = artwork(&selected, &label, h.position)?;
         let all: Vec<_> = normal.iter().chain(&selected).collect();
@@ -372,27 +473,19 @@ pub(crate) fn import_main_menu(
                 neighbors[i] = Some(
                     node_actions
                         .get(&target)
-                        .context("main menu navigation targets unsupported item")?
+                        .context("menu navigation targets unsupported item")?
                         .clone(),
                 );
             }
         }
         items.push(MenuItem {
             action: source_name.into(),
-            position: [
-                (4.65 + h.position[0]) * 640. / 9.3,
-                (3.49 - h.position[1]) * 640. / 9.3,
-            ],
+            position: anchor,
             horizontal_alignment: h.horizontal_alignment,
             neighbors,
             name: name.into(),
             label,
-            rect: [
-                x - (4.65 + h.position[0]) * 640. / 9.3,
-                y - (3.49 - h.position[1]) * 640. / 9.3,
-                right - x,
-                bottom - y,
-            ],
+            rect: [x - anchor[0], y - anchor[1], right - x, bottom - y],
             normal,
             selected,
         });
@@ -460,14 +553,17 @@ pub(crate) fn import_main_menu(
         };
         gains.push((resource.volume.unwrap_or(127.) / 127.).clamp(0., 1.));
         sounds.push((
-            AssetPath::new(format!("sound:/menu/main/en/{name}"))?,
+            AssetPath::new(format!("sound:/menu/{}/en/{name}", variant.name()))?,
             sound,
         ));
     }
     let presentation = MenuPresentation {
-        path: AssetPath::new("fix:/menu/main/en")?,
+        path: AssetPath::new(format!("fix:/menu/{}/en", variant.name()))?,
         locale: "en".into(),
-        background: AssetRef::new("texture:/Menu/menu_princ.bmp")?,
+        background: variant
+            .background()
+            .map(|name| AssetRef::new(format!("texture:/{name}")))
+            .transpose()?,
         initial_item,
         navigation_gain: gains[0],
         confirmation_gain: gains[1],
