@@ -111,13 +111,24 @@ func run() -> void:
             fail("Demo screenshot could not be saved")
             return
     key(KEY_ESCAPE, true)
-    print("SMOKE: requesting menu")
     key(KEY_ESCAPE, false)
+    await process_frame
+    var pause_host := reloaded.get_node("PauseHost")
+    var pause_view := pause_host.get("view") as Control
+    if not paused or current_scene != reloaded or pause_view == null or not pause_view.visible:
+        fail("Escape did not pause the current session")
+        return
+    var menu_button := pause_view.call("button_for_action", &"Main Menu") as Button
+    if menu_button == null:
+        fail("Pause overlay is missing Main Menu")
+        return
+    print("SMOKE: requesting menu from pause")
+    menu_button.pressed.emit()
     transition_deadline = Time.get_ticks_msec() + 5000
     while (current_scene == null or current_scene == reloaded) and Time.get_ticks_msec() < transition_deadline:
         await process_frame
-    if not current_scene is Control:
-        fail("Escape did not return to the menu")
+    if paused or not current_scene is Control:
+        fail("Pause Main Menu did not return to the menu")
         return
     if root.get_node_or_null("GameContent") == null or root.get_node("GameContent").get("level_scene") == null:
         fail("Menu transition discarded the single retained level resource")

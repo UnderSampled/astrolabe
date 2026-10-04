@@ -3,7 +3,7 @@ use anyhow::{Context, Result, ensure};
 use std::{fs, path::PathBuf, process::Command};
 
 #[test]
-#[ignore = "requires current generated manor and Godot; walk checkpoint, full intro parity pending"]
+#[ignore = "requires current generated manor/pause assets and Godot; full intro parity pending"]
 fn menu_new_game_preserves_slot_and_restarts_original_opening() -> Result<()> {
     let project = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../godot");
     ensure!(
@@ -11,6 +11,12 @@ fn menu_new_game_preserves_slot_and_restarts_original_opening() -> Result<()> {
             .join("generated/hype/levels/manoir/level.tscn")
             .is_file(),
         "generate the local manor before checking New Game"
+    );
+    ensure!(
+        project
+            .join("generated/hype/shared/menu/pause/en/menu.tscn")
+            .is_file(),
+        "generate the source pause menu before checking New Game"
     );
     let manifest: serde_json::Value = serde_json::from_slice(&fs::read(
         project.join("generated/astrolabe-manifest.json"),
@@ -125,6 +131,10 @@ fn menu_new_game_preserves_slot_and_restarts_original_opening() -> Result<()> {
     );
     let result: serde_json::Value = serde_json::from_slice(&fs::read(report)?)?;
     ensure!(result["status"] == "passed" && result["save_preserved"] == true);
+    ensure!(
+        result["pause_resume_and_main_menu"] == true,
+        "normal New Game did not validate pause, Resume and Main Menu"
+    );
     ensure!(
         result["hype_particle_initialization"]["initialized"] == true
             && result["hype_particle_initialization"]["capacity"] == 200

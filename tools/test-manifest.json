@@ -2774,7 +2774,7 @@
       "areas": ["runtime", "ai", "scene", "save"],
       "kind": "process",
       "prerequisites": ["godot", "xvfb", "disc"],
-      "fixture": "current generated manor with maintained UI and nine dialogues; unchanged normal New Game actor AI, Gogoud route/contact, five-frame turn and first source dialogue/actions, inactive global-data role, private slot/restart/Escape; full intro acceptance pending",
+      "fixture": "current generated manor and source pause assets with maintained UI and nine dialogues; unchanged normal New Game actor AI, Gogoud route/contact, five-frame turn and first source dialogue/actions, inactive global-data role, private slot/restart/Escape pause/Resume/Main Menu; full intro acceptance pending",
       "timeout_seconds": 180,
       "ignored": true,
       "release": true

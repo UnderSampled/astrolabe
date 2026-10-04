@@ -1068,3 +1068,32 @@ publication are pending that result. When integrated, bump support to 53 after
 the already published interface 52; the worker's reserved 51 must not downgrade
 the main tree. Preserve all 4,972 prior generated files and unrelated ownership.
 Read-only audit: `TestResults/pause-gate-review-sol-20261004.json`.
+
+### Pause integration and publication handoff — 2026-10-04
+
+The corrected separate gate `pause-qa-2047ea0-r2/run/results.json` passed in
+9.045s. Only fixture teardown changed; production2047ea0 stayed unchanged. All
+404 frozen member hashes and173 reused native files match. Shutdown is clean,
+and the missing-assets control now passes along with the modal/routes/save checks.
+The failed r1 remains preserved. No extra synthetic/visual gate is requested.
+
+Main integrated f6f811a as `b37a78c` and2047ea0 as `8125cb6`, skipping duplicate
+Tab. Support53/Rete41 unions the pause additions with the life/particle APIs;
+life/AI/Tab source bytes and serial background loading are preserved. Existing
+opening/demo smoke assertions now exercise Esc pause and Main Menu instead of
+direct Esc-to-bootstrap; opening also requires Resume preserve the actor. Those
+updated runtime assertions await a future actual-opening check; they have no
+new native behavior pass. The release inventory has290 declared cases. Formatting
+and diff checks pass; no broad tests or armor implementation were started.
+
+Fixed Luna's next command is
+`python3 -B TestResults/run-pause-publication-v16-sol-20261004.py`.
+Its frozen pin requires exact-current parser inputs before release build and
+normal `port disc godot --level manoir --locale en --content pause-menu --godot godot`.
+It backs up/preserves all4972 current files, font/settings/save fixture, and adds
+the accepted27 disjoint pause paths at support53 (expected4999 total). Only
+publication is requested; no actual/synthetic gameplay rerun. Until its result
+passes, the live generated receipt remains52 and pause publication is pending.
+After that bounded delivery, park development at the parent's quota stop. Next
+opening work is source armor429/node987 and the still-visible statue overlap;
+the existing static proof and separate HUD investigation own the research lead.

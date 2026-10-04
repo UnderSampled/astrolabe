@@ -219,10 +219,26 @@ func run() -> void:
     report["restart"] = snapshot(restarted)
     if not require(FileAccess.get_file_as_string(SAVE_STATE.path()) == SLOT_PROBE,"restart modified save slot"): return
     key(KEY_ESCAPE)
+    await process_frame
+    var pause_host := restarted.get_node("PauseHost")
+    var pause_view := pause_host.get("view") as Control
+    var restarted_actor_id := (restarted.get("actor") as Node).get_instance_id()
+    if not require(paused and current_scene == restarted and pause_view != null and pause_view.visible and bool(pause_view.call("has_required_media")),"Esc did not open the original pause overlay in the current session"): return
+    var resume_button := pause_view.call("button_for_action", &"Resume Game") as Button
+    if not require(resume_button != null,"pause overlay is missing Resume Game"): return
+    resume_button.pressed.emit()
+    await create_timer(0.6).timeout
+    if not require(not paused and current_scene == restarted and not pause_view.visible and (restarted.get("actor") as Node).get_instance_id() == restarted_actor_id,"Resume did not preserve the opening session"): return
+    key(KEY_ESCAPE)
+    await process_frame
+    var menu_button := pause_view.call("button_for_action", &"Main Menu") as Button
+    if not require(paused and pause_view.visible and menu_button != null,"pause overlay is missing Main Menu"): return
+    menu_button.pressed.emit()
     var deadline := Time.get_ticks_msec() + 5000
     while (current_scene == null or not current_scene is Control) and Time.get_ticks_msec() < deadline: await process_frame
-    if not require(current_scene is Control and current_scene.scene_file_path == "res://game/bootstrap.tscn","Esc did not return to the main menu"): return
+    if not require(not paused and current_scene is Control and current_scene.scene_file_path == "res://game/bootstrap.tscn","pause Main Menu did not leave the opening"): return
     if not require(FileAccess.get_file_as_string(SAVE_STATE.path()) == SLOT_PROBE,"menu transition modified save slot"): return
+    report["pause_resume_and_main_menu"] = true
     report["save_preserved"] = true
     report["status"] = "passed"
     write_report()
