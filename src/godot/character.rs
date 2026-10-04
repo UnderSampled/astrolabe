@@ -348,13 +348,6 @@ pub(super) fn export_perso(
         "    {name}.set_meta(\"source_object_types\", PackedInt32Array([{}, {}, {}]))",
         perso.object_types[0], perso.object_types[1], perso.object_types[2]
     )?;
-    if let Some(points) = perso.hit_points {
-        writeln!(
-            project.builder,
-            "    var {name}_hit_points = load(\"res://addons/astrolabe/character/hit_points.gd\").new()\n    {name}_hit_points.resource_local_to_scene = true\n    {name}_hit_points.current = {}\n    {name}_hit_points.maximum = {}\n    {name}_hit_points.limit = {}\n    {name}.source_hit_points = {name}_hit_points",
-            points.current, points.maximum, points.limit
-        )?;
-    }
     let controller = format!(
         "res://{}/actions.gd",
         rig_directory(project, &family, &rig_id)
@@ -373,6 +366,15 @@ pub(super) fn export_perso(
     auxiliary_collision(project, source, perso, &family, &name, 1)?;
     auxiliary_collision(project, source, perso, &family, &name, 3)?;
     movement_collision(project, source, perso, &name, &controller)?;
+    // Installing the generated collision script resets inherited properties.
+    // Attach mutable life only after the actor's final script is installed.
+    if let Some(points) = perso.hit_points {
+        writeln!(
+            project.builder,
+            "    var {name}_hit_points = load(\"res://addons/astrolabe/character/hit_points.gd\").new()\n    {name}_hit_points.resource_local_to_scene = true\n    {name}_hit_points.current = {}\n    {name}_hit_points.maximum = {}\n    {name}_hit_points.limit = {}\n    {name}.source_hit_points = {name}_hit_points",
+            points.current, points.maximum, points.limit
+        )?;
+    }
     writeln!(
         project.builder,
         "    {name}.initial_state = {state}\n    {name}.current_state = {state}\n    if {state} >= 0:\n        apply_initial_pose({name}, {name}.get_node(\"AnimationPlayer\").get_animation(\"state_{state}\"))"

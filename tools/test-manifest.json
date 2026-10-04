@@ -416,6 +416,17 @@
     },
     {
       "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::self_hit_point_query_preserves_bytes_and_rejects_other_receivers",
+      "areas": ["ai", "source"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::unrelated_dot_receiver_remains_a_partial_expression",
       "areas": ["ai", "source"],
       "kind": "unit",

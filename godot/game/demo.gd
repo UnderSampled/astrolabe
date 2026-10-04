@@ -74,8 +74,11 @@ func open_level() -> void:
     if packed == null:
         stage("resource_loading", "Loading the manor...")
         limit_loading_frames()
+        # The manor reaches the same meshes through level and instance scenes.
+        # Keep dependency loading in one worker to avoid competing subresource
+        # cache registrations, while the session remains responsive.
         var request := ResourceLoader.load_threaded_request(
-            LEVEL, "PackedScene", true, ResourceLoader.CACHE_MODE_REUSE)
+            LEVEL, "PackedScene", false, ResourceLoader.CACHE_MODE_REUSE)
         if request != OK:
             fail("The manor scene could not begin loading.")
             return

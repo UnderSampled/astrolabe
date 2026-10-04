@@ -498,6 +498,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::MagicCurrentSpell
         | Expression::DialogIsOver
         | Expression::MagicPoints
+        | Expression::SelfHitPoints
         | Expression::MagicRemovePoints(_) => true,
         Expression::IsInBehavior {
             actor: ActorKeyword::MainActor,
@@ -711,6 +712,17 @@ fn guarded_expression(
             guarded_expression(out, item, model, depth, flow)?,
             guarded_expression(out, count, model, depth, flow)?
         ),
+        Expression::SelfHitPoints => {
+            writeln!(
+                out,
+                "{pad}if not character().source_hit_points_ready():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                quoted(&format!(
+                    "{} requires converted actor hit points",
+                    model.path
+                ))
+            )?;
+            expression(e, model)?
+        }
         Expression::MagicCurrentSpell | Expression::MagicPoints => {
             writeln!(
                 out,
@@ -922,6 +934,7 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             }
         }
         Expression::MainActorDistance => "distance_to_main_actor()".into(),
+        Expression::SelfHitPoints => "character().source_get_hit_points()".into(),
         Expression::InventoryWeapon => "character().source_inventory_weapon()".into(),
         Expression::InventoryQuantity(item) => format!(
             "character().source_inventory_quantity(int({}))",

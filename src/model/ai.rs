@@ -380,6 +380,8 @@ pub enum Expression {
         axis: VectorAxis,
     },
     MainActorDistance,
+    /// Func_GetHitPoints(Me): read the current actor's mutable life value.
+    SelfHitPoints,
     /// Source inventory functions operate on the game inventory, not on a
     /// projectile's own designer fields.
     InventoryWeapon,

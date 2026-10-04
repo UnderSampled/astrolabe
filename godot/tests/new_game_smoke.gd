@@ -132,6 +132,12 @@ func run() -> void:
     if not require(not hype_failure.contains("operation 194") and not hype_failure.contains("could not select converted particle generator"),"Hype still stops at particle selection"): return
     report["hype_presentation_initialization"] = {"opacity":hype.get("source_opacity"),"transparent_display":hype.get("source_transparent_display"),"failure":hype_failure}
     if not require(hype.get("source_opacity") == 255 and hype.get("source_transparent_display") and not hype_failure.contains("operation 187") and not hype_failure.contains("operation 185") and not hype_failure.contains("native opacity materials") and not hype_failure.contains("native transparent display materials"),"Hype did not complete original opacity/display initialization"): return
+    var life: Resource = hype.get("source_hit_points")
+    var remembered_life: Variant = hype.get_node("Brain").get("dsg_128")
+    report["hype_hit_point_initialization"] = {"current":life.get("current") if life != null else null,"remembered":remembered_life,"failure":hype_failure}
+    # Fifty is independently read from the unchanged source StandardGame byte
+    # by the source corpus test, rather than inferred from this runtime result.
+    if not require(hype.call("source_hit_points_ready") and life.get("current") == 50 and remembered_life == 50 and not hype_failure.contains("operation 35 at node 820") and not hype_failure.contains("requires converted actor hit points"),"Hype did not read original actor life state into designer field128"): return
     if not require(first["scene"] == "res://game/new_game.tscn" and first["loading_stage"] == "opening" and first["save_disabled"],"New Game mode or opening state differs"): return
     if not require(first["global_data_brains"].size() == 1 and first["global_data_brains"][0]["model"] == "fix:/ai/models/1" and not first["global_data_brains"][0]["automatic"],"exported global-data role changed"): return
     if not require(first["automatic_brains"] == first["brain_count"] and first["brain_count"] > 0,"opening held generated Brains"): return

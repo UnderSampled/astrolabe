@@ -329,6 +329,15 @@ func source_magic_points() -> int:
     assert(source_magic_ready())
     return int(source_magick.get("current_points"))
 
+func source_hit_points_ready() -> bool:
+    if source_hit_points == null: return false
+    var current: Variant = source_hit_points.get("current")
+    return current is int and current >= 0 and current <= 255
+
+func source_get_hit_points() -> int:
+    assert(source_hit_points_ready(), "Hit-point query requires converted actor life state")
+    return int(source_hit_points.get("current"))
+
 func source_magic_remove_points(amount: int) -> int:
     assert(source_magic_ready() and amount >= 0)
     return source_magick.call("remove_points", amount)

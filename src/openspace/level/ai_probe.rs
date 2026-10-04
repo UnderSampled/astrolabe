@@ -91,6 +91,16 @@ fn source_hype_opening_particle_component_and_presentation() -> Result<()> {
     assert_eq!((init_nodes[815].kind, init_nodes[815].parameter), (12, 255));
     assert_eq!((init_nodes[816].kind, init_nodes[816].parameter), (4, 185));
     assert_eq!((init_nodes[817].kind, init_nodes[817].parameter), (4, 267));
+    assert_eq!((init_nodes[818].kind, init_nodes[818].parameter), (2, 11));
+    assert_eq!((init_nodes[819].kind, init_nodes[819].parameter), (11, 128));
+    assert_eq!((init_nodes[820].kind, init_nodes[820].parameter), (3, 35));
+    assert_eq!((init_nodes[821].kind, init_nodes[821].parameter), (0, 4));
+    let standard = s.required(perso, 4)?;
+    let source_current_hit_points = s.bytes(standard, 56)?[0x18];
+    assert_eq!(
+        source_current_hit_points, 50,
+        "unchanged Hype startup life fixture changed"
+    );
     let generator = s.required(add(init.address, 15 * 8), 0)?;
     let generator_bytes = s.bytes(generator, 44)?;
     let definition: GeneratorWire = wire(generator_bytes)?;
@@ -189,6 +199,7 @@ fn source_hype_opening_particle_component_and_presentation() -> Result<()> {
         "selected_generator":s.source_identity(generator)?,"generator_bytes":generator_bytes,"records":records,
         "particle_components":particle_components,"particle_definition_sharing":sharing,
         "next_hype_presentation_nodes":[{"node":814,"procedure":187},{"node":816,"procedure":185},{"node":817,"procedure":267}],
+        "hype_hit_point_query":{"function_node":820,"function":35,"receiver":"Me","assignment_variable":128,"source_current":source_current_hit_points},
         "world_normal2_node22_actual_call":{"procedure":266,"receiver":world_hidden_actor.path},
         "world_normal2_first_nodes":world_nodes.iter().take(40).enumerate().map(|(i,n)|serde_json::json!({"node":i,"category":n.kind,"parameter":n.parameter,"indent":n.indent})).collect::<Vec<_>>()
     });
@@ -231,6 +242,10 @@ fn source_hype_opening_particle_component_and_presentation() -> Result<()> {
         .particles
         .as_ref()
         .context("useful Hype particle component absent")?;
+    assert_eq!(
+        hype.hit_points.context("Hype life state absent")?.current,
+        source_current_hit_points
+    );
     assert!(!component.enabled && component.selected.is_none());
     let source_model = imported
         .ai_models
@@ -273,6 +288,47 @@ fn source_hype_opening_particle_component_and_presentation() -> Result<()> {
         ]
     ));
     assert_eq!(display_codec.write(&display)?, presentation);
+    let mut hit_point_assignment = init.bytes[818 * 8..822 * 8].to_vec();
+    hit_point_assignment.extend([0, 0, 0, 0, 0, 0, 0, 8]);
+    let life = display_codec.read(&hit_point_assignment)?;
+    assert!(matches!(
+        life.statements.as_slice(),
+        [crate::model::ai::Statement::Assign {
+            variable: 128,
+            value: crate::model::ai::Expression::SelfHitPoints
+        }]
+    ));
+    assert_eq!(display_codec.write(&life)?, hit_point_assignment);
+    let reopened =
+        crate::rete::decode::<crate::model::ai::AiModel>(&crate::rete::encode(source_model)?)?;
+    assert_eq!(&reopened, source_model);
+    assert!(
+        reopened
+            .expressions()
+            .iter()
+            .any(|e| matches!(e, crate::model::ai::Expression::SelfHitPoints))
+    );
+    // Compile this original assignment separately: a full Hype compilation
+    // requires converted families, particles and actor/template bindings.
+    // The normal port and New Game harness validate that complete graph.
+    let mut compilation = reopened.clone();
+    compilation.reflex = None;
+    compilation.variables = (0..129)
+        .map(|_| crate::model::ai::DesignerVariable {
+            default: crate::model::ai::DesignerValue::Integer(0),
+            save: 0,
+            initialize: 0,
+        })
+        .collect();
+    let normals = compilation.normal.as_mut().context("Hype normals absent")?;
+    normals.behaviors.retain(|behavior| behavior.id == 0);
+    normals.default_behavior = Some(0);
+    normals.behaviors[0].rules.clear();
+    normals.behaviors[0].schedule = Some(life);
+    let compiled = crate::godot::ai::compile(&compilation, &[])?;
+    assert!(compiled.contains("source_hit_points_ready()"));
+    assert!(compiled.contains("dsg_128 = int(character().source_get_hit_points())"));
+    assert!(!compiled.contains("unsupported AI expression category 3 operation 35 at node 820"));
     let unresolved = crate::openspace::ai::AiScriptCodec::default();
     assert!(
         unresolved.read(&excerpt).is_err(),

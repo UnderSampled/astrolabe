@@ -934,3 +934,82 @@ opening forward. Publishing interface50 inventory leaves the earlier manor AI
 unchanged at its documented187 stop. A separate small corrected-fixture/opening
 native validation follows normal manor regeneration; no clean V13 native pass
 or complete intro/overlap acceptance is claimed here.
+
+### V13/V14 results and narrow continuation — 2026-10-04
+
+V13 inventory publication passed in69.779s:146 inventory files were added,
+all4826 prior owned files were preserved, and the interface50 receipt owns4972.
+The corrected particle/opacity excerpt fixture passed in8.911s with unchanged
+source/generation and clean cleanup. Their separate reports are
+`TestResults/inventory-publication-v13-sol-20261003/result.json` and
+`TestResults/particle-fixture-retry-v13-sol-20261003/result.json`; they do not
+relabel the historical V12 selection failure.
+
+V14 ran `python3 -B TestResults/run-actual-opening-v14-sol-20261003.py` once.
+Normal manor publication passed105.593s, retaining all37 menu and146 inventory
+files and the accepted font cache. All4972 prior files were hash-verified in
+`output/archived-manor-before-opacity-v14-20261003/` before regeneration. The
+actual opening case ran30.928s and produced its first-dialogue marker, saved
+slot preservation and opacity255/transparent-display initialization. Hype's
+next failure is now category3/function35/node820. However, the owning Rust test
+failed on an unexpected native resource-path error for
+`models/world/1/27/0/instance.mesh.tres::stable_8`; the overall182.961s result is
+**failed**, with unchanged source and clean cleanup. Evidence, actual model28
+compilation and two screenshots are under
+`TestResults/actual-opening-v14-sol-20261003/`. Both screenshots were inspected;
+Hype/statue overlap remains visible. Full intro completion remains pending.
+
+The Tab correction was integrated as64d902e after that native run completed.
+The final V14 result was written at23:51:45.548365UTC; the cherry-pick's committer
+timestamp is23:53:13UTC,87.452s later. The preserved frozen audit therefore
+remains valid even if an execution worker read HEAD later while composing its
+summary. Additive timing evidence is
+`TestResults/actual-opening-v14-source-audit-timing-sol-20261004.json`; no V14
+result or pin was edited.
+
+Function35 is Raymap's `Func_GetHitPoints`. Original Hype nodes818..821 assign
+`GetHitPoints(Me)` to designer field128. The unchanged source StandardGame byte
+at+0x18 is50. Static handler00538870 dispatches35 through005388d7 to00460a30,
+then getter00438ec0; it reads that unsigned byte and returns an integer. The
+existing useful `HitPoints` and native actor-local Resource already represent
+this state. The narrow compiler addition reads its current value, guards missing
+or invalid life state, and leaves other actor receivers explicitly unsupported.
+The codec reconstructs the original assignment bytes; full Hype AI survives
+fresh MessagePack decode. A disclosed isolated assignment checks the compiler;
+the normal port/New Game case supplies complete-graph gameplay validation.
+Proof: `TestResults/hype-hitpoints-handler-static-proof-sol-20261004.json`.
+
+Static export inspection also found the collision script is installed after
+life state was attached. Godot's replacement script resets inherited properties;
+the V14 Hype scene consequently lacks `source_hit_points`. Attach life after
+installing the final script, so the regenerated actor can execute its own query.
+The actual opening assertion independently requires50 in both the life Resource
+and field128. Combat damage and other hit-point functions remain outside scope.
+
+The reported mesh has unique subresource IDs and is byte-identical to its V13
+copy. Its duplicate registration occurs during initial loading, before actor
+AI. The session now keeps dependent resource loading in one background worker
+instead of enabling parallel dependency workers, while retaining native cache
+reuse and a responsive menu. This is a focused mitigation of the concurrent-load
+lead; V14 alone does not prove its root cause or that the mitigation passes.
+Godot's [ResourceLoader contract](https://docs.godotengine.org/en/stable/classes/class_resourceloader.html#class-resourceloader-method-load-threaded-request)
+defines that option. No generated IDs/receipts or test error filters were altered.
+
+Support52 is reserved for this life-read addition, avoiding the separate pause
+worker's reserved51. Rete remains40 in this slice; the new codec regression
+brings the declared matrix to289. The first source check caught a test expecting
+the strict writer to reconstruct an unsupported receiver; it remains preserved
+as failed. The corrected r2 passed37 codec cases, the actual source corpus,
+strict root Clippy and formatting in50.879s, before the final export-order change.
+Final current-source r3 passed in49.456s with unchanged source and clean cleanup:
+format0.543s, strict root Clippy3.173s, validation library build44.960s,
+37 codec cases0.004s and the actual source corpus0.757s. Command:
+`python3 -B TestResults/check-hype-hitpoints-opening-source-r3-sol-20261004.py`.
+Its `TestResults/hype-hitpoints-opening-source-r3-sol-20261004/report.json`
+includes exact commands and digests. The next bounded actual-opening recipe is
+`python3 -B TestResults/run-actual-opening-v15-sol-20261004.py`, for the fixed
+Luna native executor, with exact-current syntax before normal scene conversion.
+It preserves menu/inventory/font/settings/saves, backs up the prior publication,
+uses480s including cleanup reserve and runs only the existing actual New Game
+case. It requires the life read50/field128=50 as well as prior opening assertions.
+Native continuation is pending; no V15 pass or repaired visual overlap is claimed.

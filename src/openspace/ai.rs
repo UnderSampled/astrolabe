@@ -982,6 +982,17 @@ impl Parser<'_> {
                 Expression::MainActorDistance
             }
             (3, 22) => Expression::IntegerCast(Box::new(self.expression(indent + 1)?)),
+            (3, 35) => {
+                let (_, actor) = self.take(indent + 1)?;
+                if actor.kind == 0 && actor.parameter == 4 {
+                    Expression::SelfHitPoints
+                } else {
+                    Expression::Unsupported(self.unsupported(
+                        at,
+                        "hit-point query requires an unsupported actor expression".into(),
+                    )?)
+                }
+            }
             (3, 201) => Expression::InventoryWeapon,
             (3, 208) => Expression::InventoryQuantity(Box::new(self.expression(indent + 1)?)),
             (3, 209) => Expression::InventoryRemove {
@@ -1451,6 +1462,10 @@ impl Writer<'_> {
             Expression::IntegerCast(value) => {
                 self.node(3, 22, indent);
                 self.expression(value, indent + 1)?;
+            }
+            Expression::SelfHitPoints => {
+                self.node(3, 35, indent);
+                self.node(0, 4, indent + 1);
             }
             Expression::Vector(values) => {
                 self.node(16, 0, indent);
@@ -2829,6 +2844,44 @@ mod partial_tests {
             ]
         ));
         assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn self_hit_point_query_preserves_bytes_and_rejects_other_receivers() -> Result<()> {
+        let (codec, bytes) = partial(&[(2, 11, 1), (11, 0, 2), (3, 35, 2), (0, 4, 3), (8, 0, 0)]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            script.statements.as_slice(),
+            [Statement::Assign {
+                variable: 0,
+                value: Expression::SelfHitPoints
+            }]
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        for (kind, operand) in [(0, 5), (0, 7), (11, 0)] {
+            let (codec, bytes) = partial(&[
+                (2, 11, 1),
+                (11, 0, 2),
+                (3, 35, 2),
+                (kind, operand, 3),
+                (8, 0, 0),
+            ]);
+            let script = codec.read(&bytes)?;
+            assert!(matches!(
+                script.statements.as_slice(),
+                [Statement::Assign {
+                    value: Expression::Unsupported(_),
+                    ..
+                }]
+            ));
+            assert_eq!(script.unsupported_fragments()[0].nodes.len(), 2);
+            assert_eq!(
+                script.unsupported_fragments()[0].nodes,
+                codec.preserved_nodes[2..4]
+            );
+            assert!(codec.write(&script).is_err());
+        }
         Ok(())
     }
 
