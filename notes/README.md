@@ -15,6 +15,11 @@ records typed/shared route conversion, the original opening actor/camera capture
 the validated native Gogoud component, explicitly deferred wind and remaining
 startup blockers.
 
+The [intro camera source-first checkpoint](intro-camera-source-first-2026-10-07.md)
+records exact MainActor binding, viewport registration, target reset, mapped
+mode-zero inputs, and the still-unsupported controller smoothing and sector
+history.
+
 The [Crossbow fixes and evidence](crossbow-fixes-2026-10-02.md) continue the
 October 1 handoff with fixture recovery, typed original contact identity,
 native reaction-zone contact and spent-ammunition reload checks.

@@ -70,9 +70,11 @@ successful pose update. No source runtime values or poses were substituted.
 
 `cargo fmt --all -- --check`, `git diff --check`, offline `cargo check`, and
 the focused camera metadata, AI reset round-trip, and compiler tests passed.
-Godot 4.7.2 `--check-only --script` parsed `source_camera.gd` and
-`source_controller_state.gd`. The Godot-backed camera scene test could not
-start because the sandboxed editor could not create its socket or write its
-user editor settings; the exact focused command was sent to the parent task to
-run outside this sandbox. No original-game run, debugger, new harness, or
-install was used.
+An approved Godot 4.7.2 headless editor scan of the maintained `godot/` project
+completed with exit code 0 and no socket or GDScript parse errors. The scan
+reported five missing script UID files, which Godot regenerated; those
+generated sidecars were removed so the working tree remains clean. This checks
+editor parsing/class registration, not the generated camera scene or gameplay.
+The original sandboxed camera scene test did not start because the editor could
+not create its socket or write its user editor settings. No original-game run,
+debugger, new harness, or install was used.

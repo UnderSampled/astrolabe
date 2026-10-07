@@ -239,8 +239,9 @@ focused Godot 4.7.2 HUD-only export at Rete schema 42/support interface 54
 completed and imported the native scene. It emitted five files;
 `validation.json` reports no models, sounds, textures, or diagnostics. The
 subsequent armor integration advanced the shared versions to schema 43/support
-55. The HUD scene retains the six runtime-global names as metadata without
-assigning image resources. No gameplay session was run, and the separate HUD
+55; the camera source pass advances them to schema 44/support 56. The HUD scene
+retains the six runtime-global names as metadata without assigning image
+resources. No gameplay session was run, and the separate HUD
 root is still not attached to the saved level screen, so on-screen behavior
 remains unverified.
 
