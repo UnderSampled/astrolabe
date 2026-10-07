@@ -86,16 +86,7 @@ pub(super) fn read_definition(
     for v in 0..d.count as usize {
         let material = session
             .pointer(material_table, v * 4)?
-            .map(|m| {
-                super::import::load_material(
-                    session,
-                    m,
-                    &path.to_string(),
-                    materials,
-                    material_ids,
-                    notes,
-                )
-            })
+            .map(|m| super::import::load_material(session, m, materials, material_ids, notes))
             .transpose()?;
         views.push(SpriteView {
             mode: modes[v][0],

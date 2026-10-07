@@ -301,6 +301,71 @@ fn real_blocks_and_relocation_rows_match_independent_lib_lzo_observations() -> R
 }
 
 #[test]
+#[ignore = "requires local Hype source data; inspect one shared Fix geometry"]
+fn shared_fix_geometry_13949_source_values_match_between_manoir_and_brigand() -> Result<()> {
+    use crate::model::Selection;
+    use anyhow::Context;
+
+    let game = std::env::var_os("ASTROLABE_GAME_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("disc"));
+    let path = AssetPath::new("fix:/models/geometry/13949")?;
+    let manoir = scene::import_scene(&game, &Selection::hype("manoir", "en")?)?;
+    let brigand = scene::import_scene(&game, &Selection::hype("brigand", "en")?)?;
+    let manoir_model = manoir
+        .models
+        .iter()
+        .find(|model| model.path == path)
+        .context("Manoir does not import geometry 13949")?;
+    let brigand_model = brigand
+        .models
+        .iter()
+        .find(|model| model.path == path)
+        .context("Brigand does not import geometry 13949")?;
+    assert!(
+        manoir_model.positions == brigand_model.positions,
+        "geometry positions differ"
+    );
+    let materials = |model: &crate::model::geometry::Model| {
+        model
+            .submeshes
+            .iter()
+            .map(|part| part.material.path.to_string())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        materials(manoir_model),
+        materials(brigand_model),
+        "material identities differ"
+    );
+    for reference in manoir_model
+        .submeshes
+        .iter()
+        .map(|part| &part.material.path)
+    {
+        let manoir_material = manoir
+            .materials
+            .iter()
+            .find(|material| &material.path == reference)
+            .context("Manoir is missing a referenced Fix material")?;
+        let brigand_material = brigand
+            .materials
+            .iter()
+            .find(|material| &material.path == reference)
+            .context("Brigand is missing the same referenced Fix material")?;
+        assert!(
+            manoir_material == brigand_material,
+            "material content changed under shared identity {reference}"
+        );
+    }
+    assert!(
+        manoir_model == brigand_model,
+        "other shared geometry fields differ"
+    );
+    Ok(())
+}
+
+#[test]
 fn radiosity_uses_signed_values_and_checks_selected_lod_and_buffer_bounds() -> Result<()> {
     let key = BlockKey(6, 2);
     // IPO -> ISI -> LOD -> one color. No engine allocator padding is included.

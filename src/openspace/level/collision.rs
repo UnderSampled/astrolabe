@@ -14,19 +14,13 @@ pub(super) struct CollisionImporter<'a> {
     pub(super) material_ids: &'a mut BTreeMap<Address, AssetPath>,
 }
 impl CollisionImporter<'_> {
-    fn material(
-        &mut self,
-        site: Address,
-        field: usize,
-        path: &AssetPath,
-    ) -> Result<Option<AssetRef<Material>>> {
+    fn material(&mut self, site: Address, field: usize) -> Result<Option<AssetRef<Material>>> {
         let Some(address) = self.session.pointer(site, field)? else {
             return Ok(None);
         };
         super::import::load_material(
             self.session,
             address,
-            path.as_str(),
             self.materials,
             self.material_ids,
             self.diagnostics,
@@ -110,7 +104,7 @@ impl CollisionImporter<'_> {
                     CollisionElement::Points {
                         fatness: header.fatness,
                         indices,
-                        material: self.material(element, 12, &path)?,
+                        material: self.material(element, 12)?,
                         unknown: header.unknown,
                     }
                 }
@@ -153,7 +147,7 @@ impl CollisionImporter<'_> {
                         .transpose()?
                         .unwrap_or_default();
                     CollisionElement::Triangles {
-                        material: self.material(element, 0, &path)?,
+                        material: self.material(element, 0)?,
                         indices,
                         normals,
                         texcoords,
@@ -180,7 +174,7 @@ impl CollisionImporter<'_> {
                             spheres.push(CollisionSphere {
                                 center: s.center,
                                 radius: s.radius,
-                                material: self.material(a, 8, &path)?,
+                                material: self.material(a, 8)?,
                             });
                         }
                         CollisionElement::Spheres(spheres)
@@ -195,7 +189,7 @@ impl CollisionImporter<'_> {
                             boxes.push(CollisionBox {
                                 min: b.min,
                                 max: b.max,
-                                material: self.material(a, 4, &path)?,
+                                material: self.material(a, 4)?,
                             });
                         }
                         CollisionElement::Boxes(boxes)
@@ -211,7 +205,7 @@ impl CollisionImporter<'_> {
             for i in 0..header.point_count as usize {
                 collision
                     .vertex_materials
-                    .push(self.material(table, i * 4, &path)?);
+                    .push(self.material(table, i * 4)?);
             }
         }
         collision.validate()?;

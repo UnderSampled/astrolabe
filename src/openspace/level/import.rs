@@ -189,7 +189,6 @@ pub(super) fn import_physical_model(
         let m = load_material(
             session,
             game_material,
-            &model_path,
             materials,
             material_ids,
             &mut diagnostics,
@@ -240,7 +239,6 @@ pub(super) fn import_physical_model(
                         load_material(
                             session,
                             game_material,
-                            &model_path,
                             materials,
                             material_ids,
                             &mut diagnostics,
@@ -288,7 +286,6 @@ pub(super) fn import_physical_model(
 pub(super) fn load_material(
     session: &SourceSession,
     game_material: Address,
-    base: &str,
     materials: &mut Vec<Material>,
     ids: &mut BTreeMap<Address, AssetPath>,
     diagnostics: &mut Vec<String>,
@@ -296,7 +293,15 @@ pub(super) fn load_material(
     if let Some(p) = ids.get(&game_material) {
         return Ok(AssetRef::from_path(p.clone()));
     }
-    let path = AssetPath::new(format!("{base}/materials/{}", materials.len()))?;
+    let identity = session.source_identity(game_material)?;
+    let role = match identity.role {
+        crate::model::ai::SourceRole::Fix => "fix",
+        crate::model::ai::SourceRole::Level => "level",
+    };
+    let path = AssetPath::new(format!(
+        "{role}:/materials/{:02x}-{:02x}/{}",
+        identity.block[0], identity.block[1], identity.allocation
+    ))?;
     let game: GameMaterialWire = wire(session.bytes(game_material, 16)?)?;
     let collision = match game.collision {
         0 => crate::model::collision::CollisionProperties::Absent,
