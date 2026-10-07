@@ -19,6 +19,10 @@ extends Camera3D
 @export var mode_zero_parameter_flags: int = 0
 @export var source_owner_position_flags: int = 0 # 004406d0 clears Position+0xce; relevant setters OR bit 2
 @export var controller_state: Resource
+var source_mode_zero_action_flags: int = 0 # parameter +0x92, read by 00440e30
+var source_controller_position_24 := Vector3.ZERO
+var source_controller_position_30 := Vector3.ZERO
+var source_controller_candidate_result := false
 
 const SOURCE_MODE_ZERO_PIVOT_THRESHOLD_SQUARED := 9.0 # _DAT_005fcc2c from the decompiled build's .data image
 const SOURCE_MODE_ZERO_RANGE_EPSILON := 0.001 # _DAT_0060b238 from the verified executable's .data image
@@ -26,6 +30,7 @@ const SOURCE_MODE_ZERO_RANGE_MAX_PADDING := 0.3 # DAT_0060b23c=3, _DAT_0060b240 
 const SOURCE_MODE_ZERO_FALLBACK_MIN_MARGIN := 0.5 # _DAT_0060b228; DAT_0060b22c=1
 const SOURCE_MODE_ZERO_FALLBACK_MAX_MARGIN := 0.5 # _DAT_0060b228; DAT_0060b230=1
 const SOURCE_MODE_ZERO_FALLBACK_RANGE_EPSILON := 0.001 # _DAT_0060b224
+const SOURCE_MODE_ZERO_CAMERA_BLOCK_STREAK_LIMIT := 50 # DAT_00721990 initialized by 005200a0
 const SOURCE_MODE_ZERO_FALLBACK_PITCHES := [0.3, 0.6, 0.0] # DAT_005fccb8..c0
 const SOURCE_MODE_ZERO_FALLBACK_YAWS := [0.7853982, 5.497787, 1.5707964, 4.712389, 2.3561945, 3.926991, 3.1415927, 0.3] # 005fcc9c..b8, 8 float reads
 const SOURCE_POSITION_DEFAULT_MIN := -3.402822e38 # 004406d0 writes 0xff7ffff8 at Position+0xa4
@@ -583,29 +588,321 @@ func source_mode_zero_collision_inputs(
     if context.is_empty():
         return {}
     var target_position := geometry["target_position"] as Vector3
-    var anchor_to_eye = _source_camera_ray_blocked(controller_anchor_3c, controller_eye_30, context)
-    var origin_to_eye = _source_camera_ray_blocked(controller_origin_18, controller_eye_30, context)
-    if anchor_to_eye == null or origin_to_eye == null:
+    var anchor_result: Variant = _source_camera_ray_result(controller_anchor_3c, controller_eye_30, context)
+    var origin_result: Variant = _source_camera_ray_result(controller_origin_18, controller_eye_30, context)
+    if anchor_result == null or origin_result == null:
         return {}
-    var target_head_checked := bool(anchor_to_eye) or bool(origin_to_eye)
-    var origin_to_target_head: Variant = false
+    var anchor_to_eye := bool(anchor_result["blocked"])
+    var origin_to_eye := bool(origin_result["blocked"])
+    var target_head_checked := anchor_to_eye or origin_to_eye
+    var target_head_result: Variant = {"blocked": false}
     if target_head_checked:
-        origin_to_target_head = _source_camera_ray_blocked(
+        target_head_result = _source_camera_ray_result(
             controller_origin_18,
             target_position + Vector3.UP * 1.8,
             context
         )
-        if origin_to_target_head == null:
+        if target_head_result == null:
             return {}
     var streak := record_mode_zero_candidate_collision(bool(origin_to_eye))
     return {
         "anchor_to_eye_blocked": bool(anchor_to_eye),
         "origin_to_eye_blocked": bool(origin_to_eye),
+        "anchor_result": anchor_result,
+        "origin_result": origin_result,
         "candidate_result": not bool(anchor_to_eye) and not bool(origin_to_eye),
         "target_head_checked": target_head_checked,
-        "origin_to_target_head_blocked": bool(origin_to_target_head),
+        "target_head_result": target_head_result,
+        "origin_to_target_head_blocked": bool(target_head_result["blocked"]),
         "candidate_collision_streak": streak,
     }
+
+## 0052a740 static-sector query, reusing exported reachability and collision
+## geometry metadata. Its endpoints are quantized by 00529ef0.
+func _source_mode_zero_static_geometry_blocked(
+    anchor_3c: Vector3,
+    point: Vector3,
+    context: Dictionary
+) -> Variant:
+    var geometry_context := {"reachable": context["geometry_reachable"]}
+    return _source_camera_ray_blocked(
+        _source_mode_zero_quantize(anchor_3c),
+        _source_mode_zero_quantize(point),
+        geometry_context,
+        true,
+        false
+    )
+
+## 0052d0e0 accepts a point only when static geometry, the filtered camera
+## ray, and the source camera range all accept it.
+func _source_mode_zero_point_is_safe(
+    anchor_3c: Vector3,
+    origin_18: Vector3,
+    point: Vector3,
+    context: Dictionary
+) -> Variant:
+    var classification := source_mode_zero_candidate_classification(anchor_3c, origin_18, point, context)
+    if classification.is_empty():
+        return null
+    return int(classification["classification"]) == 4
+
+func _source_mode_zero_recovery_from_unsafe_point(
+    anchor_3c: Vector3,
+    origin_18: Vector3,
+    orientation_54: Vector3,
+    context: Dictionary
+) -> Dictionary:
+    if controller_state == null or not controller_state.has_method("record_mode_zero_recovery_position"):
+        push_error("Source camera controller state cannot retain DAT_007219b8")
+        return {}
+    var safe: Variant = _source_mode_zero_point_is_safe(anchor_3c, origin_18, origin_18, context)
+    if safe == null:
+        return {}
+    if bool(safe):
+        controller_state.call("record_mode_zero_recovery_position", origin_18)
+        controller_state.call("set_mode_zero_fallback_requested", false)
+        return {"fallback_requested": false, "position": origin_18}
+    var toward_origin := origin_18 - anchor_3c
+    if toward_origin.length_squared() < 0.0000000001:
+        push_error("Source 0051f040 cannot normalize the camera-to-anchor vector")
+        return {}
+    var minimum_candidate := anchor_3c + toward_origin.normalized() * mode_zero_distance.x
+    safe = _source_mode_zero_point_is_safe(anchor_3c, origin_18, minimum_candidate, context)
+    if safe == null:
+        return {}
+    if bool(safe):
+        controller_state.call("record_mode_zero_recovery_position", minimum_candidate)
+        controller_state.call("set_mode_zero_fallback_requested", false)
+        return {"fallback_requested": false, "position": minimum_candidate}
+    if not controller_state.has_method("mode_zero_fallback_angles"):
+        push_error("Source 0051f250 cannot read its process-global yaw/pitch")
+        return {}
+    var last_angles: Vector2 = controller_state.call("mode_zero_fallback_angles")
+    var candidate := _source_mode_zero_fallback_candidate(anchor_3c, orientation_54, last_angles.x, last_angles.y)
+    if candidate.is_empty():
+        return {}
+    safe = _source_mode_zero_point_is_safe(anchor_3c, origin_18, candidate["position"], context)
+    if safe == null:
+        return {}
+    controller_state.call("record_mode_zero_recovery_position", candidate["position"])
+    controller_state.call("set_mode_zero_fallback_requested", not bool(safe))
+    return {"fallback_requested": not bool(safe), "position": candidate["position"]}
+
+## Source selector 0: exact 0051f670 anchor, origin, and target-head rays.
+## 0051f450 moves to the collision point plus source normal * 0.35.
+func _source_mode_zero_controller_670(
+    anchor_3c: Vector3,
+    origin_18: Vector3,
+    candidate_24: Vector3,
+    candidate_30: Vector3,
+    context: Dictionary
+) -> Dictionary:
+    var first_initial: Variant = _source_camera_ray_result(anchor_3c, candidate_30, context)
+    if first_initial == null:
+        return {}
+    var first: Dictionary = first_initial
+    var first_initially_blocked := bool(first["blocked"])
+    if first_initially_blocked:
+        controller_state.call("record_mode_zero_candidate_obstruction", true)
+        var adjusted: Variant = _source_mode_zero_collision_adjusted_position(first, 0.35)
+        if adjusted == null:
+            return {}
+        candidate_24 = adjusted
+        candidate_30 = adjusted
+        first = _source_camera_ray_result(anchor_3c, candidate_30, context)
+        if first == null:
+            return {}
+    else:
+        controller_state.call("record_mode_zero_candidate_obstruction", false)
+        if not bool(controller_state.call("record_mode_zero_controller_position", candidate_24)):
+            push_error("Source camera controller rejected the 0051f670 clear-ray c4 position")
+            return {}
+
+    var second: Variant = _source_camera_ray_result(origin_18, candidate_30, context)
+    if second == null:
+        return {}
+    var second_blocked := bool(second["blocked"])
+    controller_state.call("record_candidate_collision", second_blocked)
+    if second_blocked:
+        controller_state.call("mark_mode_zero_update_obstructed")
+    if not bool(first["blocked"]) and not second_blocked:
+        _source_mode_zero_apply_input_flags(first_initially_blocked or bool(first["blocked"]))
+        return _source_mode_zero_controller_result(true, candidate_24, candidate_30, first_initially_blocked, second_blocked, false)
+
+    if not is_instance_valid(targeted_actor) or not targeted_actor.is_inside_tree():
+        push_error("Source 0051f670 target-head segment has no selected Perso")
+        return {}
+    var target_head := targeted_actor.global_position + Vector3.UP * 1.8
+    var third: Variant = _source_camera_ray_result(origin_18, target_head, context)
+    if third == null:
+        return {}
+    if not bool(third["blocked"]):
+        if bool(first["blocked"]):
+            var hit_position: Variant = _source_mode_zero_collision_adjusted_position(first, 0.35)
+            if hit_position == null:
+                return {}
+            candidate_24 = hit_position
+            candidate_30 = hit_position
+            _source_mode_zero_apply_input_flags(true)
+        else:
+            # 0051f670 copies +0x3c into both +0x24 and +0x30.
+            candidate_24 = anchor_3c
+            candidate_30 = anchor_3c
+        return _source_mode_zero_controller_result(true, candidate_24, candidate_30, first_initially_blocked, second_blocked, true)
+
+    if bool(first["blocked"]):
+        var adjusted_to_hit: Variant = _source_mode_zero_collision_adjusted_position(first, 0.35)
+        if adjusted_to_hit == null:
+            return {}
+        candidate_24 = adjusted_to_hit
+        candidate_30 = adjusted_to_hit
+        _source_mode_zero_apply_input_flags(true)
+        return _source_mode_zero_controller_result(true, candidate_24, candidate_30, first_initially_blocked, second_blocked, true)
+
+    if not second_blocked:
+        # Kept for the source's explicit return-0 branch after the preceding
+        # early clear/clear return; the source ray state makes it unreachable.
+        return _source_mode_zero_controller_result(false, candidate_24, candidate_30, first_initially_blocked, false, true)
+
+    candidate_24 = candidate_30
+    var obstruction_count := int(controller_state.call("mode_zero_collision_streak"))
+    var collision_guard: Variant = null
+    var owner := get_parent() as Node
+    if obstruction_count <= SOURCE_MODE_ZERO_CAMERA_BLOCK_STREAK_LIMIT:
+        if owner != null and owner.has_meta("source_camera_collision_guard"):
+            collision_guard = bool(owner.get_meta("source_camera_collision_guard"))
+        else:
+            push_error("Source 0051f670 needs the live +0x254 flag written by 005796ea on this blocked subpath")
+            return {}
+    if obstruction_count > SOURCE_MODE_ZERO_CAMERA_BLOCK_STREAK_LIMIT or bool(collision_guard):
+        # The source special case adds the raw parameter +0x24 vector to the
+        # target's world translation; unlike 0051c8d0, it does not rotate it.
+        candidate_24 = targeted_actor.global_position + mode_zero_actor_offset
+        candidate_30 = candidate_24
+        source_mode_zero_action_flags |= 0x414
+    return _source_mode_zero_controller_result(true, candidate_24, candidate_30, first_initially_blocked, second_blocked, true)
+
+## Source selector 1: 0052bb50's persistent static-geometry timer, followed
+## by 0051f290's 00463df0 ray and 0051f040/0051f250 recovery calculation.
+func _source_mode_zero_controller_290(
+    anchor_3c: Vector3,
+    origin_18: Vector3,
+    candidate_24: Vector3,
+    candidate_30: Vector3,
+    orientation_54: Vector3,
+    context: Dictionary
+) -> Dictionary:
+    var obstruction_wait: Variant = _source_mode_zero_should_wait_for_static_obstruction(
+        anchor_3c, candidate_24, candidate_30, context
+    )
+    if obstruction_wait == null:
+        return {}
+    if bool(obstruction_wait):
+        controller_state.call("record_mode_zero_candidate_obstruction", true)
+        controller_state.call("mark_mode_zero_update_obstructed")
+        var recovery := _source_mode_zero_recovery_from_unsafe_point(anchor_3c, origin_18, orientation_54, context)
+        if recovery.is_empty():
+            return {}
+        controller_state.call("set_mode_zero_fallback_requested", bool(recovery["fallback_requested"]))
+        return _source_mode_zero_controller_result(false, candidate_24, candidate_30, true, true, false)
+
+    controller_state.call("record_mode_zero_candidate_obstruction", false)
+    var clear_candidate := candidate_24 if motion_mode in [0, 7] else candidate_30
+    if not bool(controller_state.call("record_mode_zero_controller_position", clear_candidate)):
+        push_error("Source camera controller rejected the 0051f290 c4 position")
+        return {}
+    var camera_ray: Variant = _source_camera_ray_result(origin_18, candidate_30, context)
+    if camera_ray == null:
+        return {}
+    if bool(camera_ray["blocked"]):
+        controller_state.call("record_candidate_collision", true)
+        controller_state.call("mark_mode_zero_update_obstructed")
+        var recovery := _source_mode_zero_recovery_from_unsafe_point(anchor_3c, origin_18, orientation_54, context)
+        if recovery.is_empty():
+            return {}
+        controller_state.call("set_mode_zero_fallback_requested", bool(recovery["fallback_requested"]))
+        return _source_mode_zero_controller_result(false, candidate_24, candidate_30, false, true, true)
+    controller_state.call("record_candidate_collision", false)
+    return _source_mode_zero_controller_result(true, candidate_24, candidate_30, false, false, false)
+
+func _source_mode_zero_should_wait_for_static_obstruction(
+    anchor_3c: Vector3,
+    candidate_24: Vector3,
+    candidate_30: Vector3,
+    context: Dictionary
+) -> Variant:
+    var owner := get_parent() as Node
+    if owner == null:
+        push_error("Source 0052bb50 has no camera-owner counter context")
+        return null
+    if (source_owner_position_flag_word() & SOURCE_POSITION_FLAG_HAS_TARGET_OFFSET) != 0:
+        return false
+    if motion_mode not in [0, 0x65, 7] or (mode_zero_parameter_flags & 0x41) != 0:
+        return false
+    var stable_count := int(owner.get_meta("source_camera_static_probe_count", 0)) + 1
+    owner.set_meta("source_camera_static_probe_count", stable_count)
+    if (source_mode_zero_action_flags & 0x8000) != 0 or (mode_zero_parameter_flags & 8) != 0:
+        return false
+    if stable_count < 1:
+        return false
+    owner.set_meta("source_camera_static_probe_count", 0)
+    var end_point := candidate_24 if (source_mode_zero_action_flags & 2) == 0 and motion_mode in [0, 7] else candidate_30
+    var geometry_blocked: Variant = _source_mode_zero_static_geometry_blocked(anchor_3c, end_point, context)
+    if geometry_blocked == null:
+        return null
+    if not bool(geometry_blocked):
+        owner.set_meta("source_camera_static_obstruction_count", 0)
+        controller_state.call("record_mode_zero_candidate_obstruction", false)
+        return false
+    var obstruction_count := int(owner.get_meta("source_camera_static_obstruction_count", 0)) + 1
+    owner.set_meta("source_camera_static_obstruction_count", obstruction_count)
+    return obstruction_count > 60
+
+func _source_mode_zero_collision_adjusted_position(ray_result: Dictionary, normal_distance: float) -> Variant:
+    if not ray_result.has("hit_position") or not ray_result.has("hit_normal"):
+        push_error("Source 0051f450 received a ray result without collision output")
+        return null
+    var hit_position: Vector3 = ray_result["hit_position"]
+    var hit_normal: Vector3 = ray_result["hit_normal"]
+    var adjusted := hit_position + hit_normal.normalized() * normal_distance
+    if not adjusted.is_finite():
+        push_error("Source 0051f450 produced a nonfinite controller position")
+        return null
+    return adjusted
+
+func _source_mode_zero_controller_result(
+    controller_result: bool,
+    candidate_24: Vector3,
+    candidate_30: Vector3,
+    first_ray_initially_blocked: bool,
+    second_ray_blocked: bool,
+    target_head_checked: bool
+) -> Dictionary:
+    source_controller_position_24 = candidate_24
+    source_controller_position_30 = candidate_30
+    source_controller_candidate_result = controller_result
+    return {
+        "controller_result": controller_result,
+        "candidate_position_24": candidate_24,
+        "candidate_position": candidate_30,
+        "first_ray_initially_blocked": first_ray_initially_blocked,
+        "second_ray_blocked": second_ray_blocked,
+        "target_head_checked": target_head_checked,
+    }
+
+## 0051f520 ORs +0x20 every time it runs and +0x880 when its source actions
+## are active. Godot uses only existing action names; no physical keys are made up.
+func _source_mode_zero_apply_input_flags(include_side_actions: bool) -> void:
+    if include_side_actions and (
+        _source_camera_input_pressed("Button_SSLeft")
+        or _source_camera_input_pressed("Button_SSRight")
+        or _source_camera_input_pressed("Button_Down")
+    ):
+        source_mode_zero_action_flags |= 0x880
+    source_mode_zero_action_flags |= 0x20
+
+func _source_camera_input_pressed(action_name: String) -> bool:
+    return InputMap.has_action(action_name) and Input.is_action_pressed(action_name)
 
 ## 00440fe0 sets owner Position bit 2 and writes the associated +0x50 vector.
 ## The intro starts with flags clear from 004406d0; expose the writer so later
@@ -855,8 +1152,22 @@ func _source_camera_ray_blocked(
     static_geometry_only: bool = false,
     apply_material_filter: bool = true
 ) -> Variant:
+    var result: Variant = _source_camera_ray_result(start, finish, context, static_geometry_only, apply_material_filter)
+    if result == null:
+        return null
+    return bool(result["blocked"])
+
+## Structured form of 00463df0 / source static-segment checks. The camera
+## controller needs the source hit point and normal for 0051f450's +0.35 move.
+func _source_camera_ray_result(
+    start: Vector3,
+    finish: Vector3,
+    context: Dictionary,
+    static_geometry_only: bool = false,
+    apply_material_filter: bool = true
+) -> Variant:
     if start.is_equal_approx(finish):
-        return false
+        return {"blocked": false, "degenerate": true}
     var owner_node := get_parent() as CollisionObject3D
     var excluded: Array[RID] = []
     if owner_node != null:
@@ -872,7 +1183,7 @@ func _source_camera_ray_blocked(
         query.collide_with_areas = false
         var hit := space.intersect_ray(query)
         if hit.is_empty():
-            return false
+            return {"blocked": false}
         var collider := hit["collider"] as CollisionObject3D
         if collider == null:
             push_error("Source mode-0 ray hit a non-collision object")
@@ -895,8 +1206,25 @@ func _source_camera_ray_blocked(
         if apply_material_filter and (identifier & 0x8000) != 0:
             # 00463df0 returns clear immediately for the first hit carrying
             # material identifier bit 0x8000.
-            return false
-        return true
+            return {
+                "blocked": false,
+                "material_filtered": true,
+                "hit_position": hit["position"],
+                "hit_normal": hit["normal"],
+                "collision_identifier": identifier,
+            }
+        var hit_position: Vector3 = hit["position"]
+        var hit_normal: Vector3 = hit["normal"]
+        if not hit_position.is_finite() or not hit_normal.is_finite() or hit_normal.length_squared() < 0.999:
+            push_error("Source mode-0 collision result lacks a finite unit hit point/normal")
+            return null
+        return {
+            "blocked": true,
+            "hit_position": hit_position,
+            "hit_normal": hit_normal.normalized(),
+            "collision_identifier": identifier,
+            "source_sector_id": sector_id,
+        }
     push_error("Source mode-0 ray exceeded its ignored-collider limit")
     return null
 
@@ -909,9 +1237,6 @@ func _source_sector_for(node: Node) -> Node:
     return null
 
 func _source_update_mode_zero() -> bool:
-    var live_pivot := source_mode_zero_live_pivot()
-    if live_pivot.is_empty():
-        return false
     var owner := get_parent() as Node3D
     if owner == null or not owner.is_inside_tree():
         push_error("Source mode-0 camera owner is not in the scene tree")
@@ -923,61 +1248,91 @@ func _source_update_mode_zero() -> bool:
         push_error("Source camera controller state does not expose DAT_00721b0c")
         return false
     var collision_selector := int(controller_state.call("mode_zero_collision_selector"))
-    if collision_selector != 0:
-        push_error("Source DAT_00721b0c selects 0051f290; its 0052bb50/0051f040/0051f250 state machine is not implemented")
-        return false
     var owner_flags := source_owner_position_flag_word()
-    if (owner_flags & SOURCE_POSITION_FLAG_HAS_TARGET_OFFSET) != 0:
-        push_error("Source camera owner bit 2 selects the Position+0x50 controller vector path in 0051db70; that input is not yet mapped")
-        return false
     controller_state.call("begin_mode_zero_update")
+    var live_pivot := source_mode_zero_live_pivot()
+    if live_pivot.is_empty():
+        return false
     var orientation_data := source_mode_zero_orientation_54()
     if orientation_data.is_empty():
         return false
     var current_eye := owner.global_position
     var anchor_3c: Vector3 = live_pivot["anchor"]
-    var candidate := source_compute_mode_zero_candidate(
-        anchor_3c,
-        current_eye,
-        orientation_data["orientation"],
-        source_mode_zero_vertical_limits()
-    )
-    if candidate.is_empty():
+    var candidate_24: Vector3
+    var candidate_30: Vector3
+    if (owner_flags & SOURCE_POSITION_FLAG_HAS_TARGET_OFFSET) != 0:
+        if not owner.has_meta("source_position_target_offset"):
+            push_error("Source Position bit 2 is set without its 00440fe0 +0x50 vector")
+            return false
+        var source_offset = owner.get_meta("source_position_target_offset")
+        if not source_offset is Vector3 or not source_offset.is_finite():
+            push_error("Source Position+0x50 controller vector is missing or invalid")
+            return false
+        # 0051db70's bit-2 branch copies +0x50 to +0x48 and forms +0x24
+        # directly from current +0x18; it bypasses target angle/range solving.
+        candidate_24 = current_eye + source_offset
+        candidate_30 = candidate_24
+    else:
+        var candidate := source_compute_mode_zero_candidate(
+            anchor_3c,
+            current_eye,
+            orientation_data["orientation"],
+            source_mode_zero_vertical_limits()
+        )
+        if candidate.is_empty():
+            return false
+        candidate_24 = candidate["position"]
+        candidate_30 = candidate_24
+    var context := _source_collision_context()
+    if context.is_empty():
         return false
-    var collision := source_mode_zero_collision_inputs(anchor_3c, current_eye, candidate["position"])
-    if collision.is_empty():
+    var controller_result: Dictionary
+    if collision_selector == 0:
+        controller_result = _source_mode_zero_controller_670(anchor_3c, current_eye, candidate_24, candidate_30, context)
+    elif collision_selector == 1:
+        controller_result = _source_mode_zero_controller_290(
+            anchor_3c, current_eye, candidate_24, candidate_30, orientation_data["orientation"], context
+        )
+    else:
+        push_error("Source DAT_00721b0c has an unsupported value: " + str(collision_selector))
         return false
-    var candidate_result := bool(collision["candidate_result"])
-    if not candidate_result:
-        # The initial source selector chooses 0051f670. It does not set
-        # DAT_007218fc, so a blocked ray alone does not dispatch 0051fb50.
-        # The exact blocked-result state changes from 0051f670 are not present
-        # in the available source artifact; do not fabricate a fallback pose.
-        push_warning("Source 0051f670 found a blocked camera ray; its blocked-result controller transition is not implemented, and DAT_007218fc does not authorize 0051fb50 here")
+    if controller_result.is_empty():
         return false
-    if not bool(controller_state.call("record_mode_zero_good_position", candidate["position"])):
-        push_error("Source camera controller state rejected the current clear candidate")
+    var candidate_result := bool(controller_result["controller_result"])
+    candidate_24 = controller_result["candidate_position_24"]
+    candidate_30 = controller_result["candidate_position"]
+    if candidate_result and not bool(controller_state.call("record_mode_zero_good_position", candidate_30)):
+        push_error("Source camera controller state rejected the current DAT_007219ac candidate")
         return false
+
+    var fallback_succeeded := false
+    if not candidate_result and bool(controller_state.call("mode_zero_fallback_requested")):
+        var fallback_sweep := source_mode_zero_fallback_sweep(anchor_3c, current_eye, orientation_data["orientation"])
+        if fallback_sweep.is_empty():
+            return false
+        fallback_succeeded = bool(fallback_sweep.get("success", false))
+        if fallback_succeeded:
+            controller_state.call("record_mode_zero_fallback_success")
+        else:
+            controller_state.call("record_mode_zero_fallback_failure")
     var distance_class: Variant = source_mode_zero_distance_class(current_eye, anchor_3c)
     if distance_class == null:
         return false
-    var teleport_requested := evaluate_mode_zero_teleport_gate(
+    controller_state.call("update_mode_zero_distance_hysteresis",
         candidate_result,
-        false,
-        false,
-        bool(controller_state.call("mode_zero_update_has_position")),
         int(distance_class),
         current_eye,
         anchor_3c,
         mode_zero_distance.y,
-        bool(collision["origin_to_eye_blocked"]),
-        (owner_flags & SOURCE_POSITION_FLAG_HAS_TARGET_OFFSET) != 0
+        bool(controller_state.call("mode_zero_update_obstructed"))
     )
-    if teleport_requested:
+    var pose_write_requested := bool(controller_state.call("mode_zero_pose_write_requested"))
+    if pose_write_requested and (not candidate_result or (owner_flags & SOURCE_POSITION_FLAG_HAS_TARGET_OFFSET) == 0):
+        if candidate_result and bool(controller_state.call("can_recover_mode_zero_position")):
+            if not bool(controller_state.call("record_mode_zero_good_position", current_eye)):
+                push_error("Source 0051c8a0 rejected the current camera position as the stable candidate")
+                return false
         var obstruction_position: Vector3 = controller_state.call("mode_zero_last_obstructed_position")
-        if not bool(controller_state.call("mode_zero_has_obstructed_position")):
-            push_error("Source 0051c7b0 gate fired without a source-observed DAT_007219c4 obstruction point")
-            return false
         var last_good_position: Vector3 = controller_state.call("mode_zero_last_good_position")
         var sector_result := source_resolve_mode_zero_sector(obstruction_position)
         if not bool(sector_result.get("complete", false)):
@@ -990,6 +1345,13 @@ func _source_update_mode_zero() -> bool:
         ):
             push_error("Source 0051c7b0 rejected the conditional mode-0 translation")
             return false
-    # 005200a0 computes the candidate, runs obstruction/range hysteresis, and
-    # writes the owner translation only when DAT_007219d1 reaches 0051c7b0.
+    elif not candidate_result and bool(controller_state.call("mode_zero_update_obstructed")):
+        # The source routes this case through 0051ec70, which updates internal
+        # camera-offset interpolation via 0052c7f0/0051e350/0051e600. Those
+        # routines have no equivalent native camera-motion API yet; keep the
+        # computed controller positions observable, but do not claim success.
+        push_error("Source camera collision state requires the unported 0051ec70 offset-interpolation path")
+        return false
+    # 0051c7b0 is the only proven owner-pose writer in the mode-0 gate; the
+    # ordinary candidate remains controller state for the camera actor path.
     return true

@@ -37,6 +37,16 @@ pub struct CameraParameters {
 }
 
 impl CameraParameters {
+    /// `00440e30` reads the camera controller flags at source offset `+0x92`.
+    /// The `0051f520` input writer ORs source action bits into this word.
+    pub fn controller_flags(&self) -> u16 {
+        u16::from_le_bytes(
+            self.unknown[90..92]
+                .try_into()
+                .expect("validated camera parameter extent"),
+        )
+    }
+
     /// `00440ea0` reads the camera parameter flags at source offset `+0x94`.
     pub fn angle_flags(&self) -> u16 {
         u16::from_le_bytes(
@@ -171,6 +181,13 @@ mod tests {
         let mut value = parameters();
         value.unknown[92..94].copy_from_slice(&0x0004_u16.to_le_bytes());
         assert_eq!(value.angle_flags(), 4);
+    }
+
+    #[test]
+    fn camera_controller_flags_are_read_from_source_offset_92() {
+        let mut value = parameters();
+        value.unknown[90..92].copy_from_slice(&0x8040_u16.to_le_bytes());
+        assert_eq!(value.controller_flags(), 0x8040);
     }
 }
 

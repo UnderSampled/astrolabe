@@ -188,6 +188,8 @@ func run() -> void:
     probe_camera.targeted_actor = clear_target
     if not require(probe_camera.call("source_update_position"), "source mode-0 collision-free candidate path did not complete"): return
     if not require(probe_owner.global_position.is_equal_approx(Vector3(0,0.5,-4)), "source mode-0 clear-ray gate published a translation without a source 0051c7b0 request"): return
+    if not require(probe_camera.controller_state.call("mode_zero_update_has_position"), "source 0051f670 clear first ray did not set DAT_007219d0"): return
+    if not require(probe_camera.source_controller_candidate_result and probe_camera.source_controller_position_30.is_equal_approx(Vector3(0,0.5,-4)), "source 0051f670 did not retain its +0x30 candidate output"): return
 
     var blocker := StaticBody3D.new()
     blocker.collision_layer = 1
@@ -205,6 +207,10 @@ func run() -> void:
         Vector3(0,0.5,0), Vector3(0,0.5,-4), Vector3(0,0.5,-4)
     )
     if not require(blocked_rays.get("anchor_to_eye_blocked", false) and not blocked_rays.get("origin_to_eye_blocked", true), "source candidate ray did not distinguish a blocked anchor segment from a clear zero-length origin segment"): return
+    var anchor_hit: Dictionary = blocked_rays.get("anchor_result", {})
+    var expected_adjusted: Vector3 = anchor_hit.get("hit_position", Vector3.ZERO) + anchor_hit.get("hit_normal", Vector3.ZERO) * 0.35
+    var adjusted_hit: Variant = probe_camera.call("_source_mode_zero_collision_adjusted_position", anchor_hit, 0.35)
+    if not require(anchor_hit.get("blocked", false) and adjusted_hit is Vector3 and adjusted_hit.is_equal_approx(expected_adjusted), "source 0051f450 did not apply its hit-point plus normal times 0.35 candidate offset"): return
     blocker_shape.set_meta("source_collision_identifier", 0x8000)
     var filtered_rays: Dictionary = probe_camera.source_mode_zero_collision_inputs(
         Vector3(0,0.5,0), Vector3(0,0.5,-4), Vector3(0,0.5,-4)
@@ -237,8 +243,15 @@ func run() -> void:
     )
     if not require(fallback_sweep.get("success", false) and fallback_sweep.get("classification", 0) == 4 and fallback_sweep.get("attempts", 0) > 0, "source 0051fb50 pitch/yaw sweep did not find its first valid 0052d1b0 candidate"): return
     var blocked_owner_position := probe_owner.global_position
-    if not require(not probe_camera.call("source_update_position"), "source mode-0 blocked ray was silently accepted as a completed 0051fb50 fallback update"): return
+    if not require(probe_camera.call("source_update_position"), "source 0051f670 blocked-ray candidate transition did not follow its target-head branch"): return
+    if not require(probe_camera.source_controller_candidate_result and probe_camera.source_controller_position_30.is_equal_approx(Vector3(0,0.5,0)), "source 0051f670 did not move the +0x30 candidate back to +0x3c on the clear target-head branch"): return
+    if not require(probe_camera.controller_state.call("mode_zero_update_obstructed") and probe_camera.controller_state.call("mode_zero_candidate_obstruction_streak") == 1, "source 0051f670 did not preserve the blocked-ray flags and counter"): return
     if not require(probe_owner.global_position.is_equal_approx(blocked_owner_position), "source mode-0 unsupported blocked branch published an unverified pose"): return
+
+    if not require(probe_camera.controller_state.call("set_mode_zero_collision_selector", 1), "source selector did not switch to 0051f290"): return
+    if not require(probe_camera.call("source_update_position"), "source 0051f290/0052bb50 clear camera-ray path did not complete"): return
+    if not require(probe_camera.controller_state.call("mode_zero_update_has_position"), "source 0051f290 clear 0052bb50 branch did not set DAT_007219d0"): return
+    if not require(int(probe_owner.get_meta("source_camera_static_obstruction_count", 0)) == 1, "source 0052bb50 did not use the first static-geometry obstruction sample"): return
 
     var gate_script = load("res://addons/astrolabe/camera/source_controller_state.gd")
     var unblocked_gate: Resource = gate_script.new()
