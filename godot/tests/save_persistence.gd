@@ -1,6 +1,7 @@
 extends SceneTree
 ## Run in separate Godot processes with one isolated user-data directory.
 const SAVE_STATE = preload("res://game/save_state.gd")
+const LEVEL_SCENE_PATH := "res://generated/hype/levels/manoir/level.tscn"
 
 func _initialize() -> void:
     call_deferred("run")
@@ -128,6 +129,8 @@ func run() -> void:
         if expected_gate_sequence and (int(gate_brain.get("current_normal")) != 3 or not str(gate_brain.get("unsupported_failure")).is_empty()):
             fail("Saved Global DSG[149] did not run the gate's source AI sequence")
             return
+        if expected_gate_sequence and not gate_moved_once_from_source_pose(gate, stage):
+            return
     var magick := actor.get("source_magick") as Resource
     var inventory := actor.get("source_inventory") as Resource
     if stage == "write":
@@ -198,6 +201,33 @@ func key(code: Key, pressed: bool) -> void:
     event.pressed = pressed
     Input.parse_input_event(event)
     Input.flush_buffered_events()
+
+func gate_moved_once_from_source_pose(gate: CharacterBody3D, stage: String) -> bool:
+    var packed := load(LEVEL_SCENE_PATH) as PackedScene
+    if packed == null:
+        fail("Could not load generated manor to compare the saved gate pose")
+        return false
+    var baseline_level := packed.instantiate() as Node3D
+    if baseline_level == null:
+        fail("Generated manor did not instantiate for the gate pose comparison")
+        return false
+    for brain in baseline_level.find_children("Brain", "Node", true, false):
+        if brain.get_property_list().any(func(property): return str(property["name"]) == "automatic"):
+            brain.set("automatic", false)
+    baseline_level.process_mode = Node.PROCESS_MODE_DISABLED
+    root.add_child(baseline_level)
+    var baseline_gate := baseline_level.get_node_or_null("world/0/15/iMGrille_Manoir_Pont") as CharacterBody3D
+    if baseline_gate == null:
+        baseline_level.free()
+        fail("Generated manor has no baseline gate pose")
+        return false
+    var displacement := gate.global_position - baseline_gate.global_position
+    baseline_level.free()
+    if absf(displacement.x - 2.6) > 0.001 or absf(displacement.y) > 0.001 or absf(displacement.z) > 0.001:
+        fail("Gate source AI displacement in %s was %s; expected exactly +2.6 X with no Y/Z shift" % [stage, displacement])
+        return false
+    print("SAVE_GATE_PROOF %s: source pose + %s = actual gate pose" % [stage, displacement])
+    return true
 
 func fail(message: String) -> void:
     push_error(message)
