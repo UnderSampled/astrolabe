@@ -172,6 +172,15 @@ it does not simulate the original dynamics. Family bounds are saved hidden
 native geometry. Morphs, interpolation, root rotation and gameplay visibility
 remain incomplete; inspect generated diagnostics for affected assets.
 
+`character/armor_state.gd` stores `Fight_ChangeArmor`'s selected byte index on
+the generated character and emits `selection_changed(index)`. The compiled
+Hype call updates this native component; the armor.ini definitions are not yet
+imported, so this does not provide resistance calculations or armor artwork.
+The original selector at `0043a9b0` changes the shared definition pointer;
+resistance and drawing consumers are `0043aa20`/`0043aa70` and
+`0043ab40`/`0043ac60`. The per-character property is the manor player's native
+extension point; broader shared selection behavior remains a follow-up.
+
 `audio/voice.gd` carries a native AudioStreamWAV and playback properties.
 `audio/emitter.gd` owns native voices, selectors, weighted/nonrepeat choice,
 random pitch and event-targeted stopping. Compiled event Resources provide

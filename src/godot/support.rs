@@ -22,6 +22,7 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/audio/voice.gd.uid",
     "addons/astrolabe/audio/emitter.gd.uid",
     "addons/astrolabe/character/character.gd",
+    "addons/astrolabe/character/armor_state.gd",
     "addons/astrolabe/character/particle_source.gd",
     "addons/astrolabe/character/particle_source.gd.uid",
     "addons/astrolabe/character/particle_generator.gd",

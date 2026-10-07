@@ -204,6 +204,10 @@ pub enum Statement {
     SetTransparency(Expression),
     /// TransparentDisplay enables actor opacity; DefaultDisplay disables it.
     SetTransparentDisplay(bool),
+    /// Fight_ChangeArmor selects the source armor definition by its byte index.
+    /// The current native slice retains the selected index on the character;
+    /// armor.ini definitions and their resistance/artwork data remain separate.
+    SelectArmor(Expression),
     ChangeSighting(Expression),
     /// Camera procedure 160 stores a keyword or referenced target actor.
     CameraChangeTargetedPerso {

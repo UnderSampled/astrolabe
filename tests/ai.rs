@@ -34,6 +34,69 @@ fn native_magick_service_follows_verified_remove_points_contract() -> Result<()>
 }
 
 #[test]
+fn fight_change_armor_round_trips_and_updates_native_selection_state() -> Result<()> {
+    // Hype model 28's reached node 987: procedure 429, then byte index 0.
+    let source_nodes = [
+        0xad, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x04, // category 4 / op 429
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x0c, // integer 0
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, // sentinel
+    ];
+    let script = AiScriptCodec::default().read(&source_nodes)?;
+    assert_eq!(
+        script.statements,
+        vec![Statement::SelectArmor(Expression::Integer(0))]
+    );
+    assert_eq!(AiScriptCodec::default().write(&script)?, source_nodes);
+
+    let mut model = model()?;
+    model.normal.as_mut().unwrap().behaviors[0].schedule = Some(script.clone());
+    let model = rete::decode::<AiModel>(&rete::encode(&model)?)?;
+    let code = godot::ai::compile(&model, &[])?;
+    assert!(code.contains("SourceArmorState"), "{code}");
+    assert!(
+        code.contains("call(\"select_source_index\", int(0))"),
+        "{code}"
+    );
+
+    let temp = tempfile::tempdir()?;
+    let project = temp.path().join("godot");
+    godot::support::initialize(&project)?;
+    fs::write(project.join("compiled_armor.gd"), code)?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    godot::run_godot(
+        &engine,
+        &project,
+        &[
+            "--headless",
+            "--check-only",
+            "--script",
+            "res://compiled_armor.gd",
+            "--log-file",
+            "compiled-armor.log",
+        ],
+        Duration::from_secs(10),
+    )?;
+    fs::write(
+        project.join("check_armor_state.gd"),
+        include_bytes!("check_armor_state.gd"),
+    )?;
+    let evidence = godot::run_godot(
+        &engine,
+        &project,
+        &[
+            "--headless",
+            "--script",
+            "res://check_armor_state.gd",
+            "--log-file",
+            "armor-state.log",
+        ],
+        Duration::from_secs(20),
+    )?;
+    assert!(evidence.contains("SOURCE_ARMOR_STATE_OK"), "{evidence}");
+    Ok(())
+}
+
+#[test]
 fn generated_actor_receives_live_scene_actor_brain_binding() -> Result<()> {
     let temp = tempfile::tempdir()?;
     let project = temp.path().join("godot");

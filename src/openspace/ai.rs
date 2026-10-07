@@ -552,6 +552,11 @@ impl Parser<'_> {
                     },
                     visible: self.expression(indent + 1)?,
                 },
+                // The game handler calls Fight_ChangeArmor (429) with a byte
+                // index into the shared armor-definition list. Keep the value
+                // expression typed; the target component performs the source
+                // byte conversion at the API boundary.
+                (4, 429) => Statement::SelectArmor(self.expression(indent + 1)?),
                 (5, 68) => Statement::WaitFrames(self.expression(indent + 1)?),
                 (4, 209 | 210) => self.change_behavior(id, indent, false, at)?,
                 (4, 6) => {
@@ -1335,6 +1340,10 @@ impl Writer<'_> {
                         indent,
                     );
                     self.expression(visible, indent + 1)?;
+                }
+                Statement::SelectArmor(index) => {
+                    self.node(4, 429, indent);
+                    self.expression(index, indent + 1)?;
                 }
                 Statement::ArrayAssign {
                     array,
