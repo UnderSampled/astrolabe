@@ -130,6 +130,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::SetTransparentDisplay(_)
                 | Statement::RepairArmor
                 | Statement::CameraChangeTargetedPerso { .. }
+                | Statement::CameraResetTargetedPerso { .. }
                 | Statement::CameraUpdatePosition { .. }
                 | Statement::ActorListAdd { .. }
                 | Statement::SetChannelActive { .. }
