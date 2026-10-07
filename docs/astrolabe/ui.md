@@ -159,10 +159,11 @@ Widescreen suppresses drawing while retaining requested state. Life values come
 from promoted StandardGame hit-point bytes in an actor-local native Resource;
 magic uses the existing Magick Resource. It does not invent missing totals.
 The source-derived Fix HUD reader and Godot projection remain quarantined while
-the texture records are being joined to archive members and pixels. Legacy
-`fix:/hud/en` data and generated scenes are not valid source layouts and are
-not attached to the saved level screen. The maintained generic HUD support
-remains separate from this reader.
+the native draw component and focused regressions are completed. The texture
+records now join to archive members and decoded first mips. Legacy `fix:/hud/en`
+data and generated scenes are not valid source layouts and are not attached to
+the saved level screen. The maintained generic HUD support remains separate
+from this reader.
 
 ### Fix HUD extraction status
 
@@ -182,24 +183,44 @@ object size used by `GLI_xCreateTexture`. The corresponding Fix.ptx table
 indexes, in slot order, are 22, 23, 13, 11, 12 and 30. Each resolves through
 Fix.sna block 06:01 to a `0xbc` GLI texture record; its name at `+0x64` is,
 respectively, `enemyfg_nz.tga`, `enemybg_nz.tga`, `poigne_nz.tga`, `vie0.tga`,
-`vie1.tga` and `gold_icone_nz.tga` under `fixtex\stencil\jauges\`. This
-verifies the runtime-object-to-source-name join. The archive-member/pixel join,
-the associated Fix.sda table roles, and the runtime layer-to-artwork roles
-remain unresolved.
+`vie1.tga` and `gold_icone_nz.tga` under `fixtex\stencil\jauges\`. The
+Fix.rtt/Fix.ptx identities resolve to unique entries in `Textures.cnt`, and
+the decoded first mip dimensions match each GLI logical size: 64x8, 128x16,
+32x32, 64x16, 64x16 and 128x64. The formats are palette RGB, palette RGB,
+ARGB1555, ARGB4444, ARGB4444 and ARGB4444, respectively. The join uses a
+Fix-local resolver so overlapping block keys cannot bind these package
+pointers into the active level. The cursor and archive/object joins have
+focused source regressions.
+
+The second Fix.sda table and its direct draw consumers now give slot roles.
+`FUN_0040c300` reads rows 0 and 1 for the life handle and its two dynamically
+split segments, drawing texture slots 2, 4 and 3. `FUN_0040c720` draws enemy
+bar slot 1 as base/background and slot 0 as fill; its row selectors address the
+base/fill pairs 11/12, 13/14 and 15/16. `FUN_0040c950` draws coin slot 5 with
+row 23. Static `.data` from both the decompilation reference executable and
+the exact installed `MaiDFXvr_bleu.exe` confirms selectors 11/12, 13/14 and
+15/16 at `0x5e6839/0x5e683a` and the corresponding `+0x14` / `+0x28` fields.
+The installed executable SHA-256 is
+`048ff4f4f0447a1f54a5a73ff588df78b484015c78df99a8f2d7acd3469df7da`; the
+alternate `disc/exe/Glide 3x/MAIDFXVR_BLEU.ICD` is a different build and is not
+used for this selector comparison. These static joins do not yet establish
+Godot's final keyed/upload behavior or pixel parity.
 
 This corrects the former `0x4a24` cursor claim by `0x14`; `0x4904` is inside
 the `FUN_004e5150` shadow arrays and the former `0x4944` values are shadow
 fields, not HUD handles.
 
-The descriptor/layer extents are now source-verified, but prior Rete roots at
-`fix:/hud/en` and generated scenes still preserve the bad offsets and
-associations. Do not use, regenerate, attach or merge those legacy assets.
+The descriptor/layer extents, six source textures and direct draw-slot roles
+are source-verified, but prior Rete roots at `fix:/hud/en` and generated scenes
+still preserve the bad offsets and associations. Do not use, regenerate,
+attach or merge those legacy assets.
 Explicit `--content hud` continues to omit the component and emits the stable
 `openspace.hud.layout_unverified` warning for caller compatibility; the
-remaining blockers are archive pixel decoding and runtime layer-to-artwork
-mapping, not the `0x4a38` descriptor cursor or GLI object names. Scene, menu
-and save imports are independent. New Rete saves of the legacy type and Godot
-exports containing it remain rejected;
+remaining work is a native scene/resource export using the direct draw paths,
+plus targeted validation of actor values and keyed/upload behavior. The
+disabled descriptors do not own these runtime draws. Scene, menu and save
+imports are independent. New Rete saves of the legacy type and Godot exports
+containing it remain rejected;
 legacy Rete files are inspect-only. The maintained generic HUD support script
 is separate and is not evidence for the original rendering path.
 
@@ -234,9 +255,10 @@ Still required for manor fidelity: native font/frame pixel comparisons,
 line reveal and fade pacing, additional dialogue
 items and branching answers, channel/action/icon side effects, armor and
 selected-inventory/weapon values/icons, saved life-state restoration, and original
-vs Godot captures. HUD rectangle extents, layer records, descriptor cursor and
-GLI object names are source-verified. Archive pixels, layer roles and dynamic
-draw behavior remain unverified.
+vs Godot captures. HUD descriptor cursor, texture identities/dimensions, Fix.sda
+rows and direct draw-slot roles are source-verified. Native control geometry,
+keyed/upload behavior, actor-value bindings and final draw parity remain
+unverified.
 Fade geometry exists but unrelated source fade procedures are not promoted by
 this slice. Native voice teardown follows the existing emitter's stoppable-event
 policy; dialogue-specific interruption parity remains to be checked.
