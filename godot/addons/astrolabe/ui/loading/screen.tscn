@@ -1,0 +1,72 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://addons/astrolabe/ui/loading/screen.gd" id="1_screen"]
+[ext_resource type="Theme" path="res://addons/astrolabe/ui/theme.tres" id="2_theme"]
+
+[node name="LoadingPresentation" type="CanvasLayer"]
+visible = false
+layer = 30
+process_mode = 3
+script = ExtResource("1_screen")
+
+[node name="Viewport" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+theme = ExtResource("2_theme")
+
+[node name="Center" type="CenterContainer" parent="Viewport"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+
+[node name="Content" type="VBoxContainer" parent="Viewport/Center"]
+layout_mode = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="Title" type="Label" parent="Viewport/Center/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+theme_override_colors/font_color = Color(1, 1, 0.88, 1)
+text = "Loading map"
+horizontal_alignment = 1
+mouse_filter = 2
+
+[node name="Phase" type="Label" parent="Viewport/Center/Content"]
+layout_mode = 2
+text = "Loading scene resources"
+horizontal_alignment = 1
+mouse_filter = 2
+
+[node name="Progress" type="ProgressBar" parent="Viewport/Center/Content"]
+custom_minimum_size = Vector2(420, 28)
+layout_mode = 2
+min_value = 0.0
+max_value = 1.0
+value = 0.0
+show_percentage = true
+mouse_filter = 2
+
+[node name="ErrorMessage" type="Label" parent="Viewport/Center/Content"]
+visible = false
+custom_minimum_size = Vector2(420, 0)
+layout_mode = 2
+text = ""
+autowrap_mode = 3
+horizontal_alignment = 1
+mouse_filter = 2
+
+[node name="Dismiss" type="Button" parent="Viewport/Center/Content"]
+visible = false
+layout_mode = 2
+text = "Dismiss"
+mouse_filter = 0

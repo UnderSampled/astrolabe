@@ -3,8 +3,33 @@
 The maintained UI lives in `godot/addons/astrolabe/ui/`. Its scenes, theme and
 scripts are authored Godot support. Text, voices, fonts and original textures
 are converted inputs under ignored `generated/`; content regeneration does not
-rewrite the maintained scenes. This slice targets manor and does not add menu
-or loading-screen ownership.
+rewrite the maintained scenes. The screen-space HUD/dialogue slice targets
+manor; the main menu and level-loading presentation remain separate components.
+
+## Level-loading presentation
+
+`loading/screen.tscn` is a native `CanvasLayer` with editable `Control` nodes.
+The persistent `LevelTransition` owner instances it once and emits lifecycle
+signals; the presenter displays only the observed resource-loading fraction for
+the requested destination `PackedScene` and its dependencies. It does not
+smooth or extrapolate that fraction to cover scene replacement, state transfer,
+entry placement or gameplay readiness. Completion and cancellation hide the
+screen immediately. A load error remains visible with the supplied message
+until dismissed; scene recovery stays with the transition owner.
+
+The local decompilation source at `reference/decompilation/functions/` shows
+`FUN_00401395` forwarding status text to `CWnd::SetWindowTextA`. The level-load
+routine `FUN_0043c8e0` updates that caption for map, always, waypoints,
+characters, dialogues, paths, stencils, game interfaces, highlight data and map
+processing. This evidence shows no in-frame loading artwork, animation,
+percentage bar or minimum presentation lifetime in that build. The whole
+decompilation input and current private installed executable have different
+SHA-256 hashes, but their machine code matches byte-for-byte across the relevant
+loader ranges (`0x401395`, `0x402b60–0x4038af`, and `0x43c8e0–0x43cfff`). The
+caption behavior is therefore confirmed for the installed executable. No
+guessed background image is used. See the
+[dated loading-presentation record](../../notes/loading-presentation-2026-10-07.md)
+for paths, hashes and validation limits.
 
 ## Composition and layout
 
