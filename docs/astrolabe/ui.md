@@ -158,48 +158,44 @@ The HUD binds the existing Character visibility signal and state dictionary.
 Widescreen suppresses drawing while retaining requested state. Life values come
 from promoted StandardGame hit-point bytes in an actor-local native Resource;
 magic uses the existing Magick Resource. It does not invent missing totals.
-The source-derived Fix HUD reader and Godot projection are quarantined pending
-validated Fix stream cursor accounting. Legacy `fix:/hud/en` data and generated
-scenes are not valid source layouts and are not attached to the saved level
-screen. The maintained generic HUD support remains separate from this reader.
+The source-derived Fix HUD reader and Godot projection remain quarantined while
+the runtime texture objects are being mapped to original artwork. Legacy
+`fix:/hud/en` data and generated scenes are not valid source layouts and are
+not attached to the saved level screen. The maintained generic HUD support
+remains separate from this reader.
 
 ### Fix HUD extraction status
 
-The prior Fix HUD reader was based on an invalid cursor interpretation and is now
-quarantined. It treated Fix.gpt offset `0x4904` as four 16-byte HUD panel
-records and `0x4944` as six texture handles. Independent static reader
-accounting places `0x4904` inside the shadow arrays read by
-[`FUN_004e5150`](../../reference/decompilation/functions/004e5150_FUN_004e5150.c);
-`0x4944` straddles those arrays and the following shadow arrays. These offsets
-do not describe a verified HUD record block.
+The earlier Fix HUD reader used incorrect offsets and is quarantined. Corrected
+reader/writer byte accounting places both `FUN_0040bcc0` and `FUN_0040bda0` at
+Fix.gpt offset `0x4a38`. The 64-byte block there contains four disabled
+16-byte panel descriptors. Each layer-array pointer resolves to a Fix block
+5:0 allocation whose payload extent is exactly `count * 0x24` (31, 7, 14 and
+4 records). The `+4` and `+8` references resolve to Fix block 6:1 allocations
+with the expected material-sized extents. `FUN_0040c270` confirms the 36-byte
+layer record fields; `FUN_0047abb0` consumes coordinates as x0, x1, y0, y1,
+then UVs as u0, u1, v0, v1.
 
-Counting reads from the Fix loader in
-[`FUN_00401e00`](../../reference/decompilation/functions/00401e00_FUN_00401e00.c)
-places its call to `FUN_0040bcc0` at candidate offset `0x4a24`. That candidate
-64-byte block fails the assumed panel schema, and the next six words include
-`0xe00` and `0x400`; it is not a validated replacement. The exact stream
-cursor and serialized record layout remain under source investigation.
+The six texture references begin at `0x4a78`. RTP relocations resolve them to
+Fix block 6:1 allocations of total size `0xc0` (payload `0xbc`), matching the
+object size used by `GLI_xCreateTexture`. This verifies their serialized
+object class, but the mapping from those runtime texture objects to named PTX
+records, pixel data and rendered HUD artwork is still unresolved. The
+associated Fix.sda tables and their element roles also remain unverified.
+This corrects the former `0x4a24` cursor claim by `0x14`; `0x4904` is inside
+the `FUN_004e5150` shadow arrays and the former `0x4944` values are shadow
+fields, not HUD handles.
 
-Consequently, the previous panel/material/slot mapping, layer mapping, Fix.sda
-table association and HUD element roles are unverified. Earlier Rete roots at
-`fix:/hud/en` and Godot files generated from them preserve parser assumptions,
-not validated source meaning. They must not be used, regenerated, attached to
-a gameplay scene, or merged as HUD data. Explicit `--content hud` now omits the
-asset and returns the stable `openspace.hud.layout_unverified` warning with the
-candidate cursor/schema mismatch. This does not affect scene, menu, or save
-imports. New Rete saves of the legacy type and Godot exports containing it are
-rejected until the reader and its regressions are source-validated. Legacy
-Rete files can still be read for inspection, but the prior import/export checks
-established only that the assumed records could be serialized; they did not
-establish that the offsets belong to HUD data.
-
-The decompiled draw procedures remain useful leads, but their operands cannot
-be assigned to the former imported descriptors or Fix.sda rows until the loader
-cursor is resolved. The maintained generic HUD support script is separate from
-this source extraction and is not evidence for the original layout. No HUD
-source metadata is currently wired to gameplay, and no source-derived HUD
-layout or artwork mapping is claimed. The corrected reader work is in progress;
-Rete schema/model changes should be coordinated with that implementation.
+The descriptor/layer extents are now source-verified, but prior Rete roots at
+`fix:/hud/en` and generated scenes still preserve the bad offsets and
+associations. Do not use, regenerate, attach or merge those legacy assets.
+Explicit `--content hud` continues to omit the component and emits the stable
+`openspace.hud.layout_unverified` warning for caller compatibility; the
+remaining blocker is texture-to-artwork and runtime draw mapping, not the
+`0x4a38` descriptor cursor. Scene, menu and save imports are independent. New
+Rete saves of the legacy type and Godot exports containing it remain rejected;
+legacy Rete files are inspect-only. The maintained generic HUD support script
+is separate and is not evidence for the original rendering path.
 
 ## Current boundary and next increments
 
@@ -232,9 +228,9 @@ Still required for manor fidelity: native font/frame pixel comparisons,
 line reveal and fade pacing, additional dialogue
 items and branching answers, channel/action/icon side effects, armor and
 selected-inventory/weapon values/icons, saved life-state restoration, and original
-vs Godot captures. HUD table rectangles, layer records and their source
-associations remain unverified pending validated reader cursor accounting.
-Visible artwork mapping and dynamic draw behavior remain unverified.
+vs Godot captures. HUD rectangle extents, layer records and descriptor cursor
+are source-verified. Texture-to-artwork mapping and dynamic draw behavior remain
+unverified.
 Fade geometry exists but unrelated source fade procedures are not promoted by
 this slice. Native voice teardown follows the existing emitter's stoppable-event
 policy; dialogue-specific interruption parity remains to be checked.
