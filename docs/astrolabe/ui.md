@@ -201,7 +201,7 @@ Fix.ptx resolves 435 relocated TextureInfo records; all 435 have names and all
 as `fixtex/stencil/jauges/vie/vie0.tga` and `vie1.tga`, but none of the three
 HUD handle addresses occurs in the Fix.ptx pointer list or in those records'
 188-byte fields. The standard named texture loader
-([`GLI_xLoadTextureInTexelField`](../reference/decompilation/functions/004828e0_GLI_xLoadTextureInTexelField.c))
+([`GLI_xLoadTextureInTexelField`](../../reference/decompilation/functions/004828e0_GLI_xLoadTextureInTexelField.c))
 does not by itself establish how these GPT handles join that table. Keep the
 source-to-PTX/CNT handle mapping unresolved; do not assign even the plausible
 life images until the link is proven. An unrelocated panel-layer handle is
