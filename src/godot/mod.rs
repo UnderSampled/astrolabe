@@ -83,6 +83,7 @@ mod environment;
 pub mod action;
 
 mod bitmap_font;
+mod hud;
 mod inventory;
 mod menu;
 mod particle;

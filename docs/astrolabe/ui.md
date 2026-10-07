@@ -133,7 +133,50 @@ The HUD binds the existing Character visibility signal and state dictionary.
 Widescreen suppresses drawing while retaining requested state. Life values come
 from promoted StandardGame hit-point bytes in an actor-local native Resource;
 magic uses the existing Magick Resource. It does not invent missing totals.
-TextureRect slots and native ProgressBars are authored extension points.
+The English Fix HUD can currently be imported as its own root and exported to
+an editable scene with layout/table/handle metadata. It is not yet attached to
+the saved level screen. Source texture handles remain unresolved, so the
+exported nodes have no textures and render no substitute bars or icons. The
+maintained generic HUD template also uses texture-only controls, so it does not
+fall back to Godot's theme progress bars.
+
+### Fix HUD source extraction
+
+The current English PC Montreal profile reads four 16-byte Fix.gpt panel
+descriptors at `0x4904`, followed by six contiguous four-byte handles at `0x4944`.
+The first descriptor declares twelve layers but is disabled; the other three
+are disabled with zero layers. `0040c270` confirms the enabled byte and count
+byte, and only traverses layer arrays for enabled panels. Their Fix allocation
+identities and the two otherwise-unused descriptor bytes are retained without
+traversing disabled layer data. `0040bcc0` and `0040bda0` read/write this state.
+
+The handle words are values passed to `GLI_xSetMaterialTexture`, not established
+TextureInfo records. A tested Fix object had neither a texture name nor valid
+image dimensions, and the three non-null HUD slots do not appear in Fix.ptx.
+The archive-art mapping is therefore unresolved. The importer preserves bound
+handles as Fix source identities; an unrelocated layer handle is kept as four
+opaque bytes. It does not emit guessed texture links or substitute UI art.
+
+Fix.sda's HUD block begins at `0x9b4` and contains two source words, two text
+offsets, and two 24-by-6 tables. `0040d190` and `0040bfa0` show the rectangle
+row shape as `[x, y, x + width - 1, y + height - 1, width, height]`;
+`0040c020` copies entries from the first table into the second working table,
+which the draw routines use. The Godot scene stores both full tables and source
+identities as metadata. `0040c300` identifies life's background row 0 and bar
+row 1, using texture slots 2, 4, and 3 in draw order; native `TextureRect` and
+`TextureProgressBar` nodes preserve those edit points and bind the existing
+actor value script, but have no textures and draw no substitute meter. The
+selected-object and weapon positions use rows 10 and 22 as read by `0040ca40`
+and `0040cb50`. Armor and magic retain table metadata; their complete item/state
+art mapping remains open.
+
+The HUD importer completed for the local `manoir` profile and saved one
+`fix:/hud/en` Rete root with no diagnostics; Rete inspection succeeded. A
+focused Godot 4.7.2 export before the final schema/support version bump imported
+the native HUD scene. The post-bump focused rerun was cancelled during editor
+startup, so the final packaged scene has not been rechecked in Godot. Current
+Rust formatting, `cargo check --locked`, and diff checks pass. No gameplay
+session was run, so on-screen behavior and artwork mapping remain unverified.
 
 ## Current boundary and next increments
 
@@ -166,10 +209,12 @@ Still required for manor fidelity: native font/frame pixel comparisons,
 line reveal and fade pacing, additional dialogue
 items and branching answers, channel/action/icon side effects, armor and
 selected-inventory/weapon values/icons, saved life-state restoration, and original
-vs Godot captures. HUD positions remain provisional. Fade geometry exists but unrelated source fade
-procedures are not promoted by this slice. Native voice teardown follows the
-existing emitter's stoppable-event policy; dialogue-specific interruption parity
-remains to be checked.
+vs Godot captures. HUD table rectangles are source-extracted, and layer records
+are decoded only for enabled source panels; this profile has none enabled.
+Visible artwork mapping and dynamic draw behavior remain unverified.
+Fade geometry exists but unrelated source fade procedures are not promoted by
+this slice. Native voice teardown follows the existing emitter's stoppable-event
+policy; dialogue-specific interruption parity remains to be checked.
 
 Dialogue-to-OpenSpace reconstruction rejects the newly promoted dialogue root
 explicitly. Unknown item/line/font/channel fields and RTG header semantics must

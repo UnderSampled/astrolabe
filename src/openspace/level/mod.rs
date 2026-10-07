@@ -96,8 +96,10 @@ pub use sector_export::write_sectors;
 
 mod dialogue;
 mod dialogue_presentation;
+mod hud;
 mod inventory;
 mod menu;
+pub(crate) use hud::import as import_hud_presentation;
 pub(crate) use inventory::import as import_inventory_presentation;
 pub(crate) use menu::{import_main_menu, import_pause_menu};
 mod sound;

@@ -159,9 +159,11 @@ modes and degenerate eye/target geometry, and does not select a viewport.
 Attaching this Brain does not yet reproduce the intro or follow camera.
 The compiled `Stats_DisplayMainActor*` calls retain their requested Boolean
 visibility in `source_hud_display` and emit `hud_visibility_requested`. An
-authored HUD can bind that signal to its native `Control` nodes. The current
-manor gameplay test scene has no HUD composition, so the signal alone does not
-establish visual HUD parity.
+authored HUD can bind that signal to its native `Control` nodes. The English
+Fix HUD layout is importable as a separate root and exports to an editable
+scene, but is not yet attached to the saved level screen. Its original texture
+handles are not mapped to archive art, so the exported nodes remain transparent;
+the signal and layout data alone do not establish visual HUD parity.
 
 `character/mechanics.gd` exposes promoted mechanics parameters for inspection;
 it does not simulate the original dynamics. Family bounds are saved hidden

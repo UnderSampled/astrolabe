@@ -125,6 +125,9 @@ pub fn export<R: ContentSource>(
             Asset::MenuPresentation(_) => {
                 anyhow::bail!("main menu presentation source reconstruction is not supported")
             }
+            Asset::HudPresentation(_) => {
+                anyhow::bail!("source HUD layout reconstruction is not supported")
+            }
             Asset::Dialogue(_) | Asset::DialoguePresentation(_) => {
                 anyhow::bail!("dialogue source reconstruction remains unsupported")
             }

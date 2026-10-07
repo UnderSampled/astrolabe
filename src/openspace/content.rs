@@ -518,3 +518,15 @@ pub fn import_inventory(game: &Path, selection: Selection) -> Result<Imported> {
     imported.put(&AssetRef::from_path(value.path.clone()), value, true)?;
     Ok(imported)
 }
+
+/// Import the shared, source-authored manor HUD and retain unresolved GLI texture handles.
+pub fn import_hud(game: &Path, selection: Selection) -> Result<Imported> {
+    let mut imported = Imported::new(selection.clone());
+    let presentation = level::import_hud_presentation(game, &selection)?;
+    imported.put(
+        &AssetRef::from_path(presentation.path.clone()),
+        presentation,
+        true,
+    )?;
+    Ok(imported)
+}

@@ -47,6 +47,9 @@ pub fn export<R: ContentSource>(
             Asset::InventoryPresentation(value) => {
                 super::inventory::export(&mut project, source, &value)?
             }
+            Asset::HudPresentation(value) => {
+                super::hud::export(&mut project, source, &value, &mut written)?
+            }
             Asset::Dialogue(_) => {}
             Asset::DialoguePresentation(value) => {
                 super::dialogue_presentation::export(&mut project, source, &value, &mut written)?;
