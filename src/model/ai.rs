@@ -318,6 +318,9 @@ pub enum Expression {
     Vector(Box<[Expression; 3]>),
     /// Current actor's world position in source coordinates.
     SelfPosition,
+    /// Source Field.Position reads the current receiver's world translation.
+    /// Keep this distinct from Func_GetPersoAbsolutePosition for source fidelity.
+    SelfPositionField,
     /// Func_GetWPAbsolutePosition resolves a meaningful shared waypoint asset.
     WaypointPosition(AssetRef<Waypoint>),
     /// Source gameplay clock value; its target implementation is owned by Godot.

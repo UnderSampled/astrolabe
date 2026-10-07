@@ -93,6 +93,43 @@ fn fight_change_armor_round_trips_and_updates_level_shared_selection_state() -> 
 }
 
 #[test]
+fn source_position_field_round_trips_and_compiles_to_the_current_actor_world_position() -> Result<()>
+{
+    // Hype Field.Position (category 9 / operation 0) has an implicit receiver.
+    let source_nodes = [
+        0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02, // Assign
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x0b, // designer variable 1
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x09, // Field.Position
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, // sentinel
+    ];
+    let script = AiScriptCodec::default().read(&source_nodes)?;
+    assert_eq!(
+        script.statements,
+        vec![Statement::Assign {
+            variable: 1,
+            value: Expression::SelfPositionField,
+        }]
+    );
+    assert_eq!(AiScriptCodec::default().write(&script)?, source_nodes);
+
+    let mut model = model()?;
+    model.variables[1] = DesignerVariable {
+        default: DesignerValue::Vector([0.0; 3]),
+        save: 0,
+        initialize: 0,
+    };
+    model.normal.as_mut().unwrap().behaviors[0].schedule = Some(script);
+    let reopened = rete::decode::<AiModel>(&rete::encode(&model)?)?;
+    let code = godot::ai::compile(&reopened, &[])?;
+    assert!(
+        code.contains("dsg_1 = character().source_position()"),
+        "{code}"
+    );
+    assert!(!code.contains("unsupported AI expression category 9 operation 0"));
+    Ok(())
+}
+
+#[test]
 fn generated_actor_receives_live_scene_actor_brain_binding() -> Result<()> {
     let temp = tempfile::tempdir()?;
     let project = temp.path().join("godot");

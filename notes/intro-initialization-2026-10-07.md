@@ -45,16 +45,39 @@ still unverified. The V15 report also records the separate `iHypeStatue_Manoir_M
 actor (model 294) stopping at category 9 operation 0. Those are separate
 source/runtime blockers. No original-engine run was made for this increment.
 
-Raymap's pinned Hype type table identifies node kind 9 as `Field`, and field
-0 as `Position` (`reference/raymap/.../AITypes_Hype.cs`); its translator emits
-field nodes with their child operands (`TranslatedScript.cs`). The Rust AI
-expression parser currently has no field-node arm. That names the statue stop
-more precisely, but does not establish the original receiver, coordinate frame
-or whether the value feeds the statue's pose change. Those semantics still need
-to be traced through the executable's field-function dispatch before a native
-API is added.
+At the time of the V15 capture, Raymap's pinned Hype type table identified node
+kind 9 as `Field` and field 0 as `Position` (`reference/raymap/.../AITypes_Hype.cs`);
+its translator emits field nodes with their child operands (`TranslatedScript.cs`).
+That table named the statue stop but did not establish the receiver or coordinate
+frame. The source getter and receiver chain are traced in the section below.
 
 Evidence reviewed: `TestResults/hype-armor429-handler-static-proof-sol-20261004.json`,
 `TestResults/actual-opening-v15-sol-20261004/new-game-opening/report.json`,
 `reference/decompilation/functions/0043a9b0_FUN_0043a9b0.c`, and
 `reference/decompilation/all_functions.c` around `0043aa20`–`0043acf0`.
+
+## Hype `Field.Position` on the manor statue
+
+I traced the V15 stop at model 294's category-9 / operation-0 expression through
+the pinned Hype Ghidra project. The field evaluator at `00521dd0` reads the
+field ordinal from the source node, then calls `0052de60` with the current AI
+receiver. `0052de60` dispatches through the field descriptor table at
+`005ffd68`. Descriptor 0 is `Position`, has vector type index 2, and selects
+getter `005360f0`. That getter reads receiver `+0x24` and passes the matrix to
+`POS_fn_vGetTranslationVector` (`004bb390`). The engine's
+`HIE_fn_hGetSuperObjectGlobalMatrix` (`00466190`) identifies receiver `+0x24`
+as the computed world matrix; `HIE_fn_vPushSuperObjectMatrix` (`004fcc60`)
+composes parent and local matrices when that cached world matrix is stale.
+`Field.Position` is therefore the executing actor's world translation in source
+axes, with no explicit child operand. The earlier preserved model-294 Rete
+import places this field on the right-hand side of the Vector designer variable
+1 assignment in reflex behavior 0; the V15 report independently confirms the
+category-9/op-0 stop on the same model.
+
+The useful model now has a distinct `SelfPositionField` expression, preserving
+category 9 / operation 0 through source reconstruction rather than rewriting
+the field as function 3 / operation 0. Godot compiles it to the maintained
+`character().source_position()` API, which reads `global_position` and converts
+axes to source coordinates. The focused AI integration check round-trips the
+exact original node bytes, passes through Rete, and verifies the generated call.
+It does not assert statue animation appearance or claim a full intro run.

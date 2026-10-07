@@ -850,6 +850,7 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         Expression::Real(v) => format!("{v:?}"),
         Expression::IntegerCast(value) => format!("int({})", expression(value, model)?),
         Expression::SelfPosition => "character().source_position()".into(),
+        Expression::SelfPositionField => "character().source_position()".into(),
         Expression::WaypointPosition(reference) => waypoint_constant(reference),
         Expression::GameTime => "character().source_game_time()".into(),
         Expression::TimeElapsed { start, duration } => format!(
@@ -1264,8 +1265,12 @@ fn statements(
                     writeln!(out, "{pad}dsg_{variable} = null")?;
                     continue;
                 }
+                let value_is_native_vector = matches!(
+                    (kind, value),
+                    (DesignerValue::Vector(_), Expression::SelfPositionField)
+                );
                 let value = guarded_expression(out, value, model, depth, flow)?;
-                let value = if matches!(kind, DesignerValue::Actor(_)) {
+                let value = if matches!(kind, DesignerValue::Actor(_)) || value_is_native_vector {
                     value
                 } else {
                     format!("{}({value})", value_type(kind))

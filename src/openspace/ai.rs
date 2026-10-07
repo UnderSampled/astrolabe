@@ -725,6 +725,7 @@ impl Parser<'_> {
                 self.expression(indent + 1)?,
                 self.expression(indent + 1)?,
             ])),
+            (9, 0) => Expression::SelfPositionField,
             (11, n) => Expression::Variable(n.try_into()?),
             (1, 53) => {
                 let (_, list) = self.take(indent + 1)?;
@@ -1687,6 +1688,7 @@ impl Writer<'_> {
             }
             Expression::SelfSighting => self.node(3, 164, indent),
             Expression::SelfPosition => self.node(3, 0, indent),
+            Expression::SelfPositionField => self.node(9, 0, indent),
             Expression::WaypointPosition(reference) => {
                 let handle = self
                     .codec
