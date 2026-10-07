@@ -159,7 +159,7 @@ Widescreen suppresses drawing while retaining requested state. Life values come
 from promoted StandardGame hit-point bytes in an actor-local native Resource;
 magic uses the existing Magick Resource. It does not invent missing totals.
 The source-derived Fix HUD reader and Godot projection remain quarantined while
-the runtime texture objects are being mapped to original artwork. Legacy
+the texture records are being joined to archive members and pixels. Legacy
 `fix:/hud/en` data and generated scenes are not valid source layouts and are
 not attached to the saved level screen. The maintained generic HUD support
 remains separate from this reader.
@@ -178,10 +178,15 @@ then UVs as u0, u1, v0, v1.
 
 The six texture references begin at `0x4a78`. RTP relocations resolve them to
 Fix block 6:1 allocations of total size `0xc0` (payload `0xbc`), matching the
-object size used by `GLI_xCreateTexture`. This verifies their serialized
-object class, but the mapping from those runtime texture objects to named PTX
-records, pixel data and rendered HUD artwork is still unresolved. The
-associated Fix.sda tables and their element roles also remain unverified.
+object size used by `GLI_xCreateTexture`. The corresponding Fix.ptx table
+indexes, in slot order, are 22, 23, 13, 11, 12 and 30. Each resolves through
+Fix.sna block 06:01 to a `0xbc` GLI texture record; its name at `+0x64` is,
+respectively, `enemyfg_nz.tga`, `enemybg_nz.tga`, `poigne_nz.tga`, `vie0.tga`,
+`vie1.tga` and `gold_icone_nz.tga` under `fixtex\stencil\jauges\`. This
+verifies the runtime-object-to-source-name join. The archive-member/pixel join,
+the associated Fix.sda table roles, and the runtime layer-to-artwork roles
+remain unresolved.
+
 This corrects the former `0x4a24` cursor claim by `0x14`; `0x4904` is inside
 the `FUN_004e5150` shadow arrays and the former `0x4944` values are shadow
 fields, not HUD handles.
@@ -191,9 +196,10 @@ The descriptor/layer extents are now source-verified, but prior Rete roots at
 associations. Do not use, regenerate, attach or merge those legacy assets.
 Explicit `--content hud` continues to omit the component and emits the stable
 `openspace.hud.layout_unverified` warning for caller compatibility; the
-remaining blocker is texture-to-artwork and runtime draw mapping, not the
-`0x4a38` descriptor cursor. Scene, menu and save imports are independent. New
-Rete saves of the legacy type and Godot exports containing it remain rejected;
+remaining blockers are archive pixel decoding and runtime layer-to-artwork
+mapping, not the `0x4a38` descriptor cursor or GLI object names. Scene, menu
+and save imports are independent. New Rete saves of the legacy type and Godot
+exports containing it remain rejected;
 legacy Rete files are inspect-only. The maintained generic HUD support script
 is separate and is not evidence for the original rendering path.
 
@@ -228,9 +234,9 @@ Still required for manor fidelity: native font/frame pixel comparisons,
 line reveal and fade pacing, additional dialogue
 items and branching answers, channel/action/icon side effects, armor and
 selected-inventory/weapon values/icons, saved life-state restoration, and original
-vs Godot captures. HUD rectangle extents, layer records and descriptor cursor
-are source-verified. Texture-to-artwork mapping and dynamic draw behavior remain
-unverified.
+vs Godot captures. HUD rectangle extents, layer records, descriptor cursor and
+GLI object names are source-verified. Archive pixels, layer roles and dynamic
+draw behavior remain unverified.
 Fade geometry exists but unrelated source fade procedures are not promoted by
 this slice. Native voice teardown follows the existing emitter's stoppable-event
 policy; dialogue-specific interruption parity remains to be checked.
