@@ -12,8 +12,10 @@ The validated English profile contains new game, load game, configure, credits,
 internet and quit. The installed pause profile contains `Resume Game`,
 `NextGame`, `Options` and `Main Menu`, with localized labels "resume game",
 "start a new adventure", "configure" and "main menu". These roots remain
-separate; image quality, credits and the legacy Internet launch remain outside
-this slice. Inventory has its own `InvBox` import.
+separate; image quality and the legacy Internet launch remain outside this
+slice. Credits now has a native black route screen, but its localized scrolling
+entries are blocked on importing the source text-key registry. Inventory has
+its own `InvBox` import.
 
 `FUN_004105b0` draws each item using position words 8–10, localized text word
 0x13, selected/normal font names at 0x1c/0x24, and horizontal alignment byte 0xb0.
@@ -76,11 +78,16 @@ buses, and persists them through `UserSettings`. A missing source option default
 to 127.
 
 The Images page identifies the original settings without claiming an unsupported
-Godot effect. `ImageSlider1` sets shadow quality through
+Godot effect. `ImageSlider1` sets source shadow quality through
 `SHW_fn_vSetLevelOfQualityOfShadows`; `ImageSlider2` passes its `60..100` value
-to `FUN_004054c0` for camera-to-viewport adjustment; `ImageSlider3` controls the
-OpenSpace texture-swapping ratio. None has a verified Godot equivalent here, so
-the page says they are unsupported and provides no functional sliders. The
+to `FUN_004054c0`, which adjusts the active source camera's viewport rectangle;
+`ImageSlider3` controls the OpenSpace texture-swapping ratio. Godot exposes
+renderer shadow controls and camera viewport properties, but those APIs do not
+provide a verified semantic mapping for the source's 0..4 shadow levels or
+global camera adjustment. Texture swapping is a source streaming policy without
+a corresponding Godot control for these locally loaded assets. None of the
+three has a verified behavior-preserving equivalent in this project, so the
+page says they are unsupported and provides no functional sliders. The
 Controls page provides native remapping for the five source actions that the
 current Godot session actually consumes: left, right, up, down and hit. It
 persists physical keyboard keys and generic Godot joypad buttons/axis directions
@@ -99,7 +106,23 @@ current bindings; the native action rows show those values directly. Other
 source controls are not exposed until their gameplay actions exist in this
 session.
 
-The same dispatcher sends `Credits` to mode `0x16`. `Internet` writes a temporary
-HTML file and asks the installed browser to open the legacy Playmobil URL. Those
-routes remain unimplemented in the Godot starter; it does not launch that
-external destination.
+The same dispatcher sends `Credits` to mode `0x16`; `FUN_00403fc0` enters credits
+mode `0x17`. `FUN_0040f3f0` loads `credits.ini`, selects `Playmo_Font2_0`, and
+creates text handles for the configured entries. The installed file specifies a
+black background, 40 maximum displayed lines, and declares 397 entries. The
+installed file has 400 active `CDTCreditsEntry` directives, so the declaration
+and list also disagree. Its background image is commented out, and it contains
+no active `CDTImage` declarations. Credit entries are keys such as
+`CDT2_B_NAME`; the installed English
+`Fix.dlg`/`Fix.rtd` registration yields only four references to the relevant
+language block, not the 397 key-to-string values. Those values are embedded in
+the compiled language script, and the current importer does not execute or
+decode its `NewString` registry callbacks. The Godot Credits route therefore
+uses the confirmed black background and reports the missing source text map; it
+does not render IDs or substitute names. Importing the actual localized strings
+and reproducing the timed scroll remains open.
+
+The dispatcher sends `Internet` through its legacy branch, which writes a
+temporary HTML file and asks the installed browser to open the old Playmobil
+destination. Godot reports that this route is obsolete and does not open an
+external page.

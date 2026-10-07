@@ -21,9 +21,13 @@ Astrolabe's current arrow/Space defaults and clears controller mappings; it does
 not claim to recover the game's original options file defaults. The legacy
 Paddle/Joystick device modes are not emulated. Images retains the original
 labels and explains why source renderer settings have no verified Godot
-equivalent. Credits remains visible and reports that its presentation is not
-implemented; Internet does not launch the obsolete external URL. Menu music and
-spoken idle prompts remain outside this increment.
+equivalent. Credits opens a black native screen using the confirmed source
+background, notes that the config declares 397 entries but lists 400 active
+keys, and returns to the main menu through Back or Escape. The English text map
+and timed scroll are still unimplemented; the screen never presents internal
+keys as credit names. Internet explicitly reports that the old route is
+obsolete and does not launch the external URL. Menu music and spoken idle
+prompts remain outside this increment.
 
 Generate the independent menu closure with the same converter used for gameplay:
 

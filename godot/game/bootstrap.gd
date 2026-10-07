@@ -3,6 +3,7 @@ extends Control
 const MANOR := "res://generated/hype/levels/manoir/level.tscn"
 const MENU_SCENE := "res://generated/hype/shared/menu/main/en/menu.tscn"
 const CONFIGURATION_SCENE := "res://generated/hype/shared/menu/configuration/en/menu.tscn"
+const CREDITS_SCENE := "res://game/credits_menu.tscn"
 const MENU_VIEW = preload("res://addons/astrolabe/ui/menu/menu.gd")
 const SAVE_STATE = preload("res://game/save_state.gd")
 
@@ -17,6 +18,7 @@ var new_game: Button
 var quit_game: Button
 var opening_game := false
 var configuration: Control
+var credits: Control
 
 func _ready() -> void:
     if menu_scene == null and ResourceLoader.exists(MENU_SCENE):
@@ -76,10 +78,38 @@ func _on_menu_action(action: StringName) -> void:
         &"SavedGames": _on_load_game_pressed()
         &"Quit": _on_quit_pressed()
         &"Options": _open_configuration()
+        &"Credits": _open_credits()
+        &"Internet": _show_obsolete_internet_route()
         _:
             var selected := menu.button_for_action(action)
             details.text = (selected.text.capitalize() if selected != null else str(action)) + " is not implemented yet."
             status.show()
+
+func _open_credits() -> void:
+    status.hide()
+    var packed := load(CREDITS_SCENE) as PackedScene if ResourceLoader.exists(CREDITS_SCENE) else null
+    credits = packed.instantiate() as Control if packed != null else null
+    if credits == null:
+        details.text = "The Credits screen could not be loaded."
+        status.show()
+        return
+    menu.hide()
+    $MenuHost.add_child(credits)
+    credits.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    credits.closed.connect(_close_credits)
+    credits.focus_initial()
+
+func _close_credits() -> void:
+    if is_instance_valid(credits): credits.queue_free()
+    credits = null
+    if is_instance_valid(menu):
+        menu.show()
+        var button := menu.button_for_action(&"Credits")
+        if button != null: button.grab_focus()
+
+func _show_obsolete_internet_route() -> void:
+    details.text = "The original Internet destination is obsolete. This menu does not open external pages."
+    status.show()
 
 func _open_configuration() -> void:
     status.hide()
