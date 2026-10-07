@@ -468,6 +468,14 @@ impl<'a> Importer<'a> {
             .session
             .required(self.session.required(visual, 12)?, 0)?;
         let h: GeometryWire = wire(self.session.bytes(geometry, 48)?)?;
+        if h.element_count == 0 {
+            self.note(
+                &path,
+                "empty physical geometry has no elements and is omitted".into(),
+            );
+            self.physical.insert(po, None);
+            return Ok(None);
+        }
         let kinds = self.session.short_arrays::<1>(
             self.session.required(geometry, 24)?,
             h.element_count as usize,

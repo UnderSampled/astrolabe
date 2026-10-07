@@ -353,11 +353,12 @@ pub(super) fn export_perso(
         rig_directory(project, &family, &rig_id)
     );
     if let Some(component) = &perso.particles {
-        anyhow::ensure!(
-            component.selected.is_none() && !component.enabled,
-            "initial selected/active particle emission remains unsupported for {}",
-            perso.path
-        );
+        if component.selected.is_some() || component.enabled {
+            project.diagnostic(format!(
+                "{} has an initial selected/active particle emission; the actor is exported without that emission",
+                perso.path
+            ));
+        }
         writeln!(
             project.builder,
             "    var {name}_particles = Node3D.new()\n    {name}_particles.name = \"ParticleSource\"\n    {name}_particles.set_script(load(\"res://addons/astrolabe/character/particle_source.gd\"))\n    {name}.add_child({name}_particles)\n    {name}_particles.owner = {name}"

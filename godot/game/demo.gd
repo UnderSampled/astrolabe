@@ -10,6 +10,7 @@ const SAVE_STATE = preload("res://game/save_state.gd")
 @export var new_game: bool = false
 
 signal loading_stage_changed(stage: String, elapsed_ms: float)
+signal initial_level_transition_finished(result: Dictionary)
 
 @onready var demo_camera: Camera3D = $DemoCamera
 @onready var status_label: Label = $Hud/Panel/Margin/Rows/Status
@@ -33,8 +34,16 @@ var crossbow_aim_pitch := 0.0
 var opening_brains: Array[Node] = []
 var opening_failures: Dictionary = {}
 var opening_camera: Camera3D
+var _transition_snapshot: Dictionary = {}
+var _transition_brain_states: Array[Dictionary] = []
+var _transition_physics_states: Array[Dictionary] = []
+var _initial_transition_pending := false
+var source_camera_controller_state: Resource
 
 func _ready() -> void:
+    var camera_state_script := "res://addons/astrolabe/camera/source_controller_state.gd"
+    if ResourceLoader.exists(camera_state_script):
+        source_camera_controller_state = load(camera_state_script).new()
     inventory_host.connect("unavailable", func(message: String): status_label.text = message)
     pause_host.connect("unavailable", func(message: String): status_label.text = message)
     configure_crossbow_inputs()
@@ -45,7 +54,40 @@ func _ready() -> void:
     if new_game:
         $Hud/Panel/Margin/Rows/Save.disabled = true
         $Hud/Panel/Margin/Rows/Controls.text = "Tab  inventory     R  restart opening     Esc  pause"
+    call_deferred("request_initial_level")
+
+func request_initial_level() -> void:
+    var transitions := get_node_or_null("/root/LevelTransition")
+    if transitions != null and bool(transitions.call("request_initial_level", "manoir")):
+        return
+    open_level()
+
+func open_level_from_transition(packed: PackedScene, path: String) -> Dictionary:
+    if path != LEVEL or packed == null or level != null or loading:
+        return {"ok": false, "message": "The initial manor request does not match this session."}
+    if content_cache != null:
+        content_cache.call("retain_level", path, packed)
+    _initial_transition_pending = true
     call_deferred("open_level")
+    var result: Dictionary = await initial_level_transition_finished
+    return result
+
+func bind_source_camera_controller_state() -> void:
+    _bind_source_camera_controller_state(level)
+
+func _bind_source_camera_controller_state(target_level: Node3D) -> void:
+    if target_level == null:
+        return
+    if source_camera_controller_state == null:
+        var camera_state_script := "res://addons/astrolabe/camera/source_controller_state.gd"
+        if ResourceLoader.exists(camera_state_script):
+            source_camera_controller_state = load(camera_state_script).new()
+    if source_camera_controller_state == null:
+        return
+    target_level.set_meta("source_camera_controller_state", source_camera_controller_state)
+    for source_camera in target_level.find_children("SourceCamera", "Camera3D", true, false):
+        if _has_property(source_camera, "controller_state"):
+            source_camera.set("controller_state", source_camera_controller_state)
 
 func open_level() -> void:
     if loading or level != null:
@@ -93,6 +135,7 @@ func open_level() -> void:
     if level == null:
         fail("The generated manor scene is invalid.")
         return
+    bind_source_camera_controller_state()
     stage("instantiated", "Starting the opening..." if new_game else "Restoring saved game...")
     actor = level.get_node_or_null("world/0/0/Hype") as CharacterBody3D
     brain = actor.get_node_or_null("Brain") if actor != null else null
@@ -163,6 +206,7 @@ func open_level() -> void:
     var restored_save: bool = saved["status"] == "loaded" or imported["status"] == "loaded"
     var loaded_message := "Original save loaded (supported fields only)" if imported["status"] == "loaded" and saved["status"] != "loaded" else "Saved game loaded"
     stage("playable", loaded_message if restored_save else "Explore the manor")
+    _finish_initial_transition(true, "")
 
 func open_new_game() -> void:
     # Use the complete saved scene and its original initial AI. No save fixture,
@@ -184,6 +228,247 @@ func open_new_game() -> void:
     loading = false
     stage("opening","New Game — opening incomplete. R restarts; Esc pauses.")
     update_opening_status()
+    _finish_initial_transition(true, "")
+
+func _finish_initial_transition(ok: bool, message: String) -> void:
+    if not _initial_transition_pending:
+        return
+    _initial_transition_pending = false
+    initial_level_transition_finished.emit({"ok": ok, "message": message})
+
+func begin_level_transition() -> bool:
+    if not ready_to_play or loading or not is_instance_valid(level) or not is_instance_valid(actor) or not is_instance_valid(brain):
+        return false
+    if pause_host.has_method("close_pause"):
+        pause_host.call("close_pause")
+    if inventory_host.has_method("close_inventory"):
+        inventory_host.call("close_inventory")
+    _transition_snapshot = _capture_transition_state()
+    _transition_brain_states.clear()
+    _transition_physics_states.clear()
+    for source_brain in level.find_children("Brain", "Node", true, false):
+        var was_running := bool(source_brain.get("running"))
+        var automatic := bool(source_brain.get("automatic"))
+        _transition_brain_states.append({"brain": source_brain, "running": was_running, "automatic": automatic})
+        source_brain.set("automatic", false)
+        if was_running:
+            source_brain.call("stop")
+    for body in level.find_children("*", "CharacterBody3D", true, false):
+        _transition_physics_states.append({"body": body, "enabled": body.is_physics_processing()})
+        body.set_physics_process(false)
+    ready_to_play = false
+    loading = true
+    stage("level_transition", "Loading destination level...")
+    return true
+
+func install_level_transition(destination: Node3D, entry: String, camera_entry: String, packed: PackedScene) -> Dictionary:
+    if not loading or not is_instance_valid(level) or not is_instance_valid(destination):
+        return {"ok": false, "message": "The active game session is no longer available."}
+    var new_actor := _destination_actor(destination)
+    if new_actor == null:
+        return {"ok": false, "message": "The destination level has no authored main actor."}
+    var entry_actor: Node3D = new_actor
+    if not entry.is_empty():
+        entry_actor = _destination_entry(destination, entry)
+        if entry_actor == null:
+            return {"ok": false, "message": "The destination entry actor %s is missing or ambiguous." % entry}
+    var camera_actor: Node3D
+    if not camera_entry.is_empty():
+        camera_actor = _destination_entry(destination, camera_entry)
+        if camera_actor == null:
+            return {"ok": false, "message": "The destination camera entry actor %s is missing or ambiguous." % camera_entry}
+    var new_brain := new_actor.get_node_or_null("Brain")
+    if new_brain == null:
+        return {"ok": false, "message": "The destination main actor has no Brain."}
+
+    var previous_level := level
+    destination.name = "Level_" + str(destination.get_meta("source_level", "destination"))
+    new_actor.global_transform = entry_actor.global_transform
+    if new_actor is CharacterBody3D:
+        new_actor.velocity = Vector3.ZERO
+        new_actor.set_physics_process(false)
+    new_brain.set("automatic", false)
+    _bind_source_camera_controller_state(destination)
+    add_child(destination)
+    _apply_transition_state(new_actor, destination)
+    if content_cache != null:
+        content_cache.call("retain_level", "res://generated/hype/levels/%s/level.tscn" % str(destination.get_meta("source_level", "")).to_lower(), packed)
+
+    demo_camera.set("target", new_actor)
+    if is_instance_valid(camera_actor):
+        demo_camera.call("hold_transition_view", camera_actor.global_transform)
+    else:
+        demo_camera.set("target", new_actor)
+        demo_camera.call("release_transition_view")
+    demo_camera.make_current()
+    if new_actor is CharacterBody3D:
+        new_actor.set_physics_process(true)
+    await get_tree().physics_frame
+    if not is_inside_tree() or not is_instance_valid(destination):
+        return {"ok": false, "message": "The game session ended while preparing the destination."}
+    await get_tree().physics_frame
+    if not is_inside_tree() or not is_instance_valid(destination):
+        return {"ok": false, "message": "The game session ended while preparing the destination."}
+    new_brain.set("automatic", true)
+    if not bool(new_brain.call("start")):
+        destination.queue_free()
+        _resume_previous_level()
+        return {"ok": false, "message": "The destination main actor's behavior could not start."}
+
+    level = destination
+    actor = new_actor as CharacterBody3D
+    brain = new_brain
+    world_brain = null
+    ready_to_play = true
+    loading = false
+    _transition_snapshot.clear()
+    _transition_brain_states.clear()
+    _transition_physics_states.clear()
+    if is_instance_valid(previous_level):
+        remove_child(previous_level)
+        previous_level.queue_free()
+    stage("playable", "Explore %s" % str(level.get_meta("source_level", "the new level")))
+    return {"ok": true}
+
+func abort_level_transition() -> void:
+    if loading:
+        _resume_previous_level()
+
+func _resume_previous_level() -> void:
+    for state in _transition_physics_states:
+        var body := state.get("body") as Node
+        if is_instance_valid(body):
+            body.set_physics_process(bool(state.get("enabled", false)))
+    for state in _transition_brain_states:
+        var source_brain := state.get("brain") as Node
+        if not is_instance_valid(source_brain):
+            continue
+        source_brain.set("automatic", bool(state.get("automatic", false)))
+        if bool(state.get("running", false)):
+            source_brain.call("start")
+    if is_instance_valid(actor):
+        demo_camera.set("target", actor)
+        demo_camera.call("release_transition_view")
+    ready_to_play = true
+    loading = false
+    _transition_snapshot.clear()
+    _transition_brain_states.clear()
+    _transition_physics_states.clear()
+    stage("playable", "Explore the manor" if str(level.get_meta("source_level", "manoir")) == "manoir" else "Explore %s" % str(level.get_meta("source_level", "the level")))
+
+func _destination_actor(destination: Node3D) -> CharacterBody3D:
+    var identity := str(destination.get_meta("source_main_actor", ""))
+    var actors: Variant = destination.get_meta("source_actor_nodes", {})
+    if identity.is_empty() or not actors is Dictionary or not actors.has(identity):
+        return null
+    return destination.get_node_or_null(actors[identity]) as CharacterBody3D
+
+func _destination_entry(destination: Node3D, name: String) -> Node3D:
+    var entries: Variant = destination.get_meta("source_actor_entries", {})
+    if not entries is Dictionary:
+        return null
+    var candidates: Variant = entries.get(name.to_lower(), [])
+    if not candidates is Array or candidates.size() != 1:
+        return null
+    return destination.get_node_or_null(candidates[0]) as Node3D
+
+func _capture_transition_state() -> Dictionary:
+    var state: Dictionary = {"player": {}, "main_brain": {}, "fix_brains": {}}
+    if not is_instance_valid(actor):
+        return state
+    var inventory: Resource = actor.get("source_inventory")
+    var magick: Resource = actor.get("source_magick")
+    var hit_points: Resource = actor.get("source_hit_points")
+    if inventory != null:
+        state["player"]["inventory"] = {"selected_weapon": inventory.get("selected_weapon"), "quantities": inventory.get("quantities").duplicate(true)}
+    if magick != null:
+        state["player"]["magick"] = {"current_points": magick.get("current_points"), "maximum_points": magick.get("maximum_points"), "selected_spell_code": magick.get("selected_spell_code")}
+    if hit_points != null:
+        state["player"]["hit_points"] = {"current": hit_points.get("current"), "maximum": hit_points.get("maximum"), "limit": hit_points.get("limit")}
+    state["main_brain"] = _capture_brain_state(brain)
+    var source_actor_nodes: Variant = level.get_meta("source_actor_nodes", {})
+    if source_actor_nodes is Dictionary:
+        for identity in source_actor_nodes:
+            if not str(identity).begins_with("fix:/persos/"):
+                continue
+            var source_actor := level.get_node_or_null(source_actor_nodes[identity])
+            var source_brain := source_actor.get_node_or_null("Brain") if source_actor != null else null
+            if source_brain != null:
+                state["fix_brains"][str(identity)] = _capture_brain_state(source_brain)
+    return state
+
+func _capture_brain_state(source_brain: Node) -> Dictionary:
+    var values: Dictionary = {}
+    if source_brain == null:
+        return {}
+    for property in source_brain.get_property_list():
+        var property_name := str(property.get("name", ""))
+        if not property_name.begins_with("dsg_"):
+            continue
+        var value: Variant = source_brain.get(property_name)
+        if _is_transferable_value(value):
+            values[property_name] = value.duplicate(true) if value is Array or value is Dictionary else value
+    return {"model": str(source_brain.get("source_model_path")), "values": values}
+
+func _apply_transition_state(new_actor: CharacterBody3D, destination: Node3D) -> void:
+    if not _transition_snapshot.has("player"):
+        return
+    var player: Dictionary = _transition_snapshot["player"]
+    var inventory: Resource = new_actor.get("source_inventory")
+    if inventory != null and player.has("inventory"):
+        var inventory_state: Dictionary = player["inventory"]
+        inventory.set("selected_weapon", inventory_state["selected_weapon"])
+        inventory.set("quantities", inventory_state["quantities"].duplicate(true))
+    var magick: Resource = new_actor.get("source_magick")
+    if magick != null and player.has("magick"):
+        for key in player["magick"]:
+            magick.set(key, player["magick"][key])
+    var hit_points: Resource = new_actor.get("source_hit_points")
+    if hit_points != null and player.has("hit_points"):
+        for key in player["hit_points"]:
+            hit_points.set(key, player["hit_points"][key])
+    var new_brain := new_actor.get_node_or_null("Brain")
+    _apply_brain_state(new_brain, _transition_snapshot.get("main_brain", {}))
+    var fix_states: Dictionary = _transition_snapshot.get("fix_brains", {})
+    var source_actor_nodes: Variant = destination.get_meta("source_actor_nodes", {})
+    if source_actor_nodes is Dictionary:
+        for identity in fix_states:
+            if not source_actor_nodes.has(identity):
+                continue
+            var target_actor := destination.get_node_or_null(source_actor_nodes[identity])
+            var target_brain := target_actor.get_node_or_null("Brain") if target_actor != null else null
+            _apply_brain_state(target_brain, fix_states[identity])
+
+func _apply_brain_state(target_brain: Node, saved: Dictionary) -> void:
+    if target_brain == null or saved.is_empty() or str(target_brain.get("source_model_path")) != str(saved.get("model", "")):
+        return
+    for property_name in saved.get("values", {}):
+        if _has_property(target_brain, str(property_name)):
+            var value: Variant = saved["values"][property_name]
+            target_brain.set(property_name, value.duplicate(true) if value is Array or value is Dictionary else value)
+
+func _has_property(object: Object, property_name: String) -> bool:
+    return object.get_property_list().any(func(property): return str(property.get("name")) == property_name)
+
+func _is_transferable_value(value: Variant) -> bool:
+    var value_type := typeof(value)
+    if value_type in [TYPE_NIL, TYPE_BOOL, TYPE_INT, TYPE_FLOAT, TYPE_STRING, TYPE_STRING_NAME,
+        TYPE_VECTOR2, TYPE_VECTOR2I, TYPE_RECT2, TYPE_RECT2I, TYPE_VECTOR3, TYPE_VECTOR3I,
+        TYPE_TRANSFORM2D, TYPE_VECTOR4, TYPE_VECTOR4I, TYPE_PLANE, TYPE_QUATERNION,
+        TYPE_AABB, TYPE_BASIS, TYPE_TRANSFORM3D, TYPE_PROJECTION, TYPE_COLOR,
+        TYPE_PACKED_BYTE_ARRAY, TYPE_PACKED_INT32_ARRAY, TYPE_PACKED_INT64_ARRAY,
+        TYPE_PACKED_FLOAT32_ARRAY, TYPE_PACKED_FLOAT64_ARRAY, TYPE_PACKED_STRING_ARRAY,
+        TYPE_PACKED_VECTOR2_ARRAY, TYPE_PACKED_VECTOR3_ARRAY, TYPE_PACKED_COLOR_ARRAY]:
+        return true
+    if value is Array:
+        for item in value:
+            if not _is_transferable_value(item): return false
+        return true
+    if value is Dictionary:
+        for key in value:
+            if not _is_transferable_value(key) or not _is_transferable_value(value[key]): return false
+        return true
+    return false
 
 func update_opening_status() -> void:
     for source_brain in opening_brains:
@@ -296,6 +581,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
         leave_session("res://game/bootstrap.tscn")
 
 func leave_session(destination: String) -> void:
+    var transitions := get_node_or_null("/root/LevelTransition")
+    if transitions != null and bool(transitions.call("is_transitioning")):
+        transitions.call("cancel_current_transition")
     pause_host.call("close_pause")
     inventory_host.call("close_inventory")
     ready_to_play = false
@@ -339,3 +627,4 @@ func fail(message: String) -> void:
     ready_to_play = false
     loading = false
     stage("failed", message)
+    _finish_initial_transition(false, message)

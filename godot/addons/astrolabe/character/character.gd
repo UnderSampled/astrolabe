@@ -370,6 +370,11 @@ func source_jump_without_adding_speed() -> void:
 func source_position() -> Vector3:
     return Vector3(global_position.x, -global_position.z, global_position.y)
 
+func source_distance_to_waypoint(actor: Node3D, waypoint: Vector3) -> float:
+    assert(is_instance_valid(actor) and waypoint.is_finite())
+    var source_actor_position := Vector3(actor.global_position.x, -actor.global_position.z, actor.global_position.y)
+    return source_actor_position.distance_to(waypoint)
+
 func source_game_time() -> int:
     var brain := get_node_or_null("Brain")
     assert(brain != null)

@@ -18,6 +18,7 @@ config/features=PackedStringArray("4.7")
 
 GameContent="*res://game/content_cache.gd"
 UserSettings="*res://game/user_settings.gd"
+LevelTransition="*res://game/level_transition.gd"
 
 [display]
 

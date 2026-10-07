@@ -224,7 +224,8 @@ impl Project {
         // level root, so this remains valid for both rooted and global actors.
         writeln!(
             self.builder,
-            "    var {scene_id}_source_actor_brains = {{}}\n    var {scene_id}_source_actor_nodes = {{}}"
+            "    var {scene_id}_source_actor_brains = {{}}\n    var {scene_id}_source_actor_nodes = {{}}\n    var {scene_id}_source_actor_entries = {{}}\n    {scene_id}.set_meta(\"source_level\", {})",
+            quoted(&scene.name.to_ascii_lowercase())
         )?;
         let mut source_actor_keys = BTreeSet::new();
         for node in &scene.nodes {
@@ -243,6 +244,14 @@ impl Project {
                 self.builder,
                 "    {scene_id}_source_actor_nodes[{}] = {scene_id}.get_path_to({character})",
                 quoted(reference.path.as_str())
+            )?;
+            let entry_name = perso.name.to_ascii_lowercase();
+            writeln!(
+                self.builder,
+                "    if not {scene_id}_source_actor_entries.has({}): {scene_id}_source_actor_entries[{}] = []\n    {scene_id}_source_actor_entries[{}].append({scene_id}.get_path_to({character}))",
+                quoted(&entry_name),
+                quoted(&entry_name),
+                quoted(&entry_name)
             )?;
             if perso.brain.is_some() {
                 writeln!(
@@ -276,7 +285,7 @@ impl Project {
         }
         writeln!(
             self.builder,
-            "    {scene_id}.set_meta(\"source_actor_brains\", {scene_id}_source_actor_brains)\n    {scene_id}.set_meta(\"source_actor_nodes\", {scene_id}_source_actor_nodes)"
+            "    {scene_id}.set_meta(\"source_actor_brains\", {scene_id}_source_actor_brains)\n    {scene_id}.set_meta(\"source_actor_nodes\", {scene_id}_source_actor_nodes)\n    {scene_id}.set_meta(\"source_actor_entries\", {scene_id}_source_actor_entries)"
         )?;
         for node in &scene.nodes {
             let Some(reference) = &node.perso else {
@@ -299,16 +308,17 @@ impl Project {
                 let required_write = field_writes.iter().any(|(written, _)| written == target);
                 let target_perso = source.load(target)?;
                 if target_perso.brain.is_none() {
-                    anyhow::ensure!(
-                        !required_write,
-                        "{} actor field write target {} lacks a Brain",
-                        perso.path,
-                        target.path
-                    );
-                    self.diagnostic(format!(
-                        "{} actor field read target {} lacks a saved Brain; a reached read will fail explicitly",
-                        perso.path, target.path
-                    ));
+                    self.diagnostic(if required_write {
+                        format!(
+                            "{} actor field write target {} lacks a saved Brain; a reached write will fail explicitly",
+                            perso.path, target.path
+                        )
+                    } else {
+                        format!(
+                            "{} actor field read target {} lacks a saved Brain; a reached read will fail explicitly",
+                            perso.path, target.path
+                        )
+                    });
                     continue;
                 }
                 let target_name = if let Some(name) = global_names.get(&target.path) {
@@ -319,16 +329,17 @@ impl Project {
                         .iter()
                         .find(|candidate| candidate.perso.as_ref() == Some(target))
                     else {
-                        anyhow::ensure!(
-                            !required_write,
-                            "{} AI actor write target {} is absent from saved scene",
-                            perso.path,
-                            target.path
-                        );
-                        self.diagnostic(format!(
-                            "{} actor field read target {} is absent from saved scene; a reached read will fail explicitly",
-                            perso.path, target.path
-                        ));
+                        self.diagnostic(if required_write {
+                            format!(
+                                "{} AI actor field write target {} is absent from saved scene; a reached write will fail explicitly",
+                                perso.path, target.path
+                            )
+                        } else {
+                            format!(
+                                "{} actor field read target {} is absent from saved scene; a reached read will fail explicitly",
+                                perso.path, target.path
+                            )
+                        });
                         continue;
                     };
                     format!("{}_character", names[&target_node.id])
@@ -369,6 +380,11 @@ impl Project {
                 .find(|n| n.perso.as_ref() == Some(actor))
                 .unwrap();
             let main = format!("{}_character", names[&actor_node.id]);
+            writeln!(
+                self.builder,
+                "    {scene_id}.set_meta(\"source_main_actor\", {})",
+                quoted(actor.path.as_str())
+            )?;
             // The normally saved level, not a test wrapper, owns gameplay
             // motion for the selected player. Other persos retain their
             // inspection pose until their own behavior path is supported.
