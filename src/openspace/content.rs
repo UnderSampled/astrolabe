@@ -588,22 +588,26 @@ pub fn import_inventory(game: &Path, selection: Selection) -> Result<Imported> {
     Ok(imported)
 }
 
-/// Omit the optional Fix HUD until its sequential source reader is validated.
+/// Import the source-verified Fix HUD and only its six original image dependencies.
 pub fn import_hud(game: &Path, selection: Selection) -> Result<Imported> {
     let mut imported = Imported::new(selection.clone());
-    if let Some(presentation) = level::import_hud_presentation(game, &selection)? {
-        imported.put(
-            &AssetRef::from_path(presentation.path.clone()),
-            presentation,
-            true,
-        )?;
-    } else {
-        imported.diagnostics.push(Diagnostic {
-            code: "openspace.hud.layout_unverified".into(),
-            asset: None,
-            severity: Severity::Warning,
-            message: "Omitted optional Fix HUD: the Fix.gpt cursor candidate at 0x4a24 and following six words do not validate the presumed descriptor and slot schema; source reader remains quarantined.".into(),
-        });
+    let archive = codec::Cnt {
+        usage: TextureUsage::Material,
     }
+    .read(&read(&game.join("Gamedata/Textures.cnt"))?)?;
+    let presentation = level::import_hud_presentation(game, &selection, &archive)?;
+    for artwork in &presentation.artwork {
+        let entry = archive.find_entry(&artwork.source_name).with_context(|| {
+            format!("missing HUD image {} in Textures.cnt", artwork.source_name)
+        })?;
+        if !imported.assets.contains(&entry.texture.path) {
+            imported.put(&entry.texture, archive.image(entry)?.clone(), false)?;
+        }
+    }
+    imported.put(
+        &AssetRef::from_path(presentation.path.clone()),
+        presentation,
+        true,
+    )?;
     Ok(imported)
 }

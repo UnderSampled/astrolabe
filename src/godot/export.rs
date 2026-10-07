@@ -17,12 +17,6 @@ pub fn export<R: ContentSource>(
     output: &Path,
     engine: &str,
 ) -> Result<super::Manifest> {
-    anyhow::ensure!(
-        !roots
-            .iter()
-            .any(|root| root.kind == crate::model::hud::HudPresentation::KIND),
-        "Godot export refuses legacy HUD metadata until the source layout is validated"
-    );
     let mut project = super::Project::new(output, selection)?;
     let mut written = BTreeSet::<AssetPath>::new();
     // Export localized native dialogue resources before saving the scene composition.

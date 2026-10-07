@@ -1,52 +1,91 @@
-//! Legacy HUD presentation shape retained while source layout validation is pending.
+//! Source-verified Fix HUD declarations and direct-draw inputs for the Hype build.
 use super::{AssetPath, ai::SourceObjectIdentity, io::Content};
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 
-/// Unverified legacy layout data; retained only so old Rete assets can be inspected.
-/// Every field preserves a former parser assumption and has no validated source meaning.
+/// Source-verified Fix HUD declarations, image identities, and direct-draw inputs.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HudPresentation {
     pub path: AssetPath,
     pub canvas_size: [u16; 2],
-    /// Legacy field with unverified source meaning.
+    /// Source reader contract version. Missing means the legacy inspection-only schema.
+    #[serde(default)]
+    pub source_layout_version: u8,
+    /// Four Fix.gpt panel descriptors, in source draw order.
     pub panels: Vec<HudPanel>,
-    /// Legacy field with unverified source meaning.
+    /// The six GLI texture objects loaded by FUN_0040bcc0, in read order.
     pub source_textures: [Option<SourceObjectIdentity>; 6],
-    /// Legacy field with unverified source meaning.
+    /// Source identity, Fix.ptx order, original name and archive asset for each
+    /// GLI texture object. Empty in legacy Rete values.
+    #[serde(default)]
+    pub artwork: Vec<HudArtwork>,
+    /// Fix.sda's default and active 24-entry screen rectangles.
     pub rectangle_tables: [Vec<[f32; 6]>; 2],
-    /// Legacy field with unverified source meaning.
+    /// The two source thresholds read before the layout tables.
     pub source_words: [u32; 2],
-    /// Legacy field with unverified source meaning.
+    /// Offsets used by the source's HUD counter and selected-item text calls.
     pub text_offsets: [[f32; 2]; 2],
-    /// Legacy field with unverified source meaning.
+    /// Layout row uses verified against the direct-draw routines.
     pub elements: Vec<HudElementLayout>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HudTextureRole {
+    EnemyMeterFill,
+    EnemyMeterBackground,
+    PlayerLifeHandle,
+    PlayerLifeRemainder,
+    PlayerLifeFill,
+    CurrencyIcon,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HudArtwork {
+    /// Zero-based Fix.gpt HUD texture handle slot.
+    pub slot: u8,
+    pub role: HudTextureRole,
+    /// GLI texture allocation identity; address and relocation are transient.
+    pub source_object: SourceObjectIdentity,
+    /// Index in the Fix.ptx pointer table.
+    pub fix_ptx_index: u16,
+    /// Exact GLI object name, including original separators, case and .tga suffix.
+    pub source_name: String,
+    /// Resolved member in Textures.cnt, retained as a useful texture dependency.
+    pub texture: AssetPath,
+    /// Stored width/height from the GLI object.
+    pub stored_size: [u32; 2],
+    /// Logical width/height from the GLI object.
+    pub logical_size: [u32; 2],
+    pub source_flags: u32,
+    pub sample_flags: u8,
+    pub addressing: u8,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HudPanel {
     pub enabled: bool,
-    /// Legacy field with unverified source meaning.
+    /// Relocated Fix.gpt +0 layer-array identity.
     pub source_layers: Option<SourceObjectIdentity>,
-    /// Legacy field with unverified source meaning.
+    /// Relocated Fix.gpt +4 material used by the panel layer draw procedure.
     pub layer_material: Option<SourceObjectIdentity>,
-    /// Legacy field with unverified source meaning.
+    /// Relocated Fix.gpt +8 material retained for the other panel draw procedure.
     pub draw_material: Option<SourceObjectIdentity>,
-    /// Legacy field with unverified source meaning.
+    /// Reserved for legacy inspection; pointer words are represented by identities.
     pub draw_material_word: Option<[u8; 4]>,
-    /// Legacy field with unverified source meaning.
+    /// Two descriptor bytes not assigned by the current consumers.
     pub source_unknown_bytes: [u8; 2],
-    /// Legacy field with unverified source meaning.
+    /// Number of 0x24-byte source layer records.
     pub source_layer_count: u8,
-    /// Legacy field with unverified source meaning.
+    /// Decoded only when the source descriptor enables drawing.
     pub layers: Vec<HudPanelLayer>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HudPanelLayer {
-    /// Legacy field with unverified source meaning.
+    /// Relocated texture-object identity.
     pub texture: Option<SourceObjectIdentity>,
-    /// Legacy field with unverified source meaning.
+    /// Reserved for legacy inspection; pointer words are represented by identities.
     pub opaque_texture_word: Option<[u8; 4]>,
     /// Legacy field with unverified source meaning.
     pub destination: [f32; 4],
@@ -67,8 +106,169 @@ impl Content for HudPresentation {
         Some(&self.path)
     }
     fn validate(&self) -> Result<()> {
-        bail!(
-            "legacy HUD assets are inspection-only until the source reader and model are validated"
-        )
+        if self.source_layout_version == 0 {
+            bail!("legacy HUD assets are inspection-only; Fix source layout version 1 is required")
+        }
+        anyhow::ensure!(
+            self.source_layout_version == 1,
+            "unsupported Fix HUD source layout version"
+        );
+        anyhow::ensure!(self.canvas_size == [640, 480], "unsupported HUD canvas");
+        anyhow::ensure!(
+            self.panels.len() == 4,
+            "HUD requires four Fix panel descriptors"
+        );
+        anyhow::ensure!(
+            self.panels
+                .iter()
+                .map(|panel| panel.source_layer_count)
+                .collect::<Vec<_>>()
+                == [31, 7, 14, 4]
+                && self
+                    .panels
+                    .iter()
+                    .all(|panel| !panel.enabled && panel.layers.is_empty()),
+            "Fix HUD panel descriptors differ from the verified disabled-panel profile"
+        );
+        anyhow::ensure!(
+            self.artwork.len() == 6,
+            "HUD requires six verified Fix texture objects"
+        );
+        let expected_roles = [
+            HudTextureRole::EnemyMeterFill,
+            HudTextureRole::EnemyMeterBackground,
+            HudTextureRole::PlayerLifeHandle,
+            HudTextureRole::PlayerLifeRemainder,
+            HudTextureRole::PlayerLifeFill,
+            HudTextureRole::CurrencyIcon,
+        ];
+        let expected_names = [
+            "fixtex\\stencil\\jauges\\ennemis\\enemyfg_nz.tga",
+            "fixtex\\stencil\\jauges\\ennemis\\enemybg_nz.tga",
+            "fixtex\\stencil\\jauges\\vie\\poigne_nz.tga",
+            "fixtex\\stencil\\jauges\\vie\\vie0.tga",
+            "fixtex\\stencil\\jauges\\vie\\vie1.tga",
+            "fixtex\\stencil\\jauges\\gold\\gold_icone_nz.tga",
+        ];
+        let expected_sizes = [[64, 8], [128, 16], [32, 32], [64, 16], [64, 16], [128, 64]];
+        let expected_flags = [2, 2, 18, 8, 8, 26];
+        let mut ptx_indices = std::collections::BTreeSet::new();
+        for (slot, (artwork, role)) in self.artwork.iter().zip(expected_roles).enumerate() {
+            anyhow::ensure!(
+                artwork.slot as usize == slot,
+                "HUD artwork slot order differs"
+            );
+            anyhow::ensure!(
+                artwork.role == role,
+                "HUD artwork role differs at slot {slot}"
+            );
+            anyhow::ensure!(
+                artwork.source_object.role == super::ai::SourceRole::Fix,
+                "HUD texture is not Fix-owned"
+            );
+            anyhow::ensure!(
+                artwork.source_object.block == [6, 1],
+                "HUD GLI object is not in Fix 6:1"
+            );
+            anyhow::ensure!(
+                ptx_indices.insert(artwork.fix_ptx_index),
+                "duplicate Fix.ptx HUD texture slot"
+            );
+            anyhow::ensure!(
+                artwork.source_name == expected_names[slot],
+                "HUD source texture identity differs at slot {slot}"
+            );
+            anyhow::ensure!(
+                artwork.stored_size.iter().all(|n| *n > 0),
+                "HUD texture has zero stored size"
+            );
+            anyhow::ensure!(
+                artwork.logical_size.iter().all(|n| *n > 0),
+                "HUD texture has zero logical size"
+            );
+            anyhow::ensure!(
+                artwork.logical_size == expected_sizes[slot],
+                "HUD logical texture size differs at slot {slot}"
+            );
+            anyhow::ensure!(
+                artwork.source_flags == expected_flags[slot]
+                    && artwork.sample_flags == 0
+                    && artwork.addressing == 0,
+                "HUD GLI sampling declaration differs at slot {slot}"
+            );
+            anyhow::ensure!(
+                artwork.texture.role() == super::PackageRole::Texture,
+                "HUD artwork dependency has the wrong package role"
+            );
+            let archive_name = artwork
+                .source_name
+                .replace('\\', "/")
+                .to_ascii_lowercase()
+                .replace(".tga", ".gf");
+            anyhow::ensure!(
+                artwork.texture.file().to_ascii_lowercase() == archive_name,
+                "HUD GLI name and Textures.cnt asset path differ at slot {slot}"
+            );
+        }
+        anyhow::ensure!(
+            self.artwork
+                .iter()
+                .map(|artwork| artwork.fix_ptx_index)
+                .collect::<Vec<_>>()
+                == [22, 23, 13, 11, 12, 30],
+            "HUD Fix.ptx identity sequence differs"
+        );
+        anyhow::ensure!(
+            self.source_textures
+                .iter()
+                .zip(&self.artwork)
+                .all(|(old, new)| *old == Some(new.source_object.clone())),
+            "HUD source texture identity list differs from artwork mapping"
+        );
+        anyhow::ensure!(
+            self.rectangle_tables
+                .iter()
+                .all(|table| table.len() == 24 && table.iter().flatten().all(|v| v.is_finite())),
+            "HUD rectangle table shape or values differ"
+        );
+        anyhow::ensure!(
+            self.text_offsets.iter().flatten().all(|v| v.is_finite()),
+            "invalid HUD source offsets"
+        );
+        anyhow::ensure!(
+            self.elements.iter().all(|element| {
+                element.table < 2
+                    && element.entries.iter().all(|index| *index < 24)
+                    && (!element.entries.is_empty() || element.role == "enemy_meter_dynamic_rows")
+            }),
+            "invalid verified HUD element layout map"
+        );
+        anyhow::ensure!(
+            self.elements
+                == [
+                    HudElementLayout {
+                        role: "player_life_base".into(),
+                        table: 1,
+                        entries: vec![0],
+                    },
+                    HudElementLayout {
+                        role: "player_life_segments".into(),
+                        table: 1,
+                        entries: vec![1],
+                    },
+                    HudElementLayout {
+                        role: "enemy_meter_background_fill_pairs".into(),
+                        table: 1,
+                        entries: vec![11, 12, 13, 14, 15, 16],
+                    },
+                    HudElementLayout {
+                        role: "currency_icon".into(),
+                        table: 1,
+                        entries: vec![23],
+                    },
+                ],
+            "HUD direct-draw row selectors differ from the verified source"
+        );
+        Ok(())
     }
 }

@@ -207,6 +207,22 @@ impl SourceSession {
         self.bytes(a, 1)?;
         Ok(a)
     }
+    /// Resolve a pointer against the explicitly named package's own SNA block.
+    /// Fix.gpt/rtp and Fix.ptx/rtt identify Fix allocations even when an active
+    /// level has a block with the same key; those references must not inherit
+    /// the level-binding behavior of `resolve`.
+    pub(super) fn resolve_local(&self, owner: Owner, key: BlockKey, value: u32) -> Result<Address> {
+        let local = self.blocks[&owner]
+            .get(&key)
+            .ok_or_else(|| anyhow!("missing {owner:?} source base {key:?}"))?;
+        let offset = value
+            .checked_sub(local.base)
+            .ok_or_else(|| anyhow!("pointer below {owner:?} block base"))?
+            as usize;
+        let address = Address { owner, key, offset };
+        self.bytes(address, 1)?;
+        Ok(address)
+    }
     pub(super) fn pointer(&self, a: Address, offset: usize) -> Result<Option<Address>> {
         let site = Address {
             offset: a
