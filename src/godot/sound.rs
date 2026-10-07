@@ -127,6 +127,10 @@ fn export_resource(
     let definitions = source.load(&reference.definitions)?;
     definitions.validate()?;
     let selected = definitions.resource(reference.id)?;
+    let member = SoundMemberRef {
+        definitions: reference.definitions.clone(),
+        id: reference.id,
+    };
     if written.insert(reference.definitions.path.clone()) {
         let mut script = String::from(
             "extends RefCounted\n## Compiled sound choices; each branch resolves to native waveform resources.\n",
@@ -146,43 +150,12 @@ fn export_resource(
                 writeln!(script, "    gain *= {}", (volume / 127.).clamp(0., 1.))?;
             }
             match &resource.data {
-                SoundResourceData::Sample { sample, controls } => {
-                    if let Some(sample) = sample {
-                        let stream = export_sample(project, source, sample, written)?;
+                SoundResourceData::Sample { sample, .. } => {
+                    if sample.is_some() {
                         let voice = resource_path(project, &member, "voices");
-                        let waveform = resource_path(project, &member, "streams");
-                        project.reserve(&waveform[6..])?;
-                        let n = project.sound_count;
-                        project.sound_count += 1;
-                        writeln!(
-                            project.builder,
-                            "    var voice_stream_{n} = load({}).duplicate()\n    voice_stream_{n}.loop_mode = {}",
-                            quoted(&stream),
-                            i32::from(resource.looped)
-                        )?;
-                        if resource.looped {
-                            if let Some(region) = &resource.loop_region {
-                                writeln!(
-                                    project.builder,
-                                    "    voice_stream_{n}.loop_begin = {}\n    voice_stream_{n}.loop_end = {}",
-                                    region.start_frame, region.end_frame
-                                )?;
-                            } else {
-                                writeln!(
-                                    project.builder,
-                                    "    if voice_stream_{n}.loop_end <= voice_stream_{n}.loop_begin:\n        voice_stream_{n}.loop_begin = 0\n        voice_stream_{n}.loop_end = roundi(voice_stream_{n}.get_length() * voice_stream_{n}.mix_rate)"
-                                )?;
-                            }
-                        }
-                        writeln!(
-                            project.builder,
-                            "    if ResourceSaver.save(voice_stream_{n}, {}) != OK:\n        push_error(\"Cannot save native sound stream\")\n        quit(1)\n        return",
-                            quoted(&waveform)
-                        )?;
-                        project.write(voice[6..].into(),format!("[gd_resource type=\"Resource\" load_steps=3 format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/audio/voice.gd\" id=\"script\"]\n[ext_resource type=\"AudioStreamWAV\" path={} id=\"stream\"]\n\n[resource]\nscript = ExtResource(\"script\")\nstream = ExtResource(\"stream\")\nspatial = {}\npitchable = {}\nsource_sample = {}\n",quoted(&waveform),controls.spatial,controls.pitchable,quoted(&stream)).as_bytes())?;
                         writeln!(
                             script,
-                            "    var voice = load({}).duplicate()\n    voice.gain = gain\n    voice.trace = trace\n    return voice",
+                            "    var source_voice = load({})\n    if source_voice == null:\n        return null\n    var voice = source_voice.duplicate()\n    voice.gain = gain\n    voice.trace = trace\n    return voice",
                             quoted(&voice)
                         )?;
                     } else {
@@ -272,8 +245,20 @@ fn export_resource(
         project.diagnostic(format!("{}: native streams and compiled weighted/selector sound choices; attenuation, random generator, reverb and release envelopes remain approximations; live switch updates/material sensing are unsupported",reference.definitions.path));
     }
     match &selected.data {
-        SoundResourceData::Sample { sample, .. } => {
-            ensure!(sample.is_some(), "unbound sample {}", identity(reference))
+        SoundResourceData::Sample { sample, controls } => {
+            let sample = sample
+                .as_ref()
+                .with_context(|| format!("unbound sample {}", identity(reference)))?;
+            export_sample_voice(
+                project,
+                source,
+                &member,
+                sample,
+                controls,
+                selected.looped,
+                selected.loop_region.as_ref(),
+                written,
+            )?;
         }
         _ => {
             for child in selected.data.members() {
@@ -284,6 +269,65 @@ fn export_resource(
     active.remove(&key);
     Ok(())
 }
+
+fn export_sample_voice(
+    project: &mut Project,
+    source: &mut impl ContentSource,
+    member: &SoundMemberRef,
+    sample: &SoundSampleRef,
+    controls: &SoundSampleControls,
+    looped: bool,
+    loop_region: Option<&crate::model::audio::SampleLoop>,
+    written: &mut BTreeSet<AssetPath>,
+) -> Result<()> {
+    let voice = resource_path(project, member, "voices");
+    if project.generated.contains(&voice[6..]) {
+        return Ok(());
+    }
+    let stream = export_sample(project, source, sample, written)?;
+    let waveform = resource_path(project, member, "streams");
+    project.reserve(&waveform[6..])?;
+    let n = project.sound_count;
+    project.sound_count += 1;
+    writeln!(
+        project.builder,
+        "    var voice_stream_{n} = load({}).duplicate()\n    voice_stream_{n}.loop_mode = {}",
+        quoted(&stream),
+        i32::from(looped)
+    )?;
+    if looped {
+        if let Some(region) = loop_region {
+            writeln!(
+                project.builder,
+                "    voice_stream_{n}.loop_begin = {}\n    voice_stream_{n}.loop_end = {}",
+                region.start_frame, region.end_frame
+            )?;
+        } else {
+            writeln!(
+                project.builder,
+                "    if voice_stream_{n}.loop_end <= voice_stream_{n}.loop_begin:\n        voice_stream_{n}.loop_begin = 0\n        voice_stream_{n}.loop_end = roundi(voice_stream_{n}.get_length() * voice_stream_{n}.mix_rate)"
+            )?;
+        }
+    }
+    writeln!(
+        project.builder,
+        "    if ResourceSaver.save(voice_stream_{n}, {}) != OK:\n        push_error(\"Cannot save native sound stream\")\n        quit(1)\n        return",
+        quoted(&waveform)
+    )?;
+    project.write(
+        voice[6..].into(),
+        format!(
+            "[gd_resource type=\"Resource\" load_steps=3 format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/audio/voice.gd\" id=\"script\"]\n[ext_resource type=\"AudioStreamWAV\" path={} id=\"stream\"]\n\n[resource]\nscript = ExtResource(\"script\")\nstream = ExtResource(\"stream\")\nspatial = {}\npitchable = {}\nsource_sample = {}\n",
+            quoted(&waveform),
+            controls.spatial,
+            controls.pitchable,
+            quoted(&stream)
+        )
+        .as_bytes(),
+    )?;
+    Ok(())
+}
+
 pub(super) fn export_sample(
     project: &mut Project,
     source: &mut impl ContentSource,

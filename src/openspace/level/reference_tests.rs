@@ -310,8 +310,10 @@ fn shared_fix_geometry_13949_source_values_match_between_manoir_and_brigand() ->
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("disc"));
     let path = AssetPath::new("fix:/models/geometry/13949")?;
-    let manoir = scene::import_scene(&game, &Selection::hype("manoir", "en")?)?;
-    let brigand = scene::import_scene(&game, &Selection::hype("brigand", "en")?)?;
+    let manoir_selection = Selection::hype("manoir", "en")?;
+    let brigand_selection = Selection::hype("brigand", "en")?;
+    let manoir = scene::import_scene(&game, &manoir_selection)?;
+    let brigand = scene::import_scene(&game, &brigand_selection)?;
     let manoir_model = manoir
         .models
         .iter()
@@ -362,7 +364,187 @@ fn shared_fix_geometry_13949_source_values_match_between_manoir_and_brigand() ->
         manoir_model == brigand_model,
         "other shared geometry fields differ"
     );
+    let manoir_sounds = import_sound_graph(&game, &manoir_selection, &manoir)?;
+    let brigand_sounds = import_sound_graph(&game, &brigand_selection, &brigand)?;
+    let sound_path = AssetPath::new("sound:/Sound/PA_Dragons.csb")?;
+    let manoir_dragon_sounds = manoir_sounds
+        .definitions
+        .get(&sound_path)
+        .context("Manoir sound graph does not import PA_Dragons.csb")?;
+    let brigand_dragon_sounds = brigand_sounds
+        .definitions
+        .get(&sound_path)
+        .context("Brigand sound graph does not import PA_Dragons.csb")?;
+    assert_eq!(
+        manoir_dragon_sounds, brigand_dragon_sounds,
+        "shared sound definitions must resolve every canonical resource independent of the selected level"
+    );
+
+    let manoir_shared = shared_scene_values(&manoir, &manoir_sounds)?;
+    let brigand_shared = shared_scene_values(&brigand, &brigand_sounds)?;
+    let intersection: Vec<_> = manoir_shared
+        .iter()
+        .filter_map(|(path, left)| {
+            brigand_shared
+                .get(path)
+                .map(|right| (path.as_str().to_owned(), left == right))
+        })
+        .collect();
+    let differences: Vec<_> = intersection
+        .iter()
+        .filter(|(_, same)| !same)
+        .map(|(path, _)| path.clone())
+        .collect();
+    assert!(
+        differences.is_empty(),
+        "shared source asset identity/content differs across Manoir and Brigand: {differences:?}"
+    );
+    eprintln!(
+        "shared source audit: {} identities in the cross-map intersection; all Fix, sound, and texture values match",
+        intersection.len()
+    );
     Ok(())
+}
+
+fn import_sound_graph(
+    game: &Path,
+    selection: &crate::model::Selection,
+    scene: &SceneImport,
+) -> Result<crate::openspace::audio::graph::SoundGraph> {
+    use crate::model::animation::AnimationOperation;
+
+    crate::openspace::audio::graph::SoundGraph::import(
+        game,
+        selection,
+        &scene.sound_definitions,
+        scene
+            .actions
+            .iter()
+            .filter_map(|action| match &action.operation {
+                AnimationOperation::Sound { event: Some(event) } => Some(event),
+                _ => None,
+            })
+            .chain(
+                scene
+                    .ai_models
+                    .iter()
+                    .flat_map(|model| model.sound_events()),
+            )
+            .chain(
+                scene
+                    .dialogues
+                    .iter()
+                    .filter_map(|dialogue| dialogue.voice.as_ref()),
+            ),
+    )
+}
+
+fn shared_scene_values(
+    scene: &SceneImport,
+    sounds: &crate::openspace::audio::graph::SoundGraph,
+) -> Result<BTreeMap<AssetPath, Vec<u8>>> {
+    fn insert<T: serde::Serialize>(
+        result: &mut BTreeMap<AssetPath, Vec<u8>>,
+        path: &AssetPath,
+        value: &T,
+    ) -> Result<()> {
+        insert_value(result, path, serde_json::to_value(value)?)
+    }
+    fn insert_value(
+        result: &mut BTreeMap<AssetPath, Vec<u8>>,
+        path: &AssetPath,
+        mut value: serde_json::Value,
+    ) -> Result<()> {
+        if path.role() != crate::model::PackageRole::Level {
+            normalize_level_bindings(&mut value);
+            let encoded = serde_json::to_vec(&value)?;
+            if let Some(old) = result.get(path) {
+                anyhow::ensure!(
+                    old == &encoded,
+                    "shared source identity {path} has two payloads"
+                );
+            } else {
+                result.insert(path.clone(), encoded);
+            }
+        }
+        Ok(())
+    }
+    fn normalize_level_bindings(value: &mut serde_json::Value) {
+        match value {
+            serde_json::Value::String(path) if path.starts_with("level:/") => {
+                *path = "level:/<session-bound-reference>".into();
+            }
+            serde_json::Value::Array(values) => {
+                for value in values {
+                    normalize_level_bindings(value);
+                }
+            }
+            serde_json::Value::Object(fields) => {
+                for value in fields.values_mut() {
+                    normalize_level_bindings(value);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut result = BTreeMap::new();
+    macro_rules! insert_all {
+        ($field:ident) => {
+            for value in &scene.$field {
+                insert(&mut result, &value.path, value)?;
+            }
+        };
+    }
+    if let Some(value) = &scene.dialogue_presentation {
+        insert(&mut result, &value.path, value)?;
+    }
+    insert_all!(dialogues);
+    // Fix AI definitions may carry paths resolved against the current level;
+    // the exporter compiles that projection per level. The actor-derived label
+    // is likewise not part of the shared source model identity.
+    for value in &scene.ai_models {
+        let mut normalized = serde_json::to_value(value)?;
+        if let Some(fields) = normalized.as_object_mut() {
+            fields.insert(
+                "name".into(),
+                serde_json::Value::String("<shared-ai-model>".into()),
+            );
+        }
+        insert_value(&mut result, &value.path, normalized)?;
+    }
+    insert_all!(environments);
+    insert_all!(physical_environments);
+    insert_all!(visual_environments);
+    insert_all!(fogs);
+    insert_all!(collision_profiles);
+    insert_all!(mechanics);
+    insert_all!(actions);
+    insert_all!(lights);
+    insert_all!(sprites);
+    insert_all!(particle_generators);
+    insert_all!(families);
+    insert_all!(persos);
+    insert_all!(routes);
+    insert_all!(waypoints);
+    insert_all!(configurations);
+    insert_all!(animations);
+    insert_all!(transform_pools);
+    insert_all!(models);
+    insert_all!(collisions);
+    insert_all!(instances);
+    insert_all!(materials);
+    insert(&mut result, &scene.scene.path, &scene.scene)?;
+    for (path, value) in &sounds.definitions {
+        insert(&mut result, path, value)?;
+    }
+    for (path, value) in &sounds.banks {
+        insert(&mut result, path, value)?;
+    }
+    for (path, value) in &sounds.sounds {
+        insert(&mut result, path, value)?;
+    }
+    Ok(result)
 }
 
 #[test]

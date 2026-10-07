@@ -445,7 +445,16 @@ impl FormatCodec for Bnm {
 
 /// Transient bank-table identity lookup for LCB member bindings. The returned
 /// resource identity is useful data; the table index/address remains source I/O.
-pub(super) fn resource_id_at(data: &[u8], member: u32) -> Result<u32> {
+pub(super) struct ResourceDescriptor {
+    pub resource_id: u32,
+    pub resource_type: u32,
+    pub embedded: u32,
+    pub name: String,
+}
+
+/// Read only the bounded table record needed to resolve an LCB member. Sound
+/// payload decoding remains lazy until a selected event actually uses it.
+pub(super) fn resource_descriptor_at(data: &[u8], member: u32) -> Result<ResourceDescriptor> {
     let header = BankHeader::read(&mut Cursor::new(data))?;
     ensure!(
         member < header.sounds_count,
@@ -461,7 +470,12 @@ pub(super) fn resource_id_at(data: &[u8], member: u32) -> Result<u32> {
         )
         .context("resource offset overflow")?;
     let descriptor = AudioDescriptor::read(&mut Cursor::new(bounded(data, offset, 92)?))?;
-    Ok(descriptor.resource_id)
+    Ok(ResourceDescriptor {
+        resource_id: descriptor.resource_id,
+        resource_type: descriptor.resource_type,
+        embedded: descriptor.embedded,
+        name: latin1(&descriptor.name),
+    })
 }
 
 #[cfg(test)]
