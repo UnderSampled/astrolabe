@@ -17,11 +17,21 @@ extends Camera3D
 @export var mode_zero_yaw_limits: Vector2 = Vector2.ZERO
 @export var mode_zero_pitch_limits: Vector2 = Vector2.ZERO
 @export var mode_zero_parameter_flags: int = 0
+@export var source_owner_position_flags: int = 0 # 004406d0 clears Position+0xce; relevant setters OR bit 2
 @export var controller_state: Resource
 
 const SOURCE_MODE_ZERO_PIVOT_THRESHOLD_SQUARED := 9.0 # _DAT_005fcc2c from the decompiled build's .data image
+const SOURCE_MODE_ZERO_RANGE_EPSILON := 0.001 # _DAT_0060b238 from the verified executable's .data image
+const SOURCE_MODE_ZERO_RANGE_MAX_PADDING := 0.3 # DAT_0060b23c=3, _DAT_0060b240 from the verified executable's .data image
+const SOURCE_MODE_ZERO_FALLBACK_MIN_MARGIN := 0.5 # _DAT_0060b228; DAT_0060b22c=1
+const SOURCE_MODE_ZERO_FALLBACK_MAX_MARGIN := 0.5 # _DAT_0060b228; DAT_0060b230=1
+const SOURCE_MODE_ZERO_FALLBACK_RANGE_EPSILON := 0.001 # _DAT_0060b224
+const SOURCE_MODE_ZERO_FALLBACK_PITCHES := [0.3, 0.6, 0.0] # DAT_005fccb8..c0
+const SOURCE_MODE_ZERO_FALLBACK_YAWS := [0.7853982, 5.497787, 1.5707964, 4.712389, 2.3561945, 3.926991, 3.1415927, 0.3] # 005fcc9c..b8, 8 float reads
 const SOURCE_POSITION_DEFAULT_MIN := -3.402822e38 # 004406d0 writes 0xff7ffff8 at Position+0xa4
 const SOURCE_POSITION_DEFAULT_MAX := 3.402822e38 # 004406d0 writes 0x7f7ffff8 at Position+0xa8
+const SOURCE_WALK_DATA3D_CALLBACK := 0x00585d51 # DAT_00757320[0/8]
+const SOURCE_POSITION_FLAG_HAS_TARGET_OFFSET := 2 # 00440fe0 writes owner Position+0xce and +0x50
 
 var targeted_actor: Node3D
 var _reported_mode_zero_gap := false
@@ -116,7 +126,7 @@ func source_mode_zero_weighted_pivot(
         push_error("Source mode-0 pivot inputs are invalid")
         return {}
     if source_points.size() != 8 or source_weights.size() != 8:
-        push_error("Source mode-0 pivot requires the eight Data3D points and weights from 00443bf0")
+        push_error("Source mode-0 pivot requires the eight Data3D samples shifted by 00443d50/00443db0")
         return {}
     var points := source_points.duplicate()
     var weights := source_weights.duplicate()
@@ -150,6 +160,45 @@ func _source_smooth_mode_zero_pivot(target_position: Vector3, center: Vector3) -
         return {}
     var selected: Vector3 = controller_state.call("smooth_mode_zero_pivot", target_position, center, SOURCE_MODE_ZERO_PIVOT_THRESHOLD_SQUARED)
     return {"anchor": selected, "raw_center": center}
+
+## 00443f00 dispatches through the target's active mechanics identity card,
+## copies physical-object output +0x310 into the Data3D history ring, and
+## 00444620 consumes its weighted center. The current native actor adapter
+## supports the source Walk callback shared by identity-card kinds 0 and 8.
+func source_mode_zero_live_pivot() -> Dictionary:
+    var geometry := source_mode_zero_target_geometry()
+    if geometry.is_empty():
+        return {}
+    if not targeted_actor.has_method("source_camera_data3d_inputs"):
+        push_error("Source mode-0 target does not expose an actor-owned Data3D producer")
+        return {}
+    var data3d: Dictionary = targeted_actor.call("source_camera_data3d_inputs")
+    if not bool(data3d.get("supported", false)):
+        push_error("Source mode-0 target identity-card callback is unsupported: " + str(data3d.get("reason", "no source callback")))
+        return {}
+    if int(data3d.get("callback_address", 0)) != SOURCE_WALK_DATA3D_CALLBACK:
+        push_error("Source mode-0 target Data3D callback does not match the mapped Walk handler")
+        return {}
+    var target_position: Vector3 = geometry["target_position"]
+    var points: PackedVector3Array = data3d.get("points", PackedVector3Array())
+    var weights: PackedFloat32Array = data3d.get("weights", PackedFloat32Array())
+    var pivot := source_mode_zero_weighted_pivot(points, weights, target_position)
+    if pivot.is_empty():
+        return {}
+    var actor_basis := targeted_actor.global_basis.orthonormalized()
+    var actor_offset := actor_basis * mode_zero_actor_offset
+    var pivot_anchor: Vector3 = pivot["anchor"]
+    var pivot_center: Vector3 = pivot["raw_center"]
+    pivot["anchor"] = pivot_anchor + actor_offset
+    pivot["raw_center"] = pivot_center + actor_offset
+    pivot["target_position"] = target_position
+    var target_offset := actor_basis * mode_zero_target_offset
+    var look := mode_zero_look_offset if mode_zero_look_offset != Vector3.ZERO else Vector3(0, 0, 0.05)
+    pivot["candidate"] = pivot["anchor"] + target_offset
+    pivot["focus"] = pivot["anchor"] + actor_basis * look
+    pivot["callback_address"] = SOURCE_WALK_DATA3D_CALLBACK
+    pivot["sample_count"] = int(data3d.get("sample_count", 0))
+    return pivot
 
 ## Port of the 0051d410/0051d6e0/0051d7b0 candidate calculation. Inputs are
 ## source-space vectors; the caller must provide the actual +0x54 orientation
@@ -202,6 +251,23 @@ func source_compute_mode_zero_candidate(
         push_error("Source mode-0 candidate overflowed")
         return {}
     return {"position": candidate, "yaw": yaw, "pitch": pitch, "distance": distance}
+
+## 0052ce20 compares the current-eye to smoothed-anchor range against the
+## camera's +0x30 minimum and +0x34 maximum, with the source .data margins.
+func source_mode_zero_distance_class(current_eye: Vector3, anchor_3c: Vector3) -> Variant:
+    if not current_eye.is_finite() or not anchor_3c.is_finite() or not mode_zero_distance.is_finite():
+        push_error("Source mode-0 range inputs are nonfinite")
+        return null
+    if mode_zero_distance.x < 0.0 or mode_zero_distance.y < mode_zero_distance.x:
+        push_error("Source mode-0 camera range limits are invalid")
+        return null
+    var distance := current_eye.distance_to(anchor_3c)
+    if distance < mode_zero_distance.x - SOURCE_MODE_ZERO_RANGE_EPSILON:
+        return -1
+    var maximum := mode_zero_distance.y + SOURCE_MODE_ZERO_RANGE_MAX_PADDING
+    if distance <= maximum + SOURCE_MODE_ZERO_RANGE_EPSILON:
+        return 0
+    return 1
 
 func _source_camera_angles(current: Vector3, target: Vector3) -> Dictionary:
     var from := current.normalized()
@@ -333,9 +399,9 @@ func evaluate_mode_zero_teleport_gate(
         owner_teleport_blocked
     ))
 
-## Supplies the three segments used by 0051f670. The controller's actual
-## +0x3c, +0x18, and +0x30 values must come from its pose calculation; they
-## are not inferred from the viewport Camera3D child or unsmoothed target.
+## Supplies the 0051f670 segments from source controller positions: smoothed
+## anchor +0x3c, current camera eye +0x18, and candidate eye +0x30. The third
+## visibility segment is queried only after either candidate ray is blocked.
 func source_mode_zero_collision_inputs(
     controller_anchor_3c: Vector3,
     controller_origin_18: Vector3,
@@ -353,17 +419,23 @@ func source_mode_zero_collision_inputs(
     var target_position := geometry["target_position"] as Vector3
     var anchor_to_eye = _source_camera_ray_blocked(controller_anchor_3c, controller_eye_30, context)
     var origin_to_eye = _source_camera_ray_blocked(controller_origin_18, controller_eye_30, context)
-    var origin_to_target_head = _source_camera_ray_blocked(
-        controller_origin_18,
-        target_position + Vector3.UP * 1.8,
-        context
-    )
-    if anchor_to_eye == null or origin_to_eye == null or origin_to_target_head == null:
+    if anchor_to_eye == null or origin_to_eye == null:
         return {}
+    var target_head_checked := bool(anchor_to_eye) or bool(origin_to_eye)
+    var origin_to_target_head: Variant = false
+    if target_head_checked:
+        origin_to_target_head = _source_camera_ray_blocked(
+            controller_origin_18,
+            target_position + Vector3.UP * 1.8,
+            context
+        )
+        if origin_to_target_head == null:
+            return {}
     var streak := record_mode_zero_candidate_collision(bool(origin_to_eye))
     return {
         "anchor_to_eye_blocked": bool(anchor_to_eye),
         "origin_to_eye_blocked": bool(origin_to_eye),
+        "target_head_checked": target_head_checked,
         "origin_to_target_head_blocked": bool(origin_to_target_head),
         "candidate_collision_streak": streak,
     }
@@ -590,9 +662,48 @@ func _source_sector_for(node: Node) -> Node:
     return null
 
 func _source_update_mode_zero() -> bool:
-    if source_mode_zero_target_geometry().is_empty():
+    var live_pivot := source_mode_zero_live_pivot()
+    if live_pivot.is_empty():
         return false
-    if not _reported_mode_zero_gap:
-        push_error("Source mode-0 update is guarded: 00443f00 refreshes the target's eight-point Data3D arrays from its live DNM identity-card callback; those physics outputs are not in the saved Perso/model data. Candidate math, collision filters and camera pose writes are not called without those source inputs")
-        _reported_mode_zero_gap = true
-    return false
+    var owner := get_parent() as Node3D
+    if owner == null or not owner.is_inside_tree():
+        push_error("Source mode-0 camera owner is not in the scene tree")
+        return false
+    var orientation_data := source_mode_zero_orientation_54()
+    if orientation_data.is_empty():
+        return false
+    var current_eye := owner.global_position
+    var anchor_3c: Vector3 = live_pivot["anchor"]
+    var candidate := source_compute_mode_zero_candidate(
+        anchor_3c,
+        current_eye,
+        orientation_data["orientation"],
+        source_mode_zero_vertical_limits()
+    )
+    if candidate.is_empty():
+        return false
+    var collision := source_mode_zero_collision_inputs(anchor_3c, current_eye, candidate["position"])
+    if collision.is_empty():
+        return false
+    if bool(collision["anchor_to_eye_blocked"]) or bool(collision["origin_to_eye_blocked"]):
+        if not _reported_mode_zero_gap:
+            push_error("Source mode-0 update has a blocked candidate ray; the 0051fb50 fallback sweep and 0052d1b0/0052caa0 classifications are not connected, so pose publication is withheld")
+            _reported_mode_zero_gap = true
+        return false
+    var distance_class: Variant = source_mode_zero_distance_class(current_eye, anchor_3c)
+    if distance_class == null:
+        return false
+    # Clear candidate rays reset the source collision streak. In this branch
+    # the range hysteresis therefore cannot request 0051c7b0, and the owner's
+    # flag bit is not read by the source gate.
+    var teleport_requested := evaluate_mode_zero_teleport_gate(
+        true, false, false, false, int(distance_class), current_eye,
+        anchor_3c, mode_zero_distance.y, false, false
+    )
+    if teleport_requested:
+        push_error("Source mode-0 clear-ray gate requested an unexpected translation despite a cleared collision streak")
+        return false
+    # Source 005200a0 computes the candidate on this path but writes an owner
+    # translation only when DAT_007219d1 is set. A clear-ray gate result is a
+    # completed no-translation update, not a guessed pose.
+    return true

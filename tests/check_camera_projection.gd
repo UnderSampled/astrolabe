@@ -53,6 +53,53 @@ func run() -> void:
     held_pivot = camera.source_mode_zero_weighted_pivot(near_points,source_weights,Vector3.ZERO)
     held_anchor = held_pivot.get("anchor", Vector3.ONE)
     if not require(held_anchor.is_equal_approx(Vector3(1,0,0)), "source pivot hold did not release after eight updates"): return
+
+    var data3d_actor := CharacterBody3D.new()
+    data3d_actor.set_script(load("res://addons/astrolabe/character/character.gd"))
+    data3d_actor.set("motion_enabled", false)
+    var walk_mechanics: Resource = load("res://addons/astrolabe/character/mechanics.gd").new()
+    walk_mechanics.set("mode", 0)
+    data3d_actor.set("current_mechanics", walk_mechanics)
+    root.add_child(data3d_actor)
+    data3d_actor.global_position = Vector3(1,0,0)
+    if not require(data3d_actor.call("source_camera_data3d_step", 0.1), "source Walk Data3D producer rejected mechanics type 0"): return
+    data3d_actor.global_position = Vector3(2,0,0)
+    if not require(data3d_actor.call("source_camera_data3d_step", 0.2), "source Walk Data3D producer rejected a second sample"): return
+    var data3d: Dictionary = data3d_actor.call("source_camera_data3d_inputs")
+    var data3d_points: PackedVector3Array = data3d.get("points", PackedVector3Array())
+    var data3d_weights: PackedFloat32Array = data3d.get("weights", PackedFloat32Array())
+    if not require(data3d.get("supported", false) and data3d.get("callback_address", 0) == 0x00585d51, "source mechanics type 0 did not select the mapped Walk callback"): return
+    if not require(data3d.get("sample_count", 0) == 2 and data3d_points.size() == 8 and data3d_weights.size() == 8, "source Data3D producer did not expose an eight-slot history and its live count"): return
+    if not require(data3d_points[0].is_equal_approx(Vector3(2,0,0)) and data3d_points[1].is_equal_approx(Vector3(1,0,0)), "source Data3D samples are not newest-first post-movement world positions"): return
+    if not require(absf(data3d_weights[0] - 0.2) < 0.000001 and absf(data3d_weights[1] - 0.1) < 0.000001, "source Data3D weights do not track the callback frame deltas"): return
+    var data3d_owner := Node3D.new()
+    var data3d_camera := Camera3D.new()
+    data3d_camera.set_script(load("res://addons/astrolabe/camera/source_camera.gd"))
+    data3d_owner.add_child(data3d_camera)
+    root.add_child(data3d_owner)
+    data3d_camera.targeted_actor = data3d_actor
+    data3d_camera.mode_zero_target_child_index = -1
+    data3d_camera.mode_zero_actor_offset = Vector3(0,1,0)
+    data3d_camera.controller_state = load("res://addons/astrolabe/camera/source_controller_state.gd").new()
+    var live_pivot: Dictionary = data3d_camera.call("source_mode_zero_live_pivot")
+    var live_anchor: Vector3 = live_pivot.get("anchor", Vector3.ZERO)
+    var live_focus: Vector3 = live_pivot.get("focus", Vector3.ZERO)
+    if not require(live_pivot.get("sample_count", 0) == 2 and live_anchor.distance_to(Vector3(1.6666667,1,0)) < 0.00001, "live mode-0 pivot did not consume Data3D history and the target-rotated actor offset"): return
+    if not require(live_focus.distance_to(Vector3(1.6666667,1,0.05)) < 0.00001, "live mode-0 focus did not follow the smoothed Data3D pivot"): return
+    walk_mechanics.set("mode", 4)
+    if not require(not data3d_actor.call("source_camera_data3d_step", 0.1), "unsupported identity-card type 4 entered the Walk Data3D producer"): return
+    data3d = data3d_actor.call("source_camera_data3d_inputs")
+    if not require(not data3d.get("supported", true), "unsupported identity-card type 4 did not fail closed"): return
+    walk_mechanics.set("mode", 0)
+    data3d_actor.global_position = Vector3(3,0,0)
+    if not require(data3d_actor.call("source_camera_data3d_step", 0.05), "source Walk Data3D producer did not resume after restoring mechanics type 0"): return
+    data3d = data3d_actor.call("source_camera_data3d_inputs")
+    data3d_points = data3d.get("points", PackedVector3Array())
+    data3d_weights = data3d.get("weights", PackedFloat32Array())
+    if not require(data3d.get("sample_count", 0) == 1 and data3d_points[0].is_equal_approx(Vector3(3,0,0)) and absf(data3d_weights[0] - 0.05) < 0.000001, "identity-card callback transition did not clear stale Data3D history"): return
+    data3d_owner.free()
+    data3d_actor.free()
+
     camera.mode_zero_distance = Vector2(0, 10)
     camera.mode_zero_yaw_limits = Vector2(0, TAU)
     camera.mode_zero_pitch_limits = Vector2(0, TAU)
@@ -67,6 +114,10 @@ func run() -> void:
     )
     var clamped_position: Vector3 = height_clamped.get("position", Vector3.ZERO)
     if not require(height_clamped.has("position") and clamped_position.distance_to(Vector3(0,1,-3)) < 0.00001, "source +Z height limit did not map to Godot Y"): return
+    camera.mode_zero_distance = Vector2(3.5,4.0)
+    if not require(camera.source_mode_zero_distance_class(Vector3(3.498,0,0),Vector3.ZERO) == -1, "source 0052ce20 lower range class differs"): return
+    if not require(camera.source_mode_zero_distance_class(Vector3(4.300,0,0),Vector3.ZERO) == 0, "source 0052ce20 +0.3 upper padding/epsilon differs"): return
+    if not require(camera.source_mode_zero_distance_class(Vector3(4.302,0,0),Vector3.ZERO) == 1, "source 0052ce20 upper range class differs"): return
     var boundary := MeshInstance3D.new()
     boundary.set_script(load("res://addons/astrolabe/scene/sector_boundary.gd"))
     boundary.vertices = PackedVector3Array([
@@ -104,6 +155,24 @@ func run() -> void:
     floor_boundary.face_normals = PackedVector3Array([Vector3.UP])
     probe_sector.add_child(floor_boundary)
     root.add_child(probe_root)
+    probe_owner.global_position = Vector3(0,0.5,-4)
+    probe_camera.mode_zero_target_child_index = -1
+    probe_camera.mode_zero_distance = Vector2(0,10)
+    probe_camera.mode_zero_yaw_limits = Vector2(0,TAU)
+    probe_camera.mode_zero_pitch_limits = Vector2(0,TAU)
+    probe_camera.mode_zero_parameter_flags = 0
+    probe_camera.controller_state = load("res://addons/astrolabe/camera/source_controller_state.gd").new()
+    var clear_target := CharacterBody3D.new()
+    clear_target.set_script(load("res://addons/astrolabe/character/character.gd"))
+    var clear_mechanics: Resource = load("res://addons/astrolabe/character/mechanics.gd").new()
+    clear_mechanics.set("mode", 0)
+    clear_target.set("current_mechanics", clear_mechanics)
+    probe_sector.add_child(clear_target)
+    clear_target.global_position = Vector3(0,0.5,0)
+    clear_target.call("source_camera_data3d_step", 0.1)
+    probe_camera.targeted_actor = clear_target
+    if not require(probe_camera.call("source_update_position"), "source mode-0 collision-free candidate path did not complete"): return
+    if not require(probe_owner.global_position.is_equal_approx(Vector3(0,0.5,-4)), "source mode-0 clear-ray gate published a translation without a source 0051c7b0 request"): return
     var resolved_sector: Dictionary = probe_camera.source_resolve_mode_zero_sector(Vector3(0,0.5,0))
     if not require(resolved_sector.get("sector_id", "") == "camera-sector-probe" and resolved_sector.get("complete", false), "source downward sector geometry did not resolve the active border GEO"): return
     if not require(probe_camera.source_publish_mode_zero_translation(Vector3(0,0.5,0),Vector3(0.5,0.5,0)), "source same-sector pose publication failed"): return

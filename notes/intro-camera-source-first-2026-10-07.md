@@ -112,32 +112,59 @@ child physical-visual nodes are present, the result is marked incomplete
 because their visual-set triangles/LOD are not exported for this query; the
 pose publisher refuses that partial result.
 
-### Exact remaining Data3D blocker
+### Initial Data3D blocker (superseded below)
 
-`0044cf20` initializes eight runtime Data3D positions, auxiliary vectors, and
-weights to zero. `004440e0` walks the target's active DNM identity-card list;
-`00443f00` dispatches the callback indexed by the resolved card's actual
-`DNM_fn_eIdentityCardGetType`, then copies live physical-object arrays at
-`+0x2d8` and `+0x310` into the DNM Data3D arrays and assigns card mass as their
-weights. The callback comes from the runtime identity-card type, which is not
-one of the three `StandardIdentityWire.object_types`; type 0/8 uses `00585d51`,
-and the callback table has distinct handlers for other card types. `00443bf0`
-uses actor translation only when all eight runtime weights sum to zero; there
-is no evidence that the manor target reaches that branch when the camera
-updates.
+The first source pass identified that camera mode 0 needs eight runtime DNM
+position/weight samples which are not present in the serialized
+`PersoData3dPrefixWire`. At that checkpoint, the native actor did not yet
+produce those inputs, so mode 0 was guarded. The supported callback-derived
+producer and its remaining collision boundary are described in the next
+section.
 
-The serialized `PersoData3dPrefixWire` is 24 bytes and contains only state,
-configuration and family references. The current model retains those
-references, the three StandardGame object-type IDs, and authored model and
-animation assets; it does not contain the eight live DNM positions/weights,
-resolved identity-card type, or current physics callback outputs. Constructing
-the points from mesh bounds or choosing a callback from `object_types` would
-be a guess. Porting DNM/physics internals wholesale into Godot would also
-violate the repository's engine-boundary guidance. No original runtime or
-debugger capture was allowed for this pass. Mode 0 therefore still reports
-unsupported and does not claim collision success, evaluate the teleport gate,
-or publish a pose until a source-equivalent Godot actor-state producer supplies
-those eight points and weights.
+### Data3D producer and remaining mode-0 boundary
+
+The live Data3D input is now produced by the maintained Godot character
+component. `00443f00` dispatches by the active identity-card type. The typed
+mechanics resource carries that source card kind (`MechanicsData::Character`
+and `CharacterState.mechanics`), and the generated native animation assigns it
+to `current_mechanics` before the character's per-frame sample. The decompiled
+callback table `DAT_00757320` maps types 0 and 8 to Walk handler `00585d51`;
+other types remain unsupported by this producer and fail closed.
+
+For the supported Walk callback, the Godot actor records its world translation
+after native `move_and_slide()` (or after the authored pose advance for
+stationary actors). This is the corresponding native post-contact pose: the
+Walk handler's integrated xyz output at physical object `+0x310` is also written
+to the actor's global SuperObject translation. `00443d50` shifts the eight
+`+0x310` xyz samples newest-first, and `00443db0` shifts weights while putting
+the current frame delta in slot 0. The producer stores those eight positions
+and delta weights on the actor and resets history when its active callback
+changes. `source_mode_zero_live_pivot()` consumes them, uses the source
+`00443bf0` actor-translation/`0.03` fallback when all weights are zero, applies
+the `00444620` accumulated-weight cutoff of `0.4`, the shared eight-update
+`9.0` squared-distance hold, then applies the target-rotated actor offset.
+Candidate and focus offsets now use that same smoothed pivot. Focused Godot
+assertions cover newest-first order, exact delta weights, callback selection,
+callback transition reset, pivot weighting, actor offset and focus.
+
+This removes the missing Data3D producer as a blocker. `source_update_position`
+now computes the source candidate from the target pivot, camera-owner position,
+orientation selector and vertical limits; it also classifies distance through
+`0052ce20` using `+0x30/+0x34`, the verified `0.001` epsilon, and the static
+`DAT_0060b23c=3` / `+0.3` padding. The clear-ray `0051f670` branch runs through
+the shared gate state. It returns a completed no-translation update because
+the clear rays reset the collision streak and that branch cannot set
+`DAT_007219d1`; source `0051c7b0` is therefore not called for this result.
+
+When either candidate ray is blocked, `0051f670` instead depends on the
+fallback candidate search in `0051fb50` and its `0052d1b0`/`0052caa0`
+classifications. That sweep's static angle/range arrays and source result
+classification are not yet represented by the Godot provider. The camera-owner
+flag used by a successful teleport gate is also not currently exported. The
+blocked path fails explicitly before it can claim a pose update. No observed
+runtime branch value is substituted for those inputs. The controller's
+process-wide hysteresis state remains represented by the session-shared
+`source_controller_state.gd` resource.
 
 The other startup inputs now have source-backed adapters: the target's source
 +Y orientation selector, camera-owner Position sentinel bounds, Godot Y-up
@@ -153,12 +180,24 @@ The initial source-pass checks in commit `ab6e5a5` passed. In this follow-up,
 its Godot 4.7.2 run parsed and executed the projection script, including the
 `9.0f` threshold, eight-update hold, candidate math, and one-sided sector
 crossing, source selector, and same/cross-sector pose-publication assertions.
-A separate Godot 4.7.2 headless scan of the maintained `godot/` project also
-completed with exit code 0 and no socket or script parse errors. It regenerated
-five `.uid` files, which were removed afterward; this checked editor parsing
-and class registration, not the generated camera scene or gameplay.
 The first test attempt hit `/tmp` quota while creating its temporary project;
 the successful rerun placed temporary files in the worktree's ignored Cargo
 target directory. The camera model filter (`cargo test --offline --locked
 --lib camera_`) passed 16 tests with 1 local-game-data test ignored. No
 original-game run, debugger, new harness, or installation was used.
+
+After adding the actor-owned Data3D producer and collision-free mode-0 path,
+`cargo test --offline --locked --test cameras` passed again (1 passed, 4
+ignored) on Godot 4.7.2. The new assertions exercise callback type 0, the
+eight-entry newest-first history and frame weights, unsupported type 4,
+history reset on callback transition, live weighted pivot/focus, the
+`0052ce20` distance classes, and a collision-free source update that correctly
+does not invoke `0051c7b0`. `cargo fmt --all -- --check` and `git diff --check`
+passed after these changes.
+
+During integration into current `main`, the same focused camera test passed
+again (1 passed, 4 ignored). Its first invocation failed before assertions when
+`tempfile` used quota-constrained `/tmp`; the identical command passed with
+`TMPDIR` set to an ignored checkout-owned directory. The temporary directory
+was removed afterward. `cargo fmt --all -- --check` and `git diff --check`
+passed on the integrated diff as well.

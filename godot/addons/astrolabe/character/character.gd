@@ -10,6 +10,7 @@ const SOURCE_INVENTORY = preload("res://addons/astrolabe/character/inventory.gd"
 const SOURCE_MAGICK = preload("res://addons/astrolabe/character/magick.gd")
 const SOURCE_LASER_POINTER = preload("res://addons/astrolabe/character/laser_pointer.gd")
 const SOURCE_COLLISION_QUERY_MAX_RESULTS := 4096
+const SOURCE_CAMERA_DATA3D_WALK_CALLBACK := 0x00585d51 # DAT_00757320[0/8]
 @export var initial_state: int = -1
 @export var current_state: int = -1
 @export var current_mechanics: Resource
@@ -35,6 +36,10 @@ var source_vector_speed: Vector3 = Vector3.ZERO
 var source_impulse: Vector3 = Vector3.ZERO
 var source_relative_motion: bool = false
 var source_airborne: bool = false
+var _source_camera_data3d_positions := PackedVector3Array()
+var _source_camera_data3d_weights := PackedFloat32Array()
+var _source_camera_data3d_active_callback_address := 0
+var _source_camera_data3d_sample_count := 0
 var source_particle_generator_enabled: bool = false
 @export var source_routes: Array[Resource] = []
 @export var source_route_points: PackedInt32Array = PackedInt32Array()
@@ -74,6 +79,7 @@ var playing: bool:
         else: animation_player.pause()
 
 func _ready() -> void:
+    _source_reset_camera_data3d_history()
     if source_inventory == null:
         source_inventory = SOURCE_INVENTORY.new()
     if source_magick == null:
@@ -100,7 +106,9 @@ func _configure_motion() -> void:
         # source level's acceleration is measured against a live trajectory.
         gravity = Vector3.DOWN * float(ProjectSettings.get_setting("physics/3d/default_gravity"))
 func _process(delta: float) -> void:
-    if not motion_enabled: advance(delta)
+    if not motion_enabled:
+        advance(delta)
+        source_camera_data3d_step(delta)
 
 func _physics_process(delta: float) -> void:
     if not motion_enabled: return
@@ -138,6 +146,67 @@ func _physics_process(delta: float) -> void:
             external_velocity -= up_direction * external_velocity.dot(up_direction)
         source_airborne = false
     elif external_velocity.dot(up_direction) > 0.0: source_airborne = true
+    source_camera_data3d_step(delta)
+
+## 00443f00 dispatches this sample through DAT_00757320 by the active DNM
+## identity-card type, then 00443d50/00443db0 shift the +0x310 xyz result into
+## the eight Data3D samples with the current delta as weight. In Godot the
+## physical body's post-contact world translation is the native equivalent
+## of the walk callback's published position.
+func source_camera_data3d_step(delta: float) -> bool:
+    if not is_finite(delta) or delta < 0.0:
+        return false
+    var callback_address := _source_camera_data3d_callback_address()
+    if callback_address == 0:
+        _source_reset_camera_data3d_history()
+        return false
+    if callback_address != _source_camera_data3d_active_callback_address:
+        _source_reset_camera_data3d_history()
+        _source_camera_data3d_active_callback_address = callback_address
+    if _source_camera_data3d_positions.size() != 8 or _source_camera_data3d_weights.size() != 8:
+        _source_reset_camera_data3d_history()
+        _source_camera_data3d_active_callback_address = callback_address
+    for index in range(7, 0, -1):
+        _source_camera_data3d_positions[index] = _source_camera_data3d_positions[index - 1]
+        _source_camera_data3d_weights[index] = _source_camera_data3d_weights[index - 1]
+    _source_camera_data3d_positions[0] = global_position
+    _source_camera_data3d_weights[0] = delta
+    _source_camera_data3d_sample_count = mini(_source_camera_data3d_sample_count + 1, 8)
+    return true
+
+## State animation selects the source mechanics identity card; the imported
+## card's mode is its DNM type. Types 0 and 8 share the decompiled Walk callback
+## at 00585d51. Other identity callbacks remain unsupported and fail closed.
+func source_camera_data3d_inputs() -> Dictionary:
+    var callback_address := _source_camera_data3d_callback_address()
+    if callback_address == 0:
+        return {"supported": false, "callback_address": 0, "reason": "active mechanics identity-card callback is not mapped"}
+    if callback_address != _source_camera_data3d_active_callback_address:
+        _source_reset_camera_data3d_history()
+        _source_camera_data3d_active_callback_address = callback_address
+    return {
+        "supported": true,
+        "callback_address": callback_address,
+        "sample_count": _source_camera_data3d_sample_count,
+        "points": _source_camera_data3d_positions.duplicate(),
+        "weights": _source_camera_data3d_weights.duplicate(),
+    }
+
+func _source_camera_data3d_callback_address() -> int:
+    if current_mechanics == null:
+        return 0
+    var mode: Variant = current_mechanics.get("mode")
+    if typeof(mode) != TYPE_INT:
+        return 0
+    return SOURCE_CAMERA_DATA3D_WALK_CALLBACK if int(mode) in [0, 8] else 0
+
+func _source_reset_camera_data3d_history() -> void:
+    _source_camera_data3d_positions.resize(8)
+    _source_camera_data3d_positions.fill(Vector3.ZERO)
+    _source_camera_data3d_weights.resize(8)
+    _source_camera_data3d_weights.fill(0.0)
+    _source_camera_data3d_active_callback_address = 0
+    _source_camera_data3d_sample_count = 0
 
 func turn(degrees_per_second: float, seconds: float) -> void:
     # Proc_Turn requests a rate about the actor's local up axis. Source +Z maps
