@@ -64,8 +64,9 @@ or dialogue state machine should be introduced by bootstrap code.
 
 `model::dialogue::Dialogue` stores stable name/locale, box style, ordered text
 spans, line deadlines, actor owner, a compiled voice-event link and a normal
-behavior completion target. Rete schema 39 persists those values and a shared presentation reference. Source
-addresses and relocation decisions remain in OpenSpace import.
+behavior completion target. Rete persists those values and a shared
+presentation reference. Source addresses and relocation decisions remain in
+OpenSpace import.
 
 The manor adapter reuses SNA/LZO, pointer-file and relocation codecs for English
 `.lng/.rtg/.dlg/.rtd/.snd/.rts` inputs. `.dlg` word zero is the name table; word
