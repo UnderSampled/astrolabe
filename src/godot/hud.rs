@@ -6,6 +6,15 @@ use crate::model::{
 use anyhow::Result;
 use std::fmt::Write as _;
 
+const HUD_TEXTURE_GLOBALS: [&str; 6] = [
+    "DAT_0060f62c",
+    "DAT_0060f630",
+    "DAT_0060f620",
+    "DAT_0060f624",
+    "DAT_0060f628",
+    "DAT_0060f63c",
+];
+
 fn float(value: f32) -> String {
     format!("{value:?}")
 }
@@ -49,7 +58,7 @@ pub(super) fn export(
     );
     writeln!(
         text,
-        "[node name=\"SourceHud\" type=\"Control\"]\nlayout_mode = 3\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\ngrow_horizontal = 2\ngrow_vertical = 2\nmouse_filter = 2\nscript = ExtResource(\"hud_script\")\nmetadata/source_canvas_size = Vector2i({}, {})\nmetadata/source_words = PackedInt64Array({}, {})\nmetadata/source_text_offsets = {}\nmetadata/source_texture_handles = {}",
+        "[node name=\"SourceHud\" type=\"Control\"]\nlayout_mode = 3\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\ngrow_horizontal = 2\ngrow_vertical = 2\nmouse_filter = 2\nscript = ExtResource(\"hud_script\")\nmetadata/source_canvas_size = Vector2i({}, {})\nmetadata/source_words = PackedInt64Array({}, {})\nmetadata/source_text_offsets = {}\nmetadata/source_texture_handles = {}\nmetadata/source_texture_globals = {}",
         value.canvas_size[0],
         value.canvas_size[1],
         value.source_words[0],
@@ -60,7 +69,8 @@ pub(super) fn export(
                 .as_ref()
                 .map(source_identity_text)
                 .unwrap_or_default()
-        }))
+        })),
+        string_array(HUD_TEXTURE_GLOBALS.iter().map(|name| (*name).to_owned()))
     )?;
     for (table_index, table) in value.rectangle_tables.iter().enumerate() {
         writeln!(

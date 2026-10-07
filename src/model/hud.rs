@@ -10,8 +10,9 @@ pub struct HudPresentation {
     pub canvas_size: [u16; 2],
     /// Four source panel descriptors, in original draw order.
     pub panels: Vec<HudPanel>,
-    /// Six relocated texture handles read contiguously after the panel block.
-    /// Life drawing uses slots 2, 4, then 3; other mappings retain source order.
+    /// Six relocated Fix.gpt texture handles in read order. FUN_0040bcc0 assigns
+    /// them to globals 0060f62c, 0060f630, 0060f620, 0060f624, 0060f628, 0060f63c.
+    /// Draw uses include life slots 2, 4, 3; 0040c720 slots 1, 0; and 0040c950 slot 5.
     pub source_textures: [Option<SourceObjectIdentity>; 6],
     /// The two 24-entry Fix.sda tables. The six floats in each row are retained
     /// as stored; draw functions assign meaning to the fields they use.

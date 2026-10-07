@@ -150,12 +150,23 @@ byte, and only traverses layer arrays for enabled panels. Their Fix allocation
 identities and the two otherwise-unused descriptor bytes are retained without
 traversing disabled layer data. `0040bcc0` and `0040bda0` read/write this state.
 
-The handle words are values passed to `GLI_xSetMaterialTexture`, not established
-TextureInfo records. A tested Fix object had neither a texture name nor valid
-image dimensions, and the three non-null HUD slots do not appear in Fix.ptx.
-The archive-art mapping is therefore unresolved. The importer preserves bound
-handles as Fix source identities; an unrelocated layer handle is kept as four
-opaque bytes. It does not emit guessed texture links or substitute UI art.
+The earlier six-`VisualMaterial` interpretation used an unsupported eight-byte
+stride and has been replaced by the source read order. `0040bcc0` reads the
+64-byte descriptor block with `004e9800`, then calls `004e97a0` six times for
+four-byte Fix.gpt pointers. That helper passes each word to `004eab90` for Fix
+relocation. The results go, in order, to `DAT_0060f62c`, `DAT_0060f630`,
+`DAT_0060f620`, `DAT_0060f624`, `DAT_0060f628`, and `DAT_0060f63c`. `0040c300`
+draws life with slots 2, 4, 3; `0040c720` draws paired fills with slots 1, 0;
+and `0040c950` draws a counter image with slot 5. The Godot root preserves these
+global names alongside each Fix identity as editor metadata.
+
+These are opaque relocated objects passed to `GLI_xSetMaterialTexture`, which
+stores its second argument on the runtime material. This does not establish a
+serialized `VisualMaterial` or `TextureInfo` relationship. A tested Fix object
+had no texture name or valid image dimensions, and the three non-null handles
+in this profile do not appear in Fix.ptx. The archive-art mapping remains
+unresolved. An unrelocated panel-layer handle is retained as four opaque bytes;
+the exporter emits no guessed texture links or substitute UI art.
 
 Fix.sda's HUD block begins at `0x9b4` and contains two source words, two text
 offsets, and two 24-by-6 tables. `0040d190` and `0040bfa0` show the rectangle

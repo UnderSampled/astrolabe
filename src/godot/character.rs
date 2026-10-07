@@ -366,13 +366,6 @@ pub(super) fn export_perso(
     auxiliary_collision(project, source, perso, &family, &name, 1)?;
     auxiliary_collision(project, source, perso, &family, &name, 3)?;
     movement_collision(project, source, perso, &name, &controller)?;
-    // Fight_ChangeArmor is character gameplay state. Keep it in a small native
-    // child component so compiled AI and presentation consumers share one
-    // ordinary property/signal interface without coupling it to the HUD.
-    writeln!(
-        project.builder,
-        "    var {name}_armor_state = Node.new()\n    {name}_armor_state.name = \"SourceArmorState\"\n    {name}_armor_state.set_script(load(\"res://addons/astrolabe/character/armor_state.gd\"))\n    {name}.add_child({name}_armor_state)\n    {name}_armor_state.owner = {name}"
-    )?;
     // Installing the generated collision script resets inherited properties.
     // Attach mutable life only after the actor's final script is installed.
     if let Some(points) = perso.hit_points {

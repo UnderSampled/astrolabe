@@ -168,6 +168,9 @@ fn source_texture_links(
     rtp: &BTreeMap<u32, BlockKey>,
     offset: usize,
 ) -> Result<[Option<SourceObjectIdentity>; HUD_TEXTURE_COUNT]> {
+    // FUN_0040bcc0 reads six contiguous four-byte Fix.gpt pointers through
+    // FUN_004e97a0, assigning them to globals 0060f62c through 0060f63c in
+    // source order. FUN_004e97a0 applies Fix relocation via FUN_004eab90.
     let mut textures = Vec::with_capacity(HUD_TEXTURE_COUNT);
     for index in 0..HUD_TEXTURE_COUNT {
         let slot = offset + index * HUD_TEXTURE_STRIDE;
