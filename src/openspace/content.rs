@@ -460,6 +460,22 @@ fn import_menu_variant(game: &Path, selection: Selection, pause: bool) -> Result
             }
         }
     }
+    if let Some(credits) = &mut menu.credits {
+        let entry = archive
+            .find_entry(credits.font.atlas.texture.file())
+            .context("credits font atlas absent from CNT")?;
+        ensure!(
+            [
+                archive.image(entry)?.width(),
+                archive.image(entry)?.height()
+            ] == credits.font.atlas.size,
+            "credits font atlas dimensions differ"
+        );
+        credits.font.atlas.texture = entry.texture.path.clone();
+        if !imported.assets.contains(&entry.texture.path) {
+            imported.put(&entry.texture, archive.image(entry)?.clone(), false)?;
+        }
+    }
     for (path, sound) in sounds {
         imported.put(&AssetRef::from_path(path), sound, false)?;
     }

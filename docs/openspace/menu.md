@@ -13,9 +13,8 @@ internet and quit. The installed pause profile contains `Resume Game`,
 `NextGame`, `Options` and `Main Menu`, with localized labels "resume game",
 "start a new adventure", "configure" and "main menu". These roots remain
 separate; image quality and the legacy Internet launch remain outside this
-slice. Credits now has a native black route screen, but its localized scrolling
-entries are blocked on importing the source text-key registry. Inventory has
-its own `InvBox` import.
+slice. Credits retains a separate typed English text/font presentation nested
+under the main menu root. Inventory has its own `InvBox` import.
 
 `FUN_004105b0` draws each item using position words 8–10, localized text word
 0x13, selected/normal font names at 0x1c/0x24, and horizontal alignment byte 0xb0.
@@ -108,19 +107,35 @@ session.
 
 The same dispatcher sends `Credits` to mode `0x16`; `FUN_00403fc0` enters credits
 mode `0x17`. `FUN_0040f3f0` loads `credits.ini`, selects `Playmo_Font2_0`, and
-creates text handles for the configured entries. The installed file specifies a
-black background, 40 maximum displayed lines, and declares 397 entries. The
-installed file has 400 active `CDTCreditsEntry` directives, so the declaration
-and list also disagree. Its background image is commented out, and it contains
-no active `CDTImage` declarations. Credit entries are keys such as
-`CDT2_B_NAME`; the installed English
-`Fix.dlg`/`Fix.rtd` registration yields only four references to the relevant
-language block, not the 397 key-to-string values. Those values are embedded in
-the compiled language script, and the current importer does not execute or
-decode its `NewString` registry callbacks. The Godot Credits route therefore
-uses the confirmed black background and reports the missing source text map; it
-does not render IDs or substitute names. Importing the actual localized strings
-and reproducing the timed scroll remains open.
+looks up a text handle for each configured key. `FUN_0040ef40` appends every
+active key into a 24-byte slot; it does not increment the display count. The
+font-assignment loop in `FUN_0040f3f0` and draw loop in `FUN_0040eb10` both stop
+at `DAT_0060fa00`, loaded by `CDTCreditsNumEntries("397")`. The installed INI
+has 400 active directives, ending with `CDT2_B_PROD40`, `PROD41` and `PROD42`;
+those last three registered keys are not assigned or drawn by the source loops.
+
+The English `Fix.lng` Fix block 18 contains exactly 400 fixed-width credit key
+slots. The importer compares every slot with the active INI entries in order.
+English `Fix.dlg`/`Fix.rtd` contains 410 references to Fix block 19; its final
+400 text handles map to that same key order, after ten unrelated Fix text
+handles. Their pointer targets provide the localized strings. This matches the
+decompiled `FON_fn_eLoadTextString` callback, which calls `Link_SetValue(key,
+text_handle)`, and `FON_fn_hGetTextHandle`, which searches that key table. The
+importer checks the first localized values and retains all 400 pairs in Rete;
+Godot emits only the first 397 as native Label nodes. It uses the source font
+metrics/UVs/atlas, black background, 40-line visible window and 0.35 world-unit
+spacing. In `FUN_0040eb10`, `-` is left alignment, no prefix is centered and
+`+` is right alignment; a right-aligned entry and the following left-aligned
+entry share a baseline. Back/Escape return to the menu, and the source end
+condition is represented by automatically returning when the final row leaves
+the top of the viewport.
+
+The decompilation snapshot does not include the numeric initializer for
+`DAT_005e6c78`, the timer-to-world scroll multiplier used by `FUN_0040eb10`.
+The authored Godot controller exposes a default speed of 1 world unit per
+second for tuning; exact timed parity remains unverified. The credits background
+image is commented out and there are no active `CDTImage` declarations, so the
+source black background is used without extra artwork.
 
 The dispatcher sends `Internet` through its legacy branch, which writes a
 temporary HTML file and asks the installed browser to open the old Playmobil

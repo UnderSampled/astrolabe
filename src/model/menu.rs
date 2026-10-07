@@ -18,6 +18,9 @@ pub struct MenuPresentation {
     /// Source configuration-root labels and backdrop shipped with the English main menu.
     #[serde(default)]
     pub configuration: Option<MenuConfiguration>,
+    /// Original English credits registry, attached to the main menu presentation.
+    #[serde(default)]
+    pub credits: Option<CreditsPresentation>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MenuConfiguration {
@@ -51,6 +54,109 @@ pub struct MenuSprite {
     pub rect: [f32; 4],
     /// Bottom-left source UV rectangle; one-texel extrapolation is retained.
     pub uv: [[f32; 2]; 2],
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CreditsPresentation {
+    pub path: AssetPath,
+    pub locale: String,
+    pub font: CreditsFont,
+    /// Includes all 400 registered entries; the source routine displays only the first count.
+    pub entries: Vec<CreditsEntry>,
+    pub displayed_entries: usize,
+    pub max_visible_lines: usize,
+    pub text_spacing: f32,
+    pub text_position: [f32; 2],
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CreditsFont {
+    pub name: String,
+    pub atlas: super::dialogue::DialogueTexture,
+    pub glyphs: Vec<super::dialogue::DialogueGlyph>,
+    pub tracking: f32,
+    pub color: [f32; 4],
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CreditsEntry {
+    /// The full key, including source +/- alignment markers.
+    pub key: String,
+    pub text: String,
+    /// FON_fn_vDrawText3D text alignment: 0 left, 1 center, 2 right.
+    pub alignment: u8,
+}
+impl CreditsPresentation {
+    pub fn validate(&self) -> Result<()> {
+        ensure!(
+            self.locale == "en"
+                && self.path.role() == super::PackageRole::Fix
+                && !self.font.name.is_empty()
+                && self.font.name == "Playmo_Font2_0"
+                && self.entries.len() == 400
+                && self.displayed_entries == 397
+                && self.displayed_entries <= self.entries.len()
+                && self.max_visible_lines == 40
+                && self.text_spacing.is_finite()
+                && self.text_spacing > 0.0
+                && self.text_position.iter().all(|v| v.is_finite()),
+            "unsupported original credits profile"
+        );
+        ensure!(
+            self.font.atlas.texture.role() == super::PackageRole::Texture
+                && self.font.atlas.size.iter().all(|v| (2..=4096).contains(v))
+                && self.font.tracking.is_finite()
+                && self.font.tracking >= 0.0
+                && self
+                    .font
+                    .color
+                    .iter()
+                    .all(|v| v.is_finite() && (0.0..=1.0).contains(v))
+                && !self.font.glyphs.is_empty()
+                && self.font.glyphs.len() <= 1024,
+            "invalid original credits font"
+        );
+        let mut glyphs = std::collections::BTreeSet::new();
+        for glyph in &self.font.glyphs {
+            ensure!(
+                glyphs.insert(glyph.character)
+                    && [glyph.width, glyph.half_height, glyph.vertical_offset]
+                        .iter()
+                        .all(|v| v.is_finite())
+                    && glyph.width >= 0.0
+                    && glyph.half_height <= 0.0,
+                "invalid original credits glyph"
+            );
+            if let Some(uv) = glyph.uv {
+                ensure!(
+                    glyph.width > 0.0
+                        && glyph.half_height < 0.0
+                        && uv.iter().flatten().all(|v| v.is_finite())
+                        && uv[1].iter().all(|v| *v > 0.0),
+                    "invalid original credits glyph UV"
+                );
+            }
+        }
+        let mut keys = std::collections::BTreeSet::new();
+        for entry in &self.entries {
+            ensure!(
+                !entry.key.is_empty()
+                    && keys.insert(&entry.key)
+                    && entry.key.len() <= 24
+                    && !entry.text.is_empty()
+                    && entry.text.len() <= 512
+                    && entry.alignment <= 2,
+                "invalid original credits entry"
+            );
+            let expected_alignment = match entry.key.as_bytes().first() {
+                Some(b'+') => 2,
+                Some(b'-') => 0,
+                _ => 1,
+            };
+            ensure!(
+                entry.alignment == expected_alignment,
+                "credits alignment differs from key marker"
+            );
+        }
+        Ok(())
+    }
 }
 impl Content for MenuPresentation {
     const KIND: &'static str = "menu-presentation";
@@ -215,6 +321,9 @@ impl Content for MenuPresentation {
                     );
                 }
             }
+        }
+        if let Some(credits) = &self.credits {
+            credits.validate()?;
         }
         Ok(())
     }

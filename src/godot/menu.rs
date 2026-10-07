@@ -1,6 +1,6 @@
 //! Bake menu sprite quads into ordinary textures before the authored game runs.
 use super::{Project, disk_path, quoted};
-use crate::model::{content::ContentSource, io::Save, menu::*};
+use crate::model::{AssetRef, content::ContentSource, io::Save, menu::*, texture::Texture};
 use anyhow::{Context, Result, ensure};
 use std::{collections::BTreeMap, fmt::Write as _};
 
@@ -98,6 +98,9 @@ pub(super) fn export(
         let background = source.load(reference)?;
         project.save(reference, background.as_ref())?;
     }
+    if let Some(credits) = &value.credits {
+        export_credits(project, source, credits)?;
+    }
     if let (Some(configuration), Some(directory)) = (&value.configuration, &configuration_directory)
     {
         project.write(
@@ -111,6 +114,125 @@ pub(super) fn export(
     )?;
     project.diagnostic(format!("{}: English source layout/actions/navigation exported as editable native Controls; original normal/glow artwork baked ahead of runtime; Sound settings use persistent native sliders and Controls map the five playable actions to keyboard or generic Godot joypad events",value.path));
     Ok(())
+}
+
+fn export_credits(
+    project: &mut Project,
+    source: &mut impl ContentSource,
+    credits: &CreditsPresentation,
+) -> Result<()> {
+    credits.validate()?;
+    let directory = disk_path(&project.selection, &credits.path, "");
+    let directory = directory.trim_end_matches('.');
+    let atlas_path = disk_path(
+        &project.selection,
+        &credits.font.atlas.texture,
+        "credits.png",
+    );
+    let font_path = disk_path(&project.selection, &credits.path, "font.tres");
+    let atlas = source.load(&AssetRef::<Texture>::from_path(
+        credits.font.atlas.texture.clone(),
+    ))?;
+    ensure!(
+        [atlas.width(), atlas.height()] == credits.font.atlas.size,
+        "credits atlas dimensions differ"
+    );
+    let rgba = atlas.rgba8(0)?;
+    let rgba = if credits.font.atlas.color_key {
+        super::material::keyed_rgba(&atlas, &rgba)
+    } else {
+        rgba
+    };
+    project.write(
+        atlas_path.clone(),
+        &super::material::png(atlas.width(), atlas.height(), &rgba)?,
+    )?;
+    project.reserve(&font_path)?;
+    super::bitmap_font::emit(
+        project,
+        super::bitmap_font::FontInput {
+            name: &credits.font.name,
+            atlas: &format!("res://{atlas_path}"),
+            atlas_size: credits.font.atlas.size,
+            glyphs: &credits.font.glyphs,
+            tracking: credits.font.tracking,
+            scale: 640.0 / (2.0 * 4.65),
+            path: &format!("res://{font_path}"),
+            outline: None,
+        },
+    )?;
+    project.write(
+        format!("{directory}/lines.tscn"),
+        credits_scene(credits, &font_path)?.as_bytes(),
+    )?;
+    project.diagnostic(format!(
+        "{}: imported {} English credit keys/text handles and native Playmo_Font2_0 glyph atlas; source draw count is {}; +/- keys retain left/right paired-row alignment",
+        credits.path,
+        credits.entries.len(),
+        credits.displayed_entries
+    ));
+    Ok(())
+}
+
+fn credits_scene(credits: &CreditsPresentation, font_path: &str) -> Result<String> {
+    const SCALE: f32 = 640.0 / (2.0 * 4.65);
+    let mut text = format!(
+        "[gd_scene load_steps=2 format=3]\n\n[ext_resource type=\"FontFile\" path={} id=\"font\"]\n\n[node name=\"CreditsLines\" type=\"Control\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmetadata/source_registered_entries = {}\nmetadata/source_displayed_entries = {}\nmetadata/source_max_visible_lines = {}\nmetadata/source_text_spacing = {}\nmetadata/source_text_position = Vector2({}, {})\n",
+        quoted(&format!("res://{font_path}")),
+        credits.entries.len(),
+        credits.displayed_entries,
+        credits.max_visible_lines,
+        credits.text_spacing,
+        credits.text_position[0],
+        credits.text_position[1],
+    );
+    let mut right_aligned_before = 0usize;
+    let mut final_world_y = -4.3f32;
+    for (index, entry) in credits
+        .entries
+        .iter()
+        .take(credits.displayed_entries)
+        .enumerate()
+    {
+        // FUN_0040eb10 aligns +/- entries horizontally; its local_28 counter
+        // removes one row step after a right-aligned (+) entry, pairing the
+        // following left-aligned (-) name on that same baseline.
+        let row = index - right_aligned_before;
+        let world_y = -4.3 - row as f32 * credits.text_spacing;
+        let pixel_y = (3.49 - world_y) * SCALE;
+        let center_x = (4.65 + credits.text_position[0]) * SCALE;
+        let (left, right) = match entry.alignment {
+            0 => (center_x, 640.0),
+            2 => (0.0, center_x),
+            _ => (0.0, 640.0),
+        };
+        final_world_y = world_y;
+        writeln!(
+            text,
+            "\n[node name=\"Credit{index:03}\" type=\"Label\" parent=\".\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = {}\noffset_right = {}\noffset_bottom = {}\ntext = {}\nhorizontal_alignment = {}\nvertical_alignment = 1\nautowrap_mode = 0\ntheme_override_fonts/font = ExtResource(\"font\")\ntheme_override_font_sizes/font_size = 21\ntheme_override_colors/font_color = Color({}, {}, {}, {})\nmetadata/source_key = {}\nmetadata/source_world_y = {}",
+            left,
+            pixel_y - 11.0,
+            right,
+            pixel_y + 11.0,
+            quoted(&entry.text),
+            entry.alignment,
+            credits.font.color[0],
+            credits.font.color[1],
+            credits.font.color[2],
+            credits.font.color[3],
+            quoted(&entry.key),
+            world_y
+        )?;
+        if entry.alignment == 2 {
+            right_aligned_before += 1;
+        }
+    }
+    let scroll_distance = 4.3 - final_world_y;
+    writeln!(
+        text,
+        "\nmetadata/source_scroll_distance = {scroll_distance}"
+    )?;
+    Ok(text)
 }
 fn node_name(name: &str) -> String {
     name.split('_')
@@ -563,6 +685,21 @@ mod tests {
                     "pause source depth/anchor differs"
                 );
             }
+        } else {
+            let credits = menu.credits.as_ref().context("source credits absent")?;
+            ensure!(
+                credits.entries.len() == 400
+                    && credits.displayed_entries == 397
+                    && credits.max_visible_lines == 40
+                    && credits.font.name == "Playmo_Font2_0"
+                    && credits.entries[0].text == "Hype  -  The Time Quest"
+                    && credits.entries[1].text.trim().is_empty()
+                    && credits.entries[2].text.trim() == "Original Idea and Producer"
+                    && credits.entries[3].text.trim() == "Alain Tascan"
+                    && credits.entries[397].key == "CDT2_B_PROD40"
+                    && credits.entries[399].key == "CDT2_B_PROD42",
+                "English credits registry/count/font mapping differs"
+            );
         }
         let mut store = crate::rete::Store::new(output.join("rete"), imported.selection.clone())?;
         for root in &imported.inventory.clone() {
@@ -618,6 +755,34 @@ mod tests {
                     && configuration_text.contains("type=\"Texture2D\" path=\"res://generated/hype/textures/MENU/Config_back.gf.png\"")
                     && configuration_text.contains("metadata/source_action = \"DisplayWithSound\""),
                 "native configuration labels/source sliders/backdrop differ"
+            );
+            let credits_scene = project
+                .stage
+                .path()
+                .join("generated/hype/shared/menu/credits/en/lines.tscn");
+            let credits_text = std::fs::read_to_string(credits_scene)?;
+            let credits_checks = [
+                credits_text.matches(" type=\"Label\"").count() == 397,
+                credits_text.contains("metadata/source_registered_entries = 400"),
+                credits_text.contains("metadata/source_displayed_entries = 397"),
+                credits_text.contains("metadata/source_key = \"+CDT2_B_MGNT0\""),
+                credits_text.contains("text = \"Original Idea and Producer  \""),
+                credits_text.contains("horizontal_alignment = 2"),
+                credits_text.contains("text = \"  Alain Tascan\""),
+                credits_text.contains("horizontal_alignment = 0"),
+                credits_text.contains("metadata/source_key = \"CDT2_B_PROD39c\""),
+                !credits_text.contains("metadata/source_key = \"CDT2_B_PROD40\""),
+                project
+                    .generated
+                    .iter()
+                    .any(|path| path.ends_with(".credits.png")),
+                project
+                    .builder
+                    .contains("ui_font.set_font_name(\"Playmo_Font2_0\")"),
+            ];
+            ensure!(
+                credits_checks.into_iter().all(|check| check),
+                "native credits scene/font/data differ"
             );
         }
         std::fs::create_dir_all(&project_output)?;

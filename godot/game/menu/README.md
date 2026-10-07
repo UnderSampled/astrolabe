@@ -21,13 +21,16 @@ Astrolabe's current arrow/Space defaults and clears controller mappings; it does
 not claim to recover the game's original options file defaults. The legacy
 Paddle/Joystick device modes are not emulated. Images retains the original
 labels and explains why source renderer settings have no verified Godot
-equivalent. Credits opens a black native screen using the confirmed source
-background, notes that the config declares 397 entries but lists 400 active
-keys, and returns to the main menu through Back or Escape. The English text map
-and timed scroll are still unimplemented; the screen never presents internal
-keys as credit names. Internet explicitly reports that the old route is
-obsolete and does not launch the external URL. Menu music and spoken idle
-prompts remain outside this increment.
+equivalent. Credits exports all 400 English key/value records and the original
+`Playmo_Font2_0` atlas into an editable native scene, while showing the first
+397 entries as the source routine does. It retains the original black
+background, paired left/right rows and source spacing, with Back/Escape return
+navigation and automatic return when the final row scrolls offscreen. The
+decompiled routine's timer multiplier initializer is absent from the available
+decompilation, so the authored credits controller exposes an editable default
+scroll rate; pixel-timed parity remains unverified. Internet explicitly reports
+that the old route is obsolete and does not launch the external URL. Menu music
+and spoken idle prompts remain outside this increment.
 
 Generate the independent menu closure with the same converter used for gameplay:
 

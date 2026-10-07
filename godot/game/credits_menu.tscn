@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://game/credits_menu.gd" id="1"]
+[ext_resource type="Script" path="res://game/credits_menu.gd" id="script"]
+[ext_resource type="Theme" path="res://addons/astrolabe/ui/menu/theme.tres" id="theme"]
 
 [node name="CreditsMenu" type="Control"]
 layout_mode = 3
@@ -9,7 +10,8 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1")
+theme = ExtResource("theme")
+script = ExtResource("script")
 
 [node name="BlackBackground" type="ColorRect" parent="."]
 layout_mode = 1
@@ -21,39 +23,42 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(0, 0, 0, 1)
 
-[node name="Content" type="VBoxContainer" parent="."]
-layout_mode = 1
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -240.0
-offset_top = -120.0
-offset_right = 240.0
-offset_bottom = 120.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_constants/separation = 18
-alignment = 1
+[node name="Canvas" type="Control" parent="."]
+layout_mode = 0
+offset_right = 640.0
+offset_bottom = 480.0
+mouse_filter = 2
 
-[node name="Title" type="Label" parent="Content"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 28
-text = "Credits"
-horizontal_alignment = 1
+[node name="Clip" type="Control" parent="Canvas"]
+layout_mode = 0
+offset_right = 640.0
+offset_bottom = 480.0
+clip_contents = true
+mouse_filter = 2
 
-[node name="SourceStatus" type="Label" parent="Content"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 16
-text = "The installed credits configuration declares 397 entries and lists 400 keys.\n\nThe English text-key registry and scrolling font have not been exported, so the original credits cannot yet be shown faithfully."
+[node name="MissingData" type="Label" parent="Canvas"]
+visible = false
+layout_mode = 0
+offset_left = 96.0
+offset_top = 210.0
+offset_right = 544.0
+offset_bottom = 270.0
+text = "Original credits data is not generated. Regenerate the English menu content."
 autowrap_mode = 3
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Back" type="Button" parent="Content"]
-layout_mode = 2
-size_flags_horizontal = 4
+[node name="Back" type="Button" parent="Canvas"]
+layout_mode = 0
+offset_left = 24.0
+offset_top = 424.0
+offset_right = 172.0
+offset_bottom = 464.0
 text = "Back to menu"
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_focus_color = Color(1, 1, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 16
 
-[connection signal="pressed" from="Content/Back" to="." method="_on_back_pressed"]
+[connection signal="pressed" from="Canvas/Back" to="." method="_on_back_pressed"]

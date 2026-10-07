@@ -1,5 +1,11 @@
 //! Bounded English menu presentation import. Source records end at this boundary.
-use super::{container::wire, dialogue, records::*, session::SourceSession, sound::SoundSites};
+use super::{
+    container::{file, pointer_file, u32_at, wire},
+    dialogue,
+    records::*,
+    session::SourceSession,
+    sound::SoundSites,
+};
 use crate::model::{
     AssetPath, AssetRef, Selection,
     audio::{Sound, SoundDefinitionTarget, SoundOperation, SoundResourceData, SoundSampleRef},
@@ -582,9 +588,257 @@ fn import_menu(
         } else {
             None
         },
+        credits: if matches!(variant, MenuVariant::Main) {
+            Some(credits(&s, game)?)
+        } else {
+            None
+        },
     };
     presentation.validate()?;
     Ok((presentation, sounds))
+}
+
+/// The source credits callback appends each localized text key in INI order.
+/// English Fix block 18 contains the same 24-byte key slots; Fix.dlg's final
+/// 400 Fix block-19 handles resolve their values in that registration order.
+/// FUN_0040f3f0 and FUN_0040eb10 both stop at CDTCreditsNumEntries (397), while
+/// FUN_0040ef40 appends every active entry (400).
+fn credits(s: &SourceSession, game: &Path) -> Result<CreditsPresentation> {
+    let ini = std::fs::read_to_string(game.join("Gamedata/credits.ini"))?;
+    let mut in_credits = false;
+    let mut keys = Vec::new();
+    let mut displayed_entries = None;
+    let mut max_visible_lines = None;
+    let mut font_name = None;
+    let mut text_spacing = None;
+    let mut text_position = None;
+    for raw in ini.lines() {
+        let line = raw.split_once(';').map_or(raw, |(before, _)| before).trim();
+        if line.starts_with("{CreditsMenuTextures:") {
+            ensure!(!in_credits, "duplicate original credits section");
+            in_credits = true;
+            continue;
+        }
+        if !in_credits {
+            continue;
+        }
+        if line.starts_with('}') {
+            break;
+        }
+        let Some((name, arguments)) = line.split_once('(') else {
+            continue;
+        };
+        let Some(arguments) = arguments.strip_suffix(')') else {
+            continue;
+        };
+        let values = arguments
+            .split(',')
+            .map(|value| value.trim().trim_matches('"'))
+            .collect::<Vec<_>>();
+        match name.trim() {
+            "CDTCreditsEntry" => {
+                ensure!(
+                    values.len() == 1 && !values[0].is_empty(),
+                    "malformed credits key"
+                );
+                keys.push(values[0].to_owned());
+            }
+            "CDTCreditsNumEntries" => {
+                ensure!(
+                    values.len() == 1 && displayed_entries.is_none(),
+                    "duplicate or malformed credits count"
+                );
+                displayed_entries = Some(values[0].parse::<usize>()?);
+            }
+            "CDTCreditsMaxLinesDisplayed" => {
+                ensure!(
+                    values.len() == 1 && max_visible_lines.is_none(),
+                    "duplicate or malformed credits line limit"
+                );
+                max_visible_lines = Some(values[0].parse::<usize>()?);
+            }
+            "CDTCreditsFontName" => {
+                ensure!(values.len() == 1, "malformed credits font");
+                ensure!(
+                    font_name.replace(values[0].to_owned()).is_none(),
+                    "duplicate credits font"
+                );
+            }
+            "CDTCreditsTextSpacing" => {
+                ensure!(values.len() == 1, "malformed credits spacing");
+                ensure!(
+                    text_spacing.replace(values[0].parse::<f32>()?).is_none(),
+                    "duplicate credits spacing"
+                );
+            }
+            "CDTCreditsTextPosition" => {
+                ensure!(
+                    values.len() == 2
+                        && text_position
+                            .replace([values[0].parse::<f32>()?, values[1].parse::<f32>()?])
+                            .is_none(),
+                    "duplicate or malformed credits text position"
+                );
+            }
+            // Source has no credits image directives; keep that boundary explicit.
+            "CDTImage" | "CDTBackgroundFile" => {
+                anyhow::bail!("unsupported active original credits artwork directive {name}");
+            }
+            _ => {}
+        }
+    }
+    ensure!(in_credits, "original credits section absent");
+    ensure!(
+        keys.len() == 400,
+        "original credits INI entry count differs"
+    );
+    let displayed_entries = displayed_entries.context("credits display count absent")?;
+    ensure!(
+        displayed_entries == 397,
+        "original credits displayed-entry count differs"
+    );
+    let max_visible_lines = max_visible_lines.context("credits line limit absent")?;
+    let font_name = font_name.context("credits font name absent")?;
+    let text_spacing = text_spacing.context("credits text spacing absent")?;
+    let text_position = text_position.context("credits text position absent")?;
+
+    let key_block = BlockKey(18, 0);
+    let mut matching_key_tables = 0;
+    for (offset, _) in s.allocation_indices(Owner::Fix, key_block)? {
+        let address = Address {
+            owner: Owner::Fix,
+            key: key_block,
+            offset,
+        };
+        let Ok(bytes) = s.bytes(address, keys.len() * 24) else {
+            continue;
+        };
+        let (slots, remainder) = bytes.as_chunks::<24>();
+        ensure!(remainder.is_empty(), "credits key registry extent differs");
+        let mut parsed = Vec::new();
+        for slot in slots {
+            let Some(end) = slot.iter().position(|byte| *byte == 0) else {
+                parsed.clear();
+                break;
+            };
+            let Ok(value) = std::str::from_utf8(&slot[..end]) else {
+                parsed.clear();
+                break;
+            };
+            if end == 0 {
+                parsed.clear();
+                break;
+            }
+            parsed.push(value.to_owned());
+        }
+        if parsed == keys {
+            matching_key_tables += 1;
+        }
+    }
+    ensure!(
+        matching_key_tables == 1,
+        "English Fix credits key registry differs from credits.ini"
+    );
+
+    let folder = game.join("LangData/English/world/levels");
+    let dlg = file(&folder.join("Fix.dlg"))?;
+    ensure!(dlg.len() % 4 == 0, "Fix DLG reference table extent differs");
+    let relocations = pointer_file(&file(&folder.join("Fix.rtd"))?)?;
+    let mut text_handles = Vec::new();
+    let (references, remainder) = dlg.as_chunks::<4>();
+    ensure!(
+        remainder.is_empty(),
+        "Fix DLG reference table extent differs"
+    );
+    for bytes in references {
+        let value = u32_at(bytes, 0)?;
+        if relocations.get(&value) == Some(&BlockKey(19, 0)) {
+            text_handles.push(s.resolve(Owner::Fix, BlockKey(19, 0), value)?);
+        }
+    }
+    ensure!(
+        text_handles.len() == keys.len() + 10,
+        "English Fix DLG text-handle sequence differs"
+    );
+    let credit_start = text_handles.len() - keys.len();
+    let mut entries = Vec::with_capacity(keys.len());
+    for (index, key) in keys.into_iter().enumerate() {
+        let handle = text_handles[credit_start + index];
+        let value = s
+            .pointer(handle, 0)?
+            .context("localized credits text handle lacks its string")?;
+        let text = string(s, value)?;
+        let alignment = match key.as_bytes()[0] {
+            b'+' => 2,
+            b'-' => 0,
+            _ => 1,
+        };
+        entries.push(CreditsEntry {
+            key,
+            text,
+            alignment,
+        });
+    }
+    ensure!(
+        entries[0].text == "Hype  -  The Time Quest"
+            && entries[1].text.trim().is_empty()
+            && entries[2].text.trim() == "Original Idea and Producer"
+            && entries[3].text.trim() == "Alain Tascan",
+        "English credits key/handle registration order differs"
+    );
+
+    let font_address = source_font(s, &font_name)?;
+    let source_font = super::dialogue_presentation::font(s, font_address)?;
+    let presentation = CreditsPresentation {
+        path: AssetPath::new("fix:/menu/credits/en")?,
+        locale: "en".into(),
+        font: CreditsFont {
+            name: source_font.name,
+            atlas: source_font.atlas,
+            glyphs: source_font.glyphs,
+            tracking: source_font.tracking,
+            color: source_font.color,
+        },
+        entries,
+        displayed_entries,
+        max_visible_lines,
+        text_spacing,
+        text_position,
+    };
+    presentation.validate()?;
+    Ok(presentation)
+}
+
+fn source_font(s: &SourceSession, name: &str) -> Result<Address> {
+    let key = BlockKey(19, 1);
+    let mut found = None;
+    for (offset, _) in s.allocation_indices(Owner::Fix, key)? {
+        let address = Address {
+            owner: Owner::Fix,
+            key,
+            offset,
+        };
+        let Ok(bytes) = s.bytes(address, 32) else {
+            continue;
+        };
+        let Ok(header) = wire::<FontWire>(bytes) else {
+            continue;
+        };
+        if header.encoding != 0x11 || header.count == 0 || header.count > 1024 {
+            continue;
+        }
+        let Ok(name_address) = s.required(address, 12) else {
+            continue;
+        };
+        if string(s, name_address).ok().as_deref() != Some(name) {
+            continue;
+        }
+        ensure!(
+            found.replace(address).is_none(),
+            "duplicate source credits font {name}"
+        );
+    }
+    found.with_context(|| format!("required source credits font {name} absent"))
 }
 
 /// Import the source-owned Options text root. FUN_00413bd0 positions its
