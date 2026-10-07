@@ -16,6 +16,46 @@ records source anchors, verified meanings and limits. Detailed report links in
 this chapter point to ignored, game-derived local evidence; those reports are
 not distributed with a clean checkout.
 
+## Import an original slot into Godot
+
+The Astrolabe CLI can read an extracted Hype `SaveGameN/` directory and write a
+local import file used by the Godot **Load Game** route:
+
+```sh
+cargo build --release --locked
+target/release/astrolabe import-save /path/to/SaveGame0 \
+  --profile hype-pc-english-supplied-save
+```
+
+The profile is explicit because a save slot does not identify its executable
+build. The reader leaves the original files unchanged and writes
+`godot/game/original_save_import.json`, an ignored local artifact. It retains
+the parsed record identities, types, flags, raw values and unknown trailing
+bytes in that report. Godot consumes only the supported native overlay; it does
+not interpret source-address tables at runtime. A native Godot slot takes
+precedence when one already exists.
+
+The current `manoir` overlay restores Hype's saved translation, source-backed
+mana and selected magic slot, the supported inventory handle numbers, and
+`iDummy_PourCercles.DSG[8]`. It retains the fixture orientation and current AI
+behavior state, and does not restore active-weapon selection or the bridge-gate
+pose/animation. Godot applies this subset over the measured starting fixture
+and labels it as a supported-fields-only load. The mapped gate records cover
+its active/HP fields only; they do not encode whether its mesh is raised. When
+an imported original slot is present, Godot skips the provisional gate lift
+and leaves the gate at the exported scene pose. The measured-fixture path
+still retains its temporary lift until a suitable, authentic gate-progression
+save and the required source mappings are available.
+
+The only available authentic slot is the supplied initial `SaveGame0` for
+`manoir`, both as `reference/Savefile_EN.zip` and in the installed game's
+`SaveGame0/` directory. Their contents match. It is not a gate-open checkpoint:
+its gate table contains active/HP values, while source inspection has not
+established a saved raised pose. Completing that checkpoint needs an authentic
+later `SaveGameN/` captured after the bridge opens naturally, plus verified
+gate AI/animation restoration semantics. No flag-only fixture can substitute
+for that evidence.
+
 ## File roles and observed contents
 
 | File | Stored bytes | Decoded bytes | Observed content |
@@ -494,7 +534,9 @@ The magick registration cluster at
 registers four adjacent two-byte player-file records. Current and maximum
 mana at `0:5:4986212` and `0:5:4986214` are runtime-corroborated. In
 `0:5:4986216`, the low byte is the selected magic slot/index (0–2), used by
-the gauge and selection functions; the high byte has no verified meaning.
+the gauge and selection functions. The importer maps those slots to Fire 61,
+Ice 54, and Lightning 74; the high byte has no verified meaning and remains
+preserved only as raw source data.
 That record remains partly unexplained. A dedicated fresh-process test restored
 the two-byte words `0000`, `0100` and `005a` in stable playable manor. Native
 selected-spell observations were 0, 1 and 0 respectively, corroborating the

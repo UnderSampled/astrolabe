@@ -34,6 +34,20 @@ enum Scope {
     Textures,
     Audio,
 }
+
+#[derive(Clone, Copy, ValueEnum)]
+enum SaveProfile {
+    HypePcEnglishSuppliedSave,
+}
+
+impl SaveProfile {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::HypePcEnglishSuppliedSave => godot::save_import::HYPE_PC_ENGLISH_PROFILE,
+        }
+    }
+}
+
 #[derive(Subcommand)]
 enum Command {
     /// Adopt the source-free Godot starter and compatible support package once.
@@ -90,6 +104,14 @@ enum Command {
         game: PathBuf,
         #[arg(long, default_value = "astrolabe")]
         level: String,
+    },
+    /// Import an extracted original Hype SaveGameN slot for the Godot Load Game route.
+    ImportSave {
+        input: PathBuf,
+        #[arg(long, value_enum)]
+        profile: SaveProfile,
+        #[arg(long, default_value = "godot/game/original_save_import.json")]
+        output: PathBuf,
     },
     Lzo {
         #[command(subcommand)]
@@ -212,6 +234,25 @@ pub fn run() -> Result<()> {
             report.source_diagnostics = package.diagnostics;
             report.write(&output)?;
             println!("{}", serde_json::to_string_pretty(&report)?);
+        }
+        Command::ImportSave {
+            input,
+            output,
+            profile,
+        } => {
+            let report =
+                godot::save_import::import_original_slot(&input, &output, profile.as_str())?;
+            println!(
+                "{}",
+                serde_json::json!({
+                    "output": output,
+                    "slot": report["slot"],
+                    "current_level": report["current_level"],
+                    "godot_state_available": !report["godot_state"].is_null(),
+                    "restored_fields": report["restored_fields"],
+                    "not_restored": report["not_restored"],
+                })
+            );
         }
         Command::Inspect { input, asset, kind } => {
             let (mut store, package) = rete::Store::open(input)?;

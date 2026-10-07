@@ -72,6 +72,10 @@ func open_level() -> void:
     if saved["status"] == "error":
         fail(str(saved["message"]))
         return
+    var imported: Dictionary = {"status":"missing"} if new_game or saved["status"] == "loaded" else SAVE_STATE.read_original_import()
+    if imported["status"] == "error":
+        fail(str(imported["message"]))
+        return
     var packed: PackedScene = content_cache.call("get_level", LEVEL) as PackedScene if content_cache != null else null
     if packed == null:
         stage("resource_loading", "Loading the manor...")
@@ -132,14 +136,20 @@ func open_level() -> void:
     actor.set_physics_process(false)
     add_child(level)
     stage("tree_ready", "Restoring saved game...")
-    # Temporary gameplay workaround: retract the gate by its full height.
-    # Its source opening AI is still missing; this is not restored save data.
-    gate.position.y += GATE_LIFT
+    # Keep the measured-fixture fallback separate from imported original saves.
+    # Never fabricate gate-open state when the original table has no mapped pose.
+    if imported["status"] != "loaded":
+        gate.position.y += GATE_LIFT
     actor.set_physics_process(false)
     var fixture_error: String = MANOIR_START.apply(actor, brain, fixture)
     if not fixture_error.is_empty():
         fail(fixture_error)
         return
+    if imported["status"] == "loaded":
+        var source_error: String = SAVE_STATE.apply_original_import(actor, level, imported["state"])
+        if not source_error.is_empty():
+            fail(source_error)
+            return
     if saved["status"] == "loaded":
         var save_error: String = SAVE_STATE.apply(actor, level, saved["state"])
         if not save_error.is_empty():
@@ -168,7 +178,9 @@ func open_level() -> void:
         return
     ready_to_play = true
     loading = false
-    stage("playable", "Saved game loaded" if saved["status"] == "loaded" else "Explore the manor")
+    var restored_save := saved["status"] == "loaded" or imported["status"] == "loaded"
+    var loaded_message := "Original save loaded (supported fields only)" if imported["status"] == "loaded" and saved["status"] != "loaded" else "Saved game loaded"
+    stage("playable", loaded_message if restored_save else "Explore the manor")
 
 func open_new_game() -> void:
     # Use the complete saved scene and its original initial AI. No save fixture,

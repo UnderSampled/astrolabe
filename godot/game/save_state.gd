@@ -3,6 +3,8 @@ extends RefCounted
 ## Source save addresses and raw SAI records never enter this file.
 
 const SLOT := "user://manoir-save-v1.json"
+const ORIGINAL_IMPORT := "res://game/original_save_import.json"
+const MANOIR_START := preload("res://game/manoir_start.gd")
 const ACTOR := "world/0/0/Hype"
 const DUMMY := "level:/persos/world/0/27"
 
@@ -98,6 +100,77 @@ static func read() -> Dictionary:
     return {"status": "loaded", "state": parsed}
 
 
+static func read_original_import() -> Dictionary:
+    if not FileAccess.file_exists(ORIGINAL_IMPORT):
+        return {"status": "missing"}
+    var file := FileAccess.open(ORIGINAL_IMPORT, FileAccess.READ)
+    if file == null:
+        return {"status": "error", "message": "Imported original save cannot be opened."}
+    if file.get_length() > 33554432:
+        return {"status": "error", "message": "Imported original save exceeds the supported size."}
+    var parsed: Variant = JSON.parse_string(file.get_as_text())
+    file.close()
+    var error := validate_original_import(parsed)
+    if not error.is_empty():
+        return {"status": "error", "message": error}
+    return {"status": "loaded", "state": parsed["godot_state"]}
+
+
+static func validate_original_import(value: Variant) -> String:
+    if not value is Dictionary:
+        return "Imported original save is not an object."
+    if value.get("schema") != 1 or value.get("format") != "astrolabe-godot-original-save-import":
+        return "Imported original save format is unsupported."
+    if value.get("profile") != "hype-pc-english-supplied-save":
+        return "Imported original save profile is unsupported."
+    if value.get("current_level") != "manoir":
+        return "The current Load Game route supports original saves for manoir only."
+    var state: Variant = value.get("godot_state")
+    if not state is Dictionary or state.get("schema") != 1 or state.get("level") != "manoir":
+        return "Imported original save has no supported manor state."
+    var actors: Variant = state.get("actors")
+    if not actors is Dictionary or not actors.has(ACTOR) or not actors[ACTOR] is Dictionary:
+        return "Imported original save is missing Hype."
+    if not _only_keys(actors, [ACTOR]):
+        return "Imported original save has unsupported actors."
+    var player: Dictionary = actors[ACTOR]
+    if not _only_keys(player, ["magick", "inventory", "source_translation"]):
+        return "Imported original save has unsupported player state."
+    var source_translation: Variant = player.get("source_translation")
+    if not source_translation is Array or source_translation.size() != 3:
+        return "Imported original save is missing Hype's supported position."
+    for component in source_translation:
+        if not (component is int or component is float) or absf(float(component)) > 1000000.0:
+            return "Imported original save has an invalid Hype position."
+    var magick: Variant = player.get("magick")
+    if not magick is Dictionary or not magick.has("current_points") or not magick.has("maximum_points"):
+        return "Imported original save is missing Hype's supported magick values."
+    if not _only_keys(magick, ["current_points", "maximum_points", "selected_spell_code"]):
+        return "Imported original save has unsupported magick state."
+    if not _integer(magick["current_points"], 0, 32767) or not _integer(magick["maximum_points"], 1, 32767) or int(magick["current_points"]) > int(magick["maximum_points"]):
+        return "Imported original save has invalid mana values."
+    if magick.has("selected_spell_code") and not _integer(magick["selected_spell_code"], 0, 32767):
+        return "Imported original save has an invalid selected spell."
+    var inventory: Variant = player.get("inventory")
+    if not inventory is Dictionary or not inventory.has("quantities") or not _only_keys(inventory, ["quantities", "selected_weapon"]):
+        return "Imported original save has invalid supported inventory values."
+    if inventory.has("selected_weapon") and not _integer(inventory["selected_weapon"], -1, 32767):
+        return "Imported original save has an invalid selected weapon."
+    var quantities: Variant = inventory["quantities"]
+    if not quantities is Dictionary:
+        return "Imported original save is missing inventory numbers."
+    for item in quantities:
+        if not item is String or not str(item).is_valid_int() or str(int(item)) != item or not _integer(int(item), 0, 32767) or not _integer(quantities[item], -1, 32767):
+            return "Imported original save has an invalid inventory number."
+    var world: Variant = state.get("world")
+    if not world is Dictionary or not world.has(DUMMY) or not world[DUMMY] is Dictionary:
+        return "Imported original save is missing the manor lever state."
+    var dummy_state: Dictionary = world[DUMMY]
+    if not _only_keys(world, [DUMMY]) or not _only_keys(dummy_state, ["dsg_8"]) or not dummy_state.get("dsg_8") is bool:
+        return "Imported original save has invalid manor world state."
+    return ""
+
+
 static func _dummy_brain(level: Node3D) -> Node:
     if level == null:
         return null
@@ -179,4 +252,32 @@ static func apply(actor: CharacterBody3D, level: Node3D, value: Dictionary) -> S
     var world: Dictionary = value.get("world", {})
     var dummy_state: Dictionary = world.get(DUMMY, {"dsg_8": false})
     dummy_brain.set("dsg_8", bool(dummy_state["dsg_8"]))
+    return ""
+
+
+static func apply_original_import(actor: CharacterBody3D, level: Node3D, state: Dictionary) -> String:
+    var magick: Resource = actor.get("source_magick")
+    var inventory: Resource = actor.get("source_inventory")
+    var dummy_brain := _dummy_brain(level)
+    if magick == null or inventory == null or dummy_brain == null:
+        return "Converted manor has no supported original-save fields."
+    var player: Dictionary = state["actors"][ACTOR]
+    actor.global_position = MANOIR_START.source_vector(player["source_translation"])
+    var saved_magick: Dictionary = player["magick"]
+    magick.set("current_points", int(saved_magick["current_points"]))
+    magick.set("maximum_points", int(saved_magick["maximum_points"]))
+    if saved_magick.has("selected_spell_code"):
+        magick.set("selected_spell_code", int(saved_magick["selected_spell_code"]))
+    var saved_inventory: Dictionary = player["inventory"]
+    var current_quantities: Variant = inventory.get("quantities")
+    if not current_quantities is Dictionary:
+        return "Converted player has no native inventory numbers."
+    var quantities: Dictionary = current_quantities.duplicate()
+    for item in saved_inventory["quantities"]:
+        quantities[int(item)] = int(saved_inventory["quantities"][item])
+    inventory.set("quantities", quantities)
+    if saved_inventory.has("selected_weapon"):
+        inventory.set("selected_weapon", int(saved_inventory["selected_weapon"]))
+    var world: Dictionary = state["world"]
+    dummy_brain.set("dsg_8", bool(world[DUMMY]["dsg_8"]))
     return ""

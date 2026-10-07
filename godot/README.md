@@ -55,6 +55,25 @@ instances. See the [loading measurements](../notes/godot-loading-efficiency-2026
 for the remaining fresh-process cost and retained-memory tradeoff. The menu is imported independently from its source layout;
 [menu ownership](game/menu/README.md) explains editor overrides and remaining submenus.
 
+To import an extracted original Hype slot, run from the repository root:
+
+```sh
+target/release/astrolabe import-save /path/to/SaveGame0 \
+  --profile hype-pc-english-supplied-save
+```
+
+The command writes `game/original_save_import.json`, which is ignored as local
+game data. If no native Godot slot exists, **Load Game** reads Hype's saved
+translation, mana and selected magic slot, supported inventory numbers, and
+manor lever state. The profile preserves all source records in the import
+file. Godot retains the measured orientation and does not restore current AI
+state, active-weapon selection, or bridge-gate pose. Imported-source loading
+leaves the gate at the generated scene pose; the measured-fixture fallback
+still uses the temporary gate lift described above. The status text labels
+imported saves as a supported-fields-only load. The supplied original slot is
+an initial save, not the requested authentic gate-open checkpoint; see the
+[save importer evidence](../docs/openspace/save-games.md#import-an-original-slot-into-godot).
+
 The current session still uses the historical `game/demo.*` and `demo_camera.gd`
 filenames. They are game code; the names do not define a separate demo product.
 
