@@ -188,14 +188,25 @@ global names alongside each Fix identity as editor metadata.
 These are opaque relocated objects passed to `GLI_xSetMaterialTexture`, which
 stores its second argument on the runtime material. This does not establish a
 serialized `VisualMaterial` or `TextureInfo` relationship. The three non-null
-handles resolve to 48-byte Fix allocations. In the imported profile, each has
-relocated edges at `+0x04` and `+0x08` to separate zero-filled 1536-byte
-allocations, and an edge at `+0x1c` through a four-byte pointer cell to a
-32-byte descriptor. That descriptor has four edges to zero-filled allocations
-of 384, 384, 768, and 1024 bytes. None of these records has yet been established
-as image pixels, mipmaps, or a canonical texture-table entry. `FUN_00483860` and
-`FUN_00483930` serialize and restore GLI global texture-cache state, but do not
-bridge these Fix handles to archive image names. A bounded audit of this local
+handles resolve to 48-byte Fix allocations: slots 0, 2, and 4 point to virtual
+addresses `0x020d7c98`, `0x020d9318`, and `0x020da998`; slots 1, 3, and 5 are
+null. Their fields match the object created by
+[`GEO_vCreateGeometricObject`](../../reference/decompilation/functions/0046c9c0_GEO_vCreateGeometricObject.c)
+with `(0x80, 1)`: a 0x30-byte header, two relocated 1536-byte point/normal
+arrays, and the indexed-element pointer graph. The imported point/normal
+arrays are all zero; the descriptor's 384-, 384-, 768-, and 1024-byte children
+are also zero-filled. This constructor is used by the
+[`SHW_fn_vInitShadow`](../../reference/decompilation/functions/004e38f0_SHW_fn_vInitShadow.c)
+initializer for ten dynamic geometry objects and by the GLI reference-object
+initializer, but that shared constructor alone does not identify which
+producer owns these HUD references. The rooted graph contains no proved image
+pixels or mipmaps.
+[`GLI_xSetMaterialTexture`](../../reference/decompilation/functions/0048fa70_GLI_xSetMaterialTexture.c)
+only stores the pointer and tests one flag byte; the backend handoff is
+unresolved. The three objects are therefore not treated as named textures or
+exported as substitute art. `FUN_00483860` and `FUN_00483930` serialize and
+restore GLI global texture-cache state, but do not bridge these Fix handles to
+archive image names. A bounded audit of this local
 Fix.ptx resolves 435 relocated TextureInfo records; all 435 have names and all
 435 names match entries in `Textures.cnt`. That table includes candidates such
 as `fixtex/stencil/jauges/vie/vie0.tga` and `vie1.tga`, but none of the three
@@ -214,7 +225,8 @@ row shape as `[x, y, x + width - 1, y + height - 1, width, height]`;
 `0040c020` copies entries from the first table into the second working table,
 which the draw routines use. The Godot scene stores both full tables and source
 identities as metadata. `0040c300` identifies life's background row 0 and bar
-row 1, using texture slots 2, 4, and 3 in draw order; native `TextureRect` and
+row 1, using texture slots 2, 4, and 3 in draw order; slot 3 is null in this
+save. Native `TextureRect` and
 `TextureProgressBar` nodes preserve those edit points and bind the existing
 actor value script, but have no textures and draw no substitute meter. The
 selected-object and weapon positions use rows 10 and 22 as read by `0040ca40`
