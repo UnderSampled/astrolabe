@@ -42,6 +42,12 @@ impl Project {
             self.builder,
             "    var {scene_id}_ui = load(\"res://addons/astrolabe/ui/screen.tscn\").instantiate()\n    {scene_id}.add_child({scene_id}_ui)\n    {scene_id}_ui.owner = {scene_id}"
         )?;
+        // Fight_ChangeArmor mutates one shared source pointer. Give each
+        // generated level one native Resource, rather than actor-local copies.
+        writeln!(
+            self.builder,
+            "    var {scene_id}_armor_state = load(\"res://addons/astrolabe/character/armor_state.gd\").new()\n    {scene_id}_armor_state.resource_local_to_scene = true\n    {scene_id}.set_meta(\"source_armor_state\", {scene_id}_armor_state)"
+        )?;
         if !self.dialogue_resources.is_empty() {
             let resources = self
                 .dialogue_resources

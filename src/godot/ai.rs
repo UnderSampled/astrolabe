@@ -1695,7 +1695,7 @@ fn statements(
                 let index = guarded_expression(out, index, model, depth, flow)?;
                 writeln!(
                     out,
-                    "{pad}var armor_state = character().get_node_or_null(\"SourceArmorState\")\n{pad}if not is_instance_valid(armor_state) or not bool(armor_state.call(\"select_source_index\", int({index}))):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    "{pad}if not source_select_armor(int({index})):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
                     quoted(&format!(
                         "{} requires native armor-selection state",
                         model.path

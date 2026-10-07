@@ -57,6 +57,26 @@ func _bind_inputs() -> void:
 func source_external_actor_brains() -> PackedStringArray:
 	return PackedStringArray()
 
+## Hype keeps the selected armor definition shared across actors in one level.
+## The imported level root owns the native Resource; each Brain finds the
+## nearest owning scene through its ordinary parent chain.
+func source_armor_state() -> Resource:
+	var owner_node: Node = self
+	while is_instance_valid(owner_node):
+		if owner_node.has_meta("source_armor_state"):
+			var state: Resource = owner_node.get_meta("source_armor_state") as Resource
+			if is_instance_valid(state):
+				return state
+			return null
+		owner_node = owner_node.get_parent()
+	return null
+
+func source_select_armor(index: int) -> bool:
+	var state := source_armor_state()
+	if not is_instance_valid(state) or not state.has_method("select_source_index"):
+		return false
+	return bool(state.call("select_source_index", index))
+
 func adopt_input(action: StringName, physical_key: Key = KEY_NONE) -> void:
 	# Existing InputMap entries belong to the project, including empty entries
 	# deliberately used to disable a control. Defaults are adopted only once.

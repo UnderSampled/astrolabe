@@ -34,7 +34,7 @@ fn native_magick_service_follows_verified_remove_points_contract() -> Result<()>
 }
 
 #[test]
-fn fight_change_armor_round_trips_and_updates_native_selection_state() -> Result<()> {
+fn fight_change_armor_round_trips_and_updates_level_shared_selection_state() -> Result<()> {
     // Hype model 28's reached node 987: procedure 429, then byte index 0.
     let source_nodes = [
         0xad, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x04, // category 4 / op 429
@@ -52,11 +52,7 @@ fn fight_change_armor_round_trips_and_updates_native_selection_state() -> Result
     model.normal.as_mut().unwrap().behaviors[0].schedule = Some(script.clone());
     let model = rete::decode::<AiModel>(&rete::encode(&model)?)?;
     let code = godot::ai::compile(&model, &[])?;
-    assert!(code.contains("SourceArmorState"), "{code}");
-    assert!(
-        code.contains("call(\"select_source_index\", int(0))"),
-        "{code}"
-    );
+    assert!(code.contains("source_select_armor(int(0))"), "{code}");
 
     let temp = tempfile::tempdir()?;
     let project = temp.path().join("godot");

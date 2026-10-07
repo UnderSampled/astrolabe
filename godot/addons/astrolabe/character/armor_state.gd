@@ -1,5 +1,5 @@
-extends Node
-## Native state selected by Hype's Fight_ChangeArmor procedure.
+extends Resource
+## Level-local shared state selected by Hype's Fight_ChangeArmor procedure.
 ## Armor definitions, resistance, and HUD artwork are separate data slices.
 
 signal selection_changed(index: int)
@@ -13,4 +13,5 @@ func select_source_index(value: int) -> bool:
 		return true
 	selected_index = selected
 	selection_changed.emit(selected_index)
+	emit_changed()
 	return true
