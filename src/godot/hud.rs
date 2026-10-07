@@ -96,24 +96,24 @@ pub(super) fn export(
                 quoted(&source_identity_text(identity))
             )?;
         }
-        if let Some(identity) = &panel.material {
+        if let Some(identity) = &panel.layer_material {
             writeln!(
                 text,
-                "metadata/source_material_identity = {}",
+                "metadata/source_layer_material_identity = {}",
                 quoted(&source_identity_text(identity))
             )?;
         }
-        if let Some(identity) = &panel.unknown_reference {
+        if let Some(identity) = &panel.draw_material {
             writeln!(
                 text,
-                "metadata/source_unknown_identity = {}",
+                "metadata/source_draw_material_identity = {}",
                 quoted(&source_identity_text(identity))
             )?;
         }
-        if let Some(bytes) = panel.unknown_word {
+        if let Some(bytes) = panel.draw_material_word {
             writeln!(
                 text,
-                "metadata/source_unknown_word = PackedByteArray({}, {}, {}, {})",
+                "metadata/source_draw_material_word = PackedByteArray({}, {}, {}, {})",
                 bytes[0], bytes[1], bytes[2], bytes[3]
             )?;
         }
@@ -151,21 +151,28 @@ pub(super) fn export(
     let layout = &value.rectangle_tables[1];
     let base = layout[0];
     let life = layout[1];
+    let life_material = value.panels[0]
+        .draw_material
+        .as_ref()
+        .map(source_identity_text)
+        .unwrap_or_default();
     writeln!(
         text,
-        "\n[node name=\"LifeBackground\" type=\"TextureRect\" parent=\".\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = {}\noffset_right = {}\noffset_bottom = {}\nmouse_filter = 2\nvisible = false\nmetadata/source_slot = 2",
+        "\n[node name=\"LifeBackground\" type=\"TextureRect\" parent=\".\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = {}\noffset_right = {}\noffset_bottom = {}\nmouse_filter = 2\nvisible = false\nmetadata/source_slot = 2\nmetadata/source_draw_material_identity = {}",
         float(base[0]),
         float(base[1]),
         float(base[2]),
-        float(base[3])
+        float(base[3]),
+        quoted(&life_material)
     )?;
     writeln!(
         text,
-        "\n[node name=\"Life\" type=\"TextureProgressBar\" parent=\".\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = {}\noffset_right = {}\noffset_bottom = {}\nmouse_filter = 2\nshow_percentage = false\nfill_mode = 0\nvisible = false\nmetadata/source_slots = PackedByteArray(4, 3)\nmetadata/source_rectangle = {}",
+        "\n[node name=\"Life\" type=\"TextureProgressBar\" parent=\".\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = {}\noffset_right = {}\noffset_bottom = {}\nmouse_filter = 2\nshow_percentage = false\nfill_mode = 0\nvisible = false\nmetadata/source_slots = PackedByteArray(4, 3)\nmetadata/source_draw_material_identity = {}\nmetadata/source_rectangle = {}",
         float(base[2]),
         float(life[1]),
         float(base[2] + life[4]),
         float(life[1] + life[5]),
+        quoted(&life_material),
         float_array([base[2], life[1], base[2] + life[4], life[1] + life[5]])
     )?;
 
@@ -183,12 +190,31 @@ pub(super) fn export(
     ] {
         let row = value.rectangle_tables[table][entry];
         let positioned = matches!(role, "selected_object" | "weapon");
+        let material_panel = match role {
+            "life" | "selected_object" => Some(0),
+            "magic" => Some(1),
+            "armor" => Some(2),
+            "weapon" => Some(3),
+            _ => None,
+        };
         write!(
             text,
-            "\n[node name={name:?} type=\"{kind}\" parent=\".\"]\nlayout_mode = 0\nmouse_filter = 2\nvisible = false\nmetadata/source_role = {}\nmetadata/source_table = {table}\nmetadata/source_entry = {entry}\nmetadata/source_rectangle = {}",
+            "\n[node name={name:?} type=\"{kind}\" parent=\".\"]\nlayout_mode = 0\nmouse_filter = 2\nvisible = false\nmetadata/source_role = {}\nmetadata/source_table = {table}\nmetadata/source_entry = {entry}\nmetadata/source_rectangle = {}\n",
             quoted(role),
             float_array(row)
         )?;
+        if let Some(panel) = material_panel
+            && let Some(identity) = &value.panels[panel].draw_material
+        {
+            writeln!(
+                text,
+                "metadata/source_draw_material_identity = {}",
+                quoted(&source_identity_text(identity))
+            )?;
+        }
+        if role == "magic" {
+            writeln!(text, "metadata/source_slots = PackedByteArray(1, 0)")?;
+        }
         if positioned {
             writeln!(
                 text,

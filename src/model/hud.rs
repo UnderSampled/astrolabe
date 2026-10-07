@@ -10,9 +10,11 @@ pub struct HudPresentation {
     pub canvas_size: [u16; 2],
     /// Four source panel descriptors, in original draw order.
     pub panels: Vec<HudPanel>,
-    /// Six relocated Fix.gpt texture handles in read order. FUN_0040bcc0 assigns
-    /// them to globals 0060f62c, 0060f630, 0060f620, 0060f624, 0060f628, 0060f63c.
-    /// Draw uses include life slots 2, 4, 3; 0040c720 slots 1, 0; and 0040c950 slot 5.
+    /// Six relocated Fix.gpt handles passed to GLI_xSetMaterialTexture, in read
+    /// order. FUN_0040bcc0 assigns them to globals 0060f62c, 0060f630,
+    /// 0060f620, 0060f624, 0060f628, 0060f63c. They are not proven PTX image
+    /// records. Draw uses include life slots 2, 4, 3; 0040c720 slots 1, 0; and
+    /// 0040c950 slot 5.
     pub source_textures: [Option<SourceObjectIdentity>; 6],
     /// The two 24-entry Fix.sda tables. The six floats in each row are retained
     /// as stored; draw functions assign meaning to the fields they use.
@@ -30,12 +32,12 @@ pub struct HudPanel {
     pub enabled: bool,
     /// Source layer-array allocation, including for panels disabled in this profile.
     pub source_layers: Option<SourceObjectIdentity>,
-    /// The source graphics material handle used by FUN_0040c270.
-    pub material: Option<SourceObjectIdentity>,
-    /// The descriptor's otherwise-unused third word when it resolves to a source object.
-    pub unknown_reference: Option<SourceObjectIdentity>,
-    /// Original bytes when the third word is not a relocated address.
-    pub unknown_word: Option<[u8; 4]>,
+    /// The source graphics material used by the panel-layer path in FUN_0040c270.
+    pub layer_material: Option<SourceObjectIdentity>,
+    /// The direct-draw material in descriptor +8, used by the HUD draw routines.
+    pub draw_material: Option<SourceObjectIdentity>,
+    /// Original bytes when descriptor +8 is not a relocated address.
+    pub draw_material_word: Option<[u8; 4]>,
     /// Bytes after the enabled/count fields; FUN_0040c270 does not read them.
     pub source_unknown_bytes: [u8; 2],
     /// Layer count declared in the source descriptor.
@@ -46,7 +48,7 @@ pub struct HudPanel {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HudPanelLayer {
-    /// Texture handle at layer offset +0, passed to GLI_xSetMaterialTexture.
+    /// Handle at layer offset +0, passed to GLI_xSetMaterialTexture.
     pub texture: Option<SourceObjectIdentity>,
     /// Raw handle bytes when the source has no relocation binding for the word.
     pub opaque_texture_word: Option<[u8; 4]>,

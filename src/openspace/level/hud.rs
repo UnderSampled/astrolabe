@@ -23,8 +23,8 @@ const HUD_SDA_OFFSET: usize = 0x9b4;
 #[br(little)]
 struct PanelDescriptorWire {
     layers: u32,
-    material: u32,
-    unknown: u32,
+    layer_material: u32,
+    draw_material: u32,
     enabled: u8,
     layer_count: u8,
     _flags: [u8; 2],
@@ -64,7 +64,7 @@ fn identity_at(
     Ok(Some(s.source_identity(address)?))
 }
 
-fn unknown_reference(
+fn source_reference(
     s: &SourceSession,
     rtp: &BTreeMap<u32, BlockKey>,
     word: u32,
@@ -124,8 +124,9 @@ fn parse_panels(
         )?;
         ensure!(descriptor.enabled <= 1, "invalid HUD panel enabled flag");
         let source_layers = identity_at(s, rtp, descriptor.layers)?;
-        let material = identity_at(s, rtp, descriptor.material)?;
-        let (unknown_reference, unknown_word) = unknown_reference(s, rtp, descriptor.unknown)?;
+        let layer_material = identity_at(s, rtp, descriptor.layer_material)?;
+        let (draw_material, draw_material_word) =
+            source_reference(s, rtp, descriptor.draw_material)?;
         let mut layers = Vec::with_capacity(descriptor.layer_count as usize);
         // FUN_0040c270 reads layer records only inside its enabled-panel guard.
         // Disabled profile arrays retain their allocation identity and declared count;
@@ -151,9 +152,9 @@ fn parse_panels(
         panels.push(HudPanel {
             enabled: descriptor.enabled != 0,
             source_layers,
-            material,
-            unknown_reference,
-            unknown_word,
+            layer_material,
+            draw_material,
+            draw_material_word,
             source_unknown_bytes: descriptor._flags,
             source_layer_count: descriptor.layer_count,
             layers,
