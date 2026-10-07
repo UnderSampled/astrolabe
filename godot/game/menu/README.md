@@ -13,11 +13,17 @@ font table, menu interpreter or source-disc access are needed at runtime.
 `SavedGames` keeps the existing Load Game/save route through `game/demo.tscn`.
 The named `NewGame` and `LoadGame` Buttons remain discoverable by session tests.
 Configure opens the source-backed Images, Controls and Sound tabs. Sound uses
-native persisted volume controls. Images and Controls retain the original labels
-and state clearly that the source renderer settings and input remapping remain
-unsupported in Godot. Credits remains visible and reports that its presentation
-is not implemented; Internet does not launch the obsolete external URL. Menu music and spoken idle prompts remain outside
-this increment.
+native persisted volume controls. Controls remaps the five gameplay actions
+currently consumed by the Godot session, with physical keyboard keys or generic
+Godot joypad buttons and axes. Reassigning an occupied input swaps the two
+actions. Escape cancels a capture before closing configuration. Reset restores
+Astrolabe's current arrow/Space defaults and clears controller mappings; it does
+not claim to recover the game's original options file defaults. The legacy
+Paddle/Joystick device modes are not emulated. Images retains the original
+labels and explains why source renderer settings have no verified Godot
+equivalent. Credits remains visible and reports that its presentation is not
+implemented; Internet does not launch the obsolete external URL. Menu music and
+spoken idle prompts remain outside this increment.
 
 Generate the independent menu closure with the same converter used for gameplay:
 
@@ -33,7 +39,11 @@ vertical Music, Sound and Voices sliders. They store source-scale values from 0
 to 127 in `user://hype-settings.cfg` and apply them to the Astrolabe Music,
 Effects and Voice buses. The Images page identifies source shadow quality,
 camera-to-viewport adjustment and OpenSpace texture swapping as unsupported.
-The Controls page states that remapping and reset actions are unavailable.
+The Controls page provides keyboard and generic controller capture, current
+binding labels, swap-on-conflict behavior, Escape cancellation and an Astrolabe
+defaults reset. Preferences persist alongside sound values in
+`user://hype-settings.cfg`; only the five gameplay actions already consumed by
+the session are exposed.
 Missing menu or configuration media produces an explicit error; no replacement
 artwork is synthesized. All extracted media and import caches remain ignored.
 

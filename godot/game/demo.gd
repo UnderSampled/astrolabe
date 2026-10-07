@@ -34,19 +34,6 @@ var opening_brains: Array[Node] = []
 var opening_failures: Dictionary = {}
 var opening_camera: Camera3D
 
-const AIM_ACTIONS := {
-    "Button_Left": KEY_LEFT,
-    "Button_Right": KEY_RIGHT,
-    "Button_Up": KEY_UP,
-    "Button_Down": KEY_DOWN,
-    "Button_Hit": KEY_SPACE,
-    "BT_Camera_LookLeft": KEY_LEFT,
-    "BT_Camera_LookRight": KEY_RIGHT,
-    "BT_Camera_LookUp": KEY_UP,
-    "BT_Camera_LookDown": KEY_DOWN,
-    "BT_Camera_TireArbalete": KEY_SPACE,
-}
-
 func _ready() -> void:
     inventory_host.connect("unavailable", func(message: String): status_label.text = message)
     pause_host.connect("unavailable", func(message: String): status_label.text = message)
@@ -264,11 +251,9 @@ func configure_crossbow_inputs() -> void:
         if not InputMap.has_action(action): InputMap.add_action(action)
     bind_physical_key("BT_Camera_Look", KEY_KP_0)
     bind_physical_key("BT_Camera_Look", KEY_INSERT)
-    bind_physical_key("Button_Left", KEY_LEFT)
-    bind_physical_key("Button_Right", KEY_RIGHT)
-    bind_physical_key("Button_Up", KEY_UP)
-    bind_physical_key("Button_Down", KEY_DOWN)
-    bind_physical_key("Button_Hit", KEY_SPACE)
+    var preferences := get_node_or_null("/root/UserSettings")
+    if preferences != null:
+        preferences.call("configure_gameplay_inputs", false)
 
 func bind_physical_key(action: StringName, key: Key) -> void:
     if not InputMap.has_action(action): InputMap.add_action(action)
@@ -276,23 +261,11 @@ func bind_physical_key(action: StringName, key: Key) -> void:
     event.physical_keycode = key
     if not InputMap.action_has_event(action, event): InputMap.action_add_event(action, event)
 
-func route_physical_key(action: StringName, key: Key, enabled: bool) -> void:
-    var event := InputEventKey.new()
-    event.physical_keycode = key
-    if enabled:
-        if not InputMap.action_has_event(action, event): InputMap.action_add_event(action, event)
-    elif InputMap.action_has_event(action, event):
-        InputMap.action_erase_event(action, event)
-
 func set_crossbow_aim_mode(enabled: bool) -> void:
     crossbow_aim_mode = enabled
-    var movement_actions := ["Button_Left", "Button_Right", "Button_Up", "Button_Down"]
-    var camera_actions := ["BT_Camera_LookLeft", "BT_Camera_LookRight", "BT_Camera_LookUp", "BT_Camera_LookDown"]
-    for i in movement_actions.size():
-        route_physical_key(movement_actions[i], AIM_ACTIONS[movement_actions[i]], not enabled)
-        route_physical_key(camera_actions[i], AIM_ACTIONS[camera_actions[i]], enabled)
-    route_physical_key("Button_Hit", KEY_SPACE, not enabled)
-    route_physical_key("BT_Camera_TireArbalete", KEY_SPACE, enabled)
+    var preferences := get_node_or_null("/root/UserSettings")
+    if preferences != null:
+        preferences.call("configure_gameplay_inputs", enabled)
     if not enabled: crossbow_aim_pitch = 0.0
 
 func update_crossbow_aim_target() -> void:

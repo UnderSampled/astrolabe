@@ -12,8 +12,8 @@ The validated English profile contains new game, load game, configure, credits,
 internet and quit. The installed pause profile contains `Resume Game`,
 `NextGame`, `Options` and `Main Menu`, with localized labels "resume game",
 "start a new adventure", "configure" and "main menu". These roots remain
-separate; controls remapping, image quality and credits remain outside this
-slice. Inventory has its own `InvBox` import.
+separate; image quality, credits and the legacy Internet launch remain outside
+this slice. Inventory has its own `InvBox` import.
 
 `FUN_004105b0` draws each item using position words 8–10, localized text word
 0x13, selected/normal font names at 0x1c/0x24, and horizontal alignment byte 0xb0.
@@ -81,8 +81,23 @@ Godot effect. `ImageSlider1` sets shadow quality through
 to `FUN_004054c0` for camera-to-viewport adjustment; `ImageSlider3` controls the
 OpenSpace texture-swapping ratio. None has a verified Godot equivalent here, so
 the page says they are unsupported and provides no functional sliders. The
-Controls page similarly reports that the original Keyboard/Gamepad remapping,
-KeyStrokes and DefaultValues routes are not implemented.
+Controls page provides native remapping for the five source actions that the
+current Godot session actually consumes: left, right, up, down and hit. It
+persists physical keyboard keys and generic Godot joypad buttons/axis directions
+in `user://hype-settings.cfg`; the current binding transfers to another action
+when the same input is selected, matching the decompiled remapper's occupied-key
+transfer path. Escape cancels an active capture before closing configuration.
+Reset restores Astrolabe's current arrow/Space keyboard defaults and clears
+generic joypad bindings. These are the port's present defaults, not values
+recovered from the game's source options file.
+
+`FUN_00414b00`, `FUN_004123b0` and `IPT_fn_bChangeIPTValue` show separate source
+Keyboard and Paddle/Joystick paths. The generic controller tab deliberately
+uses Godot JoypadButton/JoypadMotion events and does not claim support for the
+source Paddle or Joystick device modes. The source KeyStrokes route displays
+current bindings; the native action rows show those values directly. Other
+source controls are not exposed until their gameplay actions exist in this
+session.
 
 The same dispatcher sends `Credits` to mode `0x16`. `Internet` writes a temporary
 HTML file and asks the installed browser to open the legacy Playmobil URL. Those

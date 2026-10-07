@@ -109,7 +109,7 @@ pub(super) fn export(
         format!("{directory}/menu.tscn"),
         scene(project, value, directory)?.as_bytes(),
     )?;
-    project.diagnostic(format!("{}: English source layout/actions/navigation exported as editable native Controls; original normal/glow artwork baked ahead of runtime; the source-backed sound configuration page is exported with native sliders",value.path));
+    project.diagnostic(format!("{}: English source layout/actions/navigation exported as editable native Controls; original normal/glow artwork baked ahead of runtime; Sound settings use persistent native sliders and Controls map the five playable actions to keyboard or generic Godot joypad events",value.path));
     Ok(())
 }
 fn node_name(name: &str) -> String {
@@ -361,6 +361,9 @@ fn configuration_scene(
             quoted(page),
             visible
         )?;
+        if page == "ControlsPage" {
+            text.push_str("\nmetadata/source_actions = \"Keyboard,Gamepad,KeyStrokes,DefaultValues\"\nmetadata/native_mapping_scope = \"Button_Left,Button_Right,Button_Up,Button_Down,Button_Hit\"\nmetadata/controller_events = \"Godot JoypadButton/JoypadMotion; source Paddle/Joystick hardware modes are not emulated\"");
+        }
     }
     let [music, effects, voices] = sound_rows;
     for (item, bus) in [
@@ -396,13 +399,6 @@ fn configuration_scene(
         "\n[node name=\"UnsupportedImageSettings\" type=\"Label\" parent=\"Canvas/ImagesPage\"]\nlayout_mode = 0\noffset_left = 170.0\noffset_top = 356.0\noffset_right = 600.0\noffset_bottom = 410.0\ntext = {}\nautowrap_mode = 3\nhorizontal_alignment = 1\nmetadata/source_actions = \"ImageSlider1,ImageSlider2,ImageSlider3\"",
         quoted(
             "Graphic: source shadow quality is not mapped to Godot.\nTextures: source texture swapping is OpenSpace-specific.\nScreen: source camera-to-viewport adjustment (60–100) is not mapped to Godot.",
-        )
-    )?;
-    writeln!(
-        text,
-        "\n[node name=\"UnsupportedControls\" type=\"Label\" parent=\"Canvas/ControlsPage\"]\nlayout_mode = 0\noffset_left = 240.0\noffset_top = 220.0\noffset_right = 600.0\noffset_bottom = 360.0\ntext = {}\nautowrap_mode = 3\nhorizontal_alignment = 1\nmetadata/source_actions = \"Keyboard,Gamepad,KeyStrokes,DefaultValues\"",
-        quoted(
-            "Keyboard and gamepad remapping are not implemented. The source KeyStrokes display and DefaultValues reset actions are unsupported."
         )
     )?;
     writeln!(
@@ -616,7 +612,9 @@ mod tests {
                     && configuration_text.contains("metadata/source_slider = \"SoundSlider1\"")
                     && configuration_text.contains("ImageSlider1,ImageSlider2,ImageSlider3")
                     && configuration_text.contains("camera-to-viewport adjustment")
-                    && configuration_text.contains("KeyStrokes display")
+                    && configuration_text.contains("metadata/native_mapping_scope = \"Button_Left,Button_Right,Button_Up,Button_Down,Button_Hit\"")
+                    && configuration_text.contains("source Paddle/Joystick hardware modes are not emulated")
+                    && !configuration_text.contains("UnsupportedControls")
                     && configuration_text.contains("type=\"Texture2D\" path=\"res://generated/hype/textures/MENU/Config_back.gf.png\"")
                     && configuration_text.contains("metadata/source_action = \"DisplayWithSound\""),
                 "native configuration labels/source sliders/backdrop differ"

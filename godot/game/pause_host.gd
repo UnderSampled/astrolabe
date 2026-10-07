@@ -101,6 +101,8 @@ func _input(event: InputEvent) -> void:
     if key == null or not key.pressed or key.echo or key.physical_keycode != KEY_ESCAPE: return
     if is_instance_valid(configuration) and configuration.visible:
         get_viewport().set_input_as_handled()
+        if configuration.has_method("cancel_input_capture") and bool(configuration.call("cancel_input_capture")):
+            return
         _close_configuration()
         return
     # Escape closes inventory first, before GUI cancellation or any session route.
