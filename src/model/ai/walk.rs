@@ -113,6 +113,15 @@ impl<'a> Iterator for AstWalk<'a> {
                 Statement::SoundFadeMusic { arg0, arg1 } => {
                     self.expressions(child_depth, &[arg0, arg1]);
                 }
+                Statement::ExecuteFade {
+                    from,
+                    to,
+                    duration_seconds,
+                } => self.expressions(child_depth, &[from, to, duration_seconds]),
+                Statement::SoundFadeAll {
+                    target,
+                    duration_ms,
+                } => self.expressions(child_depth, &[target, duration_ms]),
                 Statement::Unsupported(_)
                 | Statement::Increment { .. }
                 | Statement::Decrement { .. }
@@ -121,6 +130,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::GoOverRoute(_)
                 | Statement::GoRelative
                 | Statement::KillSelf
+                | Statement::KillPerso { .. }
                 | Statement::JumpAbsolute
                 | Statement::JumpWithoutAddingSpeed
                 | Statement::SetParticleGeneratorEnabled(_)
@@ -134,6 +144,8 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::CameraUpdatePosition { .. }
                 | Statement::ActorListAdd { .. }
                 | Statement::SetChannelActive { .. }
+                | Statement::ChangeMap { .. }
+                | Statement::ChangeMapAtPosition { .. }
                 | Statement::ToggleWideScreen
                 | Statement::SelectDialog
                 | Statement::EndDialog
@@ -141,6 +153,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::WaitEndOfAction
                 | Statement::WaitEndOfAnimation
                 | Statement::Sound { .. }
+                | Statement::SoundKillMusic
                 | Statement::Noop => {}
             },
             AstNode::Expression(expression) => match expression {
@@ -197,6 +210,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::SelfPosition
                 | Expression::SelfPositionField
                 | Expression::WaypointPosition(_)
+                | Expression::DistanceToWaypoint { .. }
                 | Expression::GameTime
                 | Expression::SeePerso { .. }
                 | Expression::Variable(_)

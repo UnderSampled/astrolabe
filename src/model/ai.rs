@@ -190,6 +190,17 @@ pub enum Statement {
     GoRelative,
     /// Proc_KillPerso(Me): remove the current generated Perso.
     KillSelf,
+    /// Hype's Proc_KillPerso takes a Perso operand. Preserve non-self targets
+    /// by identity even when they are outside the rooted actor graph.
+    KillPerso {
+        target: KillPersoTarget,
+    },
+    /// Proc_ExecuteFade's source alpha range and duration in seconds.
+    ExecuteFade {
+        from: Expression,
+        to: Expression,
+        duration_seconds: Expression,
+    },
     SetImpulse(Expression),
     JumpAbsolute,
     JumpWithoutAddingSpeed,
@@ -255,6 +266,18 @@ pub enum Statement {
         channel: u32,
         active: bool,
     },
+    /// Source Proc_ChangeMap loads a named map and uses its authored main
+    /// actor placement when no named entry is supplied.
+    ChangeMap {
+        level: String,
+    },
+    /// Source Proc_ChangeMapAtPosition selects authored Hype and camera entry
+    /// Persos by their source names in the destination level.
+    ChangeMapAtPosition {
+        level: String,
+        entry: String,
+        camera_entry: String,
+    },
     ToggleWideScreen,
     PositionDialog {
         x: Expression,
@@ -292,6 +315,14 @@ pub enum Statement {
         arg0: Expression,
         arg1: Expression,
     },
+    /// Proc_SND_FadeAll applies one target level (0..127) and duration
+    /// (milliseconds) to music, effects and voice channels.
+    SoundFadeAll {
+        target: Expression,
+        duration_ms: Expression,
+    },
+    /// Proc_SND_KillMusic stops the current music channel.
+    SoundKillMusic,
     Noop,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -340,6 +371,12 @@ pub enum Expression {
     SelfPositionField,
     /// Func_GetWPAbsolutePosition resolves a meaningful shared waypoint asset.
     WaypointPosition(AssetRef<Waypoint>),
+    /// Func_DistanceToWP evaluates a source-space waypoint distance on its
+    /// receiver (self unless an enclosing Operator_Ultra selects another actor).
+    DistanceToWaypoint {
+        actor: ActorTarget,
+        waypoint: AssetRef<Waypoint>,
+    },
     /// Source gameplay clock value; its target implementation is owned by Godot.
     GameTime,
     /// Cond_IsTimeElapsed checks the shared gameplay clock against a saved
@@ -463,6 +500,14 @@ pub enum ActorKeyword {
 pub enum ActorTarget {
     Keyword(ActorKeyword),
     Reference(AssetRef<Perso>),
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum KillPersoTarget {
+    SelfActor,
+    MainActor,
+    Reference(AssetRef<Perso>),
+    /// Source actor operand not yet promoted into the active useful Perso graph.
+    Source(SourceObjectIdentity),
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ButtonQuery {
@@ -759,12 +804,13 @@ impl AiModel {
     pub fn waypoint_references(&self) -> Vec<&AssetRef<Waypoint>> {
         self.expressions()
             .into_iter()
-            .filter_map(|e| {
-                if let Expression::WaypointPosition(r) = e {
-                    Some(r)
-                } else {
-                    None
-                }
+            .filter_map(|e| match e {
+                Expression::WaypointPosition(reference)
+                | Expression::DistanceToWaypoint {
+                    waypoint: reference,
+                    ..
+                } => Some(reference),
+                _ => None,
             })
             .collect()
     }
@@ -894,6 +940,15 @@ impl Script {
                 Expression::Real(v) => ensure!(v.is_finite(), "nonfinite AI real"),
                 Expression::WaypointPosition(r) => {
                     ensure!(r.path.member().is_none(), "waypoint is a member")
+                }
+                Expression::DistanceToWaypoint { actor, waypoint } => {
+                    ensure!(
+                        waypoint.path.member().is_none(),
+                        "distance waypoint is a member"
+                    );
+                    if let ActorTarget::Reference(actor) = actor {
+                        ensure!(actor.path.member().is_none(), "distance actor is a member");
+                    }
                 }
                 Expression::Actor(ActorTarget::Reference(actor)) => {
                     ensure!(
@@ -1147,6 +1202,35 @@ impl Script {
                         expression(arg0, variables, depth + 1, count)?;
                         expression(arg1, variables, depth + 1, count)?;
                     }
+                    Statement::ExecuteFade {
+                        from,
+                        to,
+                        duration_seconds,
+                    } => {
+                        expression(from, variables, depth + 1, count)?;
+                        expression(to, variables, depth + 1, count)?;
+                        expression(duration_seconds, variables, depth + 1, count)?;
+                    }
+                    Statement::SoundFadeAll {
+                        target,
+                        duration_ms,
+                    } => {
+                        expression(target, variables, depth + 1, count)?;
+                        expression(duration_ms, variables, depth + 1, count)?;
+                    }
+                    Statement::ChangeMap { level } => {
+                        ensure!(!level.is_empty() && level.len() <= 255, "invalid map name")
+                    }
+                    Statement::ChangeMapAtPosition {
+                        level,
+                        entry,
+                        camera_entry,
+                    } => ensure!(
+                        [level, entry, camera_entry]
+                            .iter()
+                            .all(|value| !value.is_empty() && value.len() <= 255),
+                        "invalid positioned map entry"
+                    ),
                     _ => {}
                 }
             }

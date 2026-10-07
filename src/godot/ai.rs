@@ -11,6 +11,16 @@ fn waypoint_constant(reference: &crate::model::AssetRef<crate::model::route::Way
     )
 }
 
+fn model_script_file(path: &AssetPath) -> String {
+    let file = path.file();
+    if path.role() == crate::model::PackageRole::Fix {
+        let (directory, name) = file.rsplit_once('/').unwrap_or(("", file));
+        format!("{directory}/fix/{name}.gd")
+    } else {
+        format!("{file}.gd")
+    }
+}
+
 pub(super) fn export_program(
     project: &mut Project,
     source: &mut impl ContentSource,
@@ -68,7 +78,10 @@ pub(super) fn export_program(
     // Fix scripts may carry level-bound actor references. Compile their
     // level-specific projection beside that level's Perso scenes rather than
     // publishing one shared GDScript whose bindings a later level overwrites.
-    let path = project.level_path(&format!("{}.gd", model.path.file()));
+    // Numeric model filenames are only unique inside a package role. Give Fix
+    // scripts their own subdirectory so they cannot alias a level model with
+    // the same source number in one exported map.
+    let path = project.level_path(&model_script_file(&model.path));
     if project.generated.contains(&path) || !written.insert(model.path.clone()) {
         return Ok(path);
     }
@@ -536,6 +549,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
     match e {
         Expression::Unsupported(_)
         | Expression::WaypointPosition(_)
+        | Expression::DistanceToWaypoint { .. }
         | Expression::CollideWithNothing
         | Expression::LaserDirection
         | Expression::MagicCurrentSpell
@@ -676,6 +690,40 @@ fn guarded_expression(
                 ))
             )?;
             local
+        }
+        Expression::DistanceToWaypoint { actor, waypoint } => {
+            let receiver = match actor {
+                ActorTarget::Keyword(ActorKeyword::SelfActor) => "character()".to_owned(),
+                ActorTarget::Keyword(ActorKeyword::MainActor) => "main_actor".to_owned(),
+                ActorTarget::Reference(actor) => format!(
+                    "character().source_actor_node({})",
+                    quoted(actor.path.as_str())
+                ),
+            };
+            let id = flow.local;
+            flow.local += 1;
+            let receiver_local = format!("distance_receiver_{id}");
+            let waypoint_local = format!("distance_waypoint_{id}");
+            let value_local = format!("distance_value_{id}");
+            writeln!(
+                out,
+                "{pad}var {receiver_local}: Node3D = {receiver}\n{pad}if not is_instance_valid({receiver_local}):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var {waypoint_local} = {}\n{pad}if typeof({waypoint_local}) != TYPE_VECTOR3:\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var {value_local} = character().source_distance_to_waypoint({receiver_local}, {waypoint_local})",
+                quoted(&format!(
+                    "{} requires distance receiver {}",
+                    model.path,
+                    match actor {
+                        ActorTarget::Keyword(ActorKeyword::SelfActor) => "self",
+                        ActorTarget::Keyword(ActorKeyword::MainActor) => "main actor",
+                        ActorTarget::Reference(actor) => actor.path.as_str(),
+                    }
+                )),
+                waypoint_constant(waypoint),
+                quoted(&format!(
+                    "{} requires resolved absolute waypoint {}",
+                    model.path, waypoint.path
+                ))
+            )?;
+            value_local
         }
         Expression::DialogIsOver => {
             writeln!(
@@ -1059,7 +1107,8 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         | Expression::AbsoluteValue(_)
         | Expression::ActorDistance(_)
         | Expression::IsValidActor(_)
-        | Expression::ApplyArmoredDamage(_) => {
+        | Expression::ApplyArmoredDamage(_)
+        | Expression::DistanceToWaypoint { .. } => {
             anyhow::bail!("actor or numeric expression requires guarded compilation")
         }
         Expression::ArmorResistance | Expression::ArmorCount => {
@@ -1598,6 +1647,38 @@ fn statements(
             Statement::KillSelf => {
                 writeln!(out, "{pad}character().source_kill()\n{pad}{exit}")?;
             }
+            Statement::KillPerso { target } => {
+                // The pinned Hype PC dispatcher at 0x0053fc30 routes operation
+                // 226 to its default return. Preserve the true source target in
+                // the IR/comment, but do not invent a target-side deletion.
+                let target = match target {
+                    KillPersoTarget::SelfActor => "self".to_owned(),
+                    KillPersoTarget::MainActor => "main actor".to_owned(),
+                    KillPersoTarget::Reference(actor) => actor.path.to_string(),
+                    KillPersoTarget::Source(identity) => format!(
+                        "source {:?} block {:02x}:{:02x} allocation {}",
+                        identity.role, identity.block[0], identity.block[1], identity.allocation
+                    ),
+                };
+                writeln!(out, "{pad}pass # source Proc_KillPerso target: {target}")?;
+            }
+            Statement::ExecuteFade {
+                from,
+                to,
+                duration_seconds,
+            } => {
+                let from = guarded_expression(out, from, model, depth, flow)?;
+                let to = guarded_expression(out, to, model, depth, flow)?;
+                let duration = guarded_expression(out, duration_seconds, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if not source_execute_fade(int({from}), int({to}), float({duration})):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} requires the native scene fade API",
+                        model.path
+                    ))
+                )?;
+            }
             Statement::JumpAbsolute => {
                 writeln!(out, "{pad}character().source_jump_absolute()")?;
             }
@@ -1783,6 +1864,31 @@ fn statements(
                     "{pad}if not character().source_set_channel_active({channel}, {active}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
                     quoted(&format!(
                         "{} requires converted character channel {channel}",
+                        model.path
+                    ))
+                )?;
+            }
+            Statement::ChangeMap { level } => {
+                writeln!(
+                    out,
+                    "{pad}if not LevelTransition.request_level_change({}, \"\", \"\"):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}{exit}",
+                    quoted(level),
+                    quoted(&format!("{} could not request map {level:?}", model.path))
+                )?;
+            }
+            Statement::ChangeMapAtPosition {
+                level,
+                entry,
+                camera_entry,
+            } => {
+                writeln!(
+                    out,
+                    "{pad}if not LevelTransition.request_level_change({}, {}, {}):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}{exit}",
+                    quoted(level),
+                    quoted(entry),
+                    quoted(camera_entry),
+                    quoted(&format!(
+                        "{} could not request positioned map {level:?}",
                         model.path
                     ))
                 )?;
@@ -2006,6 +2112,23 @@ fn statements(
                     "{pad}sound_fade_music(int({arg0}), int({arg1}))\n{pad}if not active_{group}(token): {exit}"
                 )?;
             }
+            Statement::SoundFadeAll {
+                target,
+                duration_ms,
+            } => {
+                let target = guarded_expression(out, target, model, depth, flow)?;
+                let duration = guarded_expression(out, duration_ms, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}sound_fade_all(int({target}), int({duration}))\n{pad}if not active_{group}(token): {exit}"
+                )?;
+            }
+            Statement::SoundKillMusic => {
+                writeln!(
+                    out,
+                    "{pad}sound_kill_music()\n{pad}if not active_{group}(token): {exit}"
+                )?;
+            }
             Statement::Sound { event: None } | Statement::Noop => writeln!(out, "{pad}pass")?,
             Statement::Unsupported(fragment) => {
                 writeln!(
@@ -2087,12 +2210,12 @@ pub(super) fn component(
 
 #[cfg(test)]
 mod source_position_tests {
-    use super::compile;
+    use super::{compile, compile_with_templates, model_script_file};
     use crate::model::{
         AssetPath, AssetRef,
         ai::{
-            AiModel, Behavior, BehaviorGroup, BehaviorRef, BehaviorSet, Comparison, Expression,
-            Script, Statement,
+            ActorTarget, AiModel, Behavior, BehaviorGroup, BehaviorRef, BehaviorSet, Comparison,
+            Expression, KillPersoTarget, Script, Statement,
         },
         character::Perso,
     };
@@ -2168,6 +2291,257 @@ mod source_position_tests {
         ));
         assert!(generated.contains("if change_normal(3, false):"));
         assert!(!generated.contains("unsupported AI statement category 4 operation 253"));
+        Ok(())
+    }
+
+    #[test]
+    fn compiles_both_source_map_transition_forms_to_native_level_api() -> anyhow::Result<()> {
+        let path = AssetPath::new("level:/ai/models/334")?;
+        let model = AiModel {
+            path,
+            name: "iDummy_Load_Manoir_MAD".into(),
+            normal: Some(BehaviorSet {
+                behaviors: vec![Behavior {
+                    id: 0,
+                    rules: vec![Some(Script {
+                        statements: vec![
+                            Statement::ChangeMap {
+                                level: "ciel1".into(),
+                            },
+                            Statement::ChangeMapAtPosition {
+                                level: "brigand".into(),
+                                entry: "i_brigand_dummy_gogood_hype".into(),
+                                camera_entry: "i_brigand_dummy_gogood_camera".into(),
+                            },
+                        ],
+                    })],
+                    schedule: None,
+                    unknown: [0; 3],
+                }],
+                default_behavior: Some(0),
+                action_capacity: 0,
+                unknown: [0; 3],
+            }),
+            reflex: None,
+            variables: Vec::new(),
+            designer_unknown: [0; 3],
+            unknown: [0; 4],
+        };
+        let generated = compile(&model, &[])?;
+        assert!(generated.contains("LevelTransition.request_level_change(\"ciel1\", \"\", \"\")"));
+        assert!(generated.contains(
+            "LevelTransition.request_level_change(\"brigand\", \"i_brigand_dummy_gogood_hype\", \"i_brigand_dummy_gogood_camera\")"
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn fix_and_level_ai_models_with_same_number_keep_distinct_scene_scripts() -> anyhow::Result<()>
+    {
+        let fix = AssetPath::new("fix:/ai/models/535")?;
+        let level = AssetPath::new("level:/ai/models/535")?;
+        assert_eq!(model_script_file(&fix), "ai/models/fix/535.gd");
+        assert_eq!(model_script_file(&level), "ai/models/535.gd");
+        assert_ne!(model_script_file(&fix), model_script_file(&level));
+        Ok(())
+    }
+
+    #[test]
+    fn compiles_the_tunnel_fade_audio_and_positioned_transition_in_source_order()
+    -> anyhow::Result<()> {
+        let path = AssetPath::new("level:/ai/models/334")?;
+        let waypoint = crate::model::AssetRef::<crate::model::route::Waypoint>::new(
+            "level:/waypoints/17-1/58",
+        )?;
+        let target = crate::model::ai::SourceObjectIdentity {
+            role: crate::model::ai::SourceRole::Level,
+            block: [5, 1],
+            allocation: 9217,
+        };
+        let transition = Statement::If {
+            condition: Expression::Compare {
+                operation: Comparison::Less,
+                left: Box::new(Expression::DistanceToWaypoint {
+                    actor: ActorTarget::Keyword(crate::model::ai::ActorKeyword::MainActor),
+                    waypoint: waypoint.clone(),
+                }),
+                right: Box::new(Expression::Real(5.0)),
+            },
+            then: vec![
+                Statement::ExecuteFade {
+                    from: Expression::Integer(0),
+                    to: Expression::Integer(255),
+                    duration_seconds: Expression::Real(2.0),
+                },
+                Statement::KillPerso {
+                    target: KillPersoTarget::Source(target),
+                },
+                Statement::SoundFadeAll {
+                    target: Expression::Integer(0),
+                    duration_ms: Expression::Integer(2000),
+                },
+                Statement::Wait {
+                    milliseconds: Expression::Integer(2000),
+                },
+                Statement::SoundKillMusic,
+                Statement::SoundFadeAll {
+                    target: Expression::Integer(127),
+                    duration_ms: Expression::Integer(1),
+                },
+                Statement::ChangeMapAtPosition {
+                    level: "brigand".into(),
+                    entry: "i_brigand_dummy_gogood_hype".into(),
+                    camera_entry: "i_brigand_dummy_gogood_camera".into(),
+                },
+            ],
+            otherwise: None,
+        };
+        let model = AiModel {
+            path,
+            name: "iDummy_Load_Manoir_MAD".into(),
+            normal: Some(BehaviorSet {
+                behaviors: vec![Behavior {
+                    id: 0,
+                    rules: Vec::new(),
+                    schedule: Some(Script {
+                        statements: vec![transition],
+                    }),
+                    unknown: [0; 3],
+                }],
+                default_behavior: Some(0),
+                action_capacity: 0,
+                unknown: [0; 3],
+            }),
+            reflex: None,
+            variables: Vec::new(),
+            designer_unknown: [0; 3],
+            unknown: [0; 4],
+        };
+        let generated = compile_with_templates(
+            &model,
+            &[],
+            None,
+            &[],
+            &[(waypoint, Some([0.0, 0.0, 0.0]))],
+            &[],
+        )?;
+        let sequence = [
+            "if not source_execute_fade(int(0), int(255), float(2.0)):",
+            "pass # source Proc_KillPerso target: source Level block 05:01 allocation 9217",
+            "sound_fade_all(int(0), int(2000))",
+            "var duration_1 := float(2000)",
+            "sound_kill_music()",
+            "sound_fade_all(int(127), int(1))",
+            "LevelTransition.request_level_change(\"brigand\", \"i_brigand_dummy_gogood_hype\", \"i_brigand_dummy_gogood_camera\")",
+        ];
+        let positions = sequence
+            .iter()
+            .map(|text| {
+                generated
+                    .find(text)
+                    .unwrap_or_else(|| panic!("missing {text:?} in generated code:\n{generated}"))
+            })
+            .collect::<Vec<_>>();
+        assert!(positions.windows(2).all(|pair| pair[0] < pair[1]));
+        Ok(())
+    }
+
+    #[test]
+    fn declares_waypoints_nested_in_integer_casts() -> anyhow::Result<()> {
+        let path = AssetPath::new("level:/ai/models/waypoint-cast")?;
+        let waypoint = crate::model::AssetRef::<crate::model::route::Waypoint>::new(
+            "level:/waypoints/17-1/58",
+        )?;
+        let model = AiModel {
+            path,
+            name: "waypoint-cast".into(),
+            normal: Some(BehaviorSet {
+                behaviors: vec![Behavior {
+                    id: 0,
+                    rules: Vec::new(),
+                    schedule: Some(Script {
+                        statements: vec![Statement::Wait {
+                            milliseconds: Expression::IntegerCast(Box::new(
+                                Expression::WaypointPosition(waypoint.clone()),
+                            )),
+                        }],
+                    }),
+                    unknown: [0; 3],
+                }],
+                default_behavior: Some(0),
+                action_capacity: 0,
+                unknown: [0; 3],
+            }),
+            reflex: None,
+            variables: Vec::new(),
+            designer_unknown: [0; 3],
+            unknown: [0; 4],
+        };
+        assert_eq!(model.waypoint_references(), vec![&waypoint]);
+        let generated = compile_with_templates(
+            &model,
+            &[],
+            None,
+            &[],
+            &[(waypoint.clone(), Some([1.0, 2.0, 3.0]))],
+            &[],
+        )?;
+        let symbol = super::waypoint_constant(&waypoint);
+        assert!(generated.contains(&format!("const {symbol} = Vector3(")));
+        assert!(generated.contains(&format!(" = {symbol}")));
+        Ok(())
+    }
+
+    #[test]
+    fn compiles_ultra_waypoint_distance_to_resolved_source_nodes() -> anyhow::Result<()> {
+        let path = AssetPath::new("level:/ai/models/tunnel-trigger")?;
+        let actor = crate::model::AssetRef::<Perso>::new("level:/persos/world/0/34")?;
+        let waypoint = crate::model::AssetRef::<crate::model::route::Waypoint>::new(
+            "level:/waypoints/17-1/58",
+        )?;
+        let model = AiModel {
+            path,
+            name: "tunnel-trigger".into(),
+            normal: Some(BehaviorSet {
+                behaviors: vec![Behavior {
+                    id: 0,
+                    rules: vec![Some(Script {
+                        statements: vec![Statement::If {
+                            condition: Expression::Compare {
+                                operation: Comparison::Less,
+                                left: Box::new(Expression::DistanceToWaypoint {
+                                    actor: ActorTarget::Reference(actor.clone()),
+                                    waypoint: waypoint.clone(),
+                                }),
+                                right: Box::new(Expression::Real(5.0)),
+                            },
+                            then: vec![Statement::Noop],
+                            otherwise: None,
+                        }],
+                    })],
+                    schedule: None,
+                    unknown: [0; 3],
+                }],
+                default_behavior: Some(0),
+                action_capacity: 0,
+                unknown: [0; 3],
+            }),
+            reflex: None,
+            variables: Vec::new(),
+            designer_unknown: [0; 3],
+            unknown: [0; 4],
+        };
+        let generated = compile_with_templates(
+            &model,
+            &[],
+            None,
+            &[],
+            &[(waypoint, Some([-85.744194, 14.145693, 1.973552]))],
+            &[],
+        )?;
+        assert!(generated.contains("character().source_actor_node(\"level:/persos/world/0/34\")"));
+        assert!(generated.contains("source_distance_to_waypoint(distance_receiver_"));
+        assert!(generated.contains("requires resolved absolute waypoint level:/waypoints/17-1/58"));
         Ok(())
     }
 }

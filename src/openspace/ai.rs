@@ -373,16 +373,53 @@ impl Parser<'_> {
                 }
                 (4, 34) => Statement::GoRelative,
                 (4, 226) => {
+                    let operand = self.at;
                     let (_, actor) = self.take(indent + 1)?;
-                    if actor.kind == 0 && actor.parameter == 4 {
-                        Statement::KillSelf
-                    } else {
-                        Statement::Unsupported(self.unsupported(
+                    match (actor.kind, actor.parameter) {
+                        (0, 4) => Statement::KillSelf,
+                        (0, 5) => Statement::KillPerso {
+                            target: KillPersoTarget::MainActor,
+                        },
+                        (24, _) => {
+                            if let Some(reference) = self.codec.actors.get(&operand) {
+                                Statement::KillPerso {
+                                    target: KillPersoTarget::Reference(reference.clone()),
+                                }
+                            } else if let Some(PreservedAiOperand::Source(Some(identity))) = self
+                                .codec
+                                .preserved_nodes
+                                .get(operand)
+                                .map(|node| &node.operand)
+                            {
+                                Statement::KillPerso {
+                                    target: KillPersoTarget::Source(identity.clone()),
+                                }
+                            } else {
+                                Statement::Unsupported(
+                                    self.unsupported(
+                                        at,
+                                        "KillPerso actor operand lacks a resolved source identity"
+                                            .into(),
+                                    )?,
+                                )
+                            }
+                        }
+                        _ => Statement::Unsupported(self.unsupported(
                             at,
-                            "KillPerso requires an unsupported actor target".into(),
-                        )?)
+                            "KillPerso requires a Perso or actor keyword".into(),
+                        )?),
                     }
                 }
+                (4, 321) => Statement::ExecuteFade {
+                    from: self.expression(indent + 1)?,
+                    to: self.expression(indent + 1)?,
+                    duration_seconds: self.expression(indent + 1)?,
+                },
+                (4, 382) => Statement::SoundKillMusic,
+                (4, 411) => Statement::SoundFadeAll {
+                    target: self.expression(indent + 1)?,
+                    duration_ms: self.expression(indent + 1)?,
+                },
                 (4, 23) => Statement::SetImpulse(self.expression(indent + 1)?),
                 (4, 47) => Statement::JumpAbsolute,
                 (4, 48) => Statement::JumpWithoutAddingSpeed,
@@ -522,6 +559,44 @@ impl Parser<'_> {
                     Statement::SetChannelActive {
                         channel: channel.parameter,
                         active: id == 104,
+                    }
+                }
+                (4, 5) => {
+                    let operand = self.at;
+                    let (_, name) = self.take(indent + 1)?;
+                    ensure!(name.kind == 20, "map change lacks a string operand");
+                    if let Some(level) = self.codec.strings.get(&operand).cloned() {
+                        Statement::ChangeMap { level }
+                    } else {
+                        Statement::Unsupported(self.unsupported(at, "unbound map name".into())?)
+                    }
+                }
+                (4, 13) => {
+                    let mut names = Vec::with_capacity(3);
+                    let mut bound = true;
+                    for _ in 0..3 {
+                        let operand = self.at;
+                        let (_, name) = self.take(indent + 1)?;
+                        ensure!(
+                            name.kind == 20,
+                            "positioned map change lacks a string operand"
+                        );
+                        if let Some(value) = self.codec.strings.get(&operand) {
+                            names.push(value.clone());
+                        } else {
+                            bound = false;
+                        }
+                    }
+                    if bound {
+                        Statement::ChangeMapAtPosition {
+                            level: names[0].clone(),
+                            entry: names[1].clone(),
+                            camera_entry: names[2].clone(),
+                        }
+                    } else {
+                        Statement::Unsupported(
+                            self.unsupported(at, "unbound positioned map entry".into())?,
+                        )
                     }
                 }
                 (4, 323) => Statement::ToggleWideScreen,
@@ -882,9 +957,19 @@ impl Parser<'_> {
                 }
             }
             (2, 24) => {
-                let (_, actor) = self.take(indent + 1)?;
+                let (receiver_at, actor) = self.take(indent + 1)?;
                 let receiver = match (actor.kind, actor.parameter) {
-                    (0, 5) => ActorKeyword::MainActor,
+                    (0, 4) => ActorTarget::Keyword(ActorKeyword::SelfActor),
+                    (0, 5) => ActorTarget::Keyword(ActorKeyword::MainActor),
+                    (24, _) => match self.codec.actors.get(&receiver_at).cloned() {
+                        Some(actor) => ActorTarget::Reference(actor),
+                        None => {
+                            return Ok(Expression::Unsupported(self.unsupported(
+                                at,
+                                format!("unbound Ultra receiver actor at node {receiver_at}"),
+                            )?));
+                        }
+                    },
                     _ => {
                         return Ok(Expression::Unsupported(self.unsupported(
                             at,
@@ -893,9 +978,19 @@ impl Parser<'_> {
                     }
                 };
                 match self.expression(indent + 1)? {
-                    Expression::SeePerso { target, .. } => {
-                        Expression::SeePerso { receiver, target }
+                    Expression::DistanceToWaypoint { waypoint, .. } => {
+                        Expression::DistanceToWaypoint {
+                            actor: receiver,
+                            waypoint,
+                        }
                     }
+                    Expression::SeePerso { target, .. } => match receiver {
+                        ActorTarget::Keyword(receiver) => Expression::SeePerso { receiver, target },
+                        ActorTarget::Reference(_) => Expression::Unsupported(self.unsupported(
+                            at,
+                            "Ultra SeePerso actor reference is unsupported".into(),
+                        )?),
+                    },
                     _ => Expression::Unsupported(self.unsupported(
                         at,
                         "Ultra operation is unsupported for this receiver".into(),
@@ -1054,6 +1149,21 @@ impl Parser<'_> {
                 } else {
                     Expression::Unsupported(
                         self.unsupported(at, "unbound absolute waypoint position".into())?,
+                    )
+                }
+            }
+            (3, 11) => {
+                let (operand, point) = self.take(indent + 1)?;
+                if point.kind == 29
+                    && let Some(reference) = self.codec.waypoints.get(&operand)
+                {
+                    Expression::DistanceToWaypoint {
+                        actor: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                        waypoint: reference.clone(),
+                    }
+                } else {
+                    Expression::Unsupported(
+                        self.unsupported(at, "unbound distance waypoint".into())?,
                     )
                 }
             }
@@ -1233,6 +1343,27 @@ impl Writer<'_> {
                     self.node(4, 226, indent);
                     self.node(0, 4, indent + 1);
                 }
+                Statement::KillPerso { target } => {
+                    self.node(4, 226, indent);
+                    match target {
+                        KillPersoTarget::SelfActor => self.node(0, 4, indent + 1),
+                        KillPersoTarget::MainActor => self.node(0, 5, indent + 1),
+                        KillPersoTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
+                        KillPersoTarget::Source(_) => {
+                            bail!("KillPerso source identity needs a promoted Perso asset")
+                        }
+                    }
+                }
+                Statement::ExecuteFade {
+                    from,
+                    to,
+                    duration_seconds,
+                } => {
+                    self.node(4, 321, indent);
+                    self.expression(from, indent + 1)?;
+                    self.expression(to, indent + 1)?;
+                    self.expression(duration_seconds, indent + 1)?;
+                }
                 Statement::SetImpulse(value) => {
                     self.node(4, 23, indent);
                     self.expression(value, indent + 1)?;
@@ -1347,6 +1478,36 @@ impl Writer<'_> {
                 Statement::SetChannelActive { channel, active } => {
                     self.node(4, if *active { 104 } else { 105 }, indent);
                     self.node(18, *channel, indent + 1);
+                }
+                Statement::ChangeMap { level } => {
+                    self.node(4, 5, indent);
+                    let handle = self
+                        .codec
+                        .string_handles
+                        .iter()
+                        .find(|(value, _)| value == level)
+                        .context("missing map name handle")?
+                        .1;
+                    self.node(20, handle, indent + 1);
+                }
+                Statement::ChangeMapAtPosition {
+                    level,
+                    entry,
+                    camera_entry,
+                } => {
+                    self.node(4, 13, indent);
+                    for value in [level, entry, camera_entry] {
+                        let handle = self
+                            .codec
+                            .string_handles
+                            .iter()
+                            .find(|(candidate, _)| candidate == value)
+                            .with_context(|| {
+                                format!("missing map entry string handle for {value:?}")
+                            })?
+                            .1;
+                        self.node(20, handle, indent + 1);
+                    }
                 }
                 Statement::ToggleWideScreen => self.node(4, 323, indent),
                 Statement::PositionDialog { x, y } => {
@@ -1495,6 +1656,15 @@ impl Writer<'_> {
                     self.expression(arg0, indent + 1)?;
                     self.expression(arg1, indent + 1)?;
                 }
+                Statement::SoundFadeAll {
+                    target,
+                    duration_ms,
+                } => {
+                    self.node(4, 411, indent);
+                    self.expression(target, indent + 1)?;
+                    self.expression(duration_ms, indent + 1)?;
+                }
+                Statement::SoundKillMusic => self.node(4, 382, indent),
                 Statement::Noop => self.node(4, 206, indent),
             }
         }
@@ -1787,6 +1957,37 @@ impl Writer<'_> {
                 self.node(3, 3, indent);
                 self.node(29, handle, indent + 1);
             }
+            Expression::DistanceToWaypoint { actor, waypoint } => {
+                let (function_indent, waypoint_indent) = match actor {
+                    ActorTarget::Keyword(ActorKeyword::SelfActor) => (indent, indent + 1),
+                    ActorTarget::Keyword(ActorKeyword::MainActor) => {
+                        self.node(2, 24, indent);
+                        self.node(0, 5, indent + 1);
+                        (indent + 1, indent + 2)
+                    }
+                    ActorTarget::Reference(actor) => {
+                        let handle = self
+                            .codec
+                            .actor_handles
+                            .iter()
+                            .find(|(reference, _)| reference == actor)
+                            .context("missing AI distance receiver handle")?
+                            .1;
+                        self.node(2, 24, indent);
+                        self.node(24, handle, indent + 1);
+                        (indent + 1, indent + 2)
+                    }
+                };
+                let handle = self
+                    .codec
+                    .waypoint_handles
+                    .iter()
+                    .find(|(reference, _)| reference == waypoint)
+                    .context("missing distance waypoint handle")?
+                    .1;
+                self.node(3, 11, function_indent);
+                self.node(29, handle, waypoint_indent);
+            }
             Expression::GameTime => self.node(3, 41, indent),
             Expression::RandomInt { lower, upper } => {
                 self.node(3, 27, indent);
@@ -1883,6 +2084,79 @@ mod partial_tests {
             Statement::ActorListAdd { list: 27, actor: target } if target == &actor
         ));
         assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn tunnel_transition_operations_preserve_target_arguments_and_order() -> Result<()> {
+        let (mut codec, bytes) = partial(&[
+            (4, 321, 1),
+            (12, 0, 2),
+            (12, 255, 2),
+            (13, 2.0_f32.to_bits(), 2),
+            (4, 226, 1),
+            (24, 0x1234, 2),
+            (4, 411, 1),
+            (12, 0, 2),
+            (12, 2000, 2),
+            (5, 37, 1),
+            (12, 2000, 2),
+            (4, 382, 1),
+            (4, 411, 1),
+            (12, 127, 2),
+            (12, 1, 2),
+            (4, 13, 1),
+            (20, 0x1234, 2),
+            (20, 0x1235, 2),
+            (20, 0x1236, 2),
+            (8, 0, 0),
+        ]);
+        let target = SourceObjectIdentity {
+            role: SourceRole::Level,
+            block: [5, 1],
+            allocation: 9217,
+        };
+        codec.preserved_nodes[5].operand = PreservedAiOperand::Source(Some(target.clone()));
+        codec.strings = BTreeMap::from([
+            (16, "brigand".into()),
+            (17, "i_brigand_dummy_gogood_hype".into()),
+            (18, "i_brigand_dummy_gogood_camera".into()),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(script.unsupported_fragments().is_empty());
+        assert!(matches!(
+            script.statements.as_slice(),
+            [
+                Statement::ExecuteFade {
+                    from: Expression::Integer(0),
+                    to: Expression::Integer(255),
+                    duration_seconds: Expression::Real(2.0),
+                },
+                Statement::KillPerso {
+                    target: KillPersoTarget::Source(source_target),
+                },
+                Statement::SoundFadeAll {
+                    target: Expression::Integer(0),
+                    duration_ms: Expression::Integer(2000),
+                },
+                Statement::Wait {
+                    milliseconds: Expression::Integer(2000),
+                },
+                Statement::SoundKillMusic,
+                Statement::SoundFadeAll {
+                    target: Expression::Integer(127),
+                    duration_ms: Expression::Integer(1),
+                },
+                Statement::ChangeMapAtPosition {
+                    level,
+                    entry,
+                    camera_entry,
+                },
+            ] if source_target == &target
+                && level == "brigand"
+                && entry == "i_brigand_dummy_gogood_hype"
+                && camera_entry == "i_brigand_dummy_gogood_camera"
+        ));
         Ok(())
     }
 
