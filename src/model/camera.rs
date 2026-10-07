@@ -37,6 +37,34 @@ pub struct CameraParameters {
 }
 
 impl CameraParameters {
+    /// `00440ea0` reads the camera parameter flags at source offset `+0x94`.
+    pub fn angle_flags(&self) -> u16 {
+        u16::from_le_bytes(
+            self.unknown[92..94]
+                .try_into()
+                .expect("validated camera parameter extent"),
+        )
+    }
+
+    /// `00440bf0` reads the camera parameter float at source offset `+0x44`.
+    /// The current useful model keeps this scalar in its source-ordered tail.
+    pub fn yaw_upper_bound(&self) -> f32 {
+        f32::from_le_bytes(
+            self.unknown[20..24]
+                .try_into()
+                .expect("validated camera extent"),
+        )
+    }
+
+    /// `00440c30` reads the camera parameter float at source offset `+0x4c`.
+    pub fn pitch_upper_bound(&self) -> f32 {
+        f32::from_le_bytes(
+            self.unknown[24..28]
+                .try_into()
+                .expect("validated camera extent"),
+        )
+    }
+
     /// `0043daf0` reads the registered byte at parameter offset `+0x90` and
     /// the selected viewport context at `+0x9c`. These are retained in the
     /// source-order unknown tail rather than turned into source pointers.
@@ -127,6 +155,22 @@ mod tests {
         assert_eq!(value.target_child_index(), -1);
         value.unknown[100] = 7;
         assert_eq!(value.target_child_index(), 7);
+    }
+
+    #[test]
+    fn camera_angle_upper_bounds_are_read_from_source_offsets() {
+        let mut value = parameters();
+        value.unknown[20..24].copy_from_slice(&1.25_f32.to_le_bytes());
+        value.unknown[24..28].copy_from_slice(&0.75_f32.to_le_bytes());
+        assert_eq!(value.yaw_upper_bound(), 1.25);
+        assert_eq!(value.pitch_upper_bound(), 0.75);
+    }
+
+    #[test]
+    fn camera_angle_flags_are_read_from_source_offset_94() {
+        let mut value = parameters();
+        value.unknown[92..94].copy_from_slice(&0x0004_u16.to_le_bytes());
+        assert_eq!(value.angle_flags(), 4);
     }
 }
 

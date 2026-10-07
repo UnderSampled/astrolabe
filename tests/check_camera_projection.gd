@@ -21,7 +21,105 @@ func run() -> void:
     if not require(camera.keep_aspect == Camera3D.KEEP_WIDTH and absf(deg_to_rad(camera.fov) - 1.2) < 0.000001, "edited horizontal FoV differs"): return
     if not require(camera.near == 0.25 and camera.far == 10000.0, "saved clip planes differ"): return
     if not require(camera.targeted_actor == scene.get_node("world/main/MainActor"), "camera did not bind the saved MainActor target"): return
+    if not require(camera.mode_zero_target_child_index == -1, "manor source selector did not choose the bound Perso itself"): return
+    var source_orientation: Dictionary = camera.source_mode_zero_orientation_54()
+    var expected_orientation: Vector3 = camera.targeted_actor.global_basis.orthonormalized() * Vector3.FORWARD
+    if not require(source_orientation.get("orientation", Vector3.ZERO).is_equal_approx(expected_orientation), "source DNM selector did not map to the target's source +Y axis"): return
+    var startup_limits: Vector2 = camera.source_mode_zero_vertical_limits()
+    if not require(startup_limits.x < -1.0e30 and startup_limits.y > 1.0e30, "source Position startup height sentinels were not retained"): return
     if not require(camera.current, "source registration context 1 did not select the primary viewport camera"): return
+    camera.controller_state = load("res://addons/astrolabe/camera/source_controller_state.gd").new()
+    var source_points := PackedVector3Array([
+        Vector3(0,0,0), Vector3(1,0,0), Vector3(2,0,0), Vector3(3,0,0),
+        Vector3(4,0,0), Vector3(5,0,0), Vector3(6,0,0), Vector3(7,0,0)
+    ])
+    var source_weights := PackedFloat32Array([0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1])
+    var pivot: Dictionary = camera.source_mode_zero_weighted_pivot(source_points,source_weights,Vector3.ZERO)
+    var pivot_anchor: Vector3 = pivot.get("anchor", Vector3.ZERO)
+    if not require(pivot.has("anchor") and pivot_anchor.is_equal_approx(Vector3(1.5,0,0)), "source weighted pivot did not stop at the 0.4 threshold"): return
+    var distant_points := PackedVector3Array()
+    distant_points.resize(8)
+    distant_points.fill(Vector3(4,0,0))
+    var held_pivot: Dictionary = camera.source_mode_zero_weighted_pivot(distant_points,source_weights,Vector3.ZERO)
+    var held_anchor: Vector3 = held_pivot.get("anchor", Vector3.ONE)
+    if not require(held_pivot.has("anchor") and held_anchor.is_equal_approx(Vector3.ZERO), "source squared 9.0 pivot threshold did not hold raw target translation"): return
+    var near_points := PackedVector3Array()
+    near_points.resize(8)
+    near_points.fill(Vector3(1,0,0))
+    for _frame in range(7):
+        held_pivot = camera.source_mode_zero_weighted_pivot(near_points,source_weights,Vector3.ZERO)
+    held_anchor = held_pivot.get("anchor", Vector3.ONE)
+    if not require(held_anchor.is_equal_approx(Vector3.ZERO), "source pivot hold ended before eight updates"): return
+    held_pivot = camera.source_mode_zero_weighted_pivot(near_points,source_weights,Vector3.ZERO)
+    held_anchor = held_pivot.get("anchor", Vector3.ONE)
+    if not require(held_anchor.is_equal_approx(Vector3(1,0,0)), "source pivot hold did not release after eight updates"): return
+    camera.mode_zero_distance = Vector2(0, 10)
+    camera.mode_zero_yaw_limits = Vector2(0, TAU)
+    camera.mode_zero_pitch_limits = Vector2(0, TAU)
+    camera.mode_zero_parameter_flags = 0
+    var candidate: Dictionary = camera.source_compute_mode_zero_candidate(
+        Vector3.ZERO, Vector3(0,2,-3), Vector3.FORWARD, Vector2(-10,10)
+    )
+    var candidate_position: Vector3 = candidate.get("position", Vector3.ZERO)
+    if not require(candidate.has("position") and candidate_position.distance_to(Vector3(0,2,-3)) < 0.00001, "source mode-0 yaw/pitch and distance calculation differs in Godot's Y-up basis"): return
+    var height_clamped: Dictionary = camera.source_compute_mode_zero_candidate(
+        Vector3.ZERO, Vector3(0,2,-3), Vector3.FORWARD, Vector2(-10,1)
+    )
+    var clamped_position: Vector3 = height_clamped.get("position", Vector3.ZERO)
+    if not require(height_clamped.has("position") and clamped_position.distance_to(Vector3(0,1,-3)) < 0.00001, "source +Z height limit did not map to Godot Y"): return
+    var boundary := MeshInstance3D.new()
+    boundary.set_script(load("res://addons/astrolabe/scene/sector_boundary.gd"))
+    boundary.vertices = PackedVector3Array([
+        Vector3(1,-1,-1), Vector3(1,1,-1), Vector3(1,0,1)
+    ])
+    boundary.neighbors = PackedStringArray(["next-sector"])
+    boundary.surfaces = PackedInt32Array([0])
+    boundary.face_normals = PackedVector3Array([Vector3.RIGHT])
+    root.add_child(boundary)
+    var crossing: Dictionary = boundary.first_source_sector_crossing(Vector3(2,0,0),Vector3.ZERO)
+    var crossing_position: Vector3 = crossing.get("position", Vector3.ZERO)
+    if not require(crossing.get("sector", "") == "next-sector" and crossing_position.is_equal_approx(Vector3.RIGHT), "source front-to-back sector crossing differs"): return
+    if not require(boundary.first_source_sector_crossing(Vector3.ZERO,Vector3(2,0,0)).is_empty(), "source sector boundary accepted a back-to-front crossing"): return
+    boundary.free()
+    var probe_root := Node3D.new()
+    probe_root.set_meta("source_level_scene", true)
+    var probe_sector := Node3D.new()
+    probe_sector.set_meta("source_sector_id", "camera-sector-probe")
+    probe_sector.set_meta("source_sector", JSON.stringify({"virtual_sector": 0, "activation": 4, "collision": []}))
+    probe_root.add_child(probe_sector)
+    var probe_owner := Node3D.new()
+    probe_owner.position = Vector3(0,0.5,0)
+    probe_sector.add_child(probe_owner)
+    var probe_camera := Camera3D.new()
+    probe_camera.set_script(load("res://addons/astrolabe/camera/source_camera.gd"))
+    probe_owner.add_child(probe_camera)
+    var floor_boundary := MeshInstance3D.new()
+    floor_boundary.name = "SectorBoundary"
+    floor_boundary.set_script(load("res://addons/astrolabe/scene/sector_boundary.gd"))
+    floor_boundary.vertices = PackedVector3Array([
+        Vector3(-1,0,-1), Vector3(1,0,-1), Vector3(0,0,1)
+    ])
+    floor_boundary.neighbors = PackedStringArray([""])
+    floor_boundary.surfaces = PackedInt32Array([0])
+    floor_boundary.face_normals = PackedVector3Array([Vector3.UP])
+    probe_sector.add_child(floor_boundary)
+    root.add_child(probe_root)
+    var resolved_sector: Dictionary = probe_camera.source_resolve_mode_zero_sector(Vector3(0,0.5,0))
+    if not require(resolved_sector.get("sector_id", "") == "camera-sector-probe" and resolved_sector.get("complete", false), "source downward sector geometry did not resolve the active border GEO"): return
+    if not require(probe_camera.source_publish_mode_zero_translation(Vector3(0,0.5,0),Vector3(0.5,0.5,0)), "source same-sector pose publication failed"): return
+    if not require(probe_owner.global_position.is_equal_approx(Vector3(0.5,0.5,0)), "source same-sector pose publication chose the wrong argument"): return
+    var next_sector := Node3D.new()
+    next_sector.set_meta("source_sector_id", "camera-sector-next")
+    next_sector.set_meta("source_sector", JSON.stringify({"virtual_sector": 0, "activation": 4, "collision": []}))
+    probe_root.add_child(next_sector)
+    if not require(probe_camera.source_publish_mode_zero_translation(Vector3(2,0.5,0),Vector3(1,0.5,0),"camera-sector-next"), "source cross-sector pose publication failed"): return
+    if not require(probe_owner.global_position.is_equal_approx(Vector3(2,0.5,0)), "source cross-sector pose publication chose the wrong argument"): return
+    var unmodeled_child := Node3D.new()
+    unmodeled_child.set_meta("source_node_kind", 13)
+    probe_sector.add_child(unmodeled_child)
+    resolved_sector = probe_camera.source_resolve_mode_zero_sector(Vector3(0,0.5,0))
+    if not require(resolved_sector.get("sector_id", "") == "camera-sector-probe" and not resolved_sector.get("complete", true), "source sector resolver claimed completeness with an unmodeled physical visual child"): return
+    probe_root.free()
     camera.make_current()
     var projection := camera.get_camera_projection()
     if not require(absf(projection.x.x - 1.0 / tan(0.6)) < 0.00001, "native horizontal projection differs"): return

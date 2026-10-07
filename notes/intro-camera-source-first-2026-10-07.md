@@ -1,7 +1,7 @@
 # Intro camera source-first pass — 2026-10-07
 
-This pass starts from committed `main` and keeps camera work isolated in
-`/tmp/astrolabe-intro-camera-source-pass`.
+This pass starts from committed `main` and keeps camera work isolated in the
+project-backed branch `codex/intro-camera-source-pass-storage-20261007-1`.
 
 ## Established bindings and fields
 
@@ -35,46 +35,130 @@ This pass starts from committed `main` and keeps camera work isolated in
   The native camera exposes this unsmoothed geometry; it does not claim that
   it is the controller's current candidate eye.
 
-## Collision and pose boundary
+## Candidate math and sector-history follow-up
+
+`00443bf0` prepares eight `Data3D` points and weights. If their total weight is
+zero, it places every point at the selected actor translation and sets each
+weight to `0.03`. `00444620` accumulates the points in source order until
+weight `0.4` (`DAT_00745a84`, initialized by `0043f180`) and returns that
+weighted center. `0051c8d0` compares the center with raw actor translation;
+its squared threshold is `_DAT_005fcc2c`, the static `9.0f` value at VA
+`005fcc2c` in `reference/hype_patch/MaiDFXvr_bleu.exe` (the decompiled build,
+SHA-256 recorded in `reference/decompilation/README.md`). Its `.data` VA maps
+to file offset `0x1fae2c`; bytes `00 00 10 41` decode to `9.0f`. The checked
+decompilation has a read site and no write site for this symbol. When crossed,
+its shared fallback counter uses the actor translation for eight controller
+updates (`DAT_00721af8`), incrementing `DAT_00721afc`.
+
+`0051db70` derives the desired vector from controller `+0x18` minus pivot
+`+0x3c`. `0051d410` supplies current orientation through `005282c0`. The DNM
+orientation selectors initialize in `0044cf20` to `[0,-1,0]`, `[-1,0,0]`, and
+`[0,0,-1]`; the decompilation has no other writer to those fields.
+`005282c0` therefore selects the target's source Y basis, negates it, then
+`0051d410` negates the result again, yielding source +Y. The scene exporter
+maps source +Y to Godot local -Z, so the native adapter uses the selected
+target's global basis times `Vector3.FORWARD`.
+
+`0051d6e0` calls `0057c62f` for signed heading/elevation and clamps them with
+parameter `+0x40/+0x44` and `+0x48/+0x4c`; `0051d7b0` rotates yaw about source
+Z, then pitch about the resulting local-right axis. The scene exporter maps
+source Z-up to Godot Y-up, so candidate height and both rotations now use
+Godot Y. Distance is the current owner-to-pivot length; `0051db70` caps it to
+the maximum only when it is already at least the minimum and exceeds the
+maximum, then applies a `0.01` floor. `004406d0` initializes Position `+0xa4`
+and `+0xa8` to finite sentinels `0xff7ffff8` / `0x7f7ffff8`; `00528590` clamps
+candidate source Z to those values. The manor startup path retains those
+defaults and maps them to Godot Y.
+
+The yaw/pitch center angles are at source `+0x40/+0x48`; their upper bounds
+are at `+0x44/+0x4c`, represented by parameter unknown-tail indices 20–24 and
+24–28. The angular flag word is separately read by `00440ea0` from `+0x94`
+(unknown-tail indices 92–94), not from the motion mode at `+0x98`. The manor
+camera-record probe reports flags `0` for parameter set 0 and `8` for set 1.
+These values and bounds are now read/exported explicitly from their source
+offsets. Godot support has a weighted-pivot helper, shared eight-update smoothing state, and
+a candidate calculator that requires the controller vectors and vertical
+bounds as inputs. The projection script asserts the `0.4` pivot cutoff, `9.0`
+squared movement threshold, eight-update hold and release, and a mode-0
+candidate.
+
+`00448280` carries the previous camera position and sector into `004e03f0`.
+That routine repeatedly takes the first one-sided crossing of the current
+sector's boundary, advances only into a neighbor with activation bit `4`, and
+continues from the intersection. The exporter now preserves a face normal per
+boundary triangle; native support performs the front-to-back plane test,
+traverses the active neighbors, and updates sector context before camera
+collision rays. Successful `0051c7b0`-style publication also resets the stored
+history point to the selected owner translation so the next update does not
+replay a crossing from the old pose.
 
 `0051f670` uses three segments: controller `+0x3c` to `+0x30`, controller
 `+0x18` to `+0x30`, and controller `+0x18` to the selected actor's world
-translation plus source-Y 1.8 (Godot Z -1.8). Its collision path goes through
-`00463df0`, which updates sector context, searches active sector and
-collision-neighbor lists, ignores material identifier bit `0x8000`, and
-excludes the camera owner/selected target in the actor case. The helper now
-requires all three actual controller points explicitly; it no longer
-substitutes an unsmoothed actor anchor for `+0x3c`.
+translation plus source-Z 1.8 (Godot `Vector3.UP * 1.8`). The old Godot Z
+offset was incorrect and is fixed. The existing collision helper still
+requires all three computed controller points. `00463df0` updates sector
+context, searches active-sector and collision-neighbor lists, ignores
+material identifier bit `0x8000`, and excludes the camera owner/selected
+target in the actor case.
 
-The exporter already marks static collision reachability, material IDs, and
-sector links. It now also stores each sector's source node ID. The camera ray
-provider maps Godot physics layers 1/2 to exported static/actor shapes and
-filters with those sector, material, and actor exclusions. It reuses that
-metadata, but it is not wired into the source update because the exact
-controller points and dynamic source-sector boundary history are still needed.
-The shared session Resource carries the source counters and the `005200a0`
-teleport gate. The pose publisher mirrors `0051c7b0`'s branch: it tests the
-source-resolved sector of its third position argument and selects that point
-or its second argument for owner translation.
+`004e0020` resolves a point's sector by tracing one source unit down
+(`[0,0,-1]`) through every nonvirtual sector with activation bit `4`, first
+against that sector's border GEO and then against child physical visuals of
+source kinds `1`, `0xd`, `0x15`, and `0xb`. It selects the closest hit;
+`004b7ab0` mode 0 performs the face-geometry semi-axis query. The exporter now
+preserves each node's raw `source_node_kind`, and native support runs the exact
+downward border-GEO query over the saved SectorBoundary triangles. If active
+child physical-visual nodes are present, the result is marked incomplete
+because their visual-set triangles/LOD are not exported for this query; the
+pose publisher refuses that partial result.
 
-Mode 0 still reports unsupported through the AI API. The missing connection is
-the controller-produced `+0x3c`, `+0x18`, and `+0x30` state and its candidate
-result: `0051e620` obtains it through `0051db70`, including angle/distance state
-in `0051d410`, `0051d6e0`, and `0051d7b0`. Sector updates in `00448280` also use
-source boundary history; the current Godot sector metadata does not encode
-that history. The collision provider therefore requires the actual controller
-points, and the camera never treats uncomputed state as a clear ray or
-successful pose update. No source runtime values or poses were substituted.
+### Exact remaining Data3D blocker
+
+`0044cf20` initializes eight runtime Data3D positions, auxiliary vectors, and
+weights to zero. `004440e0` walks the target's active DNM identity-card list;
+`00443f00` dispatches the callback indexed by the resolved card's actual
+`DNM_fn_eIdentityCardGetType`, then copies live physical-object arrays at
+`+0x2d8` and `+0x310` into the DNM Data3D arrays and assigns card mass as their
+weights. The callback comes from the runtime identity-card type, which is not
+one of the three `StandardIdentityWire.object_types`; type 0/8 uses `00585d51`,
+and the callback table has distinct handlers for other card types. `00443bf0`
+uses actor translation only when all eight runtime weights sum to zero; there
+is no evidence that the manor target reaches that branch when the camera
+updates.
+
+The serialized `PersoData3dPrefixWire` is 24 bytes and contains only state,
+configuration and family references. The current model retains those
+references, the three StandardGame object-type IDs, and authored model and
+animation assets; it does not contain the eight live DNM positions/weights,
+resolved identity-card type, or current physics callback outputs. Constructing
+the points from mesh bounds or choosing a callback from `object_types` would
+be a guess. Porting DNM/physics internals wholesale into Godot would also
+violate the repository's engine-boundary guidance. No original runtime or
+debugger capture was allowed for this pass. Mode 0 therefore still reports
+unsupported and does not claim collision success, evaluate the teleport gate,
+or publish a pose until a source-equivalent Godot actor-state producer supplies
+those eight points and weights.
+
+The other startup inputs now have source-backed adapters: the target's source
++Y orientation selector, camera-owner Position sentinel bounds, Godot Y-up
+conversion, and the sector border-GEO lookup. The three collision rays reuse
+exported source collision identifiers, reachable sectors, and owner/target
+exclusions.
 
 ## Checks
 
-`cargo fmt --all -- --check`, `git diff --check`, offline `cargo check`, and
-the focused camera metadata, AI reset round-trip, and compiler tests passed.
-An approved Godot 4.7.2 headless editor scan of the maintained `godot/` project
-completed with exit code 0 and no socket or GDScript parse errors. The scan
-reported five missing script UID files, which Godot regenerated; those
-generated sidecars were removed so the working tree remains clean. This checks
-editor parsing/class registration, not the generated camera scene or gameplay.
-The original sandboxed camera scene test did not start because the editor could
-not create its socket or write its user editor settings. No original-game run,
-debugger, new harness, or install was used.
+The initial source-pass checks in commit `ab6e5a5` passed. In this follow-up,
+`cargo fmt --all -- --check` and `git diff --check` passed. The focused
+`cargo test --offline --locked --test cameras` passed (1 passed, 4 ignored);
+its Godot 4.7.2 run parsed and executed the projection script, including the
+`9.0f` threshold, eight-update hold, candidate math, and one-sided sector
+crossing, source selector, and same/cross-sector pose-publication assertions.
+A separate Godot 4.7.2 headless scan of the maintained `godot/` project also
+completed with exit code 0 and no socket or script parse errors. It regenerated
+five `.uid` files, which were removed afterward; this checked editor parsing
+and class registration, not the generated camera scene or gameplay.
+The first test attempt hit `/tmp` quota while creating its temporary project;
+the successful rerun placed temporary files in the worktree's ignored Cargo
+target directory. The camera model filter (`cargo test --offline --locked
+--lib camera_`) passed 16 tests with 1 local-game-data test ignored. No
+original-game run, debugger, new harness, or installation was used.

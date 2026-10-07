@@ -8,6 +8,21 @@ var _hysteresis_limit := 0
 var _fallback_hysteresis := 0 # 005200a0 DAT_00721974
 var _distance_hysteresis := 0 # 005200a0 DAT_007219a4
 var _collision_streak := 0 # 0051f670 / 0051f290 DAT_0072198c
+var _target_anchor_hold_frames := 0 # 0051c8d0 DAT_00721af8
+var _target_anchor_motion_samples := 0 # 0051c8d0 DAT_00721afc
+
+## 0051c8d0 switches to the raw target translation for eight updates after
+## the source weighted center moves beyond its squared-distance threshold.
+func smooth_mode_zero_pivot(target_position: Vector3, weighted_center: Vector3, threshold_squared: float) -> Vector3:
+	if not target_position.is_finite() or not weighted_center.is_finite() or not is_finite(threshold_squared) or threshold_squared < 0.0:
+		return weighted_center
+	if weighted_center.distance_squared_to(target_position) > threshold_squared:
+		_target_anchor_hold_frames = 8
+	if _target_anchor_hold_frames > 0:
+		_target_anchor_hold_frames -= 1
+		_target_anchor_motion_samples += 1
+		return target_position
+	return weighted_center
 
 func record_candidate_collision(blocked: bool) -> int:
 	if blocked:

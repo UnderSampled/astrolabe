@@ -1,6 +1,10 @@
 //! Scene hierarchy projection. Source-local transforms are converted only here.
 use super::{Project, disk_path, quoted, vec3, vector};
-use crate::model::{geometry::SourceTransform, io::Content, scene::Scene};
+use crate::model::{
+    geometry::SourceTransform,
+    io::Content,
+    scene::{NodeKind, Scene},
+};
 use anyhow::Result;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -115,6 +119,13 @@ impl Project {
                 .as_ref()
                 .map(|p| names[p].clone())
                 .unwrap_or_else(|| scene_id.clone());
+            let source_kind = node.properties.source_kind.unwrap_or(match &node.kind {
+                NodeKind::World => 0,
+                NodeKind::Sector => 8,
+                NodeKind::Perso => 4,
+                NodeKind::Object => 13,
+                NodeKind::Unknown(kind) => *kind,
+            });
             writeln!(
                 self.builder,
                 "    var {name} = Node3D.new()\n    {name}.name = {}\n    {parent}.add_child({name})\n    {name}.owner = {scene_id}",
@@ -128,7 +139,7 @@ impl Project {
             }
             writeln!(
                 self.builder,
-                "    {name}.set_meta(\"source_node_id\", {})\n    {name}.set_meta(\"source_draw_mask\", {})",
+                "    {name}.set_meta(\"source_node_id\", {})\n    {name}.set_meta(\"source_node_kind\", {source_kind})\n    {name}.set_meta(\"source_draw_mask\", {})",
                 quoted(&node.id),
                 node.draw_mask
             )?;

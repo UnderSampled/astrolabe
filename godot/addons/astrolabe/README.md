@@ -1,4 +1,4 @@
-# Astrolabe support, interface 55
+# Astrolabe support, interface 57
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -10,9 +10,10 @@ authored audio preferences.
 camera-facing dot product. Its thresholds, normal and child meshes are native
 scene properties. Advanced OpenSpace sprite orientation/UV modes remain partial.
 
-`scene/sector_boundary.gd` offers segment intersection with persisted triangle
-boundaries. Its saved ArrayMesh is only a hidden inspection overlay; it does not
-implement sector activation or sound propagation.
+`scene/sector_boundary.gd` offers two-sided segment intersection and source-
+directed crossing queries over persisted triangle boundaries. Its saved
+ArrayMesh is only a hidden inspection overlay; sector activation and sound
+propagation remain separate from this geometry helper.
 Static contact conversion uses the physical sectors and their explicit collision
 neighbors. Shapes under unreferenced virtual display sectors remain in the saved
 scene with collision layer/mask zero; their visible meshes remain present. Virtual

@@ -14,17 +14,28 @@ extends Camera3D
 @export var mode_zero_look_offset: Vector3 = Vector3.ZERO
 @export var mode_zero_distance: Vector2 = Vector2.ZERO
 @export var mode_zero_target_child_index: int = 0
+@export var mode_zero_yaw_limits: Vector2 = Vector2.ZERO
+@export var mode_zero_pitch_limits: Vector2 = Vector2.ZERO
+@export var mode_zero_parameter_flags: int = 0
 @export var controller_state: Resource
+
+const SOURCE_MODE_ZERO_PIVOT_THRESHOLD_SQUARED := 9.0 # _DAT_005fcc2c from the decompiled build's .data image
+const SOURCE_POSITION_DEFAULT_MIN := -3.402822e38 # 004406d0 writes 0xff7ffff8 at Position+0xa4
+const SOURCE_POSITION_DEFAULT_MAX := 3.402822e38 # 004406d0 writes 0x7f7ffff8 at Position+0xa8
 
 var targeted_actor: Node3D
 var _reported_mode_zero_gap := false
 var _source_active_sector: Node
+var _source_previous_history_position := Vector3.ZERO
 
 func _ready() -> void:
     motion_mode = initial_motion_mode
     if not initial_target_path.is_empty():
         targeted_actor = get_node_or_null(initial_target_path) as Node3D
     _source_active_sector = _source_sector_for(get_parent())
+    var owner := get_parent() as Node3D
+    if owner != null:
+        _source_previous_history_position = owner.global_position
     if initially_current:
         make_current()
     else:
@@ -94,6 +105,199 @@ func source_mode_zero_target_geometry() -> Dictionary:
         "maximum_distance": mode_zero_distance.y,
     }
 
+## 00444620: weighted source target pivot. The eight points and weights are
+## runtime Data3D inputs; do not substitute Godot mesh bounds for them.
+func source_mode_zero_weighted_pivot(
+    source_points: PackedVector3Array,
+    source_weights: PackedFloat32Array,
+    target_position: Vector3
+) -> Dictionary:
+    if not target_position.is_finite():
+        push_error("Source mode-0 pivot inputs are invalid")
+        return {}
+    if source_points.size() != 8 or source_weights.size() != 8:
+        push_error("Source mode-0 pivot requires the eight Data3D points and weights from 00443bf0")
+        return {}
+    var points := source_points.duplicate()
+    var weights := source_weights.duplicate()
+    var total := 0.0
+    for i in range(8):
+        if not points[i].is_finite() or not is_finite(weights[i]):
+            push_error("Source mode-0 Data3D contains a nonfinite point or weight")
+            return {}
+        total += weights[i]
+    if total == 0.0:
+        # 00443bf0 installs eight .03 weights and the actor translation at all
+        # points when Data3D has no active weights.
+        points.fill(target_position)
+        weights.fill(0.03)
+    var accumulated_weight := 0.0
+    var weighted_point := Vector3.ZERO
+    for i in range(8):
+        accumulated_weight += weights[i]
+        weighted_point += points[i] * weights[i]
+        if accumulated_weight >= 0.4: # DAT_00745a84 from 0043f180
+            break
+    if accumulated_weight == 0.0:
+        push_error("Source mode-0 Data3D pivot has zero accumulated weight")
+        return {}
+    var center := weighted_point / accumulated_weight
+    return _source_smooth_mode_zero_pivot(target_position, center)
+
+func _source_smooth_mode_zero_pivot(target_position: Vector3, center: Vector3) -> Dictionary:
+    if controller_state == null or not controller_state.has_method("smooth_mode_zero_pivot"):
+        push_error("Source camera controller state is not bound")
+        return {}
+    var selected: Vector3 = controller_state.call("smooth_mode_zero_pivot", target_position, center, SOURCE_MODE_ZERO_PIVOT_THRESHOLD_SQUARED)
+    return {"anchor": selected, "raw_center": center}
+
+## Port of the 0051d410/0051d6e0/0051d7b0 candidate calculation. Inputs are
+## source-space vectors; the caller must provide the actual +0x54 orientation
+## and owner +0xa4/+0xa8 vertical limits.
+func source_compute_mode_zero_candidate(
+    anchor_3c: Vector3,
+    origin_18: Vector3,
+    orientation_54: Vector3,
+    source_vertical_limits: Vector2
+) -> Dictionary:
+    if not anchor_3c.is_finite() or not origin_18.is_finite() or not orientation_54.is_finite() or not source_vertical_limits.is_finite():
+        push_error("Source mode-0 controller vectors are nonfinite")
+        return {}
+    if orientation_54.length_squared() < 0.999 or orientation_54.length_squared() > 1.001:
+        push_error("Source mode-0 +0x54 orientation is not a unit vector")
+        return {}
+    if source_vertical_limits.x > source_vertical_limits.y:
+        push_error("Source mode-0 vertical limits are inverted")
+        return {}
+    var desired := origin_18 - anchor_3c
+    if desired.length_squared() < 0.0000000001:
+        push_error("Source mode-0 owner and pivot coincide")
+        return {}
+    var angles := _source_camera_angles(orientation_54, desired)
+    if angles.is_empty():
+        return {}
+    var yaw: Variant = _source_clamp_mode_zero_angle(float(angles["yaw"]), mode_zero_yaw_limits.x, mode_zero_yaw_limits.y)
+    var pitch: Variant = _source_clamp_mode_zero_angle(float(angles["pitch"]), mode_zero_pitch_limits.x, mode_zero_pitch_limits.y)
+    if yaw == null or pitch == null:
+        push_error("Source camera angle flag-bit-2 smoothing is not mapped for this parameter set")
+        return {}
+    var direction := _source_rotate_mode_zero(orientation_54, float(yaw), float(pitch))
+    if direction.length_squared() < 0.999 or direction.length_squared() > 1.001:
+        push_error("Source mode-0 candidate direction lost unit length")
+        return {}
+    var distance := desired.length()
+    if mode_zero_distance.x <= distance and mode_zero_distance.y < distance:
+        distance = mode_zero_distance.y
+    if distance <= 0.01:
+        distance = 0.01
+    var candidate := anchor_3c + direction * distance
+    # Astrolabe's saved scene transforms already map OpenSpace source Z-up to
+    # Godot Y-up; the source +0x8 candidate height is therefore Godot y.
+    var unclamped_source_height := candidate.y
+    if source_vertical_limits.y < unclamped_source_height:
+        candidate.y = source_vertical_limits.y
+    if unclamped_source_height < source_vertical_limits.x:
+        candidate.y = source_vertical_limits.x
+    if not candidate.is_finite():
+        push_error("Source mode-0 candidate overflowed")
+        return {}
+    return {"position": candidate, "yaw": yaw, "pitch": pitch, "distance": distance}
+
+func _source_camera_angles(current: Vector3, target: Vector3) -> Dictionary:
+    var from := current.normalized()
+    var to := target.normalized()
+    var up := Vector3.UP # source Z-up is converted to Godot Y-up in saved scenes.
+    var from_horizontal := from - up * from.dot(up)
+    var to_horizontal := to - up * to.dot(up)
+    if from_horizontal.length_squared() < 0.0000000001 or to_horizontal.length_squared() < 0.0000000001:
+        push_error("Source mode-0 yaw is undefined for a vertical direction")
+        return {}
+    from_horizontal = from_horizontal.normalized()
+    to_horizontal = to_horizontal.normalized()
+    # 0057c62f measures heading in the horizontal plane, then rotates about
+    # source +Z and measures elevation about the resulting local-right axis.
+    var yaw := atan2(up.dot(from_horizontal.cross(to_horizontal)), from_horizontal.dot(to_horizontal))
+    var turned := from.rotated(up, yaw)
+    var pitch_axis := turned.cross(up)
+    if pitch_axis.length_squared() < 0.0000000001:
+        push_error("Source mode-0 pitch axis is undefined for a vertical direction")
+        return {}
+    pitch_axis = pitch_axis.normalized()
+    var pitch := atan2(pitch_axis.dot(turned.cross(to)), turned.dot(to))
+    return {"yaw": _source_wrap_angle(yaw), "pitch": _source_wrap_angle(pitch)}
+
+func _source_clamp_mode_zero_angle(value: float, lower: float, upper: float) -> Variant:
+    # 0051d490's manor mode-0 flag word is zero. In that branch a missing or
+    # nonpositive upper bound selects the lower value; otherwise it clamps to
+    # the nearest edge of the source angular interval.
+    if (mode_zero_parameter_flags & 4) != 0:
+        return null
+    if upper >= PI:
+        return value
+    if upper <= 0.0:
+        return lower
+    var low_edge := _source_wrap_angle(lower - upper - 0.0001)
+    var high_edge := _source_wrap_angle(lower + upper + 0.0001)
+    var inside := false
+    if high_edge <= low_edge:
+        inside = not (high_edge < value and value < low_edge)
+    else:
+        inside = not (value < low_edge or high_edge < value)
+    if inside:
+        return value
+    var delta := _source_wrap_angle(value - lower)
+    return low_edge if delta > PI else high_edge
+
+func _source_wrap_angle(value: float) -> float:
+    if value < 0.0:
+        return value + TAU
+    if value >= TAU:
+        return value - TAU
+    return value
+
+func _source_rotate_mode_zero(direction: Vector3, yaw: float, pitch: float) -> Vector3:
+    var turned := _source_rotate_axis_angle(direction, Vector3.UP, yaw)
+    var right := turned.cross(Vector3.UP)
+    if right.length_squared() > 0.0000000001:
+        right = right.normalized()
+    turned = _source_rotate_axis_angle(turned, right, pitch)
+    return turned
+
+## 005282c0 reads the first orientation selector from the target DNM. 0044cf20
+## initializes it to source [0,-1,0], and no other writer exists in this build.
+## 005282c0 selects the target's source Y basis and 0051d410 negates it, giving
+## source +Y. Imported scene bases have source +Y on Godot local -Z.
+func source_mode_zero_orientation_54() -> Dictionary:
+    if mode_zero_target_child_index != -1:
+        push_error("Source camera target child selector has no native hierarchy binding")
+        return {}
+    if not is_instance_valid(targeted_actor) or not targeted_actor.is_inside_tree():
+        push_error("Source mode-0 camera has no bound target Perso")
+        return {}
+    var basis := targeted_actor.global_basis.orthonormalized()
+    var direction := basis * Vector3.FORWARD
+    if not direction.is_finite() or direction.length_squared() < 0.999:
+        push_error("Source mode-0 target orientation is invalid")
+        return {}
+    return {"orientation": direction.normalized()}
+
+## 004406d0 initializes the camera owner's Position+0xa4/+0xa8 bounds to the
+## finite sentinel pair. The manor camera startup path has no writer for them.
+func source_mode_zero_vertical_limits() -> Vector2:
+    var owner := get_parent() as Node3D
+    if owner != null and owner.has_meta("source_mode_zero_vertical_limits"):
+        var limits = owner.get_meta("source_mode_zero_vertical_limits")
+        if limits is Vector2 and limits.is_finite() and limits.x <= limits.y:
+            return limits
+        push_error("Source mode-0 owner vertical limits metadata is invalid")
+        return Vector2.ZERO
+    return Vector2(SOURCE_POSITION_DEFAULT_MIN, SOURCE_POSITION_DEFAULT_MAX)
+
+func _source_rotate_axis_angle(direction: Vector3, axis: Vector3, angle: float) -> Vector3:
+    var cosine := cos(angle)
+    var sine := sin(angle)
+    return direction * cosine + axis * (axis.dot(direction) * (1.0 - cosine)) + axis.cross(direction) * sine
+
 func record_mode_zero_candidate_collision(blocked: bool) -> int:
     if controller_state == null or not controller_state.has_method("record_candidate_collision"):
         push_error("Source camera controller state is not bound")
@@ -151,7 +355,7 @@ func source_mode_zero_collision_inputs(
     var origin_to_eye = _source_camera_ray_blocked(controller_origin_18, controller_eye_30, context)
     var origin_to_target_head = _source_camera_ray_blocked(
         controller_origin_18,
-        target_position + Vector3(0, 0, -1.8),
+        target_position + Vector3.UP * 1.8,
         context
     )
     if anchor_to_eye == null or origin_to_eye == null or origin_to_target_head == null:
@@ -171,28 +375,94 @@ func source_mode_zero_collision_inputs(
 func source_publish_mode_zero_translation(
     third_argument_position: Vector3,
     second_argument_position: Vector3,
-    third_argument_sector_id: String
+    third_argument_sector_id: String = ""
 ) -> bool:
     var owner := get_parent() as Node3D
     var context := _source_collision_context()
     if owner == null or not owner.is_inside_tree() or context.is_empty():
         return false
-    if not third_argument_position.is_finite() or not second_argument_position.is_finite() or third_argument_sector_id.is_empty():
+    if not third_argument_position.is_finite() or not second_argument_position.is_finite():
+        return false
+    var resolved_sector_id := third_argument_sector_id
+    if resolved_sector_id.is_empty():
+        var sector_result := source_resolve_mode_zero_sector(third_argument_position)
+        if not bool(sector_result.get("complete", false)):
+            push_error("Source 0051c7b0 publication needs the full 004e0020 sector query; active child physical-visual geometry is not available as an equivalent source ray input")
+            return false
+        resolved_sector_id = str(sector_result.get("sector_id", ""))
+    if resolved_sector_id.is_empty():
         return false
     var active_sector := context["sector"] as Node
     var active_sector_id := str(active_sector.get_meta("source_sector_id", ""))
-    var next_sector := _find_source_sector(_source_level_root(), third_argument_sector_id)
+    var next_sector := _find_source_sector(_source_level_root(), resolved_sector_id)
     if next_sector == null:
         push_error("Source camera pose references an unbound destination sector")
         return false
-    if third_argument_sector_id != active_sector_id:
+    if resolved_sector_id != active_sector_id:
         owner.global_position = third_argument_position
         _source_active_sector = next_sector
     else:
         owner.global_position = second_argument_position
+    _source_previous_history_position = owner.global_position
     return true
 
+## Exact border-GEO branch of 004e0020. The routine also tests active-sector
+## children of source kinds 1, 11, 13 and 21; if any are present this reports
+## the nearest border hit for inspection but marks the full result incomplete.
+func source_resolve_mode_zero_sector(position: Vector3) -> Dictionary:
+    if not position.is_finite():
+        return {}
+    var root := _source_level_root()
+    if not is_instance_valid(root):
+        push_error("Source camera has no level root for 004e0020 sector lookup")
+        return {}
+    var nearest_fraction := 2.0
+    var nearest_sector_id := ""
+    for candidate in root.find_children("SectorBoundary", "MeshInstance3D", true, false):
+        var boundary := candidate as Node3D
+        var sector := _source_sector_for(boundary)
+        if sector == null or not sector.has_meta("source_sector") or not sector.has_meta("source_sector_id"):
+            continue
+        var source_data = JSON.parse_string(str(sector.get_meta("source_sector")))
+        if not source_data is Dictionary:
+            continue
+        if int(source_data.get("virtual_sector", 0)) != 0 or (int(source_data.get("activation", 0)) & 4) == 0:
+            continue
+        if not boundary.has_method("intersect_segment"):
+            continue
+        var hit: Dictionary = boundary.call("intersect_segment", position, position + Vector3.DOWN)
+        if hit.is_empty():
+            continue
+        var fraction := float(hit.get("fraction", 2.0))
+        if fraction < nearest_fraction:
+            nearest_fraction = fraction
+            nearest_sector_id = str(sector.get_meta("source_sector_id"))
+    if nearest_sector_id.is_empty():
+        return {}
+    var child_geometry_missing := _source_has_active_sector_physical_visuals(root)
+    return {
+        "sector_id": nearest_sector_id,
+        "fraction": nearest_fraction,
+        "complete": not child_geometry_missing,
+    }
+
+func _source_has_active_sector_physical_visuals(root: Node) -> bool:
+    for candidate in root.find_children("*", "Node3D", true, false):
+        var source_kind := int(candidate.get_meta("source_node_kind", -1))
+        if source_kind not in [1, 11, 13, 21]:
+            continue
+        var sector := _source_sector_for(candidate)
+        if sector == null or not sector.has_meta("source_sector"):
+            continue
+        var source_data = JSON.parse_string(str(sector.get_meta("source_sector")))
+        if source_data is Dictionary and int(source_data.get("virtual_sector", 0)) == 0 and (int(source_data.get("activation", 0)) & 4) != 0:
+            return true
+    return false
+
 func _source_collision_context() -> Dictionary:
+    var owner := get_parent() as Node3D
+    if owner == null or not owner.is_inside_tree() or not _source_update_sector_history(owner.global_position):
+        return {}
     var sector: Node = _source_active_sector
     if not is_instance_valid(sector):
         sector = _source_sector_for(get_parent())
@@ -209,6 +479,50 @@ func _source_collision_context() -> Dictionary:
         sector = sector.get_parent()
     push_error("Source camera has no owning source sector metadata")
     return {}
+
+## 00448280/004e03f0 retain the previous camera position and walk through the
+## first one-sided boundary face in each active sector. This updates the same
+## sector context used by 00463df0 collision queries.
+func _source_update_sector_history(current_position: Vector3) -> bool:
+    if not current_position.is_finite():
+        push_error("Source camera sector history received a nonfinite position")
+        return false
+    var sector: Node = _source_active_sector
+    if not is_instance_valid(sector):
+        sector = _source_sector_for(get_parent())
+    if not is_instance_valid(sector):
+        push_error("Source camera has no initial sector for boundary history")
+        return false
+    var cursor := _source_previous_history_position
+    for _step in range(128):
+        var boundary := sector.get_node_or_null("SectorBoundary")
+        if boundary == null:
+            break
+        if not boundary.has_method("first_source_sector_crossing"):
+            push_error("Source sector boundary does not expose ordered source crossings")
+            return false
+        var crossing: Dictionary = boundary.call("first_source_sector_crossing", cursor, current_position)
+        if crossing.is_empty():
+            break
+        var next_id := str(crossing.get("sector", ""))
+        var active_id := str(sector.get_meta("source_sector_id", ""))
+        if next_id.is_empty() or next_id == active_id:
+            break
+        var next_sector := _find_source_sector(_source_level_root(), next_id)
+        if next_sector == null:
+            push_error("Source sector boundary references an unbound neighbor")
+            return false
+        var next_data = JSON.parse_string(str(next_sector.get_meta("source_sector", "")))
+        if not next_data is Dictionary or not next_data.has("activation"):
+            push_error("Source destination sector has no activation metadata")
+            return false
+        if (int(next_data["activation"]) & 4) == 0:
+            break
+        sector = next_sector
+        cursor = crossing["position"]
+    _source_active_sector = sector
+    _source_previous_history_position = current_position
+    return true
 
 func _source_level_root() -> Node:
     var current: Node = self
@@ -279,6 +593,6 @@ func _source_update_mode_zero() -> bool:
     if source_mode_zero_target_geometry().is_empty():
         return false
     if not _reported_mode_zero_gap:
-        push_error("Source mode-0 geometry is mapped, but native candidate-eye smoothing, sector-aware ray results, and 0051c7b0 pose arguments are not yet connected")
+        push_error("Source mode-0 update is guarded: 00443f00 refreshes the target's eight-point Data3D arrays from its live DNM identity-card callback; those physics outputs are not in the saved Perso/model data. Candidate math, collision filters and camera pose writes are not called without those source inputs")
         _reported_mode_zero_gap = true
     return false
