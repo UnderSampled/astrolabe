@@ -46,7 +46,10 @@ its squared threshold is `_DAT_005fcc2c`, the static `9.0f` value at VA
 `005fcc2c` in `reference/hype_patch/MaiDFXvr_bleu.exe` (the decompiled build,
 SHA-256 recorded in `reference/decompilation/README.md`). Its `.data` VA maps
 to file offset `0x1fae2c`; bytes `00 00 10 41` decode to `9.0f`. The checked
-decompilation has a read site and no write site for this symbol. When crossed,
+decompilation has a read site and no write site for this symbol. `0051f450`
+likewise reads the `.35` displacement from `_DAT_005fcc78`; its `.data` file
+offset is `0x1fae78`, and bytes `33 33 b3 3e` decode to `0.349999994f`.
+When crossed,
 its shared fallback counter uses the actor translation for eight controller
 updates (`DAT_00721af8`), incrementing `DAT_00721afc`.
 
@@ -112,14 +115,35 @@ child physical-visual nodes are present, the result is marked incomplete
 because their visual-set triangles/LOD are not exported for this query; the
 pose publisher refuses that partial result.
 
-### Initial Data3D blocker (superseded below)
+### Earlier Data3D blocker (superseded below)
 
-The first source pass identified that camera mode 0 needs eight runtime DNM
-position/weight samples which are not present in the serialized
-`PersoData3dPrefixWire`. At that checkpoint, the native actor did not yet
-produce those inputs, so mode 0 was guarded. The supported callback-derived
-producer and its remaining collision boundary are described in the next
-section.
+The following records the initial checkpoint before the actor-owned producer
+was implemented later in this pass.
+
+`0044cf20` initializes eight runtime Data3D positions, auxiliary vectors, and
+weights to zero. `004440e0` walks the target's active DNM identity-card list;
+`00443f00` dispatches the callback indexed by the resolved card's actual
+`DNM_fn_eIdentityCardGetType`, then copies live physical-object arrays at
+`+0x2d8` and `+0x310` into the DNM Data3D arrays and assigns card mass as their
+weights. The callback comes from the runtime identity-card type, which is not
+one of the three `StandardIdentityWire.object_types`; type 0/8 uses `00585d51`,
+and the callback table has distinct handlers for other card types. `00443bf0`
+uses actor translation only when all eight runtime weights sum to zero; there
+is no evidence that the manor target reaches that branch when the camera
+updates.
+
+The serialized `PersoData3dPrefixWire` is 24 bytes and contains only state,
+configuration and family references. The current model retains those
+references, the three StandardGame object-type IDs, and authored model and
+animation assets; it does not contain the eight live DNM positions/weights,
+resolved identity-card type, or current physics callback outputs. Constructing
+the points from mesh bounds or choosing a callback from `object_types` would
+be a guess. Porting DNM/physics internals wholesale into Godot would also
+violate the repository's engine-boundary guidance. No original runtime or
+debugger capture was allowed for this pass. Mode 0 therefore still reports
+unsupported and does not claim collision success, evaluate the teleport gate,
+or publish a pose until a source-equivalent Godot actor-state producer supplies
+those eight points and weights.
 
 ### Data3D producer and remaining mode-0 boundary
 
@@ -148,35 +172,54 @@ assertions cover newest-first order, exact delta weights, callback selection,
 callback transition reset, pivot weighting, actor offset and focus.
 
 This removes the missing Data3D producer as a blocker. `source_update_position`
-now computes the source candidate from the target pivot, camera-owner position,
-orientation selector and vertical limits; it also classifies distance through
-`0052ce20` using `+0x30/+0x34`, the verified `0.001` epsilon, and the static
-`DAT_0060b23c=3` / `+0.3` padding. The clear-ray `0051f670` branch runs through
-the shared gate state. It returns a completed no-translation update because
-the clear rays reset the collision streak and that branch cannot set
-`DAT_007219d1`; source `0051c7b0` is therefore not called for this result.
+computes the mode-0 controller candidate from the live target pivot, camera
+owner, source +Y orientation and vertical limits. The owner Position bit-2 path
+now consumes the exact `00440fe0` `+0x50` vector and forms `+0x24` from current
+`+0x18`, as `0051db70` does. The ordinary path retains `0052ce20` range
+classification, including the `0.001` epsilon and `+0.3` maximum padding.
 
-The corrected `005200a0` dispatch reads process-global selector
-`DAT_00721b0c`: the zero-filled startup value selects `0051f670`, and the
-source camera-mode input actions write 1 or 0. The pitch/yaw sweep
-`0051fb50` is not a generic response to a blocked ray. It runs only after the
-selected controller returns zero while `DAT_007218fc` is set. The selected
-Manor startup controller `0051f670` does not set that flag. The Godot update
-therefore no longer dispatches the sweep after an arbitrary blocked ray; it
-returns false with a warning until the blocked-result state changes of
-`0051f670` are represented. Selector 1 currently fails explicitly because
-`0051f290` and its `0052bb50`/`0051f040`/`0051f250` fallback state machine are
-not ported. The sweep/classification helpers remain exercised as helpers, not
-as a claim that either production branch has completed a blocked update.
+The `005200a0` selector dispatch now runs both source paths. Selector 0 ports
+`0051f670`: the first `+0x3c -> +0x30` ray retains collision point and normal;
+`0051f450` applies the source `.35` normal offset and the controller reruns the
+ray. It then checks `+0x18 -> +0x30`, updates the `DAT_00721988` and
+`DAT_0072198c` counters and `DAT_007218fd`, and conditionally checks the
+selected actor's translation plus source-Z 1.8. The source's candidate reset,
+input-bit writes, and target-head branches update the controller candidate
+without inventing an observed pose.
 
-The mode-0 update obtains this selector from the session-shared
-`source_controller_state.gd`, initialized to the zero-filled source startup
-value. `DAT_007218fc` is not inferred from collision geometry. The camera-owner
-Position bit-2 writer/clearer remains exposed, while updates with that bit set
-fail explicitly because `0051db70` selects the unmapped Position `+0x50`
-controller-vector path. `0051c7b0` still has a conditional translation
-publisher and source-sector decision, but the blocked source branch does not
-yet reach it from the native update.
+Selector 1 now ports `0052bb50`'s per-owner static-obstruction counters and
+60-sample threshold, then `0051f290`'s filtered camera ray and
+`0051f040`/`0051f250` safe-point recovery. Static geometry queries reuse the
+exported source sector, activation, material and collision metadata through
+the existing Godot collision adapter. `0051fb50` is still dispatched only
+when the selected routine returns zero and `DAT_007218fc` is set; selector 1's
+recovery path is now the only production path that sets that fallback request.
+The initial parameter word at `+0x92` is now exported from source bytes 90–91;
+`0051f520` uses the existing `Button_SSLeft`, `Button_SSRight`, and
+`Button_Down` actions without assigning new physical keys.
+
+The shared state Resource separates `DAT_007219d0` from the last-good
+`DAT_007219ac` position, tracks the per-update `DAT_007218fc`, `DAT_007218fd`,
+and `DAT_007219d1` flags, and follows the distinct success/failure distance
+hysteresis rules. When the source gate sets d1, the native path reaches
+`0051c7b0` and uses its active-sector decision to publish the selected pose.
+The sector resolver still accepts the exact border-GEO portion of `004e0020`
+only; if active physical visuals of source kinds 1, 11, 13 or 21 could affect
+the lookup, it reports the missing equivalent rather than claiming a complete
+sector result.
+
+Two narrower behavior gaps remain explicit. First, the rare `0051f670`
+target-head-blocked branch reads controller-owner `+0x254`, which
+`005796ea` resets and sets from its own collision ray. The native actor does
+not yet expose that writer's result. If the `DAT_0072198c` streak exceeds 50,
+the source branch is determined without that flag and is implemented; at 50
+or below, this specific branch reports the missing live guard input. Second,
+when a failed candidate sets `DAT_007218fd` without reaching d1,
+`005200a0` calls `0051ec70`, which updates controller offset interpolation
+through `0052c7f0`, `0051e350`, and `0051e600`. That native camera-motion API is
+not implemented, so the camera update returns an error on that path instead of
+claiming success. `0051c7b0` translation writes and the supported candidate
+branches are implemented independently of these cases.
 
 The other startup inputs now have source-backed adapters: the target's source
 +Y orientation selector, camera-owner Position sentinel bounds, Godot Y-up
@@ -201,7 +244,7 @@ crossing, source selector, and same/cross-sector pose-publication assertions.
 The first test attempt hit `/tmp` quota while creating its temporary project;
 the successful rerun placed temporary files in the worktree's ignored Cargo
 target directory. The camera model filter (`cargo test --offline --locked
---lib camera_`) passed 16 tests with 1 local-game-data test ignored. No
+--lib camera_`) passed 17 tests with 1 local-game-data test ignored. No
 original-game run, debugger, new harness, or installation was used.
 
 After adding the actor-owned Data3D producer and collision-free mode-0 path,
@@ -213,17 +256,18 @@ history reset on callback transition, live weighted pivot/focus, the
 does not invoke `0051c7b0`. `cargo fmt --all -- --check` and `git diff --check`
 passed after these changes.
 
-During integration into current `main`, the same focused camera test passed
-again (1 passed, 4 ignored). Its first invocation failed before assertions when
-`tempfile` used quota-constrained `/tmp`; the identical command passed with
-`TMPDIR` set to an ignored checkout-owned directory. The temporary directory
-was removed afterward. `cargo fmt --all -- --check` and `git diff --check`
-passed on the integrated diff as well.
+The current focused camera integration test passed on Godot 4.7.2. Its
+projection script exercises the exported target binding, weighted Data3D
+pivot, candidate math, clear-ray d0 state, structured collision hit point and
+normal offset, the blocked target-head branch, selector 1's first static
+obstruction sample, source material filtering, fallback classification, and
+same/cross-sector conditional pose publication. `cargo fmt --all -- --check`
+and `git diff --check` passed. The local original game was not launched and no
+debugger, new harness or installation was used. The full New Game intro camera
+and letterbox timing remain unaccepted.
 
-The source-dispatch correction adds tests for the zero-initialized
-`DAT_00721b0c` selector, its two source-written values, the fallback sweep's
-classification helper, and a blocked `0051f670` update that returns false
-without moving the owner. The focused camera test passed on Godot 4.7.2; its
-blocked case emits the explicit unsupported-path warning. No original-game run
-was made. This still does not accept the complete Manor intro camera or its
-letterbox timing.
+The final focused reruns after correcting both `0051f670` calls to
+`0051f450`'s source `.35` normal offset passed: camera projection integration
+(`1 passed, 4 local-game cases ignored`) and camera model unit tests (`17
+passed, 1 local-game-data case ignored`). Formatting and whitespace checks
+also passed.
