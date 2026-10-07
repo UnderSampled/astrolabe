@@ -20,6 +20,8 @@ func run() -> void:
     if not require((-camera.global_basis.z).is_equal_approx(Vector3.RIGHT), "source camera view axis is reversed"): return
     if not require(camera.keep_aspect == Camera3D.KEEP_WIDTH and absf(deg_to_rad(camera.fov) - 1.2) < 0.000001, "edited horizontal FoV differs"): return
     if not require(camera.near == 0.25 and camera.far == 10000.0, "saved clip planes differ"): return
+    if not require(camera.targeted_actor == scene.get_node("world/main/MainActor"), "camera did not bind the saved MainActor target"): return
+    if not require(camera.current, "source registration context 1 did not select the primary viewport camera"): return
     camera.make_current()
     var projection := camera.get_camera_projection()
     if not require(absf(projection.x.x - 1.0 / tan(0.6)) < 0.00001, "native horizontal projection differs"): return

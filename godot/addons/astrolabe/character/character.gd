@@ -667,6 +667,10 @@ func source_camera_change_targeted_perso(camera_asset: String, target: Node3D) -
         return false
     return bool(camera.call("source_change_targeted_perso", target))
 
+## Procedure 163 resets the component's +0x10 target to the current MainActor.
+func source_camera_reset_targeted_perso(camera_asset: String, target: Node3D) -> bool:
+    return source_camera_change_targeted_perso(camera_asset, target)
+
 ## Called by the compiled camera Brain. The native camera accepts mode-3 aiming;
 ## other source motion modes fail explicitly.
 func source_camera_update_position() -> bool:

@@ -1702,6 +1702,17 @@ fn statements(
                     quoted(&camera.path.to_string())
                 )?;
             }
+            Statement::CameraResetTargetedPerso { camera } => {
+                let failure = quoted(&format!(
+                    "{} requires camera reset target state for {}",
+                    model.path, camera.path
+                ));
+                writeln!(
+                    out,
+                    "{pad}if not is_instance_valid(main_actor):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if not character().source_camera_reset_targeted_perso({}, main_actor):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}",
+                    quoted(camera.path.as_str())
+                )?;
+            }
             Statement::CameraChangeState { camera, state } => {
                 let value = guarded_expression(out, state, model, depth, flow)?;
                 writeln!(

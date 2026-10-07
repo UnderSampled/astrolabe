@@ -525,6 +525,26 @@ fn camera_target_call_keeps_source_actor_and_main_actor() -> Result<()> {
 }
 
 #[test]
+fn camera_reset_target_passes_the_bound_main_actor() -> Result<()> {
+    let mut model = model()?;
+    model.normal.as_mut().unwrap().behaviors[0]
+        .schedule
+        .as_mut()
+        .unwrap()
+        .statements = vec![Statement::CameraResetTargetedPerso {
+        camera: AssetRef::new("level:/persos/world/0/2")?,
+    }];
+    let code = godot::ai::compile(&model, &[])?;
+    assert!(
+        code.contains(
+            "source_camera_reset_targeted_perso(\"level:/persos/world/0/2\", main_actor)"
+        )
+    );
+    assert!(code.contains("requires camera reset target state"));
+    Ok(())
+}
+
+#[test]
 fn external_behavior_query_checks_main_actor_brain_identity_before_branch() -> Result<()> {
     let mut model = model()?;
     model.normal.as_mut().unwrap().behaviors[0]

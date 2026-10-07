@@ -220,6 +220,10 @@ pub enum Statement {
         camera: AssetRef<Perso>,
         target: ActorTarget,
     },
+    /// Source camera procedure 163 restores the component target to MainActor.
+    CameraResetTargetedPerso {
+        camera: AssetRef<Perso>,
+    },
     /// Source camera procedure 157 selects a motion mode; -1 restores the
     /// original preset's mode. Unsupported transitions fail at the target API.
     CameraChangeState {
@@ -1094,6 +1098,9 @@ impl Script {
                         if let ActorTarget::Reference(actor) = target {
                             ensure!(actor.path.member().is_none(), "camera target is a member");
                         }
+                    }
+                    Statement::CameraResetTargetedPerso { camera } => {
+                        ensure!(camera.path.member().is_none(), "camera is a member");
                     }
                     Statement::SetActorAbsolutePosition { actor, position } => {
                         ensure!(

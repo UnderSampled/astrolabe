@@ -409,7 +409,7 @@ impl Parser<'_> {
                 (4, 185) => Statement::SetTransparentDisplay(true),
                 (4, 186) => Statement::SetTransparentDisplay(false),
                 (4, 445) => Statement::ChangeSighting(self.expression(indent + 1)?),
-                (4, 157 | 160) => {
+                (4, 157 | 160 | 163) => {
                     let operand = self.at;
                     if !self
                         .nodes
@@ -430,6 +430,8 @@ impl Parser<'_> {
                             camera,
                             state: self.expression(indent + 1)?,
                         }
+                    } else if id == 163 {
+                        Statement::CameraResetTargetedPerso { camera }
                     } else {
                         let (target_at, target) = self.take(indent + 1)?;
                         let target = match (target.kind, target.parameter) {
@@ -1294,6 +1296,17 @@ impl Writer<'_> {
                         ),
                         ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
                     }
+                }
+                Statement::CameraResetTargetedPerso { camera } => {
+                    let handle = self
+                        .codec
+                        .actor_handles
+                        .iter()
+                        .find(|(reference, _)| reference == camera)
+                        .context("missing camera actor handle")?
+                        .1;
+                    self.node(4, 163, indent);
+                    self.node(24, handle, indent + 1);
                 }
                 Statement::CameraChangeState { camera, state } => {
                     self.node(4, 157, indent);
@@ -2309,6 +2322,21 @@ mod partial_tests {
                 target: ActorTarget::Keyword(ActorKeyword::MainActor),
             } if bound == &camera
         ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn camera_reset_target_procedure_reconstructs_and_roundtrips() -> Result<()> {
+        let (mut codec, bytes) = partial(&[(4, 163, 1), (24, 1234, 2), (8, 0, 0)]);
+        let camera = AssetRef::<Perso>::new("level:/persos/world/0/2")?;
+        codec.actors.insert(1, camera.clone());
+        codec.actor_handles.push((camera.clone(), 1234));
+        let script = codec.read(&bytes)?;
+        assert_eq!(
+            script.statements,
+            vec![Statement::CameraResetTargetedPerso { camera }]
+        );
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())
     }

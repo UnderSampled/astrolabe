@@ -37,6 +37,24 @@ pub struct CameraParameters {
 }
 
 impl CameraParameters {
+    /// `0043daf0` reads the registered byte at parameter offset `+0x90` and
+    /// the selected viewport context at `+0x9c`. These are retained in the
+    /// source-order unknown tail rather than turned into source pointers.
+    pub fn registered_viewport(&self) -> Option<u32> {
+        if self.unknown.get(88).copied()? == 0 {
+            return None;
+        }
+        let context = u32::from_le_bytes(self.unknown.get(96..100)?.try_into().ok()?);
+        (context != 0).then_some(context)
+    }
+
+    /// `00440f80` reads the target child selector at parameter byte `+0xa0`.
+    /// In this model's pointer-free 104-byte unknown tail that is byte 100;
+    /// -1 means use the selected Perso itself.
+    pub fn target_child_index(&self) -> i8 {
+        self.unknown[100] as i8
+    }
+
     pub fn validate(&self) -> Result<()> {
         ensure!(
             self.unknown.len() == 104,
@@ -62,6 +80,53 @@ impl CameraParameters {
             "camera distance limits differ"
         );
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parameters() -> CameraParameters {
+        CameraParameters {
+            source: SourceObjectIdentity {
+                role: super::super::ai::SourceRole::Fix,
+                block: [5, 0],
+                allocation: 1,
+            },
+            target_offset: [0.; 3],
+            look_offset: [0.; 3],
+            actor_offset: [0.; 3],
+            distance: [0.; 2],
+            yaw: 0.,
+            pitch: 0.,
+            horizontal_fov: 0.,
+            mode: 0,
+            unknown: vec![0; 104],
+        }
+    }
+
+    #[test]
+    fn camera_registration_uses_active_byte_and_context_word() {
+        let mut value = parameters();
+        value.unknown[96..100].copy_from_slice(&1_u32.to_le_bytes());
+        assert_eq!(value.registered_viewport(), None);
+        value.unknown[88] = 1;
+        assert_eq!(value.registered_viewport(), Some(1));
+        value.unknown[96..100].copy_from_slice(&2_u32.to_le_bytes());
+        assert_eq!(value.registered_viewport(), Some(2));
+        value.unknown[96..100].copy_from_slice(&0_u32.to_le_bytes());
+        assert_eq!(value.registered_viewport(), None);
+    }
+
+    #[test]
+    fn camera_target_child_selector_uses_source_parameter_byte_a0() {
+        let mut value = parameters();
+        assert_eq!(value.target_child_index(), 0);
+        value.unknown[100] = 0xff;
+        assert_eq!(value.target_child_index(), -1);
+        value.unknown[100] = 7;
+        assert_eq!(value.target_child_index(), 7);
     }
 }
 

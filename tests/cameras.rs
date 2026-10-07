@@ -66,7 +66,7 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
         block: [5, 0],
         allocation,
     };
-    let parameters = CameraParameters {
+    let mut parameters = CameraParameters {
         source: identity(2),
         target_offset: [0.; 3],
         look_offset: [0.; 3],
@@ -78,6 +78,8 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
         mode: 0,
         unknown: vec![0; 104],
     };
+    parameters.unknown[88] = 1;
+    parameters.unknown[96..100].copy_from_slice(&1_u32.to_le_bytes());
     let mut actor = Perso {
         path: AssetPath::new("level:/persos/world/camera")?,
         name: "SourceCameraActor".into(),
@@ -100,6 +102,11 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
         particles: None,
         collisions: None,
     };
+    let main_actor_ref = AssetRef::<Perso>::new("level:/persos/world/main")?;
+    let mut main_actor = actor.clone();
+    main_actor.path = main_actor_ref.path.clone();
+    main_actor.name = "MainActor".into();
+    main_actor.camera = None;
     let selection = Selection::hype("manoir", "en")?;
     let mut store = rete::Store::new(temp.path().join("rete"), selection.clone())?;
     let reference = AssetRef::from_path(actor.path.clone());
@@ -111,7 +118,7 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
     let scene = Scene {
         path: AssetPath::new("level:/scene")?,
         name: "CameraCheck".into(),
-        main_actor: None,
+        main_actor: Some(main_actor_ref.clone()),
         armor: None,
         global_actors: vec![],
         nodes: vec![
@@ -147,11 +154,30 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
                 sector: None,
                 light: None,
             },
+            SceneNode {
+                id: "world/main".into(),
+                name: "main".into(),
+                parent: Some("world".into()),
+                kind: NodeKind::Perso,
+                properties: SceneNodeProperties::default(),
+                transform: Some(SourceTransform {
+                    translation: [0.; 3],
+                    rotation: [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]],
+                    basis: [[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]],
+                }),
+                instance: None,
+                perso: Some(main_actor_ref.clone()),
+                collision: None,
+                draw_mask: 0,
+                sector: None,
+                light: None,
+            },
         ],
     };
     let mut content = Collection::default();
     content.insert(&AssetRef::from_path(family.path.clone()), family)?;
     content.insert(&reference, (*actor).clone())?;
+    content.insert(&main_actor_ref, main_actor)?;
     let roots = [ContentRoot {
         kind: Scene::KIND.into(),
         reference: scene.path.clone(),

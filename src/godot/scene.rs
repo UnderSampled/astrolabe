@@ -35,7 +35,7 @@ impl Project {
         let scene_id = format!("scene_{}", self.preview_instances.len());
         writeln!(
             self.builder,
-            "    var {scene_id} = Node3D.new()\n    {scene_id}.name = {}",
+            "    var {scene_id} = Node3D.new()\n    {scene_id}.name = {}\n    {scene_id}.set_meta(\"source_level_scene\", true)",
             quoted(&scene.name)
         )?;
         writeln!(
@@ -156,8 +156,9 @@ impl Project {
                 }
                 writeln!(
                     self.builder,
-                    "    {name}.set_meta(\"source_sector\", {})",
-                    quoted(&serde_json::to_string(sector)?)
+                    "    {name}.set_meta(\"source_sector\", {})\n    {name}.set_meta(\"source_sector_id\", {})",
+                    quoted(&serde_json::to_string(sector)?),
+                    quoted(&node.id)
                 )?;
             }
             if let Some(instance) = &node.instance {
@@ -364,6 +365,24 @@ impl Project {
                 self.builder,
                 "    {scene_id}.set_editable_instance({main}, true)\n    {main}.motion_enabled = true"
             )?;
+            writeln!(
+                self.builder,
+                "    {scene_id}.set_meta(\"source_main_actor_asset\", {})",
+                quoted(actor.path.as_str())
+            )?;
+            for node in &scene.nodes {
+                let Some(reference) = &node.perso else {
+                    continue;
+                };
+                if source.load(reference)?.camera.is_none() {
+                    continue;
+                }
+                let camera_actor = format!("{}_character", names[&node.id]);
+                writeln!(
+                    self.builder,
+                    "    {scene_id}.set_editable_instance({camera_actor}, true)\n    {camera_actor}.get_node(\"SourceCamera\").initial_target_path = {camera_actor}.get_node(\"SourceCamera\").get_path_to({main})"
+                )?;
+            }
             writeln!(
                 self.builder,
                 "    {scene_id}_ui.actor_path = {scene_id}_ui.get_path_to({main})"
