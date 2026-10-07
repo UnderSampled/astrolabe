@@ -158,123 +158,48 @@ The HUD binds the existing Character visibility signal and state dictionary.
 Widescreen suppresses drawing while retaining requested state. Life values come
 from promoted StandardGame hit-point bytes in an actor-local native Resource;
 magic uses the existing Magick Resource. It does not invent missing totals.
-The English Fix HUD can currently be imported as its own root and exported to
-an editable scene with layout/table/handle metadata. It is not yet attached to
-the saved level screen. Source texture handles remain unresolved, so the
-exported nodes have no textures and render no substitute bars or icons. The
-maintained generic HUD template also uses texture-only controls, so it does not
-fall back to Godot's theme progress bars.
+The source-derived Fix HUD reader and Godot projection are quarantined pending
+validated Fix stream cursor accounting. Legacy `fix:/hud/en` data and generated
+scenes are not valid source layouts and are not attached to the saved level
+screen. The maintained generic HUD support remains separate from this reader.
 
-### Fix HUD source extraction
+### Fix HUD extraction status
 
-The current English PC Montreal profile reads four 16-byte Fix.gpt panel
-descriptors at `0x4904`, followed by six contiguous four-byte handles at `0x4944`.
-The first descriptor declares twelve layers but is disabled; the other three
-are disabled with zero layers. `0040c270` confirms the enabled byte and count
-byte, and only traverses layer arrays for enabled panels. Their Fix allocation
-identities and the two otherwise-unused descriptor bytes are retained without
-traversing disabled layer data. `0040bcc0` and `0040bda0` read/write this state.
-Each descriptor has two separate material references: `+4` is passed to the
-panel-layer renderer by `0040c270`; `+8` is the direct-draw material used by
-the life, magic, armor, and weapon paths (`0040c300`, `0040c720`, `004606a0`,
-and `0040cb50`). The Rete model and Godot scene metadata preserve both links.
+The prior Fix HUD reader was based on an invalid cursor interpretation and is now
+quarantined. It treated Fix.gpt offset `0x4904` as four 16-byte HUD panel
+records and `0x4944` as six texture handles. Independent static reader
+accounting places `0x4904` inside the shadow arrays read by
+[`FUN_004e5150`](../../reference/decompilation/functions/004e5150_FUN_004e5150.c);
+`0x4944` straddles those arrays and the following shadow arrays. These offsets
+do not describe a verified HUD record block.
 
-The earlier six-`VisualMaterial` interpretation used an unsupported eight-byte
-stride and has been replaced by the source read order. `0040bcc0` reads the
-64-byte descriptor block with `004e9800`, then calls `004e97a0` six times for
-four-byte Fix.gpt pointers. That helper passes each word to `004eab90` for Fix
-relocation. The results go, in order, to `DAT_0060f62c`, `DAT_0060f630`,
-`DAT_0060f620`, `DAT_0060f624`, `DAT_0060f628`, and `DAT_0060f63c`. `0040c300`
-draws life with slots 2, 4, 3; `0040c720` draws paired fills with slots 1, 0;
-and `0040c950` draws a counter image with slot 5. The Godot root preserves these
-global names alongside each Fix identity as editor metadata.
+Counting reads from the Fix loader in
+[`FUN_00401e00`](../../reference/decompilation/functions/00401e00_FUN_00401e00.c)
+places its call to `FUN_0040bcc0` at candidate offset `0x4a24`. That candidate
+64-byte block fails the assumed panel schema, and the next six words include
+`0xe00` and `0x400`; it is not a validated replacement. The exact stream
+cursor and serialized record layout remain under source investigation.
 
-These are opaque relocated objects passed to `GLI_xSetMaterialTexture`, which
-stores its second argument on the runtime material. This does not establish a
-serialized `VisualMaterial` or `TextureInfo` relationship. The three non-null
-handles resolve to 48-byte Fix allocations: slots 0, 2, and 4 point to virtual
-addresses `0x020d7c98`, `0x020d9318`, and `0x020da998`; slots 1, 3, and 5 are
-null. Their fields match the object created by
-[`GEO_vCreateGeometricObject`](../../reference/decompilation/functions/0046c9c0_GEO_vCreateGeometricObject.c)
-with `(0x80, 1)`: a 0x30-byte header, two relocated 1536-byte point/normal
-arrays, and the indexed-element pointer graph. The imported point/normal
-arrays and the descriptor's 384-, 384-, 768-, and 1024-byte children contain
-zero bytes in this on-disc Fix.gpt snapshot. That observation describes the
-serialized state only; it does not establish that the game never fills or
-interprets these allocations later. The constructor is used by the
-[`SHW_fn_vInitShadow`](../../reference/decompilation/functions/004e38f0_SHW_fn_vInitShadow.c)
-initializer for ten dynamic geometry objects and by the GLI reference-object
-initializer, but that shared constructor alone does not identify which
-producer owns these HUD references. During Fix load, `0040bcc0` relocates and
-stores the six pointers; the call chain does not call `GEO_vCreateGeometricObject`
-on these roots. `0040c300` attaches slots 2, 4, and 3 to the first descriptor's
-`+8` draw material for the three life quads; slot 3 is null in this save.
-`0040c720` attaches slots 1 and 0 to the second descriptor's `+8` material for
-the paired bar draws. The editor scene now records those material-to-slot
-bindings, without presenting guessed pixels.
+Consequently, the previous panel/material/slot mapping, layer mapping, Fix.sda
+table association and HUD element roles are unverified. Earlier Rete roots at
+`fix:/hud/en` and Godot files generated from them preserve parser assumptions,
+not validated source meaning. They must not be used, regenerated, attached to
+a gameplay scene, or merged as HUD data. Explicit `--content hud` now omits the
+asset and returns the stable `openspace.hud.layout_unverified` warning with the
+candidate cursor/schema mismatch. This does not affect scene, menu, or save
+imports. New Rete saves of the legacy type and Godot exports containing it are
+rejected until the reader and its regressions are source-validated. Legacy
+Rete files can still be read for inspection, but the prior import/export checks
+established only that the assumed records could be serialized; they did not
+establish that the offsets belong to HUD data.
 
-`GLI_xInitGli` (`00494660`) installs `LAB_00499df0` at function-table slot
-`0x15`, which is `DAT_007fecf4`; the dispatch mapping is confirmed. The
-callback's executable instructions at `00499df0..00499ecd` read the submitted
-handle's `+0x38` pointer and that child object's `+0x10` field when the draw
-flags allow it. They do not call `0049c070`. The latter is a distinct texture
-cache/upload path: `GLI_xCreateTexture` allocates and initializes a `0xbc`-byte
-GLI texture object, `FUN_0049c300`/`0049c100` queue those objects, and
-`FUN_0049c070` reads their `+0x38` Glide texture state before calling
-`grTexDownloadMipMap`.
-
-The three HUD handles instead resolve to `0x30`-byte GEO roots with type/count
-`(0x80, 1)`, matching the layout made by `GEO_vCreateGeometricObject`.
-`0040bcc0` loads and stores their Fix references;
-`0040c300` binds them to a material and submits the HUD quads; neither function
-converts these roots into the `0xbc` GLI texture object. The callback reads
-`handle+0x38`, which is beyond the GEO root, but it does not write or populate
-the handle. The callback target is known; the remaining source gap is the
-bridge/producer that would make these GEO handles valid for that backend
-access, or proof that the presumed handle role/layout is wrong. No function
-in the traced Fix-load, HUD-draw, or callback path establishes that bridge. I
-stopped source tracing at this boundary for review. Serialized zero bytes
-still do not prove missing artwork or runtime-generated content, so these
-objects are not treated as named textures or exported as substitute art.
-`FUN_00483860` and `FUN_00483930` serialize and restore GLI global
-texture-cache state, but do not bridge these Fix handles to archive image
-names. A bounded audit of this local Fix.ptx resolves 435 relocated
-TextureInfo records; all 435 have names and all
-435 names match entries in `Textures.cnt`. That table includes candidates such
-as `fixtex/stencil/jauges/vie/vie0.tga` and `vie1.tga`, but none of the three
-HUD handle addresses occurs in the Fix.ptx pointer list or in those records'
-188-byte fields. The standard named texture loader
-([`GLI_xLoadTextureInTexelField`](../../reference/decompilation/functions/004828e0_GLI_xLoadTextureInTexelField.c))
-does not by itself establish how these GPT handles join that table. Keep the
-source-to-PTX/CNT handle mapping unresolved; do not assign even the plausible
-life images until the link is proven. An unrelocated panel-layer handle is
-retained as four opaque bytes; the exporter emits no guessed texture links or
-substitute UI art.
-
-Fix.sda's HUD block begins at `0x9b4` and contains two source words, two text
-offsets, and two 24-by-6 tables. `0040d190` and `0040bfa0` show the rectangle
-row shape as `[x, y, x + width - 1, y + height - 1, width, height]`;
-`0040c020` copies entries from the first table into the second working table,
-which the draw routines use. The Godot scene stores both full tables and source
-identities as metadata. `0040c300` identifies life's background row 0 and bar
-row 1, using texture slots 2, 4, and 3 in draw order; slot 3 is null in this
-save. Native `TextureRect` and
-`TextureProgressBar` nodes preserve those edit points and bind the existing
-actor value script, but have no textures and draw no substitute meter. The
-selected-object and weapon positions use rows 10 and 22 as read by `0040ca40`
-and `0040cb50`. Armor and magic retain table metadata; their complete item/state
-art mapping remains open.
-
-The HUD importer completed for the local `manoir` profile and saved one
-`fix:/hud/en` Rete root with no diagnostics; Rete inspection succeeded. This
-source pass advances the Rete schema to 45 for the two explicit material
-links. A focused Godot 4.7.2 HUD-only export at schema 45/support interface 56
-completed with five manifest-owned files and no source or export diagnostics;
-Godot imported the native scene. The scene preserves the six runtime-global
-names, panel-layer and direct-draw material identities, and verified
-life/magic material-to-slot bindings, without assigning image resources. No
-gameplay session was run, and the separate HUD root is still not attached to
-the saved level screen, so on-screen behavior remains unverified.
+The decompiled draw procedures remain useful leads, but their operands cannot
+be assigned to the former imported descriptors or Fix.sda rows until the loader
+cursor is resolved. The maintained generic HUD support script is separate from
+this source extraction and is not evidence for the original layout. No HUD
+source metadata is currently wired to gameplay, and no source-derived HUD
+layout or artwork mapping is claimed. The corrected reader work is in progress;
+Rete schema/model changes should be coordinated with that implementation.
 
 ## Current boundary and next increments
 
@@ -307,8 +232,8 @@ Still required for manor fidelity: native font/frame pixel comparisons,
 line reveal and fade pacing, additional dialogue
 items and branching answers, channel/action/icon side effects, armor and
 selected-inventory/weapon values/icons, saved life-state restoration, and original
-vs Godot captures. HUD table rectangles are source-extracted, and layer records
-are decoded only for enabled source panels; this profile has none enabled.
+vs Godot captures. HUD table rectangles, layer records and their source
+associations remain unverified pending validated reader cursor accounting.
 Visible artwork mapping and dynamic draw behavior remain unverified.
 Fade geometry exists but unrelated source fade procedures are not promoted by
 this slice. Native voice teardown follows the existing emitter's stoppable-event

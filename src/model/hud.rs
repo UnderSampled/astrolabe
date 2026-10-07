@@ -1,60 +1,56 @@
-//! Source-derived Hype gameplay HUD presentation.
+//! Legacy HUD presentation shape retained while source layout validation is pending.
 use super::{AssetPath, ai::SourceObjectIdentity, io::Content};
-use anyhow::{Result, ensure};
+use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 
-/// Editable layout data for the shared Fix gameplay HUD.
+/// Unverified legacy layout data; retained only so old Rete assets can be inspected.
+/// Every field preserves a former parser assumption and has no validated source meaning.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HudPresentation {
     pub path: AssetPath,
     pub canvas_size: [u16; 2],
-    /// Four source panel descriptors, in original draw order.
+    /// Legacy field with unverified source meaning.
     pub panels: Vec<HudPanel>,
-    /// Six relocated Fix.gpt handles passed to GLI_xSetMaterialTexture, in read
-    /// order. FUN_0040bcc0 assigns them to globals 0060f62c, 0060f630,
-    /// 0060f620, 0060f624, 0060f628, 0060f63c. They are not proven PTX image
-    /// records. Draw uses include life slots 2, 4, 3; 0040c720 slots 1, 0; and
-    /// 0040c950 slot 5.
+    /// Legacy field with unverified source meaning.
     pub source_textures: [Option<SourceObjectIdentity>; 6],
-    /// The two 24-entry Fix.sda tables. The six floats in each row are retained
-    /// as stored; draw functions assign meaning to the fields they use.
+    /// Legacy field with unverified source meaning.
     pub rectangle_tables: [Vec<[f32; 6]>; 2],
-    /// The two uninterpreted source words preceding the documented text offsets.
+    /// Legacy field with unverified source meaning.
     pub source_words: [u32; 2],
-    /// Text offsets stored in Fix.sda; source order is preserved.
+    /// Legacy field with unverified source meaning.
     pub text_offsets: [[f32; 2]; 2],
-    /// Draw routines identify these useful placements in the second table.
+    /// Legacy field with unverified source meaning.
     pub elements: Vec<HudElementLayout>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HudPanel {
     pub enabled: bool,
-    /// Source layer-array allocation, including for panels disabled in this profile.
+    /// Legacy field with unverified source meaning.
     pub source_layers: Option<SourceObjectIdentity>,
-    /// The source graphics material used by the panel-layer path in FUN_0040c270.
+    /// Legacy field with unverified source meaning.
     pub layer_material: Option<SourceObjectIdentity>,
-    /// The direct-draw material in descriptor +8, used by the HUD draw routines.
+    /// Legacy field with unverified source meaning.
     pub draw_material: Option<SourceObjectIdentity>,
-    /// Original bytes when descriptor +8 is not a relocated address.
+    /// Legacy field with unverified source meaning.
     pub draw_material_word: Option<[u8; 4]>,
-    /// Bytes after the enabled/count fields; FUN_0040c270 does not read them.
+    /// Legacy field with unverified source meaning.
     pub source_unknown_bytes: [u8; 2],
-    /// Layer count declared in the source descriptor.
+    /// Legacy field with unverified source meaning.
     pub source_layer_count: u8,
-    /// Ordered source draw layers, once their pointed-to records are decoded.
+    /// Legacy field with unverified source meaning.
     pub layers: Vec<HudPanelLayer>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HudPanelLayer {
-    /// Handle at layer offset +0, passed to GLI_xSetMaterialTexture.
+    /// Legacy field with unverified source meaning.
     pub texture: Option<SourceObjectIdentity>,
-    /// Raw handle bytes when the source has no relocation binding for the word.
+    /// Legacy field with unverified source meaning.
     pub opaque_texture_word: Option<[u8; 4]>,
-    /// Source destination coordinates: x0, x1, y0, y1.
+    /// Legacy field with unverified source meaning.
     pub destination: [f32; 4],
-    /// Source normalized UV coordinates: u0, u1, v0, v1.
+    /// Legacy field with unverified source meaning.
     pub uv: [f32; 4],
 }
 
@@ -71,48 +67,8 @@ impl Content for HudPresentation {
         Some(&self.path)
     }
     fn validate(&self) -> Result<()> {
-        ensure!(
-            self.canvas_size == [640, 480],
-            "unsupported HUD source canvas"
-        );
-        ensure!(self.panels.len() == 4, "HUD requires four source panels");
-        for panel in &self.panels {
-            ensure!(
-                panel.layers.len() <= panel.source_layer_count as usize,
-                "HUD panel layer bound"
-            );
-            for layer in &panel.layers {
-                ensure!(
-                    layer.destination.iter().all(|v| v.is_finite())
-                        && layer.uv.iter().all(|v| v.is_finite()),
-                    "invalid HUD panel layer geometry {:?} / {:?}",
-                    layer.destination,
-                    layer.uv
-                );
-            }
-        }
-        for table in &self.rectangle_tables {
-            ensure!(table.len() == 24, "HUD rectangle table count differs");
-            for row in table {
-                ensure!(
-                    row.iter().all(|v| v.is_finite()),
-                    "non-finite HUD layout row"
-                );
-            }
-        }
-        ensure!(
-            self.text_offsets.iter().flatten().all(|v| v.is_finite()),
-            "non-finite HUD text offset"
-        );
-        ensure!(
-            self.elements.len() == 5
-                && self.elements.iter().all(|element| {
-                    element.table < 2
-                        && !element.entries.is_empty()
-                        && element.entries.iter().all(|index| *index < 24)
-                }),
-            "invalid HUD element layout map"
-        );
-        Ok(())
+        bail!(
+            "legacy HUD assets are inspection-only until the source reader and model are validated"
+        )
     }
 }

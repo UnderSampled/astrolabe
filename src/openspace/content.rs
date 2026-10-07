@@ -588,14 +588,22 @@ pub fn import_inventory(game: &Path, selection: Selection) -> Result<Imported> {
     Ok(imported)
 }
 
-/// Import the shared, source-authored manor HUD and retain unresolved GLI texture handles.
+/// Omit the optional Fix HUD until its sequential source reader is validated.
 pub fn import_hud(game: &Path, selection: Selection) -> Result<Imported> {
     let mut imported = Imported::new(selection.clone());
-    let presentation = level::import_hud_presentation(game, &selection)?;
-    imported.put(
-        &AssetRef::from_path(presentation.path.clone()),
-        presentation,
-        true,
-    )?;
+    if let Some(presentation) = level::import_hud_presentation(game, &selection)? {
+        imported.put(
+            &AssetRef::from_path(presentation.path.clone()),
+            presentation,
+            true,
+        )?;
+    } else {
+        imported.diagnostics.push(Diagnostic {
+            code: "openspace.hud.layout_unverified".into(),
+            asset: None,
+            severity: Severity::Warning,
+            message: "Omitted optional Fix HUD: the Fix.gpt cursor candidate at 0x4a24 and following six words do not validate the presumed descriptor and slot schema; source reader remains quarantined.".into(),
+        });
+    }
     Ok(imported)
 }
