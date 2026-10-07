@@ -156,21 +156,39 @@ the shared gate state. It returns a completed no-translation update because
 the clear rays reset the collision streak and that branch cannot set
 `DAT_007219d1`; source `0051c7b0` is therefore not called for this result.
 
-When either candidate ray is blocked, `0051f670` instead depends on the
-fallback candidate search in `0051fb50` and its `0052d1b0`/`0052caa0`
-classifications. That sweep's static angle/range arrays and source result
-classification are not yet represented by the Godot provider. The camera-owner
-flag used by a successful teleport gate is also not currently exported. The
-blocked path fails explicitly before it can claim a pose update. No observed
-runtime branch value is substituted for those inputs. The controller's
-process-wide hysteresis state remains represented by the session-shared
-`source_controller_state.gd` resource.
+The corrected `005200a0` dispatch reads process-global selector
+`DAT_00721b0c`: the zero-filled startup value selects `0051f670`, and the
+source camera-mode input actions write 1 or 0. The pitch/yaw sweep
+`0051fb50` is not a generic response to a blocked ray. It runs only after the
+selected controller returns zero while `DAT_007218fc` is set. The selected
+Manor startup controller `0051f670` does not set that flag. The Godot update
+therefore no longer dispatches the sweep after an arbitrary blocked ray; it
+returns false with a warning until the blocked-result state changes of
+`0051f670` are represented. Selector 1 currently fails explicitly because
+`0051f290` and its `0052bb50`/`0051f040`/`0051f250` fallback state machine are
+not ported. The sweep/classification helpers remain exercised as helpers, not
+as a claim that either production branch has completed a blocked update.
+
+The mode-0 update obtains this selector from the session-shared
+`source_controller_state.gd`, initialized to the zero-filled source startup
+value. `DAT_007218fc` is not inferred from collision geometry. The camera-owner
+Position bit-2 writer/clearer remains exposed, while updates with that bit set
+fail explicitly because `0051db70` selects the unmapped Position `+0x50`
+controller-vector path. `0051c7b0` still has a conditional translation
+publisher and source-sector decision, but the blocked source branch does not
+yet reach it from the native update.
 
 The other startup inputs now have source-backed adapters: the target's source
 +Y orientation selector, camera-owner Position sentinel bounds, Godot Y-up
 conversion, and the sector border-GEO lookup. The three collision rays reuse
 exported source collision identifiers, reachable sectors, and owner/target
 exclusions.
+
+Letterboxing already has a maintained `Screen` component: compiled source UI
+calls route to `source_toggle_widescreen()`, which shows the bars and suppresses
+the HUD. `tests/check_ui.gd` covers that toggle. The remaining letterbox question
+for the complete New Game demo is whether the converted intro invokes it at the
+source timing; this camera change does not alter that UI path.
 
 ## Checks
 
@@ -201,3 +219,11 @@ again (1 passed, 4 ignored). Its first invocation failed before assertions when
 `TMPDIR` set to an ignored checkout-owned directory. The temporary directory
 was removed afterward. `cargo fmt --all -- --check` and `git diff --check`
 passed on the integrated diff as well.
+
+The source-dispatch correction adds tests for the zero-initialized
+`DAT_00721b0c` selector, its two source-written values, the fallback sweep's
+classification helper, and a blocked `0051f670` update that returns false
+without moving the owner. The focused camera test passed on Godot 4.7.2; its
+blocked case emits the explicit unsupported-path warning. No original-game run
+was made. This still does not accept the complete Manor intro camera or its
+letterbox timing.

@@ -269,6 +269,172 @@ func source_mode_zero_distance_class(current_eye: Vector3, anchor_3c: Vector3) -
         return 0
     return 1
 
+## 0052d1b0 returns 1 for the 0052a740 sector/superobject precheck, 2 for
+## the 00463df0 camera ray, 3 for either 0052caa0 range rejection, and 4 for
+## the first accepted candidate. Both collision paths reuse exported Godot
+## collision shapes with their source sector/material/actor filters.
+func source_mode_zero_candidate_classification(
+    anchor_3c: Vector3,
+    origin_18: Vector3,
+    candidate: Vector3,
+    context: Dictionary = {}
+) -> Dictionary:
+    if not anchor_3c.is_finite() or not origin_18.is_finite() or not candidate.is_finite():
+        push_error("Source mode-0 fallback candidate contains a nonfinite point")
+        return {}
+    var collision_context := context
+    if collision_context.is_empty():
+        collision_context = _source_collision_context()
+    if collision_context.is_empty():
+        return {}
+    var geometry_context := {"reachable": collision_context["geometry_reachable"]}
+    # 00529ef0 rounds both endpoints to the nearest millimeter before its
+    # source-sector geometry query. The subsequent 00463df0 ray keeps floats.
+    var geometry_blocked: Variant = _source_camera_ray_blocked(
+        _source_mode_zero_quantize(anchor_3c),
+        _source_mode_zero_quantize(candidate),
+        geometry_context,
+        true,
+        false
+    )
+    if geometry_blocked == null:
+        return {}
+    if bool(geometry_blocked):
+        return {"classification": 1, "range_class": 0}
+    var camera_ray_blocked: Variant = _source_camera_ray_blocked(origin_18, candidate, collision_context)
+    if camera_ray_blocked == null:
+        return {}
+    if bool(camera_ray_blocked):
+        return {"classification": 2, "range_class": 0}
+    var range_class: Variant = _source_mode_zero_fallback_distance_class(candidate, anchor_3c)
+    if range_class == null:
+        return {}
+    return {"classification": 4 if int(range_class) == 0 else 3, "range_class": int(range_class)}
+
+## Exact 0051fb50 attempt order: three fixed zero-yaw pitches, then three
+## pitch rows by eight yaw slots. The eighth inner yaw reads the overlapping
+## 0.3 value at DAT_005fccb8, as the source's eight-float loop does.
+func source_mode_zero_fallback_sweep(
+    anchor_3c: Vector3,
+    origin_18: Vector3,
+    orientation_54: Vector3
+) -> Dictionary:
+    if not anchor_3c.is_finite() or not origin_18.is_finite() or not orientation_54.is_finite():
+        push_error("Source mode-0 fallback sweep inputs are nonfinite")
+        return {}
+    if mode_zero_distance.x <= 0.0 or mode_zero_distance.y < mode_zero_distance.x:
+        push_error("Source mode-0 fallback sweep requires valid camera distance parameters")
+        return {}
+    if controller_state == null or not controller_state.has_method("record_mode_zero_fallback"):
+        push_error("Source camera controller state is not bound for the fallback sweep")
+        return {}
+    var context := _source_collision_context()
+    if context.is_empty():
+        return {}
+    var attempts := 0
+    var first_obstructed_position := Vector3.ZERO
+    var has_obstructed_position := false
+    for pitch_value in SOURCE_MODE_ZERO_FALLBACK_PITCHES:
+        var candidate := _source_mode_zero_fallback_candidate(anchor_3c, orientation_54, 0.0, float(pitch_value))
+        if candidate.is_empty():
+            return {}
+        attempts += 1
+        var classification := source_mode_zero_candidate_classification(anchor_3c, origin_18, candidate["position"], context)
+        if classification.is_empty():
+            return {}
+        var source_class := int(classification["classification"])
+        if source_class == 2 and not has_obstructed_position:
+            first_obstructed_position = candidate["position"]
+            has_obstructed_position = true
+            if not bool(controller_state.call("record_mode_zero_obstruction", first_obstructed_position)):
+                push_error("Source mode-0 controller rejected the first obstructed sweep point")
+                return {}
+        if source_class == 4:
+            if not bool(controller_state.call("record_mode_zero_fallback", 0.0, float(pitch_value), candidate["position"])):
+                push_error("Source mode-0 controller rejected the accepted fallback candidate")
+                return {}
+            return {
+                "success": true,
+                "classification": 4,
+                "position": candidate["position"],
+                "yaw": 0.0,
+                "pitch": float(pitch_value),
+                "attempts": attempts,
+                "has_obstruction": has_obstructed_position,
+                "obstruction_position": first_obstructed_position,
+            }
+    for pitch_value in SOURCE_MODE_ZERO_FALLBACK_PITCHES:
+        for yaw_value in SOURCE_MODE_ZERO_FALLBACK_YAWS:
+            var yaw := float(yaw_value)
+            var pitch := float(pitch_value)
+            var candidate := _source_mode_zero_fallback_candidate(anchor_3c, orientation_54, yaw, pitch)
+            if candidate.is_empty():
+                return {}
+            attempts += 1
+            var classification := source_mode_zero_candidate_classification(anchor_3c, origin_18, candidate["position"], context)
+            if classification.is_empty():
+                return {}
+            var source_class := int(classification["classification"])
+            if source_class == 2 and not has_obstructed_position:
+                first_obstructed_position = candidate["position"]
+                has_obstructed_position = true
+                if not bool(controller_state.call("record_mode_zero_obstruction", first_obstructed_position)):
+                    push_error("Source mode-0 controller rejected the first obstructed sweep point")
+                    return {}
+            if source_class == 4:
+                if not bool(controller_state.call("record_mode_zero_fallback", yaw, pitch, candidate["position"])):
+                    push_error("Source mode-0 controller rejected the accepted fallback candidate")
+                    return {}
+                return {
+                    "success": true,
+                    "classification": 4,
+                    "position": candidate["position"],
+                    "yaw": yaw,
+                    "pitch": pitch,
+                    "attempts": attempts,
+                    "has_obstruction": has_obstructed_position,
+                    "obstruction_position": first_obstructed_position,
+                }
+    return {
+        "success": false,
+        "classification": 0,
+        "attempts": attempts,
+        "has_obstruction": has_obstructed_position,
+        "obstruction_position": first_obstructed_position,
+    }
+
+func _source_mode_zero_fallback_candidate(
+    anchor_3c: Vector3,
+    orientation_54: Vector3,
+    yaw: float,
+    pitch: float
+) -> Dictionary:
+    var direction := _source_rotate_mode_zero(orientation_54, yaw, pitch)
+    if not direction.is_finite() or direction.length_squared() < 0.0000000001:
+        push_error("Source mode-0 fallback direction is invalid")
+        return {}
+    return {"position": anchor_3c + direction.normalized() * mode_zero_distance.x}
+
+func _source_mode_zero_fallback_distance_class(candidate: Vector3, anchor_3c: Vector3) -> Variant:
+    if not mode_zero_distance.is_finite() or mode_zero_distance.x < 0.0 or mode_zero_distance.y < mode_zero_distance.x:
+        push_error("Source 0052caa0 camera range inputs are invalid")
+        return null
+    var minimum := mode_zero_distance.x - SOURCE_MODE_ZERO_FALLBACK_MIN_MARGIN
+    var maximum := mode_zero_distance.y + SOURCE_MODE_ZERO_RANGE_MAX_PADDING + SOURCE_MODE_ZERO_FALLBACK_MAX_MARGIN
+    var distance := candidate.distance_to(anchor_3c)
+    if distance < minimum - SOURCE_MODE_ZERO_FALLBACK_RANGE_EPSILON:
+        return -1
+    if maximum < distance:
+        return 1
+    return 0
+
+func _source_mode_zero_quantize(point: Vector3) -> Vector3:
+    return Vector3(
+        roundf(point.x * 1000.0) * 0.001,
+        roundf(point.y * 1000.0) * 0.001,
+        roundf(point.z * 1000.0) * 0.001
+    )
+
 func _source_camera_angles(current: Vector3, target: Vector3) -> Dictionary:
     var from := current.normalized()
     var to := target.normalized()
@@ -435,10 +601,39 @@ func source_mode_zero_collision_inputs(
     return {
         "anchor_to_eye_blocked": bool(anchor_to_eye),
         "origin_to_eye_blocked": bool(origin_to_eye),
+        "candidate_result": not bool(anchor_to_eye) and not bool(origin_to_eye),
         "target_head_checked": target_head_checked,
         "origin_to_target_head_blocked": bool(origin_to_target_head),
         "candidate_collision_streak": streak,
     }
+
+## 00440fe0 sets owner Position bit 2 and writes the associated +0x50 vector.
+## The intro starts with flags clear from 004406d0; expose the writer so later
+## compiled camera procedures can carry the exact owner state into this gate.
+func source_owner_position_flag_word() -> int:
+    var owner := get_parent() as Node
+    if owner != null and owner.has_meta("source_position_flag_word"):
+        return int(owner.get_meta("source_position_flag_word"))
+    return source_owner_position_flags
+
+func source_owner_set_target_offset(offset: Vector3) -> bool:
+    if not offset.is_finite():
+        return false
+    var owner := get_parent() as Node
+    if owner == null:
+        return false
+    source_owner_position_flags = source_owner_position_flag_word() | SOURCE_POSITION_FLAG_HAS_TARGET_OFFSET
+    owner.set_meta("source_position_flag_word", source_owner_position_flags)
+    owner.set_meta("source_position_target_offset", offset)
+    return true
+
+func source_owner_clear_position_flags(mask: int) -> bool:
+    var owner := get_parent() as Node
+    if owner == null:
+        return false
+    source_owner_position_flags = source_owner_position_flag_word() & ~mask
+    owner.set_meta("source_position_flag_word", source_owner_position_flags)
+    return true
 
 ## 0051c7b0 tests its third position argument against the active source sector.
 ## It publishes that point when it belongs to another sector, otherwise its
@@ -540,17 +735,55 @@ func _source_collision_context() -> Dictionary:
         sector = _source_sector_for(get_parent())
     while is_instance_valid(sector):
         if sector.has_meta("source_sector") and sector.has_meta("source_sector_id"):
-            var source_data = JSON.parse_string(str(sector.get_meta("source_sector")))
-            if not source_data is Dictionary or not source_data.has("collision"):
-                push_error("Source camera sector metadata has no collision-neighbor list")
+            var camera_sector := sector
+            var camera_reachable := _source_collision_sectors([camera_sector])
+            if camera_reachable.is_empty():
                 return {}
-            var reachable := {str(sector.get_meta("source_sector_id")): true}
-            for neighbor in source_data["collision"]:
-                reachable[str(neighbor)] = true
-            return {"sector": sector, "reachable": reachable}
+            var geometry_sectors: Array[Node] = [camera_sector]
+            var target_sector := _source_sector_for(targeted_actor) if is_instance_valid(targeted_actor) else null
+            if target_sector != null and target_sector != camera_sector:
+                geometry_sectors.append(target_sector)
+            var geometry_reachable := _source_collision_sectors(geometry_sectors)
+            if geometry_reachable.is_empty():
+                return {}
+            return {
+                "sector": camera_sector,
+                "reachable": camera_reachable,
+                "geometry_reachable": geometry_reachable,
+            }
         sector = sector.get_parent()
     push_error("Source camera has no owning source sector metadata")
     return {}
+
+## 00529ef0 checks the camera/controller sector and target sector directly,
+## then collision-list neighbors whose source activation word has bit 2.
+## 00463df0 uses the active camera sector's collision list.
+func _source_collision_sectors(direct_sectors: Array[Node]) -> Dictionary:
+    var root := _source_level_root()
+    var reachable: Dictionary = {}
+    for direct_sector in direct_sectors:
+        if not is_instance_valid(direct_sector) or not direct_sector.has_meta("source_sector_id"):
+            push_error("Source mode-0 collision query has an unbound direct sector")
+            return {}
+        var sector_id := str(direct_sector.get_meta("source_sector_id"))
+        var source_data = JSON.parse_string(str(direct_sector.get_meta("source_sector", "")))
+        if not source_data is Dictionary or not source_data.has("collision"):
+            push_error("Source mode-0 sector metadata has no collision-neighbor list")
+            return {}
+        reachable[sector_id] = true
+        for neighbor in source_data["collision"]:
+            var neighbor_id := str(neighbor)
+            var neighbor_sector := _find_source_sector(root, neighbor_id)
+            if neighbor_sector == null:
+                push_error("Source collision list references an unbound sector")
+                return {}
+            var neighbor_data = JSON.parse_string(str(neighbor_sector.get_meta("source_sector", "")))
+            if not neighbor_data is Dictionary or not neighbor_data.has("activation"):
+                push_error("Source collision neighbor has no activation metadata")
+                return {}
+            if (int(neighbor_data["activation"]) & 2) != 0:
+                reachable[neighbor_id] = true
+    return reachable
 
 ## 00448280/004e03f0 retain the previous camera position and walk through the
 ## first one-sided boundary face in each active sector. This updates the same
@@ -615,7 +848,15 @@ func _find_source_sector(root: Node, sector_id: String) -> Node:
             return found
     return null
 
-func _source_camera_ray_blocked(start: Vector3, finish: Vector3, context: Dictionary) -> Variant:
+func _source_camera_ray_blocked(
+    start: Vector3,
+    finish: Vector3,
+    context: Dictionary,
+    static_geometry_only: bool = false,
+    apply_material_filter: bool = true
+) -> Variant:
+    if start.is_equal_approx(finish):
+        return false
     var owner_node := get_parent() as CollisionObject3D
     var excluded: Array[RID] = []
     if owner_node != null:
@@ -643,13 +884,19 @@ func _source_camera_ray_blocked(start: Vector3, finish: Vector3, context: Dictio
         var sector_id := str(sector.get_meta("source_sector_id", "")) if sector != null else ""
         var reachable_hit := reachable.has(sector_id)
         var reachable_static := not collider is StaticBody3D or bool(collider.get_meta("source_collision_reachable", false))
-        if reachable_hit and reachable_static and (identifier & 0x8000) == 0:
-            return true
-        var rid: RID = hit["rid"]
-        if excluded.has(rid):
-            push_error("Source mode-0 ray cannot advance past an ignored collision shape")
-            return null
-        excluded.append(rid)
+        var eligible_geometry := not static_geometry_only or collider is StaticBody3D
+        if not reachable_hit or not reachable_static or not eligible_geometry:
+            var ignored_rid: RID = hit["rid"]
+            if excluded.has(ignored_rid):
+                push_error("Source mode-0 ray cannot advance past an out-of-context collision shape")
+                return null
+            excluded.append(ignored_rid)
+            continue
+        if apply_material_filter and (identifier & 0x8000) != 0:
+            # 00463df0 returns clear immediately for the first hit carrying
+            # material identifier bit 0x8000.
+            return false
+        return true
     push_error("Source mode-0 ray exceeded its ignored-collider limit")
     return null
 
@@ -669,6 +916,21 @@ func _source_update_mode_zero() -> bool:
     if owner == null or not owner.is_inside_tree():
         push_error("Source mode-0 camera owner is not in the scene tree")
         return false
+    if controller_state == null or not controller_state.has_method("begin_mode_zero_update"):
+        push_error("Source camera controller state is not bound for a mode-0 update")
+        return false
+    if not controller_state.has_method("mode_zero_collision_selector"):
+        push_error("Source camera controller state does not expose DAT_00721b0c")
+        return false
+    var collision_selector := int(controller_state.call("mode_zero_collision_selector"))
+    if collision_selector != 0:
+        push_error("Source DAT_00721b0c selects 0051f290; its 0052bb50/0051f040/0051f250 state machine is not implemented")
+        return false
+    var owner_flags := source_owner_position_flag_word()
+    if (owner_flags & SOURCE_POSITION_FLAG_HAS_TARGET_OFFSET) != 0:
+        push_error("Source camera owner bit 2 selects the Position+0x50 controller vector path in 0051db70; that input is not yet mapped")
+        return false
+    controller_state.call("begin_mode_zero_update")
     var orientation_data := source_mode_zero_orientation_54()
     if orientation_data.is_empty():
         return false
@@ -685,25 +947,49 @@ func _source_update_mode_zero() -> bool:
     var collision := source_mode_zero_collision_inputs(anchor_3c, current_eye, candidate["position"])
     if collision.is_empty():
         return false
-    if bool(collision["anchor_to_eye_blocked"]) or bool(collision["origin_to_eye_blocked"]):
-        if not _reported_mode_zero_gap:
-            push_error("Source mode-0 update has a blocked candidate ray; the 0051fb50 fallback sweep and 0052d1b0/0052caa0 classifications are not connected, so pose publication is withheld")
-            _reported_mode_zero_gap = true
+    var candidate_result := bool(collision["candidate_result"])
+    if not candidate_result:
+        # The initial source selector chooses 0051f670. It does not set
+        # DAT_007218fc, so a blocked ray alone does not dispatch 0051fb50.
+        # The exact blocked-result state changes from 0051f670 are not present
+        # in the available source artifact; do not fabricate a fallback pose.
+        push_warning("Source 0051f670 found a blocked camera ray; its blocked-result controller transition is not implemented, and DAT_007218fc does not authorize 0051fb50 here")
+        return false
+    if not bool(controller_state.call("record_mode_zero_good_position", candidate["position"])):
+        push_error("Source camera controller state rejected the current clear candidate")
         return false
     var distance_class: Variant = source_mode_zero_distance_class(current_eye, anchor_3c)
     if distance_class == null:
         return false
-    # Clear candidate rays reset the source collision streak. In this branch
-    # the range hysteresis therefore cannot request 0051c7b0, and the owner's
-    # flag bit is not read by the source gate.
     var teleport_requested := evaluate_mode_zero_teleport_gate(
-        true, false, false, false, int(distance_class), current_eye,
-        anchor_3c, mode_zero_distance.y, false, false
+        candidate_result,
+        false,
+        false,
+        bool(controller_state.call("mode_zero_update_has_position")),
+        int(distance_class),
+        current_eye,
+        anchor_3c,
+        mode_zero_distance.y,
+        bool(collision["origin_to_eye_blocked"]),
+        (owner_flags & SOURCE_POSITION_FLAG_HAS_TARGET_OFFSET) != 0
     )
     if teleport_requested:
-        push_error("Source mode-0 clear-ray gate requested an unexpected translation despite a cleared collision streak")
-        return false
-    # Source 005200a0 computes the candidate on this path but writes an owner
-    # translation only when DAT_007219d1 is set. A clear-ray gate result is a
-    # completed no-translation update, not a guessed pose.
+        var obstruction_position: Vector3 = controller_state.call("mode_zero_last_obstructed_position")
+        if not bool(controller_state.call("mode_zero_has_obstructed_position")):
+            push_error("Source 0051c7b0 gate fired without a source-observed DAT_007219c4 obstruction point")
+            return false
+        var last_good_position: Vector3 = controller_state.call("mode_zero_last_good_position")
+        var sector_result := source_resolve_mode_zero_sector(obstruction_position)
+        if not bool(sector_result.get("complete", false)):
+            push_error("Source 0051c7b0 pose publication needs a complete 004e0020 sector result")
+            return false
+        if not source_publish_mode_zero_translation(
+            obstruction_position,
+            last_good_position,
+            str(sector_result.get("sector_id", ""))
+        ):
+            push_error("Source 0051c7b0 rejected the conditional mode-0 translation")
+            return false
+    # 005200a0 computes the candidate, runs obstruction/range hysteresis, and
+    # writes the owner translation only when DAT_007219d1 reaches 0051c7b0.
     return true
