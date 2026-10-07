@@ -73,6 +73,23 @@ pub(super) fn export(
             project.write(format!("{directory}/{}_{name}.png", item.name), &bytes)?;
         }
     }
+    let configuration_directory = if let Some(configuration) = &value.configuration {
+        let directory = disk_path(&project.selection, &configuration.path, "");
+        let directory = directory.trim_end_matches('.').to_owned();
+        for item in &configuration.items {
+            for (state, sprites) in [("normal", &item.normal), ("selected", &item.selected)] {
+                project.write(
+                    format!("{directory}/{}_{state}.png", item.name),
+                    &raster(item, sprites, source)?,
+                )?;
+            }
+        }
+        let background = source.load(&configuration.background)?;
+        project.save(&configuration.background, background.as_ref())?;
+        Some(directory)
+    } else {
+        None
+    };
     for reference in [&value.navigation, &value.confirmation] {
         let sound = source.load(reference)?;
         project.save(reference, sound.as_ref())?;
@@ -81,11 +98,18 @@ pub(super) fn export(
         let background = source.load(reference)?;
         project.save(reference, background.as_ref())?;
     }
+    if let (Some(configuration), Some(directory)) = (&value.configuration, &configuration_directory)
+    {
+        project.write(
+            format!("{directory}/menu.tscn"),
+            configuration_scene(project, configuration, directory)?.as_bytes(),
+        )?;
+    }
     project.write(
         format!("{directory}/menu.tscn"),
         scene(project, value, directory)?.as_bytes(),
     )?;
-    project.diagnostic(format!("{}: English source layout/actions/navigation exported as editable native Controls; original normal/glow artwork baked ahead of runtime; music and submenu implementations remain separate",value.path));
+    project.diagnostic(format!("{}: English source layout/actions/navigation exported as editable native Controls; original normal/glow artwork baked ahead of runtime; the source-backed sound configuration page is exported with native sliders",value.path));
     Ok(())
 }
 fn node_name(name: &str) -> String {
@@ -226,11 +250,127 @@ fn scene(project: &Project, value: &MenuPresentation, directory: &str) -> Result
     ] {
         writeln!(
             text,
-            "\n[node name={} type=\"AudioStreamPlayer\" parent=\"Audio\"]\nstream = ExtResource({})\nvolume_db = {}",
+            "\n[node name={} type=\"AudioStreamPlayer\" parent=\"Audio\"]\nbus = \"Astrolabe Effects\"\nstream = ExtResource({})\nvolume_db = {}",
             quoted(name),
             quoted(id),
             if gain > 0. { 20. * gain.log10() } else { -80. }
         )?;
+    }
+    Ok(text)
+}
+
+fn configuration_scene(
+    project: &Project,
+    configuration: &MenuConfiguration,
+    directory: &str,
+) -> Result<String> {
+    let sound_tab = configuration
+        .items
+        .iter()
+        .find(|item| item.action == "Sound" && item.label == "sound")
+        .context("source Sound tab absent")?;
+    let rows = ["music", "sound", "voices"].map(|label| {
+        configuration
+            .items
+            .iter()
+            .find(|item| item.action == "DisplayWithSound" && item.label == label)
+            .with_context(|| format!("source {label} volume label absent"))
+    });
+    let rows = rows.into_iter().collect::<Result<Vec<_>>>()?;
+    let mut text = String::from("[gd_scene load_steps=11 format=3]\n\n");
+    for (id, kind, path) in [
+        ("settings", "Script", "game/settings_menu.gd"),
+        ("button", "Script", "addons/astrolabe/ui/menu/button.gd"),
+        ("theme", "Theme", "addons/astrolabe/ui/menu/theme.tres"),
+    ] {
+        writeln!(
+            text,
+            "[ext_resource type={} path={} id={}]",
+            quoted(kind),
+            quoted(&format!("res://{path}")),
+            quoted(id)
+        )?;
+    }
+    writeln!(
+        text,
+        "[ext_resource type=\"Texture2D\" path={} id=\"background\"]",
+        quoted(&format!(
+            "res://{}",
+            disk_path(&project.selection, &configuration.background.path, "png")
+        ))
+    )?;
+    for (item, state) in std::iter::once((sound_tab, "normal"))
+        .chain(std::iter::once((sound_tab, "selected")))
+        .chain(rows.iter().map(|item| (*item, "normal")))
+    {
+        writeln!(
+            text,
+            "[ext_resource type=\"Texture2D\" path={} id={}]",
+            quoted(&format!("res://{directory}/{}_{state}.png", item.name)),
+            quoted(&format!("{}_{}", item.name, state))
+        )?;
+    }
+    let load_steps = 4 + 2 + rows.len() + 1 + 1;
+    writeln!(
+        text,
+        "\n[sub_resource type=\"CanvasItemMaterial\" id=\"Additive\"]\nblend_mode = 1\n\n[node name=\"ConfigurationMenu\" type=\"Control\"]\nlayout_mode = 3\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\ngrow_horizontal = 2\ngrow_vertical = 2\ntheme = ExtResource(\"theme\")\nscript = ExtResource(\"settings\")\ncanvas_size = Vector2(640, 480)\ninitial_focus = NodePath(\"Canvas/Audio/Music\")\nmetadata/source_initial_item = {}\n\n[node name=\"Canvas\" type=\"Control\" parent=\".\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\n\n[node name=\"Background\" type=\"TextureRect\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\ntexture = ExtResource(\"background\")\nexpand_mode = 1\nstretch_mode = 0",
+        quoted(&configuration.initial_item)
+    )?;
+    let [x, y, w, h] = sound_tab.rect;
+    let left = sound_tab.position[0] + x;
+    let top = sound_tab.position[1] + y;
+    writeln!(
+        text,
+        "\n[node name=\"Sound\" type=\"Button\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_left = {left}\noffset_top = {top}\noffset_right = {}\noffset_bottom = {}\ntext = \"\"\nscript = ExtResource(\"button\")\naction = &\"Sound\"\nnormal_texture = ExtResource({})\nselected_texture = ExtResource({})\nmetadata/source_action = \"Sound\"",
+        left + w,
+        top + h,
+        quoted(&format!("{}_normal", sound_tab.name)),
+        quoted(&format!("{}_selected", sound_tab.name))
+    )?;
+    writeln!(
+        text,
+        "\n[node name=\"Artwork\" type=\"TextureRect\" parent=\"Canvas/Sound\"]\nmaterial = SubResource(\"Additive\")\nlayout_mode = 1\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\ngrow_horizontal = 2\ngrow_vertical = 2\nmouse_filter = 2\ntexture = ExtResource({})\nexpand_mode = 1\nstretch_mode = 0",
+        quoted(&format!("{}_normal", sound_tab.name))
+    )?;
+    writeln!(
+        text,
+        "\n[node name=\"Audio\" type=\"Control\" parent=\"Canvas\"]\nlayout_mode = 0\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2"
+    )?;
+    for (index, (item, bus)) in rows.iter().zip(["Music", "Effects", "Voices"]).enumerate() {
+        let id = format!("{}_normal", item.name);
+        let x = item.position[0] + item.rect[0];
+        let y = item.position[1] + item.rect[1];
+        writeln!(
+            text,
+            "\n[node name={} type=\"TextureRect\" parent=\"Canvas\"]\nmaterial = SubResource(\"Additive\")\nlayout_mode = 0\noffset_left = {x}\noffset_top = {y}\noffset_right = {}\noffset_bottom = {}\nmouse_filter = 2\ntexture = ExtResource({})\nexpand_mode = 1\nstretch_mode = 0\nmetadata/source_action = \"DisplayWithSound\"\nmetadata/volume_bus = {}",
+            quoted(&item.name),
+            x + item.rect[2],
+            y + item.rect[3],
+            quoted(&id),
+            quoted(bus)
+        )?;
+        // The original background places each source label above a vertical slot.
+        // FUN_00413bd0/FUN_00412030 map 0..127 from the slot bottom to its top.
+        let center_x = item.position[0];
+        writeln!(
+            text,
+            "\n[node name={} type=\"VSlider\" parent=\"Canvas/Audio\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = 220.0\noffset_right = {}\noffset_bottom = 338.0\nmin_value = 0.0\nmax_value = 127.0\nstep = 1.0\nvalue = 127.0\nmetadata/source_slider = \"Slider{}\"\nmetadata/source_position = Vector3({}, {}, {})\nmetadata/source_action = \"DisplayWithSound\"\nmetadata/volume_bus = {}",
+            quoted(bus),
+            center_x - 10.0,
+            center_x + 10.0,
+            index + 1,
+            configuration.slider_positions[index][0],
+            configuration.slider_positions[index][1],
+            configuration.slider_positions[index][2],
+            quoted(bus)
+        )?;
+    }
+    writeln!(
+        text,
+        "\n[node name=\"Back\" type=\"Button\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_left = 32.0\noffset_top = 424.0\noffset_right = 180.0\noffset_bottom = 464.0\ntext = \"Back\"\nfocus_neighbor_top = NodePath(\"../Audio/Music\")"
+    )?;
+    if load_steps != 11 {
+        anyhow::bail!("configuration scene resource count differs");
     }
     Ok(text)
 }
@@ -335,6 +475,18 @@ mod tests {
                     && text.contains("action = &\"SavedGames\"")
                     && text.contains("focus_neighbor_top = NodePath(\"../Quit\")"),
                 "native menu layout/action/nav differs"
+            );
+            let configuration_scene = project
+                .stage
+                .path()
+                .join("generated/hype/shared/menu/configuration/en/menu.tscn");
+            let configuration_text = std::fs::read_to_string(configuration_scene)?;
+            ensure!(
+                configuration_text.matches(" type=\"VSlider\"").count() == 3
+                    && configuration_text.contains("metadata/source_slider = \"Slider1\"")
+                    && configuration_text.contains("type=\"Texture2D\" path=\"res://generated/hype/textures/MENU/Config_back.gf.png\"")
+                    && configuration_text.contains("metadata/source_action = \"DisplayWithSound\""),
+                "native configuration labels/source sliders/backdrop differ"
             );
         }
         std::fs::create_dir_all(&project_output)?;

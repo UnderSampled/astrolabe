@@ -1,7 +1,8 @@
 extends Node3D
 ## Engine sound semantics over converted waveforms. Resource selection is compiled code.
 signal voice_started(info: Dictionary)
-@export var bus: StringName = &"Master"
+@export var bus: StringName = &"Astrolabe Effects"
+@export var voice_bus: StringName = &"Astrolabe Voice"
 @export var enabled: bool = true
 var selectors: Dictionary = {}
 var voices: Array[Dictionary] = []
@@ -34,7 +35,7 @@ func choose_weighted(key: String, weights: PackedFloat32Array, repeats: PackedBy
 func play_voice(voice: Resource, identity: String, pitch_variation: float, stoppable: bool, dynamic: bool) -> void:
     if not enabled or voice == null: return
     var player: Node = AudioStreamPlayer3D.new() if voice.spatial else AudioStreamPlayer.new()
-    player.bus = bus
+    player.bus = voice_bus
     player.stream = voice.stream
     player.volume_db = linear_to_db(maxf(voice.gain, 0.000001))
     player.pitch_scale = maxf(1.0 + random.randf_range(-pitch_variation, pitch_variation), 0.001) if voice.pitchable else 1.0

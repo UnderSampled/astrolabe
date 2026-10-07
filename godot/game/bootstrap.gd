@@ -2,6 +2,7 @@ extends Control
 ## Application/session routes around a generated, editable native menu scene.
 const MANOR := "res://generated/hype/levels/manoir/level.tscn"
 const MENU_SCENE := "res://generated/hype/shared/menu/main/en/menu.tscn"
+const CONFIGURATION_SCENE := "res://generated/hype/shared/menu/configuration/en/menu.tscn"
 const MENU_VIEW = preload("res://addons/astrolabe/ui/menu/menu.gd")
 const SAVE_STATE = preload("res://game/save_state.gd")
 
@@ -15,6 +16,7 @@ var load_game: Button
 var new_game: Button
 var quit_game: Button
 var opening_game := false
+var configuration: Control
 
 func _ready() -> void:
     if menu_scene == null and ResourceLoader.exists(MENU_SCENE):
@@ -73,10 +75,44 @@ func _on_menu_action(action: StringName) -> void:
         &"NewGame": _on_new_game_pressed()
         &"SavedGames": _on_load_game_pressed()
         &"Quit": _on_quit_pressed()
+        &"Options": _open_configuration()
         _:
             var selected := menu.button_for_action(action)
             details.text = (selected.text.capitalize() if selected != null else str(action)) + " is not implemented yet."
             status.show()
+
+func _open_configuration() -> void:
+    status.hide()
+    if not ResourceLoader.exists(CONFIGURATION_SCENE):
+        details.text = "Configuration assets have not been generated. Regenerate the menu content."
+        status.show()
+        return
+    var packed := load(CONFIGURATION_SCENE) as PackedScene
+    configuration = packed.instantiate() as Control if packed != null else null
+    if configuration == null:
+        details.text = "The generated configuration scene is invalid."
+        status.show()
+        return
+    menu.hide()
+    $MenuHost.add_child(configuration)
+    configuration.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    configuration.closed.connect(_close_configuration)
+    configuration.focus_initial()
+
+func _close_configuration() -> void:
+    if is_instance_valid(configuration): configuration.queue_free()
+    configuration = null
+    if is_instance_valid(menu):
+        menu.show()
+        var configure := menu.button_for_action(&"Options")
+        if configure != null: configure.grab_focus()
+
+func _input(event: InputEvent) -> void:
+    var key := event as InputEventKey
+    if key == null or not key.pressed or key.echo or key.physical_keycode != KEY_ESCAPE: return
+    if is_instance_valid(configuration) and configuration.visible:
+        get_viewport().set_input_as_handled()
+        _close_configuration()
 
 func _on_new_game_pressed() -> void:
     open_game("res://game/new_game.tscn", new_game)

@@ -12,10 +12,10 @@ font table, menu interpreter or source-disc access are needed at runtime.
 `NewGame` opens the actual manor opening through `game/new_game.tscn`;
 `SavedGames` keeps the existing Load Game/save route through `game/demo.tscn`.
 The named `NewGame` and `LoadGame` Buttons remain discoverable by session tests.
-Configure, credits and internet remain visible and selectable; activation reports
-that their submenu has not been implemented. It does not invent an application
-backend or open an obsolete external link. Menu music and spoken idle prompts
-remain outside this increment.
+Configure opens the source-backed sound settings page. Credits remains visible
+and reports that its presentation is not implemented; Internet does not launch
+the obsolete external URL. Menu music and spoken idle prompts remain outside
+this increment.
 
 Generate the independent menu closure with the same converter used for gameplay:
 
@@ -24,10 +24,17 @@ target/release/astrolabe port disc godot --level manoir --locale en --content me
 ```
 
 The `menu` publication owner is separate from `manoir`, so menu regeneration
-preserves generated gameplay. The complete background, item images and navigation
-and confirmation streams are required. Missing assets produce an explicit error
-and an exit button; no replacement menu artwork is synthesized. All extracted
-media and import caches remain ignored.
+preserves generated gameplay. It also exports
+`generated/hype/shared/menu/configuration/en/menu.tscn` with the original
+configuration backdrop and labels, plus native vertical Music, Sound and Voices sliders.
+The sliders store source-scale values from 0 to 127 in `user://hype-settings.cfg`
+and apply them to the Astrolabe Music, Effects and Voice buses. Missing menu or
+configuration media produces an explicit error; no replacement artwork is
+synthesized. All extracted media and import caches remain ignored.
+
+This increment implements the sound page only. The source Images and Controls
+pages still need native Godot mappings, including image-quality choices and
+input remapping.
 
 To improve the menu in the editor, create an inherited scene from the generated
 `menu.tscn`, save it under `game/menu/`, and assign it to the bootstrap's
@@ -63,8 +70,9 @@ pause or the main menu. Resume releases only the host's own pause, retains the
 same gameplay objects and writes no save. The installed `NextGame` action says
 "start a new adventure" and uses the existing New Game route after session
 teardown. The manual's contradictory load description is documented in the
-source note. Main menu uses the existing bootstrap route. Configure reports
-that configuration remains unimplemented; no settings backend is synthesized.
+source note. Main menu uses the existing bootstrap route. Configure overlays the
+same native sound settings scene while gameplay remains paused; Esc returns to
+the pause menu without resuming the game.
 Tab retains its manual inventory default. Closing a menu cancels pending audio
 confirmation so an old timer cannot route after closing or reopening.
 

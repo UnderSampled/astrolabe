@@ -445,23 +445,51 @@ fn import_menu_variant(game: &Path, selection: Selection, pause: bool) -> Result
             imported.put(&entry.texture, archive.image(entry)?.clone(), false)?;
         }
     }
+    if let Some(configuration) = &mut menu.configuration {
+        for sprite in configuration
+            .items
+            .iter_mut()
+            .flat_map(|item| item.normal.iter_mut().chain(&mut item.selected))
+        {
+            let entry = archive
+                .find_entry(sprite.texture.path.file())
+                .context("configuration font atlas absent from CNT")?;
+            sprite.texture = entry.texture.clone();
+            if !imported.assets.contains(&entry.texture.path) {
+                imported.put(&entry.texture, archive.image(entry)?.clone(), false)?;
+            }
+        }
+    }
     for (path, sound) in sounds {
         imported.put(&AssetRef::from_path(path), sound, false)?;
     }
-    if let Some(background) = &menu.background {
+    if menu.background.is_some() || menu.configuration.is_some() {
         let vignette = codec::Cnt {
             usage: TextureUsage::Screen,
         }
         .read(&read(&game.join("Gamedata/Vignette.cnt"))?)?;
-        let entry = vignette
-            .find_entry(
-                &Path::new(background.path.file())
-                    .with_extension("gf")
-                    .to_string_lossy(),
-            )
-            .context("required main menu backdrop absent")?;
-        menu.background = Some(entry.texture.clone());
-        imported.put(&entry.texture, vignette.image(entry)?.clone(), false)?;
+        if let Some(background) = &menu.background {
+            let entry = vignette
+                .find_entry(
+                    &Path::new(background.path.file())
+                        .with_extension("gf")
+                        .to_string_lossy(),
+                )
+                .context("required main menu backdrop absent")?;
+            menu.background = Some(entry.texture.clone());
+            imported.put(&entry.texture, vignette.image(entry)?.clone(), false)?;
+        }
+        if let Some(configuration) = &mut menu.configuration {
+            let entry = vignette
+                .find_entry(
+                    &Path::new(configuration.background.path.file())
+                        .with_extension("gf")
+                        .to_string_lossy(),
+                )
+                .context("required configuration backdrop absent")?;
+            configuration.background = entry.texture.clone();
+            imported.put(&entry.texture, vignette.image(entry)?.clone(), false)?;
+        }
     }
     imported.put(&AssetRef::from_path(menu.path.clone()), menu, true)?;
     Ok(imported)

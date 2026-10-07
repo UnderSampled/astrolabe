@@ -105,6 +105,8 @@ const STARTER: &[(&str, &[u8])] = assets![
     "game/manoir_start.gd.uid",
     "game/save_state.gd",
     "game/save_state.gd.uid",
+    "game/settings_menu.gd",
+    "game/user_settings.gd",
     "game/english_save_manoir.json",
     "game/characters/luminous_hype.tscn",
     "tests/example.tscn",

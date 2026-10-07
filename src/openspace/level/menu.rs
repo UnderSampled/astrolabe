@@ -56,6 +56,12 @@ struct MenuTextureListWire {
     _background: u32,
     _texts: u32,
 }
+#[derive(BinRead)]
+#[br(little)]
+struct MenuSliderWire {
+    _links: [u32; 8],
+    position: [f32; 3],
+}
 struct Font {
     tracking: f32,
     glyphs: BTreeMap<char, Glyph>,
@@ -97,7 +103,7 @@ fn font(s: &SourceSession, name: &str) -> Result<Font> {
         };
         let Ok(data) = s.bytes(a, 32) else { continue };
         let h: FontWire = wire(data)?;
-        if h.encoding != 0x11 || h.count != 71 {
+        if h.encoding != 0x11 || h.count == 0 || h.count > 256 {
             continue;
         }
         let Ok(n) = s.required(a, 12) else { continue };
@@ -232,10 +238,11 @@ fn artwork(font: &Font, label: &str, [x, y, z]: [f32; 3]) -> Result<Vec<MenuSpri
 /// FON_fn_vDraw3DString (005bb730) projects depth into observable pixel extent.
 fn projection(depth: f32) -> Result<(f32, f32, f32)> {
     ensure!(
-        depth.is_finite() && (0.0..=1.0).contains(&depth),
+        depth.is_finite() && (0.0..6.0).contains(&depth),
         "invalid menu text depth"
     );
     let factor = 1. - depth * 0.16666667;
+    ensure!(factor > 0., "menu text projection is behind the camera");
     let half_x = 4.65 / factor;
     Ok((half_x, 3.49 / factor, 640. / (half_x + half_x)))
 }
@@ -570,7 +577,233 @@ fn import_menu(
         items,
         navigation: AssetRef::from_path(sounds[0].0.clone()),
         confirmation: AssetRef::from_path(sounds[1].0.clone()),
+        configuration: if matches!(variant, MenuVariant::Main) {
+            Some(configuration(&s)?)
+        } else {
+            None
+        },
     };
     presentation.validate()?;
     Ok((presentation, sounds))
+}
+
+/// Import the source-owned Options text root. FUN_00413bd0 positions its
+/// three sliders from the persisted 0..127 values; the Godot UI replaces the
+/// legacy input/runtime controls while retaining the original labels/artwork.
+fn configuration(s: &SourceSession) -> Result<MenuConfiguration> {
+    let expected = [
+        ("Images", "image"),
+        ("Controls", "controls"),
+        ("Sound", "sound"),
+        ("DisplayWithSound", "music"),
+        ("DisplayWithSound", "sound"),
+        ("DisplayWithSound", "voices"),
+        ("DisplayWithSound", "stereo test"),
+        ("DisplayWithSound", "reverse stereo"),
+        ("DisplayWithImage", "graphic"),
+        ("DisplayWithImage", "textures"),
+        ("DisplayWithImage", "screen"),
+    ];
+    let key = BlockKey(18, 0);
+    let mut parent = None;
+    for (offset, _) in s.allocation_indices(Owner::Fix, key)? {
+        let address = Address {
+            owner: Owner::Fix,
+            key,
+            offset,
+        };
+        let Ok(bytes) = s.bytes(address, 12) else {
+            continue;
+        };
+        let header: MenuTextureListWire = wire(bytes)?;
+        if header.mode != 1 {
+            continue;
+        }
+        let Ok(background) = s.required(address, 4).and_then(|at| string(s, at)) else {
+            continue;
+        };
+        if !background
+            .replace('\\', "/")
+            .eq_ignore_ascii_case("Menu/config_back.bmp")
+        {
+            continue;
+        }
+        ensure!(
+            parent.replace(s.required(address, 8)?).is_none(),
+            "ambiguous source configuration root"
+        );
+    }
+    let parent = parent.context("source configuration root absent")?;
+    let mut nodes = BTreeMap::new();
+    for (offset, _) in s.allocation_indices(Owner::Fix, key)? {
+        let address = Address {
+            owner: Owner::Fix,
+            key,
+            offset,
+        };
+        let Ok(bytes) = s.bytes(address, 177) else {
+            continue;
+        };
+        let header: MenuTextWire = wire(bytes)?;
+        if s.pointer(address, 8).ok().flatten() != Some(parent) {
+            continue;
+        }
+        let action = fixed_string(&header.name)?.to_owned();
+        if !expected.iter().any(|(name, _)| *name == action) {
+            continue;
+        }
+        let label = string(s, s.required(address, 76)?)?;
+        if !expected
+            .iter()
+            .any(|(name, text)| *name == action && *text == label)
+        {
+            continue;
+        }
+        ensure!(
+            nodes
+                .insert((action, label.clone()), (address, header, label))
+                .is_none(),
+            "ambiguous source configuration item"
+        );
+    }
+    ensure!(
+        nodes.len() == expected.len(),
+        "source configuration item count differs"
+    );
+    let initial_address = s.required(parent, 8)?;
+    let mut item_names = BTreeMap::new();
+    for &(action, label) in &expected {
+        let slug = |value: &str| value.to_ascii_lowercase().replace(' ', "_");
+        item_names.insert((action, label), format!("{}_{}", slug(action), slug(label)));
+    }
+    let mut addresses = BTreeMap::new();
+    for &(action, label) in &expected {
+        addresses.insert(
+            nodes[&(action.to_owned(), label.to_owned())].0,
+            item_names[&(action, label)].clone(),
+        );
+    }
+    let initial_item = addresses
+        .get(&initial_address)
+        .context("source configuration initial item absent")?
+        .clone();
+    let mut items = Vec::new();
+    for &(source_action, source_label) in &expected {
+        let (address, header, label) = nodes
+            .remove(&(source_action.to_owned(), source_label.to_owned()))
+            .unwrap();
+        let name = item_names[&(source_action, source_label)].clone();
+        let normal_font = font(s, fixed_string(&header.normal_font)?)?;
+        let selected_font = font(s, fixed_string(&header.selected_font)?)?;
+        let (half_x, half_y, scale) = projection(header.position[2])?;
+        let anchor = if header.position[2] == 0. {
+            [
+                (4.65 + header.position[0]) * 640. / 9.3,
+                (3.49 - header.position[1]) * 640. / 9.3,
+            ]
+        } else {
+            [
+                (half_x + header.position[0]) * scale,
+                (half_y - header.position[1]) * scale,
+            ]
+        };
+        let mut normal = artwork(&normal_font, &label, header.position)?;
+        let mut selected = artwork(&selected_font, &label, header.position)?;
+        let all: Vec<_> = normal.iter().chain(&selected).collect();
+        let x = all
+            .iter()
+            .map(|g| g.rect[0])
+            .fold(f32::INFINITY, f32::min)
+            .floor()
+            - 1.;
+        let y = all
+            .iter()
+            .map(|g| g.rect[1])
+            .fold(f32::INFINITY, f32::min)
+            .floor()
+            - 1.;
+        let right = all
+            .iter()
+            .map(|g| g.rect[0] + g.rect[2])
+            .fold(f32::NEG_INFINITY, f32::max)
+            .ceil()
+            + 1.;
+        let bottom = all
+            .iter()
+            .map(|g| g.rect[1] + g.rect[3])
+            .fold(f32::NEG_INFINITY, f32::max)
+            .ceil()
+            + 1.;
+        for sprite in normal.iter_mut().chain(&mut selected) {
+            sprite.rect[0] -= x;
+            sprite.rect[1] -= y;
+        }
+        let mut neighbors: [Option<String>; 4] = [None, None, None, None];
+        for (index, field) in [12, 16, 20, 24].into_iter().enumerate() {
+            if let Some(target) = s.pointer(address, field)? {
+                neighbors[index] = Some(
+                    addresses
+                        .get(&target)
+                        .context("configuration navigation target absent")?
+                        .clone(),
+                );
+            }
+        }
+        items.push(MenuItem {
+            name,
+            label,
+            action: source_action.into(),
+            position: anchor,
+            horizontal_alignment: header.horizontal_alignment,
+            neighbors,
+            rect: [x - anchor[0], y - anchor[1], right - x, bottom - y],
+            normal,
+            selected,
+        });
+    }
+    let mut slider_positions: [Option<[f32; 3]>; 3] = [None; 3];
+    for (offset, _) in s.allocation_indices(Owner::Fix, key)? {
+        let address = Address {
+            owner: Owner::Fix,
+            key,
+            offset,
+        };
+        let Ok(block) = s.block(address) else {
+            continue;
+        };
+        let Some(raw_name) = block.data.get(offset + 68..offset + 100) else {
+            continue;
+        };
+        let end = raw_name
+            .iter()
+            .position(|byte| *byte == 0)
+            .unwrap_or(raw_name.len());
+        let Ok(name) = std::str::from_utf8(&raw_name[..end]) else {
+            continue;
+        };
+        let index = match name {
+            "Slider1" => 0,
+            "Slider2" => 1,
+            "Slider3" => 2,
+            _ => continue,
+        };
+        let position: MenuSliderWire = wire(s.bytes(address, 44)?)?;
+        ensure!(
+            slider_positions[index].replace(position.position).is_none(),
+            "duplicate source {name}"
+        );
+    }
+    let slider_positions = slider_positions
+        .map(|value| value.context("source configuration slider absent"))
+        .into_iter()
+        .collect::<Result<Vec<_>>>()?;
+    Ok(MenuConfiguration {
+        path: AssetPath::new("fix:/menu/configuration/en")?,
+        background: AssetRef::new("texture:/Menu/config_back.bmp")?,
+        initial_item,
+        items,
+        slider_positions: slider_positions
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("source slider count differs"))?,
+    })
 }

@@ -17,6 +17,7 @@ config/features=PackedStringArray("4.7")
 [autoload]
 
 GameContent="*res://game/content_cache.gd"
+UserSettings="*res://game/user_settings.gd"
 
 [display]
 

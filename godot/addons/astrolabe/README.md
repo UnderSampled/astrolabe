@@ -1,8 +1,10 @@
-# Astrolabe support, interface 53
+# Astrolabe support, interface 54
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
-No autoload, disc, Rete store, Rust process or checkout path is needed at runtime.
+No addon autoload, disc, Rete store, Rust process or checkout path is needed at
+runtime. The Godot starter project has a small `UserSettings` autoload for its
+authored audio preferences.
 
 `rendering/sprite.gd` selects between persisted native billboard views using a
 camera-facing dot product. Its thresholds, normal and child meshes are native

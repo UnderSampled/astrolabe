@@ -3,14 +3,17 @@
 The Hype PC main menu uses `MenuTextList`/`MenuTextureAndTextList` serialized
 records, distinct from the general `MNU_fn_vDrawMenuItem` API. The importer
 selects the Fix menu root whose background is `Menu\\menu_princ.bmp`, then follows
-its text-list membership. The pause import selects the distinct `Resume Game`
-text-list parent and verifies that no texture header owns that root.
+its text-list membership. The Options route selects the sibling
+`Menu\\config_back.bmp` root and retains its source labels, links, depth-projected
+layout, backdrop and three `Slider1`/`Slider2`/`Slider3` positions. The pause
+import selects the distinct `Resume Game` text-list parent and verifies that no
+texture header owns that root.
 The validated English profile contains new game, load game, configure, credits,
 internet and quit. The installed pause profile contains `Resume Game`,
 `NextGame`, `Options` and `Main Menu`, with localized labels "resume game",
 "start a new adventure", "configure" and "main menu". These roots remain
-separate; other menus are outside this slice. Inventory has its own `InvBox`
-import.
+separate; controls remapping, image quality and credits remain outside this
+slice. Inventory has its own `InvBox` import.
 
 `FUN_004105b0` draws each item using position words 8–10, localized text word
 0x13, selected/normal font names at 0x1c/0x24, and horizontal alignment byte 0xb0.
@@ -60,6 +63,22 @@ contains editable native Controls, normal/glow PNGs and audio resources.
 Regeneration protects authored inherited scenes and rejects modified generated
 bases. See [game menu ownership](../../godot/game/menu/README.md).
 `--content pause-menu` publishes the analogous independent `pause-menu` closure.
-Rete schema 41 permits the useful presentation's explicitly absent backdrop;
-support interface 51 exposes modal focus reset and confirmation cancellation.
+Rete schema 42 permits the useful presentation's explicitly absent backdrop;
+support interface 54 exposes modal focus reset, confirmation cancellation and a
+separate voice audio bus.
 See [pause composition](../../godot/game/menu/README.md#pause-menu-composition).
+
+`FUN_00414b00` routes `Options` into `DAT_007523f4` and enters configuration mode
+`0x25`. `FUN_00413bd0` loads three `DisplayWithSound` option values and maps their
+source range `0..127` to vertical slider positions, with higher values toward
+the top. The source configuration is retained inside the main menu asset and
+exported as a separate native Godot scene. Its Music, Sound and Voices labels
+remain original glyph artwork; native vertical sliders retain values on the
+original scale through `UserSettings` and
+Godot audio buses. A missing option defaults to 127. The image and controls pages
+still need separate native mappings.
+
+The same dispatcher sends `Credits` to mode `0x16`. `Internet` writes a temporary
+HTML file and asks the installed browser to open the legacy Playmobil URL. Those
+routes remain unimplemented in the Godot starter; it does not launch that
+external destination.

@@ -15,6 +15,19 @@ pub struct MenuPresentation {
     pub confirmation: AssetRef<Sound>,
     pub navigation_gain: f32,
     pub confirmation_gain: f32,
+    /// Source configuration-root labels and backdrop shipped with the English main menu.
+    #[serde(default)]
+    pub configuration: Option<MenuConfiguration>,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MenuConfiguration {
+    pub path: AssetPath,
+    pub background: AssetRef<super::texture::Texture>,
+    /// Original configuration text items. Repeated source actions identify dynamic rows.
+    pub initial_item: String,
+    pub items: Vec<MenuItem>,
+    /// Slider1..3 source positions before applying persisted option values.
+    pub slider_positions: [[f32; 3]; 3],
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MenuItem {
@@ -132,6 +145,77 @@ impl Content for MenuPresentation {
                 && self.confirmation.path.role() == super::PackageRole::Sound,
             "menu audio has wrong asset role"
         );
+        if let Some(configuration) = &self.configuration {
+            ensure!(
+                configuration.background.path.role() == super::PackageRole::Texture
+                    && (1..=32).contains(&configuration.items.len()),
+                "invalid source configuration media/layout"
+            );
+            ensure!(
+                configuration
+                    .slider_positions
+                    .iter()
+                    .flatten()
+                    .all(|value| value.is_finite()),
+                "invalid source configuration slider positions"
+            );
+            let mut configuration_names = std::collections::BTreeSet::new();
+            ensure!(
+                configuration
+                    .items
+                    .iter()
+                    .any(|item| item.name == configuration.initial_item),
+                "configuration initial item absent"
+            );
+            for item in &configuration.items {
+                ensure!(
+                    configuration_names.insert(&item.name)
+                        && !item.action.is_empty()
+                        && !item.label.is_empty()
+                        && item.label.len() <= 64
+                        && item
+                            .name
+                            .bytes()
+                            .all(|byte| byte.is_ascii_lowercase() || byte == b'_')
+                        && item.position.iter().all(|v| v.is_finite())
+                        && item.horizontal_alignment <= 2
+                        && item.rect.iter().all(|v| v.is_finite())
+                        && item.rect[0].is_finite()
+                        && item.rect[1].is_finite()
+                        && item.rect[2] > 0.
+                        && item.rect[3] > 0.
+                        && item.rect[2] <= 640.
+                        && item.rect[3] <= 480.
+                        && !item.normal.is_empty()
+                        && !item.selected.is_empty(),
+                    "invalid source configuration item"
+                );
+            }
+            ensure!(
+                configuration.items.iter().all(|item| item
+                    .neighbors
+                    .iter()
+                    .flatten()
+                    .all(|name| configuration_names.contains(name))),
+                "configuration navigation target absent"
+            );
+            for item in &configuration.items {
+                for sprite in item.normal.iter().chain(&item.selected) {
+                    ensure!(
+                        sprite.texture.path.role() == super::PackageRole::Texture
+                            && sprite.rect.iter().all(|v| v.is_finite())
+                            && sprite.rect[0] >= 0.
+                            && sprite.rect[1] >= 0.
+                            && sprite.rect[2] > 0.
+                            && sprite.rect[3] > 0.
+                            && sprite.rect[0] + sprite.rect[2] <= item.rect[2] + 0.001
+                            && sprite.rect[1] + sprite.rect[3] <= item.rect[3] + 0.001
+                            && sprite.uv.iter().flatten().all(|v| v.is_finite()),
+                        "invalid source configuration sprite"
+                    );
+                }
+            }
+        }
         Ok(())
     }
 }
