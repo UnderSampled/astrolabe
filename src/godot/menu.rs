@@ -264,23 +264,44 @@ fn configuration_scene(
     configuration: &MenuConfiguration,
     directory: &str,
 ) -> Result<String> {
-    let sound_tab = configuration
-        .items
-        .iter()
-        .find(|item| item.action == "Sound" && item.label == "sound")
-        .context("source Sound tab absent")?;
-    let rows = ["music", "sound", "voices"].map(|label| {
+    let find = |action: &str, label: &str| {
         configuration
             .items
             .iter()
-            .find(|item| item.action == "DisplayWithSound" && item.label == label)
-            .with_context(|| format!("source {label} volume label absent"))
-    });
-    let rows = rows.into_iter().collect::<Result<Vec<_>>>()?;
-    let mut text = String::from("[gd_scene load_steps=11 format=3]\n\n");
+            .find(|item| item.action == action && item.label == label)
+            .with_context(|| format!("source configuration item {action}/{label} absent"))
+    };
+    let tabs = [
+        ("Images", find("Images", "image")?),
+        ("Controls", find("Controls", "controls")?),
+        ("Sound", find("Sound", "sound")?),
+    ];
+    let sound_rows = [
+        (find("DisplayWithSound", "music")?, "Music"),
+        (find("DisplayWithSound", "sound")?, "Effects"),
+        (find("DisplayWithSound", "voices")?, "Voices"),
+    ];
+    // Source ImageSlider1/2/3 are shadow quality, camera-to-viewport adjustment,
+    // and OpenSpace texture swapping. No direct Godot equivalent is verified.
+    let image_rows = [
+        (find("DisplayWithImage", "graphic")?, "Graphic"),
+        (find("DisplayWithImage", "screen")?, "Screen"),
+        (find("DisplayWithImage", "textures")?, "Textures"),
+    ];
+    let initial = configuration
+        .items
+        .iter()
+        .find(|item| item.name == configuration.initial_item)
+        .context("source configuration initial item absent")?;
+    let initial_page = match initial.action.as_str() {
+        "Images" | "Controls" | "Sound" => initial.action.as_str(),
+        action => anyhow::bail!("unsupported source configuration initial action {action}"),
+    };
+    let ext_count = 2 + 1 + tabs.len() * 2 + sound_rows.len() + image_rows.len();
+    let load_steps = ext_count + 2; // one material subresource and the scene itself
+    let mut text = format!("[gd_scene load_steps={load_steps} format=3]\n\n");
     for (id, kind, path) in [
         ("settings", "Script", "game/settings_menu.gd"),
-        ("button", "Script", "addons/astrolabe/ui/menu/button.gd"),
         ("theme", "Theme", "addons/astrolabe/ui/menu/theme.tres"),
     ] {
         writeln!(
@@ -299,62 +320,64 @@ fn configuration_scene(
             disk_path(&project.selection, &configuration.background.path, "png")
         ))
     )?;
-    for (item, state) in std::iter::once((sound_tab, "normal"))
-        .chain(std::iter::once((sound_tab, "selected")))
-        .chain(rows.iter().map(|item| (*item, "normal")))
-    {
+    for (_, item) in tabs {
+        for state in ["normal", "selected"] {
+            writeln!(
+                text,
+                "[ext_resource type=\"Texture2D\" path={} id={}]",
+                quoted(&format!("res://{directory}/{}_{}.png", item.name, state)),
+                quoted(&format!("{}_{}", item.name, state))
+            )?;
+        }
+    }
+    for (item, _) in sound_rows.iter().chain(&image_rows) {
         writeln!(
             text,
             "[ext_resource type=\"Texture2D\" path={} id={}]",
-            quoted(&format!("res://{directory}/{}_{state}.png", item.name)),
-            quoted(&format!("{}_{}", item.name, state))
+            quoted(&format!("res://{directory}/{}_normal.png", item.name)),
+            quoted(&format!("{}_normal", item.name))
         )?;
     }
-    let load_steps = 4 + 2 + rows.len() + 1 + 1;
     writeln!(
         text,
-        "\n[sub_resource type=\"CanvasItemMaterial\" id=\"Additive\"]\nblend_mode = 1\n\n[node name=\"ConfigurationMenu\" type=\"Control\"]\nlayout_mode = 3\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\ngrow_horizontal = 2\ngrow_vertical = 2\ntheme = ExtResource(\"theme\")\nscript = ExtResource(\"settings\")\ncanvas_size = Vector2(640, 480)\ninitial_focus = NodePath(\"Canvas/Audio/Music\")\nmetadata/source_initial_item = {}\n\n[node name=\"Canvas\" type=\"Control\" parent=\".\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\n\n[node name=\"Background\" type=\"TextureRect\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\ntexture = ExtResource(\"background\")\nexpand_mode = 1\nstretch_mode = 0",
+        "\n[sub_resource type=\"CanvasItemMaterial\" id=\"Additive\"]\nblend_mode = 1\n\n[node name=\"ConfigurationMenu\" type=\"Control\"]\nlayout_mode = 3\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\ngrow_horizontal = 2\ngrow_vertical = 2\ntheme = ExtResource(\"theme\")\nscript = ExtResource(\"settings\")\ncanvas_size = Vector2(640, 480)\ninitial_focus = NodePath(\"Canvas/Tab{}\")\ninitial_page = &{}\nmetadata/source_initial_item = {}\n\n[node name=\"Canvas\" type=\"Control\" parent=\".\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\n\n[node name=\"Background\" type=\"TextureRect\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\ntexture = ExtResource(\"background\")\nexpand_mode = 1\nstretch_mode = 0",
+        initial_page,
+        quoted(initial_page),
         quoted(&configuration.initial_item)
     )?;
-    let [x, y, w, h] = sound_tab.rect;
-    let left = sound_tab.position[0] + x;
-    let top = sound_tab.position[1] + y;
-    writeln!(
-        text,
-        "\n[node name=\"Sound\" type=\"Button\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_left = {left}\noffset_top = {top}\noffset_right = {}\noffset_bottom = {}\ntext = \"\"\nscript = ExtResource(\"button\")\naction = &\"Sound\"\nnormal_texture = ExtResource({})\nselected_texture = ExtResource({})\nmetadata/source_action = \"Sound\"",
-        left + w,
-        top + h,
-        quoted(&format!("{}_normal", sound_tab.name)),
-        quoted(&format!("{}_selected", sound_tab.name))
-    )?;
-    writeln!(
-        text,
-        "\n[node name=\"Artwork\" type=\"TextureRect\" parent=\"Canvas/Sound\"]\nmaterial = SubResource(\"Additive\")\nlayout_mode = 1\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\ngrow_horizontal = 2\ngrow_vertical = 2\nmouse_filter = 2\ntexture = ExtResource({})\nexpand_mode = 1\nstretch_mode = 0",
-        quoted(&format!("{}_normal", sound_tab.name))
-    )?;
-    writeln!(
-        text,
-        "\n[node name=\"Audio\" type=\"Control\" parent=\"Canvas\"]\nlayout_mode = 0\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2"
-    )?;
-    for (index, (item, bus)) in rows.iter().zip(["Music", "Effects", "Voices"]).enumerate() {
-        let id = format!("{}_normal", item.name);
-        let x = item.position[0] + item.rect[0];
-        let y = item.position[1] + item.rect[1];
+    // Keep the original source tab artwork and graph navigation. The page state
+    // remains selected after focus moves to a native control.
+    for (page, item) in tabs {
+        append_configuration_tab(&mut text, configuration, page, item)?;
+    }
+    for (page, visible) in [
+        ("SoundPage", initial_page == "Sound"),
+        ("ImagesPage", initial_page == "Images"),
+        ("ControlsPage", initial_page == "Controls"),
+    ] {
         writeln!(
             text,
-            "\n[node name={} type=\"TextureRect\" parent=\"Canvas\"]\nmaterial = SubResource(\"Additive\")\nlayout_mode = 0\noffset_left = {x}\noffset_top = {y}\noffset_right = {}\noffset_bottom = {}\nmouse_filter = 2\ntexture = ExtResource({})\nexpand_mode = 1\nstretch_mode = 0\nmetadata/source_action = \"DisplayWithSound\"\nmetadata/volume_bus = {}",
-            quoted(&item.name),
-            x + item.rect[2],
-            y + item.rect[3],
-            quoted(&id),
-            quoted(bus)
+            "\n[node name={} type=\"Control\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\nvisible = {}",
+            quoted(page),
+            visible
         )?;
-        // The original background places each source label above a vertical slot.
-        // FUN_00413bd0/FUN_00412030 map 0..127 from the slot bottom to its top.
+    }
+    let [music, effects, voices] = sound_rows;
+    for (item, bus) in [
+        (music.0, music.1),
+        (effects.0, effects.1),
+        (voices.0, voices.1),
+    ] {
+        append_configuration_label(&mut text, item, "Canvas/SoundPage", bus)?;
+    }
+    text.push_str(
+        "\n[node name=\"Audio\" type=\"Control\" parent=\"Canvas/SoundPage\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2",
+    );
+    for (index, (item, bus)) in sound_rows.iter().enumerate() {
         let center_x = item.position[0];
         writeln!(
             text,
-            "\n[node name={} type=\"VSlider\" parent=\"Canvas/Audio\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = 220.0\noffset_right = {}\noffset_bottom = 338.0\nmin_value = 0.0\nmax_value = 127.0\nstep = 1.0\nvalue = 127.0\nmetadata/source_slider = \"Slider{}\"\nmetadata/source_position = Vector3({}, {}, {})\nmetadata/source_action = \"DisplayWithSound\"\nmetadata/volume_bus = {}",
+            "\n[node name={} type=\"VSlider\" parent=\"Canvas/SoundPage/Audio\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = 220.0\noffset_right = {}\noffset_bottom = 338.0\nmin_value = 0.0\nmax_value = 127.0\nstep = 1.0\nvalue = 127.0\nmetadata/source_slider = \"SoundSlider{}\"\nmetadata/source_position = Vector3({}, {}, {})\nmetadata/source_action = \"DisplayWithSound\"\nmetadata/volume_bus = {}",
             quoted(bus),
             center_x - 10.0,
             center_x + 10.0,
@@ -365,14 +388,118 @@ fn configuration_scene(
             quoted(bus)
         )?;
     }
+    for (item, label) in image_rows {
+        append_configuration_label(&mut text, item, "Canvas/ImagesPage", label)?;
+    }
     writeln!(
         text,
-        "\n[node name=\"Back\" type=\"Button\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_left = 32.0\noffset_top = 424.0\noffset_right = 180.0\noffset_bottom = 464.0\ntext = \"Back\"\nfocus_neighbor_top = NodePath(\"../Audio/Music\")"
+        "\n[node name=\"UnsupportedImageSettings\" type=\"Label\" parent=\"Canvas/ImagesPage\"]\nlayout_mode = 0\noffset_left = 170.0\noffset_top = 356.0\noffset_right = 600.0\noffset_bottom = 410.0\ntext = {}\nautowrap_mode = 3\nhorizontal_alignment = 1\nmetadata/source_actions = \"ImageSlider1,ImageSlider2,ImageSlider3\"",
+        quoted(
+            "Graphic: source shadow quality is not mapped to Godot.\nTextures: source texture swapping is OpenSpace-specific.\nScreen: source camera-to-viewport adjustment (60–100) is not mapped to Godot.",
+        )
     )?;
-    if load_steps != 11 {
-        anyhow::bail!("configuration scene resource count differs");
-    }
+    writeln!(
+        text,
+        "\n[node name=\"UnsupportedControls\" type=\"Label\" parent=\"Canvas/ControlsPage\"]\nlayout_mode = 0\noffset_left = 240.0\noffset_top = 220.0\noffset_right = 600.0\noffset_bottom = 360.0\ntext = {}\nautowrap_mode = 3\nhorizontal_alignment = 1\nmetadata/source_actions = \"Keyboard,Gamepad,KeyStrokes,DefaultValues\"",
+        quoted(
+            "Keyboard and gamepad remapping are not implemented. The source KeyStrokes display and DefaultValues reset actions are unsupported."
+        )
+    )?;
+    writeln!(
+        text,
+        "\n[node name=\"Back\" type=\"Button\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_left = 32.0\noffset_top = 424.0\noffset_right = 180.0\noffset_bottom = 464.0\ntext = \"Back\"\ntheme_override_colors/font_color = Color(1, 1, 1, 1)\ntheme_override_colors/font_focus_color = Color(1, 1, 1, 1)\ntheme_override_colors/font_hover_color = Color(1, 1, 1, 1)\ntheme_override_colors/font_pressed_color = Color(1, 1, 1, 1)\ntheme_override_font_sizes/font_size = 16\nfocus_neighbor_top = NodePath(\"../TabSound\")"
+    )?;
+    ensure!(
+        load_steps == ext_count + 2,
+        "configuration scene resource count differs"
+    );
     Ok(text)
+}
+
+fn append_configuration_label(
+    text: &mut String,
+    item: &MenuItem,
+    parent: &str,
+    node: &str,
+) -> Result<()> {
+    let [relative_x, relative_y, width, height] = item.rect;
+    let x = item.position[0] + relative_x;
+    let y = item.position[1] + relative_y;
+    writeln!(
+        text,
+        "\n[node name={} type=\"TextureRect\" parent={}]\nmaterial = SubResource(\"Additive\")\nlayout_mode = 0\noffset_left = {x}\noffset_top = {y}\noffset_right = {}\noffset_bottom = {}\nmouse_filter = 2\ntexture = ExtResource({})\nexpand_mode = 1\nstretch_mode = 0\nmetadata/source_action = {}",
+        quoted(node),
+        quoted(parent),
+        x + width,
+        y + height,
+        quoted(&format!("{}_normal", item.name)),
+        quoted(&item.action)
+    )?;
+    Ok(())
+}
+
+fn append_configuration_tab(
+    text: &mut String,
+    configuration: &MenuConfiguration,
+    page: &str,
+    item: &MenuItem,
+) -> Result<()> {
+    let [relative_x, relative_y, width, height] = item.rect;
+    let x = item.position[0] + relative_x;
+    let y = item.position[1] + relative_y;
+    let node = format!("Tab{page}");
+    writeln!(
+        text,
+        "\n[node name={} type=\"Button\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_left = {x}\noffset_top = {y}\noffset_right = {}\noffset_bottom = {}\ntext = \"\"\nmetadata/source_action = {}\nmetadata/source_anchor = Vector2({}, {})",
+        quoted(&node),
+        x + width,
+        y + height,
+        quoted(&item.action),
+        item.position[0],
+        item.position[1]
+    )?;
+    for (index, direction) in ["top", "bottom", "left", "right"].into_iter().enumerate() {
+        let target = item.neighbors[index]
+            .as_ref()
+            .and_then(|name| {
+                configuration
+                    .items
+                    .iter()
+                    .find(|candidate| &candidate.name == name)
+            })
+            .filter(|candidate| {
+                matches!(candidate.action.as_str(), "Images" | "Controls" | "Sound")
+            })
+            .map_or_else(|| node.clone(), |target| format!("Tab{}", target.action));
+        writeln!(
+            text,
+            "focus_neighbor_{direction} = NodePath({})",
+            quoted(&format!("../{target}"))
+        )?;
+        if index < 2 {
+            writeln!(
+                text,
+                "focus_{} = NodePath({})",
+                if index == 0 { "previous" } else { "next" },
+                quoted(&format!("../{target}"))
+            )?;
+        }
+    }
+    let parent = format!("Canvas/{node}");
+    for (state, child_name, visible) in [
+        ("normal", "Artwork", true),
+        ("selected", "SelectedArtwork", false),
+    ] {
+        writeln!(
+            text,
+            "\n[node name={} type=\"TextureRect\" parent={}]\nmaterial = SubResource(\"Additive\")\nlayout_mode = 1\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\ngrow_horizontal = 2\ngrow_vertical = 2\nmouse_filter = 2\ntexture = ExtResource({})\nexpand_mode = 1\nstretch_mode = 0\nvisible = {}",
+            quoted(child_name),
+            quoted(&parent),
+            quoted(&format!("{}_{}", item.name, state)),
+            visible
+        )?;
+    }
+    Ok(())
 }
 #[cfg(test)]
 mod tests {
@@ -483,7 +610,13 @@ mod tests {
             let configuration_text = std::fs::read_to_string(configuration_scene)?;
             ensure!(
                 configuration_text.matches(" type=\"VSlider\"").count() == 3
-                    && configuration_text.contains("metadata/source_slider = \"Slider1\"")
+                    && configuration_text.matches(" type=\"Button\"").count() == 4
+                    && configuration_text.contains("initial_page = &\"Images\"")
+                    && configuration_text.contains("theme_override_font_sizes/font_size = 16")
+                    && configuration_text.contains("metadata/source_slider = \"SoundSlider1\"")
+                    && configuration_text.contains("ImageSlider1,ImageSlider2,ImageSlider3")
+                    && configuration_text.contains("camera-to-viewport adjustment")
+                    && configuration_text.contains("KeyStrokes display")
                     && configuration_text.contains("type=\"Texture2D\" path=\"res://generated/hype/textures/MENU/Config_back.gf.png\"")
                     && configuration_text.contains("metadata/source_action = \"DisplayWithSound\""),
                 "native configuration labels/source sliders/backdrop differ"

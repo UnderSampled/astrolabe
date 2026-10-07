@@ -1,8 +1,9 @@
 extends Control
-## Native audio controls over the imported source configuration artwork.
+## Source-backed options tabs with native Godot settings where semantics map cleanly.
 signal closed
 @export var canvas_size := Vector2(640, 480)
 @export var initial_focus: NodePath
+@export var initial_page: StringName = &"Images"
 var preferences: Node
 
 func _ready() -> void:
@@ -18,11 +19,14 @@ func _ready() -> void:
 		preferences.name = "UserSettings"
 		get_tree().root.add_child(preferences)
 	for group: String in ["Music", "Effects", "Voices"]:
-		var slider := $Canvas/Audio.get_node(group) as VSlider
+		var slider := $Canvas/SoundPage/Audio.get_node(group) as VSlider
 		slider.value = float(preferences.call("get_volume", group)) * 127.0
 		slider.value_changed.connect(_set_volume.bind(group))
+	$Canvas/TabImages.pressed.connect(_show_page.bind(&"Images"))
+	$Canvas/TabControls.pressed.connect(_show_page.bind(&"Controls"))
+	$Canvas/TabSound.pressed.connect(_show_page.bind(&"Sound"))
 	$Canvas/Back.pressed.connect(close)
-	$Canvas/Sound.pressed.connect(func(): $Canvas/Audio/Music.grab_focus())
+	_show_page(initial_page)
 	focus_initial()
 
 func _fit() -> void:
@@ -33,6 +37,16 @@ func _fit() -> void:
 func focus_initial() -> void:
 	var target := get_node_or_null(initial_focus) as Control
 	if target != null and is_visible_in_tree(): target.grab_focus()
+
+func _show_page(page: StringName) -> void:
+	if not ["Images", "Controls", "Sound"].has(str(page)):
+		page = &"Images"
+	$Canvas/ImagesPage.visible = page == &"Images"
+	$Canvas/ControlsPage.visible = page == &"Controls"
+	$Canvas/SoundPage.visible = page == &"Sound"
+	$Canvas/TabImages/SelectedArtwork.visible = page == &"Images"
+	$Canvas/TabControls/SelectedArtwork.visible = page == &"Controls"
+	$Canvas/TabSound/SelectedArtwork.visible = page == &"Sound"
 
 func close() -> void:
 	closed.emit()

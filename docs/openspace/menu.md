@@ -69,14 +69,20 @@ separate voice audio bus.
 See [pause composition](../../godot/game/menu/README.md#pause-menu-composition).
 
 `FUN_00414b00` routes `Options` into `DAT_007523f4` and enters configuration mode
-`0x25`. `FUN_00413bd0` loads three `DisplayWithSound` option values and maps their
-source range `0..127` to vertical slider positions, with higher values toward
-the top. The source configuration is retained inside the main menu asset and
-exported as a separate native Godot scene. Its Music, Sound and Voices labels
-remain original glyph artwork; native vertical sliders retain values on the
-original scale through `UserSettings` and
-Godot audio buses. A missing option defaults to 127. The image and controls pages
-still need separate native mappings.
+`0x25`; the source initial item is `Images`. The separate Godot scene retains
+all three original tabs and glyph labels. Its Music, Sound and Voices page uses
+native vertical sliders on the source `0..127` scale, applies them to Godot audio
+buses, and persists them through `UserSettings`. A missing source option defaults
+to 127.
+
+The Images page identifies the original settings without claiming an unsupported
+Godot effect. `ImageSlider1` sets shadow quality through
+`SHW_fn_vSetLevelOfQualityOfShadows`; `ImageSlider2` passes its `60..100` value
+to `FUN_004054c0` for camera-to-viewport adjustment; `ImageSlider3` controls the
+OpenSpace texture-swapping ratio. None has a verified Godot equivalent here, so
+the page says they are unsupported and provides no functional sliders. The
+Controls page similarly reports that the original Keyboard/Gamepad remapping,
+KeyStrokes and DefaultValues routes are not implemented.
 
 The same dispatcher sends `Credits` to mode `0x16`. `Internet` writes a temporary
 HTML file and asks the installed browser to open the legacy Playmobil URL. Those

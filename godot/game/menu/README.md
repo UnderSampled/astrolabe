@@ -12,9 +12,11 @@ font table, menu interpreter or source-disc access are needed at runtime.
 `NewGame` opens the actual manor opening through `game/new_game.tscn`;
 `SavedGames` keeps the existing Load Game/save route through `game/demo.tscn`.
 The named `NewGame` and `LoadGame` Buttons remain discoverable by session tests.
-Configure opens the source-backed sound settings page. Credits remains visible
-and reports that its presentation is not implemented; Internet does not launch
-the obsolete external URL. Menu music and spoken idle prompts remain outside
+Configure opens the source-backed Images, Controls and Sound tabs. Sound uses
+native persisted volume controls. Images and Controls retain the original labels
+and state clearly that the source renderer settings and input remapping remain
+unsupported in Godot. Credits remains visible and reports that its presentation
+is not implemented; Internet does not launch the obsolete external URL. Menu music and spoken idle prompts remain outside
 this increment.
 
 Generate the independent menu closure with the same converter used for gameplay:
@@ -26,15 +28,14 @@ target/release/astrolabe port disc godot --level manoir --locale en --content me
 The `menu` publication owner is separate from `manoir`, so menu regeneration
 preserves generated gameplay. It also exports
 `generated/hype/shared/menu/configuration/en/menu.tscn` with the original
-configuration backdrop and labels, plus native vertical Music, Sound and Voices sliders.
-The sliders store source-scale values from 0 to 127 in `user://hype-settings.cfg`
-and apply them to the Astrolabe Music, Effects and Voice buses. Missing menu or
-configuration media produces an explicit error; no replacement artwork is
-synthesized. All extracted media and import caches remain ignored.
-
-This increment implements the sound page only. The source Images and Controls
-pages still need native Godot mappings, including image-quality choices and
-input remapping.
+configuration backdrop and all three source tabs. The Sound page has native
+vertical Music, Sound and Voices sliders. They store source-scale values from 0
+to 127 in `user://hype-settings.cfg` and apply them to the Astrolabe Music,
+Effects and Voice buses. The Images page identifies source shadow quality,
+camera-to-viewport adjustment and OpenSpace texture swapping as unsupported.
+The Controls page states that remapping and reset actions are unavailable.
+Missing menu or configuration media produces an explicit error; no replacement
+artwork is synthesized. All extracted media and import caches remain ignored.
 
 To improve the menu in the editor, create an inherited scene from the generated
 `menu.tscn`, save it under `game/menu/`, and assign it to the bootstrap's
