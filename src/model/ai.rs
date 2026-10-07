@@ -225,6 +225,8 @@ pub enum Statement {
         actor: AssetRef<Perso>,
         position: Expression,
     },
+    /// Source procedure 253 sets the executing Perso's absolute world position.
+    SetSelfAbsolutePosition(Expression),
     /// Source camera procedure 135 requests a position update. The preceding
     /// return-zero form is retained for source reconstruction only; Godot
     /// receives one native camera API call.
@@ -412,6 +414,8 @@ pub enum Expression {
     },
     Multiply(Box<Expression>, Box<Expression>),
     Plus(Box<Expression>, Box<Expression>),
+    /// Hype Operator_VectorPlusVector (category 2, operation 16).
+    VectorPlus(Box<Expression>, Box<Expression>),
     Minus(Box<Expression>, Box<Expression>),
     Divide(Box<Expression>, Box<Expression>),
     Negate(Box<Expression>),
@@ -768,6 +772,7 @@ impl AiModel {
                 | Expression::Or(left, right)
                 | Expression::Multiply(left, right)
                 | Expression::Plus(left, right)
+                | Expression::VectorPlus(left, right)
                 | Expression::Minus(left, right)
                 | Expression::Divide(left, right)
                 | Expression::TimeElapsed {
@@ -837,7 +842,8 @@ impl AiModel {
                     | Statement::CameraChangeState { state: value, .. }
                     | Statement::SetActorAbsolutePosition {
                         position: value, ..
-                    } => expression(value, out),
+                    }
+                    | Statement::SetSelfAbsolutePosition(value) => expression(value, out),
                     Statement::ArrayAssign {
                         array,
                         index,
@@ -1051,6 +1057,7 @@ impl Script {
                 | Expression::Or(left, right)
                 | Expression::Multiply(left, right)
                 | Expression::Plus(left, right)
+                | Expression::VectorPlus(left, right)
                 | Expression::Minus(left, right)
                 | Expression::Divide(left, right)
                 | Expression::TimeElapsed {
@@ -1123,6 +1130,7 @@ impl Script {
                     | Statement::SetActorAbsolutePosition {
                         position: value, ..
                     }
+                    | Statement::SetSelfAbsolutePosition(value)
                     | Statement::Wait {
                         milliseconds: value,
                     } => expression(value, out),
@@ -1201,6 +1209,7 @@ impl Script {
                 | Expression::Or(left, right)
                 | Expression::Multiply(left, right)
                 | Expression::Plus(left, right)
+                | Expression::VectorPlus(left, right)
                 | Expression::Minus(left, right)
                 | Expression::Divide(left, right)
                 | Expression::TimeElapsed {
@@ -1367,6 +1376,9 @@ impl Script {
                             actor.path.member().is_none(),
                             "position receiver is a member"
                         );
+                        expression(position, variables, depth + 1, count)?;
+                    }
+                    Statement::SetSelfAbsolutePosition(position) => {
                         expression(position, variables, depth + 1, count)?;
                     }
                     Statement::SetVectorSpeed(value)

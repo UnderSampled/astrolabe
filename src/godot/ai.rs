@@ -510,6 +510,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         Expression::Vector(values) => values.iter().any(|value| needs_guard(value, model)),
         Expression::Multiply(a, b)
         | Expression::Plus(a, b)
+        | Expression::VectorPlus(a, b)
         | Expression::Minus(a, b)
         | Expression::Divide(a, b)
         | Expression::TimeElapsed {
@@ -686,6 +687,11 @@ fn guarded_expression(
                 guarded_expression(out, right, model, depth, flow)?
             )
         }
+        Expression::VectorPlus(left, right) => format!(
+            "({} + {})",
+            guarded_expression(out, left, model, depth, flow)?,
+            guarded_expression(out, right, model, depth, flow)?
+        ),
         Expression::Vector(values) => format!(
             "Vector3(float({}), float({}), float({}))",
             guarded_expression(out, &values[0], model, depth, flow)?,
@@ -996,6 +1002,9 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
                 expression(a, model)?,
                 expression(b, model)?
             )
+        }
+        Expression::VectorPlus(a, b) => {
+            format!("({} + {})", expression(a, model)?, expression(b, model)?)
         }
         Expression::Negate(v) => format!("(-float({}))", expression(v, model)?),
         Expression::Compare {
@@ -1593,6 +1602,17 @@ fn statements(
                     ))
                 )?;
             }
+            Statement::SetSelfAbsolutePosition(position) => {
+                let value = guarded_expression(out, position, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if not character().source_set_absolute_position({value}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} requires a finite absolute position",
+                        model.path
+                    ))
+                )?;
+            }
             Statement::CameraUpdatePosition { .. } => {
                 writeln!(
                     out,
@@ -1919,4 +1939,91 @@ pub(super) fn component(
         )?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod source_position_tests {
+    use super::compile;
+    use crate::model::{
+        AssetPath, AssetRef,
+        ai::{
+            AiModel, Behavior, BehaviorGroup, BehaviorRef, BehaviorSet, Comparison, Expression,
+            Script, Statement,
+        },
+        character::Perso,
+    };
+
+    #[test]
+    fn compiles_saved_gate_branch_to_self_position_and_next_behavior() -> anyhow::Result<()> {
+        let path = AssetPath::new("level:/ai/models/272")?;
+        let global = AssetRef::<Perso>::new("fix:/persos/15")?;
+        let next = BehaviorRef {
+            model: AssetRef::<AiModel>::from_path(path.clone()),
+            group: BehaviorGroup::Normal,
+            behavior: 3,
+        };
+        let change_to_next = || Statement::ChangeBehavior {
+            target: next.clone(),
+            pause_after: false,
+        };
+        let script = Script {
+            statements: vec![Statement::If {
+                condition: Expression::Compare {
+                    operation: Comparison::Equal,
+                    left: Box::new(Expression::ActorFieldRead {
+                        actor: global,
+                        variable: 149,
+                    }),
+                    right: Box::new(Expression::Integer(1)),
+                },
+                then: vec![
+                    Statement::SetSelfAbsolutePosition(Expression::VectorPlus(
+                        Box::new(Expression::SelfPosition),
+                        Box::new(Expression::Vector(Box::new([
+                            Expression::Real(2.6),
+                            Expression::Real(0.0),
+                            Expression::Real(0.0),
+                        ]))),
+                    )),
+                    change_to_next(),
+                ],
+                otherwise: Some(vec![change_to_next()]),
+            }],
+        };
+        let model = AiModel {
+            path,
+            name: "iMGrille_Manoir_Pont".into(),
+            normal: Some(BehaviorSet {
+                behaviors: vec![
+                    Behavior {
+                        id: 0,
+                        rules: Vec::new(),
+                        schedule: Some(script),
+                        unknown: [0; 3],
+                    },
+                    Behavior {
+                        id: 3,
+                        rules: Vec::new(),
+                        schedule: None,
+                        unknown: [0; 3],
+                    },
+                ],
+                default_behavior: Some(0),
+                action_capacity: 0,
+                unknown: [0; 3],
+            }),
+            reflex: None,
+            variables: Vec::new(),
+            designer_unknown: [0; 3],
+            unknown: [0; 4],
+        };
+        let generated = compile(&model, &[])?;
+        assert!(generated.contains("character().source_set_absolute_position("));
+        assert!(generated.contains(
+            "character().source_position() + Vector3(float(2.6), float(0.0), float(0.0))"
+        ));
+        assert!(generated.contains("if change_normal(3, false):"));
+        assert!(!generated.contains("unsupported AI statement category 4 operation 253"));
+        Ok(())
+    }
 }

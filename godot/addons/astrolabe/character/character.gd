@@ -696,6 +696,13 @@ func source_actor_set_absolute_position(actor_asset: String, point: Vector3) -> 
     actor.global_position = Vector3(point.x, point.z, -point.y)
     return true
 
+## Hype Proc_SetPersoAbsolutePosition moves the executing Perso.
+func source_set_absolute_position(point: Vector3) -> bool:
+    if not point.is_finite():
+        return false
+    global_position = Vector3(point.x, point.z, -point.y)
+    return true
+
 func source_collide_with_slope() -> bool:
     if not is_on_floor(): return false
     # A steep wall can have a positive vertical component. Use the native

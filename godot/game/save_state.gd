@@ -4,9 +4,9 @@ extends RefCounted
 
 const SLOT := "user://manoir-save-v1.json"
 const ORIGINAL_IMPORT := "res://game/original_save_import.json"
-const MANOIR_START := preload("res://game/manoir_start.gd")
 const ACTOR := "world/0/0/Hype"
 const DUMMY := "level:/persos/world/0/27"
+const GLOBAL := "fix:/persos/15"
 
 
 static func path() -> String:
@@ -26,6 +26,25 @@ static func _only_keys(value: Dictionary, supported: Array[String]) -> bool:
     return true
 
 
+static func _valid_vector(value: Variant, limit: float) -> bool:
+    if not value is Array or value.size() != 3:
+        return false
+    for component in value:
+        if not (component is int or component is float) or not is_finite(float(component)) or absf(float(component)) > limit:
+            return false
+    return true
+
+
+static func _as_vector(value: Array) -> Vector3:
+    return Vector3(float(value[0]), float(value[1]), float(value[2]))
+
+
+static func _has_property(object: Object, property_name: String) -> bool:
+    if object == null:
+        return false
+    return object.get_property_list().any(func(property): return str(property["name"]) == property_name)
+
+
 static func validate(value: Variant) -> String:
     if not value is Dictionary:
         return "Save is not an object."
@@ -38,10 +57,10 @@ static func validate(value: Variant) -> String:
     var actors: Variant = value.get("actors")
     if not actors is Dictionary or not actors.has(ACTOR) or not actors[ACTOR] is Dictionary:
         return "Save is missing the manor player."
-    if not _only_keys(actors, [ACTOR]):
+    if not _only_keys(actors, [ACTOR, GLOBAL]):
         return "Save has unsupported actors."
     var player: Dictionary = actors[ACTOR]
-    if not _only_keys(player, ["magick", "inventory"]):
+    if not _only_keys(player, ["magick", "inventory", "transform"]):
         return "Save has unsupported player state."
     var magick: Variant = player.get("magick")
     if not magick is Dictionary:
@@ -53,10 +72,12 @@ static func validate(value: Variant) -> String:
     if int(magick["current_points"]) > int(magick["maximum_points"]):
         return "Save current mana exceeds maximum mana."
     var inventory: Variant = player.get("inventory")
-    if not inventory is Dictionary or not _integer(inventory.get("selected_weapon"), -1, 32767):
+    if not inventory is Dictionary:
         return "Save has invalid inventory selection."
     if not _only_keys(inventory, ["selected_weapon", "quantities"]):
         return "Save has unsupported inventory state."
+    if inventory.has("selected_weapon") and not _integer(inventory.get("selected_weapon"), -1, 32767):
+        return "Save has invalid inventory selection."
     var quantities: Variant = inventory.get("quantities")
     if not quantities is Dictionary:
         return "Save is missing inventory quantities."
@@ -65,6 +86,28 @@ static func validate(value: Variant) -> String:
         # their absent/unavailable sentinel. Preserve it through native saves.
         if not item is String or not str(item).is_valid_int() or str(int(item)) != item or not _integer(int(item), 0, 32767) or not _integer(quantities[item], -1, 32767):
             return "Save has an invalid inventory quantity."
+    if player.has("transform"):
+        var transform: Variant = player["transform"]
+        if not transform is Dictionary or not transform.has("position") or not _only_keys(transform, ["position", "basis"]):
+            return "Save has invalid player transform."
+        if not _valid_vector(transform["position"], 1000000.0):
+            return "Save has invalid player position."
+        if transform.has("basis"):
+            var axes: Variant = transform["basis"]
+            if not axes is Array or axes.size() != 3 or not _valid_vector(axes[0], 1.5) or not _valid_vector(axes[1], 1.5) or not _valid_vector(axes[2], 1.5):
+                return "Save has invalid player orientation."
+            var x_axis := _as_vector(axes[0])
+            var y_axis := _as_vector(axes[1])
+            var z_axis := _as_vector(axes[2])
+            if absf(x_axis.length_squared() - 1.0) > 0.02 or absf(y_axis.length_squared() - 1.0) > 0.02 or absf(z_axis.length_squared() - 1.0) > 0.02 or absf(x_axis.dot(y_axis)) > 0.02 or absf(x_axis.dot(z_axis)) > 0.02 or absf(y_axis.dot(z_axis)) > 0.02 or x_axis.cross(y_axis).dot(z_axis) < 0.98:
+                return "Save has a non-orthonormal player orientation."
+    if actors.has(GLOBAL):
+        var global_state: Variant = actors[GLOBAL]
+        if not global_state is Dictionary or not global_state.has("brain") or not _only_keys(global_state, ["brain"]):
+            return "Save has invalid Global actor state."
+        var global_brain: Variant = global_state["brain"]
+        if not global_brain is Dictionary or not global_brain.has("dsg_149") or not _only_keys(global_brain, ["dsg_149"]) or not global_brain["dsg_149"] is bool:
+            return "Save has invalid Global Brain state."
     # Older schema-1 slots predate world flags; missing world state starts from
     # the measured manor seed. When present, validate the complete supported
     # native flag before applying any part of the save.
@@ -126,48 +169,19 @@ static func validate_original_import(value: Variant) -> String:
     if value.get("current_level") != "manoir":
         return "The current Load Game route supports original saves for manoir only."
     var state: Variant = value.get("godot_state")
-    if not state is Dictionary or state.get("schema") != 1 or state.get("level") != "manoir":
+    if not state is Dictionary:
         return "Imported original save has no supported manor state."
-    var actors: Variant = state.get("actors")
-    if not actors is Dictionary or not actors.has(ACTOR) or not actors[ACTOR] is Dictionary:
-        return "Imported original save is missing Hype."
-    if not _only_keys(actors, [ACTOR]):
-        return "Imported original save has unsupported actors."
-    var player: Dictionary = actors[ACTOR]
-    if not _only_keys(player, ["magick", "inventory", "source_translation"]):
-        return "Imported original save has unsupported player state."
-    var source_translation: Variant = player.get("source_translation")
-    if not source_translation is Array or source_translation.size() != 3:
-        return "Imported original save is missing Hype's supported position."
-    for component in source_translation:
-        if not (component is int or component is float) or absf(float(component)) > 1000000.0:
-            return "Imported original save has an invalid Hype position."
-    var magick: Variant = player.get("magick")
-    if not magick is Dictionary or not magick.has("current_points") or not magick.has("maximum_points"):
-        return "Imported original save is missing Hype's supported magick values."
-    if not _only_keys(magick, ["current_points", "maximum_points", "selected_spell_code"]):
-        return "Imported original save has unsupported magick state."
-    if not _integer(magick["current_points"], 0, 32767) or not _integer(magick["maximum_points"], 1, 32767) or int(magick["current_points"]) > int(magick["maximum_points"]):
-        return "Imported original save has invalid mana values."
-    if magick.has("selected_spell_code") and not _integer(magick["selected_spell_code"], 0, 32767):
-        return "Imported original save has an invalid selected spell."
-    var inventory: Variant = player.get("inventory")
-    if not inventory is Dictionary or not inventory.has("quantities") or not _only_keys(inventory, ["quantities", "selected_weapon"]):
-        return "Imported original save has invalid supported inventory values."
-    if inventory.has("selected_weapon") and not _integer(inventory["selected_weapon"], -1, 32767):
-        return "Imported original save has an invalid selected weapon."
-    var quantities: Variant = inventory["quantities"]
-    if not quantities is Dictionary:
-        return "Imported original save is missing inventory numbers."
-    for item in quantities:
-        if not item is String or not str(item).is_valid_int() or str(int(item)) != item or not _integer(int(item), 0, 32767) or not _integer(quantities[item], -1, 32767):
-            return "Imported original save has an invalid inventory number."
+    var error := validate(state)
+    if not error.is_empty():
+        return "Imported original save is unsupported: " + error
+    var actors: Dictionary = state["actors"]
+    if not actors.has(GLOBAL):
+        return "Imported original save is missing Global DSG[149]. Re-import the original slot."
+    if not actors[ACTOR].has("transform"):
+        return "Imported original save is missing Hype's saved position."
     var world: Variant = state.get("world")
-    if not world is Dictionary or not world.has(DUMMY) or not world[DUMMY] is Dictionary:
+    if not world is Dictionary or not world.has(DUMMY):
         return "Imported original save is missing the manor lever state."
-    var dummy_state: Dictionary = world[DUMMY]
-    if not _only_keys(world, [DUMMY]) or not _only_keys(dummy_state, ["dsg_8"]) or not dummy_state.get("dsg_8") is bool:
-        return "Imported original save has invalid manor world state."
     return ""
 
 
@@ -180,30 +194,55 @@ static func _dummy_brain(level: Node3D) -> Node:
     return level.get_node_or_null(source_brains[DUMMY]) as Node
 
 
+static func _source_brain(level: Node3D, identity: String) -> Node:
+    if level == null:
+        return null
+    var source_brains: Variant = level.get_meta("source_actor_brains", {})
+    if not source_brains is Dictionary or not source_brains.has(identity):
+        return null
+    return level.get_node_or_null(source_brains[identity]) as Node
+
+
 static func capture(actor: CharacterBody3D, level: Node3D) -> Dictionary:
     var magick: Resource = actor.get("source_magick")
     var inventory: Resource = actor.get("source_inventory")
     var dummy_brain := _dummy_brain(level)
-    if magick == null or inventory == null or dummy_brain == null:
+    var global_brain := _source_brain(level, GLOBAL)
+    if magick == null or inventory == null or dummy_brain == null or not _has_property(global_brain, "dsg_149"):
         return {}
     var quantities: Dictionary = {}
     for item in inventory.get("quantities"):
         quantities[str(item)] = int(inventory.get("quantities")[item])
+    var transform := actor.global_transform
+    var basis := transform.basis
     return {
         "schema": 1,
         "level": "manoir",
-        "actors": {ACTOR: {
-            "magick": {
-                "current_points": int(magick.get("current_points")),
-                "maximum_points": int(magick.get("maximum_points")),
-                "selected_spell_code": int(magick.get("selected_spell_code")),
+        "actors": {
+            ACTOR: {
+                "magick": {
+                    "current_points": int(magick.get("current_points")),
+                    "maximum_points": int(magick.get("maximum_points")),
+                    "selected_spell_code": int(magick.get("selected_spell_code")),
+                },
+                "inventory": {
+                    "selected_weapon": int(inventory.get("selected_weapon")),
+                    "quantities": quantities,
+                },
+                "transform": {
+                    "position": [transform.origin.x, transform.origin.y, transform.origin.z],
+                    "basis": [
+                        [basis.x.x, basis.x.y, basis.x.z],
+                        [basis.y.x, basis.y.y, basis.y.z],
+                        [basis.z.x, basis.z.y, basis.z.z],
+                    ],
+                },
             },
-            "inventory": {
-                "selected_weapon": int(inventory.get("selected_weapon")),
-                "quantities": quantities,
+            GLOBAL: {
+                "brain": {"dsg_149": global_brain.get("dsg_149")},
             },
-        }},
-        "world": {DUMMY: {"dsg_8": bool(dummy_brain.get("dsg_8"))}},
+        },
+        "world": {DUMMY: {"dsg_8": dummy_brain.get("dsg_8")}},
     }
 
 
@@ -234,10 +273,13 @@ static func apply(actor: CharacterBody3D, level: Node3D, value: Dictionary) -> S
     var magick: Resource = actor.get("source_magick")
     var inventory: Resource = actor.get("source_inventory")
     var dummy_brain := _dummy_brain(level)
+    var global_brain := _source_brain(level, GLOBAL)
     if magick == null or inventory == null:
         return "Converted player has no native magick or inventory."
     if dummy_brain == null:
         return "Converted manor has no saved dummy world flag."
+    if value["actors"].has(GLOBAL) and not _has_property(global_brain, "dsg_149"):
+        return "Converted manor has no saved Global Brain field."
     var player: Dictionary = value["actors"][ACTOR]
     var saved_magick: Dictionary = player["magick"]
     var saved_inventory: Dictionary = player["inventory"]
@@ -247,37 +289,19 @@ static func apply(actor: CharacterBody3D, level: Node3D, value: Dictionary) -> S
     magick.set("current_points", int(saved_magick["current_points"]))
     magick.set("maximum_points", int(saved_magick["maximum_points"]))
     magick.set("selected_spell_code", int(saved_magick["selected_spell_code"]))
-    inventory.set("selected_weapon", int(saved_inventory["selected_weapon"]))
-    inventory.set("quantities", quantities)
-    var world: Dictionary = value.get("world", {})
-    var dummy_state: Dictionary = world.get(DUMMY, {"dsg_8": false})
-    dummy_brain.set("dsg_8", bool(dummy_state["dsg_8"]))
-    return ""
-
-
-static func apply_original_import(actor: CharacterBody3D, level: Node3D, state: Dictionary) -> String:
-    var magick: Resource = actor.get("source_magick")
-    var inventory: Resource = actor.get("source_inventory")
-    var dummy_brain := _dummy_brain(level)
-    if magick == null or inventory == null or dummy_brain == null:
-        return "Converted manor has no supported original-save fields."
-    var player: Dictionary = state["actors"][ACTOR]
-    actor.global_position = MANOIR_START.source_vector(player["source_translation"])
-    var saved_magick: Dictionary = player["magick"]
-    magick.set("current_points", int(saved_magick["current_points"]))
-    magick.set("maximum_points", int(saved_magick["maximum_points"]))
-    if saved_magick.has("selected_spell_code"):
-        magick.set("selected_spell_code", int(saved_magick["selected_spell_code"]))
-    var saved_inventory: Dictionary = player["inventory"]
-    var current_quantities: Variant = inventory.get("quantities")
-    if not current_quantities is Dictionary:
-        return "Converted player has no native inventory numbers."
-    var quantities: Dictionary = current_quantities.duplicate()
-    for item in saved_inventory["quantities"]:
-        quantities[int(item)] = int(saved_inventory["quantities"][item])
-    inventory.set("quantities", quantities)
     if saved_inventory.has("selected_weapon"):
         inventory.set("selected_weapon", int(saved_inventory["selected_weapon"]))
-    var world: Dictionary = state["world"]
-    dummy_brain.set("dsg_8", bool(world[DUMMY]["dsg_8"]))
+    inventory.set("quantities", quantities)
+    if player.has("transform"):
+        var saved_transform: Dictionary = player["transform"]
+        var basis := actor.global_transform.basis
+        if saved_transform.has("basis"):
+            var axes: Array = saved_transform["basis"]
+            basis = Basis(_as_vector(axes[0]), _as_vector(axes[1]), _as_vector(axes[2]))
+        actor.global_transform = Transform3D(basis, _as_vector(saved_transform["position"]))
+    if value["actors"].has(GLOBAL):
+        global_brain.set("dsg_149", value["actors"][GLOBAL]["brain"]["dsg_149"])
+    var world: Dictionary = value.get("world", {})
+    var dummy_state: Dictionary = world.get(DUMMY, {"dsg_8": false})
+    dummy_brain.set("dsg_8", dummy_state["dsg_8"])
     return ""

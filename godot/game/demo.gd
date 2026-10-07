@@ -4,8 +4,7 @@ extends Node3D
 ## seeds the manor; a native slot restores supported mutable player fields.
 
 const LEVEL := "res://generated/hype/levels/manoir/level.tscn"
-const BRIDGE_GATE := "world/0/15/iMGrille_Manoir_Pont"
-const GATE_LIFT := 5.2
+const GATE_ACTOR := "world/0/15/iMGrille_Manoir_Pont"
 const MANOIR_START = preload("res://game/manoir_start.gd")
 const SAVE_STATE = preload("res://game/save_state.gd")
 @export var new_game: bool = false
@@ -122,10 +121,10 @@ func open_level() -> void:
     if world_brain == null or not world_brain.get_property_list().any(func(property): return str(property["name"]) == "dsg_8"):
         fail("The generated manor is missing the saved dummy world flag.")
         return
-    var gate := level.get_node_or_null(BRIDGE_GATE) as CharacterBody3D
+    var gate := level.get_node_or_null(GATE_ACTOR) as CharacterBody3D
     var gate_brain := gate.get_node_or_null("Brain") if gate != null else null
     if gate == null or gate_brain == null:
-        fail("The generated manor is missing the bridge gate.")
+        fail("The generated manor is missing iMGrille_Manoir_Pont or its Brain.")
         return
     var fixture := MANOIR_START.load_fixture()
     if fixture.is_empty():
@@ -136,24 +135,16 @@ func open_level() -> void:
     actor.set_physics_process(false)
     add_child(level)
     stage("tree_ready", "Restoring saved game...")
-    # Keep the measured-fixture fallback separate from imported original saves.
-    # Never fabricate gate-open state when the original table has no mapped pose.
-    if imported["status"] != "loaded":
-        gate.position.y += GATE_LIFT
     actor.set_physics_process(false)
     var fixture_error: String = MANOIR_START.apply(actor, brain, fixture)
     if not fixture_error.is_empty():
         fail(fixture_error)
         return
-    if imported["status"] == "loaded":
-        var source_error: String = SAVE_STATE.apply_original_import(actor, level, imported["state"])
+    var restore_state: Dictionary = saved["state"] if saved["status"] == "loaded" else imported["state"] if imported["status"] == "loaded" else {}
+    if not restore_state.is_empty():
+        var source_error: String = SAVE_STATE.apply(actor, level, restore_state)
         if not source_error.is_empty():
             fail(source_error)
-            return
-    if saved["status"] == "loaded":
-        var save_error: String = SAVE_STATE.apply(actor, level, saved["state"])
-        if not save_error.is_empty():
-            fail(save_error)
             return
     demo_camera.set("target", actor)
     demo_camera.call("follow")
@@ -170,15 +161,19 @@ func open_level() -> void:
         return
     stage("physics_ready", "Starting Hype...")
     brain.set("automatic", true)
-    if not bool(brain.call("start")):
+    if not brain.call("start"):
         fail("Hype's compiled behavior could not start.")
+        return
+    gate_brain.set("automatic", true)
+    if not gate_brain.call("start"):
+        fail("iMGrille_Manoir_Pont's compiled behavior could not start.")
         return
     await get_tree().process_frame
     if not is_inside_tree():
         return
     ready_to_play = true
     loading = false
-    var restored_save := saved["status"] == "loaded" or imported["status"] == "loaded"
+    var restored_save: bool = saved["status"] == "loaded" or imported["status"] == "loaded"
     var loaded_message := "Original save loaded (supported fields only)" if imported["status"] == "loaded" and saved["status"] != "loaded" else "Saved game loaded"
     stage("playable", loaded_message if restored_save else "Explore the manor")
 
@@ -212,7 +207,7 @@ func update_opening_status() -> void:
         status_label.text = "Opening incomplete: %d actor behaviors stopped. R restarts; Esc pauses." % opening_failures.size()
     if is_instance_valid(opening_camera):
         var camera_brain := opening_camera.get_parent().get_node_or_null("Brain")
-        if camera_brain != null and bool(camera_brain.get("running")) and is_instance_valid(opening_camera.get("targeted_actor")):
+        if camera_brain != null and camera_brain.get("running") and is_instance_valid(opening_camera.get("targeted_actor")):
             opening_camera.make_current()
 
 func save_game() -> void:
@@ -347,7 +342,7 @@ func pause_available() -> bool:
 func inventory_available() -> bool:
     if not ready_to_play or not is_instance_valid(actor) or not is_instance_valid(level): return false
     var ui := level.get_node_or_null("AstrolabeUI")
-    return ui == null or not bool(ui.get("widescreen"))
+    return ui == null or not ui.get("widescreen")
 
 func _exit_tree() -> void:
     restore_frame_limit()

@@ -102,18 +102,32 @@ func run() -> void:
     if game == null or game == menu:
         fail("Load Game did not open the manor")
         return
-    while not bool(game.get("ready_to_play")) and Time.get_ticks_msec() < deadline:
+    while game.get("ready_to_play") != true and Time.get_ticks_msec() < deadline:
         await process_frame
-    if not bool(game.get("ready_to_play")):
+    if game.get("ready_to_play") != true:
         fail("Manor did not become playable: " + str(game.get_node("Hud/Panel/Margin/Rows/Status").text))
         return
     var actor := game.get("actor") as CharacterBody3D
     var level := game.get("level") as Node3D
     var source_brains: Dictionary = level.get_meta("source_actor_brains")
     var dummy_brain := level.get_node(source_brains[SAVE_STATE.DUMMY]) as Node
-    if dummy_brain == null:
-        fail("Exported manor dummy Brain is missing")
+    var global_brain := level.get_node(source_brains[SAVE_STATE.GLOBAL]) as Node if source_brains.has(SAVE_STATE.GLOBAL) else null
+    var gate := level.get_node_or_null("world/0/15/iMGrille_Manoir_Pont") as CharacterBody3D
+    var gate_brain := gate.get_node_or_null("Brain") as Node if gate != null else null
+    if dummy_brain == null or global_brain == null or gate_brain == null:
+        fail("Exported manor is missing a saved actor Brain")
         return
+    var native := SAVE_STATE.read()
+    var original_import := SAVE_STATE.read_original_import()
+    var restored: Dictionary = native["state"] if native["status"] == "loaded" else original_import["state"] if original_import["status"] == "loaded" else {}
+    if restored.has("actors") and restored["actors"].has(SAVE_STATE.GLOBAL):
+        var expected_gate_sequence: bool = restored["actors"][SAVE_STATE.GLOBAL]["brain"]["dsg_149"]
+        if global_brain.get("dsg_149") != expected_gate_sequence:
+            fail("Load Game did not restore Global DSG[149]")
+            return
+        if expected_gate_sequence and (int(gate_brain.get("current_normal")) != 3 or not str(gate_brain.get("unsupported_failure")).is_empty()):
+            fail("Saved Global DSG[149] did not run the gate's source AI sequence")
+            return
     var magick := actor.get("source_magick") as Resource
     var inventory := actor.get("source_inventory") as Resource
     if stage == "write":
@@ -130,8 +144,11 @@ func run() -> void:
         if saved["status"] != "loaded" or int(saved["state"]["actors"][SAVE_STATE.ACTOR]["magick"]["current_points"]) != 23:
             fail("F5 did not write current native mana")
             return
-        if not bool(saved["state"]["world"][SAVE_STATE.DUMMY]["dsg_8"]):
+        if saved["state"]["world"][SAVE_STATE.DUMMY]["dsg_8"] != true:
             fail("F5 did not write the exported dummy's DSG[8]")
+            return
+        if not saved["state"]["actors"].has(SAVE_STATE.GLOBAL) or saved["state"]["actors"][SAVE_STATE.GLOBAL]["brain"]["dsg_149"] != true:
+            fail("F5 did not write the saved manor gate sequence flag")
             return
         if int(saved["state"]["actors"][SAVE_STATE.ACTOR]["inventory"]["quantities"]["61"]) != -1:
             fail("F5 did not preserve the measured unavailable-item sentinel")
@@ -148,8 +165,11 @@ func run() -> void:
         if int(magick.get("current_points")) != 23 or int(inventory.call("quantity", 21)) != 2:
             fail("Fresh process did not restore mana and inventory")
             return
-        if not bool(dummy_brain.get("dsg_8")):
+        if dummy_brain.get("dsg_8") != true:
             fail("Fresh process did not restore the exported dummy's DSG[8]")
+            return
+        if global_brain.get("dsg_149") != true or int(gate_brain.get("current_normal")) != 3:
+            fail("Fresh process did not restore and run the saved manor gate sequence")
             return
         if int(inventory.call("quantity", 61)) != -1:
             fail("Fresh process did not restore the unavailable-item sentinel")

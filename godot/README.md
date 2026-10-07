@@ -23,15 +23,15 @@ target/release/astrolabe port disc godot --level manoir --locale en --content pa
 
 Open `project.godot` in the Godot editor, wait for texture and sound imports to
 finish, press **F5**, and select **Load Game**. Running the project player
-before that first editor import leaves generated textures unavailable. The
-current load route restores the measured starting state of the supplied English `SaveGame0` using
-`game/english_save_manoir.json`. This is a provisional saved-game restoration;
-general savegame support will replace it. The normal generated `manoir/level.tscn` and compiled
-Hype Brain make the gameplay decisions. Authored game code provides the camera,
-control guide, mana display, reload and menu. The session currently starts with
-the bridge gate raised as a temporary workaround, separate from the restored
-save values; its opening AI is not implemented yet. The camera uses the measured
-initial manor view and a simple actor follow; the source camera update remains under
+before that first editor import leaves generated textures unavailable. Load
+Game first uses a native Godot slot if one exists; otherwise it reads the
+imported original slot from `game/original_save_import.json`. If neither is
+available, it uses the measured English manor seed. The normal generated
+`manoir/level.tscn` and compiled Hype Brains make gameplay decisions. Authored
+game code provides the camera, control guide, mana display, save operation and
+menu. The gate runs its imported source AI after saved state is applied; there
+is no raised-gate position workaround. The camera uses the measured initial
+manor view and a simple actor follow; the source camera update remains under
 investigation.
 
 Controls: **Arrows** move and turn, **Shift** runs, **Ctrl** jumps, **X** draws
@@ -62,17 +62,20 @@ target/release/astrolabe import-save /path/to/SaveGame0 \
   --profile hype-pc-english-supplied-save
 ```
 
-The command writes `game/original_save_import.json`, which is ignored as local
-game data. If no native Godot slot exists, **Load Game** reads Hype's saved
-translation, mana and selected magic slot, supported inventory numbers, and
-manor lever state. The profile preserves all source records in the import
-file. Godot retains the measured orientation and does not restore current AI
-state, active-weapon selection, or bridge-gate pose. Imported-source loading
-leaves the gate at the generated scene pose; the measured-fixture fallback
-still uses the temporary gate lift described above. The status text labels
-imported saves as a supported-fields-only load. The supplied original slot is
-an initial save, not the requested authentic gate-open checkpoint; see the
-[save importer evidence](../docs/openspace/save-games.md#import-an-original-slot-into-godot).
+The command writes `game/original_save_import.json`, which is ignored local
+game data; the original files are read without modification. If no native
+Godot slot exists, **Load Game** reads Hype's saved position and recoverable
+orientation, mana, selected magic slot, supported inventory numbers, manor
+lever state, and Global `DSG[149]`. It retains the raw source records in the
+import report while runtime applies only canonical supported fields. The
+supplied authentic SaveGame0 has Global `DSG[149] = true`. Gate AI model 272
+reads that value, moves its own actor through the compiled source position
+operation, and enters its next behavior. This replaces the former raised-gate
+constant; the importer does not manufacture a gate pose or progression flag.
+Current AI behavior and active-weapon selection are not imported. Native Godot
+saves also capture Hype's transform and the Global gate-sequence Boolean, so
+subsequent Load Game restores those supported fields. The status text labels
+imported originals as supported-fields-only. See the [save importer evidence](../docs/openspace/save-games.md#import-an-original-slot-into-godot).
 
 The current session still uses the historical `game/demo.*` and `demo_camera.gd`
 filenames. They are game code; the names do not define a separate demo product.

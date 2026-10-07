@@ -60,19 +60,24 @@ fn signed_i16(save: &SaveSlot, identity: &str) -> Result<i16> {
     ))
 }
 
-fn source_translation(save: &SaveSlot) -> Result<[f32; 3]> {
+fn source_position_prefix(save: &SaveSlot) -> Result<&[u8]> {
     let record = player_record(save, "2:6:1463692")?;
     ensure!(
         record.header.data_type == 0x10 && record.value_bytes.len() == 36,
         "English PC Hype position record has an unexpected value type"
     );
-    // The saved value is a 36-byte prefix of the source POS matrix. The
-    // translation floats are at bytes 4, 8 and 12; retain the rest verbatim in
-    // source_save until the matrix restoration contract is fully mapped.
+    ensure!(
+        record.value_bytes[0] > 0x7f,
+        "English PC Hype position is not an uncompressed source transform"
+    );
+    Ok(&record.value_bytes)
+}
+
+fn source_translation(bytes: &[u8]) -> Result<[f32; 3]> {
     let mut translation = [0.0f32; 3];
     for (index, value) in translation.iter_mut().enumerate() {
         let start = 4 + index * 4;
-        let bytes: [u8; 4] = record.value_bytes[start..start + 4]
+        let bytes: [u8; 4] = bytes[start..start + 4]
             .try_into()
             .expect("position record width checked");
         *value = f32::from_le_bytes(bytes);
@@ -82,6 +87,76 @@ fn source_translation(save: &SaveSlot) -> Result<[f32; 3]> {
         );
     }
     Ok(translation)
+}
+
+fn source_rotation(bytes: &[u8]) -> Option<[[f32; 3]; 3]> {
+    // Hype registers only the first 0x24 bytes of its 0x58-byte POS value.
+    // That prefix contains three translation floats and five of the nine
+    // rotation floats. Reconstruct the missing second-row Z only when the
+    // orthonormal matrix constraints determine a unique value.
+    let float_at = |offset: usize| {
+        f32::from_le_bytes(bytes[offset..offset + 4].try_into().expect("checked width"))
+    };
+    let row0 = [float_at(16), float_at(20), float_at(24)];
+    let row1_xy = [float_at(28), float_at(32)];
+    if row0
+        .iter()
+        .chain(row1_xy.iter())
+        .any(|value| !value.is_finite())
+    {
+        return None;
+    }
+    let row0_len2 = row0.iter().map(|value| value * value).sum::<f32>();
+    if (row0_len2 - 1.0).abs() > 0.01 {
+        return None;
+    }
+
+    let xy_dot = row0[0] * row1_xy[0] + row0[1] * row1_xy[1];
+    let row1_z = if row0[2].abs() > 0.001 {
+        -xy_dot / row0[2]
+    } else if xy_dot.abs() <= 0.001
+        && (row1_xy[0] * row1_xy[0] + row1_xy[1] * row1_xy[1] - 1.0).abs() <= 0.001
+    {
+        0.0
+    } else {
+        // With a zero Z in row zero, the remaining length permits two signs.
+        return None;
+    };
+    let row1 = [row1_xy[0], row1_xy[1], row1_z];
+    let row1_len2 = row1.iter().map(|value| value * value).sum::<f32>();
+    if !row1_z.is_finite() || (row1_len2 - 1.0).abs() > 0.01 {
+        return None;
+    }
+
+    // Remove saved float rounding while preserving its orientation. The last
+    // axis follows from a right-handed orthonormal transform.
+    let normalize = |vector: [f32; 3]| -> Option<[f32; 3]> {
+        let length = vector.iter().map(|value| value * value).sum::<f32>().sqrt();
+        (length.is_finite() && length > 0.0)
+            .then(|| [vector[0] / length, vector[1] / length, vector[2] / length])
+    };
+    let row0 = normalize(row0)?;
+    let projection = row0[0] * row1[0] + row0[1] * row1[1] + row0[2] * row1[2];
+    let row1 = normalize([
+        row1[0] - projection * row0[0],
+        row1[1] - projection * row0[1],
+        row1[2] - projection * row0[2],
+    ])?;
+    let row2 = normalize([
+        row0[1] * row1[2] - row0[2] * row1[1],
+        row0[2] * row1[0] - row0[0] * row1[2],
+        row0[0] * row1[1] - row0[1] * row1[0],
+    ])?;
+    Some([row0, row1, row2])
+}
+
+fn godot_basis(rows: [[f32; 3]; 3]) -> [[f32; 3]; 3] {
+    let [row0, row1, row2] = rows;
+    [
+        [row0[0], row0[2], -row0[1]],
+        [row2[0], row2[2], -row2[1]],
+        [-row1[0], -row1[2], row1[1]],
+    ]
 }
 
 fn saved_bool(save: &SaveSlot, identity: &str, kind: u8) -> Result<bool> {
@@ -94,7 +169,7 @@ fn saved_bool(save: &SaveSlot, identity: &str, kind: u8) -> Result<bool> {
     }
 }
 
-fn godot_state(save: &SaveSlot) -> Result<Option<Value>> {
+fn godot_state(save: &SaveSlot) -> Result<Option<(Value, Vec<String>)>> {
     if save.current_level != "manoir" {
         return Ok(None);
     }
@@ -118,7 +193,10 @@ fn godot_state(save: &SaveSlot) -> Result<Option<Value>> {
         current_mana <= maximum_mana && maximum_mana <= i32::MAX as u32,
         "English PC save has invalid mana values"
     );
-    let translation = source_translation(save)?;
+    let source_position = source_position_prefix(save)?;
+    let translation = source_translation(source_position)?;
+    let rotation = source_rotation(source_position);
+    let global_gate_sequence = saved_bool(save, "0:17:4560", 0x10)?;
 
     // Inventory main-list +10 stores signed instantiated item numbers. Map
     // only the item handles used by the current Godot manor slice; every
@@ -142,7 +220,7 @@ fn godot_state(save: &SaveSlot) -> Result<Option<Value>> {
         "maximum_points": maximum_mana,
         "selected_spell_code": selected_spell_code,
     });
-    let source_translation = json!([translation[0], translation[1], translation[2]]);
+    let position = json!([translation[0], translation[2], -translation[1]]);
 
     let lever = saved_bool(save, "0:17:297732", 0x10)?;
     let mut warnings = Vec::new();
@@ -152,21 +230,34 @@ fn godot_state(save: &SaveSlot) -> Result<Option<Value>> {
         );
     }
 
-    Ok(Some(json!({
+    let mut state = json!({
         "schema": 1,
         "level": "manoir",
         "actors": {
             "world/0/0/Hype": {
                 "magick": magick,
                 "inventory": {"quantities": quantities},
-                "source_translation": source_translation,
+                "transform": {"position": position},
+            },
+            "fix:/persos/15": {
+                "brain": {"dsg_149": global_gate_sequence},
             }
         },
         "world": {
             "level:/persos/world/0/27": {"dsg_8": lever}
         },
-        "warnings": warnings,
-    })))
+    });
+    if let Some(rotation) = rotation {
+        // Godot Basis stores its three local axes as columns. Convert each
+        // source row vector into Godot coordinates and order it like the
+        // measured native fixture's transform conversion.
+        state["actors"]["world/0/0/Hype"]["transform"]["basis"] = json!(godot_basis(rotation));
+    } else {
+        warnings.push(
+            "Hype orientation was omitted because the saved matrix prefix does not uniquely determine it.".to_owned(),
+        );
+    }
+    Ok(Some((state, warnings)))
 }
 
 /// Read and convert one extracted original save slot into an import JSON file
@@ -179,6 +270,9 @@ pub fn import_original_slot(input: &Path, output: &Path, profile: &str) -> Resul
     let save = crate::openspace::save_game::read_slot(input)?;
     let state = godot_state(&save)?;
     let has_godot_state = state.is_some();
+    let (state, warnings) = state
+        .map(|(state, warnings)| (Some(state), warnings))
+        .unwrap_or((None, Vec::new()));
     let mut report = json!({
         "schema": 1,
         "format": "astrolabe-godot-original-save-import",
@@ -189,17 +283,18 @@ pub fn import_original_slot(input: &Path, output: &Path, profile: &str) -> Resul
         "display_name": save.display_name,
         "game_timer_ms": save.game_timer_ms,
         "godot_state": state,
+        "warnings": warnings,
         "restored_fields": [
-            "Hype saved translation",
+            "Hype saved position and uniquely recoverable orientation",
             "Hype current and maximum mana",
             "Hype selected magic slot",
             "supported manor inventory item numbers",
             "iDummy_PourCercles.DSG[8] manor lever state",
+            "fix:/persos/15 Global.DSG[149], read by manor gate AI model 272",
         ],
         "not_restored": [
-            "Hype saved orientation and current AI behavior state",
+            "Hype current AI behavior state",
             "active weapon selection",
-            "bridge-gate pose or animation; the mapped gate records cover active/HP state only",
             "other source records without a supported Godot field mapping",
         ],
         "source_save": save,
@@ -210,4 +305,42 @@ pub fn import_original_slot(input: &Path, output: &Path, profile: &str) -> Resul
     let bytes = serde_json::to_vec_pretty(&report)?;
     crate::files::write_atomic(output, &bytes)?;
     Ok(report)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{godot_basis, source_rotation};
+
+    #[test]
+    fn reconstructs_source_rotation_from_five_saved_floats() {
+        let mut bytes = [0u8; 36];
+        for (offset, value) in [
+            (16, -0.999_995_77_f32),
+            (20, 0.002_917_85),
+            (24, 0.0),
+            (28, -0.002_917_85),
+            (32, -0.999_995_77),
+        ] {
+            bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+        }
+        let basis = source_rotation(&bytes).expect("rotation is determined");
+        assert!((basis[0][0] + 1.0).abs() < 0.000_01);
+        assert!((basis[1][1] + 1.0).abs() < 0.000_01);
+        assert!((basis[2][2] - 1.0).abs() < 0.000_01);
+        assert!(basis[2][0].abs() < 0.000_01);
+        assert!(basis[2][1].abs() < 0.000_01);
+        let godot = godot_basis(basis);
+        assert!((godot[0][0] + 1.0).abs() < 0.000_01);
+        assert!((godot[1][1] - 1.0).abs() < 0.000_01);
+        assert!((godot[2][2] + 1.0).abs() < 0.000_01);
+    }
+
+    #[test]
+    fn omits_source_rotation_when_missing_component_is_ambiguous() {
+        let mut bytes = [0u8; 36];
+        for (offset, value) in [(16, 1.0_f32), (20, 0.0), (24, 0.0), (28, 0.0), (32, 0.8)] {
+            bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+        }
+        assert!(source_rotation(&bytes).is_none());
+    }
 }

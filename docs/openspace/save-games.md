@@ -35,26 +35,36 @@ bytes in that report. Godot consumes only the supported native overlay; it does
 not interpret source-address tables at runtime. A native Godot slot takes
 precedence when one already exists.
 
-The current `manoir` overlay restores Hype's saved translation, source-backed
-mana and selected magic slot, the supported inventory handle numbers, and
-`iDummy_PourCercles.DSG[8]`. It retains the fixture orientation and current AI
-behavior state, and does not restore active-weapon selection or the bridge-gate
-pose/animation. Godot applies this subset over the measured starting fixture
-and labels it as a supported-fields-only load. The mapped gate records cover
-its active/HP fields only; they do not encode whether its mesh is raised. When
-an imported original slot is present, Godot skips the provisional gate lift
-and leaves the gate at the exported scene pose. The measured-fixture path
-still retains its temporary lift until a suitable, authentic gate-progression
-save and the required source mappings are available.
+The `manoir` overlay restores Hype's saved position and a uniquely recoverable
+orientation, source-backed mana and selected magic slot, supported inventory
+handle numbers, `iDummy_PourCercles.DSG[8]`, and the Global Brain Boolean
+`fix:/persos/15.DSG[149]`. Current AI behavior and active-weapon selection
+remain unsupported. Original SAI addresses and bytes stay in the import report;
+Godot receives only the canonical actor/world state and applies it before
+starting the compiled Brains.
 
-The only available authentic slot is the supplied initial `SaveGame0` for
-`manoir`, both as `reference/Savefile_EN.zip` and in the installed game's
-`SaveGame0/` directory. Their contents match. It is not a gate-open checkpoint:
-its gate table contains active/HP values, while source inspection has not
-established a saved raised pose. Completing that checkpoint needs an authentic
-later `SaveGameN/` captured after the bridge opens naturally, plus verified
-gate AI/animation restoration semantics. No flag-only fixture can substitute
-for that evidence.
+The supplied authentic `SaveGame0` contains player record `0:17:4560`,
+one-byte Boolean value `01`, with save flags `0x0204`. The typed source join
+identifies it as Global `DSG[149]`. `level:/ai/models/272` for
+`iMGrille_Manoir_Pont` checks that field in Normal behavior 0; when it is one,
+the script calls procedure 253 with `SelfPosition + Vector(2.6, 0, 0)` and
+then changes behavior. Raymap names procedure 253
+`Proc_SetPersoAbsolutePosition`; its decompiled dispatcher at
+`00544590` selects a callback using the executing Perso's position data but
+leaves the final callback indirect. Astrolabe now imports the typed vector
+addition and procedure into compiled AI and supplies a native Godot API that
+sets the executing actor's source-space position. The target therefore runs
+the saved gate sequence after restoring the actual Global flag. It does not
+apply a raised pose or vertical lift constant.
+
+The user identified the supplied SaveGame0 as the post-key gate-open
+checkpoint. The source evidence establishes that its saved Global value enters
+the grille AI sequence; it does not prove the flag's complete narrative cause.
+The source ledger retains DSG[149] as a partial sequence/latch meaning because
+IWorld can set and clear it and the authored SaveTesteurs actor can snapshot,
+restore or force it. No gate pose is read from a made-up fixture. The original
+save remains the input to the CLI importer, and the Godot Load Game route uses
+its converted state when no native Godot slot is present.
 
 ## File roles and observed contents
 
@@ -434,12 +444,14 @@ also have linked manor vial, herb or gold model sites. The surrounding AI
 conditions and actions are not fully decoded, so none has a verified pickup
 or quest-event meaning. The catalogue retains all nine as partial unknowns;
 see the [object-template trace](../../output/savegame-semantic-map/global-object-cluster-followup.md).
-The manor Global fields `DSG[147]` and `DSG[149]` are also only partly
-resolved. Value one of DSG[147] triggers the statue actor's typed `KillSelf`
-branch after an `iGogood` action sets it. DSG[149] gates a grille behavior
-sequence and has IWorld set/clear paths. The save-test actor can snapshot,
-restore or force both fields to one, so their saved bytes do not establish a
-particular progression event. See the [manor gate trace](../../output/savegame-semantic-map/global-manoir-147-149-followup.md).
+The manor Global fields `DSG[147]` and `DSG[149]` retain partial source
+meanings. Value one of DSG[147] triggers the statue actor's typed `KillSelf`
+branch after an `iGogood` action sets it. DSG[149] gates the grille sequence
+and has IWorld set/clear paths; the save-test actor can snapshot, restore or
+force it. Its value alone does not establish the complete story event. For the
+separate Godot restore implementation of the supplied slot's grille AI, see
+[the import section above](#import-an-original-slot-into-godot) and the
+[manor gate trace](../../output/savegame-semantic-map/global-manoir-147-149-followup.md).
 Global `DSG[32]` is a Perso reference assigned by the manor checkpoint
 script. The supplied save targets the rooted checkpoint actor at
 `level:/persos/world/0/35`; a source branch can instead assign the main

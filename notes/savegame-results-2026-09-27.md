@@ -236,17 +236,15 @@ the lever's two opening positions remain unproved. Evidence is under
 
 ## Native Godot persistence scope
 
-The game now has a versioned JSON slot in `user://manoir-save-v1.json`. It
-stores one stable player identity (`world/0/0/Hype`), native current/maximum
-mana and selected spell, selected weapon, item quantities, and the exported
-manor dummy Brain's `dsg_8` Boolean under stable source identity
-`level:/persos/world/0/27`. The measured
-English fixture remains the initial manor seed for other supported starting
-state. The slot is read and validated before the level is opened; supported
-mutable fields are restored after seed application and before Brain starts.
+The game has a versioned JSON slot in `user://manoir-save-v1.json`. It stores
+Hype's transform, native current/maximum mana, selected spell, selected weapon
+and item quantities; the manor dummy Brain's `dsg_8`; and Global
+`fix:/persos/15` Brain `dsg_149`. The measured English fixture remains a seed
+for fields absent from an original slot. Native and imported state are
+validated before application and restored before the relevant Brains start.
 Invalid, missing and unsupported values cannot partly apply. Writes validate
-the complete snapshot and replace the slot via a same-directory temporary
-file. The menu surfaces a corrupt slot and disables loading it.
+the snapshot and replace the slot via a same-directory temporary file. The
+menu surfaces a corrupt native slot and disables loading it.
 
 The `godot-harness` save test drives the actual menu and F5 save operation in
 an isolated Godot user-data directory. It writes 23 mana after native
@@ -334,3 +332,29 @@ unknown. Even these verified fields cannot establish general original-save
 compatibility. The measured English manor seed is explicitly a seed, not a
 source-save converter. An original-save writer or general importer is outside
 this checkpoint.
+
+## Godot restoration of the authentic manor gate checkpoint — 2026-10-07
+
+The Rust original-save importer now maps the supplied archive's player record
+`0:17:4560` (type `0x10`, flags `0x0204`, byte `01`) to canonical
+`fix:/persos/15` Brain `dsg_149: true`. It also restores Hype's position and
+uniquely recoverable orientation from the actual 36-byte saved transform
+prefix, alongside the already supported mana, inventory and manor dummy flag.
+
+Source model `level:/ai/models/272` reads this Global Boolean at the start of
+the gate's Normal behavior 0. Its true branch passes `SelfPosition +
+Vector(2.6, 0, 0)` to procedure 253 and enters Normal behavior 3. The Rust AI
+parser/writer and GDScript compiler now preserve that typed vector expression
+and procedure. The maintained Godot character API applies the operation to
+the executing actor in source coordinates; the Load Game session starts the
+gate Brain after restoring the imported state. This removes the former
+vertical `+5.2` gate lift and keeps subsequent native Godot saves of Hype's
+transform and Global `dsg_149`.
+
+The source evidence supports the restored gate AI branch, not the full story
+cause of the Boolean: IWorld has set/clear paths and the authored save-test
+actor can force/restore the field. The supplied SaveGame0 is the authentic
+source file identified by the user for this checkpoint; no flag-only save
+fixture was created. Original-game replay was not part of this implementation
+check. The focused Godot save persistence check now verifies that a true
+restored flag reaches Normal behavior 3 without an unsupported AI failure.

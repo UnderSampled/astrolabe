@@ -328,6 +328,10 @@ impl Parser<'_> {
                 (4, 214) => Statement::Turn {
                     degrees_per_second: self.expression(indent + 1)?,
                 },
+                // Hype Proc_SetPersoAbsolutePosition (253) acts on the
+                // executing Perso. The vector is source-space absolute
+                // translation, converted at the Godot actor API boundary.
+                (4, 253) => Statement::SetSelfAbsolutePosition(self.expression(indent + 1)?),
                 (5, 23) => {
                     let (target_at, target) = self.take(indent + 1)?;
                     let target = match (target.kind, target.parameter) {
@@ -752,6 +756,10 @@ impl Parser<'_> {
                 Box::new(self.expression(indent + 1)?),
             ),
             (2, 3) => Expression::Divide(
+                Box::new(self.expression(indent + 1)?),
+                Box::new(self.expression(indent + 1)?),
+            ),
+            (2, 16) => Expression::VectorPlus(
                 Box::new(self.expression(indent + 1)?),
                 Box::new(self.expression(indent + 1)?),
             ),
@@ -1278,6 +1286,10 @@ impl Writer<'_> {
                     self.node(4, 253, indent + 1);
                     self.expression(position, indent + 2)?;
                 }
+                Statement::SetSelfAbsolutePosition(position) => {
+                    self.node(4, 253, indent);
+                    self.expression(position, indent + 1)?;
+                }
                 Statement::CameraUpdatePosition {
                     preceded_by_return_zero,
                 } => {
@@ -1518,6 +1530,11 @@ impl Writer<'_> {
                     },
                     indent,
                 );
+                self.expression(a, indent + 1)?;
+                self.expression(b, indent + 1)?;
+            }
+            Expression::VectorPlus(a, b) => {
+                self.node(2, 16, indent);
                 self.expression(a, indent + 1)?;
                 self.expression(b, indent + 1)?;
             }
@@ -2235,6 +2252,34 @@ mod partial_tests {
                 target: ActorTarget::Keyword(ActorKeyword::MainActor),
             } if bound == &camera
         ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn self_absolute_position_procedure_reconstructs_vector_plus_self() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (4, 253, 1),
+            (2, 16, 2),
+            (3, 0, 3),
+            (16, 0, 3),
+            (13, 2.6_f32.to_bits(), 4),
+            (13, 0.0_f32.to_bits(), 4),
+            (13, 0.0_f32.to_bits(), 4),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert_eq!(
+            script.statements,
+            vec![Statement::SetSelfAbsolutePosition(Expression::VectorPlus(
+                Box::new(Expression::SelfPosition),
+                Box::new(Expression::Vector(Box::new([
+                    Expression::Real(2.6),
+                    Expression::Real(0.0),
+                    Expression::Real(0.0),
+                ]))),
+            ))]
+        );
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())
     }
