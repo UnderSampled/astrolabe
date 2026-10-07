@@ -187,11 +187,26 @@ global names alongside each Fix identity as editor metadata.
 
 These are opaque relocated objects passed to `GLI_xSetMaterialTexture`, which
 stores its second argument on the runtime material. This does not establish a
-serialized `VisualMaterial` or `TextureInfo` relationship. A tested Fix object
-had no texture name or valid image dimensions, and the three non-null handles
-in this profile do not appear in Fix.ptx. The archive-art mapping remains
-unresolved. An unrelocated panel-layer handle is retained as four opaque bytes;
-the exporter emits no guessed texture links or substitute UI art.
+serialized `VisualMaterial` or `TextureInfo` relationship. The three non-null
+handles resolve to 48-byte Fix allocations. In the imported profile, each has
+relocated edges at `+0x04` and `+0x08` to separate zero-filled 1536-byte
+allocations, and an edge at `+0x1c` through a four-byte pointer cell to a
+32-byte descriptor. That descriptor has four edges to zero-filled allocations
+of 384, 384, 768, and 1024 bytes. None of these records has yet been established
+as image pixels, mipmaps, or a canonical texture-table entry. `FUN_00483860` and
+`FUN_00483930` serialize and restore GLI global texture-cache state, but do not
+bridge these Fix handles to archive image names. A bounded audit of this local
+Fix.ptx resolves 435 relocated TextureInfo records; all 435 have names and all
+435 names match entries in `Textures.cnt`. That table includes candidates such
+as `fixtex/stencil/jauges/vie/vie0.tga` and `vie1.tga`, but none of the three
+HUD handle addresses occurs in the Fix.ptx pointer list or in those records'
+188-byte fields. The standard named texture loader
+([`GLI_xLoadTextureInTexelField`](../reference/decompilation/functions/004828e0_GLI_xLoadTextureInTexelField.c))
+does not by itself establish how these GPT handles join that table. Keep the
+source-to-PTX/CNT handle mapping unresolved; do not assign even the plausible
+life images until the link is proven. An unrelocated panel-layer handle is
+retained as four opaque bytes; the exporter emits no guessed texture links or
+substitute UI art.
 
 Fix.sda's HUD block begins at `0x9b4` and contains two source words, two text
 offsets, and two 24-by-6 tables. `0040d190` and `0040bfa0` show the rectangle
@@ -207,13 +222,15 @@ and `0040cb50`. Armor and magic retain table metadata; their complete item/state
 art mapping remains open.
 
 The HUD importer completed for the local `manoir` profile and saved one
-`fix:/hud/en` Rete root with no diagnostics; Rete inspection succeeded. After
-integration at Rete schema 42 and support interface 54, a focused Godot 4.7.2
-HUD-only export completed and imported the native scene. It emitted five files;
+`fix:/hud/en` Rete root with no diagnostics; Rete inspection succeeded. A
+focused Godot 4.7.2 HUD-only export at Rete schema 42/support interface 54
+completed and imported the native scene. It emitted five files;
 `validation.json` reports no models, sounds, textures, or diagnostics. The
-scene retains the six runtime-global names as metadata without assigning image
-resources. No gameplay session was run, and the separate HUD root is still not
-attached to the saved level screen, so on-screen behavior remains unverified.
+subsequent armor integration advanced the shared versions to schema 43/support
+55. The HUD scene retains the six runtime-global names as metadata without
+assigning image resources. No gameplay session was run, and the separate HUD
+root is still not attached to the saved level screen, so on-screen behavior
+remains unverified.
 
 ## Current boundary and next increments
 
