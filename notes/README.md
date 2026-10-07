@@ -6,6 +6,10 @@
 
 ## Common records
 
+The [armor catalog and AI port checkpoint](armor-ai-port-2026-10-07.md)
+records the isolated Fix-owned armor implementation, its source boundaries,
+and focused validation limits.
+
 The [in-engine manor opening checkpoint](cinematic-opening-source-2026-10-03.md)
 records typed/shared route conversion, the original opening actor/camera capture,
 the validated native Gogoud component, explicitly deferred wind and remaining

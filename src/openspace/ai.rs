@@ -46,7 +46,7 @@ impl FormatCodec for AiScriptCodec {
             format: "Hype AI script",
             reads: true,
             writes: true,
-            notes: "Typed scalar/Boolean trees, branches, assignment, wait, main-actor distance and sound requests; unsupported operations fail explicitly",
+            notes: "Typed scalar/Boolean trees, source actor/math calls, armor operations, branches, assignment, waits, and sound requests; unsupported operations fail explicitly",
         }
     }
     fn read(&self, bytes: &[u8]) -> Result<Script> {
@@ -561,6 +561,8 @@ impl Parser<'_> {
                 // expression typed; the target component performs the source
                 // byte conversion at the API boundary.
                 (4, 429) => Statement::SelectArmor(self.expression(indent + 1)?),
+                (4, 430) => Statement::SetArmorResistance(self.expression(indent + 1)?),
+                (4, 431) => Statement::RepairArmor,
                 (5, 68) => Statement::WaitFrames(self.expression(indent + 1)?),
                 (4, 209 | 210) => self.change_behavior(id, indent, false, at)?,
                 (4, 6) => {
@@ -720,8 +722,16 @@ impl Parser<'_> {
             ));
         }
         let value = match (kind, id) {
+            (0, 4) => Expression::Actor(ActorTarget::Keyword(ActorKeyword::SelfActor)),
+            (0, 5) => Expression::Actor(ActorTarget::Keyword(ActorKeyword::MainActor)),
             (0, 7) => Expression::Nobody,
             (0, 8) => Expression::Nowhere,
+            (24, _) => match self.codec.actors.get(&at) {
+                Some(actor) => Expression::Actor(ActorTarget::Reference(actor.clone())),
+                None => Expression::Unsupported(
+                    self.unsupported(at, format!("unbound actor at node {at}"))?,
+                ),
+            },
             (12, n) => Expression::Integer(n as i32),
             (13, n) => Expression::Real(f32::from_bits(n)),
             (16, 0) => Expression::Vector(Box::new([
@@ -973,6 +983,7 @@ impl Parser<'_> {
                 }
             }
             (1, 2) => Expression::Not(Box::new(self.expression(indent + 1)?)),
+            (1, 64) => Expression::IsValidActor(Box::new(self.expression(indent + 1)?)),
             (1, 3..=8) => Expression::Compare {
                 operation: match id {
                     3 => Comparison::Equal,
@@ -986,16 +997,25 @@ impl Parser<'_> {
                 right: Box::new(self.expression(indent + 1)?),
             },
             (3, 4) => {
-                let (_, actor) = self.take(indent + 1)?;
-                if actor.kind != 0 || actor.parameter != 5 {
+                let actor = self.expression(indent + 1)?;
+                let Expression::Actor(actor) = actor else {
                     return Ok(Expression::Unsupported(self.unsupported(
                         at,
                         "distance requires an unsupported actor expression".into(),
                     )?));
+                };
+                if actor == ActorTarget::Keyword(ActorKeyword::MainActor) {
+                    Expression::MainActorDistance
+                } else {
+                    Expression::ActorDistance(Box::new(Expression::Actor(actor)))
                 }
-                Expression::MainActorDistance
             }
+            (3, 25) => Expression::Square(Box::new(self.expression(indent + 1)?)),
             (3, 22) => Expression::IntegerCast(Box::new(self.expression(indent + 1)?)),
+            (3, 33) => Expression::AbsoluteValue(Box::new(self.expression(indent + 1)?)),
+            (3, 224) => Expression::ApplyArmoredDamage(Box::new(self.expression(indent + 1)?)),
+            (3, 226) => Expression::ArmorResistance,
+            (3, 227) => Expression::ArmorCount,
             (3, 35) => {
                 let (_, actor) = self.take(indent + 1)?;
                 if actor.kind == 0 && actor.parameter == 4 {
@@ -1358,6 +1378,11 @@ impl Writer<'_> {
                     self.node(4, 429, indent);
                     self.expression(index, indent + 1)?;
                 }
+                Statement::SetArmorResistance(rank) => {
+                    self.node(4, 430, indent);
+                    self.expression(rank, indent + 1)?;
+                }
+                Statement::RepairArmor => self.node(4, 431, indent),
                 Statement::ArrayAssign {
                     array,
                     index,
@@ -1477,6 +1502,16 @@ impl Writer<'_> {
         ensure!(indent <= 64, "AI expression too deep to encode");
         match e {
             Expression::Unsupported(_) => bail!("unsupported AI fragment cannot be reconstructed"),
+            Expression::Actor(ActorTarget::Keyword(actor)) => self.node(
+                0,
+                if *actor == ActorKeyword::SelfActor {
+                    4
+                } else {
+                    5
+                },
+                indent,
+            ),
+            Expression::Actor(ActorTarget::Reference(actor)) => self.actor_node(actor, indent)?,
             Expression::Nobody => self.node(0, 7, indent),
             Expression::Nowhere => self.node(0, 8, indent),
             Expression::Integer(v) => self.node(12, *v as u32, indent),
@@ -1485,6 +1520,28 @@ impl Writer<'_> {
                 self.node(3, 22, indent);
                 self.expression(value, indent + 1)?;
             }
+            Expression::Square(value) => {
+                self.node(3, 25, indent);
+                self.expression(value, indent + 1)?;
+            }
+            Expression::AbsoluteValue(value) => {
+                self.node(3, 33, indent);
+                self.expression(value, indent + 1)?;
+            }
+            Expression::IsValidActor(value) => {
+                self.node(1, 64, indent);
+                self.expression(value, indent + 1)?;
+            }
+            Expression::ActorDistance(value) => {
+                self.node(3, 4, indent);
+                self.expression(value, indent + 1)?;
+            }
+            Expression::ApplyArmoredDamage(value) => {
+                self.node(3, 224, indent);
+                self.expression(value, indent + 1)?;
+            }
+            Expression::ArmorResistance => self.node(3, 226, indent),
+            Expression::ArmorCount => self.node(3, 227, indent),
             Expression::SelfHitPoints => {
                 self.node(3, 35, indent);
                 self.node(0, 4, indent + 1);

@@ -4,14 +4,58 @@ extends Resource
 
 signal selection_changed(index: int)
 
+## Compatibility facade retained for compiled AI scripts. The catalog owns the
+## actual Fix-selected definition and its mutable piece/resistance state.
+@export var catalog: Resource
 @export var selected_index: int = -1
 
 ## The source handler passes its operand through an unsigned byte parameter.
 func select_source_index(value: int) -> bool:
 	var selected := value & 0xff
+	if is_instance_valid(catalog) and catalog.has_method("select"):
+		catalog.call("select", selected)
+		selected = int(catalog.get("selected"))
 	if selected_index == selected:
 		return true
 	selected_index = selected
 	selection_changed.emit(selected_index)
 	emit_changed()
 	return true
+
+func selected_definition() -> Resource:
+	if not is_instance_valid(catalog) or not catalog.has_method("active"):
+		return null
+	return catalog.call("active") as Resource
+
+func set_resistance(value: int) -> bool:
+	if not is_instance_valid(catalog) or not catalog.has_method("set_resistance"):
+		return false
+	catalog.call("set_resistance", value)
+	selected_index = int(catalog.get("selected"))
+	return true
+
+func repair() -> bool:
+	if not is_instance_valid(catalog) or not catalog.has_method("repair"):
+		return false
+	catalog.call("repair")
+	return true
+
+func resistance() -> int:
+	if not is_instance_valid(catalog) or not catalog.has_method("resistance"):
+		return -1
+	return int(catalog.call("resistance"))
+
+func definition_count() -> int:
+	if not is_instance_valid(catalog):
+		return 0
+	var definitions: Variant = catalog.get("definitions")
+	return definitions.size() if definitions is Array else 0
+
+func apply_damage(value: int) -> int:
+	return damage(value)
+
+func damage(value: int) -> int:
+	if not is_instance_valid(catalog) or not catalog.has_method("damage"):
+		return value & 0xff
+	selected_index = int(catalog.get("selected"))
+	return int(catalog.call("damage", value))

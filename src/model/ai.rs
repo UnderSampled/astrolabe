@@ -9,6 +9,9 @@ use super::{
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 
+pub mod walk;
+use walk::AstNode;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AiModel {
     pub path: AssetPath,
@@ -205,9 +208,12 @@ pub enum Statement {
     /// TransparentDisplay enables actor opacity; DefaultDisplay disables it.
     SetTransparentDisplay(bool),
     /// Fight_ChangeArmor selects the shared source armor definition by byte index.
-    /// The current native slice retains the index on the level-local state;
-    /// armor.ini definitions and their resistance/artwork data remain separate.
+    /// Each active level binds the Fix-owned catalog through shared state.
     SelectArmor(Expression),
+    /// Fight_ChangeArmorResistance changes the selected Fix definition's rank.
+    SetArmorResistance(Expression),
+    /// Fight_RepairArmor clears piece damage while retaining the current piece.
+    RepairArmor,
     ChangeSighting(Expression),
     /// Camera procedure 160 stores a keyword or referenced target actor.
     CameraChangeTargetedPerso {
@@ -312,10 +318,15 @@ pub enum Expression {
     Nobody,
     /// Source Keyword_Nowhere: an absent waypoint reference.
     Nowhere,
+    /// A source actor handle or one of the two AI actor keywords.
+    Actor(ActorTarget),
     Integer(i32),
     Real(f32),
     /// Source Func_Int truncates a real-valued expression to an integer.
     IntegerCast(Box<Expression>),
+    /// Func_Square and Func_AbsoluteValue return a rounded source real.
+    Square(Box<Expression>),
+    AbsoluteValue(Box<Expression>),
     /// Source vector literal (category 16); components remain source-space.
     Vector(Box<[Expression; 3]>),
     /// Current actor's world position in source coordinates.
@@ -389,6 +400,15 @@ pub enum Expression {
         axis: VectorAxis,
     },
     MainActorDistance,
+    /// Func_DistanceToPerso resolves a typed actor operand from the active scene.
+    ActorDistance(Box<Expression>),
+    /// Cond_IsValidObject observes whether its actor handle is non-null/valid.
+    IsValidActor(Box<Expression>),
+    /// Func_ApplyArmoredDamage mutates shared armor and returns remaining main life.
+    ApplyArmoredDamage(Box<Expression>),
+    /// Source functions read selected armor state and the shared definition count.
+    ArmorResistance,
+    ArmorCount,
     /// Func_GetHitPoints(Me): read the current actor's mutable life value.
     SelfHitPoints,
     /// Source inventory functions operate on the game inventory, not on a
@@ -608,145 +628,71 @@ impl Content for AiModel {
     }
 }
 impl AiModel {
-    pub fn particle_generators(&self) -> Vec<AssetRef<super::particle::ParticleGenerator>> {
-        fn visit(
-            statements: &[Statement],
-            out: &mut Vec<AssetRef<super::particle::ParticleGenerator>>,
-        ) {
-            for statement in statements {
-                match statement {
-                    Statement::SetParticleGenerator(reference) => {
-                        if !out.contains(reference) {
-                            out.push(reference.clone());
-                        }
-                    }
-                    Statement::If {
-                        then, otherwise, ..
-                    } => {
-                        visit(then, out);
-                        if let Some(branch) = otherwise {
-                            visit(branch, out);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-        let mut out = Vec::new();
-        for set in [&self.normal, &self.reflex].into_iter().flatten() {
-            for behavior in &set.behaviors {
-                for script in behavior
+    fn scripts(&self) -> Vec<&Script> {
+        [&self.normal, &self.reflex]
+            .into_iter()
+            .flatten()
+            .flat_map(|set| &set.behaviors)
+            .flat_map(|behavior| {
+                behavior
                     .rules
                     .iter()
                     .flatten()
                     .chain(behavior.schedule.iter())
+            })
+            .collect()
+    }
+
+    pub fn particle_generators(&self) -> Vec<AssetRef<super::particle::ParticleGenerator>> {
+        let mut out = Vec::new();
+        for script in self.scripts() {
+            for (node, _) in script.walk() {
+                if let AstNode::Statement(Statement::SetParticleGenerator(reference)) = node
+                    && !out.contains(reference)
                 {
-                    visit(&script.statements, &mut out);
+                    out.push(reference.clone());
                 }
             }
         }
         out
     }
     pub fn object_templates(&self) -> Vec<AssetRef<Perso>> {
-        fn visit(statements: &[Statement], out: &mut Vec<AssetRef<Perso>>) {
-            for statement in statements {
-                match statement {
-                    Statement::ExecuteActionAndGenerateObject { template, .. } => {
-                        if !out.contains(template) {
-                            out.push(template.clone());
-                        }
-                    }
-                    Statement::If {
-                        then, otherwise, ..
-                    } => {
-                        visit(then, out);
-                        if let Some(otherwise) = otherwise {
-                            visit(otherwise, out);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
         let mut out = Vec::new();
-        for set in [&self.normal, &self.reflex].into_iter().flatten() {
-            for behavior in &set.behaviors {
-                for script in behavior
-                    .rules
-                    .iter()
-                    .flatten()
-                    .chain(behavior.schedule.iter())
+        for script in self.scripts() {
+            for (node, _) in script.walk() {
+                if let AstNode::Statement(Statement::ExecuteActionAndGenerateObject {
+                    template,
+                    ..
+                }) = node
+                    && !out.contains(template)
                 {
-                    visit(&script.statements, &mut out);
+                    out.push(template.clone());
                 }
             }
         }
         out
     }
     pub fn actor_field_writes(&self) -> Vec<(AssetRef<Perso>, u16)> {
-        fn visit(statements: &[Statement], out: &mut Vec<(AssetRef<Perso>, u16)>) {
-            for statement in statements {
-                match statement {
-                    Statement::ActorFieldAssign {
+        let mut out = Vec::new();
+        for script in self.scripts() {
+            for (node, _) in script.walk() {
+                let entry = match node {
+                    AstNode::Statement(Statement::ActorFieldAssign {
                         actor, variable, ..
-                    } => {
-                        let entry = (actor.clone(), *variable);
-                        if !out.contains(&entry) {
-                            out.push(entry);
-                        }
-                    }
-                    Statement::Increment {
+                    })
+                    | AstNode::Statement(Statement::Increment {
                         target: FieldTarget::ActorField { actor, variable },
-                    }
-                    | Statement::Decrement {
+                    })
+                    | AstNode::Statement(Statement::Decrement {
                         target: FieldTarget::ActorField { actor, variable },
-                    } => {
-                        let entry = (actor.clone(), *variable);
-                        if !out.contains(&entry) {
-                            out.push(entry);
-                        }
-                    }
-                    Statement::If {
-                        then, otherwise, ..
-                    } => {
-                        visit(then, out);
-                        if let Some(otherwise) = otherwise {
-                            visit(otherwise, out);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-        let mut out = Vec::new();
-        for set in [&self.normal, &self.reflex].into_iter().flatten() {
-            for behavior in &set.behaviors {
-                for script in behavior
-                    .rules
-                    .iter()
-                    .flatten()
-                    .chain(behavior.schedule.iter())
+                    }) => Some((actor.clone(), *variable)),
+                    _ => None,
+                };
+                if let Some(entry) = entry
+                    && !out.contains(&entry)
                 {
-                    visit(&script.statements, &mut out);
+                    out.push(entry);
                 }
-            }
-        }
-        out
-    }
-    pub fn actor_field_targets(&self) -> Vec<AssetRef<Perso>> {
-        let mut out = Vec::new();
-        for (actor, _) in self.actor_field_accesses() {
-            if !out.contains(&actor) {
-                out.push(actor);
-            }
-        }
-        out
-    }
-    pub fn actor_field_accesses(&self) -> Vec<(AssetRef<Perso>, u16)> {
-        let mut out = self.actor_field_writes();
-        for entry in self.actor_field_reads() {
-            if !out.contains(&entry) {
-                out.push(entry);
             }
         }
         out
@@ -763,132 +709,33 @@ impl AiModel {
         }
         out
     }
-    pub fn expressions(&self) -> Vec<&Expression> {
-        fn expression<'a>(e: &'a Expression, out: &mut Vec<&'a Expression>) {
-            out.push(e);
-            match e {
-                Expression::Compare { left, right, .. }
-                | Expression::And(left, right)
-                | Expression::Or(left, right)
-                | Expression::Multiply(left, right)
-                | Expression::Plus(left, right)
-                | Expression::VectorPlus(left, right)
-                | Expression::Minus(left, right)
-                | Expression::Divide(left, right)
-                | Expression::TimeElapsed {
-                    start: left,
-                    duration: right,
-                }
-                | Expression::RandomInt {
-                    lower: left,
-                    upper: right,
-                }
-                | Expression::InventoryRemove {
-                    item: left,
-                    count: right,
-                }
-                | Expression::VectorCos(left, right) => {
-                    expression(left, out);
-                    expression(right, out);
-                }
-                Expression::Not(v)
-                | Expression::Negate(v)
-                | Expression::IsInAction(v)
-                | Expression::InventoryQuantity(v)
-                | Expression::MagicRemovePoints(v)
-                | Expression::ActorListContains { actor: v, .. } => expression(v, out),
-                Expression::Vector(values) => {
-                    for value in values.iter() {
-                        expression(value, out);
-                    }
-                }
-                Expression::VectorComponent { vector, .. } => expression(vector, out),
-                Expression::ArrayElement { array, index } => {
-                    expression(array, out);
-                    expression(index, out);
-                }
-                _ => {}
-            }
-        }
-        fn statements<'a>(values: &'a [Statement], out: &mut Vec<&'a Expression>) {
-            for s in values {
-                match s {
-                    Statement::If {
-                        condition,
-                        then,
-                        otherwise,
-                    } => {
-                        expression(condition, out);
-                        statements(then, out);
-                        if let Some(v) = otherwise {
-                            statements(v, out);
-                        }
-                    }
-                    Statement::Assign { value, .. }
-                    | Statement::ActorFieldAssign { value, .. }
-                    | Statement::MainActorFieldAssign { value, .. }
-                    | Statement::VectorComponentAssign { value, .. }
-                    | Statement::SubtractAssign { value, .. }
-                    | Statement::AddAssign { value, .. }
-                    | Statement::Turn {
-                        degrees_per_second: value,
-                    }
-                    | Statement::IncrementalTurnToward { frames: value, .. }
-                    | Statement::ChangeSighting(value)
-                    | Statement::SetTransparency(value)
-                    | Statement::SetVectorSpeed(value)
-                    | Statement::AddWind(value)
-                    | Statement::SetImpulse(value)
-                    | Statement::CameraChangeState { state: value, .. }
-                    | Statement::SetActorAbsolutePosition {
-                        position: value, ..
-                    }
-                    | Statement::SetSelfAbsolutePosition(value) => expression(value, out),
-                    Statement::ArrayAssign {
-                        array,
-                        index,
-                        value,
-                    } => {
-                        expression(array, out);
-                        expression(index, out);
-                        expression(value, out);
-                    }
-                    Statement::Wait { milliseconds } => expression(milliseconds, out),
-                    Statement::WaitFrames(frames) => expression(frames, out),
-                    Statement::ChangeAction(a) | Statement::ExecuteAction(a) => expression(a, out),
-                    Statement::ExecuteActionAndGenerateObject { action, vector, .. } => {
-                        expression(action, out);
-                        expression(vector, out);
-                    }
-                    Statement::SoundFadeMusic { arg0, arg1 } => {
-                        expression(arg0, out);
-                        expression(arg1, out);
-                    }
-                    Statement::SetHudVisible { visible, .. }
-                    | Statement::ScrollDialog(visible)
-                    | Statement::RunDialog { mode: visible, .. } => expression(visible, out),
-                    Statement::PositionDialog { x, y } => {
-                        expression(x, out);
-                        expression(y, out);
-                    }
-                    _ => {}
-                }
-            }
-        }
-        let mut out = Vec::new();
-        for set in [&self.normal, &self.reflex].into_iter().flatten() {
-            for behavior in &set.behaviors {
-                for script in behavior
-                    .rules
-                    .iter()
-                    .flatten()
-                    .chain(behavior.schedule.iter())
-                {
-                    statements(&script.statements, &mut out);
-                }
+    pub fn actor_field_accesses(&self) -> Vec<(AssetRef<Perso>, u16)> {
+        let mut out = self.actor_field_writes();
+        for entry in self.actor_field_reads() {
+            if !out.contains(&entry) {
+                out.push(entry);
             }
         }
         out
+    }
+    pub fn actor_field_targets(&self) -> Vec<AssetRef<Perso>> {
+        let mut out = Vec::new();
+        for (actor, _) in self.actor_field_accesses() {
+            if !out.contains(&actor) {
+                out.push(actor);
+            }
+        }
+        out
+    }
+    pub fn expressions(&self) -> Vec<&Expression> {
+        self.scripts()
+            .into_iter()
+            .flat_map(Script::walk)
+            .filter_map(|(node, _)| match node {
+                AstNode::Expression(expression) => Some(expression),
+                AstNode::Statement(_) => None,
+            })
+            .collect()
     }
     pub fn state_references(&self) -> Vec<&StateRef> {
         let mut out: Vec<_> = self
@@ -924,68 +771,30 @@ impl AiModel {
             .collect()
     }
     fn behavior_references_with_owner(&self) -> Vec<(&BehaviorRef, bool)> {
-        fn visit<'a>(statements: &'a [Statement], out: &mut Vec<(&'a BehaviorRef, bool)>) {
-            for statement in statements {
-                match statement {
-                    Statement::ChangeBehavior { target, .. } => out.push((target, true)),
-                    Statement::If {
-                        then, otherwise, ..
-                    } => {
-                        visit(then, out);
-                        if let Some(otherwise) = otherwise {
-                            visit(otherwise, out);
-                        }
+        let mut out = Vec::new();
+        let mut queries = Vec::new();
+        for script in self.scripts() {
+            for (node, _) in script.walk() {
+                match node {
+                    AstNode::Statement(Statement::ChangeBehavior { target, .. }) => {
+                        out.push((target, true));
+                    }
+                    AstNode::Expression(Expression::IsInBehavior { target, .. }) => {
+                        queries.push((target, false));
                     }
                     _ => {}
                 }
             }
         }
-        let mut out = Vec::new();
-        for set in [&self.normal, &self.reflex].into_iter().flatten() {
-            for behavior in &set.behaviors {
-                for script in behavior
-                    .rules
-                    .iter()
-                    .flatten()
-                    .chain(behavior.schedule.iter())
-                {
-                    visit(&script.statements, &mut out);
-                }
-            }
-        }
-        out.extend(self.expressions().into_iter().filter_map(|e| match e {
-            Expression::IsInBehavior { target, .. } => Some((target, false)),
-            _ => None,
-        }));
+        out.extend(queries);
         out
     }
     pub fn sound_events(&self) -> Vec<&SoundEventLink> {
-        fn visit<'a>(statements: &'a [Statement], out: &mut Vec<&'a SoundEventLink>) {
-            for statement in statements {
-                match statement {
-                    Statement::Sound { event: Some(event) } => out.push(event),
-                    Statement::If {
-                        then, otherwise, ..
-                    } => {
-                        visit(then, out);
-                        if let Some(otherwise) = otherwise {
-                            visit(otherwise, out);
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
         let mut out = Vec::new();
-        for set in [&self.normal, &self.reflex].into_iter().flatten() {
-            for behavior in &set.behaviors {
-                for script in behavior
-                    .rules
-                    .iter()
-                    .flatten()
-                    .chain(behavior.schedule.iter())
-                {
-                    visit(&script.statements, &mut out);
+        for script in self.scripts() {
+            for (node, _) in script.walk() {
+                if let AstNode::Statement(Statement::Sound { event: Some(event) }) = node {
+                    out.push(event);
                 }
             }
         }
@@ -1049,124 +858,25 @@ impl DesignerValue {
 }
 impl Script {
     pub fn unsupported_fragments(&self) -> Vec<&UnsupportedFragment> {
-        fn expression<'a>(e: &'a Expression, out: &mut Vec<&'a UnsupportedFragment>) {
-            match e {
-                Expression::Unsupported(f) => out.push(f),
-                Expression::Compare { left, right, .. }
-                | Expression::And(left, right)
-                | Expression::Or(left, right)
-                | Expression::Multiply(left, right)
-                | Expression::Plus(left, right)
-                | Expression::VectorPlus(left, right)
-                | Expression::Minus(left, right)
-                | Expression::Divide(left, right)
-                | Expression::TimeElapsed {
-                    start: left,
-                    duration: right,
-                }
-                | Expression::RandomInt {
-                    lower: left,
-                    upper: right,
-                }
-                | Expression::InventoryRemove {
-                    item: left,
-                    count: right,
-                }
-                | Expression::VectorCos(left, right) => {
-                    expression(left, out);
-                    expression(right, out);
-                }
-                Expression::Not(v)
-                | Expression::Negate(v)
-                | Expression::IsInAction(v)
-                | Expression::MagicRemovePoints(v)
-                | Expression::ActorListContains { actor: v, .. } => expression(v, out),
-                Expression::Vector(values) => {
-                    for value in values.iter() {
-                        expression(value, out);
-                    }
-                }
-                Expression::VectorComponent { vector, .. } => expression(vector, out),
-                Expression::ArrayElement { array, index } => {
-                    expression(array, out);
-                    expression(index, out);
-                }
+        self.walk()
+            .filter_map(|(node, _)| match node {
+                AstNode::Statement(Statement::Unsupported(fragment))
+                | AstNode::Expression(Expression::Unsupported(fragment)) => Some(fragment),
+                _ => None,
+            })
+            .collect()
+    }
+    pub fn validate(&self, variables: usize) -> Result<()> {
+        let mut walked = 0usize;
+        for (node, depth) in self.walk() {
+            walked += 1;
+            ensure!(depth <= 64 && walked <= 65535, "excessive AI tree");
+            match node {
+                AstNode::Statement(Statement::Unsupported(fragment))
+                | AstNode::Expression(Expression::Unsupported(fragment)) => fragment.validate()?,
                 _ => {}
             }
         }
-        fn block<'a>(statements: &'a [Statement], out: &mut Vec<&'a UnsupportedFragment>) {
-            for statement in statements {
-                match statement {
-                    Statement::Unsupported(f) => out.push(f),
-                    Statement::If {
-                        condition,
-                        then,
-                        otherwise,
-                    } => {
-                        expression(condition, out);
-                        block(then, out);
-                        if let Some(otherwise) = otherwise {
-                            block(otherwise, out);
-                        }
-                    }
-                    Statement::Assign { value, .. }
-                    | Statement::ActorFieldAssign { value, .. }
-                    | Statement::MainActorFieldAssign { value, .. }
-                    | Statement::SubtractAssign { value, .. }
-                    | Statement::AddAssign { value, .. }
-                    | Statement::ChangeAction(value)
-                    | Statement::ExecuteAction(value)
-                    | Statement::WaitFrames(value)
-                    | Statement::Turn {
-                        degrees_per_second: value,
-                    }
-                    | Statement::IncrementalTurnToward { frames: value, .. }
-                    | Statement::ChangeSighting(value)
-                    | Statement::SetTransparency(value)
-                    | Statement::SetVectorSpeed(value)
-                    | Statement::AddWind(value)
-                    | Statement::SetImpulse(value)
-                    | Statement::CameraChangeState { state: value, .. }
-                    | Statement::SetActorAbsolutePosition {
-                        position: value, ..
-                    }
-                    | Statement::SetSelfAbsolutePosition(value)
-                    | Statement::Wait {
-                        milliseconds: value,
-                    } => expression(value, out),
-                    Statement::ExecuteActionAndGenerateObject { action, vector, .. } => {
-                        expression(action, out);
-                        expression(vector, out);
-                    }
-                    Statement::ArrayAssign {
-                        array,
-                        index,
-                        value,
-                    } => {
-                        expression(array, out);
-                        expression(index, out);
-                        expression(value, out);
-                    }
-                    Statement::SoundFadeMusic { arg0, arg1 } => {
-                        expression(arg0, out);
-                        expression(arg1, out);
-                    }
-                    Statement::SetHudVisible { visible, .. }
-                    | Statement::ScrollDialog(visible)
-                    | Statement::RunDialog { mode: visible, .. } => expression(visible, out),
-                    Statement::PositionDialog { x, y } => {
-                        expression(x, out);
-                        expression(y, out);
-                    }
-                    _ => {}
-                }
-            }
-        }
-        let mut out = Vec::new();
-        block(&self.statements, &mut out);
-        out
-    }
-    pub fn validate(&self, variables: usize) -> Result<()> {
         fn expression(
             e: &Expression,
             variables: usize,
@@ -1180,6 +890,12 @@ impl Script {
                 Expression::Real(v) => ensure!(v.is_finite(), "nonfinite AI real"),
                 Expression::WaypointPosition(r) => {
                     ensure!(r.path.member().is_none(), "waypoint is a member")
+                }
+                Expression::Actor(ActorTarget::Reference(actor)) => {
+                    ensure!(
+                        actor.path.member().is_none(),
+                        "actor expression is a member"
+                    )
                 }
                 Expression::Variable(id) => {
                     ensure!(usize::from(*id) < variables, "AI variable out of range")
@@ -1231,6 +947,11 @@ impl Script {
                 Expression::Not(value)
                 | Expression::Negate(value)
                 | Expression::IsInAction(value)
+                | Expression::Square(value)
+                | Expression::AbsoluteValue(value)
+                | Expression::ActorDistance(value)
+                | Expression::IsValidActor(value)
+                | Expression::ApplyArmoredDamage(value)
                 | Expression::InventoryQuantity(value)
                 | Expression::MagicRemovePoints(value)
                 | Expression::VectorComponent { vector: value, .. } => {
@@ -1348,6 +1069,9 @@ impl Script {
                     }
                     Statement::Wait { milliseconds } => {
                         expression(milliseconds, variables, depth + 1, count)?
+                    }
+                    Statement::SelectArmor(index) | Statement::SetArmorResistance(index) => {
+                        expression(index, variables, depth + 1, count)?
                     }
                     Statement::WaitFrames(frames) => {
                         expression(frames, variables, depth + 1, count)?

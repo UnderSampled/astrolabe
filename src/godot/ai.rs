@@ -432,6 +432,7 @@ fn unresolved_variable(model: &AiModel, index: u16) -> bool {
 }
 fn actor_expression(e: &Expression, model: &AiModel) -> bool {
     match e {
+        Expression::Actor(_) => true,
         Expression::Variable(index) => {
             model
                 .variables
@@ -445,6 +446,48 @@ fn actor_expression(e: &Expression, model: &AiModel) -> bool {
         }
         _ => false,
     }
+}
+fn actor_target_code(actor: &ActorTarget) -> String {
+    match actor {
+        ActorTarget::Keyword(ActorKeyword::SelfActor) => "character()".into(),
+        ActorTarget::Keyword(ActorKeyword::MainActor) => "main_actor".into(),
+        ActorTarget::Reference(reference) => format!(
+            "character().source_actor_node({})",
+            quoted(reference.path.as_str())
+        ),
+    }
+}
+fn armor_receiver(
+    out: &mut String,
+    model: &AiModel,
+    depth: usize,
+    flow: &mut Flow,
+    selected: bool,
+) -> Result<String> {
+    let local = format!("armor_state_{}", flow.local);
+    flow.local += 1;
+    let pad = "    ".repeat(depth);
+    let exit = flow.exit();
+    let failure = quoted(&format!(
+        "{} requires native shared armor{}",
+        model.path,
+        if selected {
+            " with a selected definition"
+        } else {
+            ""
+        }
+    ));
+    writeln!(
+        out,
+        "{pad}var {local}: Resource = source_armor_state()\n{pad}if {local} == null or not {local}.has_method(\"active\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
+    )?;
+    if selected {
+        writeln!(
+            out,
+            "{pad}if {local}.call(\"active\") == null:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
+        )?;
+    }
+    Ok(local)
 }
 fn actor_list_capacity(model: &AiModel, index: u16) -> Result<usize> {
     match model.variables.get(usize::from(index)).map(|v| &v.default) {
@@ -499,7 +542,14 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::DialogIsOver
         | Expression::MagicPoints
         | Expression::SelfHitPoints
-        | Expression::MagicRemovePoints(_) => true,
+        | Expression::MagicRemovePoints(_)
+        | Expression::Square(_)
+        | Expression::AbsoluteValue(_)
+        | Expression::ActorDistance(_)
+        | Expression::IsValidActor(_)
+        | Expression::ApplyArmoredDamage(_)
+        | Expression::ArmorResistance
+        | Expression::ArmorCount => true,
         Expression::IsInBehavior {
             actor: ActorKeyword::MainActor,
             ..
@@ -550,6 +600,69 @@ fn guarded_expression(
     let pad = "    ".repeat(depth);
     let exit = flow.exit();
     Ok(match e {
+        Expression::IsValidActor(actor) => {
+            let value = guarded_expression(out, actor, model, depth, flow)?;
+            let local = format!("actor_value_{}", flow.local);
+            flow.local += 1;
+            writeln!(out, "{pad}var {local} = {value}")?;
+            format!("(typeof({local}) == TYPE_OBJECT and is_instance_valid({local}))")
+        }
+        Expression::ActorDistance(actor) => {
+            let value = guarded_expression(out, actor, model, depth, flow)?;
+            let id = flow.local;
+            flow.local += 1;
+            writeln!(
+                out,
+                "{pad}var distance_actor_{id} = {value}\n{pad}if typeof(distance_actor_{id}) != TYPE_OBJECT or not is_instance_valid(distance_actor_{id}) or not (distance_actor_{id} is Node3D) or not distance_actor_{id}.is_inside_tree() or not character().is_inside_tree():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                quoted(&format!(
+                    "{} distance requires positioned actors",
+                    model.path
+                ))
+            )?;
+            format!(
+                "character().global_position.distance_to((distance_actor_{id} as Node3D).global_position)"
+            )
+        }
+        Expression::Square(value) | Expression::AbsoluteValue(value) => {
+            let value = guarded_expression(out, value, model, depth, flow)?;
+            let local = format!("real_operand_{}", flow.local);
+            flow.local += 1;
+            writeln!(out, "{pad}var {local} := float({value})")?;
+            if matches!(e, Expression::Square(_)) {
+                format!("PackedFloat32Array([{local} * {local}])[0]")
+            } else {
+                format!("PackedFloat32Array([-{local} if {local} <= 0.0 else {local}])[0]")
+            }
+        }
+        Expression::ApplyArmoredDamage(value) => {
+            let value = guarded_expression(out, value, model, depth, flow)?;
+            let id = flow.local;
+            flow.local += 1;
+            let armor = armor_receiver(out, model, depth, flow, false)?;
+            let failure = quoted(&format!(
+                "{} requires native shared armor and main actor hit points for damage",
+                model.path
+            ));
+            writeln!(
+                out,
+                "{pad}var armor_damage_input_{id}: int = int({value})\n{pad}if not {armor}.has_method(\"damage\") or not is_instance_valid(main_actor):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var armor_hit_points_{id}: Resource = main_actor.get(\"source_hit_points\") as Resource\n{pad}if armor_hit_points_{id} == null or not armor_hit_points_{id}.has_method(\"subtract_damage\") or not armor_hit_points_{id}.has_method(\"can_receive_damage\") or not bool(armor_hit_points_{id}.call(\"can_receive_damage\")):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var effective_damage_{id}: int = int({armor}.call(\"damage\", armor_damage_input_{id}))\n{pad}if effective_damage_{id} < 0:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var remaining_hit_points_{id}: int = int(armor_hit_points_{id}.call(\"subtract_damage\", effective_damage_{id}))"
+            )?;
+            format!("remaining_hit_points_{id}")
+        }
+        Expression::ArmorResistance | Expression::ArmorCount => {
+            let armor = armor_receiver(
+                out,
+                model,
+                depth,
+                flow,
+                matches!(e, Expression::ArmorResistance),
+            )?;
+            if matches!(e, Expression::ArmorResistance) {
+                format!("int({armor}.call(\"resistance\"))")
+            } else {
+                format!("{armor}.call(\"definition_count\")")
+            }
+        }
         Expression::WaypointPosition(reference) => {
             let value = waypoint_constant(reference);
             let local = format!("waypoint_position_{}", flow.local);
@@ -852,6 +965,7 @@ fn guarded_expression(
 fn expression(e: &Expression, model: &AiModel) -> Result<String> {
     Ok(match e {
         Expression::Nobody | Expression::Nowhere => "null".into(),
+        Expression::Actor(actor) => actor_target_code(actor),
         Expression::Integer(v) => v.to_string(),
         Expression::Real(v) => format!("{v:?}"),
         Expression::IntegerCast(value) => format!("int({})", expression(value, model)?),
@@ -941,6 +1055,16 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             }
         }
         Expression::MainActorDistance => "distance_to_main_actor()".into(),
+        Expression::Square(_)
+        | Expression::AbsoluteValue(_)
+        | Expression::ActorDistance(_)
+        | Expression::IsValidActor(_)
+        | Expression::ApplyArmoredDamage(_) => {
+            anyhow::bail!("actor or numeric expression requires guarded compilation")
+        }
+        Expression::ArmorResistance | Expression::ArmorCount => {
+            anyhow::bail!("armor query requires guarded compilation")
+        }
         Expression::SelfHitPoints => "character().source_get_hit_points()".into(),
         Expression::InventoryWeapon => "character().source_inventory_weapon()".into(),
         Expression::InventoryQuantity(item) => format!(
@@ -1726,6 +1850,15 @@ fn statements(
                         model.path
                     ))
                 )?;
+            }
+            Statement::SetArmorResistance(rank) => {
+                let rank = guarded_expression(out, rank, model, depth, flow)?;
+                let armor = armor_receiver(out, model, depth, flow, true)?;
+                writeln!(out, "{pad}{armor}.call(\"set_resistance\", int({rank}))")?;
+            }
+            Statement::RepairArmor => {
+                let armor = armor_receiver(out, model, depth, flow, true)?;
+                writeln!(out, "{pad}{armor}.call(\"repair\")")?;
             }
             Statement::ArrayAssign {
                 array,

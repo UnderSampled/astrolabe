@@ -82,6 +82,9 @@ pub fn export<R: ContentSource>(
     let mut gaps = Vec::new();
     for root in roots {
         match Asset::load(source, root)? {
+            Asset::ArmorCatalog(_) => anyhow::bail!(
+                "Fix armor source reconstruction requires coordinated catalog and shared-gameplay state export"
+            ),
             Asset::ParticleGenerator(_) => anyhow::bail!(
                 "particle package reconstruction remains unsupported; source/environment record reconstruction is available separately"
             ),

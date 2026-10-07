@@ -479,6 +479,7 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
     };
     let scene = Scene {
         main_actor: None,
+        armor: None,
         global_actors: vec![],
         path: AssetPath::new("level:/scene")?,
         name: "AnimationTest".into(),

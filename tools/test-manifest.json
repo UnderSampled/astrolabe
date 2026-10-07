@@ -8,6 +8,7 @@
     "scene",
     "animation",
     "ai",
+    "armor",
     "movement",
     "jump",
     "combat",
@@ -32,6 +33,11 @@
     "magick": [
       "ai",
       "animation"
+    ],
+    "armor": [
+      "ai",
+      "rete",
+      "media"
     ],
     "save": [],
     "comparison": [
@@ -3930,6 +3936,50 @@
         "disc"
       ],
       "fixture": "supplied Hype English inventory; source-only import, fresh complete Rete reload, native scene/resource text and original PNGs; no engine launch",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
+      "test": "source_ai_math_actor_and_armor_operations_round_trip_and_compile",
+      "areas": ["ai", "armor"],
+      "kind": "engine",
+      "prerequisites": ["godot"],
+      "fixture": "synthetic source math, actor operations and Fix-owned armor operations through Rete and native GDScript parsing",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::armor",
+      "test": "armor_catalog_survives_rete_storage_reload",
+      "areas": ["armor", "rete", "media"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic Fix catalog and RGBA artwork through MessagePack save and reload",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::armor::tests::armor_catalog_writes_native_resource_graph_and_png_artwork",
+      "areas": ["armor", "media"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic armor definitions and pieces exported as a native resource graph and PNG artwork",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::armor",
+      "test": "fix_armor_catalog_import_uses_fix_relocations_and_source_allocations",
+      "areas": ["armor", "source"],
+      "kind": "corpus",
+      "prerequisites": ["disc"],
+      "fixture": "read-only English Hype Fix catalog root, relocation ownership, definition/piece allocations, texture links and factor matrices",
       "timeout_seconds": 30,
       "ignored": true,
       "release": true

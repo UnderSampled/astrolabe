@@ -175,6 +175,23 @@ impl SourceSession {
             )
             .ok_or_else(|| anyhow!("read beyond block {a:?} length {n}"))
     }
+    /// Read one whole MMG allocation, excluding its source-only size header.
+    /// Typed consumers use this to validate record boundaries before traversal.
+    pub(super) fn allocation_bytes(&self, a: Address) -> Result<&[u8]> {
+        self.allocation_index(a)?;
+        let header = Address {
+            offset: a
+                .offset
+                .checked_sub(4)
+                .ok_or_else(|| anyhow!("allocation has no size header at {a:?}"))?,
+            ..a
+        };
+        let size = (u32_at(self.bytes(header, 4)?, 0)? as usize)
+            .checked_mul(4)
+            .and_then(|size| size.checked_sub(4))
+            .ok_or_else(|| anyhow!("invalid allocation size at {a:?}"))?;
+        self.bytes(a, size)
+    }
     pub(super) fn resolve(&self, owner: Owner, key: BlockKey, value: u32) -> Result<Address> {
         let local = self.blocks[&owner]
             .get(&key)

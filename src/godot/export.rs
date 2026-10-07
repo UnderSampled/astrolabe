@@ -30,6 +30,9 @@ pub fn export<R: ContentSource>(
     }
     for root in roots {
         match Asset::load(source, root)? {
+            Asset::ArmorCatalog(value) => {
+                super::armor::export(&mut project, source, &value)?;
+            }
             Asset::ParticleGenerator(value) => {
                 super::particle::export(&mut project, source, &value, &mut written)?;
             }
@@ -77,6 +80,11 @@ pub fn export<R: ContentSource>(
                 anyhow::bail!("collision export requires its owning scene")
             }
             Asset::Scene(scene) => {
+                if let Some(reference) = &scene.armor {
+                    let armor = source.load(reference)?;
+                    armor.validate_reference(&reference.path)?;
+                    super::armor::export(&mut project, source, &armor)?;
+                }
                 let preview_start = project.preview_instances.len();
                 for node in &scene.nodes {
                     if let Some(reference) = &node.perso {

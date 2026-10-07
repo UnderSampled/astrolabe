@@ -236,6 +236,9 @@ impl Store {
     ) -> Result<()> {
         use crate::model::content::Asset;
         match asset {
+            Asset::ArmorCatalog(value) => {
+                self.save(&AssetRef::from_path(path.clone()), value.as_ref())
+            }
             Asset::InventoryPresentation(value) => {
                 self.save(&AssetRef::from_path(path.clone()), value.as_ref())
             }
@@ -313,6 +316,7 @@ impl Store {
         use crate::model::content::Asset;
         let asset = Asset::load(self, entry)?;
         Ok(match asset {
+            Asset::ArmorCatalog(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::InventoryPresentation(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::ParticleGenerator(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::MenuPresentation(value) => serde_json::to_string_pretty(value.as_ref())?,

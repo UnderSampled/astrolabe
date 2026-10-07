@@ -1,5 +1,6 @@
 //! Content kinds and in-memory session loading shared by all adapters.
 use super::ai::AiModel;
+use super::armor::ArmorCatalog;
 use super::dialogue::{Dialogue, DialoguePresentation};
 use super::environment::{Environment, Fog, PhysicalEnvironment, VisualEnvironment};
 use super::hud::HudPresentation;
@@ -94,6 +95,7 @@ pub trait ContentSource:
     + Load<Mechanics>
     + Load<Sprite>
     + Load<super::particle::ParticleGenerator>
+    + Load<ArmorCatalog>
 {
 }
 impl<T> ContentSource for T where
@@ -130,12 +132,14 @@ impl<T> ContentSource for T where
         + Load<Mechanics>
         + Load<Sprite>
         + Load<super::particle::ParticleGenerator>
+        + Load<ArmorCatalog>
 {
 }
 
 /// Loaded built-in content. Exhaustive adapter matches make new domains visible
 /// at each target boundary. Custom Content types still use Load/Save directly.
 pub enum Asset {
+    ArmorCatalog(Arc<ArmorCatalog>),
     ParticleGenerator(Arc<super::particle::ParticleGenerator>),
     Dialogue(Arc<Dialogue>),
     DialoguePresentation(Arc<DialoguePresentation>),
@@ -179,6 +183,7 @@ impl Asset {
             Ok(value)
         }
         Ok(match root.kind.as_str() {
+            ArmorCatalog::KIND => Self::ArmorCatalog(load(source, &root.reference)?),
             super::particle::ParticleGenerator::KIND => {
                 Self::ParticleGenerator(load(source, &root.reference)?)
             }

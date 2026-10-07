@@ -55,6 +55,7 @@ mod transform;
 pub use transform::{read_transform, write_transform};
 
 mod animation_export;
+mod armor;
 mod camera;
 mod character;
 pub use camera::{read_camera_parameters, write_camera_parameters};
@@ -73,6 +74,7 @@ pub use animation_export::{
     AnimationActionsExport, TransformPoolExport, write_animation, write_animation_actions,
     write_transform_pool,
 };
+pub use armor::import as import_armor;
 pub use configuration_export::write_configuration;
 mod family_export;
 #[cfg(test)]

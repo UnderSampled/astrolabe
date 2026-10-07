@@ -93,6 +93,154 @@ fn fight_change_armor_round_trips_and_updates_level_shared_selection_state() -> 
 }
 
 #[test]
+fn source_ai_math_actor_and_armor_operations_round_trip_and_compile() -> Result<()> {
+    let script = Script {
+        statements: vec![
+            Statement::If {
+                condition: Expression::IsValidActor(Box::new(Expression::Actor(
+                    ActorTarget::Keyword(ActorKeyword::MainActor),
+                ))),
+                then: vec![
+                    Statement::SetArmorResistance(Expression::AbsoluteValue(Box::new(
+                        Expression::Real(-2.5),
+                    ))),
+                    Statement::RepairArmor,
+                    Statement::Assign {
+                        variable: 1,
+                        value: Expression::ApplyArmoredDamage(Box::new(Expression::Integer(5))),
+                    },
+                ],
+                otherwise: None,
+            },
+            Statement::If {
+                condition: Expression::Compare {
+                    operation: Comparison::Less,
+                    left: Box::new(Expression::ActorDistance(Box::new(Expression::Actor(
+                        ActorTarget::Keyword(ActorKeyword::SelfActor),
+                    )))),
+                    right: Box::new(Expression::Real(10.0)),
+                },
+                then: vec![Statement::Assign {
+                    variable: 0,
+                    value: Expression::Square(Box::new(Expression::Real(3.0))),
+                }],
+                otherwise: None,
+            },
+        ],
+    };
+    let bytes = AiScriptCodec::default().write(&script)?;
+    let decoded = AiScriptCodec::default().read(&bytes)?;
+    assert_eq!(decoded, script);
+
+    // Check independently against Hype's eight-byte node encoding and the
+    // operation IDs corroborated by the pinned executable disassembly.
+    fn append_node(nodes: &mut Vec<u8>, kind: u8, parameter: u32, indent: u8) {
+        nodes.extend(parameter.to_le_bytes());
+        nodes.extend([0, 0, indent, kind]);
+    }
+    let mut source_nodes = Vec::new();
+    append_node(&mut source_nodes, 4, 430, 1);
+    append_node(&mut source_nodes, 12, 5, 2);
+    append_node(&mut source_nodes, 4, 431, 1);
+    for function in [224, 226, 227] {
+        append_node(&mut source_nodes, 5, 37, 1);
+        append_node(&mut source_nodes, 3, function, 2);
+        if function == 224 {
+            append_node(&mut source_nodes, 12, 5, 3);
+        }
+    }
+    append_node(&mut source_nodes, 5, 37, 1);
+    append_node(&mut source_nodes, 3, 25, 2);
+    append_node(&mut source_nodes, 13, 3.0f32.to_bits(), 3);
+    append_node(&mut source_nodes, 5, 37, 1);
+    append_node(&mut source_nodes, 3, 33, 2);
+    append_node(&mut source_nodes, 13, (-2.5f32).to_bits(), 3);
+    append_node(&mut source_nodes, 5, 37, 1);
+    append_node(&mut source_nodes, 1, 64, 2);
+    append_node(&mut source_nodes, 0, 5, 3);
+    append_node(&mut source_nodes, 5, 37, 1);
+    append_node(&mut source_nodes, 3, 4, 2);
+    append_node(&mut source_nodes, 0, 4, 3);
+    append_node(&mut source_nodes, 8, 0, 0);
+    assert_eq!(
+        AiScriptCodec::default().read(&source_nodes)?,
+        Script {
+            statements: vec![
+                Statement::SetArmorResistance(Expression::Integer(5)),
+                Statement::RepairArmor,
+                Statement::Wait {
+                    milliseconds: Expression::ApplyArmoredDamage(Box::new(Expression::Integer(5))),
+                },
+                Statement::Wait {
+                    milliseconds: Expression::ArmorResistance,
+                },
+                Statement::Wait {
+                    milliseconds: Expression::ArmorCount,
+                },
+                Statement::Wait {
+                    milliseconds: Expression::Square(Box::new(Expression::Real(3.0))),
+                },
+                Statement::Wait {
+                    milliseconds: Expression::AbsoluteValue(Box::new(Expression::Real(-2.5))),
+                },
+                Statement::Wait {
+                    milliseconds: Expression::IsValidActor(Box::new(Expression::Actor(
+                        ActorTarget::Keyword(ActorKeyword::MainActor),
+                    ))),
+                },
+                Statement::Wait {
+                    milliseconds: Expression::ActorDistance(Box::new(Expression::Actor(
+                        ActorTarget::Keyword(ActorKeyword::SelfActor),
+                    ))),
+                },
+            ],
+        }
+    );
+
+    let mut model = model()?;
+    model.normal.as_mut().unwrap().behaviors[0].schedule = Some(decoded.clone());
+    let model = rete::decode::<AiModel>(&rete::encode(&model)?)?;
+    let expressions = model.expressions();
+    assert!(
+        expressions
+            .iter()
+            .any(|e| matches!(e, Expression::ActorDistance(_)))
+    );
+    assert!(
+        expressions
+            .iter()
+            .any(|e| matches!(e, Expression::Square(_)))
+    );
+    let code = godot::ai::compile(&model, &[])?;
+    assert!(code.contains("source_armor_state()"), "{code}");
+    assert!(code.contains("set_resistance"), "{code}");
+    assert!(code.contains(".call(\"repair\")"), "{code}");
+    assert!(code.contains(".call(\"damage\""), "{code}");
+    assert!(code.contains("distance_actor_"), "{code}");
+    assert!(code.contains("PackedFloat32Array"), "{code}");
+
+    let temp = tempfile::tempdir()?;
+    let project = temp.path().join("godot");
+    godot::support::initialize(&project)?;
+    fs::write(project.join("compiled_source_ai.gd"), code)?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    godot::run_godot(
+        &engine,
+        &project,
+        &[
+            "--headless",
+            "--check-only",
+            "--script",
+            "res://compiled_source_ai.gd",
+            "--log-file",
+            "compiled-source-ai.log",
+        ],
+        Duration::from_secs(10),
+    )?;
+    Ok(())
+}
+
+#[test]
 fn source_position_field_round_trips_and_compiles_to_the_current_actor_world_position() -> Result<()>
 {
     // Hype Field.Position (category 9 / operation 0) has an implicit receiver.

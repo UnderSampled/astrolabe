@@ -71,6 +71,7 @@ pub use export::export;
 
 pub mod ai;
 mod animation;
+mod armor;
 mod character;
 mod sprite;
 

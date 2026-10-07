@@ -1,6 +1,7 @@
 //! Useful content and package-scoped references; no target I/O or virtual addresses.
 pub mod reference;
 pub use reference::{AssetPath, AssetRef, PackageRole, Selection};
+pub mod armor;
 pub mod audio;
 pub mod collision;
 pub mod content;

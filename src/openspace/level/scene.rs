@@ -63,6 +63,7 @@ pub(super) fn global_perso_source(
 }
 
 pub struct SceneImport {
+    pub armor: Option<crate::model::armor::ArmorCatalog>,
     pub dialogue_presentation: Option<crate::model::dialogue::DialoguePresentation>,
     pub dialogues: Vec<crate::model::dialogue::Dialogue>,
     pub ai_models: Vec<crate::model::ai::AiModel>,
@@ -101,6 +102,7 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
     let tree = session.tree()?;
     let source = summary(&session, selection, &tree)?;
     let mut result = SceneImport {
+        armor: None,
         dialogue_presentation: None,
         dialogues: Vec::new(),
         ai_models: Vec::new(),
@@ -126,6 +128,7 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
             path: AssetPath::new("level:/scene")?,
             name: selection.level.clone(),
             main_actor: None,
+            armor: None,
             global_actors: Vec::new(),
             nodes: Vec::new(),
         },
@@ -354,6 +357,9 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
     if selection.level == "manoir" {
         super::dialogue::import(&session, game, selection, &actor_refs, &mut result)?;
     }
+    let armor = super::armor::import(game, selection).context("import shared Fix armor catalog")?;
+    result.scene.armor = Some(AssetRef::from_path(armor.path.clone()));
+    result.armor = Some(armor);
     result.scene.validate()?;
     Ok(result)
 }
