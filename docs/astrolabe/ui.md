@@ -182,12 +182,13 @@ and `0040cb50`. Armor and magic retain table metadata; their complete item/state
 art mapping remains open.
 
 The HUD importer completed for the local `manoir` profile and saved one
-`fix:/hud/en` Rete root with no diagnostics; Rete inspection succeeded. A
-focused Godot 4.7.2 export before the final schema/support version bump imported
-the native HUD scene. The post-bump focused rerun was cancelled during editor
-startup, so the final packaged scene has not been rechecked in Godot. Current
-Rust formatting, `cargo check --locked`, and diff checks pass. No gameplay
-session was run, so on-screen behavior and artwork mapping remain unverified.
+`fix:/hud/en` Rete root with no diagnostics; Rete inspection succeeded. After
+integration at Rete schema 42 and support interface 54, a focused Godot 4.7.2
+HUD-only export completed and imported the native scene. It emitted five files;
+`validation.json` reports no models, sounds, textures, or diagnostics. The
+scene retains the six runtime-global names as metadata without assigning image
+resources. No gameplay session was run, and the separate HUD root is still not
+attached to the saved level screen, so on-screen behavior remains unverified.
 
 ## Current boundary and next increments
 
