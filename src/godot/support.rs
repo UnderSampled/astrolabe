@@ -5,7 +5,7 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, path::Path};
 
-pub const INTERFACE: u32 = 57;
+pub const INTERFACE: u32 = 58;
 const PACKAGE: &str = "addons/astrolabe";
 const RECEIPT: &str = "addons/astrolabe/installed.json";
 
@@ -25,6 +25,7 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/character/armor_state.gd",
     "addons/astrolabe/character/armor_catalog.gd",
     "addons/astrolabe/character/armor_catalog.gd.uid",
+    "addons/astrolabe/character/snapshot_values.gd",
     "addons/astrolabe/character/armor_definition.gd",
     "addons/astrolabe/character/armor_definition.gd.uid",
     "addons/astrolabe/character/armor_piece.gd",
@@ -262,6 +263,7 @@ pub fn update(output: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeSet;
     #[test]
     fn adoption_update_and_support_edits_have_distinct_ownership() -> Result<()> {
         let temp = tempfile::tempdir()?;
@@ -295,12 +297,51 @@ mod tests {
         stage(stage_dir.path(), output)?;
         assert_eq!(fs::read(stage_dir.path().join(edited))?, bytes);
         assert!(
+            stage_dir
+                .path()
+                .join("addons/astrolabe/character/snapshot_values.gd")
+                .is_file()
+        );
+        assert!(
             update(output)
                 .unwrap_err()
                 .to_string()
                 .contains("was edited")
         );
         assert_eq!(fs::read(output.join(edited))?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn every_bundled_gdscript_preload_is_staged() -> Result<()> {
+        let files: BTreeSet<&str> = STARTER
+            .iter()
+            .chain(SUPPORT)
+            .map(|(path, _)| *path)
+            .collect();
+        for (path, bytes) in STARTER.iter().chain(SUPPORT) {
+            if !path.ends_with(".gd") {
+                continue;
+            }
+            let source = std::str::from_utf8(bytes)?;
+            for prefix in ["preload(\"res://", "load(\"res://"] {
+                let mut offset = 0;
+                while let Some(relative) = source[offset..].find(prefix) {
+                    let start = offset + relative + prefix.len();
+                    let Some(end) = source[start..].find('"') else {
+                        anyhow::bail!("unterminated resource path in {path}");
+                    };
+                    let dependency = &source[start..start + end];
+                    if dependency.starts_with("addons/astrolabe/") {
+                        ensure!(
+                            files.contains(dependency),
+                            "{path} references {dependency}, which the support stage omits"
+                        );
+                    }
+                    offset = start + end + 1;
+                }
+            }
+        }
         Ok(())
     }
 }

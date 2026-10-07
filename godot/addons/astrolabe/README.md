@@ -1,4 +1,4 @@
-# Astrolabe support, interface 57
+# Astrolabe support, interface 58
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -178,10 +178,11 @@ armor definitions. Each generated level clones it, so the level's Brain scripts
 share mutable selection and definition state while separate level instances
 remain independent. `character/armor_state.gd` keeps the current
 `source_armor_state()` / `source_select_armor()` interface and forwards the
-selected byte index to that catalog. Imported resources retain Texture2D
-artwork, normalized pieces, damage factors, resistance ranks, source order, and
-unknown bytes. The HUD still uses its existing placeholder; armor rendering is
-not part of this slice.
+selected byte index to that catalog. The catalog's strict save-snapshot checks
+use the staged `character/snapshot_values.gd` helper. Imported resources retain
+Texture2D artwork, normalized pieces, damage factors, resistance ranks, source
+order, and unknown bytes. The HUD still uses its existing placeholder; armor
+rendering is not part of this slice.
 
 `audio/voice.gd` carries a native AudioStreamWAV and playback properties.
 `audio/emitter.gd` owns native voices, selectors, weighted/nonrepeat choice,
