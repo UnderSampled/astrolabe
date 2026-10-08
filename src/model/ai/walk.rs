@@ -244,6 +244,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::Variable(_)
                 | Expression::Action(_)
                 | Expression::ActionFinished
+                | Expression::CurrentAnimationFrame
                 | Expression::DialogIsOver
                 | Expression::CollideWithGround
                 | Expression::CollideWithNothing

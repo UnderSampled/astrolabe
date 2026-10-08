@@ -1273,6 +1273,7 @@ impl Parser<'_> {
                     )?)
                 }
             }
+            (3, 184) => Expression::CurrentAnimationFrame,
             (3, 201) => Expression::InventoryWeapon,
             (3, 208) => Expression::InventoryQuantity(Box::new(self.expression(indent + 1)?)),
             (3, 209) => Expression::InventoryRemove {
@@ -1923,6 +1924,7 @@ impl Writer<'_> {
             }
             Expression::ArmorResistance => self.node(3, 226, indent),
             Expression::ArmorCount => self.node(3, 227, indent),
+            Expression::CurrentAnimationFrame => self.node(3, 184, indent),
             Expression::SelfHitPoints => {
                 self.node(3, 35, indent);
                 self.node(0, 4, indent + 1);

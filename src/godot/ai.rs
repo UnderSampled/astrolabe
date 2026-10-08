@@ -871,6 +871,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::DialogIsOver
         | Expression::MagicPoints
         | Expression::SelfHitPoints
+        | Expression::CurrentAnimationFrame
         | Expression::MagicRemovePoints(_)
         | Expression::Square(_)
         | Expression::AbsoluteValue(_)
@@ -1102,6 +1103,20 @@ fn guarded_expression(
                 "{pad}if source_ui() == null:\n{pad}    fail_unsupported(\"Dialogue query requires scene UI\")\n{pad}    {exit}"
             )?;
             expression(e, model)?
+        }
+        Expression::CurrentAnimationFrame => {
+            let id = flow.local;
+            flow.local += 1;
+            let local = format!("current_animation_frame_{id}");
+            writeln!(
+                out,
+                "{pad}if character().current_clip == null or character().sample_rate <= 0.0:\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var {local}: int = character().frame_index",
+                quoted(&format!(
+                    "{} Func_GetCurrectAnimFrame requires an active native animation clip with a positive source frame rate",
+                    model.path
+                ))
+            )?;
+            local
         }
         Expression::Unsupported(fragment) => {
             let id = flow.local;
@@ -1449,6 +1464,9 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         ),
         Expression::DialogIsOver => "source_ui().source_dialog_is_over()".into(),
         Expression::ActionFinished => "character().action_complete".into(),
+        Expression::CurrentAnimationFrame => {
+            anyhow::bail!("current animation frame requires guarded lowering")
+        }
         Expression::CollideWithGround => "character().source_collide_with_ground()".into(),
         Expression::CollideWithNothing => "character().source_collide_with_nothing()".into(),
         Expression::CollidePersoZdeNoWithTypeZde { zone, maximum } => {

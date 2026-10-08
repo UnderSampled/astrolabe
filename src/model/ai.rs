@@ -442,6 +442,9 @@ pub enum Expression {
     Action(Option<StateRef>),
     IsInAction(Box<Expression>),
     ActionFinished,
+    /// Source Func_GetCurrectAnimFrame reads the active animation's discrete
+    /// frame cursor. Godot lowering requires a bound native animation clip.
+    CurrentAnimationFrame,
     DialogIsOver,
     /// Current actor's native floor contact.
     CollideWithGround,
