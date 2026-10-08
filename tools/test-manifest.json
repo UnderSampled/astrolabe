@@ -3072,7 +3072,7 @@
       "prerequisites": [
         "godot"
       ],
-      "fixture": "synthetic actors and packaged production native-slot API; no game data",
+      "fixture": "synthetic schema-4 production checkpoint, native life/armor and floor contact; no game data",
       "timeout_seconds": 25,
       "ignored": false,
       "release": true

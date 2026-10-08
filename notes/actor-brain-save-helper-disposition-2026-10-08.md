@@ -9,6 +9,9 @@ identifies useful persistence lost from `294bd26`. Retiring the generic Brain
 wrapper does not retire that fuller component save behavior. Schema/inventory
 adoption is assigned to the pickup worker; this branch additionally fixes live
 Boolean target preflight without changing slot schema or admitted fields.
+The later [native checkpoint restoration](native-checkpoint-restoration-2026-10-08.md)
+implements the separately reassigned life/armor/checkpoint/identity work in a
+follow-on commit; the Boolean helper disposition below remains unchanged.
 
 ## Decision and contribution accounting
 

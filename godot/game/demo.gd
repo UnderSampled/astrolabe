@@ -191,7 +191,7 @@ func open_level() -> void:
         return
     bind_source_camera_controller_state()
     stage("instantiated", "Starting the opening..." if new_game else "Restoring saved game...")
-    actor = level.get_node_or_null("world/0/0/Hype") as CharacterBody3D
+    actor = SAVE_STATE.resolve_player(level)
     brain = actor.get_node_or_null("Brain") if actor != null else null
     var source_brains: Variant = level.get_meta("source_actor_brains", {})
     if source_brains is Dictionary and source_brains.has(SAVE_STATE.DUMMY):

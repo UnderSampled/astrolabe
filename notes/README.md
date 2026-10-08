@@ -24,6 +24,12 @@ The [Manor pickup/barrel integration](manor-pickup-barrel-integration-2026-10-08
 records source dispatch, native actor bindings, actual game HUD/save ownership,
 bounded verification and the exact isolated-branch merge sequence.
 
+The [native checkpoint restoration](native-checkpoint-restoration-2026-10-08.md)
+implements component-owned life/armor saves, semantic player resolution,
+bounded checkpoint admission and JSON-compatible scalar guards, with explicit
+schema/shared-file integration boundaries and native behavior evidence.
+
+
 The [Manor intro integration wrap-up](intro-integration-wrapup-2026-10-08.md)
 records the rebuilt actual root game, bounded startup results, critical armor
 and camera blockers, parked peer commits and the proposed next steps.

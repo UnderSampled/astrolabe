@@ -359,7 +359,7 @@ fn source_ai_math_actor_and_armor_operations_round_trip_and_compile() -> Result<
             .any(|e| matches!(e, Expression::Square(_)))
     );
     let code = godot::ai::compile(&model, &[])?;
-    assert!(code.contains("source_armor_catalog()"), "{code}");
+    assert!(code.contains("source_armor_state()"), "{code}");
     assert!(code.contains("set_resistance"), "{code}");
     assert!(code.contains(".call(\"repair\")"), "{code}");
     assert!(code.contains(".call(\"damage\""), "{code}");

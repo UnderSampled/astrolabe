@@ -1,5 +1,6 @@
 extends Resource
 ## StandardGame life state. Each instantiated actor owns its mutable copy.
+const SNAPSHOT = preload("res://addons/astrolabe/character/snapshot_values.gd")
 @export var current: int = 0
 @export var maximum: int = 0
 @export var limit: int = 0
@@ -25,3 +26,25 @@ func subtract_damage(value: int) -> int:
 	current = maxi(current - value, 0)
 	emit_changed()
 	return current
+
+## Checkpoints preserve the three independent byte values. Source setters may
+## lower maximum below current or raise it above limit; do not invent clamping.
+func capture_snapshot() -> Dictionary:
+	return {"version": 1, "current": current, "maximum": maximum, "limit": limit}
+
+static func validate_snapshot_shape(value: Variant) -> String:
+	if not SNAPSHOT.keys(value, ["version", "current", "maximum", "limit"]) or not SNAPSHOT.integer(value["version"], 1, 1):
+		return "Life snapshot version or fields are unsupported."
+	for field in ["current", "maximum", "limit"]:
+		if not SNAPSHOT.integer(value[field], 0, 255):
+			return "Life snapshot values are outside the source byte range."
+	return ""
+
+func apply_snapshot(value: Dictionary) -> String:
+	var error := validate_snapshot_shape(value)
+	if not error.is_empty(): return error
+	current = int(value["current"])
+	maximum = int(value["maximum"])
+	limit = int(value["limit"])
+	emit_changed()
+	return ""

@@ -13,10 +13,17 @@ static func keys(value: Variant, expected: Array) -> bool:
 	return true
 
 static func integer(value: Variant, minimum: int, maximum: int) -> bool:
-	return typeof(value) == TYPE_INT and int(value) >= minimum and int(value) <= maximum
+	# JSON.parse_string returns floats even for integral serialized values.
+	# Check finiteness/range before converting so huge numbers cannot wrap.
+	if not (value is int or value is float):
+		return false
+	var number := float(value)
+	if not is_finite(number) or number < float(minimum) or number > float(maximum):
+		return false
+	return float(int(value)) == number
 
 static func item_key(value: Variant) -> bool:
 	if typeof(value) != TYPE_STRING:
 		return false
 	var key := String(value)
-	return not key.is_empty() and key.is_valid_int() and int(key) >= 0
+	return key.length() <= 6 and key.is_valid_int() and str(int(key)) == key and integer(int(key), -1, 32767)

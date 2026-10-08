@@ -576,6 +576,7 @@ pub fn import_inventory(game: &Path, selection: Selection) -> Result<Imported> {
         .iter_mut()
         .flat_map(|c| &mut c.images)
         .chain(value.items.iter_mut().flat_map(|i| &mut i.images))
+        .chain(value.pickup_artwork.iter_mut().flat_map(|i| &mut i.images))
     {
         let entry = archive
             .find_entry(image.texture.path.file())

@@ -5,6 +5,14 @@ extends RefCounted
 const SLOT := "user://manoir-save-v1.json"
 const ORIGINAL_IMPORT := "res://game/original_save_import.json"
 const ACTOR := "world/0/0/Hype"
+const PLAYER := "level:/persos/world/0/0"
+# Native checkpoints add independently validated life and level-owned armor.
+# Schema 1 remains the supported original-import overlay.
+const SCHEMA := 4
+const CHECKPOINT := "manor-idle-v1"
+const SNAPSHOT = preload("res://addons/astrolabe/character/snapshot_values.gd")
+const LIFE = preload("res://addons/astrolabe/character/hit_points.gd")
+const ARMOR = preload("res://addons/astrolabe/character/armor_catalog.gd")
 const DUMMY := "level:/persos/world/0/27"
 const GLOBAL := "fix:/persos/15"
 const INVENTORY = preload("res://addons/astrolabe/character/inventory.gd")
@@ -18,9 +26,7 @@ static func path() -> String:
 
 
 static func _integer(value: Variant, low: int, high: int) -> bool:
-    if not (value is int or value is float):
-        return false
-    return float(int(value)) == float(value) and int(value) >= low and int(value) <= high
+    return SNAPSHOT.integer(value, low, high)
 
 
 static func _only_keys(value: Dictionary, supported: Array[String]) -> bool:
@@ -36,7 +42,7 @@ static func _valid_vector(value: Variant, limit: float) -> bool:
     for component in value:
         if not (component is int or component is float) or not is_finite(float(component)) or absf(float(component)) > limit:
             return false
-    return true
+    return _as_vector(value).is_finite()
 
 
 static func _as_vector(value: Array) -> Vector3:
@@ -44,7 +50,7 @@ static func _as_vector(value: Array) -> Vector3:
 
 
 static func _has_property(object: Object, property_name: String) -> bool:
-    if object == null:
+    if not is_instance_valid(object):
         return false
     return object.get_property_list().any(func(property): return str(property["name"]) == property_name)
 
@@ -53,13 +59,76 @@ static func _has_boolean_field(brain: Node, property_name: String) -> bool:
     return _has_property(brain, property_name) and brain.get(property_name) is bool
 
 
+static func _has_properties(owner: Object, fields: Array[String]) -> bool:
+    return fields.all(func(field): return _has_property(owner, field))
+
+
+static func _has_integer_properties(owner: Object, fields: Array[String]) -> bool:
+    return _has_properties(owner, fields) and fields.all(func(field): return owner.get(field) is int)
+
+
+static func resolve_player(level: Node3D) -> CharacterBody3D:
+    if not is_instance_valid(level): return null
+    var actors: Variant = level.get_meta("source_actor_nodes", {})
+    if not actors is Dictionary or not actors.has(PLAYER): return null
+    var path: Variant = actors[PLAYER]
+    if not (path is String or path is NodePath): return null
+    if NodePath(path).is_absolute(): return null
+    var result := level.get_node_or_null(NodePath(path)) as CharacterBody3D
+    if result == null or not level.is_ancestor_of(result) or str(result.get_meta("source_perso", "")) != PLAYER:
+        return null
+    return result
+
+
+static func checkpoint_error(actor: CharacterBody3D, level: Node3D) -> String:
+    if resolve_player(level) != actor or not is_instance_valid(actor) or str(level.get_meta("source_level", "")) != "manoir":
+        return "Checkpoint player identity does not match the converted manor."
+    var brain := actor.get_node_or_null("Brain")
+    if not _has_properties(brain, ["current_normal", "current_reflex", "running", "unsupported_failure"]) or not _has_property(actor, "current_state"):
+        return "Converted player has incompatible checkpoint behavior."
+    if brain.get("current_normal") != 4 or brain.get("current_reflex") != 3 or actor.get("current_state") != 47:
+        return "Save when Hype has returned to his supported idle state."
+    if brain.get("running") != true or not str(brain.get("unsupported_failure")).is_empty():
+        return "A stopped or unsupported behavior cannot be saved as a checkpoint."
+    if not _has_properties(actor, ["source_airborne", "external_velocity", "pending_state", "generated_object"]):
+        return "Converted player has incompatible checkpoint movement."
+    if not actor.is_on_floor() or actor.get("source_airborne") != false or not actor.velocity.is_finite() or actor.velocity.length_squared() > 0.0001:
+        return "Save when Hype is standing still on the ground."
+    var external: Variant = actor.get("external_velocity")
+    if not external is Vector3 or not external.is_finite() or external.length_squared() > 0.0001 or actor.get("pending_state") != -1:
+        return "Save after movement and action transitions have settled."
+    # This field exists only when the maintained movement API implements wind.
+    # The current API explicitly defers wind; do not require a made-up property.
+    if _has_property(actor, "source_wind_drift"):
+        var wind: Variant = actor.get("source_wind_drift")
+        if not wind is Vector3 or not wind.is_finite() or wind.length_squared() > 0.0001:
+            return "Save after persistent wind drift has stopped."
+    if is_instance_valid(actor.get("generated_object")):
+        return "Save after the held projectile has been removed."
+    for candidate in level.find_children("*", "Node3D", true, false):
+        if candidate.has_meta("astrolabe_generated_template"):
+            return "Save after active generated projectiles have been removed."
+    for action in InputMap.get_actions():
+        if (str(action).begins_with("Button_") or str(action).begins_with("BT_Camera_")) and Input.is_action_pressed(action):
+            return "Release gameplay controls before saving a checkpoint."
+    var life: Resource = actor.get("source_hit_points") if _has_property(actor, "source_hit_points") else null
+    if not _has_property(life, "current") or not _integer(life.get("current"), 1, 255):
+        return "Save when Hype is alive with supported native life state."
+    return ""
+
+
 static func validate(value: Variant) -> String:
     if not value is Dictionary:
         return "Save is not an object."
-    if not _only_keys(value, ["schema", "level", "actors", "world"]):
+    if not _only_keys(value, ["schema", "level", "actors", "world", "checkpoint"]):
         return "Save has unsupported top-level state."
-    if not _integer(value.get("schema"), 0, 2147483647) or int(value["schema"]) != 1:
+    if not _integer(value.get("schema"), 1, SCHEMA) or not [1, SCHEMA].has(int(value["schema"])):
         return "Save version is unsupported."
+    var schema := int(value["schema"])
+    if schema == 1 and value.has("checkpoint"):
+        return "Legacy save has unsupported checkpoint state."
+    if schema == SCHEMA and value.get("checkpoint") != CHECKPOINT:
+        return "Save checkpoint is unsupported."
     if value.get("level") != "manoir":
         return "Save level is unsupported."
     var actors: Variant = value.get("actors")
@@ -67,9 +136,22 @@ static func validate(value: Variant) -> String:
         return "Save is missing the manor player."
     if not _only_keys(actors, [ACTOR, GLOBAL]):
         return "Save has unsupported actors."
+    if schema == SCHEMA and not actors.has(GLOBAL):
+        return "Checkpoint is missing the supported Global Brain."
     var player: Dictionary = actors[ACTOR]
-    if not _only_keys(player, ["magick", "inventory", "transform"]):
+    var fields: Array[String] = ["magick", "inventory", "transform"]
+    if schema == SCHEMA: fields.append_array(["asset", "life", "armor"])
+    if not _only_keys(player, fields):
         return "Save has unsupported player state."
+    if schema == SCHEMA:
+        if player.get("asset") != PLAYER:
+            return "Save player asset is unsupported."
+        if not player.has("transform"):
+            return "Save is missing the player transform."
+        var snapshot_error := LIFE.validate_snapshot_shape(player.get("life"))
+        if not snapshot_error.is_empty(): return snapshot_error
+        snapshot_error = ARMOR.validate_snapshot_shape(player.get("armor"))
+        if not snapshot_error.is_empty(): return snapshot_error
     var magick: Variant = player.get("magick")
     if not magick is Dictionary:
         return "Save is missing player magick."
@@ -101,17 +183,20 @@ static func validate(value: Variant) -> String:
         var transform: Variant = player["transform"]
         if not transform is Dictionary or not transform.has("position") or not _only_keys(transform, ["position", "basis"]):
             return "Save has invalid player transform."
-        if not _valid_vector(transform["position"], 1000000.0):
+        if not _valid_vector(transform["position"], 1000000.0 if schema == 1 else INF):
             return "Save has invalid player position."
         if transform.has("basis"):
             var axes: Variant = transform["basis"]
-            if not axes is Array or axes.size() != 3 or not _valid_vector(axes[0], 1.5) or not _valid_vector(axes[1], 1.5) or not _valid_vector(axes[2], 1.5):
+            if not axes is Array or axes.size() != 3 or not _valid_vector(axes[0], INF) or not _valid_vector(axes[1], INF) or not _valid_vector(axes[2], INF):
                 return "Save has invalid player orientation."
             var x_axis := _as_vector(axes[0])
             var y_axis := _as_vector(axes[1])
             var z_axis := _as_vector(axes[2])
-            if absf(x_axis.length_squared() - 1.0) > 0.02 or absf(y_axis.length_squared() - 1.0) > 0.02 or absf(z_axis.length_squared() - 1.0) > 0.02 or absf(x_axis.dot(y_axis)) > 0.02 or absf(x_axis.dot(z_axis)) > 0.02 or absf(y_axis.dot(z_axis)) > 0.02 or x_axis.cross(y_axis).dot(z_axis) < 0.98:
-                return "Save has a non-orthonormal player orientation."
+            var determinant := Basis(x_axis, y_axis, z_axis).determinant()
+            if not is_finite(determinant) or absf(determinant) <= 0.000001:
+                return "Save has a singular player orientation."
+        elif schema == SCHEMA:
+            return "Save is missing the player basis."
     if actors.has(GLOBAL):
         var global_state: Variant = actors[GLOBAL]
         if not global_state is Dictionary or not global_state.has("brain") or not _only_keys(global_state, ["brain"]):
@@ -131,6 +216,8 @@ static func validate(value: Variant) -> String:
     # Older schema-1 slots predate world flags; missing world state starts from
     # the measured manor seed. When present, validate the complete supported
     # native flag before applying any part of the save.
+    if schema == SCHEMA and (not value.get("world") is Dictionary or not value["world"].has(DUMMY)):
+        return "Checkpoint is missing the supported manor world flag."
     if value.has("world"):
         var world: Variant = value["world"]
         if not world is Dictionary:
@@ -210,29 +297,71 @@ static func validate_original_import(value: Variant) -> String:
 
 
 static func _dummy_brain(level: Node3D) -> Node:
-    if level == null:
-        return null
-    var source_brains: Variant = level.get_meta("source_actor_brains", {})
-    if not source_brains is Dictionary or not source_brains.has(DUMMY):
-        return null
-    return level.get_node_or_null(source_brains[DUMMY]) as Node
+    return _source_brain(level, DUMMY)
+
+
+static func _brain_path(level: Node3D, identity: String) -> NodePath:
+    if not is_instance_valid(level): return NodePath()
+    var bindings: Variant = level.get_meta("source_actor_brains", {})
+    if not bindings is Dictionary or not bindings.has(identity): return NodePath()
+    var path: Variant = bindings[identity]
+    if not (path is String or path is NodePath): return NodePath()
+    var relative := NodePath(path)
+    if relative.is_empty() or relative.is_absolute(): return NodePath()
+    # A killed actor retains its named local binding as a tombstone.
+    for part in relative.get_name_count():
+        if relative.get_name(part) == "..": return NodePath()
+    return relative
 
 
 static func _source_brain(level: Node3D, identity: String) -> Node:
-    if level == null:
+    var path := _brain_path(level, identity)
+    if path.is_empty(): return null
+    var brain := level.get_node_or_null(path)
+    return brain if brain != null and level.is_ancestor_of(brain) else null
+
+
+static func _valid_barrel(brain: Node) -> bool:
+    return (
+        _has_property(brain, "source_model_path")
+        and brain.get("source_model_path") == "level:/ai/models/488"
+        and _has_boolean_field(brain, "dsg_8")
+        and _has_integer_properties(brain, ["dsg_4"])
+        and brain.get_parent().has_method("source_set_object_active_state")
+        and brain.get_parent().has_method("source_kill")
+    )
+
+
+static func _armor_catalog(level: Node3D) -> Resource:
+    if not level.has_meta("source_armor_catalog"): return null
+    var catalog := level.get_meta("source_armor_catalog") as Resource
+    if not _has_property(catalog, "source_path") or catalog.get("source_path") != "fix:/gameplay/armor":
         return null
-    var source_brains: Variant = level.get_meta("source_actor_brains", {})
-    if not source_brains is Dictionary or not source_brains.has(identity):
+    return catalog
+
+
+static func _armor_state(level: Node3D, catalog: Resource) -> Resource:
+    if not level.has_meta("source_armor_state"): return null
+    var state := level.get_meta("source_armor_state") as Resource
+    if not _has_property(state, "catalog") or state.get("catalog") != catalog or not state.has_method("restore_snapshot"):
         return null
-    return level.get_node_or_null(source_brains[identity]) as Node
+    return state
 
 
 static func capture(actor: CharacterBody3D, level: Node3D) -> Dictionary:
+    if not is_instance_valid(actor) or resolve_player(level) != actor or str(level.get_meta("source_level", "")) != "manoir":
+        return {}
     var magick: Resource = actor.get("source_magick")
     var inventory: Resource = actor.get("source_inventory")
+    var life: Resource = actor.get("source_hit_points") if _has_property(actor, "source_hit_points") else null
+    var armor := _armor_catalog(level)
+    if life == null or armor == null or _armor_state(level, armor) == null or not life.has_method("capture_snapshot") or not armor.has_method("capture_snapshot"):
+        return {}
     var dummy_brain := _dummy_brain(level)
     var global_brain := _source_brain(level, GLOBAL)
     if magick == null or inventory == null or not _has_boolean_field(dummy_brain, "dsg_8") or not _has_boolean_field(global_brain, "dsg_149"):
+        return {}
+    if not _has_integer_properties(magick, ["current_points", "maximum_points", "selected_spell_code"]):
         return {}
     var global_brain_state := {"dsg_149": global_brain.get("dsg_149")}
     if _has_property(global_brain, "dsg_147"):
@@ -246,6 +375,7 @@ static func capture(actor: CharacterBody3D, level: Node3D) -> Dictionary:
         var first_pickup: Variant = global_brain.get(property_name)
         if not first_pickup is bool: return {}
         global_brain_state[property_name] = first_pickup
+    var inventory_snapshot: Dictionary = inventory.call("capture_snapshot") if inventory.has_method("capture_snapshot") else {}
     var quantities: Dictionary = {}
     for item in inventory.get("quantities"):
         quantities[str(item)] = int(inventory.get("quantities")[item])
@@ -256,16 +386,21 @@ static func capture(actor: CharacterBody3D, level: Node3D) -> Dictionary:
         # this particular placed actor was killed, not a shared-template flag.
         if not bindings.has(identity): continue
         var barrel_brain := _source_brain(level, identity)
-        var removed := barrel_brain == null
-        if not removed and (str(barrel_brain.get("source_model_path")) != "level:/ai/models/488" or not _has_boolean_field(barrel_brain, "dsg_8")): return {}
+        if _brain_path(level, identity).is_empty(): return {}
+        var removed := barrel_brain == null or barrel_brain.get_parent().is_queued_for_deletion()
+        if not removed and not _valid_barrel(barrel_brain): return {}
         world[identity] = {"dsg_8": true if removed else bool(barrel_brain.get("dsg_8")), "removed": removed}
     var transform := actor.global_transform
     var basis := transform.basis
     var state := {
-        "schema": 1,
+        "schema": SCHEMA,
         "level": "manoir",
+        "checkpoint": CHECKPOINT,
         "actors": {
             ACTOR: {
+                "asset": PLAYER,
+                "life": life.call("capture_snapshot"),
+                "armor": armor.call("capture_snapshot"),
                 "magick": {
                     "current_points": int(magick.get("current_points")),
                     "maximum_points": int(magick.get("maximum_points")),
@@ -290,15 +425,23 @@ static func capture(actor: CharacterBody3D, level: Node3D) -> Dictionary:
         },
         "world": world,
     }
-    if inventory.has_method("capture_snapshot"): state["actors"][ACTOR]["inventory"]["snapshot"] = inventory.call("capture_snapshot")
+    if inventory.has_method("capture_snapshot"): state["actors"][ACTOR]["inventory"]["snapshot"] = inventory_snapshot
     return state
 
 
 static func write(actor: CharacterBody3D, level: Node3D) -> String:
+    var error := checkpoint_error(actor, level)
+    if not error.is_empty(): return error
     var state := capture(actor, level)
-    var error := validate(state)
+    error = validate(state)
     if not error.is_empty():
         return error
+    # Shape alone cannot establish the ordered native definition/piece binding.
+    var armor := _armor_catalog(level)
+    if not armor.has_method("validate_snapshot"):
+        return "Converted armor has incompatible snapshot support."
+    error = armor.call("validate_snapshot", state["actors"][ACTOR]["armor"])
+    if not error.is_empty(): return error
     var temporary := SLOT + "." + str(Time.get_ticks_usec()) + ".tmp"
     var file := FileAccess.open(temporary, FileAccess.WRITE)
     if file == null:
@@ -318,12 +461,20 @@ static func apply(actor: CharacterBody3D, level: Node3D, value: Dictionary) -> S
     var error := validate(value)
     if not error.is_empty():
         return error
+    if not is_instance_valid(actor) or resolve_player(level) != actor or str(level.get_meta("source_level", "")) != "manoir":
+        return "Saved player identity differs from the converted manor."
     var magick: Resource = actor.get("source_magick")
     var inventory: Resource = actor.get("source_inventory")
     var dummy_brain := _dummy_brain(level)
     var global_brain := _source_brain(level, GLOBAL)
     if magick == null or inventory == null:
         return "Converted player has no native magick or inventory."
+    if not _has_properties(magick, ["current_points", "maximum_points", "selected_spell_code"]) or not _has_properties(inventory, ["selected_weapon", "quantities"]):
+        return "Converted player has incompatible native properties."
+    if not _has_integer_properties(magick, ["current_points", "maximum_points", "selected_spell_code"]):
+        return "Converted magick has incompatible scalar types."
+    for method in ["clone_for_scene", "restore_legacy"]:
+        if not inventory.has_method(method): return "Converted inventory has incompatible save support."
     if dummy_brain == null:
         return "Converted manor has no saved dummy world flag."
     if not _has_boolean_field(dummy_brain, "dsg_8"):
@@ -337,6 +488,32 @@ static func apply(actor: CharacterBody3D, level: Node3D, value: Dictionary) -> S
     ):
         return "Converted manor has no saved optional Global Brain field."
     var player: Dictionary = value["actors"][ACTOR]
+    var life: Resource = null
+    var armor: Resource = null
+    var armor_state: Resource = null
+    if int(value["schema"]) == SCHEMA:
+        life = actor.get("source_hit_points") as Resource if _has_property(actor, "source_hit_points") else null
+        armor = _armor_catalog(level)
+        if life == null or not life.has_method("apply_snapshot"):
+            return "Converted player has no native checkpoint life state."
+        if not _has_integer_properties(life, ["current", "maximum", "limit"]):
+            return "Converted life has incompatible scalar types."
+        if armor == null:
+            return "Converted level has no native armor catalogue."
+        armor_state = _armor_state(level, armor)
+        if armor_state == null:
+            return "Converted armor facade differs from the level catalogue."
+        for method in ["clone_for_scene", "validate_snapshot", "apply_snapshot"]:
+            if not armor.has_method(method): return "Converted armor has incompatible snapshot support."
+        error = armor.call("validate_snapshot", player["armor"])
+        if not error.is_empty(): return error
+        var checked_armor: Resource = armor.call("clone_for_scene")
+        if checked_armor == null: return "Converted armor could not be cloned."
+        error = checked_armor.call("apply_snapshot", player["armor"])
+        if not error.is_empty(): return error
+        var checked_life: Resource = life.duplicate(false)
+        error = checked_life.call("apply_snapshot", player["life"])
+        if not error.is_empty(): return error
     var saved_magick: Dictionary = player["magick"]
     var saved_inventory: Dictionary = player["inventory"]
     var quantities: Dictionary = {}
@@ -360,8 +537,19 @@ static func apply(actor: CharacterBody3D, level: Node3D, value: Dictionary) -> S
     for identity in BARRELS:
         if not saved_world.has(identity): continue
         var barrel_brain := _source_brain(level, identity)
-        if barrel_brain == null or str(barrel_brain.get("source_model_path")) != "level:/ai/models/488" or not _has_boolean_field(barrel_brain, "dsg_8"):
+        if _brain_path(level, identity).is_empty():
             return "Converted manor has no saved barrel binding: " + identity
+        if barrel_brain == null:
+            if saved_world[identity]["removed"]: continue
+            return "Converted manor has no live saved barrel: " + identity
+        if not _valid_barrel(barrel_brain):
+            return "Converted manor has incompatible saved barrel: " + identity
+        if barrel_brain.get_parent().is_queued_for_deletion() and not saved_world[identity]["removed"]:
+            return "Converted manor cannot restore a removed barrel: " + identity
+    if int(value["schema"]) == SCHEMA:
+        life.call("apply_snapshot", player["life"])
+        armor_state.call("restore_snapshot", player["armor"])
+
     magick.set("current_points", int(saved_magick["current_points"]))
     magick.set("maximum_points", int(saved_magick["maximum_points"]))
     magick.set("selected_spell_code", int(saved_magick["selected_spell_code"]))
@@ -389,6 +577,7 @@ static func apply(actor: CharacterBody3D, level: Node3D, value: Dictionary) -> S
         if not world.has(identity): continue
         var barrel_brain := _source_brain(level, identity)
         var state: Dictionary = world[identity]
+        if barrel_brain == null or barrel_brain.get_parent().is_queued_for_deletion(): continue
         barrel_brain.set("dsg_8", state["dsg_8"])
         # Normal0 deactivates a consumed regular barrel (selector below99).
         # Apply before any scheduled decision; never respawn its transient drop.

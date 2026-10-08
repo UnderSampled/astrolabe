@@ -5,6 +5,12 @@ against `edb7704`, independently of version numbers. The fuller fork is not
 wholly superseded. Several real persistence capabilities were lost while newer
 Global/import behavior was retained in main.
 
+The subsequent delegation assigned this branch the independent missing life,
+armor, checkpoint, identity and scalar behavior. Their concrete implementation
+and schema/ownership evidence are now recorded in the
+[native checkpoint restoration](native-checkpoint-restoration-2026-10-08.md).
+The table below describes the original audit baseline, not that follow-on state.
+
 ## Behavior comparison and required reconciliation
 
 | Capability | Fork `294bd26` | Baseline `edb7704` | Disposition |

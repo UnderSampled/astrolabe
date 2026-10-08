@@ -51,6 +51,20 @@ func definition_count() -> int:
 	var definitions: Variant = catalog.get("definitions")
 	return definitions.size() if definitions is Array else 0
 
+## The level owns this facade and its catalogue. Native checkpoint restore must
+## update both so compiled AI and selection observers see the same definition.
+func restore_snapshot(value: Dictionary) -> String:
+	if not is_instance_valid(catalog) or not catalog.has_method("apply_snapshot"):
+		return "Converted armor facade has no native catalogue."
+	var error: String = catalog.call("apply_snapshot", value)
+	if not error.is_empty(): return error
+	var restored: int = int(catalog.get("selected"))
+	if selected_index != restored:
+		selected_index = restored
+		selection_changed.emit(selected_index)
+	emit_changed()
+	return ""
+
 func apply_damage(value: int) -> int:
 	return damage(value)
 

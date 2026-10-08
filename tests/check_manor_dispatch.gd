@@ -96,6 +96,7 @@ func run():
     current_scene = session
     var level := Node3D.new()
     session.add_child(level)
+    level.set_meta("source_level", "manoir")
     var host := HOST.new()
     host.name = "InventoryHost"
     level.add_child(host)
@@ -105,6 +106,8 @@ func run():
     artwork.images = {12: [ImageTexture.create_from_image(image)]}
     host.pickup_artwork = artwork
     var player := body(level, "Hype")
+    player.set_meta("source_perso", SAVE.PLAYER)
+    level.set_meta("source_actor_nodes", {SAVE.PLAYER: level.get_path_to(player)})
     var player_brain := brain(player)
     var inventory := INVENTORY.new()
     var item := ITEM.new()
@@ -136,6 +139,7 @@ func run():
     var armor := ARMOR.new()
     armor.catalog = ARMOR_CATALOG.new()
     level.set_meta("source_armor_state", armor)
+    level.set_meta("source_armor_catalog", armor.catalog)
     var barrel := body(level, "Barrel")
     var barrel_brain := brain(barrel, "level:/ai/models/488")
     level.set_meta("source_actor_brains", {SAVE.GLOBAL: level.get_path_to(global_brain), SAVE.DUMMY: level.get_path_to(lever_brain), SAVE.BARRELS[0]: level.get_path_to(barrel_brain)})

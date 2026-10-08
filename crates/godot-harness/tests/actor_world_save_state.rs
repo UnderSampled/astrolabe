@@ -17,6 +17,10 @@ fn actor_brain_state_survives_fresh_process_reload() -> Result<()> {
         project.join("tests/actor_world_save_state.gd"),
         include_bytes!("../../../godot/tests/actor_world_save_state.gd"),
     )?;
+    fs::write(
+        project.join("tests/actor_world_save_fixture.gd"),
+        include_bytes!("../../../godot/tests/actor_world_save_fixture.gd"),
+    )?;
     let evidence = std::env::var_os("ASTROLABE_EVIDENCE_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| temporary.path().join("evidence"))
