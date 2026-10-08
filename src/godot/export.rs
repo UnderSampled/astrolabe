@@ -85,6 +85,11 @@ pub fn export<R: ContentSource>(
                     armor.validate_reference(&reference.path)?;
                     super::armor::export(&mut project, source, &armor)?;
                 }
+                if let Some(reference) = &scene.hud {
+                    let hud = source.load(reference)?;
+                    hud.validate_reference(&reference.path)?;
+                    super::hud::export(&mut project, source, &hud, &mut written)?;
+                }
                 let preview_start = project.preview_instances.len();
                 for node in &scene.nodes {
                     if let Some(reference) = &node.perso {

@@ -122,6 +122,7 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
         name: "CameraCheck".into(),
         main_actor: Some(main_actor_ref.clone()),
         armor: None,
+        hud: None,
         global_actors: vec![],
         nodes: vec![
             SceneNode {

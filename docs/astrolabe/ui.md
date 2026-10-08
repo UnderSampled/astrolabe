@@ -159,12 +159,15 @@ The HUD binds the existing Character visibility signal and state dictionary.
 Widescreen suppresses drawing while retaining requested state. Life values come
 from promoted StandardGame hit-point bytes in an actor-local native Resource;
 magic uses the existing Magick Resource. It does not invent missing totals.
-The source-derived Fix HUD reader and Godot projection remain quarantined while
-the native draw component and focused regressions are completed. The texture
-records now join to archive members and decoded first mips. Legacy `fix:/hud/en`
-data and generated scenes are not valid source layouts and are not attached to
-the saved level screen. The maintained generic HUD support remains separate
-from this reader.
+The source-derived Fix HUD now joins its six GLI textures to `Textures.cnt`,
+exports the original image regions as editable native `TextureRect` nodes, and
+binds the player-life presentation to the actor state. Its currency counter
+uses the imported `InventoryFont` and the dedicated item-0 quantity from the
+actor inventory Resource. Source initialization sets that dedicated count to
+zero; absent ordinary inventory items retain the `-1` sentinel. The generated
+level's saved screen scene references the generated HUD scene under the
+maintained screen hierarchy. For locales without verified source HUD data, the
+generic placeholder meters are hidden instead of presented as original art.
 
 ### Fix HUD extraction status
 
@@ -211,19 +214,23 @@ This corrects the former `0x4a24` cursor claim by `0x14`; `0x4904` is inside
 the `FUN_004e5150` shadow arrays and the former `0x4944` values are shadow
 fields, not HUD handles.
 
-The descriptor/layer extents, six source textures and direct draw-slot roles
-are source-verified, but prior Rete roots at `fix:/hud/en` and generated scenes
-still preserve the bad offsets and associations. Do not use, regenerate,
-attach or merge those legacy assets.
-Explicit `--content hud` continues to omit the component and emits the stable
-`openspace.hud.layout_unverified` warning for caller compatibility; the
-remaining work is a native scene/resource export using the direct draw paths,
-plus targeted validation of actor values and keyed/upload behavior. The
-disabled descriptors do not own these runtime draws. Scene, menu and save
-imports are independent. New Rete saves of the legacy type and Godot exports
-containing it remain rejected;
-legacy Rete files are inspect-only. The maintained generic HUD support script
-is separate and is not evidence for the original rendering path.
+The descriptor/layer extents, six source textures, direct draw-slot roles,
+currency font atlas, and dedicated inventory item identity are source-verified.
+The native exporter writes editable image controls, a native `FontFile` and
+currency `Label`, and composes the HUD into the persisted locale screen used by
+the generated level. The actor supplies current life and currency values;
+original-save currency restoration is not established because the manor save
+fixture contains no item-0 quantity. The disabled panel descriptors do not own
+the runtime draws. Explicit `--content hud` emits the stable
+`openspace.hud.layout_unverified` warning and omits the optional component if
+the source layout or texture join does not validate. Legacy Rete HUD values
+with the former incorrect offsets remain inspection-only and cannot be saved
+or exported. Scene, menu and save imports remain independent.
+
+Final Godot keyed/upload behavior and pixel parity remain unverified. The
+current actor binding does not yet connect enemy bar values or the other
+source HUD indicators (armor, magic, selected object, weapon). No gameplay or
+original-game visual comparison has been run for this HUD slice.
 
 ## Current boundary and next increments
 
@@ -257,9 +264,9 @@ line reveal and fade pacing, additional dialogue
 items and branching answers, channel/action/icon side effects, armor and
 selected-inventory/weapon values/icons, saved life-state restoration, and original
 vs Godot captures. HUD descriptor cursor, texture identities/dimensions, Fix.sda
-rows and direct draw-slot roles are source-verified. Native control geometry,
-keyed/upload behavior, actor-value bindings and final draw parity remain
-unverified.
+rows and direct draw-slot roles are source-verified. Final native pixel parity,
+keyed/upload behavior, enemy and other indicator values, and original-game
+visual comparison remain unverified.
 Fade geometry exists but unrelated source fade procedures are not promoted by
 this slice. Native voice teardown follows the existing emitter's stoppable-event
 policy; dialogue-specific interruption parity remains to be checked.

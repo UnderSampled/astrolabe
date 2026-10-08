@@ -9,6 +9,7 @@ use anyhow::Result;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Write as _,
+    fs,
 };
 
 pub(super) fn transform(t: &SourceTransform) -> String {
@@ -27,6 +28,30 @@ pub(super) fn transform(t: &SourceTransform) -> String {
 }
 
 impl Project {
+    fn ui_scene_path(&mut self, scene: &Scene) -> Result<String> {
+        let Some(reference) = &scene.hud else {
+            return Ok("res://addons/astrolabe/ui/screen.tscn".into());
+        };
+        let generated_path = format!(
+            "generated/hype/shared/ui/screen_{}.tscn",
+            self.selection.locale
+        );
+        if !self.generated.contains(&generated_path) {
+            let source_path = self.stage.path().join("addons/astrolabe/ui/screen.tscn");
+            let source = fs::read_to_string(source_path)?;
+            let old_hud = "path=\"res://addons/astrolabe/ui/hud.tscn\"";
+            anyhow::ensure!(
+                source.matches(old_hud).count() == 1,
+                "maintained screen scene does not have exactly one HUD subscene reference"
+            );
+            let hud_path = disk_path(&self.selection, &reference.path, "tscn");
+            let replacement = format!("path=\"res://{hud_path}\"");
+            let generated = source.replace(old_hud, &replacement);
+            self.write(generated_path.clone(), generated.as_bytes())?;
+        }
+        Ok(format!("res://{generated_path}"))
+    }
+
     pub fn write_scene(
         &mut self,
         scene: &Scene,
@@ -37,6 +62,7 @@ impl Project {
         self.has_level_scene = true;
         self.reserve(&path)?;
         let scene_id = format!("scene_{}", self.preview_instances.len());
+        let ui_scene_path = self.ui_scene_path(scene)?;
         writeln!(
             self.builder,
             "    var {scene_id} = Node3D.new()\n    {scene_id}.name = {}\n    {scene_id}.set_meta(\"source_level_scene\", true)",
@@ -44,8 +70,17 @@ impl Project {
         )?;
         writeln!(
             self.builder,
-            "    var {scene_id}_ui = load(\"res://addons/astrolabe/ui/screen.tscn\").instantiate()\n    {scene_id}.add_child({scene_id}_ui)\n    {scene_id}_ui.owner = {scene_id}"
+            "    var {scene_id}_ui = load({}).instantiate()\n    {scene_id}.add_child({scene_id}_ui)\n    {scene_id}_ui.owner = {scene_id}",
+            quoted(&ui_scene_path)
         )?;
+        if scene.hud.is_none() {
+            // Keep the maintained screen API alive for this locale while suppressing
+            // its generic placeholder meters: only verified source artwork is drawn.
+            writeln!(
+                self.builder,
+                "    {scene_id}_ui.get_node(\"Canvas/Hud\").hide()"
+            )?;
+        }
         // Fight_ChangeArmor mutates one shared source pointer. Clone the
         // Fix-owned catalog once per active scene and retain the existing
         // level-local selector facade used by compiled AI.

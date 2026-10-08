@@ -52,7 +52,7 @@ fn node(
 ) -> Result<()> {
     writeln!(
         text,
-        "\n[node name={} type=\"TextureRect\" parent=\"Canvas/Source\"]\nlayout_mode = 0\noffset_left = {:?}\noffset_top = {:?}\noffset_right = {:?}\noffset_bottom = {:?}\nmouse_filter = 2\ntexture = ExtResource({})\nexpand_mode = 1\nstretch_mode = 0\ntexture_filter = 2\nvisible = {}\nregion_enabled = {}",
+        "\n[node name={} type=\"TextureRect\" parent=\"Source\"]\nlayout_mode = 0\noffset_left = {:?}\noffset_top = {:?}\noffset_right = {:?}\noffset_bottom = {:?}\nmouse_filter = 2\ntexture = ExtResource({})\nexpand_mode = 1\nstretch_mode = 0\ntexture_filter = 2\nvisible = {}\nregion_enabled = {}",
         quoted(name),
         rect[0],
         rect[1],
@@ -124,7 +124,7 @@ fn emit(
     )?;
     writeln!(
         scene,
-        "\n[node name=\"FixHud\" type=\"CanvasLayer\"]\nlayer = 20\nscript = ExtResource(\"script\")\n\n[node name=\"Canvas\" type=\"Control\" parent=\".\"]\nlayout_mode = 3\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\ngrow_horizontal = 2\ngrow_vertical = 2\nmouse_filter = 2\n\n[node name=\"Source\" type=\"Control\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\ntexture_filter = 2"
+        "\n[node name=\"FixHud\" type=\"Control\"]\nlayout_mode = 3\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\ngrow_horizontal = 2\ngrow_vertical = 2\nmouse_filter = 2\nscript = ExtResource(\"script\")\n\n[node name=\"Source\" type=\"Control\" parent=\".\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\ntexture_filter = 2"
     )?;
 
     let table = &value.rectangle_tables[1];
@@ -207,7 +207,7 @@ fn emit(
     let currency_top = currency_row[1] + value.text_offsets[0][1];
     writeln!(
         scene,
-        "\n[node name=\"CurrencyCount\" type=\"Label\" parent=\"Canvas/Source\"]\nlayout_mode = 0\noffset_left = {:?}\noffset_top = {:?}\noffset_right = {:?}\noffset_bottom = {:?}\nmouse_filter = 2\ntheme_override_fonts/font = ExtResource(\"counter_font\")\ntheme_override_colors/font_color = Color({:?}, {:?}, {:?}, {:?})\ntext = \"\"\nvisible = false",
+        "\n[node name=\"CurrencyCount\" type=\"Label\" parent=\"Source\"]\nlayout_mode = 0\noffset_left = {:?}\noffset_top = {:?}\noffset_right = {:?}\noffset_bottom = {:?}\nmouse_filter = 2\ntheme_override_fonts/font = ExtResource(\"counter_font\")\ntheme_override_colors/font_color = Color({:?}, {:?}, {:?}, {:?})\ntext = \"\"\nvisible = false",
         currency_left,
         currency_top,
         currency_left + 128.0,
@@ -218,17 +218,155 @@ fn emit(
         currency_font.color[3]
     )?;
 
-    let script = format!(
-        "extends CanvasLayer\n\n@onready var _source: Control = $Canvas/Source\n@onready var _life_fill: TextureRect = $Canvas/Source/PlayerLifeFill\n@onready var _life_remainder: TextureRect = $Canvas/Source/PlayerLifeRemainder\n@onready var _enemy_backgrounds: Array[TextureRect] = [\n    $Canvas/Source/EnemyMeter0Background,\n    $Canvas/Source/EnemyMeter1Background,\n    $Canvas/Source/EnemyMeter2Background,\n]\n@onready var _enemy_fills: Array[TextureRect] = [\n    $Canvas/Source/EnemyMeter0Fill,\n    $Canvas/Source/EnemyMeter1Fill,\n    $Canvas/Source/EnemyMeter2Fill,\n]\n@onready var _currency_label: Label = $Canvas/Source/CurrencyCount\n\nconst LIFE_LEFT: float = {:?}\nconst LIFE_TOP: float = {:?}\nconst LIFE_FILL_WIDTH: float = {:?}\nconst LIFE_RIGHT: float = {:?}\nconst LIFE_BOTTOM: float = {:?}\nconst CURRENCY_ITEM_ID: int = {}\nvar _actor: Node\nvar _last_currency_count: int = -2147483648\n\nfunc _ready() -> void:\n    get_viewport().size_changed.connect(_resize_source_canvas)\n    _resize_source_canvas()\n    _refresh_currency()\n\nfunc _process(_delta: float) -> void:\n    _refresh_currency()\n\nfunc bind_actor(actor: Node) -> void:\n    _actor = actor\n    _last_currency_count = -2147483648\n    if is_node_ready(): _refresh_currency()\n\nfunc _refresh_currency() -> void:\n    if not is_instance_valid(_actor):\n        set_currency_count(-1)\n        return\n    var inventory := _actor.get(\"source_inventory\") as Resource\n    if inventory == null or not inventory.has_method(\"quantity\"):\n        set_currency_count(-1)\n        return\n    set_currency_count(int(inventory.call(\"quantity\", CURRENCY_ITEM_ID)))\n\nfunc set_currency_count(value: int) -> void:\n    if value == _last_currency_count: return\n    _last_currency_count = value\n    _currency_label.visible = value >= 0\n    _currency_label.text = str(value) if value >= 0 else \"\"\n\nfunc _resize_source_canvas() -> void:\n    _source.scale = get_viewport().get_visible_rect().size / Vector2(640.0, 480.0)\n\nfunc set_life_fraction(value: float) -> void:\n    var fraction := clampf(value, 0.0, 1.0)\n    var fill_right := LIFE_LEFT + LIFE_FILL_WIDTH * fraction\n    _life_fill.offset_left = LIFE_LEFT\n    _life_fill.offset_right = fill_right\n    _life_remainder.offset_left = fill_right\n    _life_remainder.offset_right = LIFE_RIGHT\n    var fill_size := _life_fill.texture.get_size()\n    var remainder_size := _life_remainder.texture.get_size()\n    _life_fill.region_rect = Rect2(0.0, 0.0, fill_size.x * fraction, fill_size.y)\n    _life_remainder.region_rect = Rect2(fill_size.x * fraction, 0.0, remainder_size.x * (1.0 - fraction), remainder_size.y)\n    _life_fill.visible = fraction > 0.0\n    _life_remainder.visible = fraction < 1.0 and LIFE_RIGHT > fill_right\n\nfunc set_enemy_meter(slot: int, value: float) -> bool:\n    if slot < 0 or slot >= _enemy_fills.size():\n        return false\n    var fraction := clampf(value, 0.0, 1.0)\n    var fill := _enemy_fills[slot]\n    var left := float(fill.get_meta(\"source_hype_left\"))\n    var right := float(fill.get_meta(\"source_hype_right\"))\n    var extent := float(fill.get_meta(\"source_hype_extent\"))\n    fill.offset_left = left + (1.0 - fraction) * extent\n    fill.offset_right = right\n    var size := fill.texture.get_size()\n    fill.region_rect = Rect2(size.x * (1.0 - fraction), 0.0, size.x * fraction, size.y)\n    _enemy_backgrounds[slot].visible = true\n    fill.visible = fraction > 0.0\n    return true\n\nfunc clear_enemy_meter(slot: int) -> void:\n    if slot < 0 or slot >= _enemy_fills.size():\n        return\n    _enemy_backgrounds[slot].visible = false\n    _enemy_fills[slot].visible = false\n",
-        life_left,
-        life_top,
-        life[4],
-        life_right,
-        life_bottom,
-        value
-            .currency_item_id
-            .expect("validated HUD currency item id"),
-    );
+    let script_template = r#"extends Control
+
+@onready var _life_handle: TextureRect = $Source/PlayerLifeHandle
+@onready var _life_fill: TextureRect = $Source/PlayerLifeFill
+@onready var _life_remainder: TextureRect = $Source/PlayerLifeRemainder
+@onready var _currency_icon: TextureRect = $Source/CurrencyIcon
+@onready var _currency_label: Label = $Source/CurrencyCount
+@onready var _enemy_backgrounds: Array[TextureRect] = [
+    $Source/EnemyMeter0Background,
+    $Source/EnemyMeter1Background,
+    $Source/EnemyMeter2Background,
+]
+@onready var _enemy_fills: Array[TextureRect] = [
+    $Source/EnemyMeter0Fill,
+    $Source/EnemyMeter1Fill,
+    $Source/EnemyMeter2Fill,
+]
+
+const LIFE_LEFT: float = @@LIFE_LEFT@@
+const LIFE_TOP: float = @@LIFE_TOP@@
+const LIFE_FILL_WIDTH: float = @@LIFE_FILL_WIDTH@@
+const LIFE_RIGHT: float = @@LIFE_RIGHT@@
+const LIFE_BOTTOM: float = @@LIFE_BOTTOM@@
+const CURRENCY_ITEM_ID: int = @@CURRENCY_ITEM_ID@@
+
+var suppressed: bool = false
+var _actor: Node
+var _requested: Dictionary = {"life": false, "armor": false, "magic": false, "selected_object": false, "weapon": false}
+var _enemy_active: Array[bool] = [false, false, false]
+var _enemy_fill_active: Array[bool] = [false, false, false]
+var _life_fill_active: bool = false
+var _life_remainder_active: bool = true
+var _last_currency_count: int = -2147483648
+
+func _ready() -> void:
+    refresh()
+
+func bind_actor(actor: Node) -> void:
+    if is_instance_valid(_actor) and _actor.has_signal("hud_visibility_requested"):
+        var old_callback := Callable(self, "set_indicator_visible")
+        if _actor.is_connected("hud_visibility_requested", old_callback):
+            _actor.disconnect("hud_visibility_requested", old_callback)
+    _actor = actor
+    _last_currency_count = -2147483648
+    for key in _requested: _requested[key] = false
+    if is_instance_valid(_actor):
+        if _actor.has_signal("hud_visibility_requested"):
+            _actor.connect("hud_visibility_requested", Callable(self, "set_indicator_visible"))
+        var values: Variant = _actor.get("source_hud_display")
+        if values is Dictionary:
+            for key in values:
+                if _requested.has(key): _requested[key] = bool(values[key])
+    if is_node_ready():
+        _refresh_currency()
+        refresh()
+
+func set_indicator_visible(indicator: String, enabled: bool) -> void:
+    if not _requested.has(indicator): return
+    _requested[indicator] = enabled
+    refresh()
+
+func refresh() -> void:
+    var show_life := bool(_requested.get("life", false)) and not suppressed
+    _life_handle.visible = show_life
+    _life_fill.visible = show_life and _life_fill_active
+    _life_remainder.visible = show_life and _life_remainder_active
+    for slot in _enemy_fills.size():
+        _enemy_backgrounds[slot].visible = _enemy_active[slot] and not suppressed
+        _enemy_fills[slot].visible = _enemy_active[slot] and _enemy_fill_active[slot] and not suppressed
+    _currency_icon.visible = not suppressed
+    _currency_label.visible = _last_currency_count >= 0 and not suppressed
+
+func _process(_delta: float) -> void:
+    if not is_instance_valid(_actor): return
+    var points: Resource = _actor.get("source_hit_points") as Resource
+    if points != null:
+        var maximum := int(points.get("maximum"))
+        if maximum > 0:
+            set_life_fraction(float(points.get("current")) / float(maximum))
+    _refresh_currency()
+
+func _refresh_currency() -> void:
+    if not is_instance_valid(_actor):
+        set_currency_count(-1)
+        return
+    var inventory := _actor.get("source_inventory") as Resource
+    if inventory == null or not inventory.has_method("quantity"):
+        set_currency_count(-1)
+        return
+    set_currency_count(int(inventory.call("quantity", CURRENCY_ITEM_ID)))
+
+func set_currency_count(value: int) -> void:
+    if value == _last_currency_count: return
+    _last_currency_count = value
+    _currency_label.text = str(value) if value >= 0 else ""
+    _currency_label.visible = value >= 0 and not suppressed
+
+func set_life_fraction(value: float) -> void:
+    var fraction := clampf(value, 0.0, 1.0)
+    var fill_right := LIFE_LEFT + LIFE_FILL_WIDTH * fraction
+    _life_fill.offset_left = LIFE_LEFT
+    _life_fill.offset_right = fill_right
+    _life_remainder.offset_left = fill_right
+    _life_remainder.offset_right = LIFE_RIGHT
+    var fill_size := _life_fill.texture.get_size()
+    var remainder_size := _life_remainder.texture.get_size()
+    _life_fill.region_rect = Rect2(0.0, 0.0, fill_size.x * fraction, fill_size.y)
+    _life_remainder.region_rect = Rect2(fill_size.x * fraction, 0.0, remainder_size.x * (1.0 - fraction), remainder_size.y)
+    _life_fill_active = fraction > 0.0
+    _life_remainder_active = fraction < 1.0 and LIFE_RIGHT > fill_right
+    refresh()
+
+func set_enemy_meter(slot: int, value: float) -> bool:
+    if slot < 0 or slot >= _enemy_fills.size():
+        return false
+    var fraction := clampf(value, 0.0, 1.0)
+    var fill := _enemy_fills[slot]
+    var left := float(fill.get_meta("source_hype_left"))
+    var right := float(fill.get_meta("source_hype_right"))
+    var extent := float(fill.get_meta("source_hype_extent"))
+    fill.offset_left = left + (1.0 - fraction) * extent
+    fill.offset_right = right
+    var tex_size := fill.texture.get_size()
+    fill.region_rect = Rect2(tex_size.x * (1.0 - fraction), 0.0, tex_size.x * fraction, tex_size.y)
+    _enemy_active[slot] = true
+    _enemy_fill_active[slot] = fraction > 0.0
+    refresh()
+    return true
+
+func clear_enemy_meter(slot: int) -> void:
+    if slot < 0 or slot >= _enemy_fills.size():
+        return
+    _enemy_active[slot] = false
+    _enemy_fill_active[slot] = false
+    refresh()
+"#;
+    let script = script_template
+        .replace("@@LIFE_LEFT@@", &format!("{life_left:?}"))
+        .replace("@@LIFE_TOP@@", &format!("{life_top:?}"))
+        .replace("@@LIFE_FILL_WIDTH@@", &format!("{:?}", life[4]))
+        .replace("@@LIFE_RIGHT@@", &format!("{life_right:?}"))
+        .replace("@@LIFE_BOTTOM@@", &format!("{life_bottom:?}"))
+        .replace(
+            "@@CURRENCY_ITEM_ID@@",
+            &value
+                .currency_item_id
+                .expect("validated HUD currency item id")
+                .to_string(),
+        );
     Ok((scene, script))
 }
 
@@ -236,8 +374,11 @@ pub(super) fn export(
     project: &mut Project,
     source: &mut impl ContentSource,
     value: &HudPresentation,
-    _written: &mut BTreeSet<AssetPath>,
+    written: &mut BTreeSet<AssetPath>,
 ) -> Result<()> {
+    if !written.insert(value.path.clone()) {
+        return Ok(());
+    }
     value.validate()?;
     ensure!(
         value

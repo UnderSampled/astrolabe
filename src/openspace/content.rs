@@ -141,6 +141,27 @@ pub fn import_scene(game: &Path, selection: Selection) -> Result<Imported> {
         usage: TextureUsage::Material,
     }
     .read(&read(&game.join("Gamedata/Textures.cnt"))?)?;
+    if selection.locale.eq_ignore_ascii_case("en") {
+        match import_hud_assets(&mut imported, game, &selection, &archive, false) {
+            Ok(reference) => scene.scene.hud = Some(reference),
+            Err(error) => hud_warning(
+                &mut imported,
+                None,
+                format!(
+                    "Optional source HUD omitted because its layout or texture join did not validate: {error:#}"
+                ),
+            ),
+        }
+    } else {
+        hud_warning(
+            &mut imported,
+            None,
+            format!(
+                "Optional source HUD omitted: only English artwork and layout are verified, requested locale is {}",
+                selection.locale
+            ),
+        );
+    }
     if let Some(mut armor) = scene.armor.take() {
         for artwork in armor
             .definitions
@@ -591,17 +612,87 @@ pub fn import_inventory(game: &Path, selection: Selection) -> Result<Imported> {
 /// Import the source-verified Fix HUD and only its six original image dependencies.
 pub fn import_hud(game: &Path, selection: Selection) -> Result<Imported> {
     let mut imported = Imported::new(selection.clone());
-    let archive = codec::Cnt {
-        usage: TextureUsage::Material,
+    if !selection.locale.eq_ignore_ascii_case("en") {
+        hud_warning(
+            &mut imported,
+            None,
+            format!(
+                "Optional source HUD omitted: only English artwork and layout are verified, requested locale is {}",
+                selection.locale
+            ),
+        );
+        return Ok(imported);
     }
-    .read(&read(&game.join("Gamedata/Textures.cnt"))?)?;
-    let mut presentation = level::import_hud_presentation(game, &selection, &archive)?;
+    let archive_bytes = match read(&game.join("Gamedata/Textures.cnt")) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            hud_warning(
+                &mut imported,
+                None,
+                format!("Optional source HUD omitted: cannot read Textures.cnt: {error:#}"),
+            );
+            return Ok(imported);
+        }
+    };
+    let archive = match (codec::Cnt {
+        usage: TextureUsage::Material,
+    })
+    .read(&archive_bytes)
+    {
+        Ok(archive) => archive,
+        Err(error) => {
+            hud_warning(
+                &mut imported,
+                None,
+                format!("Optional source HUD omitted: cannot decode Textures.cnt: {error:#}"),
+            );
+            return Ok(imported);
+        }
+    };
+    if let Err(error) = import_hud_assets(&mut imported, game, &selection, &archive, true) {
+        hud_warning(
+            &mut imported,
+            None,
+            format!(
+                "Optional source HUD omitted because its layout or texture join did not validate: {error:#}"
+            ),
+        );
+    }
+    Ok(imported)
+}
+
+fn hud_warning(imported: &mut Imported, asset: Option<crate::model::AssetPath>, message: String) {
+    imported.diagnostics.push(Diagnostic {
+        code: "openspace.hud.layout_unverified".into(),
+        asset,
+        severity: Severity::Warning,
+        message,
+    });
+}
+
+fn import_hud_assets(
+    imported: &mut Imported,
+    game: &Path,
+    selection: &Selection,
+    archive: &TextureArchive,
+    root: bool,
+) -> Result<AssetRef<crate::model::hud::HudPresentation>> {
+    let mut presentation = level::import_hud_presentation(game, selection, archive)?;
+    let mut textures = Vec::with_capacity(presentation.artwork.len() + 1);
     for artwork in &presentation.artwork {
         let entry = archive.find_entry(&artwork.source_name).with_context(|| {
             format!("missing HUD image {} in Textures.cnt", artwork.source_name)
         })?;
+        ensure!(
+            [
+                archive.image(entry)?.width(),
+                archive.image(entry)?.height()
+            ] == artwork.logical_size,
+            "Fix HUD image {} changed after source identity resolution",
+            artwork.source_name
+        );
         if !imported.assets.contains(&entry.texture.path) {
-            imported.put(&entry.texture, archive.image(entry)?.clone(), false)?;
+            textures.push((entry.texture.clone(), archive.image(entry)?.clone()));
         }
     }
     let font = presentation
@@ -620,12 +711,12 @@ pub fn import_hud(game: &Path, selection: Selection) -> Result<Imported> {
     );
     font.atlas.texture = entry.texture.path.clone();
     if !imported.assets.contains(&entry.texture.path) {
-        imported.put(&entry.texture, archive.image(entry)?.clone(), false)?;
+        textures.push((entry.texture.clone(), archive.image(entry)?.clone()));
     }
-    imported.put(
-        &AssetRef::from_path(presentation.path.clone()),
-        presentation,
-        true,
-    )?;
-    Ok(imported)
+    let reference = AssetRef::from_path(presentation.path.clone());
+    for (texture_reference, texture) in textures {
+        imported.put(&texture_reference, texture, false)?;
+    }
+    imported.put(&reference, presentation, root)?;
+    Ok(reference)
 }

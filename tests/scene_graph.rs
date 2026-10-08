@@ -55,6 +55,7 @@ fn fixture() -> Result<Scene> {
     Ok(Scene {
         main_actor: None,
         armor: None,
+        hud: None,
         global_actors: vec![],
         path: AssetPath::new("level:/scene")?,
         name: "Graph".into(),

@@ -1,11 +1,12 @@
 //! Focused regressions for source-verified Fix HUD import, persistence and export.
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use astrolabe::{
     app, godot,
     model::{
         AssetPath, AssetRef, Selection,
         hud::{HudPresentation, HudTextureRole},
         io::{Content, ContentRoot, Load, Save},
+        scene::{NodeKind, Scene, SceneNode, SceneNodeProperties, TransformSpace},
         texture::{Texture, TextureUsage},
     },
     openspace::content,
@@ -38,8 +39,23 @@ fn verified_hud_import_rete_roundtrip_and_godot_export() -> Result<()> {
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("disc"));
     let selection = Selection::hype("manoir", "en")?;
+    let mut imported_scene = content::import_scene(&game, selection.clone())?;
+    let scene_root = imported_scene
+        .roots
+        .iter()
+        .find(|root| root.kind == Scene::KIND)
+        .context("scene import omitted its root")?;
+    let imported_scene_root =
+        imported_scene.load(&AssetRef::<Scene>::from_path(scene_root.reference.clone()))?;
     let mut imported = content::import_hud(&game, selection.clone())?;
     let hud_path = AssetPath::new("fix:/hud/en")?;
+    ensure!(
+        imported_scene_root
+            .hud
+            .as_ref()
+            .is_some_and(|hud| hud.path == hud_path)
+    );
+    ensure!(imported_scene.assets.contains(&hud_path));
     ensure!(imported.roots.len() == 1);
     ensure!(imported.roots[0].reference == hud_path);
     ensure!(
@@ -111,21 +127,65 @@ fn verified_hud_import_rete_roundtrip_and_godot_export() -> Result<()> {
     let reopened_hud = store.load(&AssetRef::<HudPresentation>::from_path(hud_path.clone()))?;
     ensure!(*reopened_hud == *hud);
 
+    let level_path = AssetPath::new("level:/hud_attachment_check")?;
+    let source_scene = Scene {
+        path: level_path.clone(),
+        name: "HudAttachmentCheck".into(),
+        main_actor: None,
+        armor: None,
+        hud: Some(AssetRef::from_path(hud_path.clone())),
+        global_actors: vec![],
+        nodes: vec![SceneNode {
+            properties: SceneNodeProperties {
+                source_kind: Some(0),
+                transform_space: TransformSpace::Local,
+                initial_global_transform: None,
+                bounding_geometry: None,
+                opacity: 255.0,
+            },
+            id: "world".into(),
+            name: "World".into(),
+            parent: None,
+            kind: NodeKind::World,
+            transform: None,
+            instance: None,
+            perso: None,
+            collision: None,
+            draw_mask: 0,
+            sector: None,
+            light: None,
+        }],
+    };
+    store.save(
+        &AssetRef::<Scene>::from_path(level_path.clone()),
+        &source_scene,
+    )?;
+
     let output = temp.path().join("godot");
     let godot_bin = std::env::var("GODOT_BIN").unwrap_or_else(|_| "godot".into());
+    let roots = [ContentRoot {
+        kind: Scene::KIND.into(),
+        reference: level_path,
+    }];
     let manifest = godot::export(
         &mut store,
-        &package.roots,
-        package.selection,
+        &roots,
+        package.selection.clone(),
         &output,
         &godot_bin,
     )?;
     let scene_rel = "generated/hype/shared/hud/en.tscn";
     let script_rel = "generated/hype/shared/hud/en.gd";
+    let screen_rel = "generated/hype/shared/ui/screen_en.tscn";
+    let level_rel = "generated/hype/levels/manoir/level.tscn";
     ensure!(manifest.files.contains_key(scene_rel));
     ensure!(manifest.files.contains_key(script_rel));
+    ensure!(manifest.files.contains_key(screen_rel));
+    ensure!(manifest.files.contains_key(level_rel));
     let scene = fs::read_to_string(output.join(scene_rel))?;
     let script = fs::read_to_string(output.join(script_rel))?;
+    let screen_scene = fs::read_to_string(output.join(screen_rel))?;
+    let level_scene = fs::read_to_string(output.join(level_rel))?;
     for node in [
         "PlayerLifeHandle",
         "PlayerLifeFill",
@@ -160,6 +220,8 @@ fn verified_hud_import_rete_roundtrip_and_godot_export() -> Result<()> {
         manifest.files.contains_key(font_image_rel),
         "native HUD font atlas image missing"
     );
+    ensure!(level_scene.contains(screen_rel));
+    ensure!(screen_scene.contains(scene_rel));
     for artwork in &hud.artwork {
         let image_rel = format!("generated/hype/textures/{}.hud.png", artwork.texture.file());
         ensure!(
@@ -172,7 +234,7 @@ fn verified_hud_import_rete_roundtrip_and_godot_export() -> Result<()> {
     let actor_script = output.join("hud_counter_actor.gd");
     fs::write(
         &actor_script,
-        "extends Node\nvar source_inventory: Resource\n",
+        "extends Node\nsignal hud_visibility_requested(indicator: String, enabled: bool)\nvar source_inventory: Resource\nvar source_hit_points: Resource\nvar source_hud_display: Dictionary = {}\n",
     )?;
     let check_script = output.join("check_hud_counter.gd");
     fs::write(
@@ -208,7 +270,11 @@ func _run() -> void:
         return
     hud.call("bind_actor", actor)
     await process_frame
-    var label := hud.get_node("Canvas/Source/CurrencyCount") as Label
+    var label := hud.get_node("Source/CurrencyCount") as Label
+    actor.emit_signal("hud_visibility_requested", "life", true)
+    var life_handle := hud.get_node("Source/PlayerLifeHandle") as TextureRect
+    if not _check(life_handle.visible, "actor life visibility did not reach the source HUD"):
+        return
     if not _check(label.visible and label.text == "0", "zero source currency was not visible"):
         return
     inventory.set("quantities", {0: 27})

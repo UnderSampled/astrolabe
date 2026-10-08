@@ -129,6 +129,7 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
             name: selection.level.clone(),
             main_actor: None,
             armor: None,
+            hud: None,
             global_actors: Vec::new(),
             nodes: Vec::new(),
         },

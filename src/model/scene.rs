@@ -17,6 +17,9 @@ pub struct Scene {
     /// Shared Fix-owned armor definitions bound to this active level session.
     #[serde(default)]
     pub armor: Option<AssetRef<super::armor::ArmorCatalog>>,
+    /// Source-derived Fix HUD projected into this level's saved screen scene.
+    #[serde(default)]
+    pub hud: Option<AssetRef<super::hud::HudPresentation>>,
     /// Shared source actors referenced by AI but not rooted in this level's scene tree.
     /// These are useful assets with source identity, not fabricated scene nodes.
     #[serde(default)]
@@ -138,6 +141,12 @@ impl Content for Scene {
             ensure!(
                 armor.path.role() == super::PackageRole::Fix && armor.path.member().is_none(),
                 "scene armor reference must identify a whole Fix asset"
+            );
+        }
+        if let Some(hud) = &self.hud {
+            ensure!(
+                hud.path.role() == super::PackageRole::Fix && hud.path.member().is_none(),
+                "scene HUD reference must identify a whole Fix asset"
             );
         }
         if let Some(actor) = &self.main_actor {

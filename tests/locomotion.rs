@@ -257,6 +257,7 @@ fn native_motion_survives_rete_and_drives_character_contact() -> Result<()> {
         name: "Motion".into(),
         main_actor: Some(AssetRef::from_path(perso.path.clone())),
         armor: None,
+        hud: None,
         global_actors: vec![],
         nodes: vec![SceneNode {
             properties: Default::default(),

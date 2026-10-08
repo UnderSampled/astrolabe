@@ -55,6 +55,15 @@ func save_scene(node: Node, path: String) -> void:
         push_error("Cannot save native scene: " + path)
         quit(1)
 
+func relative_node_path(root: Node, node: Node) -> String:
+    var result := str(node.name)
+    var ancestor := node.get_parent()
+    while ancestor != root:
+        if ancestor == null: return ""
+        result = str(ancestor.name) + "/" + result
+        ancestor = ancestor.get_parent()
+    return result
+
 # Conversion only. Scene dock visibility is separate from persisted ownership:
 # each opened scene must expose all nested instances relative to its own root.
 # Append only editor flags, preserving PackedScene links and native resource data.
@@ -64,7 +73,7 @@ func expose_scene_tree(path: String) -> void:
     var paths: Array[String] = []
     for node in root.find_children("*", "", true, false):
         if not node.scene_file_path.is_empty():
-            paths.append(str(root.get_path_to(node)))
+            paths.append(relative_node_path(root, node))
     root.free()
     paths.sort()
     var text := FileAccess.get_file_as_string(path)

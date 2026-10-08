@@ -38,6 +38,7 @@ fn fixture() -> Result<(Environment, VisualEnvironment, Fog, Scene)> {
     let mut scene = Scene {
         main_actor: None,
         armor: None,
+        hud: None,
         global_actors: vec![],
         path: AssetPath::new("level:/scene")?,
         name: "Fog".into(),

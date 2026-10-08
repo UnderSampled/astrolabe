@@ -263,6 +263,7 @@ fn compiled_routes_use_native_contact_and_actor_local_progress() -> Result<()> {
         name: "Routes".into(),
         main_actor: Some(AssetRef::from_path(perso.path.clone())),
         armor: None,
+        hud: None,
         nodes: vec![SceneNode {
             id: "walker".into(),
             name: "Walker".into(),
