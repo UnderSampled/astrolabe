@@ -167,3 +167,32 @@ selected state-card slice, other mechanics callbacks, native/source
 floating-point equivalence, and the full release matrix remain outside this
 worker's validation claim. Integration owns the combined version, support
 update/content regeneration and a later unchanged actual-game acceptance run.
+
+## Main integration evidence
+
+The approved armor and camera changes are integrated as
+`4af33df5e96d4f90862aa61c6d4a5ba540b91ba5` and
+`77b98caa5225eb3d4bb11df9fe70d71886392080`. Main retains the inventory/loading
+contract from `c375693b5c8310ffc8450dd97ce3be0e910083a3`; the combined support
+interface advances to 74, with Rete schema 56 unchanged by armor/camera.
+The manifest resolution preserves main's complete inventory and adds the armor
+regression rather than replacing declarations with this branch's older list.
+
+The main follow-up explicitly types `action_changed: bool` in
+`tests/check_gogoud_camera.gd`. Its isolated native parser preflight passes;
+this fixes the reported syntax blocker, without claiming a full Gogoud run.
+The two prior full-level editor import timeouts remain failed evidence for
+the later aggregate selection; no deadline was enlarged and neither was
+silently counted as passing.
+
+The merged-main focused selection passes 30/30 Rust tests and all 29 checks in
+the four mandatory Python groups. It includes the six armor/camera checks,
+inventory conversion and native motion, loading-limit lifecycle, support
+packaging, and every `always`/`gameplay` safeguard. All 406 discovered cases
+are classified; the remaining 376 cases are explicitly excluded from this
+selection. Total time is 171.87s, including 82.12s build/discovery and 83.49s
+Rust execution. Every stage exits 0 with unchanged source, no timeout, leaked
+child or remaining process. Ignored evidence is
+`output/integration-resume-20261008/armor-camera-main/result.json`,
+`parser-result.json`, and `TestResults/armor-camera-main-20261008.console.log`.
+No full-level export or original-game run was performed.

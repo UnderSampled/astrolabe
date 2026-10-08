@@ -73,7 +73,7 @@ func check() -> void:
     ]
     for tick in range(1200):
         if not require(str(world.get("unsupported_failure")).is_empty() and str(gogoud_brain.get("unsupported_failure")).is_empty(),"compiled opening AI failed"): return
-        var action_changed := actions[-1] != gogoud.current_state
+        var action_changed: bool = actions[-1] != gogoud.current_state
         if action_changed: actions.append(gogoud.current_state)
         if tick % 3 == 0 or action_changed: route_frames.append(route_snapshot(gogoud,gogoud_brain,world))
         if world.get("dsg_0") != 0 and trigger.is_empty():
