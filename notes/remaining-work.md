@@ -111,6 +111,35 @@ remain temporary game limitations but cannot establish the corresponding
 original behavior. Fixture shortcuts used by tests retain their narrower scope.
 State exactly which routes and observations pass and which remain open.
 
+#### Follow-up Manor acceptance backlog
+
+After the immediate integrated runnable-game checkpoint is demoable, continue
+with these Manor acceptance items. They are follow-up scope, not blockers for
+that checkpoint:
+
+- Verify and implement the training dummy's source-backed hit and spin
+  reactions.
+- Verify and implement the player's dying/death behavior.
+- Verify and implement fall-off-cliff damage at a source-appropriate Manor
+  location.
+
+#### Follow-up Manor save-state fix: Global intro latch
+
+The source-backed optional schema-1 Brain field from `f7d01209` and its
+semantic projection dependencies are integrated in `main` at `be0b88e`. They
+capture/restore Boolean `dsg_147` for owner `fix:/persos/15` before deferred AI
+startup; older slots may omit it and preserve the scene default. The focused
+importer tests and authentic supplied-save import pass; the imported state has
+`dsg_147=true` and `dsg_149=true`, with source records kept in the diagnostics
+sibling. The save owner's fresh-process capture/reload check passed in their
+isolated worktree. The clean New Game/Load Game route acceptance also passed
+on its frozen project, but that run predates this integration. Still run the
+integrated Godot persistence check and add passive New Game and Load Game
+observations of Gogoud's Brain/dialogue with the new save field. Do not infer
+that this latch proves a key grant/ownership/consumption path or force a
+behavior/dialogue state; the true branch still reaches unsupported category
+4/op4, whose effect remains unresolved.
+
 ## Historical visual-pass inventory — September 13–20
 
 The material below preserves earlier evidence and remaining format/visual
