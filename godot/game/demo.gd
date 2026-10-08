@@ -310,13 +310,15 @@ func install_level_transition(destination: Node3D, entry: String, camera_entry: 
 
     var previous_level := level
     destination.name = "Level_" + str(destination.get_meta("source_level", "destination"))
-    new_actor.global_transform = entry_actor.global_transform
     if new_actor is CharacterBody3D:
         new_actor.velocity = Vector3.ZERO
         new_actor.set_physics_process(false)
     new_brain.set("automatic", false)
     _bind_source_camera_controller_state(destination)
     add_child(destination)
+    # Global transforms are only valid after the destination has a scene-tree parent.
+    # Keep Hype's physics and Brain paused until his authored entry pose is applied.
+    new_actor.global_transform = entry_actor.global_transform
     _apply_transition_state(new_actor, destination)
     if content_cache != null:
         content_cache.call("retain_level", "res://generated/hype/levels/%s/level.tscn" % str(destination.get_meta("source_level", "")).to_lower(), packed)
