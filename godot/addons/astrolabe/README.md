@@ -1,4 +1,4 @@
-# Astrolabe support, interface 69
+# Astrolabe support, interface 73
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -290,3 +290,12 @@ source records or font tables are interpreted by the UI. The authored
 `game/inventory_host.gd` owns modal pause and the weapon-selection adapter.
 See [inventory ownership](../../game/inventory/README.md) for generation,
 inherited scene overrides and the current limits.
+
+Interface 73 registers `ui/location_title.tscn` under the shared Screen canvas.
+Style4 uses the converted two-line untimed/unvoiced title resource and its native
+font/stencils; the compiled source Brain owns its 200/3000ms waits and lifecycle.
+Screen dispatches Position/Run/Select/End/IsOver through the active presentation.
+End closes without a completion callback; level adoption/release cancels both
+presentations immediately. The game session exposes `source_get_game_state()`
+for compiled Func 195, returning selectors 0..8 or null for the source's
+unrepresented combined-mask stale-result case. There is no title load trigger.

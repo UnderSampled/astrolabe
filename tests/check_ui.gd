@@ -103,7 +103,9 @@ func check() -> void:
     screen.dialogue_items.assign([fixture(3)])
     if not require(screen.source_run_dialog("fixture",1,brain) and not dialogue.panel.visible and dialogue.item.lines_per_page() == 2, "unframed cinematic style"): return
     screen.source_end_dialog()
-    if not require(screen.source_dialog_is_over() and not screen.completion_pending and brain.calls == 1, "EndDialog cancels without callback"): return
+    await process_frame
+    await process_frame
+    if not require(screen.source_dialog_is_over() and not screen.completion_pending and brain.calls == 1, "EndDialog closes without callback"): return
     level.queue_free()
     await process_frame
     var composition := Node.new()

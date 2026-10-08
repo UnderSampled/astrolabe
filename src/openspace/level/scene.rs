@@ -97,7 +97,7 @@ pub struct SceneImport {
 
 pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
     let mut session = SourceSession::open(game, selection)?;
-    if selection.level == "manoir" {
+    if matches!(selection.level.as_str(), "manoir" | "astrolabe") {
         super::dialogue::load_language(&mut session, game, selection)?;
     }
     let tree = session.tree()?;
@@ -369,8 +369,10 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
         &mut result,
         &mut material_ids,
     )?;
-    if selection.level == "manoir" {
+    if matches!(selection.level.as_str(), "manoir" | "astrolabe") {
         super::dialogue::import(&session, game, selection, &actor_refs, &mut result)?;
+    }
+    if selection.level == "manoir" {
         result.scene.map_names = Some(super::map_names::import(&session, game)?);
     }
     let armor = super::armor::import(game, selection).context("import shared Fix armor catalog")?;

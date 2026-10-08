@@ -61,12 +61,22 @@ pub(super) fn export(
                 span.emphasis
             )?;
         }
+        let layout = line
+            .layout
+            .as_ref()
+            .map(|layout| {
+                format!(
+                    "alignment = Vector2i({}, {})\ndraw_offset = Vector2({:?}, {:?})\n",
+                    layout.alignment[0], layout.alignment[1], layout.offset[0], layout.offset[1]
+                )
+            })
+            .unwrap_or_default();
         let id = format!("line_{i}");
         ids.push(format!("SubResource(\"{id}\")"));
         count += 1;
         writeln!(
             resources,
-            "[sub_resource type=\"Resource\" id=\"{id}\"]\nscript = ExtResource(\"line\")\nspans = Array[Resource]([{}])\njustification = {:?}\nend_seconds = {:?}\nflags = {}\n",
+            "[sub_resource type=\"Resource\" id=\"{id}\"]\nscript = ExtResource(\"line\")\nspans = Array[Resource]([{}])\njustification = {:?}\nend_seconds = {:?}\nflags = {}\n{layout}",
             spans.join(", "),
             line.justification,
             line.end_seconds,
@@ -122,5 +132,8 @@ pub(super) fn export(
     project.write(path.clone(), text.as_bytes())?;
     project.dialogue_resources.push(path);
     project.diagnostic(format!("{}: localized native text/voice/timing/callback; native source font/frame/offsets; line-reveal animation and New Game visual parity await fidelity validation",value.path));
+    if value.box_style == 4 {
+        project.diagnostic(format!("{}: native style4 two-line title; compiled source AI owns entry/waits/end; original pixel parity remains unverified", value.path));
+    }
     Ok(())
 }

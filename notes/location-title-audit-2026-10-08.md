@@ -1,10 +1,13 @@
 # Astrolabe location/era title: source cue and native presentation
 
-2026-10-08. Optional, isolated title slice based on `bac48e1`, branch
+2026-10-08. Initial isolated title slice based on `bac48e1`, branch
 `codex/location-title-20261008`. The intro integration remains lead-owned.
-This slice adds a tested native presentation component; it does **not** yet make
+The initial slice adds a tested native presentation component; it does **not** yet make
 the source title cue executable in the game. Only the two new UI files, the two
 dedicated test files, and this note are changed.
+
+The integrated follow-up at the end of this note supersedes those initial
+registration gaps and the prototype's no-completion restriction.
 
 ## Source owner and cue
 
@@ -155,3 +158,124 @@ before End/deactivation, and cover map cancellation/re-entry. This isolated
 slice cannot establish those checks while the shared files remain lead-owned.
 No full-area, release, original-engine, localization catalogue or intro
 acceptance is claimed.
+
+## Integrated follow-up on edb7704
+
+The existing `e9296e88f92940d0e73ac206820e041cacd19181` and
+`f7dc29d915c57053392d156babf1fb6adf5d7795` commits were preserved on
+`preservation/location-title-before-edb7704`. Merge
+`22cd788348928b63e99c2cede8b22beed92db3c8` brings the isolated branch onto
+requested main base `edb7704b2597c26c78086acad2f58eaba1db7a78`, without conflicts.
+No main checkout or remote was changed.
+
+The title is now in the production paths: the OpenSpace scene importer admits
+English Astrolabe's language package/catalogue; its real `astrolabe_txt2` becomes
+a normal dialogue root; Rete persists it and typed `Expression::GameState`; the
+public exporter writes its native Translation, font/stencils, line Resources
+and complete compiled model659. Saved level Screen composition already adopts
+all dialogue roots and source Brain bindings, so no new level-load trigger is
+needed. Support interface 73 packages the title scene/script/UID and instances it
+under Screen. Rete schema 56 includes the new typed query and useful line anchor.
+Both registrations include exact release/development test-inventory entries.
+
+The source catalogue corrected two prototype assumptions:
+
+- Line+16 is a pointer to a 16-byte drawing anchor, not a letter effect. Static
+  0056cc70 forwards it to 0056c8e0, which passes its first two words to FON
+  horizontal/vertical alignment and adds its X/Y offsets. 005bb5a0 measures
+  first-to-last glyph centers for left/center/right; 005bb650 uses unchanged,
+  half or full space-glyph half-height. The useful model retains selectors and
+  offsets, never the original pointer. Native font metrics provide placement,
+  including prefix alignment during reveal. Actual title line anchors are
+  `[1,1] / [1.8,-0.2]` and `[1,1] / [1.9,-0.4]`.
+- The real item has a completion reference to model 659 normal 1. Both lines are
+  untimed (`3.4e38`), flags0, and unvoiced; the owner is actor 91. The prototype's
+  rejection of every completion reference would therefore omit the actual
+  title. Title Select now emits the same pending-completion signal as ordinary
+  dialogue. Shared Cond120/Proc330 consumes it through the bound compiled Brain;
+  Cond121 leaves it pending. Source End clears it without invoking completion.
+
+Screen dispatches Position/Run/Scroll/Select/End/IsOver to the presentation
+owner, with Scroll a no-op for this single-answer title. The shared MainActor
+speech gate remains in Screen. Ordinary End and title End animate closing;
+level adoption/release and teardown cancel both immediately. Replacement Run
+validates its target before cancelling another presentation. No UI-owned
+200/3000ms timers or authored every-level popup were added.
+
+Func195 uses the actual `game/demo.gd` session getter, with source selectors
+0..8. An exhaustive byte-mask check validates its mapping and null for combined
+masks; compiled callers diagnose the source's unrepresented stale-result case
+before using it. The test never recreates an AI evaluator result cache.
+
+### Verification and limits
+
+Owned ignored evidence is under `output/location-title-evidence/integration/`.
+The five dedicated title tests passed in `connected-callback.log`: 100.73s total,
+32.75s test execution, 0 leaked descendants. They include source actor/Brain
+selection and complete model Rete parity; actual catalogue/anchor/completion
+Rete parity; public selected title+AI export; the unchanged compiled cue at
+200/3000ms for selector 2 and selectors 0/1/3..8; unconditional End/deactivation;
+shared Select/completion/speech gates; animated close; adoption, map cancellation
+and fresh native physics startup/re-entry. The session test inherits the actual
+game methods while suppressing level loading. No source cue is excerpted or
+rewritten for that acceptance test. A separate synthetic model exercises the
+same narrow calls and support components without game data.
+
+The actual game's configured Button_Hit input smoke also passed syntax and
+runtime checks in 0.66s with no leaked descendants (`input-*.log`). Its fixture
+now enters through Screen's production Run dispatch. All temporary projects,
+XDG state, logs and generated source assets remain owned and ignored. Earlier
+failed attempts remain recorded: the initially assumed effect/callback
+restrictions omitted the item; a strict floating-point boundary in a physics
+observation was corrected; sandboxed editor loopback IPC failed before running
+through the reviewed local execution route. Those attempts are not passes.
+
+Full source-level exports, original-game sessions, and complete game/intro runs
+were intentionally excluded. Original pixel/cadence equivalence and full game
+route acceptance remain lead-owned validation, not claims of these focused
+checks. The production implementation no longer awaits title registration or
+catalogue/Func195/dispatch wiring.
+
+The focused follow-up selected 33 checks, with 352 manifest entries explicitly
+excluded from this bounded slice. All 33 passed across the recorded executions
+and exact retries (`focused-outcome.json`): 21 Astrolabe checks and 12 Orrery
+synthetic-process/contract safeguards. Every declared always/gameplay safeguard
+was included. The four supervisor/selection/nextest/recording Python check groups
+also passed. Root execution took 94.07s; the Orrery job took 72.44s including
+rebuild, with 2.26s test execution. Five sandbox-blocked ptrace/ELF32 cases passed
+on the reviewed retry (15.70s including setup, below 1s test execution). No
+original-game backend was launched. No owned descendant leaked or test timed out.
+
+The new Func195 byte-roundtrip test initially used the wrong synthetic Then
+token. Correcting that fixture yielded an exact one-test pass; its 105.75s
+supervised stage included build-lock wait/recompilation and near-zero execution.
+No production behavior was changed for that retry. `cargo fmt --all --check` and
+`git diff --check` passed. `cargo clippy --locked --offline --all-targets -- -D
+warnings` passed in 13.87s, and `cargo build --release --locked --offline` passed
+in 84.87s. These Cargo commands select the root default member, not all workspace
+targets.
+
+Whole-workspace discovery on this edb7704-based checkout failed on the unchanged
+Orrery comparison Perso fixture, then target-specific discovery exposed 28 base
+manifest gaps. This slice corrects the stale maintained-support test registration
+and registers the existing setter test needed beside Func195; the other 26 gaps
+are recorded without unrelated repairs. Exact selected inventory was validated.
+Kip reports newer main separately repairs workspace discovery/lints; this worker
+has neither merged those changes nor claimed release-matrix acceptance.
+
+### Integration ownership
+
+Merge the branch tip, preserving the original two title commits and the clean
+edb7704 merge. Do not cherry-pick merge22cd788 as an ordinary implementation
+commit. A linear alternative from edb7704 or its descendant is the original
+e9296e8, then f7dc29d, then the final integration implementation commit.
+
+At inspected main `98a3d2e1f0aa12a9b8b48f79e7e859be321a1ddb`, the common merge
+base remains edb7704. Changed paths shared with that newer main are exactly
+`godot/addons/astrolabe/version.json`, `src/godot/support.rs`,
+`src/rete/mod.rs`, and `tools/test-manifest.json`. Both branches independently
+choose schema56/interface73; Kip owns the combined versions and registration
+reconciliation. Keep the newer inventory/loading assets and this title's three
+support registrations together. This branch does not edit inventory animations.
+All changed files are available in the committed diff; source game data,
+converted resources, captures and test outputs remain ignored.

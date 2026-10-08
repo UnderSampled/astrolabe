@@ -128,11 +128,22 @@ func select() -> void:
 func request_select() -> void:
     if item != null and item.allow_skip: select()
 
-func _finish() -> void:
+func end(animated: bool = true) -> void:
+    if not animated:
+        cancel()
+    elif item != null and not closing:
+        _finish(false)
+
+func _finish(notify_completion: bool = true) -> void:
     closing = true
     # The screen uses a live item to own Button_Hit until the fade completes.
     var finished := item
     var generation := _generation
+    if not notify_completion:
+        item = null
+        text.clear()
+        _clear_source_text()
+        answers.hide()
     _stop_voice()
     if fade != null and fade.is_running(): fade.kill()
     fade = create_tween()
@@ -142,7 +153,7 @@ func _finish() -> void:
         item = null
         closing = false
         hide())
-    completed.emit(finished)
+    if notify_completion: completed.emit(finished)
 
 func is_over() -> bool:
     return item == null and modulate.a <= 0.1

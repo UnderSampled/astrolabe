@@ -1,5 +1,4 @@
 extends SceneTree
-const TitleScene = preload("res://addons/astrolabe/ui/location_title.tscn")
 const ScreenScene = preload("res://addons/astrolabe/ui/screen.tscn")
 const Item = preload("res://addons/astrolabe/ui/dialogue_item.gd")
 const Line = preload("res://addons/astrolabe/ui/dialogue_line.gd")
@@ -15,12 +14,12 @@ func require(condition: bool, message: String) -> bool:
 func _initialize() -> void:
     check.call_deferred()
 
-func fixture_texture(width: int = 32, height: int = 32) -> ImageTexture:
+static func fixture_texture(width: int = 32, height: int = 32) -> ImageTexture:
     var image := Image.create(width, height, false, Image.FORMAT_RGBA8)
     image.fill(Color(0.2, 0.3, 0.4, 1.0))
     return ImageTexture.create_from_image(image)
 
-func fixture_item() -> Resource:
+static func fixture_item() -> Resource:
     var style: Resource = Presentation.new()
     var font := FontFile.new()
     font.fixed_size = 21
@@ -58,6 +57,14 @@ func check() -> void:
         if argument.begins_with("--presentation="):
             value.presentation = load(argument.trim_prefix("--presentation="))
             if not require(value.presentation != null and value.presentation.font.get_font_name() == "Playmo_Font2_0", "converted source font resource"): return
+    var aligned: Vector2 = value.presentation.line_origin("AB", Vector2i(1, 0), Vector2(1.0, 2.0))
+    var expected_width := 0.0
+    for character in [65, 66]:
+        var glyph: int = value.presentation.font.get_glyph_index(21, character, 0)
+        expected_width += value.presentation.font.get_glyph_size(0, Vector2i(21, 0), glyph).x * 0.5
+    var a_glyph: int = value.presentation.font.get_glyph_index(21, 65, 0)
+    expected_width += value.presentation.font.get_glyph_advance(0, 21, a_glyph).x - value.presentation.font.get_glyph_size(0, Vector2i(21, 0), a_glyph).x
+    if not require(aligned.is_equal_approx(Vector2(value.presentation.SOURCE_SCALE - expected_width * 0.5, -2.0 * value.presentation.SOURCE_SCALE)), "promoted source line center/offset using native metrics"): return
     if not require(ResourceSaver.save(value, "res://synthetic-title.tres") == OK, "save native item"): return
     value = load("res://synthetic-title.tres")
     root.size = Vector2i(640, 480)
@@ -66,8 +73,7 @@ func check() -> void:
     var screen: Node = ScreenScene.instantiate()
     screen.adopt_parent_screen = false
     host.add_child(screen)
-    var title: Control = TitleScene.instantiate()
-    screen.canvas.add_child(title)
+    var title: Control = screen.location_title
     title.set_process(false)
     if not require(not title.visible and title.item == null, "no popup on scene entry"): return
     title.position = Vector2(160, 70)

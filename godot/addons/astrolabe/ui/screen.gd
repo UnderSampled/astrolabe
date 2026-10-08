@@ -7,6 +7,8 @@ signal locale_fallback(requested: String, selected: String)
 @export_node_path("Node") var actor_path: NodePath
 @onready var canvas: Control = $Canvas
 @onready var dialogue: Control = $Canvas/Dialogue
+@onready var location_title: Control = $Canvas/LocationTitle
+var active_presentation: Control
 @onready var hud: Control = $Canvas/Hud
 @onready var bars: Control = $Canvas/Letterbox
 @onready var fade: ColorRect = $Canvas/Fade
@@ -39,6 +41,7 @@ func _ready() -> void:
                     return
             ancestor = ancestor.get_parent()
     dialogue.completed.connect(_dialogue_completed)
+    location_title.completed.connect(_dialogue_completed)
     get_viewport().size_changed.connect(_layout)
     _register_catalogues()
     _layout()
@@ -48,7 +51,7 @@ func adopt_level(level: Node, items: Array[Resource], actor: Node) -> bool:
     # Authored scene composition chooses one active level. Never steal another
     # live level's presentation owner or duplicate its HUD/dialogue coroutine.
     if is_instance_valid(source_level) and source_level != get_parent() and source_level != level: return false
-    source_end_dialog()
+    source_cancel_dialog()
     source_level = level
     dialogue_items.assign(items)
     _register_catalogues()
@@ -57,7 +60,7 @@ func adopt_level(level: Node, items: Array[Resource], actor: Node) -> bool:
 
 func release_level(level: Node) -> void:
     if source_level != level: return
-    source_end_dialog()
+    source_cancel_dialog()
     source_level = get_parent()
     dialogue_items.assign(_authored_items)
     _register_catalogues()
@@ -145,6 +148,8 @@ func source_position_dialog(x: float, y: float) -> void:
     source_position = Vector2(x, y)
     dialogue.position = source_position
     dialogue.refresh_layout()
+    location_title.position = source_position
+    location_title.refresh_layout()
 
 func source_run_dialog(identity: String, run_mode: int, caller: Node = null) -> bool:
     if is_instance_valid(adopted_screen): return adopted_screen.source_run_dialog(identity, run_mode, caller)
@@ -162,7 +167,12 @@ func source_run_dialog(identity: String, run_mode: int, caller: Node = null) -> 
     var brain: Node = actor.get_node_or_null("Brain") if actor != null else null
     if selected.voice != null and emitter == null: return false
     if selected.completion_normal >= 0 and (brain == null or str(brain.get("source_model_path")) != selected.completion_model): return false
-    if not dialogue.run(selected, run_mode, emitter): return false
+    var presenter: Control = location_title if selected.box == 4 else dialogue
+    # Validate/run first so an unavailable item cannot cancel the live one.
+    if not presenter.run(selected, run_mode, emitter): return false
+    if presenter == location_title: dialogue.cancel()
+    else: location_title.cancel()
+    active_presentation = presenter
     _callback_generation += 1
     completion_pending = false
     completion_brain = brain
@@ -173,16 +183,16 @@ func source_run_dialog(identity: String, run_mode: int, caller: Node = null) -> 
 
 func source_scroll_dialog(direction: int) -> void:
     if is_instance_valid(adopted_screen): adopted_screen.source_scroll_dialog(direction)
-    else: dialogue.scroll(direction)
+    elif active_presentation == dialogue: dialogue.scroll(direction)
 
 func source_select_dialog() -> void:
     if is_instance_valid(adopted_screen): adopted_screen.source_select_dialog()
-    else: dialogue.request_select()
+    elif is_instance_valid(active_presentation): active_presentation.request_select()
 
 func _unhandled_input(event: InputEvent) -> void:
     # The source Button_Hit action advances an active dialogue. Menus and
     # gameplay retain their existing input ownership outside this component.
-    if is_instance_valid(adopted_screen) or dialogue.item == null:
+    if is_instance_valid(adopted_screen) or not is_instance_valid(active_presentation) or active_presentation.item == null:
         return
     var key := event as InputEventKey
     if not event.is_action_pressed(&"Button_Hit") or (key != null and (key.echo or not key.pressed)):
@@ -190,20 +200,34 @@ func _unhandled_input(event: InputEvent) -> void:
     source_select_dialog()
     get_viewport().set_input_as_handled()
 
-func source_end_dialog() -> void:
-    if is_instance_valid(adopted_screen):
-        adopted_screen.source_end_dialog()
-        return
+func _clear_completion() -> void:
     _callback_generation += 1
     completion_pending = false
     completion_brain = null
     completion_model = ""
     completion_normal = -1
+
+func source_end_dialog() -> void:
+    if is_instance_valid(adopted_screen):
+        adopted_screen.source_end_dialog()
+        return
+    # Source End is unconditional: close whichever presentation owns the screen,
+    # including an ordinary dialogue when the title actor's predicate was false.
+    _clear_completion()
+    if is_instance_valid(active_presentation): active_presentation.end()
+
+func source_cancel_dialog() -> void:
+    if is_instance_valid(adopted_screen):
+        adopted_screen.source_cancel_dialog()
+        return
+    _clear_completion()
     dialogue.cancel()
+    location_title.cancel()
+    active_presentation = null
 
 func source_dialog_is_over(main_actor: Node3D = null) -> bool:
     if is_instance_valid(adopted_screen): return adopted_screen.source_dialog_is_over(main_actor)
-    if not dialogue.is_over(): return false
+    if not dialogue.is_over() or not location_title.is_over(): return false
     # The source gate belongs to MainActor, independently of the current
     # dialogue owner and unrelated object effects or music.
     if main_actor == null and is_instance_valid(source_level) and source_level.has_meta("source_main_actor"):
@@ -219,7 +243,7 @@ func source_dialog_is_over_and_change_behavior(main_actor: Node3D = null) -> boo
 
 func source_change_dialog_behavior() -> bool:
     if is_instance_valid(adopted_screen): return adopted_screen.source_change_dialog_behavior()
-    if not completion_pending or not dialogue.is_over(): return true
+    if not completion_pending or not dialogue.is_over() or not location_title.is_over(): return true
     completion_pending = false
     if completion_normal < 0: return true
     if not is_instance_valid(completion_brain) or str(completion_brain.get("source_model_path")) != completion_model: return false
@@ -244,4 +268,5 @@ func _apply_completion(generation: int, brain: Node, model: String, normal: int)
 func _exit_tree() -> void:
     _callback_generation += 1
     if is_instance_valid(adopted_screen): adopted_screen.release_level(source_level)
+    elif is_instance_valid(dialogue) and is_instance_valid(location_title): source_cancel_dialog()
     for catalogue in _catalogues: TranslationServer.remove_translation(catalogue)

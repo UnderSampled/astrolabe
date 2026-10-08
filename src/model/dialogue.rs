@@ -114,6 +114,9 @@ impl Content for DialoguePresentation {
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DialogueLine {
+    /// Optional source line drawing anchor, independent of span offsets and
+    /// the loader's ignored justification scalar. No pointer survives import.
+    pub layout: Option<DialogueLineLayout>,
     pub spans: Vec<DialogueSpan>,
     /// Loader-computed justification. The shipped FON renderer ignores the
     /// forwarded scalar; retain it without changing native glyph advances.
@@ -121,6 +124,12 @@ pub struct DialogueLine {
     /// The installed English dialogue uses 3.4e38 as its untimed sentinel.
     pub end_seconds: f32,
     pub flags: u8,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DialogueLineLayout {
+    /// Horizontal left/center/right and vertical unchanged/half/full-height.
+    pub alignment: [u32; 2],
+    pub offset: [f32; 2],
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DialogueSpan {
@@ -144,7 +153,7 @@ impl Content for Dialogue {
             "dialogue extraction currently validates English only"
         );
         ensure!(
-            matches!(self.box_style, 1 | 3),
+            matches!(self.box_style, 1 | 3 | 4),
             "unsupported dialogue box style"
         );
         ensure!(
@@ -152,6 +161,14 @@ impl Content for Dialogue {
             "invalid dialogue line count"
         );
         for line in &self.lines {
+            if let Some(layout) = &line.layout {
+                ensure!(
+                    self.box_style == 4
+                        && layout.alignment.iter().all(|v| *v <= 2)
+                        && layout.offset.iter().all(|v| v.is_finite()),
+                    "unsupported dialogue line layout"
+                );
+            }
             ensure!(
                 line.justification.is_finite(),
                 "invalid dialogue justification"
@@ -167,6 +184,17 @@ impl Content for Dialogue {
                     "invalid dialogue span"
                 );
             }
+        }
+        if self.box_style == 4 {
+            ensure!(
+                self.lines.len() <= 2
+                    && self.voice.is_none()
+                    && self
+                        .lines
+                        .iter()
+                        .all(|line| line.flags == 0 && line.end_seconds >= 3.0e38),
+                "unsupported style4 title semantics"
+            );
         }
         if let Some(voice) = &self.voice {
             voice.validate()?;

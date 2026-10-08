@@ -1,6 +1,7 @@
 extends Control
 ## Style-4 dialogue presentation. The compiled source AI owns when to run/end it.
 ## Uses the existing exported Translation, FontFile and stencil resources.
+signal completed(item: Resource)
 const SpanView = preload("res://addons/astrolabe/ui/dialogue_span_view.tscn")
 const OPEN_STEP_SECONDS: float = 0.010
 const REVEAL_STEP_SECONDS: float = 0.002
@@ -26,7 +27,7 @@ func run(value: Resource, run_mode: int, _emitter: Node = null) -> bool:
     var style: Resource = value.presentation
     if style == null or style.font == null or style.center == null: return false
     if style.corner == null or style.border == null or style.side == null: return false
-    if value.voice != null or value.completion_normal >= 0: return false
+    if value.voice != null: return false
     if value.lines.is_empty() or value.lines.size() > 2: return false
     for line in value.lines:
         if line.flags != 0 or line.end_seconds < 3.0e38: return false
@@ -61,6 +62,8 @@ func refresh_layout() -> void:
                 view.add_theme_color_override("font_outline_color", style.emphasis_color)
                 view.add_theme_constant_override("outline_size", 1)
             view.position = origin + Vector2(style.span_origin(view.text, span.source_offset), index * style.line_spacing())
+            view.set_meta("line_anchor", item.lines[index])
+            view.set_meta("span_origin", view.position)
             view.visible_characters = 0
             source_text.add_child(view)
     _apply_reveal()
@@ -99,6 +102,9 @@ func _apply_reveal() -> void:
         if _revealed or index < _reveal_index: label.visible_characters = -1
         elif index == _reveal_index: label.visible_characters = _reveal_characters
         else: label.visible_characters = 0
+        var line: Resource = label.get_meta("line_anchor")
+        var prefix: String = label.text if label.visible_characters < 0 else label.text.left(label.visible_characters)
+        label.position = label.get_meta("span_origin") + item.presentation.line_origin(prefix, line.alignment, line.draw_offset)
 
 func _advance_reveal(delta: float) -> void:
     if _revealed: return
@@ -135,13 +141,16 @@ func end(animated: bool = true) -> void:
 
 func select() -> void:
     # DLG_Select ignores opening; the first reveal-time press completes the
-    # current page. This represented item has no answer/callback side effects.
+    # current page. A later press stores the represented completion through
+    # Screen's common pending-callback contract.
     if item == null or not _opened: return
     if not _revealed:
         _revealed = true
         _apply_reveal()
     else:
+        var finished := item
         end()
+        completed.emit(finished)
 
 func request_select() -> void:
     if item != null and item.allow_skip: select()

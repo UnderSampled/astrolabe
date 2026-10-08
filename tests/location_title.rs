@@ -1,4 +1,4 @@
-//! Isolated style-4 presentation and the real source cue's retained dependencies.
+//! Registered style-4 presentation, catalogue and unchanged compiled source cue.
 use anyhow::{Context, Result, ensure};
 use astrolabe::{
     godot,
@@ -21,24 +21,10 @@ use std::{
 
 fn stage_component(project: &Path) -> Result<()> {
     godot::support::initialize(project)?;
-    // The lead owns package installation/versioning. Until integration, stage
-    // exactly these two new maintained files in this owned component fixture.
-    for (path, bytes) in [
-        (
-            "addons/astrolabe/ui/location_title.gd",
-            include_bytes!("../godot/addons/astrolabe/ui/location_title.gd").as_slice(),
-        ),
-        (
-            "addons/astrolabe/ui/location_title.tscn",
-            include_bytes!("../godot/addons/astrolabe/ui/location_title.tscn").as_slice(),
-        ),
-        (
-            "check_location_title.gd",
-            include_bytes!("check_location_title.gd").as_slice(),
-        ),
-    ] {
-        fs::write(project.join(path), bytes)?;
-    }
+    fs::write(
+        project.join("check_location_title.gd"),
+        include_bytes!("check_location_title.gd"),
+    )?;
     Ok(())
 }
 
@@ -148,7 +134,7 @@ fn native_location_title_uses_converted_source_font_and_stencils() -> Result<()>
 
 #[test]
 #[ignore = "requires local Astrolabe source; static import/Rete, no game runs"]
-fn astrolabe_title_cue_preserves_source_order_and_reports_query_gap() -> Result<()> {
+fn astrolabe_title_cue_preserves_source_order_and_catalogue() -> Result<()> {
     let game = std::env::var_os("ASTROLABE_GAME_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("disc"));
@@ -213,12 +199,7 @@ fn astrolabe_title_cue_preserves_source_order_and_reports_query_gap() -> Result<
         anyhow::bail!("source title comparison changed: {condition:?}");
     };
     assert_eq!(**right, Expression::Integer(2));
-    let Expression::Unsupported(query) = left.as_ref() else {
-        anyhow::bail!(
-            "update this pending-query checkpoint after typed Func195 integration: {left:?}"
-        );
-    };
-    assert!(query.reason.contains("195"), "{query:?}");
+    assert_eq!(**left, Expression::GameState);
     assert_eq!(
         then,
         &[Statement::RunDialog {
@@ -252,11 +233,241 @@ fn astrolabe_title_cue_preserves_source_order_and_reports_query_gap() -> Result<
             active: false
         }
     );
-    // Astrolabe language/catalogue import is currently Manor-only. Do not turn
-    // a presentation component pass into a claim of a converted source cue.
-    assert!(imported.dialogues.is_empty());
+    for diagnostic in &imported.diagnostics {
+        if diagnostic
+            .asset
+            .as_ref()
+            .is_some_and(|a| a.as_str().contains("astrolabe_txt"))
+        {
+            println!("LOCATION_TITLE_CATALOGUE_DIAGNOSTIC {diagnostic:?}");
+        }
+    }
+    let title = imported
+        .dialogues
+        .iter()
+        .find(|d| d.name == "astrolabe_txt2")
+        .context("actual title catalogue missing")?;
+    assert_eq!(title.owner.path, owner.path);
+    assert_eq!(title.box_style, 4);
+    assert_eq!(title.lines.len(), 2);
+    assert!(title.voice.is_none());
+    let completion = title
+        .completion
+        .as_ref()
+        .context("source title completion absent")?;
+    assert_eq!(completion.model.path, brain.model.path);
+    assert_eq!(completion.group, BehaviorGroup::Normal);
+    println!("LOCATION_TITLE_SOURCE_COMPLETION {completion:?}");
+    title.validate()?;
     println!(
-        "LOCATION_TITLE_SOURCE_PENDING Func195 + Astrolabe language/style4 admission + shared screen dispatch"
+        "LOCATION_TITLE_SOURCE_LAYOUT {:?}",
+        title
+            .lines
+            .iter()
+            .map(|line| &line.layout)
+            .collect::<Vec<_>>()
+    );
+    let reopened: astrolabe::model::dialogue::Dialogue = rete::decode(&rete::encode(title)?)?;
+    assert_eq!(&reopened, title);
+    println!(
+        "LOCATION_TITLE_SOURCE_TYPED_CATALOGUE_OK {} owner={} lines={} style4",
+        title.path,
+        title.owner.path,
+        title.lines.len()
+    );
+    Ok(())
+}
+
+fn stage_cue(project: &Path, engine: &str) -> Result<()> {
+    stage_component(project)?;
+    fs::write(
+        project.join("check_location_title_cue.gd"),
+        include_bytes!("check_location_title_cue.gd"),
+    )?;
+    let log = project.join("cue-preflight.log");
+    godot::run_godot(
+        engine,
+        project,
+        &[
+            "--headless",
+            "--log-file",
+            log.to_str().unwrap(),
+            "--check-only",
+            "--script",
+            "res://check_location_title_cue.gd",
+        ],
+        Duration::from_secs(10),
+    )?;
+    Ok(())
+}
+
+fn run_cue(project: &Path, engine: &str, arguments: &[String]) -> Result<()> {
+    let log = project.join("cue-runtime.log");
+    let mut args = vec![
+        "--headless",
+        "--log-file",
+        log.to_str().unwrap(),
+        "--script",
+        "res://check_location_title_cue.gd",
+        "--",
+    ];
+    args.extend(arguments.iter().map(String::as_str));
+    let output = godot::run_godot(engine, project, &args, Duration::from_secs(20))?;
+    ensure!(output.contains("LOCATION_TITLE_CUE_OK"), "{output}");
+    println!("{output}");
+    Ok(())
+}
+
+#[test]
+fn compiled_location_title_cue_drives_shared_screen_lifecycle() -> Result<()> {
+    use astrolabe::model::{
+        AssetRef,
+        ai::{Behavior, BehaviorRef, BehaviorSet, Script},
+    };
+    let temp = tempfile::tempdir()?;
+    let project = temp.path().join("godot");
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    stage_cue(&project, &engine)?;
+    let path = AssetPath::new("level:/ai/models/title_fixture")?;
+    let model = AiModel {
+        path: path.clone(),
+        name: "Synthetic title cue".into(),
+        normal: Some(BehaviorSet {
+            default_behavior: Some(0),
+            action_capacity: 0,
+            unknown: [0; 3],
+            behaviors: vec![
+                Behavior {
+                    id: 0,
+                    rules: vec![],
+                    unknown: [0; 3],
+                    schedule: Some(Script {
+                        statements: vec![
+                            Statement::Wait {
+                                milliseconds: Expression::Integer(200),
+                            },
+                            Statement::PositionDialog {
+                                x: Expression::Integer(160),
+                                y: Expression::Integer(70),
+                            },
+                            Statement::If {
+                                condition: Expression::Compare {
+                                    operation: Comparison::Equal,
+                                    left: Box::new(Expression::GameState),
+                                    right: Box::new(Expression::Integer(2)),
+                                },
+                                then: vec![Statement::RunDialog {
+                                    name: "synthetic_title".into(),
+                                    mode: Expression::Integer(1),
+                                }],
+                                otherwise: None,
+                            },
+                            Statement::ChangeBehavior {
+                                target: BehaviorRef {
+                                    model: AssetRef::from_path(path),
+                                    group: BehaviorGroup::Normal,
+                                    behavior: 1,
+                                },
+                                pause_after: false,
+                            },
+                        ],
+                    }),
+                },
+                Behavior {
+                    id: 1,
+                    rules: vec![],
+                    unknown: [0; 3],
+                    schedule: Some(Script {
+                        statements: vec![
+                            Statement::Wait {
+                                milliseconds: Expression::Integer(3000),
+                            },
+                            Statement::EndDialog,
+                            Statement::SetObjectActive {
+                                actor: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                                active: false,
+                            },
+                        ],
+                    }),
+                },
+            ],
+        }),
+        reflex: None,
+        variables: vec![],
+        designer_unknown: [0; 3],
+        unknown: [0; 4],
+    };
+    let reopened: AiModel = rete::decode(&rete::encode(&model)?)?;
+    assert_eq!(reopened, model);
+    let script = godot::ai::compile(&reopened, &[])?;
+    ensure!(
+        script.contains("unrepresented stale result") && script.contains("TYPE_INT"),
+        "missing unsupported combined-mask guard"
+    );
+    fs::write(project.join("cue.gd"), script)?;
+    run_cue(&project, &engine, &[])
+}
+
+#[test]
+#[ignore = "requires local Astrolabe English catalogue and Godot; exports only title/AI/font/stencils"]
+fn unchanged_astrolabe_title_cue_executes_exported_native_catalogue() -> Result<()> {
+    use astrolabe::model::{AssetRef, dialogue::Dialogue, io::Load};
+    let temp = tempfile::tempdir()?;
+    let project = temp.path().join("godot");
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    stage_cue(&project, &engine)?;
+    let game = std::env::var_os("ASTROLABE_GAME_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("disc"));
+    let selection = Selection::hype("astrolabe", "en")?;
+    let mut imported = astrolabe::openspace::content::import_scene(&game, selection.clone())?;
+    let model_ref = AssetRef::<AiModel>::new("level:/ai/models/659")?;
+    let title_ref = AssetRef::<Dialogue>::new("level:/dialogue/en/astrolabe_txt2")?;
+    // Feed the export with reopened useful Rete values, keeping source addresses
+    // and relocations solely inside the importer. This selects no level scene.
+    let model = imported.load(&model_ref)?;
+    imported
+        .assets
+        .insert(&model_ref, rete::decode(&rete::encode(model.as_ref())?)?)?;
+    let title = imported.load(&title_ref)?;
+    imported
+        .assets
+        .insert(&title_ref, rete::decode(&rete::encode(title.as_ref())?)?)?;
+    let roots = [
+        ContentRoot {
+            kind: Dialogue::KIND.into(),
+            reference: title_ref.path,
+        },
+        ContentRoot {
+            kind: AiModel::KIND.into(),
+            reference: model_ref.path,
+        },
+    ];
+    let manifest = godot::export(&mut imported, &roots, selection, &project, &engine)?;
+    ensure!(
+        !manifest.files.keys().any(|p| p.ends_with("/level.tscn")),
+        "unexpected full-level export"
+    );
+    let title = manifest
+        .files
+        .keys()
+        .find(|p| p.ends_with("/dialogue/en/astrolabe_txt2.tres"))
+        .context("native title resource missing")?;
+    let program = manifest
+        .files
+        .keys()
+        .find(|p| p.ends_with("/ai/models/659.gd"))
+        .context("compiled source title program missing")?;
+    run_cue(
+        &project,
+        &engine,
+        &[
+            format!("--item=res://{title}"),
+            format!("--program=res://{program}"),
+        ],
+    )?;
+    println!(
+        "LOCATION_TITLE_UNCHANGED_SOURCE_NATIVE_OK actor91/model659 catalogue + Rete + public native export"
     );
     Ok(())
 }

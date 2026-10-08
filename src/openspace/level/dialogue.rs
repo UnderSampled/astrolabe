@@ -1,4 +1,4 @@
-//! Manor localization import. Reuses SNA/LZO/relocation codecs; presentation stays in Godot.
+//! Evidenced Manor/Astrolabe localization import. Reuses SNA/LZO/relocation codecs; presentation stays in Godot.
 use super::{
     container::{file, merge_relocations, pointer_file, reloc, sna, u32_at, wire},
     records::*,
@@ -47,9 +47,17 @@ struct LineWire {
     ordinal: u32,
     flags: u8,
     _padding: [u8; 3],
-    _effect: u32,
+    _layout: u32,
     justification: f32,
     end_seconds: f32,
+}
+// 0056cc70 forwards line+16 to 0056c8e0: two FON alignment selectors
+// followed by X/Y offsets. This is a drawing anchor, not a letter effect.
+#[derive(BinRead)]
+#[br(little)]
+struct LineLayoutWire {
+    alignment: [u32; 2],
+    offset: [f32; 2],
 }
 #[derive(BinRead)]
 #[br(little)]
@@ -65,7 +73,7 @@ fn add(a: Address, n: usize) -> Address {
         ..a
     }
 }
-/// The installed manor RTG header is 11 although only two groups follow.
+/// The installed Manor/Astrolabe RTG header is 11 although only two groups follow.
 /// Its header meaning is not established. Accept this evidenced profile only;
 /// every populated language block must still have a complete relocation group.
 fn language_relocations(
@@ -75,7 +83,7 @@ fn language_relocations(
 ) -> Result<BTreeMap<BlockKey, Vec<RelocRow>>> {
     ensure!(
         bytes.first().copied() == Some(expected_header),
-        "unrecognized manor RTG header"
+        "unrecognized dialogue RTG header"
     );
     let mut pos = 1;
     let mut keys = BTreeSet::new();
@@ -112,7 +120,7 @@ pub(super) fn load_language(
 ) -> Result<()> {
     ensure!(
         selection.locale == "en",
-        "manor dialogue extraction requires evidenced English locale"
+        "dialogue extraction requires evidenced English locale"
     );
     let folder = game.join("LangData/English/world/levels");
     for (owner, prefix) in [
@@ -280,7 +288,7 @@ impl ItemDecoder<'_> {
     fn read(&self, item: Address, name: String) -> Result<ItemImport> {
         let s = self.source;
         let h: ItemWire = wire(s.bytes(item, 52)?)?;
-        if h.answers != 1 || !matches!(h.box_style, 1 | 3) {
+        if h.answers != 1 || !matches!(h.box_style, 1 | 3 | 4) {
             return Ok(ItemImport::Unsupported(format!(
                 "{name}: {} answers and box style {} require additional dialogue semantics",
                 h.answers, h.box_style
@@ -362,6 +370,7 @@ impl ItemDecoder<'_> {
         } else {
             None
         };
+        let box_style = h.box_style;
         let mut lines = Vec::new();
         let mut line = s.pointer(item, 12)?;
         let mut line_seen = BTreeSet::new();
@@ -375,12 +384,27 @@ impl ItemDecoder<'_> {
                 h.ordinal as usize == lines.len(),
                 "{name}: dialogue line order differs"
             );
-            if h.flags != 0 || h._effect != 0 {
+            if h.flags != 0 {
                 return Ok(ItemImport::Unsupported(format!(
-                    "{name}: dialogue line {} requires additional behavior (flags {:#04x}, effect present {})",
-                    h.ordinal,
-                    h.flags,
-                    h._effect != 0
+                    "{name}: dialogue line {} requires additional behavior (flags {:#04x})",
+                    h.ordinal, h.flags
+                )));
+            }
+            let layout = s
+                .pointer(a, 16)?
+                .map(|address| -> Result<DialogueLineLayout> {
+                    let value: LineLayoutWire = wire(s.bytes(address, 16)?)?;
+                    Ok(DialogueLineLayout {
+                        alignment: value.alignment,
+                        offset: value.offset,
+                    })
+                })
+                .transpose()?;
+            if let Some(layout) = &layout
+                && (box_style != 4 || layout.alignment.iter().any(|v| *v > 2))
+            {
+                return Ok(ItemImport::Unsupported(format!(
+                    "{name}: unsupported line drawing layout {layout:?}"
                 )));
             }
             let mut spans = Vec::new();
@@ -410,6 +434,7 @@ impl ItemDecoder<'_> {
                 span = s.pointer(a, 0)?;
             }
             lines.push(DialogueLine {
+                layout,
                 spans,
                 justification: h.justification,
                 end_seconds: h.end_seconds,
@@ -433,6 +458,22 @@ impl ItemDecoder<'_> {
             })
             .transpose()?
             .flatten();
+        if h.box_style == 4
+            && (lines.len() > 2
+                || voice.is_some()
+                || lines.iter().any(|line| line.end_seconds < 3.0e38))
+        {
+            return Ok(ItemImport::Unsupported(format!(
+                "{name}: style4 requires at most two untimed unflagged lines and no voice; observed lines={}, voice={}, completion={}, times={:?}",
+                lines.len(),
+                voice.is_some(),
+                callback.is_some(),
+                lines
+                    .iter()
+                    .map(|line| line.end_seconds)
+                    .collect::<Vec<_>>()
+            )));
+        }
         let value = Dialogue {
             path: AssetPath::new(format!("level:/dialogue/en/{name}"))?,
             name,

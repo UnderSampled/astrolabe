@@ -4729,13 +4729,13 @@
     },
     {
       "binary": "astrolabe",
-      "test": "godot::support::tests::snapshot_validation_helper_is_in_interface_60_and_staged",
+      "test": "godot::support::tests::actor_display_receiver_helper_is_in_interface_70_and_staged",
       "areas": [
         "runtime"
       ],
       "kind": "unit",
       "prerequisites": [],
-      "fixture": "Bundled Godot support interface staging",
+      "fixture": "Bundled Godot support interface and native resource/UID staging",
       "timeout_seconds": 30,
       "ignored": false,
       "release": true
@@ -5764,6 +5764,123 @@
       "kind": "semantic",
       "prerequisites": [],
       "fixture": "independent actor visitors share one compiled sound script and waveform while exporting distinct voices",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::func_get_game_state_round_trips_as_a_typed_session_query",
+      "areas": [
+        "source",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "synthetic Func195 integer query and exact source nodes reconstructed",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::location_title",
+      "test": "native_location_title_resources_layout_animation_and_cancellation",
+      "areas": [
+        "ai",
+        "scene"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "registered native style4 presentation, asymmetric alpha, reveal, cancel/repeat/layout",
+      "timeout_seconds": 45,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::location_title",
+      "test": "native_location_title_uses_converted_source_font_and_stencils",
+      "areas": [
+        "source",
+        "rete",
+        "scene"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "disc",
+        "godot"
+      ],
+      "fixture": "shared source font/stencils only; synthetic title text; no level export",
+      "timeout_seconds": 60,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::location_title",
+      "test": "astrolabe_title_cue_preserves_source_order_and_catalogue",
+      "areas": [
+        "source",
+        "ai",
+        "rete"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "actual actor91/model659; typed Func195; source wait200/3000ms and dialogue catalogue Rete",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::location_title",
+      "test": "compiled_location_title_cue_drives_shared_screen_lifecycle",
+      "areas": [
+        "ai",
+        "rete",
+        "scene"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "synthetic compiled cue and actual session getter, shared Screen adoption/End/Select/speech/map cancellation/reentry",
+      "timeout_seconds": 45,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::location_title",
+      "test": "unchanged_astrolabe_title_cue_executes_exported_native_catalogue",
+      "areas": [
+        "source",
+        "ai",
+        "rete",
+        "scene"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "disc",
+        "godot"
+      ],
+      "fixture": "unchanged actor91/model659 source cue and source title catalogue; Rete and selected public native export; no level export",
+      "timeout_seconds": 90,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::proc_set_game_state_preserves_its_long_operand",
+      "areas": [
+        "source",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic shared game-state setter and exact source nodes reconstructed",
       "timeout_seconds": 5,
       "ignored": false,
       "release": true
