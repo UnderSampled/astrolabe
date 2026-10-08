@@ -1,7 +1,7 @@
 # Manor key and gate: static implementation
 
-This isolated change starts at `d493ef2`. It implements source-supported
-the source key producer, ownership handoff, selection, spatial queries,
+This isolated change starts at `d493ef2`. It implements the source-supported
+key producer, ownership handoff, selection, spatial queries,
 attachment APIs and the gate's blocking movement. Runtime acceptance remains
 unverified; the original key popup is an explicit dependency on the separate
 presentation worker. No tests,
@@ -142,11 +142,11 @@ Its float32 stores are represented; x87 equivalence is not claimed.
 
 Proc141 and Proc158 now have paired typed reader/writer/compiler paths. Primary
 viewport reselection restores the old target's opacity, including the same-camera
-early return used by the key's `(1,1,0,camera)` call. Switching to another already
-registered camera without reset/pose-copy is supported. Controller reset,
-unregistered activation, pose-copy policies and secondary viewports remain explicit
-failures; the authored free camera cannot substitute for the source active camera.
-The key therefore requires the real source camera to own the primary viewport.
+early return used by the key's `(1,1,0,camera)` call. The final viewport follow-on
+below connects that owner independently of an authored rendered camera. Switching
+to another already registered camera without an old-camera reset is supported;
+source registration forces placement policy zero in that branch. Controller
+reset, unregistered activation and secondary viewports remain explicit failures.
 Focal changes skip selector/value evaluation when unregistered. The reached key
 request overwrites source horizontal FOV with 1.3 radians. Source modes101/104/105
 and relative-focal flag0x20 remain unsupported. Initial FOV is exported separately
@@ -199,6 +199,48 @@ selection admission and existing save ownership/startup order. The existing
 support-version assertion was updated only to match the version constant;
 no test was added or executed. Compilation and generated GDScript parsing
 remain unverified.
+
+## Primary viewport follow-on
+
+The retained Manor source has exactly two camera actors: `/world/0/2` has
+registration availability 1 and viewport context 1 in both initial and active
+parameter sets; `/world/0/147` has availability 0 and context 0. The original
+startup registration iterates the camera list and assigns each available,
+nonzero-context camera to its viewport. The existing generic exporter already
+derived `initially_current` from this data. It now also exports registration
+availability and viewport context separately; neither field is an actor address.
+
+The native Viewport retains a weak reference to its semantic primary camera,
+published by the source camera's ordinary initialization. An authored
+presentation camera may occupy Godot's current render slot without replacing
+that source owner. Proc141 resolves the semantic owner rather than treating the
+rendered camera as an OpenSpace camera actor. All four operands are still
+evaluated and captured before lookup. The old target's opacity is restored
+before the same-camera comparison. Selecting that same source owner makes its
+native Camera3D current and returns before controller reset or placement.
+Thus key703 Normal2's `(1,1,0,world/0/2)` connects to the source camera and can
+continue to the existing DSG56 release after the owned dialogue completes.
+There is no key, Manor or actor-index conditional in the implementation.
+
+Registration availability and viewport context are distinct. Switching away
+without a reset clears only the old context; it does not clear availability.
+Selecting an already registered destination forces placement policy zero after
+operand evaluation, as the source does. Unregistered destinations and resetting
+a different previous camera remain explicit unsupported branches; this follow-on
+does not bypass them. Invalid/unloaded owner references still fail. Weak ownership
+does not retain an unloaded level's camera.
+
+This follow-on leaves Rete60 unchanged and advances the Godot support interface
+79→80. It changes `src/model/camera.rs`, `src/godot/character.rs`,
+`src/godot/support.rs`, the maintained `camera/source_camera.gd`, and this note.
+The existing support-version assertion is updated only to the new constant.
+No test, build, lint, conversion, Godot or original-game execution was performed.
+The authored session/free-camera files remain untouched. Runtime verification
+must still observe source camera ownership, pickup framing, control release and
+level unloading together with the merged training/UI dependencies.
+
+For the presentation importer follow-on, retained `keysico_gogood` item header
+bytes are `[1,0,5,0]`; its u32 fields at +08 and +20 hex are both zero.
 
 After the owned training/UI dependencies are integrated, runtime verification
 still needs:

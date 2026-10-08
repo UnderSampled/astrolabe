@@ -89,11 +89,26 @@ impl CameraParameters {
     /// the selected viewport context at `+0x9c`. These are retained in the
     /// source-order unknown tail rather than turned into source pointers.
     pub fn registered_viewport(&self) -> Option<u32> {
-        if self.unknown.get(88).copied()? == 0 {
+        if !self.registration_active() {
             return None;
         }
-        let context = u32::from_le_bytes(self.unknown.get(96..100)?.try_into().ok()?);
+        let context = self.viewport_context();
         (context != 0).then_some(context)
+    }
+
+    /// Registration availability survives switching away from a viewport.
+    /// Camera selection clears the old context separately from this flag.
+    pub fn registration_active(&self) -> bool {
+        self.unknown.get(88).copied().unwrap_or(0) != 0
+    }
+
+    /// The selected viewport identity is scalar session state, not a pointer.
+    pub fn viewport_context(&self) -> u32 {
+        self.unknown
+            .get(96..100)
+            .and_then(|value| value.try_into().ok())
+            .map(u32::from_le_bytes)
+            .unwrap_or(0)
     }
 
     /// `00440f80` reads the target child selector at parameter byte `+0xa0`.

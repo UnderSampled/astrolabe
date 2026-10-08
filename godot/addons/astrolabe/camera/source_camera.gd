@@ -10,8 +10,12 @@ extends Camera3D
 @export var actor_offset: Vector3 = Vector3.ZERO
 @export var look_offset: Vector3 = Vector3.ZERO
 @export var initially_current: bool = false
+@export var initially_registered: bool = false
+@export var initial_viewport_context: int = 0
 @export var source_initial_horizontal_fov: float = 0.0
 var source_viewport_registered: bool = false
+var source_viewport_context: int = 0
+const SOURCE_PRIMARY_CAMERA_OWNER := &"astrolabe_source_primary_camera"
 @export_node_path("Node3D") var initial_target_path: NodePath
 @export var mode_zero_target_offset: Vector3 = Vector3.ZERO
 @export var mode_zero_actor_offset: Vector3 = Vector3.ZERO
@@ -85,6 +89,8 @@ func source_get_shift_teta(selector: int) -> Variant:
 
 func _ready() -> void:
     motion_mode = initial_motion_mode
+    source_viewport_registered = initially_registered
+    source_viewport_context = initial_viewport_context
     if not initial_target_path.is_empty():
         targeted_actor = get_node_or_null(initial_target_path) as Node3D
     _source_active_sector = _source_sector_for(get_parent())
@@ -92,29 +98,52 @@ func _ready() -> void:
     if owner != null:
         _source_previous_history_position = owner.global_position
     if initially_current:
-        source_viewport_registered = true
-        make_current()
+        _source_publish_primary()
     else:
         clear_current(false)
 
+## The native viewport owns the source camera selection independently of an
+## authored presentation camera temporarily made current on the same viewport.
+## A weak reference avoids retaining an unloaded level's camera.
+func _source_primary_owner() -> Camera3D:
+    var binding: Variant = get_viewport().get_meta(SOURCE_PRIMARY_CAMERA_OWNER, null)
+    if not (binding is WeakRef): return null
+    var camera := binding.get_ref() as Camera3D
+    if not is_instance_valid(camera) or not camera.is_inside_tree() or camera.get_viewport() != get_viewport():
+        return null
+    return camera
+
+func _source_publish_primary() -> void:
+    source_viewport_registered = true
+    source_viewport_context = 1
+    get_viewport().set_meta(SOURCE_PRIMARY_CAMERA_OWNER, weakref(self))
+    make_current()
+
 ## Proc141 always restores the previous source target's opacity, including
 ## a request for the already selected camera. Only the primary viewport is mapped.
-func source_select_primary(context: Variant, previous_policy: Variant, placement_policy: Variant) -> bool:
+func source_select_primary(context: Variant, previous_policy: Variant, _placement_policy: Variant) -> bool:
     var owner := get_parent() as Node3D
     if owner == null or not owner.has_method("source_scalar_word") or int(owner.call("source_scalar_word", context)) != 1:
         return false
-    var previous := get_viewport().get_camera_3d()
+    var previous := _source_primary_owner()
     if previous == null or not previous.has_method("source_prepare_target_change"):
         return false
     if not bool(previous.call("source_prepare_target_change")): return false
-    if previous == self: return true
+    if previous == self:
+        # Source returns before reset/placement when selecting the same owner.
+        # Ensure its native Camera3D renders the selected viewport even if an
+        # authored presentation camera had temporarily taken Godot's current slot.
+        make_current()
+        return true
     # Switching through an unregistered/reset controller or copying its pose
     # needs the remaining source camera reset/placement contracts. Preserve a
     # reached failure for those requests rather than substitute an authored eye.
-    if not source_viewport_registered or int(owner.call("source_scalar_word", previous_policy)) != 0 or int(owner.call("source_scalar_word", placement_policy)) != 0:
+    if not source_viewport_registered or int(owner.call("source_scalar_word", previous_policy)) != 0:
         return false
-    previous.set("source_viewport_registered", false)
-    make_current()
+    # An already registered destination forces source placement policy zero.
+    # Switching away clears the old context, retaining its registration flag.
+    previous.set("source_viewport_context", 0)
+    _source_publish_primary()
     return true
 
 ## Proc158's unregistered branch returns before evaluating selector or value.

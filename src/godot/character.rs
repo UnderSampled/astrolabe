@@ -563,9 +563,11 @@ pub(super) fn export_perso(
         )?;
         writeln!(
             project.builder,
-            "    {name}_camera.owner_motion_binding_present = {}\n    {name}_camera.source_initial_horizontal_fov = {}",
+            "    {name}_camera.owner_motion_binding_present = {}\n    {name}_camera.source_initial_horizontal_fov = {}\n    {name}_camera.initially_registered = {}\n    {name}_camera.initial_viewport_context = {}",
             camera.owner_motion_binding_present,
-            initial.horizontal_fov
+            initial.horizontal_fov,
+            initial.registration_active(),
+            initial.viewport_context()
         )?;
         writeln!(
             project.builder,
