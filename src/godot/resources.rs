@@ -186,10 +186,11 @@ impl Save<Texture> for Project {
         texture.validate()?;
         whole_asset(&reference.path)?;
         let rgba = texture.rgba8(0)?;
-        self.prepare_color_key(reference, texture, &rgba)?;
         let png_bytes = super::material::png(texture.width(), texture.height(), &rgba)?;
         let path = disk_path(&self.selection, &reference.path, "png");
         self.write(path.clone(), &png_bytes)?;
+        self.register_texture_mip_source(reference, texture)?;
+        self.prepare_color_key(reference, texture)?;
         let n = self.texture_count;
         self.texture_count += 1;
         writeln!(
@@ -203,12 +204,6 @@ impl Save<Texture> for Project {
             quoted(&format!("res://{path}")),
             quoted(reference.path.as_str())
         )?;
-        if texture.levels.len() > 1 {
-            self.diagnostics.push(format!(
-                "{}: original mip values retained in Rete; Godot currently imports the base image",
-                reference.path
-            ));
-        }
         Ok(())
     }
 }

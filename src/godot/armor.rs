@@ -22,6 +22,7 @@ pub(super) fn export(
         }
         let texture = source.load(&image.texture)?;
         texture.validate_reference(&image.texture.path)?;
+        project.retain_texture_mips(&image.texture, &texture)?;
         let rgba = texture.rgba8(0)?;
         let rgba = if image.color_key {
             super::material::keyed_rgba(&texture, &rgba)

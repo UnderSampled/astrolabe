@@ -22,6 +22,7 @@ fn image(
     key: bool,
 ) -> Result<String> {
     let texture = source.load(reference)?;
+    project.retain_texture_mips(reference, &texture)?;
     let rgba = texture.rgba8(0)?;
     let rgba = if key {
         super::material::keyed_rgba(&texture, &rgba)

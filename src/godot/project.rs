@@ -13,6 +13,16 @@ use std::{
     path::{Component, Path, PathBuf},
     time::Duration,
 };
+
+/// One lossless PNG input for Godot's conversion-time ImageTexture writer.
+/// The published texture stays a native ImageTexture resource; these inputs
+/// are private to the staging project and are never published.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct TextureMipInput {
+    pub(super) width: u32,
+    pub(super) height: u32,
+    pub(super) path: String,
+}
 /// A fresh staging project keeps failed conversion from damaging an existing project.
 pub struct Project {
     pub(super) dialogue_resources: Vec<String>,
@@ -36,6 +46,15 @@ pub struct Project {
     pub(super) texture_count: usize,
     /// Derived PNGs, emitted only when a material enables the source color key.
     pub(super) texture_color_keys: BTreeMap<AssetPath, Option<Vec<u8>>>,
+    /// Exact source mip images for native ImageTexture projection.
+    pub(super) texture_mip_sources: BTreeMap<AssetPath, Vec<TextureMipInput>>,
+    /// Source color-keyed mip images, keyed by source texture identity.
+    pub(super) texture_color_key_mip_sources: BTreeMap<AssetPath, Vec<TextureMipInput>>,
+    /// Native ImageTexture outputs already registered in the staged manifest.
+    pub(super) texture_mip_resources: BTreeMap<(AssetPath, bool), String>,
+    /// Godot conversion-time statements that save native mipmapped resources.
+    pub(super) mip_texture_build_calls: Vec<String>,
+    pub(super) next_mip_input: usize,
     pub(super) generated: BTreeSet<String>,
     pub(super) diagnostics: Vec<String>,
 }
@@ -64,6 +83,11 @@ impl Project {
             sound_count: 0,
             texture_count: 0,
             texture_color_keys: BTreeMap::new(),
+            texture_mip_sources: BTreeMap::new(),
+            texture_color_key_mip_sources: BTreeMap::new(),
+            texture_mip_resources: BTreeMap::new(),
+            mip_texture_build_calls: Vec::new(),
+            next_mip_input: 0,
             generated: BTreeSet::new(),
             diagnostics: Vec::new(),
         })
@@ -300,6 +324,44 @@ environment = SubResource("environment")
                 !diagnostics.contains("SCRIPT ERROR:") && !diagnostics.contains("ERROR:"),
                 "font parser log reported errors: {diagnostics}"
             );
+        }
+        if !self.mip_texture_build_calls.is_empty() {
+            let calls = self.mip_texture_build_calls.join("\n");
+            let script =
+                include_str!("scripts/build_mips.gd").replace("MIP_TEXTURE_BUILDS", &calls);
+            write_atomic(&self.stage.path().join("build_mips.gd"), script.as_bytes())?;
+            let log = self.stage.path().join("logs/mip-parser.log");
+            fs::create_dir_all(log.parent().expect("mip parser log has a parent"))?;
+            run_godot(
+                godot,
+                self.stage.path(),
+                &[
+                    "--headless",
+                    "--log-file",
+                    log.to_str().context("non-UTF-8 mip parser log path")?,
+                    "--check-only",
+                    "--script",
+                    "res://build_mips.gd",
+                ],
+                Duration::from_secs(10),
+            )
+            .context("mip builder syntax preflight")?;
+            ensure!(
+                fs::metadata(&log)?.len() <= 1024 * 1024,
+                "mip parser log exceeded 1MiB diagnostic limit"
+            );
+            let diagnostics = fs::read_to_string(&log)?;
+            ensure!(
+                !diagnostics.contains("SCRIPT ERROR:") && !diagnostics.contains("ERROR:"),
+                "mip parser log reported errors: {diagnostics}"
+            );
+            run_godot(
+                godot,
+                self.stage.path(),
+                &["--headless", "--script", "res://build_mips.gd"],
+                Duration::from_secs(60),
+            )
+            .context("source mip ImageTexture construction")?;
         }
         run_godot(
             godot,

@@ -20,6 +20,7 @@ fn image(
 ) -> Result<String> {
     let reference = AssetRef::<Texture>::from_path(artwork.texture.clone());
     let texture = source.load(&reference)?;
+    project.retain_texture_mips(&reference, &texture)?;
     ensure!(
         [texture.width(), texture.height()] == artwork.logical_size,
         "HUD texture {} changed from its verified Fix GLI size",
@@ -80,6 +81,7 @@ fn font_atlas_image(
 ) -> Result<String> {
     let reference = AssetRef::<Texture>::from_path(font.atlas.texture.clone());
     let texture = source.load(&reference)?;
+    project.retain_texture_mips(&reference, &texture)?;
     ensure!(
         [texture.width(), texture.height()] == font.atlas.size,
         "HUD source font atlas dimensions changed"

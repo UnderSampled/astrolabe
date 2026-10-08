@@ -11,9 +11,9 @@ fn image(
     texture: &DialogueTexture,
     suffix: &str,
 ) -> Result<(String, Vec<u8>)> {
-    let value = source.load(&AssetRef::<crate::model::texture::Texture>::from_path(
-        texture.texture.clone(),
-    ))?;
+    let reference = AssetRef::<crate::model::texture::Texture>::from_path(texture.texture.clone());
+    let value = source.load(&reference)?;
+    project.retain_texture_mips(&reference, &value)?;
     ensure!(
         [value.width(), value.height()] == texture.size,
         "dialogue image dimensions differ"

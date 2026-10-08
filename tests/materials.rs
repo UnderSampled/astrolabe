@@ -124,7 +124,7 @@ func check():
     var additive = load(prefix + "additive.tres")
     var disabled = load(prefix + "disabled-blending.tres")
     for material in [opaque, key, shared, alpha, additive, disabled]:
-        if not require(material.texture_filter == BaseMaterial3D.TEXTURE_FILTER_LINEAR, "Hype bilinear sampling lost on a material mode"): return
+        if not require(material.texture_filter == BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS, "Hype linear mip sampling lost on a material mode"): return
     if not require(opaque.transparency == 0, "opaque material changed"): return
     if not require(disabled.transparency == 2 and is_equal_approx(disabled.alpha_scissor_threshold, 8.0/255.0), "disabling blending incorrectly disabled the source alpha test"): return
     if not require(key.transparency == 2 and key.alpha_scissor_threshold == 0.5, "cutout is not depth-writing alpha scissor"): return
