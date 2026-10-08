@@ -3094,9 +3094,14 @@
     {
       "binary": "godot-harness::save_persistence",
       "test": "optional_global_brain_state_survives_fresh_processes",
-      "areas": ["runtime", "save"],
+      "areas": [
+        "runtime",
+        "save"
+      ],
       "kind": "process",
-      "prerequisites": ["godot"],
+      "prerequisites": [
+        "godot"
+      ],
       "fixture": "synthetic schema-1 Global Brain state with explicit DSG[147]=false",
       "timeout_seconds": 30,
       "ignored": true,
@@ -5484,6 +5489,38 @@
       "timeout_seconds": 45,
       "ignored": true,
       "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
+      "test": "first_visit_setup_round_trips_and_executes_native_state",
+      "areas": [
+        "ai",
+        "save"
+      ],
+      "prerequisites": [
+        "godot"
+      ],
+      "ignored": false,
+      "fixture": "compiled first-visit setup with native inventory/life/magic/map names",
+      "timeout_seconds": 45,
+      "release": true,
+      "kind": "semantic"
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::map_names::tests::local_name_table_follows_fix_loader_order",
+      "areas": [
+        "source",
+        "scene"
+      ],
+      "prerequisites": [
+        "disc"
+      ],
+      "ignored": true,
+      "fixture": "supplied English Fix localized map-name table",
+      "timeout_seconds": 60,
+      "release": true,
+      "kind": "semantic"
     }
   ]
 }

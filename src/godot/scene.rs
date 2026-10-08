@@ -102,6 +102,42 @@ impl Project {
                 "    var {scene_id}_armor_state = load(\"res://addons/astrolabe/character/armor_state.gd\").new()\n    {scene_id}_armor_state.resource_local_to_scene = true\n    {scene_id}.set_meta(\"source_armor_state\", {scene_id}_armor_state)"
             )?;
         }
+        let inventory = scene
+            .inventory
+            .as_ref()
+            .map(|reference| {
+                format!(
+                    "load({}).call(\"clone_for_scene\")",
+                    quoted(&format!(
+                        "res://{}",
+                        disk_path(&self.selection, &reference.path, "tres")
+                    ))
+                )
+            })
+            .unwrap_or_else(|| {
+                "load(\"res://addons/astrolabe/character/inventory.gd\").new()".into()
+            });
+        writeln!(
+            self.builder,
+            "    var {scene_id}_inventory: Resource = {inventory}\n    {scene_id}_inventory.resource_local_to_scene = true\n    {scene_id}.set_meta(\"source_inventory\", {scene_id}_inventory)\n    var {scene_id}_magick: Resource = load(\"res://addons/astrolabe/character/magick.gd\").new()\n    {scene_id}_magick.resource_local_to_scene = true\n    {scene_id}.set_meta(\"source_magick\", {scene_id}_magick)"
+        )?;
+        if let Some(names) = &scene.map_names {
+            writeln!(
+                self.builder,
+                "    var {scene_id}_map_names = load(\"res://addons/astrolabe/ui/map_names.gd\").new()\n    {scene_id}_map_names.name = \"SourceMapNames\"\n    {scene_id}.add_child({scene_id}_map_names)\n    {scene_id}_map_names.owner = {scene_id}"
+            )?;
+            for (index, name) in names.iter().enumerate() {
+                writeln!(
+                    self.builder,
+                    "    var {scene_id}_map_name_{index} = load(\"res://addons/astrolabe/ui/map_name.gd\").new()\n    {scene_id}_map_name_{index}.resource_local_to_scene = true\n    {scene_id}_map_name_{index}.label = {}\n    {scene_id}_map_name_{index}.position = Vector2i({}, {})\n    {scene_id}_map_name_{index}.name_id = {}\n    {scene_id}_map_name_{index}.active = {}\n    {scene_id}_map_names.entries.append({scene_id}_map_name_{index})",
+                    quoted(&name.label),
+                    name.position[0],
+                    name.position[1],
+                    name.id,
+                    name.active
+                )?;
+            }
+        }
         if !self.dialogue_resources.is_empty() {
             let resources = self
                 .dialogue_resources
@@ -257,6 +293,12 @@ impl Project {
                 )?;
                 let mut written = std::collections::BTreeSet::new();
                 super::ai::component(self, source, &actor, &name, &mut written)?;
+                super::character::export_stock(self, &actor, &name)?;
+                writeln!(
+                    self.builder,
+                    "    {name}.set_meta(\"source_perso\", {})",
+                    quoted(actor.path.as_str())
+                )?;
                 writeln!(
                     self.builder,
                     "    {name}.get_node(\"Brain\").owner = {scene_id}\n    {name}.get_node(\"Brain\").set(\"automatic\", false)"
@@ -286,6 +328,10 @@ impl Project {
             );
             let perso = source.load(reference)?;
             let character = format!("{}_character", names[&node.id]);
+            writeln!(
+                self.builder,
+                "    {scene_id}.set_editable_instance({character}, true)\n    {character}.source_state_owner_path = {character}.get_path_to({scene_id})"
+            )?;
             writeln!(
                 self.builder,
                 "    {scene_id}_source_actor_nodes[{}] = {scene_id}.get_path_to({character})",

@@ -34,8 +34,14 @@ func run() -> void:
         "level:/persos/world/0/2": level.get_path_to(camera_actor)
     })
     var original := native_camera.global_transform
+    if not require(caller.source_camera_reset_targeted_perso("level:/persos/world/0/2", caller), "source camera reset assignment failed"): return
+    caller.source_set_transparency(17)
+    target.source_set_transparency(31)
+    if not require(caller.source_camera_prepare_target_change("level:/persos/world/0/2") and caller.source_opacity == 255, "previous target opacity was not restored"): return
     if not require(caller.source_camera_change_targeted_perso("level:/persos/world/0/2", target), "source camera target assignment failed"): return
     if not require(native_camera.targeted_actor == target, "source camera received another actor"): return
+    if not require(target.source_opacity == 31, "target change restored the new actor opacity"): return
+    if not require(caller.source_camera_reset_targeted_perso("level:/persos/world/0/2", caller) and target.source_opacity == 31, "reset target restored opacity"): return
     if not require(native_camera.global_transform == original, "target assignment moved the camera"): return
     if not require(not caller.source_camera_update_position(), "unmapped camera update silently succeeded"): return
     if not require(native_camera.global_transform == original, "unmapped camera update moved the camera"): return

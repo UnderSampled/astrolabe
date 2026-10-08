@@ -17,6 +17,7 @@ const SOURCE_CAMERA_DATA3D_WALK_CALLBACK := 0x00585d51 # DAT_00757320[0/8]
 @export var current_mechanics: Resource
 @export var physical_environment: Resource
 @export var source_inventory: Resource
+@export_node_path("Node3D") var source_state_owner_path: NodePath
 var source_rendering := SOURCE_RENDERING.new()
 var source_opacity: int:
     get: return source_rendering.opacity
@@ -90,6 +91,15 @@ var playing: bool:
     set(value):
         if value: animation_player.play()
         else: animation_player.pause()
+
+## Resolve ordinary scene-owned state before child Brains enter _ready. Nested
+## PackedScene instances otherwise duplicate local-to-scene resource overrides.
+func _enter_tree() -> void:
+    if source_state_owner_path.is_empty():
+        return
+    var state_owner := get_node(source_state_owner_path)
+    source_inventory = state_owner.get_meta("source_inventory") as Resource
+    source_magick = state_owner.get_meta("source_magick") as Resource
 
 func _ready() -> void:
     _source_reset_camera_data3d_history()
@@ -451,12 +461,15 @@ func source_inventory_remove(item: int, count: int) -> int:
 func source_magic_ready() -> bool:
     return source_magick != null and bool(source_magick.call("ready"))
 
+func source_magic_points_ready() -> bool:
+    return source_magick != null and bool(source_magick.call("points_ready"))
+
 func source_magic_current_spell() -> int:
     assert(source_magic_ready())
     return int(source_magick.get("selected_spell_code"))
 
 func source_magic_points() -> int:
-    assert(source_magic_ready())
+    assert(source_magic_points_ready())
     return int(source_magick.get("current_points"))
 
 func source_hit_points_ready() -> bool:
@@ -806,8 +819,13 @@ func source_list_add(list: Array[Node3D], capacity: int, actor: Node3D) -> bool:
     list.append(actor)
     return true
 
-## Procedure 160 stores the target Perso on the referenced camera actor.
-## Follow movement, viewport selection and its other reset fields are separate.
+## Proc160 phase one precedes evaluation of the new target in generated code.
+func source_camera_prepare_target_change(camera_asset: String) -> bool:
+    var camera_actor := source_actor_node(camera_asset)
+    var camera := camera_actor.get_node_or_null("SourceCamera") if camera_actor != null else null
+    return camera != null and camera.has_method("source_prepare_target_change") and bool(camera.call("source_prepare_target_change"))
+
+## Proc160 phase two receives the already evaluated target.
 func source_camera_change_targeted_perso(camera_asset: String, target: Node3D) -> bool:
     if not is_instance_valid(target):
         push_error("Camera target is invalid for " + camera_asset)
@@ -824,7 +842,9 @@ func source_camera_change_targeted_perso(camera_asset: String, target: Node3D) -
 
 ## Procedure 163 resets the component's +0x10 target to the current MainActor.
 func source_camera_reset_targeted_perso(camera_asset: String, target: Node3D) -> bool:
-    return source_camera_change_targeted_perso(camera_asset, target)
+    var camera_actor := source_actor_node(camera_asset)
+    var camera := camera_actor.get_node_or_null("SourceCamera") if camera_actor != null else null
+    return camera != null and camera.has_method("source_reset_targeted_perso") and bool(camera.call("source_reset_targeted_perso", target))
 
 ## Called by the compiled camera Brain. The native camera supports the mapped
 ## mode-0 controller/collision branches and mode-3 aiming. Missing source
@@ -834,6 +854,16 @@ func source_camera_update_position() -> bool:
     if camera == null or not camera.has_method("source_update_position"):
         return false
     return bool(camera.call("source_update_position"))
+
+func source_activate_map_name(name_id: int, active: int) -> bool:
+    var level: Node = self
+    while level != null:
+        var names := level.get_node_or_null("SourceMapNames")
+        if names != null and names.has_method("activate_name"):
+            names.call("activate_name", name_id, active)
+            return true
+        level = level.get_parent()
+    return false
 
 ## Function_Camera_GetShiftAlpha reads the selected Perso camera's raw +0x44.
 ## Null signals an unsupported selector or missing native camera component.

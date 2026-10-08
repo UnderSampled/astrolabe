@@ -159,6 +159,37 @@ impl<'a> Importer<'a> {
             .pointer(data, 12)?
             .map(|a| self.configuration(a))
             .transpose()?;
+        // AddObject's only source path to a pickup is the Perso's typed
+        // StockAction pointer at +0x38. Keep its identities and signed count;
+        // do not infer stocks by scanning unrelated allocations.
+        let inventory_stock = self
+            .session
+            .pointer(perso, 56)?
+            .map(
+                |stock| -> Result<crate::model::inventory_gameplay::InventoryStock> {
+                    let bytes = self.session.allocation_bytes(stock)?;
+                    ensure!(
+                        bytes.len() >= 18,
+                        "Perso StockAction is shorter than 18 bytes"
+                    );
+                    let record: StockActionWire = wire(bytes)?;
+                    Ok(crate::model::inventory_gameplay::InventoryStock {
+                        source: self.session.source_identity(stock)?,
+                        category: self
+                            .session
+                            .pointer(stock, 8)?
+                            .map(|value| self.session.source_identity(value))
+                            .transpose()?,
+                        item: self
+                            .session
+                            .pointer(stock, 12)?
+                            .map(|value| self.session.source_identity(value))
+                            .transpose()?,
+                        quantity: record.quantity,
+                    })
+                },
+            )
+            .transpose()?;
         let value = Perso {
             path: path.clone(),
             name: self.names[2]
@@ -189,6 +220,7 @@ impl<'a> Importer<'a> {
                     })
                 })
                 .transpose()?,
+            inventory_stock,
             routes: super::way::import_bindings(self.session, perso, &path, types, self.result)?,
             brain: None,
             particles: super::particle::component(self.session, perso)?,

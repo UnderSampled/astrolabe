@@ -291,6 +291,32 @@ fn auxiliary_collision(
     Ok(())
 }
 
+/// Save typed pickup properties on the actor. Identity strings only join
+/// catalogue Resources; runtime code never decodes source records or JSON.
+pub(super) fn export_stock(project: &mut Project, perso: &Perso, name: &str) -> Result<()> {
+    writeln!(
+        project.builder,
+        "    {name}.set_meta(\"source_stock_bound\", true)"
+    )?;
+    if let Some(stock) = &perso.inventory_stock {
+        let key = |identity: &Option<crate::model::ai::SourceObjectIdentity>| -> Result<String> {
+            Ok(identity
+                .as_ref()
+                .map(serde_json::to_string)
+                .transpose()?
+                .unwrap_or_default())
+        };
+        writeln!(
+            project.builder,
+            "    var {name}_stock: Resource = load(\"res://addons/astrolabe/character/inventory_stock.gd\").new()\n    {name}_stock.resource_local_to_scene = true\n    {name}_stock.category_key = {}\n    {name}_stock.item_key = {}\n    {name}_stock.count = {}\n    {name}.set_meta(\"source_stock\", {name}_stock)",
+            quoted(&key(&stock.category)?),
+            quoted(&key(&stock.item)?),
+            stock.quantity
+        )?;
+    }
+    Ok(())
+}
+
 pub(super) fn export_perso(
     project: &mut Project,
     source: &mut impl ContentSource,
@@ -387,6 +413,7 @@ pub(super) fn export_perso(
         "    {name}.set_meta(\"source_object_types\", PackedInt32Array([{}, {}, {}]))",
         perso.object_types[0], perso.object_types[1], perso.object_types[2]
     )?;
+    export_stock(project, perso, &name)?;
     let controller = format!(
         "res://{}/actions.gd",
         rig_directory(project, &family, &rig_id)

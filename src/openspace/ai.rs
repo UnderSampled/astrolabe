@@ -186,6 +186,23 @@ impl Parser<'_> {
                 continue;
             }
             out.push(match (kind, id) {
+                (3, 196 | 229) => {
+                    self.at -= 1;
+                    Statement::Evaluate(self.expression(indent)?)
+                }
+                (4, 55) => Statement::AddHitPoints {
+                    actor: self.expression(indent + 1)?, value: self.expression(indent + 1)?
+                },
+                (4, 57) => Statement::SetHitPointsMaximum {
+                    actor: self.expression(indent + 1)?, value: self.expression(indent + 1)?
+                },
+                (4, 434) => Statement::SetMagicPointsMaximum(self.expression(indent + 1)?),
+                (4, 418) => Statement::SetInventoryMaximum {
+                    item: self.expression(indent + 1)?, value: self.expression(indent + 1)?
+                },
+                (4, 376) => Statement::ActivateMapName {
+                    name: self.expression(indent + 1)?, active: self.expression(indent + 1)?
+                },
                 (0, 0) => {
                     let condition = self.expression(indent + 1)?;
                     let (_, then) = self.take(indent)?;
@@ -1447,12 +1464,15 @@ impl Parser<'_> {
             }
             (3, 184) => Expression::CurrentAnimationFrame,
             (3, 201) => Expression::InventoryWeapon,
+            (3, 196) => Expression::InventoryAddObject(Box::new(self.expression(indent + 1)?)),
             (3, 208) => Expression::InventoryQuantity(Box::new(self.expression(indent + 1)?)),
             (3, 209) => Expression::InventoryRemove {
                 item: Box::new(self.expression(indent + 1)?),
                 count: Box::new(self.expression(indent + 1)?),
             },
             (3, 228) => Expression::MagicPoints,
+            (3, 229) => Expression::MagicAddPoints(Box::new(self.expression(indent + 1)?)),
+            (3, 231) => Expression::MagicPointsMaximum,
             (3, 230) => Expression::MagicRemovePoints(Box::new(self.expression(indent + 1)?)),
             (3, 232) => Expression::MagicCurrentSpell,
             (3, 211) => Expression::LaserDirection,
@@ -1535,6 +1555,44 @@ impl Writer<'_> {
         ensure!(indent <= 64, "AI tree too deep to encode");
         for s in values {
             match s {
+                Statement::Evaluate(value) => {
+                    ensure!(
+                        matches!(
+                            value,
+                            Expression::InventoryAddObject(_) | Expression::MagicAddPoints(_)
+                        ),
+                        "unsupported standalone function"
+                    );
+                    self.expression(value, indent)?;
+                }
+                Statement::SetHitPointsMaximum { actor, value }
+                | Statement::AddHitPoints { actor, value } => {
+                    self.node(
+                        4,
+                        if matches!(s, Statement::AddHitPoints { .. }) {
+                            55
+                        } else {
+                            57
+                        },
+                        indent,
+                    );
+                    self.expression(actor, indent + 1)?;
+                    self.expression(value, indent + 1)?;
+                }
+                Statement::SetMagicPointsMaximum(value) => {
+                    self.node(4, 434, indent);
+                    self.expression(value, indent + 1)?;
+                }
+                Statement::SetInventoryMaximum { item, value } => {
+                    self.node(4, 418, indent);
+                    self.expression(item, indent + 1)?;
+                    self.expression(value, indent + 1)?;
+                }
+                Statement::ActivateMapName { name, active } => {
+                    self.node(4, 376, indent);
+                    self.expression(name, indent + 1)?;
+                    self.expression(active, indent + 1)?;
+                }
                 Statement::Unsupported(_) => {
                     bail!("unsupported AI fragment cannot be reconstructed")
                 }
@@ -2453,6 +2511,10 @@ impl Writer<'_> {
                 self.node(0, 5, indent + 1);
             }
             Expression::InventoryWeapon => self.node(3, 201, indent),
+            Expression::InventoryAddObject(actor) => {
+                self.node(3, 196, indent);
+                self.expression(actor, indent + 1)?;
+            }
             Expression::InventoryQuantity(item) => {
                 self.node(3, 208, indent);
                 self.expression(item, indent + 1)?;
@@ -2463,6 +2525,11 @@ impl Writer<'_> {
                 self.expression(count, indent + 1)?;
             }
             Expression::MagicPoints => self.node(3, 228, indent),
+            Expression::MagicPointsMaximum => self.node(3, 231, indent),
+            Expression::MagicAddPoints(amount) => {
+                self.node(3, 229, indent);
+                self.expression(amount, indent + 1)?;
+            }
             Expression::MagicRemovePoints(amount) => {
                 self.node(3, 230, indent);
                 self.expression(amount, indent + 1)?;

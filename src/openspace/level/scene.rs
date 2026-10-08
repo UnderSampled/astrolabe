@@ -63,6 +63,7 @@ pub(super) fn global_perso_source(
 }
 
 pub struct SceneImport {
+    pub inventory_catalog: Option<crate::model::inventory_gameplay::InventoryCatalog>,
     pub armor: Option<crate::model::armor::ArmorCatalog>,
     pub dialogue_presentation: Option<crate::model::dialogue::DialoguePresentation>,
     pub dialogues: Vec<crate::model::dialogue::Dialogue>,
@@ -102,6 +103,7 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
     let tree = session.tree()?;
     let source = summary(&session, selection, &tree)?;
     let mut result = SceneImport {
+        inventory_catalog: None,
         armor: None,
         dialogue_presentation: None,
         dialogues: Vec::new(),
@@ -129,6 +131,8 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
             name: selection.level.clone(),
             main_actor: None,
             armor: None,
+            inventory: None,
+            map_names: None,
             hud: None,
             global_actors: Vec::new(),
             nodes: Vec::new(),
@@ -367,10 +371,36 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
     )?;
     if selection.level == "manoir" {
         super::dialogue::import(&session, game, selection, &actor_refs, &mut result)?;
+        result.scene.map_names = Some(super::map_names::import(&session, game)?);
     }
     let armor = super::armor::import(game, selection).context("import shared Fix armor catalog")?;
     result.scene.armor = Some(AssetRef::from_path(armor.path.clone()));
     result.armor = Some(armor);
+    let mut inventory = super::inventory_gameplay::import(game, selection)
+        .context("import shared Fix inventory catalog")?;
+    // Only typed Perso stock edges establish pickup membership. Repeated
+    // definitions with conflicting categories cannot seed legacy admission.
+    for item in &mut inventory.items {
+        let categories: Vec<_> = result
+            .persos
+            .iter()
+            .filter_map(|actor| actor.inventory_stock.as_ref())
+            .filter(|stock| stock.item.as_ref() == Some(&item.source))
+            .filter_map(|stock| stock.category.as_ref())
+            .collect();
+        if let Some(first) = categories.first()
+            && categories.iter().all(|category| category == first)
+            && inventory
+                .categories
+                .iter()
+                .any(|category| &category.source == *first)
+        {
+            item.pickup_category = Some((*first).clone());
+        }
+    }
+    inventory.validate()?;
+    result.scene.inventory = Some(AssetRef::from_path(inventory.path.clone()));
+    result.inventory_catalog = Some(inventory);
     result.scene.validate()?;
     Ok(result)
 }

@@ -223,6 +223,7 @@ mod tests {
                 object_types: [0; 3],
                 camera: None,
                 hit_points: None,
+                inventory_stock: None,
                 routes: Vec::new(),
                 brain: None,
                 collisions: None,
@@ -976,6 +977,9 @@ fn reference_expression(expression: &Expression, model: &AiModel) -> bool {
 fn needs_guard(e: &Expression, model: &AiModel) -> bool {
     match e {
         Expression::Unsupported(_)
+        | Expression::InventoryAddObject(_)
+        | Expression::MagicAddPoints(_)
+        | Expression::MagicPointsMaximum
         | Expression::WaypointPosition(_)
         | Expression::DistanceToWaypoint { .. }
         | Expression::WaypointSphereContains { .. }
@@ -1474,10 +1478,27 @@ fn guarded_expression(
             )?;
             expression(e, model)?
         }
-        Expression::MagicCurrentSpell | Expression::MagicPoints => {
+        Expression::InventoryAddObject(actor) => {
+            let actor = guarded_expression(out, actor, model, depth, flow)?;
+            let local = format!("pickup_result_{}", flow.local);
+            flow.local += 1;
             writeln!(
                 out,
-                "{pad}if not character().source_magic_ready():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                "{pad}var {local}: int = character().source_inventory_add_object({actor})\n{pad}if not character().source_inventory.last_failure.is_empty():\n{pad}    fail_unsupported(character().source_inventory.last_failure)\n{pad}    {exit}"
+            )?;
+            local
+        }
+        Expression::MagicCurrentSpell
+        | Expression::MagicPoints
+        | Expression::MagicPointsMaximum => {
+            let ready = if matches!(e, Expression::MagicCurrentSpell) {
+                "source_magic_ready"
+            } else {
+                "source_magic_points_ready"
+            };
+            writeln!(
+                out,
+                "{pad}if not character().{ready}():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
                 quoted(&format!(
                     "{} requires restored source magick state",
                     model.path
@@ -1496,6 +1517,16 @@ fn guarded_expression(
                 )),
             )?;
             format!("character().source_magic_remove_points(int({amount}))")
+        }
+        Expression::MagicAddPoints(amount) => {
+            let amount = guarded_expression(out, amount, model, depth, flow)?;
+            let local = flow.local;
+            flow.local += 1;
+            writeln!(
+                out,
+                "{pad}if not character().source_magic_points_ready():\n{pad}    fail_unsupported(\"Magick point state is unavailable\")\n{pad}    {exit}\n{pad}var magic_sum_{local}: int = character().source_magick.add_points(int({amount}))"
+            )?;
+            format!("magic_sum_{local}")
         }
         Expression::IsInBehavior { actor, target } => {
             let id = flow.local;
@@ -1724,6 +1755,10 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         }
         Expression::SelfHitPoints => "character().source_get_hit_points()".into(),
         Expression::InventoryWeapon => "character().source_inventory_weapon()".into(),
+        Expression::InventoryAddObject(actor) => format!(
+            "character().source_inventory_add_object({})",
+            expression(actor, model)?
+        ),
         Expression::InventoryQuantity(item) => format!(
             "character().source_inventory_quantity(int({}))",
             expression(item, model)?
@@ -1735,6 +1770,11 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         ),
         Expression::MagicCurrentSpell => "character().source_magic_current_spell()".into(),
         Expression::MagicPoints => "character().source_magic_points()".into(),
+        Expression::MagicPointsMaximum => "int(character().source_magick.maximum_points)".into(),
+        Expression::MagicAddPoints(amount) => format!(
+            "character().source_magick.add_points(int({}))",
+            expression(amount, model)?
+        ),
         Expression::MagicRemovePoints(amount) => format!(
             "character().source_magic_remove_points(int({}))",
             expression(amount, model)?
@@ -2031,6 +2071,62 @@ fn statements(
             continue;
         }
         match statement {
+            Statement::Evaluate(value) => {
+                let value = guarded_expression(out, value, model, depth, flow)?;
+                let local = flow.local;
+                flow.local += 1;
+                writeln!(out, "{pad}var _discarded_{local} = {value}")?;
+            }
+            Statement::SetHitPointsMaximum { actor, value }
+            | Statement::AddHitPoints { actor, value } => {
+                let actor = guarded_expression(out, actor, model, depth, flow)?;
+                let local = flow.local;
+                flow.local += 1;
+                writeln!(out, "{pad}var life_actor_{local}: Node = {actor}")?;
+                let value = guarded_expression(out, value, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if not is_instance_valid(life_actor_{local}) or life_actor_{local}.get(\"source_hit_points\") == null:\n{pad}    fail_unsupported(\"Life operation requires converted actor hit points\")\n{pad}    {exit}"
+                )?;
+                let method = if matches!(statement, Statement::AddHitPoints { .. }) {
+                    "add_points"
+                } else {
+                    "set_maximum"
+                };
+                writeln!(
+                    out,
+                    "{pad}life_actor_{local}.get(\"source_hit_points\").{method}(int({value}))"
+                )?;
+            }
+            Statement::SetMagicPointsMaximum(value) => {
+                let value = guarded_expression(out, value, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if not character().source_magic_points_ready():\n{pad}    fail_unsupported(\"Magick point state is unavailable\")\n{pad}    {exit}\n{pad}character().source_magick.change_maximum(int({value}))"
+                )?;
+            }
+            Statement::SetInventoryMaximum { item, value } => {
+                let item = guarded_expression(out, item, model, depth, flow)?;
+                let local = flow.local;
+                flow.local += 1;
+                writeln!(out, "{pad}var inventory_item_{local}: int = int({item})")?;
+                let value = guarded_expression(out, value, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if character().source_inventory == null or not character().source_inventory.change_maximum_capacity(inventory_item_{local}, int({value})):\n{pad}    fail_unsupported(\"Inventory capacity state is unavailable\")\n{pad}    {exit}"
+                )?;
+            }
+            Statement::ActivateMapName { name, active } => {
+                let name = guarded_expression(out, name, model, depth, flow)?;
+                let local = flow.local;
+                flow.local += 1;
+                writeln!(out, "{pad}var map_name_{local}: int = int({name})")?;
+                let active = guarded_expression(out, active, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if not character().source_activate_map_name(map_name_{local}, int({active})):\n{pad}    fail_unsupported(\"Localized map-name state is unavailable\")\n{pad}    {exit}"
+                )?;
+            }
             Statement::If {
                 condition,
                 then,
@@ -2509,6 +2605,15 @@ fn statements(
                 )?;
             }
             Statement::CameraChangeTargetedPerso { camera, target } => {
+                let failure = quoted(&format!(
+                    "{} requires camera target state for {}",
+                    model.path, camera.path
+                ));
+                writeln!(
+                    out,
+                    "{pad}if not character().source_camera_prepare_target_change({}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}",
+                    quoted(camera.path.as_str())
+                )?;
                 let target = match target {
                     ActorTarget::Keyword(ActorKeyword::MainActor) => "main_actor".to_string(),
                     ActorTarget::Keyword(ActorKeyword::SelfActor) => "character()".to_string(),

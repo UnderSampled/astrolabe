@@ -162,6 +162,13 @@ pub fn import_scene(game: &Path, selection: Selection) -> Result<Imported> {
             ),
         );
     }
+    if let Some(inventory) = scene.inventory_catalog.take() {
+        imported.put(
+            &AssetRef::from_path(inventory.path.clone()),
+            inventory,
+            false,
+        )?;
+    }
     if let Some(mut armor) = scene.armor.take() {
         for artwork in armor
             .definitions

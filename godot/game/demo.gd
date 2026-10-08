@@ -457,8 +457,10 @@ func _apply_transition_state(new_actor: CharacterBody3D, destination: Node3D) ->
     var inventory: Resource = new_actor.get("source_inventory")
     if inventory != null and player.has("inventory"):
         var inventory_state: Dictionary = player["inventory"]
-        inventory.set("selected_weapon", inventory_state["selected_weapon"])
-        inventory.set("quantities", inventory_state["quantities"].duplicate(true))
+        var inventory_error: String = inventory.call("restore_legacy", int(inventory_state["selected_weapon"]), inventory_state["quantities"])
+        if not inventory_error.is_empty():
+            fail(inventory_error)
+            return
     var magick: Resource = new_actor.get("source_magick")
     if magick != null and player.has("magick"):
         for key in player["magick"]:

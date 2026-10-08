@@ -14,6 +14,17 @@ pub(super) struct Address {
     pub(super) key: BlockKey,
     pub(super) offset: usize,
 }
+
+/// StockAction reached only through Perso+0x38. 0041c720 consumes the
+/// category/item links and signed count; preceding words are not traversed.
+#[derive(BinRead)]
+#[br(little)]
+pub(super) struct StockActionWire {
+    _preceding: [u32; 2],
+    _category: u32,
+    _item: u32,
+    pub(super) quantity: i16,
+}
 /// Hype's CollSet constructor 0045f4f0 allocates 52 bytes. The later Raymap
 /// collider-type offset +0x64 does not apply to this Montreal build.
 #[derive(BinRead, BinWrite)]

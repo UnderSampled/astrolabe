@@ -104,6 +104,7 @@ mod dialogue_presentation;
 mod hud;
 mod inventory;
 mod inventory_gameplay;
+mod map_names;
 mod menu;
 pub(crate) use hud::import as import_hud_presentation;
 pub(crate) use inventory::import as import_inventory_presentation;

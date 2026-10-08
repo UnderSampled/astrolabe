@@ -17,6 +17,8 @@ fn fixture() -> Result<Scene> {
     let mut scene = Scene {
         main_actor: None,
         armor: None,
+        inventory: None,
+        map_names: None,
         hud: None,
         global_actors: vec![],
         path: AssetPath::new("level:/scene")?,

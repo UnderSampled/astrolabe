@@ -14,6 +14,86 @@ use astrolabe::{
 use std::{fs, time::Duration};
 
 #[test]
+fn first_visit_setup_round_trips_and_executes_native_state() -> Result<()> {
+    let actor = Expression::Actor(ActorTarget::Keyword(ActorKeyword::SelfActor));
+    let script = Script {
+        statements: vec![
+            Statement::SetHitPointsMaximum {
+                actor: actor.clone(),
+                value: Expression::Integer(266),
+            },
+            Statement::AddHitPoints {
+                actor: actor.clone(),
+                value: Expression::Real(258.9),
+            },
+            Statement::SetMagicPointsMaximum(Expression::Integer(65586)),
+            Statement::Evaluate(Expression::MagicAddPoints(Box::new(
+                Expression::MagicPointsMaximum,
+            ))),
+            Statement::SetInventoryMaximum {
+                item: Expression::Integer(10),
+                value: Expression::Integer(65544),
+            },
+            Statement::Evaluate(Expression::InventoryAddObject(Box::new(actor))),
+            Statement::ActivateMapName {
+                name: Expression::Integer(7),
+                active: Expression::Integer(257),
+            },
+            Statement::Assign {
+                variable: 0,
+                value: Expression::Integer(1),
+            },
+            Statement::WaitFrames(Expression::Integer(100)),
+        ],
+    };
+    let encoded = AiScriptCodec::default().write(&script)?;
+    assert_eq!(AiScriptCodec::default().read(&encoded)?, script);
+    let mut model = model()?;
+    model.normal.as_mut().unwrap().behaviors[0].schedule = Some(script);
+    let reopened = rete::decode::<AiModel>(&rete::encode(&model)?)?;
+    assert_eq!(reopened, model);
+    let temp = tempfile::tempdir()?;
+    let project = temp.path().join("godot");
+    godot::support::initialize(&project)?;
+    fs::write(
+        project.join("setup.gd"),
+        godot::ai::compile(&reopened, &[])?,
+    )?;
+    fs::write(
+        project.join("check_first_visit_setup.gd"),
+        include_bytes!("check_first_visit_setup.gd"),
+    )?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    godot::run_godot(
+        &engine,
+        &project,
+        &[
+            "--headless",
+            "--check-only",
+            "--script",
+            "res://check_first_visit_setup.gd",
+            "--log-file",
+            "setup-parser.log",
+        ],
+        Duration::from_secs(10),
+    )?;
+    let evidence = godot::run_godot(
+        &engine,
+        &project,
+        &[
+            "--headless",
+            "--script",
+            "res://check_first_visit_setup.gd",
+            "--log-file",
+            "setup-runtime.log",
+        ],
+        Duration::from_secs(20),
+    )?;
+    assert!(evidence.contains("FIRST_VISIT_SETUP_OK"), "{evidence}");
+    Ok(())
+}
+
+#[test]
 fn native_magick_service_follows_verified_remove_points_contract() -> Result<()> {
     let temp = tempfile::tempdir()?;
     let project = temp.path().join("godot");
@@ -588,6 +668,23 @@ fn camera_target_call_keeps_source_actor_and_main_actor() -> Result<()> {
         )
     );
     assert!(code.contains("requires camera target state"));
+    assert!(
+        code.find("source_camera_prepare_target_change").unwrap()
+            < code.find("if not is_instance_valid(main_actor)").unwrap()
+    );
+    model.normal.as_mut().unwrap().behaviors[0]
+        .schedule
+        .as_mut()
+        .unwrap()
+        .statements = vec![Statement::CameraChangeTargetedPerso {
+        camera: AssetRef::new("level:/persos/world/0/2")?,
+        target: ActorTarget::Reference(AssetRef::new("level:/persos/world/0/8")?),
+    }];
+    let code = godot::ai::compile(&model, &[])?;
+    assert!(
+        code.find("source_camera_prepare_target_change").unwrap()
+            < code.find("var camera_target_").unwrap()
+    );
     Ok(())
 }
 
@@ -608,6 +705,7 @@ fn camera_reset_target_passes_the_bound_main_actor() -> Result<()> {
         )
     );
     assert!(code.contains("requires camera reset target state"));
+    assert!(!code.contains("source_camera_prepare_target_change"));
     Ok(())
 }
 
@@ -844,6 +942,7 @@ fn unsupported_source_script_survives_rete_without_becoming_executable() -> Resu
     behavior.rules.push(Some(supported.clone()));
     behavior.schedule = Some(Script {
         statements: vec![Statement::Unsupported(UnsupportedFragment {
+            receiver: None,
             reason: "category 1 operation 99".into(),
             start: 3,
             nodes: vec![PreservedAiNode {
@@ -982,6 +1081,7 @@ fn partial_compiled_script_runs_supported_branch_and_stops_at_reached_fragment()
         initialize: 0,
     });
     let fragment = UnsupportedFragment {
+        receiver: None,
         reason: "procedure requires native API".into(),
         start: 7,
         nodes: vec![PreservedAiNode {

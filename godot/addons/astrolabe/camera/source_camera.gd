@@ -89,7 +89,21 @@ func source_camera_collision_callback_update(obstructed: bool) -> void:
 func source_camera_collision_guard_value() -> bool:
     return _source_camera_collision_guard
 
+## Proc160 restores the previous target before evaluating its new operand.
+## The compiler calls this phase first, so a failed new binding still restores it.
+func source_prepare_target_change() -> bool:
+    if not is_instance_valid(targeted_actor) or not targeted_actor.has_method("source_set_transparency"):
+        return false
+    return bool(targeted_actor.call("source_set_transparency", 255))
+
 func source_change_targeted_perso(actor: Node3D) -> bool:
+    if not is_instance_valid(actor):
+        return false
+    targeted_actor = actor
+    return true
+
+## Proc163 only assigns MainActor; no opacity restoration or progress reset.
+func source_reset_targeted_perso(actor: Node3D) -> bool:
     if not is_instance_valid(actor):
         return false
     targeted_actor = actor

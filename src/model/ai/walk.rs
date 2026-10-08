@@ -67,7 +67,9 @@ impl<'a> Iterator for AstWalk<'a> {
                     self.pending
                         .push((AstNode::Expression(condition), child_depth));
                 }
-                Statement::Assign { value, .. }
+                Statement::Evaluate(value)
+                | Statement::SetMagicPointsMaximum(value)
+                | Statement::Assign { value, .. }
                 | Statement::ActorFieldAssign { value, .. }
                 | Statement::MainActorFieldAssign { value, .. }
                 | Statement::SubtractAssign { value, .. }
@@ -118,7 +120,15 @@ impl<'a> Iterator for AstWalk<'a> {
                 Statement::SwapConfiguredParts { first, second } => {
                     self.expressions(child_depth, &[first, second]);
                 }
+                Statement::SetHitPointsMaximum { actor, value }
+                | Statement::SetInventoryMaximum { item: actor, value }
+                | Statement::AddHitPoints { actor, value } => {
+                    self.expressions(child_depth, &[actor, value])
+                }
                 Statement::PositionDialog { x, y } => self.expressions(child_depth, &[x, y]),
+                Statement::ActivateMapName { name, active } => {
+                    self.expressions(child_depth, &[name, active])
+                }
                 Statement::ExecuteActionAndGenerateObject { action, vector, .. } => {
                     self.expressions(child_depth, &[action, vector]);
                 }
@@ -200,7 +210,9 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::Noop => {}
             },
             AstNode::Expression(expression) => match expression {
-                Expression::IntegerCast(value)
+                Expression::InventoryAddObject(value)
+                | Expression::MagicAddPoints(value)
+                | Expression::IntegerCast(value)
                 | Expression::Square(value)
                 | Expression::AbsoluteValue(value)
                 | Expression::ActorDistance(value)
@@ -295,6 +307,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::InventoryWeapon
                 | Expression::MagicCurrentSpell
                 | Expression::MagicPoints
+                | Expression::MagicPointsMaximum
                 | Expression::LaserDirection
                 | Expression::SelfSighting => {}
             },

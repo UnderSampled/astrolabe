@@ -299,12 +299,16 @@ static func apply(actor: CharacterBody3D, level: Node3D, value: Dictionary) -> S
     var quantities: Dictionary = {}
     for item in saved_inventory["quantities"]:
         quantities[int(item)] = int(saved_inventory["quantities"][item])
+    # Validate on a private copy before changing any live save component.
+    var checked_inventory: Resource = inventory.call("clone_for_scene")
+    var weapon := int(saved_inventory.get("selected_weapon", inventory.get("selected_weapon")))
+    error = checked_inventory.call("restore_legacy", weapon, quantities)
+    if not error.is_empty():
+        return error
     magick.set("current_points", int(saved_magick["current_points"]))
     magick.set("maximum_points", int(saved_magick["maximum_points"]))
     magick.set("selected_spell_code", int(saved_magick["selected_spell_code"]))
-    if saved_inventory.has("selected_weapon"):
-        inventory.set("selected_weapon", int(saved_inventory["selected_weapon"]))
-    inventory.set("quantities", quantities)
+    inventory.call("restore_legacy", weapon, quantities)
     if player.has("transform"):
         var saved_transform: Dictionary = player["transform"]
         var basis := actor.global_transform.basis

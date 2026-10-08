@@ -5,7 +5,7 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, path::Path};
 
-pub const INTERFACE: u32 = 70;
+pub const INTERFACE: u32 = 71;
 const PACKAGE: &str = "addons/astrolabe";
 const RECEIPT: &str = "addons/astrolabe/installed.json";
 
@@ -13,6 +13,10 @@ macro_rules! assets {
     ($($path:literal),* $(,)?) => { &[$(($path, include_bytes!(concat!("../../godot/", $path)).as_slice())),*] };
 }
 const SUPPORT: &[(&str, &[u8])] = assets![
+    "addons/astrolabe/ui/map_name.gd",
+    "addons/astrolabe/ui/map_name.gd.uid",
+    "addons/astrolabe/ui/map_names.gd",
+    "addons/astrolabe/ui/map_names.gd.uid",
     "addons/astrolabe/behavior/behavior.gd",
     "addons/astrolabe/behavior/behavior.gd.uid",
     "addons/astrolabe/character/mechanics.gd.uid",
@@ -49,6 +53,8 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/character/rendering.gd",
     "addons/astrolabe/character/rendering.gd.uid",
     "addons/astrolabe/character/inventory.gd",
+    "addons/astrolabe/character/inventory_stock.gd",
+    "addons/astrolabe/character/inventory_stock.gd.uid",
     "addons/astrolabe/character/magick.gd",
     "addons/astrolabe/character/hit_points.gd",
     "addons/astrolabe/character/hit_points.gd.uid",
@@ -368,7 +374,7 @@ mod tests {
             output.path().join("addons/astrolabe/version.json"),
         )?)?;
         assert_eq!(version["interface"].as_u64(), Some(u64::from(INTERFACE)));
-        assert_eq!(INTERFACE, 70);
+        assert_eq!(INTERFACE, 71);
 
         let staged = tempfile::tempdir()?;
         stage(staged.path(), output.path())?;
@@ -383,6 +389,10 @@ mod tests {
             "addons/astrolabe/character/configuration.gd.uid",
             "addons/astrolabe/character/inventory_definition.gd",
             "addons/astrolabe/character/inventory_definition.gd.uid",
+            "addons/astrolabe/character/inventory_stock.gd",
+            "addons/astrolabe/character/inventory_stock.gd.uid",
+            "addons/astrolabe/ui/map_name.gd",
+            "addons/astrolabe/ui/map_names.gd",
         ] {
             assert_eq!(
                 fs::read(staged.path().join(path))?,

@@ -110,6 +110,10 @@ pub struct Perso {
     pub camera: Option<super::camera::Camera>,
     /// Source StandardGame bytes read by the life HUD; actor-local mutable state.
     pub hit_points: Option<HitPoints>,
+    /// The actor's typed +0x38 StockAction edge, when present in the source.
+    /// The identities retain its category and item joins for native pickup calls.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inventory_stock: Option<super::inventory_gameplay::InventoryStock>,
     /// Category-23 AI operands address these local slots, including empty ones.
     pub routes: Vec<super::route::RouteBinding>,
     pub brain: Option<super::ai::Brain>,

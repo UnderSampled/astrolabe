@@ -9,6 +9,9 @@ use astrolabe::{
         character::{Family, Perso},
         content::Collection,
         geometry::SourceTransform,
+        inventory_gameplay::{
+            InventoryAdmission, InventoryCatalog, InventoryDefinition, InventoryStock,
+        },
         io::{Content, ContentRoot, Load, Save},
         scene::{NodeKind, Scene, SceneNode, SceneNodeProperties},
     },
@@ -95,6 +98,7 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
         initial_configuration: None,
         object_types: [7, 0, 0],
         hit_points: None,
+        inventory_stock: None,
         camera: Some(Camera {
             source: identity(1),
             clip_planes: [0.25, 10000.],
@@ -111,6 +115,40 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
     main_actor.path = main_actor_ref.path.clone();
     main_actor.name = "MainActor".into();
     main_actor.camera = None;
+    main_actor.inventory_stock = Some(InventoryStock {
+        source: identity(200),
+        category: Some(identity(202)),
+        item: Some(identity(201)),
+        quantity: -2,
+    });
+    let item = InventoryDefinition {
+        source: identity(201),
+        id: 9,
+        kind: Some("Weapon".into()),
+        maximum: 30,
+        quantity: 7,
+        selected: false,
+        availability: 0,
+        management: 0,
+        pickup_category: Some(identity(202)),
+        replacements: vec![],
+        unknown: [0; 6],
+    };
+    let catalog = InventoryCatalog {
+        path: AssetPath::new("fix:/inventory/gameplay")?,
+        items: vec![item.clone()],
+        gold: InventoryDefinition {
+            source: identity(203),
+            kind: None,
+            pickup_category: None,
+            ..item
+        },
+        gold_category: identity(204),
+        categories: vec![InventoryAdmission {
+            source: identity(202),
+            slots: vec![None],
+        }],
+    };
     let selection = Selection::hype("manoir", "en")?;
     let mut store = rete::Store::new(temp.path().join("rete"), selection.clone())?;
     let reference = AssetRef::from_path(actor.path.clone());
@@ -124,6 +162,20 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
         name: "CameraCheck".into(),
         main_actor: Some(main_actor_ref.clone()),
         armor: None,
+        inventory: Some(AssetRef::from_path(catalog.path.clone())),
+        map_names: Some(
+            (0..60)
+                .map(|index| astrolabe::model::scene::MapName {
+                    source: identity(300 + index),
+                    label: "Map".into(),
+                    position: [4, 5],
+                    id: index as i32,
+                    unknown: 0,
+                    active: false,
+                    label_tail: vec![0; 36],
+                })
+                .collect(),
+        ),
         hud: None,
         global_actors: vec![],
         nodes: vec![
@@ -180,6 +232,7 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
         ],
     };
     let mut content = Collection::default();
+    content.insert(&AssetRef::from_path(catalog.path.clone()), catalog)?;
     content.insert(&AssetRef::from_path(family.path.clone()), family)?;
     content.insert(&reference, (*actor).clone())?;
     content.insert(&main_actor_ref, main_actor)?;
@@ -187,6 +240,7 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
         kind: Scene::KIND.into(),
         reference: scene.path.clone(),
     }];
+    let scene = rete::decode::<Scene>(&rete::encode(&scene)?)?;
     content.insert(&AssetRef::from_path(scene.path.clone()), scene)?;
     godot::export(&mut content, &roots, selection, &project, &engine)?;
     let log = project.join("camera-check.log");

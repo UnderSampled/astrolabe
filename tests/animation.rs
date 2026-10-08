@@ -471,6 +471,7 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
         initial_configuration: None,
         object_types: [0; 3],
         hit_points: None,
+        inventory_stock: None,
         camera: None,
         routes: vec![],
         brain: None,
@@ -480,6 +481,8 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
     let scene = Scene {
         main_actor: None,
         armor: None,
+        inventory: None,
+        map_names: None,
         hud: None,
         global_actors: vec![],
         path: AssetPath::new("level:/scene")?,

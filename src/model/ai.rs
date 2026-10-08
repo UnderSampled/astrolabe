@@ -118,6 +118,28 @@ impl BehaviorRef {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Statement {
     Unsupported(UnsupportedFragment),
+    /// Evaluate a source function for its side effects, discarding its result.
+    Evaluate(Expression),
+    /// Actor-local life APIs; source byte narrowing happens at the native API.
+    SetHitPointsMaximum {
+        actor: Expression,
+        value: Expression,
+    },
+    AddHitPoints {
+        actor: Expression,
+        value: Expression,
+    },
+    /// Shared magick maximum; changing it does not refill/clamp current points.
+    SetMagicPointsMaximum(Expression),
+    /// Changes the first matching inventory definition, without changing quantity.
+    SetInventoryMaximum {
+        item: Expression,
+        value: Expression,
+    },
+    ActivateMapName {
+        name: Expression,
+        active: Expression,
+    },
     If {
         condition: Expression,
         then: Vec<Statement>,
@@ -598,6 +620,7 @@ pub enum Expression {
     /// Source inventory functions operate on the game inventory, not on a
     /// projectile's own designer fields.
     InventoryWeapon,
+    InventoryAddObject(Box<Expression>),
     InventoryQuantity(Box<Expression>),
     InventoryRemove {
         item: Box<Expression>,
@@ -606,6 +629,8 @@ pub enum Expression {
     /// Source magick functions read the shared selected spell and mana pool.
     MagicCurrentSpell,
     MagicPoints,
+    MagicPointsMaximum,
+    MagicAddPoints(Box<Expression>),
     MagicRemovePoints(Box<Expression>),
     LaserDirection,
     VectorCos(Box<Expression>, Box<Expression>),
@@ -1265,6 +1290,8 @@ impl Script {
                 | Expression::IsValidActor(value)
                 | Expression::ApplyArmoredDamage(value)
                 | Expression::InventoryQuantity(value)
+                | Expression::InventoryAddObject(value)
+                | Expression::MagicAddPoints(value)
                 | Expression::MagicRemovePoints(value)
                 | Expression::VectorComponent { vector: value, .. } => {
                     expression(value, variables, depth + 1, count)?
@@ -1393,8 +1420,21 @@ impl Script {
                     Statement::Wait { milliseconds } => {
                         expression(milliseconds, variables, depth + 1, count)?
                     }
-                    Statement::SelectArmor(index) | Statement::SetArmorResistance(index) => {
+                    Statement::Evaluate(index)
+                    | Statement::SetMagicPointsMaximum(index)
+                    | Statement::SelectArmor(index)
+                    | Statement::SetArmorResistance(index) => {
                         expression(index, variables, depth + 1, count)?
+                    }
+                    Statement::SetHitPointsMaximum { actor, value }
+                    | Statement::AddHitPoints { actor, value }
+                    | Statement::SetInventoryMaximum { item: actor, value } => {
+                        expression(actor, variables, depth + 1, count)?;
+                        expression(value, variables, depth + 1, count)?;
+                    }
+                    Statement::ActivateMapName { name, active } => {
+                        expression(name, variables, depth + 1, count)?;
+                        expression(active, variables, depth + 1, count)?;
                     }
                     Statement::WaitFrames(frames) => {
                         expression(frames, variables, depth + 1, count)?

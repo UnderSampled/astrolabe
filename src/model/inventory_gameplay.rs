@@ -16,6 +16,16 @@ pub struct InventoryCatalog {
     pub gold_category: SourceObjectIdentity,
     pub categories: Vec<InventoryAdmission>,
 }
+/// One actor-owned StockAction joined through the typed Perso +0x38 field.
+/// The source reader keeps its addresses private and stores only semantic
+/// identities and the signed pickup count needed by native AddObject.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct InventoryStock {
+    pub source: SourceObjectIdentity,
+    pub category: Option<SourceObjectIdentity>,
+    pub item: Option<SourceObjectIdentity>,
+    pub quantity: i16,
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InventoryDefinition {
     pub source: SourceObjectIdentity,

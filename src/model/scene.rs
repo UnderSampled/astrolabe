@@ -17,6 +17,12 @@ pub struct Scene {
     /// Shared Fix-owned armor definitions bound to this active level session.
     #[serde(default)]
     pub armor: Option<AssetRef<super::armor::ArmorCatalog>>,
+    /// Shared Fix catalogue and admission state for this active level.
+    #[serde(default)]
+    pub inventory: Option<AssetRef<super::inventory_gameplay::InventoryCatalog>>,
+    /// Localized Fix map labels and their initial activation, bound to this session.
+    #[serde(default)]
+    pub map_names: Option<Vec<MapName>>,
     /// Source-derived Fix HUD projected into this level's saved screen scene.
     #[serde(default)]
     pub hud: Option<AssetRef<super::hud::HudPresentation>>,
@@ -26,6 +32,18 @@ pub struct Scene {
     pub global_actors: Vec<GlobalActor>,
     /// Parents precede their children. IDs are stable within this asset.
     pub nodes: Vec<SceneNode>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MapName {
+    pub source: super::ai::SourceObjectIdentity,
+    pub label: String,
+    pub position: [i32; 2],
+    pub id: i32,
+    pub unknown: i32,
+    pub active: bool,
+    /// Source label buffer bytes following the terminator, preserved explicitly.
+    pub label_tail: Vec<u8>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -143,6 +161,29 @@ impl Content for Scene {
         Some(&self.path)
     }
     fn validate(&self) -> Result<()> {
+        if let Some(names) = &self.map_names {
+            ensure!(
+                names.len() == 60,
+                "map name table must have 60 ordered entries"
+            );
+            for name in names {
+                ensure!(
+                    name.source.role == super::ai::SourceRole::Fix,
+                    "map name is not Fix-owned"
+                );
+                ensure!(
+                    !name.label.contains('\0')
+                        && name.label.chars().count() + 1 + name.label_tail.len() == 40,
+                    "map name label buffer differs"
+                );
+            }
+        }
+        if let Some(inventory) = &self.inventory {
+            ensure!(
+                inventory.path.as_str() == "fix:/inventory/gameplay",
+                "scene inventory reference differs"
+            );
+        }
         if let Some(armor) = &self.armor {
             ensure!(
                 armor.path.role() == super::PackageRole::Fix && armor.path.member().is_none(),

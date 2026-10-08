@@ -19,6 +19,16 @@ func run() -> void:
     actor.set("motion_enabled", false)
     var camera := actor.get_node("SourceCamera") as Camera3D
     root.add_child(scene)
+    var main_actor := scene.get_node("world/main/MainActor")
+    var inventory: Resource = scene.get_meta("source_inventory")
+    if not require(actor.source_inventory == inventory and main_actor.source_inventory == inventory and inventory.source_initialized, "saved actors do not share the native inventory catalogue"): return
+    if not require(actor.source_magick == main_actor.source_magick, "saved actors do not share magic points"): return
+    if not require(main_actor.get_meta("source_stock") is Resource and main_actor.get_meta("source_stock").count == -2, "saved pickup stock lost its signed quantity"): return
+    if not require(inventory.add_actor_object(main_actor) == 9 and inventory.quantity(9) == 5, "saved stock does not join its catalogue by semantic identity"): return
+    if not require(actor.source_activate_map_name(7, 1) and scene.get_node("SourceMapNames").entries[7].active, "saved map name did not activate"): return
+    var other := load("res://generated/hype/levels/manoir/level.tscn").instantiate() as Node3D
+    if not require(other.get_meta("source_inventory") != inventory and other.get_meta("source_inventory").quantity(9) == 7 and not other.get_node("SourceMapNames").entries[7].active, "mutable setup resources leaked between scene instances"): return
+    other.free()
     if not require(is_equal_approx(camera.source_shift_alpha, 0.375), "camera parameter +0x44 was not exported to SourceCamera"): return
     if not require(is_equal_approx(camera.mode_zero_yaw_limits.y, 0.375), "raw +0x44 value did not remain the source radians-window width"): return
     var alpha: Variant = actor.call("source_camera_get_shift_alpha", 1)

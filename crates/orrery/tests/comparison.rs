@@ -46,6 +46,7 @@ fn fixture() -> Result<(Scene, Perso, Family, ActorObservation)> {
         object_types: [7, 3, 9],
         camera: None,
         hit_points: None,
+        inventory_stock: None,
         routes: vec![],
         brain: None,
         particles: None,
@@ -53,6 +54,8 @@ fn fixture() -> Result<(Scene, Perso, Family, ActorObservation)> {
     };
     let scene = Scene {
         armor: None,
+        inventory: None,
+        map_names: None,
         hud: None,
         path: AssetPath::new("level:/scene")?,
         name: "fixture".into(),

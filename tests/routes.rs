@@ -235,6 +235,7 @@ fn compiled_routes_use_native_contact_and_actor_local_progress() -> Result<()> {
         initial_configuration: None,
         object_types: [0; 3],
         hit_points: None,
+        inventory_stock: None,
         camera: None,
         routes: vec![RouteBinding {
             route: Some(AssetRef::from_path(route.path.clone())),
@@ -264,6 +265,8 @@ fn compiled_routes_use_native_contact_and_actor_local_progress() -> Result<()> {
         name: "Routes".into(),
         main_actor: Some(AssetRef::from_path(perso.path.clone())),
         armor: None,
+        inventory: None,
+        map_names: None,
         hud: None,
         nodes: vec![SceneNode {
             id: "walker".into(),
