@@ -14,12 +14,12 @@ acceptance; this worker owns only the main-checkout changes assigned below.
 
 | Contribution | Original commit(s) | Disposition / dependency |
 | --- | --- | --- |
-| Inventory motion | `87485e17fbe52173fb39005c9f10f92a23f30800` | Adapted to current admitted inventory API, useful model/Rete56 and native animation resources. Dedicated maintained runtime harness replaces duplicated test text; support73 and native prerequisite/deadlines are coordinated. Independent inventory export only. |
+| Inventory motion | `87485e17fbe52173fb39005c9f10f92a23f30800` | Adapted to current admitted inventory API, useful model and native animation resources in `c375693b5c8310ffc8450dd97ce3be0e910083a3` (initial Rete56/support73, combined Rete57/support75). Dedicated maintained runtime harness replaces duplicated test text; native prerequisites/deadlines are coordinated. Independent inventory export only. |
 | WaitInteger | `e79369362bc98ca6f2c2e991e6ac44efdce56e9b` | Pickup worker owns adaptation into its coherent compiler/consumer patch. Earlier adjustment/waypoint commits are already integrated. |
-| Actor Boolean Brain save helper | `f21a7fcb2976109682d6bf6ac5cc88e434ea58ec` | Initially disconnected/unregistered. Reader projections already integrated. Assigned save/actor worker must connect a real consumer and acceptance; helper-only tests do not complete persistence. |
-| Location title/style/state | `e9296e88f92940d0e73ac206820e041cacd19181`, `f7dc29d915c57053392d156babf1fb6adf5d7795` | Assigned title worker completes named title catalogue/style4, Func195 and screen dispatch. Shared GameState getter precedes pickup consumers. Original helper/audit was not whole title acceptance. |
+| Actor Boolean Brain save helper | `f21a7fcb2976109682d6bf6ac5cc88e434ea58ec` | Disposed through the real production-slot regression and live Boolean preflight, integrated as `6f35ceb773289f93af13c6320d649b7f8369721b` and `542c836e44ee748f396b4ccab6cc3c7b81fdc2c8`. Fresh-process reload and atomic rejection pass; the redundant generic helper is not installed. Broader fork capabilities remain separately assigned below. |
+| Location title/style/state | `e9296e88f92940d0e73ac206820e041cacd19181`, `f7dc29d915c57053392d156babf1fb6adf5d7795` | Connected branch tip `a93fa279cba48191fdb46ce345d7d05d7e4c8e8d` merged as `9e2061ce071bd2b0db3a32d1a6663fbfd97fcd0b`, preserving both original commits. Actual named catalogue/style4, typed Func195, shared Screen dispatch and unchanged model659 cue pass focused source/Rete/native checks. |
 | Pickup/barrel contact and lifetime | `1aa775e67368980153c11fc502d36ee3c64dc219`, `ed961c7` | Assigned pickup worker completes reached collision/material queries, actor fields, waits, picking-center, real consumers and persistence. Preserved clone had merged main as `8420af6573603bad6913c58e443e7bd82e2e00c8`. |
-| First-visit armor and active camera callback | Current root failures documented in intro wrap-up | Separate assigned isolated worktree; lead receives reviewed source/Model/Rete/native batch. No workaround or editing of worker files here. |
+| First-visit armor and active camera callback | `fafdc78217a9ff0d65b0f9bed987836250d20c1a`, `2a33866e82ee1a8c3cba597b887a29c00c15136c` | Reviewed and cherry-picked as `4af33df5e96d4f90862aa61c6d4a5ba540b91ba5` and `77b98caa5225eb3d4bb11df9fe70d71886392080`. Real armor facade guard, semantic camera publisher and explicit no-card history state pass focused source/Rete/native checks. Combined interface and Gogoud parser follow-up: `e1c60bec0afb33963f7ec414881164b069965809`. |
 | Broader preserved native save | Fork `294bd260fcfa6d4c53b99799e60bce14614f2984` | Its schema3 envelope was replaced by newer main schema1 in `56a769fc9edfe2db7061aea6b5cacd687f942e81`. Broader health/equipment/idle-checkpoint capability was not composed into the active envelope. Replacement is not a disposal decision: assigned save worker compares useful capabilities and integrates coherently. |
 
 The initial proposed order was WaitInteger → inventory → armor/camera → title
@@ -44,7 +44,7 @@ merging; this note does not prescribe a new sequence over that lead direction.
 | Camera/travel workers | `ffd1220`, `c6e266d`, `342e80c`, `52e9278` represented by `ab7bacc`, `aeffc28`, `93f9f39`, `e67e55e`. |
 | Initial music, sound/fade, listener and themes | `5b573fd`, `1340390`, `ed7a4f5`, `dc5fe646` represented by `1f5b7c9`, `dcf30f3`, `f2f3468`, `52cb522`; voice/effects candidate `c4890a6` represented by `54b1c2f`. |
 | Camera shifts and diffuse mutation | `41593ff`, `b1eb0fa`; source preservation `fa26d73`, native consumer `71887e0`. Earlier worker `237e94e` has the same finite consumer plus subsequently expanded production files. |
-| Semantic source-save projections | Worker `57f9092`, `09db7bd`, `f7d6416` represented by `2337318`, `8a344d5`, `1c5e5f5`; optional Global latch `f7d0120` represented by `be0b88e`. General native actor helper remains separately assigned. |
+| Semantic source-save projections | Worker `57f9092`, `09db7bd`, `f7d6416` represented by `2337318`, `8a344d5`, `1c5e5f5`; optional Global latch `f7d0120` represented by `be0b88e`. Redundant generic actor helper is disposed through the production-slot regression above. |
 | Item-zero save join | Semantic composition `00935a3` / `0b23982` supersedes earlier hardcoded `cb42a61`/dirty staging. |
 | Failed-route recovery and viewport harness | `11a3cbc`, `ecb6a1a`, `ee4341e`, `d61a6ae`, `a3fd944`, `0fcdd29`; bounded frozen-route evidence accepted. Current full export/intro is a separate acceptance gate. |
 | Finite full-intro/audio/output batch | `8d68004`, `9d93f17`, `6e04acb`, `46f1fdc`, `bac48e1` already on main; see root wrap-up for incomplete actual opening. |
@@ -142,6 +142,53 @@ the frozen focused pass. No expensive validation was repeated solely for those
 wording/lint changes.
 The full game export, passive intro, original game and full release matrix remain
 lead-directed work outside this worker's focused acceptance.
+
+### Approved armor/camera → Brain slot → title integration
+
+Kip subsequently directed that exact order. The main hashes are recorded in the
+table above; all isolated worker files remain untouched. Shared manifest changes
+preserve newer main declarations and add the worker checks. The title merge
+preserves original commit ancestry, inventory/loading production files, and the
+Brain live-field preflight. Main's combined support interface is 75 and Rete
+schema 57: independent worker counters 73/56 could not identify the combined
+contracts. The accompanying schema assertions and stable UI guide use the
+combined values.
+
+The title branch also reintroduced the previously corrected stale camera test
+name `camera_angle_upper_bounds_are_read_from_source_offsets`. Removing that
+obsolete declaration retains the actual `camera_angle_flags_are_read_from_source_offset_94`
+case; complete discovery now validates all 413 declarations.
+
+Merged-main focused validation passes 42/42 Rust tests, all 29 Python safeguard
+checks, and the actual maintained Button_Hit input parser/runtime smoke. It
+includes all five title cases, exact Func195/source setter reconstruction,
+unchanged source model659 and catalogue through Rete/selected native export,
+ordinary shared UI, production-slot fresh-process/type/atomicity checks, the
+armor/camera slice, inventory/loading preservation and every declared
+`always`/`gameplay` safeguard. The other 371 manifest cases are explicitly
+excluded, not counted as passing. Total time is 220.89s, with 90.70s
+build/discovery and 123.06s Rust execution. Every stage exits 0 with unchanged
+source, no timeout, leaked child or remaining process. Both input logs and engine
+logs have no script/error diagnostics. Ignored evidence is
+`output/integration-resume-20261008/title-brain-main/result.json`,
+`input-diagnostics.json`, and `TestResults/title-brain-main-20261008.console.log`.
+
+The Gogoud harness Boolean parse error is fixed and preflighted. The two earlier
+full-level editor import deadline failures remain unverified, preserved failed
+evidence for lead-directed aggregate work. This focused selection performs no
+full-level export, original-game run or current full intro acceptance. Pickup,
+WaitInteger, full inventory/barrel persistence and the save worker's life/armor/
+checkpoint/identity follow-up remain their assigned active work, not disposed
+capabilities. The [production session naming plan](godot-session-architecture-review-2026-10-08.md#safe-naming-cleanup-after-integration)
+remains a filename-only proposal after those merges; `demo.gd`/`demo.tscn` are the
+actual production session and have not been renamed here.
+
+Final merged-main `cargo fmt --all -- --check`, `git diff --check`, workspace
+all-target Clippy with `-D warnings`, and `cargo build --release --locked
+--offline` all pass. Their supervised timings and cleanup records are in
+`output/integration-resume-20261008/title-brain-main/build-checks-result.json`;
+no timeout or child leak occurred. The final README/evidence wording records
+these results without additional production behavior changes.
 
 ## Complete ref snapshot
 

@@ -279,3 +279,17 @@ reconciliation. Keep the newer inventory/loading assets and this title's three
 support registrations together. This branch does not edit inventory animations.
 All changed files are available in the committed diff; source game data,
 converted resources, captures and test outputs remain ignored.
+
+### Main integration
+
+Kip's approved branch merge is
+`9e2061ce071bd2b0db3a32d1a6663fbfd97fcd0b`; original title commits and branch
+tip remain ancestors of main. Combined contracts advance to support75/Rete57,
+preserving inventory motion/loading, armor/camera and the live Bool slot checks.
+Shared manifest reconciliation preserves main coverage and removes the branch's
+reintroduced obsolete camera test name. All 413 workspace cases are classified.
+The merged focused run passes all 42 selected Rust cases, including this note's
+five title cases, all 29 mandatory Python checks and maintained Button_Hit input
+syntax/runtime. Source freeze and supervisor cleanup pass in 220.89s.
+See [the integration disposition](integration-disposition-2026-10-08.md#approved-armorcamera--brain-slot--title-integration)
+for exact hashes, evidence, exclusions and remaining aggregate limits.

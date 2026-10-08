@@ -95,3 +95,11 @@ evidence is in ignored `TestResults/brain-snapshot-typed-deadline-final/`.
 Scoped clippy, formatting and whitespace checks also passed. This verifies the
 independent Boolean fix, not adoption of the broader draft or current main's
 reconciled schema.
+
+Main integrates this regression and Boolean preflight as
+`6f35ceb773289f93af13c6320d649b7f8369721b` and
+`542c836e44ee748f396b4ccab6cc3c7b81fdc2c8`. The merged production-slot case
+passes fresh-process/type/atomicity checks in 1.01s, within the 42-case focused
+integration run. See [the integration disposition](integration-disposition-2026-10-08.md)
+for merged evidence and retained follow-up ownership; this does not adopt the
+broader life/armor/checkpoint/identity or inventory/barrel capabilities.

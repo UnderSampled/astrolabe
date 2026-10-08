@@ -6219,22 +6219,6 @@
     },
     {
       "binary": "astrolabe",
-      "test": "model::camera::tests::camera_angle_upper_bounds_are_read_from_source_offsets",
-      "areas": [
-        "source",
-        "scene",
-        "ai",
-        "rete"
-      ],
-      "kind": "unit",
-      "prerequisites": [],
-      "fixture": "Synthetic source camera records and typed AI target references",
-      "timeout_seconds": 30,
-      "ignored": false,
-      "release": true
-    },
-    {
-      "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::func_get_game_state_round_trips_as_a_typed_session_query",
       "areas": [
         "source",
