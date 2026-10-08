@@ -127,8 +127,13 @@ clears chain radius, increments the queue ticket and enters idle normal 2.
 ## Original spatial/contact proof and native contract
 
 The original-C coordinator and independent workers supplied instruction proofs
-under reservation `f504eab`; complete C checkpoints were still pending when
-this slice was prepared. These are static proofs, not engine runs.
+under reservation `f504eab`. The subsequent six-body collision checkpoint
+`b87f480e091492f6f740a32468cbea795cbf7f84` is complete in the independent
+`hype-sol-core` clone, with contracts in
+`research/worker-deltas/sol-core-priority5-notes.md` and the maintained
+`collision_zone_condition.c`, `actor_zone_query.c`, and `actor_zone_lookup.c`
+sources. It covers 2,144 profile-matched original code bytes. These are static
+proofs, not engine runs or native equivalence evidence.
 
 * `DistanceZToPerso` / `DistanceXYToPerso` (`00537a20` / `00537aa0`) evaluate the
   target with the original caller, retain the selected Ultra receiver, then
@@ -161,7 +166,10 @@ this slice was prepared. These are static proofs, not engine runs.
 * `0042f4e0` tries candidate active category-2/ZDE geometry, then selected
   physical-object module kinds 0b/14. Both routes require the material prefilter
   `0042d8b0`, actual intersection, and the returned **target** game material
-  test `0049e0b0`. Missing/sentinel material rejects. `0049e580` requires
+  test `0049e0b0`. Its game-material pointer is not null-guarded before the
+  getter reads its +0c member. The obtained **collide-material address** rejects
+  zero/ffffffff; this is not a safe missing-game-material fallback.
+  `0049e580` requires
   `(identifier & uint16(mask)) == uint16(mask)`. Material prefilter supports
   triangles, points, spheres, boxes and cones. The external intersection body
   `00555cb0` is not closed; do not invent searching another shape/material after
@@ -173,6 +181,8 @@ missing materials and invalid indices, including mask zero. It does not implemen
 Cond28 traversal/activation or assert that Godot selects the same intersection
 pair as the original. Neither new helper autonomously grants items or explodes
 barrels; compiled AI owns those decisions and the native support owns effects.
+The helper's rejection of absent converted material metadata is its explicit
+native contract; it does not reproduce an original null-pointer dereference.
 
 ## State ownership and shared patch proposal
 
