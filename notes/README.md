@@ -21,8 +21,9 @@ placement APIs, native terminal policy, unchanged checkpoint admission, and
 remaining camera/presentation/reset dependencies.
 
 The [static Manor key/gate implementation](gogoud-key-gate-static-2026-10-08.md)
-records Object selection, source lift movement, save ownership and the still
-unproven Gogoud award edge. It carries no runtime acceptance claim.
+records the source Gogoud key producer, Object selection, attachment and lift
+contracts, save ownership and remaining training/presentation dependencies.
+It carries no runtime acceptance claim.
 
 The [integration disposition](integration-disposition-2026-10-08.md) audits all
 preserved worker branches/worktrees, records merged/superseded/active work, and

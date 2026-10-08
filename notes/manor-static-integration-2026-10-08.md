@@ -29,14 +29,17 @@ worker checkouts are preserved.
 | Death/fall with Proc12 reconciliation | `d87fd6487cd0739e51a1718ba3cc812f8d771a81` | `0d550a1c07e44c2501c2deb82fcc8cd88c1996c1` |
 | Final death source checkpoint | `1fd6b1ecc37db4f33d88ac73f10bd6f1d613ee70` | `34fdc545479f541217876ac9cad46706924a54c8` |
 | Final courtyard query evidence | `458871fcb4ef2f0f9d38093f5efc2c4a27abbe00` | `20e894c2309a18958cf8a0cef975837b6bc413b5` |
+| Object selection and native gate lift | `d9890dc12d0b2c3c7547b178826ed96c8923b2e1` | `135653e262b53342a03a20f6c604572894c726ad` |
+| Key producer, custom bits, attachment and bounded camera | `d77f70b8ec072468029f086e121f126fe9226c1a` | `652048f353c4bbfe99db3d03475beda2fb168d9a` |
 
 Training comes from `/tmp/astrolabe-manor-training-static-oct08`; tunnel from
 `/tmp/astrolabe-manor-tunnel-static-20261008`; presentation from
 `output/worktrees/manor-camera-dialogue-static-20261008`; courtyard notes from
 `/tmp/astrolabe-courtyard-static-20261008`. Their source files are not edited.
 Death comes from `output/worktrees/death-fall-static-sol-20261008`.
-No new worker is launched. Key commit `d9890dc` and later training/key/
-GameOver/recovery follow-ons are excluded pending the lead's exact final set.
+Key/gate comes from `/tmp/astrolabe-gogoud-key-gate-static-20261008`.
+No new worker is launched. Later training/presentation/GameOver/recovery
+follow-ons are excluded pending the lead's exact final set.
 
 ## Conflict reconciliation and contracts
 
@@ -59,8 +62,8 @@ Resource and UID are registered once in maintained support. Reset reads
 parameter set0 while set1 remains the active framing block; it preserves the
 selected target and the session-owned controller Resource.
 
-One unpublished union uses **Rete59/support78**, incrementing the accepted
-baseline58/77 once. `src/rete/mod.rs`, `src/godot/support.rs`, support
+Before the key follow-on, the unpublished union uses **Rete59/support78**,
+incrementing the accepted baseline58/77 once. `src/rete/mod.rs`, `src/godot/support.rs`, support
 `version.json` and existing affected assertion literals agree. Nullable
 `DialogueSpan.text` now preserves absent versus allocated-empty meaning; the
 reader keeps the optional value, validation checks only present text, and native
@@ -174,7 +177,7 @@ their follow-on owners. The transient terminal flag and explicit R/Escape routes
 do not implement original phase8 or restore a disk checkpoint. The native save
 schema4 envelope and admission policy are unchanged.
 
-All changes are still one unpublished **Rete59/support78** union. No package was
+At the death checkpoint, changes are one unpublished **Rete59/support78** union. No package was
 persisted under this evolving source schema. The new recursive waypoint shape
 belongs to the same unpublished increment, rather than claiming compatibility
 with any worker's standalone59 assets. Accepted main remains Rete58/support77.
@@ -212,12 +215,105 @@ implementation notes. Their recovered geometry queries establish neither the
 reported courtyard wall defect nor a collision fix. No collision implementation
 is changed and no runtime/validation rerun follows those evidence-only updates.
 
+## Key/gate union and source-semantic reconciliation
+
+The lead subsequently approved `d9890dc` then `d77f70b`, both included above.
+The first cherry-pick conflicts in the notes index, AI model, walker, reader
+and compiler. The second conflicts in the reader/compiler and also auto-merges
+a duplicate `ChangeActorSighting` declaration and duplicate writer/visitor arms.
+Those auto-merged semantic duplicates are resolved explicitly, rather than
+counting absence of Git markers as integration acceptance.
+
+Training's **DistanceToPosition is the single Func13 owner**. The key sibling's
+ActorPointDistance path is removed from the model, validation, walker, reader,
+writer and compiler. Both expressions represent the same source function, but
+the complete training source helper in `training_receivers.c` negates a result
+when it is not greater than zero before the float store, including positive
+zero. The retained compiled path preserves that branch and source-axis origin
+subtraction; the sibling's ordinary positive native distance omits it. Both
+caller-context point evaluation and captured Ultra receiver survive. Relative-Z
+Func192 and actor-valued Meta23 turn targets are separately retained.
+
+Death's **ChangeActorSighting with an Expression actor is the single Proc445
+owner**. The broader expression validator, exhaustive actor/vector traversal,
+reader/writer and guarded native receiver capture remain. Key's narrower
+ActorTarget declaration, duplicate later Ultra branch and compiler/writer arms
+are removed. Key's Func164 ActorSighting and death's dot-field ActorSightingField
+remain distinct source encodings, sharing the same guarded native sighting read.
+Proc415 economic placement, Proc136 reset, pursuit, dynamic waypoint distance,
+byte damage/death, Meta49 and Meta61 are retained. The general actor-valued DSG
+Ultra dispatch added by key is preserved alongside the discarded Func13 query.
+
+Object selection is admission-aware and uses the actual inventory Resource in
+the authored screen/host. Raw real selector payloads remain IEEE float32 words;
+quantity -1 does not itself grant ownership. Training991 Normal19 activates
+physical key142, whose model703 later adds its own StockAction Object21.
+Gate272 retains that selected key, uses Global149 and its authored two lift
+segments; no intro completion grant or runtime item-name join is introduced.
+Lift points/factor are captured once, the native request owns cancellation and
+completion, and its physics step receives float32 seconds. The source-supported
+16..80ms interval quantization is not reconstructed as another scheduler.
+
+Both contributed custom-bit fields are retained: `Perso.custom_bits` in the
+useful model/Rete, and exported `source_custom_bits` on the native actor.
+The reader currently obtains their source value from StandardSaveWire's legacy
+`custom_bits_init` member. Complete Cond107/Proc273 source and the original
+getter/setter corroborate direct access to that same word. Snapshot-before-
+operand evaluation, wrapped one-based index, low-byte truth and raw real words
+remain native operations. The adjacent original setter at StandardGame+0x30
+links two actors (its callers pass their actor pointers); it does **not** prove
+another initial custom-bit mask. An early review hypothesis to that effect was
+retracted, and no guessed offset or duplicate source value was added. If the
+lead's request for "both custombitfields" denotes two distinct **source words**
+rather than the model/native field pair, the approved commits define only the
+one mapped word and that second semantic field still requires an exact source
+contract. Existing opaque wire prefix/suffix fields have not been reinterpreted.
+
+Attachment keeps the child-owned real Godot hierarchy and source actor/Brain/
+entry indices. The synchronous Brain hierarchy-move guard is retained; reparent
+notifications do not unconditionally stop the ongoing key coroutine. World
+parent and source contact-sector paths remain named native references. The
+future training activation/pause/resume change must preserve this guard as well
+as the custom-bit pair and component ownership. Broader detach sector migration
+is not established by the bounded Manor channel20 path.
+
+Proc141 primary reselection and Proc158 focal changes retain the worker's
+explicit registration/policy bounds and early operand-skipping behavior. The
+existing Proc136 framing Resource and reset stay registered once. Initial FOV
+is exported as a semantic native value. **Func171 vector angle is implemented;
+Proc171 Camera_ResetCameraZMax is not.** The latter has no typed reader/writer/
+compiler/native implementation in either approved key commit. The source API
+catalogue and read-only coverage ledger also distinguish the camera procedure's
+shared missing-raw handler from vector-angle's complete source. The bounded old
+AI audit did not produce a key703/training991 Proc171 occurrence with the exact
+Fix model paths selected; it is not a new complete raw allocation scan and does
+not prove absence. A requested camera171 contract must not be claimed complete
+from Func171 or replaced by Proc136. This discrepancy is surfaced to the lead.
+
+The union now uses **Rete60/support79**. The key follow-on increments its useful
+AI/Perso shape and native interfaces; this integration retains the new values
+and fixes `godot/addons/astrolabe/version.json`, which the worker left at78.
+All model, support constants, manifest and existing version assertion literals
+now agree by source inspection. No schema60 package has been written and no
+support update performed on main. Standalone worker packages remain provisional;
+future conversion must import using the full accepted union.
+
+The actual key remains a linked slice, not completed gameplay: training's
+Proc12 null-card correction/reactivation/Gogoud checkpoint follow-on and exact
+box5 presentation are explicitly incoming. Key's stage4 dynamics binding has
+no mechanics identity card, which the current single training Proc12 owner
+rejects. The exact box5 completion into key Normal2 is needed to detach/release
+controls; generic text or admission alone cannot establish that handoff. Prior
+death Proc166 and cliff camera mode3 gaps remain, as do Proc307 presentation
+and the original phase8 distinction. No camera reset shortcut, checkpoint
+exception or invented key consumption resolves those dependencies.
+
 ## Acceptance boundary
 
 There is no unresolved Git conflict in this slice. Compilation, GDScript
 parsing, reconstructed bytes, fresh Rete/native resources and runtime behavior
 are unverified. No assets are published or main merged. Later lead-directed
-work must compose the exact training/key/GameOver/recovery follow-ons, preserve
+work must compose the exact training/presentation/GameOver/recovery follow-ons, preserve
 the model/component boundaries, resolve lifecycle findings, then separately
 authorize any executable validation or content preparation. The user may open
 the accepted main Godot project throughout this source-only integration.
