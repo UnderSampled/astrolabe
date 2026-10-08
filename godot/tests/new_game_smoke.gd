@@ -76,10 +76,13 @@ func _record_session_stage(stage_name: String, elapsed_ms: float, session: Node)
     var presenter := _loading_screen()
     var phase := presenter.get_node_or_null("Viewport/Center/Content/Phase") as Label if presenter != null else null
     var progress := presenter.get_node_or_null("Viewport/Center/Content/Progress") as ProgressBar if presenter != null else null
+    var actor := session.get("actor") as CharacterBody3D
     session_stage_events.append({"session_scene":session.scene_file_path,"new_game":bool(session.get("new_game")),
         "stage":stage_name,"elapsed_ms":elapsed_ms,"observed_at_ms":Time.get_ticks_msec(),"presenter_visible":bool(presenter.get("visible")) if presenter != null else false,
         "phase":phase.text if phase != null else "","progress_visible":progress.visible if progress != null else false,
-        "progress_value":progress.value if progress != null else -1.0})
+        "progress_value":progress.value if progress != null else -1.0,
+        "actor_position":[actor.global_position.x, actor.global_position.y, actor.global_position.z] if actor != null else [],
+        "actor_physics_enabled":actor.is_physics_processing() if actor != null else false})
 
 func _record_transition_started(from_level: String, to_level: String, entry: String) -> void:
     var presenter := _loading_screen()
@@ -186,7 +189,7 @@ func _wait_transition_idle(timeout_ms: int = 5000) -> bool:
         await process_frame
     return not bool(transitions.call("is_transitioning"))
 
-func _check_route_lifecycle(route_name: String, start_index: int, expected_mana: int) -> bool:
+func _check_route_lifecycle(route_name: String, start_index: int, expected_mana: int, expected_restored_position: Variant = null) -> bool:
     var started := _find_transition_event("started", start_index)
     var completed := await _wait_transition_event("completed", start_index)
     var started_count := 0
@@ -215,10 +218,26 @@ func _check_route_lifecycle(route_name: String, start_index: int, expected_mana:
     var expected_phase := "Initializing new game..." if route_name == "new_game" else "Restoring saved game..."
     if not require(not restoration.is_empty() and restoration.get("presenter_visible", false) and restoration.get("phase") == expected_phase, route_name + " did not keep the correct presenter phase visible during state restoration"): return false
     if not require(not restoration.get("progress_visible", true), route_name + " showed the resource fraction as total restoration progress"): return false
+    var restored_pose: Dictionary = {}
+    if expected_restored_position is Vector3:
+        for event in session_stage_events:
+            if event.get("observed_at_ms", 0) >= started.get("observed_at_ms", 0) and event.get("stage") == "restored":
+                restored_pose = event
+                break
+        var restored_values: Array = restored_pose.get("actor_position", [])
+        var restored_position := Vector3(float(restored_values[0]), float(restored_values[1]), float(restored_values[2])) if restored_values.size() == 3 else Vector3.INF
+        var exact_restore: bool = restored_position == expected_restored_position
+        report[route_name + "_restore_pose_boundary"] = {"expected":[expected_restored_position.x,expected_restored_position.y,expected_restored_position.z],
+            "observed":[restored_position.x,restored_position.y,restored_position.z] if restored_values.size() == 3 else [],
+            "actor_physics_enabled":restored_pose.get("actor_physics_enabled", true),"exact":exact_restore,
+            "reason":"Demo emits restored synchronously after SAVE_STATE.apply and before enabling actor physics.",
+            "accepted":not restored_pose.is_empty() and not bool(restored_pose.get("actor_physics_enabled", true)) and exact_restore}
+        if not require(not restored_pose.is_empty() and not bool(restored_pose.get("actor_physics_enabled", true)) and exact_restore,
+            route_name + " did not restore the exact saved position before actor physics resumed"): return false
     for event in transition_events:
         if event.get("event") == "progress" and event.get("observed_at_ms", 0) >= started.get("observed_at_ms", 0) and event.get("observed_at_ms", 0) <= completed.get("observed_at_ms", 0):
             if not require(event.get("phase") == "resource_loading" and float(event.get("fraction", -1.0)) >= 0.0 and float(event.get("fraction", 2.0)) <= 1.0, route_name + " reported a non-resource fraction as load progress"): return false
-    report[route_name + "_lifecycle"] = {"started":started,"restoration":restoration,"completed":completed}
+    report[route_name + "_lifecycle"] = {"started":started,"restoration":restoration,"restored_pose":restored_pose,"completed":completed}
     return true
 
 func wait_menu(previous: Node, timeout_ms: int = 15000) -> Node:
@@ -517,7 +536,7 @@ func run() -> void:
     await click_gui(import_load_button, true)
     var imported_session: Node = await wait_session(import_menu)
     if not require(imported_session != null and not bool(imported_session.get("new_game")), "Load Game did not open the saved-game session"): return
-    var import_lifecycle_ok: bool = await _check_route_lifecycle("load_original_import", import_transition_start, import_mana)
+    var import_lifecycle_ok: bool = await _check_route_lifecycle("load_original_import", import_transition_start, import_mana, import_position)
     if not import_lifecycle_ok: return
     var import_completed: Dictionary = _find_transition_event("completed", import_transition_start)
     var imported_position_values: Array = import_completed.get("position", [])
@@ -561,12 +580,12 @@ func run() -> void:
     await click_gui(native_load_button, true)
     var native_session: Node = await wait_session(native_menu)
     if not require(native_session != null and not bool(native_session.get("new_game")), "Load Game did not open the native-slot session"): return
-    var native_lifecycle_ok: bool = await _check_route_lifecycle("load_native_slot", native_transition_start, native_mana)
+    var native_expected_position := Vector3(float(native_position_values[0]), float(native_position_values[1]), float(native_position_values[2]))
+    var native_lifecycle_ok: bool = await _check_route_lifecycle("load_native_slot", native_transition_start, native_mana, native_expected_position)
     if not native_lifecycle_ok: return
     var native_completed: Dictionary = _find_transition_event("completed", native_transition_start)
     var native_applied_values: Array = native_completed.get("position", [])
     var native_applied_position := Vector3(float(native_applied_values[0]), float(native_applied_values[1]), float(native_applied_values[2])) if native_applied_values.size() == 3 else Vector3.ZERO
-    var native_expected_position := Vector3(float(native_position_values[0]), float(native_position_values[1]), float(native_position_values[2]))
     var native_position_delta := native_applied_position - native_expected_position
     var native_position_accepted := absf(native_position_delta.x) <= 0.01 and absf(native_position_delta.y) <= 0.025 and absf(native_position_delta.z) <= 0.01
     report["native_slot_position_check"] = {"expected":[native_expected_position.x,native_expected_position.y,native_expected_position.z],
