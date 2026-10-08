@@ -149,3 +149,11 @@ The observer uses the real bootstrap/New Game route, sends no intro input and
 checks the full dialogue chain, mode6, letterbox release and source player
 handoff before sending physical ArrowUp. Camera selector-1 restores the imported
 preset; it does not leave motion_mode=-1.
+
+Native travel is integrated as `e67e55e` after independent review. The final
+root release build passes in64.98s with no remaining child processes. Integrated
+AI26, source/Rete intro API1, native route/contact1 and native point/waypoint1
+pass together in30.50s; the two local source/opening-slice cases in those binaries
+were excluded from that regression command. Their focused worker evidence is
+recorded separately. Strict root all-target Clippy and maintained native script
+preflight pass. The fixture inventory names the expanded native motion coverage.

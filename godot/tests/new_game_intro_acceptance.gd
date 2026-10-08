@@ -92,6 +92,7 @@ func run() -> void:
     evidence_path = args[0]
     started_ms = Time.get_ticks_msec()
     report["godot"] = Engine.get_version_info()
+    report["commit"] = OS.get_environment("ASTROLABE_ACCEPTANCE_COMMIT")
     report["project"] = ProjectSettings.globalize_path("res://")
     report["display"] = DisplayServer.get_name()
     root.size = Vector2i(1024, 768)
@@ -117,7 +118,7 @@ func run() -> void:
     while (current_scene == null or current_scene == menu or not bool(current_scene.get("ready_to_play"))) and Time.get_ticks_msec() < load_deadline:
         await process_frame
     game = current_scene
-    if game == null or game == menu or not bool(game.get("ready_to_play")) or not bool(game.get("new_game")):
+    if game == null or game == menu or not bool(game.get("ready_to_play")) or not bool(game.get("new_game")) or game.scene_file_path != "res://game/new_game.tscn":
         finish(false, "actual menu did not reach ready New Game within 70 seconds")
         return
     var level: Node = game.get("level")
@@ -128,6 +129,7 @@ func run() -> void:
     var adopted: Node = screen.get("adopted_screen")
     if is_instance_valid(adopted): screen = adopted
     report["load_ms"] = Time.get_ticks_msec() - started_ms
+    report["scene"] = game.scene_file_path
     await capture("opening")
     var deadline := Time.get_ticks_msec() + 300000
     var mode6_captured := false

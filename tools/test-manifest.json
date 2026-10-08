@@ -5680,7 +5680,7 @@
       "prerequisites": [
         "godot"
       ],
-      "fixture": "native point-turn coordinates, world basis, signed antipodal delta",
+      "fixture": "native point-turn plus full3D Mass, Character contact/half-turns, selected StaticLine progress and reached geometry failures",
       "timeout_seconds": 30,
       "ignored": false,
       "release": true
