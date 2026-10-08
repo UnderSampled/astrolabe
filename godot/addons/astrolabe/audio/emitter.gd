@@ -1,6 +1,7 @@
 extends Node3D
 ## Engine sound semantics over converted waveforms. Resource selection is compiled code.
 signal voice_started(info: Dictionary)
+signal voice_completed(info: Dictionary)
 @export var bus: StringName = &"Astrolabe Effects"
 @export var voice_bus: StringName = &"Astrolabe Effects"
 @export var enabled: bool = true
@@ -104,7 +105,13 @@ static func music_channel(requester: Node) -> Node3D:
 func kill_all() -> void:
     for info in voices.duplicate():
         info.player.stop()
-        release_voice(info)
+        # A bulk request kill does not synchronously clear the owner holder.
+        # Hype's next speech-animation update observes request completion. Use
+        # the same guarded completion path on the next native frame, even if
+        # the actor's processing has been disabled by a terminal session route.
+        if not bool(info.get("completion_pending", false)):
+            info.completion_pending = true
+            get_tree().process_frame.connect(complete_voice.bind(info), CONNECT_ONE_SHOT)
     set_object_volume(127.0)
 
 func request_music(event: Resource) -> bool:
@@ -185,6 +192,7 @@ func play_voice(voice: Resource, identity: String, pitch_variation: float, stopp
     if not enabled or voice == null: return
     if is_music and not voice.theme_identity.is_empty():
         for info in voices:
+            if bool(info.get("completion_pending", false)): continue
             if info.get("theme", "").is_empty(): continue
             if info.theme == voice.theme_identity:
                 # 004faa60 retains the active same-theme playback. Its newly
@@ -207,7 +215,7 @@ func play_voice(voice: Resource, identity: String, pitch_variation: float, stopp
         player.global_transform = global_transform
     var info := {"event": identity, "stream": voice.stream.resource_path, "pitch": player.pitch_scale, "gain": voice.gain, "choices": voice.trace, "spatial": spatial, "stoppable": stoppable, "player": player, "theme": voice.theme_identity, "uses_object_volume": not _dialogue_speech_request}
     voices.append(info)
-    player.finished.connect(func(): release_voice(info))
+    player.finished.connect(complete_voice.bind(info))
     player.play()
     voice_started.emit(info)
 
@@ -230,3 +238,9 @@ func _stop_voice_info(voice: Dictionary) -> void:
 func release_voice(info: Dictionary) -> void:
     voices.erase(info)
     if is_instance_valid(info.player): info.player.queue_free()
+
+func complete_voice(info: Dictionary) -> void:
+    if bool(info.get("completed", false)): return
+    info.completed = true
+    release_voice(info)
+    voice_completed.emit(info)

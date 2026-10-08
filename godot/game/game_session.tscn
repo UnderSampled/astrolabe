@@ -1,9 +1,10 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://game/game_session.gd" id="demo"]
 [ext_resource type="Script" path="res://game/session_camera.gd" id="camera"]
 [ext_resource type="Script" path="res://game/inventory_host.gd" id="inventory"]
 [ext_resource type="PackedScene" path="res://game/pause_host.tscn" id="pause"]
+[ext_resource type="PackedScene" path="res://addons/astrolabe/ui/vignette.tscn" id="vignette"]
 
 [node name="ManorDemo" type="Node3D"]
 script = ExtResource("demo")
@@ -12,6 +13,8 @@ script = ExtResource("demo")
 script = ExtResource("inventory")
 
 [node name="PauseHost" parent="." instance=ExtResource("pause")]
+
+[node name="VignetteHost" parent="." instance=ExtResource("vignette")]
 
 [node name="DemoCamera" type="Camera3D" parent="."]
 current = true

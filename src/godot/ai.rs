@@ -22,6 +22,12 @@ fn configuration_constant(reference: &crate::model::AssetRef<ObjectList>) -> Str
         super::digest(reference.path.as_str().as_bytes())
     )
 }
+fn vignette_constant(reference: &crate::model::AssetRef<crate::model::texture::Texture>) -> String {
+    format!(
+        "vignette_{}",
+        super::digest(reference.path.as_str().as_bytes())
+    )
+}
 
 fn waypoint_resource_constant(
     reference: &crate::model::AssetRef<crate::model::route::Waypoint>,
@@ -135,6 +141,9 @@ pub(super) fn export_program(
         ));
     }
     let mut events = Vec::new();
+    for image in model.vignette_images() {
+        super::export::texture(project, source, &image.path, written)?;
+    }
     for event in model.sound_events() {
         if events.iter().any(|(e, _)| e == event) {
             continue;
@@ -464,6 +473,17 @@ fn compile_with_bindings(
             "AI sound resource must be project-local"
         );
         writeln!(out, "const sound_{i} = preload({})", quoted(path))?;
+    }
+    let mut vignette_images = BTreeSet::new();
+    for image in model.vignette_images() {
+        if vignette_images.insert(image.path.clone()) {
+            writeln!(
+                out,
+                "const {} = preload({})",
+                vignette_constant(image),
+                quoted(&format!("res://generated/hype/textures/{}.png", image.path.file()))
+            )?;
+        }
     }
     let mut waypoint_default_initializers = Vec::new();
     for (i, v) in model.variables.iter().enumerate() {
@@ -3008,6 +3028,27 @@ fn statements(
                     "{pad}var source_session_{id} := source_game_session()\n{pad}if not is_instance_valid(source_session_{id}) or not source_session_{id}.has_method(\"source_set_game_state\"):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}source_session_{id}.call(\"source_set_game_state\", int({state}))",
                     quoted(&format!(
                         "{} requires the active game session state API",
+                        model.path
+                    ))
+                )?;
+            }
+            Statement::DisplayVignetteAndReturnToMainMenu {
+                milliseconds,
+                image,
+                ..
+            } => {
+                let value = guarded_expression(out, milliseconds, model, depth, flow)?;
+                let id = flow.local;
+                flow.local += 1;
+                let image = image
+                    .as_ref()
+                    .map(vignette_constant)
+                    .unwrap_or_else(|| "null".into());
+                writeln!(
+                    out,
+                    "{pad}var vignette_wait_{id} = {value}\n{pad}if typeof(vignette_wait_{id}) != TYPE_INT:\n{pad}    fail_unsupported(\"Vignette wait requires a source integer\")\n{pad}    {exit}\n{pad}vignette_wait_{id} = int(vignette_wait_{id}) & 0xffffffff\n{pad}if vignette_wait_{id} >= 0x80000000: vignette_wait_{id} -= 0x100000000\n{pad}if vignette_wait_{id} > 0:\n{pad}    var vignette_session_{id} := source_game_session()\n{pad}    if not is_instance_valid(vignette_session_{id}) or not vignette_session_{id}.has_method(\"source_vignette_return_to_menu\") or not bool(vignette_session_{id}.call(\"source_vignette_return_to_menu\", {image}, vignette_wait_{id})):\n{pad}        fail_unsupported({})\n{pad}        {exit}",
+                    quoted(&format!(
+                        "{} requires converted vignette artwork and the active game session",
                         model.path
                     ))
                 )?;

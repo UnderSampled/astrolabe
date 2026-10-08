@@ -21,6 +21,7 @@ signal initial_level_transition_finished(result: Dictionary)
 @onready var content_cache: Node = get_node_or_null("/root/GameContent")
 @onready var inventory_host: Node = $InventoryHost
 @onready var pause_host: Node = $PauseHost
+@onready var vignette_host: Node = $VignetteHost
 
 var level: Node3D
 var actor: CharacterBody3D
@@ -87,6 +88,59 @@ func source_player_is_dead() -> bool:
     $Hud/Panel/Margin/Rows/Controls.text = "R  reload session     Esc  main menu"
     stage("dead", "Hype has died. Press R to reload the session.")
     return true
+
+## Presentation/event request is separate from the source game-state selector.
+var source_vignette_pending := false
+var _source_vignette_presenting := false
+var _source_vignette_image: Texture2D
+var _source_vignette_milliseconds := 0
+
+func source_vignette_return_to_menu(image: Texture2D, milliseconds: int) -> bool:
+    # Both source operands have already been captured by the compiled caller.
+    # Signed32 nonpositive values queue neither artwork nor menu transition.
+    var duration := milliseconds & 0xffffffff
+    if duration >= 0x80000000: duration -= 0x100000000
+    if duration <= 0: return true
+    if image == null or loading or _initial_transition_pending or not is_instance_valid(level) or _source_vignette_presenting:
+        return false
+    _source_vignette_image = image
+    _source_vignette_milliseconds = duration
+    if not source_vignette_pending:
+        source_vignette_pending = true
+        # Queue before requesting the menu. Consume after the current AI call,
+        # allowing the rest of its frame to publish any final request values.
+        call_deferred("_present_source_vignette")
+    return true
+
+func _present_source_vignette() -> void:
+    if not source_vignette_pending or _source_vignette_presenting: return
+    _source_vignette_presenting = true
+    ready_to_play = false
+    pause_host.call("close_pause")
+    inventory_host.call("close_inventory")
+    if crossbow_aim_mode: set_crossbow_aim_mode(false)
+    for source_brain in level.find_children("Brain", "Node", true, false):
+        source_brain.set("automatic", false)
+        source_brain.call("stop")
+    for body in level.find_children("*", "CharacterBody3D", true, false):
+        body.set_physics_process(false)
+    level.process_mode = Node.PROCESS_MODE_DISABLED
+    demo_camera.set_process(false)
+    demo_camera.set_process_unhandled_input(false)
+    $Hud.hide()
+    for action in InputMap.get_actions():
+        if str(action).begins_with("BT_") or str(action).begins_with("Button_"):
+            Input.action_release(action)
+    vignette_host.connect("completed", _source_vignette_completed, CONNECT_ONE_SHOT)
+    if not bool(vignette_host.call("present", _source_vignette_image, _source_vignette_milliseconds)):
+        push_error("The queued source vignette could not be presented")
+
+func _source_vignette_completed() -> void:
+    _source_vignette_image = null
+    source_vignette_pending = false
+    # The original pending presenter tears down before event4 leaves gameplay.
+    # Reuse the game's established session/menu teardown and destination.
+    leave_session("res://game/bootstrap.tscn")
 
 func source_set_game_state(state_id: int) -> void:
     var state_byte := state_id & 0xff
@@ -697,7 +751,7 @@ func update_opening_status() -> void:
         stage("playable", "Opening complete — explore the manor" if opening_failures.is_empty() else "Opening complete; %d actor behaviors stopped." % opening_failures.size())
 
 func save_game() -> void:
-    if new_game or not ready_to_play or not is_instance_valid(actor):
+    if source_vignette_pending or new_game or not ready_to_play or not is_instance_valid(actor):
         return
     var error: String = SAVE_STATE.write(actor, level)
     status_label.text = "Game saved" if error.is_empty() else error
@@ -780,6 +834,9 @@ func update_crossbow_aim_target() -> void:
     actor.call("source_set_laser_pointer_target", target)
 
 func _unhandled_key_input(event: InputEvent) -> void:
+    if source_vignette_pending:
+        get_viewport().set_input_as_handled()
+        return
     var key := event as InputEventKey
     if key == null or not key.pressed or key.echo:
         return
@@ -800,6 +857,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
         leave_session("res://game/bootstrap.tscn")
 
 func _input(event: InputEvent) -> void:
+    if source_vignette_pending:
+        get_viewport().set_input_as_handled()
+        return
     if source_death_requested:
         var death_key := event as InputEventKey
         if death_key != null and death_key.pressed and not death_key.echo:
@@ -840,10 +900,10 @@ func leave_session(destination: String) -> void:
     get_tree().change_scene_to_file(destination)
 
 func pause_available() -> bool:
-    return ready_to_play and is_instance_valid(actor) and is_instance_valid(level)
+    return not source_vignette_pending and ready_to_play and is_instance_valid(actor) and is_instance_valid(level)
 
 func inventory_available() -> bool:
-    if not ready_to_play or not is_instance_valid(actor) or not is_instance_valid(level): return false
+    if source_vignette_pending or not ready_to_play or not is_instance_valid(actor) or not is_instance_valid(level): return false
     var ui := level.get_node_or_null("AstrolabeUI")
     return ui == null or not ui.get("widescreen")
 

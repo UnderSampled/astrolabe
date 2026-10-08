@@ -72,6 +72,7 @@ fn read(path: &Path) -> Result<Vec<u8>> {
 pub fn import_scene(game: &Path, selection: Selection) -> Result<Imported> {
     let mut imported = Imported::new(selection.clone());
     let mut scene = level::import_scene(game, &selection)?;
+    bind_ai_vignettes(&mut imported, &mut scene.ai_models, game, &selection)?;
     let sound_graph = super::audio::graph::SoundGraph::import(
         game,
         &selection,
@@ -371,6 +372,70 @@ pub fn import_textures(game: &Path, selection: Selection) -> Result<Imported> {
         )?;
     }
     Ok(imported)
+}
+
+/// Resolve presentation artwork as content dependencies before the AI models
+/// are published. Source names remain available for OpenSpace reconstruction.
+fn bind_ai_vignettes(
+    imported: &mut Imported,
+    models: &mut [crate::model::ai::AiModel],
+    game: &Path,
+    selection: &Selection,
+) -> Result<()> {
+    use crate::model::ai::{Statement, walk::AstNode};
+    let requested = models.iter().any(|model| {
+        [&model.normal, &model.reflex].into_iter().flatten()
+            .flat_map(|set| &set.behaviors)
+            .flat_map(|behavior| behavior.rules.iter().flatten().chain(behavior.schedule.iter()))
+            .flat_map(|script| script.walk())
+            .any(|(node, _)| matches!(node, AstNode::Statement(Statement::DisplayVignetteAndReturnToMainMenu { .. })))
+    });
+    if !requested { return Ok(()); }
+    let archive = codec::Cnt { usage: TextureUsage::Screen }
+        .read(&read(&game.join("Gamedata/Vignette.cnt"))?)?;
+    fn bind(
+        statements: &mut [Statement],
+        imported: &mut Imported,
+        archive: &TextureArchive,
+        locale: &str,
+    ) -> Result<()> {
+        for statement in statements {
+            match statement {
+                Statement::If { then, otherwise, .. } => {
+                    bind(then, imported, archive, locale)?;
+                    if let Some(otherwise) = otherwise { bind(otherwise, imported, archive, locale)?; }
+                }
+                Statement::DisplayVignetteAndReturnToMainMenu { name, image, .. } => {
+                    // Original vignette loader inserts the selected language
+                    // after Multilanguage\\ and replaces the source extension.
+                    let normalized = name.replace('\\', "/");
+                    let source = if normalized.to_lowercase().starts_with("multilanguage/") {
+                        ensure!(locale == "en", "vignette language binding requires evidenced English locale");
+                        format!("MultiLanguage/English/{}", &normalized[14..])
+                    } else { normalized };
+                    let source = Path::new(&source).with_extension("gf");
+                    let entry = archive.find_entry(&source.to_string_lossy())
+                        .with_context(|| format!("required AI vignette absent: {name}"))?;
+                    *image = Some(entry.texture.clone());
+                    if !imported.assets.contains(&entry.texture.path) {
+                        imported.put(&entry.texture, archive.image(entry)?.clone(), false)?;
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+    for model in models {
+        for set in [&mut model.normal, &mut model.reflex].into_iter().flatten() {
+            for behavior in &mut set.behaviors {
+                for script in behavior.rules.iter_mut().flatten().chain(behavior.schedule.iter_mut()) {
+                    bind(&mut script.statements, imported, &archive, &selection.locale)?;
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Explicit files support focused conversion. Empty selection imports the supported sound corpus.

@@ -18,6 +18,7 @@ var closing: bool = false
 var fade: Tween
 var voice_player: Node
 var voice_emitter: Node
+var voice_completion: Callable
 var main_speech_emitter: Node
 var active_voice_identity: String = ""
 var active_speech_record: Resource
@@ -87,11 +88,19 @@ func _begin_voice() -> void:
     if is_instance_valid(voice_player):
         var selected_record := active_speech_record
         var generation := _generation
-        voice_player.finished.connect(func():
-            if generation == _generation and is_instance_valid(emitter) and emitter.get("source_dialogue_record") == selected_record:
-                emitter.set("source_dialogue_record", null))
+        voice_completion = _speech_completed.bind(emitter, selected_record, generation, voice_player)
+        emitter.voice_completed.connect(voice_completion)
     else:
         emitter.set("source_dialogue_record", null)
+
+func _speech_completed(info: Dictionary, emitter: Node, record: Resource, generation: int, player: Node) -> void:
+    if info.player != player or generation != _generation: return
+    if is_instance_valid(emitter):
+        if emitter.get("source_dialogue_record") == record:
+            emitter.set("source_dialogue_record", null)
+        if voice_completion.is_valid() and emitter.voice_completed.is_connected(voice_completion):
+            emitter.voice_completed.disconnect(voice_completion)
+    voice_completion = Callable()
 
 func _voice_started(info: Dictionary) -> void:
     if str(info.event) == active_voice_identity: voice_player = info.player
@@ -294,6 +303,9 @@ func _clear_source_text() -> void:
         child.queue_free()
 
 func _stop_voice() -> void:
+    if is_instance_valid(voice_emitter) and voice_completion.is_valid() and voice_emitter.voice_completed.is_connected(voice_completion):
+        voice_emitter.voice_completed.disconnect(voice_completion)
+    voice_completion = Callable()
     if is_instance_valid(voice_emitter) and voice_emitter.get("source_dialogue_record") == active_speech_record:
         voice_emitter.stop_dialogue_speech()
     voice_player = null

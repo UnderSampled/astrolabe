@@ -243,3 +243,99 @@ missing versus allocated-empty span text through source→Rete→native Resource
 last-present-first-span deadlines, strict equality boundaries, MainActor draw
 waiting and final-page owner speech completion. No syntax,
 runtime, timing, lip-sync, pixel or full-Manor acceptance is claimed here.
+
+## Proc307 GameOver follow-on and forced voice completion
+
+The lead requested this small connected follow-on after the first three
+presentation commits. It remains on the same isolated baseline branch. No
+build, compiler, formatter, type/lint check, test, export, Godot, original-game
+or other runtime command was run. Only original source, source asset metadata,
+existing implementation and authored diffs were inspected. No assets were
+written. The provisional branch stamps advance to Rete60/support79; the lead
+must reconcile the unpublished union once before any later content conversion.
+
+Original-engine source commit
+`c208b411a2cd3905369d8515cdcc17358e6f1e2e`, read from the presentation source
+worker, supplies six complete connected bodies in `src/presentation/game_over.c`
+and its own header. Its `research/worker-deltas/sol-manor-presentation-game-over-handoff.md`
+records exact PE/source corroboration. The shared Proc307/308 handler captures
+the procedure, evaluates the string and integer operands in order, and only
+queues a vignette for a strictly positive signed32 second operand. Proc307
+then requests event4. Zero/negative values consume both operands and return
+without either effect. Proc308/305/306 are outside this native follow-on.
+
+The actual Global call is Fix AI model1, physical Normal member **2**, schedule
+node166, string `multilanguage\gameover.bmp`, integer **9000**. This corrects
+the earlier generated-script `Normal0` label; physical member0 has only15
+schedule nodes. The original pending presenter constructs/draws the vignette,
+then waits. Its nonzero argument reaches the untouched WinMM millisecond
+counter through the original timer wait. Elapsed comparison uses wrapping
+unsigned32 subtraction. Initialization is a WORD check, status is AX16, and an
+uninitialized timer returns7fff without waiting; the presenter ignores it.
+The zero-duration input loop exists for direct queue users, but Proc307's
+positive guard cannot reach it. No source fade appears in this chain.
+
+The raw original vignette loader corroborates case-insensitive
+`Multilanguage\` insertion of the selected language and extension replacement.
+Read-only CNT table/GF-header inspection found English, French and German
+`gameover.gf` members, each640×480. The current scene importer already admits
+English only. Its new dependency pass resolves English artwork through the
+existing CNT codec and canonical alias reference. The typed statement retains
+the original string and an optional useful texture reference. Source encoding
+writes the same string/integer operands; Rete retains the semantic binding.
+Native export saves that texture as PNG and preloads it from the compiled AI.
+No source path, pointer, archive record or allocation table is interpreted by
+Godot. Unbound standalone scripts fail only when a positive request is reached;
+noninteger native operands also fail rather than guessing raw union semantics.
+
+The session queues the request after operand capture and consumes it deferred
+after the current AI call, preserving same-frame request replacement. It owns
+the pending/menu route independently of the source game-state selector and
+save state. The native presenter is an instanced CanvasLayer/TextureRect scene,
+with a real millisecond hold starting after the first drawn frame. Gameplay,
+camera and input are frozen during the hold; music remains governed by the
+already executed source music requests. Presentation teardown precedes the
+existing `leave_session(bootstrap)` menu route. Native timer availability is
+assumed; original uninitialized-timer diagnostics and renderer/session driver
+internals are not reconstructed. Exact frame-boundary, viewport stretching,
+menu audio transition and real elapsed timing still require runtime acceptance.
+
+Forced voice cleanup follows the source distinction supplied by the translator.
+The explicit owner helper conditionally kills voice and always clears its
+holder. Bulk request-kill wrappers do not directly clear that holder; source
+speech animation later observes playback completion (-2/-1) and clears it.
+The native emitter now stops players immediately, retaining completion
+ownership until the next SceneTree process-frame. Natural and forced endings
+then use the same guarded callback, with record/player/generation checks.
+Explicit owner stop remains immediate; ordinary stop paths are separate.
+This is a native adaptation for the missing source speech-update completion,
+not a claim that Proc385 synchronously clears an owner record. It also works
+when the death session disables level processing. Cross-worker death calls to
+`kill_all()` can use this path without duplicating holder cleanup.
+
+Read-only inspection of integration `f1afb15` found an added immediate
+`emitter.stop_dialogue_speech()` after `kill_all()` in its retained terminal
+death session (`game_session.gd`, near line74). That was compensating for the
+old missing native finish callback. **Remove that compensating call and its
+two-line comment when integrating this completion adaptation.** The retained
+actor's holder then clears on next-frame completion even though its level is
+disabled. The explicit dialogue API calls elsewhere still use immediate clear.
+`character.gd`'s ordinary kill only calls `kill_all()` and needs no extra clear.
+This branch does not edit the integration or death worker's files.
+
+Rename-aware integration must map this branch's historical `game/demo.gd` and
+`demo.tscn` hunks to accepted `game/game_session.gd` and `game_session.tscn`.
+Do not restore old filenames or overwrite the death worker's independent
+terminal/life logic. Shared typed-model, walker, codec/compiler, content import,
+support/schema and dialogue/audio hunks may conflict with the unpublished
+union. New support files are `ui/vignette.gd`, its UID and native scene; the
+authored session instances that same maintained component. Existing schema
+assertions were changed mechanically only and were not executed.
+
+The next source-only follow-on is the real key resource `keysico_gogood`:
+box5, five flags3 lines, two null-text padding lines, one completion behavior
+to key703 Normal2, no voice and no item/answer icon. Current importer/render
+subset rejects it. The lead and original source translator are tracing its
+actual panel/text geometry and selection-after-page-complete contract before
+any separate implementation. No generic pickup popup or timed hold replaces
+that resource.

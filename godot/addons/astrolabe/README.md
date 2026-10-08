@@ -352,3 +352,16 @@ End closes without a completion callback; level adoption/release cancels both
 presentations immediately. The game session exposes `source_get_game_state()`
 for compiled Func 195, returning selectors 0..8 or null for the source's
 unrepresented combined-mask stale-result case. There is no title load trigger.
+
+`ui/vignette.tscn` presents a converted Texture2D with a positive millisecond
+hold measured after its first drawn frame. Compiled Proc307 queues that image
+on the active game session, which freezes gameplay and returns through its
+existing main-menu route after presentation teardown. Artwork is an AI content
+dependency resolved at source import; runtime does not read the source CNT.
+There is no added fade or zero-duration input-dismiss path for this procedure.
+
+Actor emitter bulk termination reports voice completion on the next native
+frame, through the same guarded dialogue callback as natural playback finish.
+Explicit owner speech stop still clears its record immediately. These distinct
+paths preserve completion ownership without treating bulk request kill as a
+synchronous source holder clear.

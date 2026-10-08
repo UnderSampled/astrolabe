@@ -109,6 +109,10 @@ impl<'a> Iterator for AstWalk<'a> {
                 }
                 | Statement::SetSelfAbsolutePosition(value)
                 | Statement::RunDialog { mode: value, .. }
+                | Statement::DisplayVignetteAndReturnToMainMenu {
+                    milliseconds: value,
+                    ..
+                }
                 | Statement::ScrollDialog(value)
                 | Statement::SetHudVisible { visible: value, .. }
                 | Statement::SetVisualGMTDiffuseCoef { value, .. } => {

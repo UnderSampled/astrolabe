@@ -499,6 +499,20 @@ impl Parser<'_> {
                     duration_seconds: self.expression(indent + 1)?,
                 },
                 (4, 312) => Statement::SetGameState(self.expression(indent + 1)?),
+                (4, 307) => {
+                    let operand = self.at;
+                    let (_, name) = self.take(indent + 1)?;
+                    ensure!(name.kind == 20, "vignette transition requires string operand");
+                    if let Some(name) = self.codec.strings.get(&operand).cloned() {
+                        Statement::DisplayVignetteAndReturnToMainMenu {
+                            name,
+                            milliseconds: self.expression(indent + 1)?,
+                            image: None,
+                        }
+                    } else {
+                        Statement::Unsupported(self.unsupported(at, "unbound vignette name".into())?)
+                    }
+                }
                 (4, 317) => Statement::SetFadeValue(self.expression(indent + 1)?),
                 (4, 318) => Statement::SetFadeTexture(self.expression(indent + 1)?),
                 (4, 319) => Statement::ActivateFade,
@@ -2478,6 +2492,22 @@ impl Writer<'_> {
                         .1;
                     self.node(20, handle, indent + 1);
                     self.expression(mode, indent + 1)?;
+                }
+                Statement::DisplayVignetteAndReturnToMainMenu {
+                    name,
+                    milliseconds,
+                    ..
+                } => {
+                    self.node(4, 307, indent);
+                    let handle = self
+                        .codec
+                        .string_handles
+                        .iter()
+                        .find(|(candidate, _)| candidate == name)
+                        .context("missing vignette name handle")?
+                        .1;
+                    self.node(20, handle, indent + 1);
+                    self.expression(milliseconds, indent + 1)?;
                 }
                 Statement::ScrollDialog(direction) => {
                     self.node(4, 326, indent);

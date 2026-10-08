@@ -321,6 +321,15 @@ pub enum Statement {
     /// Proc_SetGameState writes one selector into the game-wide source byte.
     /// The native session owns the resulting mask across level changes.
     SetGameState(Expression),
+    /// Proc307 queues converted vignette artwork, then requests the main menu.
+    /// Only a strictly positive signed32 millisecond operand has an effect.
+    DisplayVignetteAndReturnToMainMenu {
+        name: String,
+        milliseconds: Expression,
+        /// Resolved by content import, including source language selection and
+        /// CNT sharing. A standalone script may leave artwork unbound.
+        image: Option<AssetRef<super::texture::Texture>>,
+    },
     /// Proc_ActivateObject and Proc_DeactivateObject mutate the source object
     /// active bit on this referenced Perso. This state is separate from draw
     /// visibility and actor AI activation.
@@ -1339,6 +1348,19 @@ impl AiModel {
         }
         out
     }
+    pub fn vignette_images(&self) -> Vec<&AssetRef<super::texture::Texture>> {
+        self.scripts()
+            .into_iter()
+            .flat_map(Script::walk)
+            .filter_map(|(node, _)| match node {
+                AstNode::Statement(Statement::DisplayVignetteAndReturnToMainMenu {
+                    image: Some(image),
+                    ..
+                }) => Some(image),
+                _ => None,
+            })
+            .collect()
+    }
 }
 impl DesignerValue {
     pub fn state_references(&self) -> Vec<&StateRef> {
@@ -1774,6 +1796,24 @@ impl Script {
                             "invalid dialogue identity"
                         );
                         expression(mode, variables, depth + 1, count)?;
+                    }
+                    Statement::DisplayVignetteAndReturnToMainMenu {
+                        name,
+                        milliseconds,
+                        image,
+                    } => {
+                        ensure!(
+                            !name.is_empty() && !name.contains('\0'),
+                            "invalid vignette identity"
+                        );
+                        if let Some(image) = image {
+                            ensure!(image.path.member().is_none(), "vignette image is a member");
+                            ensure!(
+                                image.path.role() == super::PackageRole::Texture,
+                                "vignette image is not a texture"
+                            );
+                        }
+                        expression(milliseconds, variables, depth + 1, count)?;
                     }
                     Statement::ChangeConfiguration(value) => {
                         ensure!(
