@@ -40,9 +40,12 @@ func run() -> void:
 	}
 	for name in image_limits:
 		var slider := settings.get_node_or_null("Canvas/ImagesPage/" + name) as VSlider
+		var artwork := settings.get_node_or_null("Canvas/ImagesPage/" + name + "Artwork") as TextureRect
 		var limits: Vector2 = image_limits[name]
 		if slider == null or slider.min_value != limits.x or slider.max_value != limits.y:
 			missing.append("source-scale %s image slider" % name)
+		if artwork == null:
+			missing.append("%s source label artwork" % name)
 	for action in ["Button_Left", "Button_Right", "Button_Up", "Button_Down", "Button_Hit"]:
 		if settings.get_node_or_null("Canvas/ControlsPage/Binding_" + action) == null:
 			missing.append("%s binding" % action)
@@ -156,6 +159,67 @@ func run() -> void:
 	if test_wave == null or not test_wave.stereo or test_wave.format != AudioStreamWAV.FORMAT_16_BITS:
 		fail("Stereo Test did not create native stereo PCM")
 		return
+	var tone_frame_offset := 4
+	if test_wave.data.decode_s16(tone_frame_offset) != 0 or test_wave.data.decode_s16(tone_frame_offset + 2) == 0:
+		fail("Stereo Test did not honor the enabled channel reversal")
+		return
+	var stereo_test_finished := {"value": false}
+	test_player.finished.connect(func(): stereo_test_finished["value"] = true)
+	await create_timer(1.0).timeout
+	if not bool(stereo_test_finished["value"]):
+		fail("Stereo Test tone did not finish and release its playback")
+		return
+
+	# Confirm saved settings reach disk, then survive closing and reopening the route.
+	preferences.call("set_image_setting", "shadow_quality", 2.0)
+	preferences.call("set_image_setting", "screen_framing", 80.0)
+	preferences.call("set_image_setting", "texture_quality", 0.5)
+	preferences.call("set_reverse_stereo", true)
+	var saved := ConfigFile.new()
+	if saved.load("user://hype-settings.cfg") != OK:
+		fail("Settings were not saved to user://hype-settings.cfg")
+		return
+	if int(saved.get_value("video", "shadow_quality", -1)) != 2 or int(saved.get_value("video", "screen_framing", -1)) != 80 or absf(float(saved.get_value("video", "texture_quality", -1.0)) - 0.5) > 0.001 or not bool(saved.get_value("audio", "reverse_stereo", false)):
+		fail("Image and stereo preferences did not persist their values")
+		return
+
+	if not await _close_route(settings):
+		fail("Back did not close the first settings route")
+		return
+	preferences.queue_free()
+	await process_frame
+	var preferences_script := load("res://game/user_settings.gd") as Script
+	var reloaded_preferences := preferences_script.new() as Node if preferences_script != null else null
+	if reloaded_preferences == null:
+		fail("UserSettings could not be recreated to verify on-disk reload")
+		return
+	reloaded_preferences.name = "UserSettings"
+	root.add_child(reloaded_preferences)
+	await process_frame
+	preferences = reloaded_preferences
+	if int(preferences.call("get_image_setting", "shadow_quality")) != 2 or int(preferences.call("get_image_setting", "screen_framing")) != 80 or absf(float(preferences.call("get_image_setting", "texture_quality")) - 0.5) > 0.001 or not bool(preferences.call("get_reverse_stereo")):
+		fail("UserSettings did not reload Image/Stereo preferences from disk")
+		return
+	for cycle in range(2):
+		var reopened := packed.instantiate() as Control
+		if reopened == null:
+			fail("Settings route did not reopen on cycle %d" % cycle)
+			return
+		root.add_child(reopened)
+		await process_frame
+		var reopened_shadow := reopened.get_node("Canvas/ImagesPage/Graphic") as VSlider
+		var reopened_framing := reopened.get_node("Canvas/ImagesPage/Screen") as VSlider
+		var reopened_texture := reopened.get_node("Canvas/ImagesPage/Textures") as VSlider
+		var reopened_reverse := reopened.get_node("Canvas/SoundPage/ReverseStereo") as Button
+		if reopened_shadow == null or reopened_framing == null or reopened_texture == null or reopened_reverse == null:
+			fail("Reopened settings controls were missing on cycle %d" % cycle)
+			return
+		if int(reopened_shadow.value) != 2 or int(reopened_framing.value) != 80 or absf(reopened_texture.value - 0.5) > 0.001 or not reopened_reverse.button_pressed:
+			fail("Saved Image/Stereo values did not reload on cycle %d" % cycle)
+			return
+		if not await _close_route(reopened):
+			fail("Back did not close settings route on cycle %d" % cycle)
+			return
 
 	preferences.call("set_image_setting", "shadow_quality", old_shadow)
 	preferences.call("set_image_setting", "screen_framing", old_framing)
@@ -165,13 +229,26 @@ func run() -> void:
 	camera.queue_free()
 	mesh.queue_free()
 	player.queue_free()
+	var stereo_player := root.get_node_or_null("StereoTestPlayer") as AudioStreamPlayer
+	if stereo_player != null:
+		stereo_player.stop()
+		stereo_player.queue_free()
+	preferences.queue_free()
+	call_deferred("_finish")
+
+func _close_route(settings: Control) -> bool:
 	var closed := {"value": false}
-	settings.closed.connect(func(): closed["value"] = true)
+	settings.closed.connect(func():
+		closed["value"] = true
+		settings.queue_free()
+	)
 	(settings.get_node("Canvas/Back") as Button).pressed.emit()
-	if not bool(closed["value"]):
-		fail("Back did not emit the route's closed signal")
-		return
-	print("SETTINGS ROUTE SMOKE: menu API, source sliders, native image effects, PCM stereo actions and Back signaling passed")
+	await process_frame
+	return bool(closed["value"]) and not is_instance_valid(settings)
+
+func _finish() -> void:
+	await process_frame
+	print("SETTINGS ROUTE SMOKE: source controls, image effects/persistence, PCM stereo actions, and three open/close cycles passed")
 	quit(0)
 
 func fail(message: String) -> void:

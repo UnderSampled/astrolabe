@@ -534,7 +534,12 @@ fn configuration_scene(
     {
         let item = *item;
         let label = *label;
-        append_configuration_label(&mut text, item, "Canvas/ImagesPage", label)?;
+        append_configuration_label(
+            &mut text,
+            item,
+            "Canvas/ImagesPage",
+            &format!("{label}Artwork"),
+        )?;
         let center_x = item.position[0];
         let setting = match label {
             "Graphic" => "shadow_quality",
@@ -847,6 +852,9 @@ mod tests {
                     && configuration_text.contains("metadata/native_setting = \"shadow_quality\"")
                     && configuration_text.contains("metadata/native_setting = \"screen_framing\"")
                     && configuration_text.contains("metadata/native_setting = \"texture_quality\"")
+                    && configuration_text.contains("name=\"GraphicArtwork\" type=\"TextureRect\"")
+                    && configuration_text.contains("name=\"ScreenArtwork\" type=\"TextureRect\"")
+                    && configuration_text.contains("name=\"TexturesArtwork\" type=\"TextureRect\"")
                     && configuration_text.contains("name=\"StereoTest\" type=\"Button\"")
                     && configuration_text.contains("name=\"ReverseStereo\" type=\"Button\"")
                     && configuration_text.contains("Source viewport crop mapped to perspective camera field of view")
@@ -881,7 +889,7 @@ mod tests {
                     .any(|path| path.ends_with(".credits.png")),
                 project
                     .builder
-                    .contains("ui_font.set_font_name(\"Playmo_Font2_0\")"),
+                    .contains("ui_font_0.set_font_name(\"Playmo_Font2_0\")"),
             ];
             ensure!(
                 credits_checks.into_iter().all(|check| check),
