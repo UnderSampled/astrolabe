@@ -12,6 +12,10 @@ reconciles missing evidence. The [save/AI research catalogue](save-ai-gap-catalo
 retains source traces with a current integration-status override, rather than
 replaying its old worker queue.
 
+The [actor Brain save helper disposition](actor-brain-save-helper-disposition-2026-10-08.md)
+accounts for `f21a7fc`, its existing production-slot equivalents and replacement
+fresh-process/atomicity regression without adding unsupported saved fields.
+
 The [Manor intro integration wrap-up](intro-integration-wrapup-2026-10-08.md)
 records the rebuilt actual root game, bounded startup results, critical armor
 and camera blockers, parked peer commits and the proposed next steps.

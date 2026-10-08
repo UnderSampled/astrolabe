@@ -3076,6 +3076,22 @@
       "release": true
     },
     {
+      "binary": "godot-harness::actor_world_save_state",
+      "test": "actor_brain_state_survives_fresh_process_reload",
+      "areas": [
+        "runtime",
+        "save"
+      ],
+      "kind": "process",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "synthetic actors and packaged production native-slot API; no game data",
+      "timeout_seconds": 25,
+      "ignored": false,
+      "release": true
+    },
+    {
       "binary": "godot-harness::save_persistence",
       "test": "native_manor_save_survives_fresh_process_and_rejects_bad_slots",
       "areas": [
