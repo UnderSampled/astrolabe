@@ -7,6 +7,20 @@ const BUSES := {
 	"Effects": "Astrolabe Effects",
 	"Voices": "Astrolabe Voice",
 }
+const IMAGE_DEFAULTS := {
+    "shadow_quality": 4,
+    "screen_framing": 100,
+    "texture_quality": 1.0,
+}
+const ORIGINAL_SHADOW_META := &"astrolabe_settings_original_shadow_enabled"
+const ORIGINAL_FOV_META := &"astrolabe_settings_original_fov"
+const ORIGINAL_SIZE_META := &"astrolabe_settings_original_camera_size"
+const ORIGINAL_OVERRIDE_META := &"astrolabe_settings_original_material_override"
+const FILTERED_OVERRIDE_META := &"astrolabe_settings_filtered_material_override"
+const AUDIO_ORIGINAL_META := &"astrolabe_settings_original_audio_stream"
+const LIGHT_SETTINGS_GROUP := &"astrolabe_settings_lights"
+const CAMERA_SETTINGS_GROUP := &"astrolabe_settings_cameras"
+const MESH_SETTINGS_GROUP := &"astrolabe_settings_meshes"
 const CONTROL_ACTIONS := [
 	{"action": "Button_Left", "label": "Move Left", "default_key": KEY_LEFT},
 	{"action": "Button_Right", "label": "Move Right", "default_key": KEY_RIGHT},
@@ -18,9 +32,13 @@ const RESERVED_KEYS := [KEY_ESCAPE, KEY_TAB, KEY_F5, KEY_R]
 const PAD_AXIS_CAPTURE_THRESHOLD := 0.65
 
 var values: Dictionary = {"Music": 1.0, "Effects": 1.0, "Voices": 1.0}
+var image_values: Dictionary = IMAGE_DEFAULTS.duplicate(true)
 var keyboard_bindings: Dictionary = {}
 var controller_bindings: Dictionary = {}
+var reverse_stereo := false
 var _aim_mode := false
+var _reversed_audio_cache: Dictionary = {}
+var _stereo_test_player: AudioStreamPlayer
 
 func _ready() -> void:
 	for bus_name in BUSES.values():
@@ -30,8 +48,15 @@ func _ready() -> void:
 	if file.load(FILE_PATH) == OK:
 		for group in BUSES:
 			values[group] = clampf(float(file.get_value("audio", group, 1.0)), 0.0, 1.0)
+		reverse_stereo = bool(file.get_value("audio", "reverse_stereo", false))
+		image_values["shadow_quality"] = clampi(int(file.get_value("video", "shadow_quality", IMAGE_DEFAULTS.shadow_quality)), 0, 4)
+		image_values["screen_framing"] = clampi(int(file.get_value("video", "screen_framing", IMAGE_DEFAULTS.screen_framing)), 60, 100)
+		image_values["texture_quality"] = clampf(float(file.get_value("video", "texture_quality", IMAGE_DEFAULTS.texture_quality)), 0.0, 1.0)
 		_load_control_bindings(file)
+	get_tree().node_added.connect(_on_node_added)
 	_apply()
+	_apply_image_settings_to_tree(get_tree().root)
+	_apply_reverse_stereo_to_tree(get_tree().root)
 
 func get_volume(group: String) -> float:
 	return float(values.get(group, 1.0))
@@ -49,6 +74,53 @@ func reset_audio() -> void:
 		values[group] = 1.0
 	_apply()
 	_save()
+
+func get_image_setting(name: String) -> float:
+	return float(image_values.get(name, IMAGE_DEFAULTS.get(name, 0.0)))
+
+func set_image_setting(name: String, value: float) -> void:
+	if not IMAGE_DEFAULTS.has(name):
+		return
+	match name:
+		"shadow_quality":
+			image_values[name] = clampi(roundi(value), 0, 4)
+		"screen_framing":
+			image_values[name] = clampi(roundi(value), 60, 100)
+		"texture_quality":
+			image_values[name] = clampf(value, 0.0, 1.0)
+	_apply_image_setting(name)
+	_save()
+
+func get_reverse_stereo() -> bool:
+	return reverse_stereo
+
+func set_reverse_stereo(enabled: bool) -> void:
+	reverse_stereo = enabled
+	_apply_reverse_stereo_to_tree(get_tree().root)
+	_save()
+
+## Plays a native left-then-right channel check through the same Effects bus as
+## menu/game sounds. The original menu points at an external stereo-test event.
+func play_stereo_test() -> bool:
+	if is_instance_valid(_stereo_test_player):
+		_stereo_test_player.stop()
+		_stereo_test_player.queue_free()
+	var player := AudioStreamPlayer.new()
+	player.name = "StereoTestPlayer"
+	player.bus = BUSES["Effects"]
+	var stream := _make_stereo_test_stream()
+	player.set_meta(AUDIO_ORIGINAL_META, stream)
+	player.stream = _reversed_stream(stream) if reverse_stereo else stream
+	_stereo_test_player = player
+	get_tree().root.add_child(player)
+	player.finished.connect(func():
+		if is_instance_valid(player):
+			player.queue_free()
+		if _stereo_test_player == player:
+			_stereo_test_player = null
+	)
+	player.play()
+	return true
 
 func get_control_actions() -> Array:
 	return CONTROL_ACTIONS.duplicate(true)
@@ -225,6 +297,197 @@ func _apply_group(group: String) -> void:
 		return
 	AudioServer.set_bus_volume_db(index, linear_to_db(maxf(float(values[group]), 0.000001)))
 
+func _on_node_added(node: Node) -> void:
+	# Wait until the instanced scene has finished assigning exported properties.
+	call_deferred("_apply_settings_to_node", node)
+
+func _apply_settings_to_node(node: Node) -> void:
+	if not is_instance_valid(node) or not node.is_inside_tree():
+		return
+	_register_image_settings_node(node)
+	_apply_image_settings_to_node(node)
+	_apply_reverse_stereo_to_node(node)
+
+func _apply_image_settings_recursive(node: Node) -> void:
+	_register_image_settings_node(node)
+	_apply_image_settings_to_node(node)
+	for child in node.get_children():
+		_apply_image_settings_recursive(child)
+
+func _apply_image_settings_to_node(node: Node) -> void:
+	if node is Light3D:
+		_apply_shadow_to_light(node as Light3D)
+	elif node is Camera3D:
+		_apply_screen_framing(node as Camera3D)
+	elif node is MeshInstance3D:
+		_apply_texture_filter(node as MeshInstance3D)
+
+func _register_image_settings_node(node: Node) -> void:
+	if node is Light3D and not node.is_in_group(LIGHT_SETTINGS_GROUP):
+		node.add_to_group(LIGHT_SETTINGS_GROUP)
+	elif node is Camera3D and not node.is_in_group(CAMERA_SETTINGS_GROUP):
+		node.add_to_group(CAMERA_SETTINGS_GROUP)
+	elif node is MeshInstance3D and not node.is_in_group(MESH_SETTINGS_GROUP):
+		node.add_to_group(MESH_SETTINGS_GROUP)
+
+func _apply_shadow_to_light(light: Light3D) -> void:
+	if not light.has_meta(ORIGINAL_SHADOW_META):
+		var source_shadow_enabled := light.shadow_enabled
+		var source_wrapper := light.get_parent()
+		if source_wrapper != null and source_wrapper.has_meta("source_light") and not light.light_negative:
+			source_shadow_enabled = true
+		light.set_meta(ORIGINAL_SHADOW_META, source_shadow_enabled)
+	light.shadow_enabled = bool(light.get_meta(ORIGINAL_SHADOW_META)) and int(image_values.shadow_quality) > 0
+
+func _apply_screen_framing(camera: Camera3D) -> void:
+	var source_crop := clampf((2.0 * float(image_values.screen_framing) - 100.0) / 100.0, 0.2, 1.0)
+	if camera.projection == Camera3D.PROJECTION_PERSPECTIVE:
+		if not camera.has_meta(ORIGINAL_FOV_META):
+			camera.set_meta(ORIGINAL_FOV_META, camera.fov)
+		var base_fov := deg_to_rad(float(camera.get_meta(ORIGINAL_FOV_META)))
+		camera.fov = clampf(rad_to_deg(2.0 * atan(tan(base_fov * 0.5) * source_crop)), 1.0, 179.0)
+	elif camera.projection == Camera3D.PROJECTION_ORTHOGONAL or camera.projection == Camera3D.PROJECTION_FRUSTUM:
+		if not camera.has_meta(ORIGINAL_SIZE_META):
+			camera.set_meta(ORIGINAL_SIZE_META, camera.size)
+		camera.size = float(camera.get_meta(ORIGINAL_SIZE_META)) * source_crop
+
+func _apply_texture_filter(mesh: MeshInstance3D) -> void:
+	var filter_quality := clampi(roundi(float(image_values.texture_quality) * 5.0), 0, 5)
+	if not mesh.has_meta(ORIGINAL_OVERRIDE_META):
+		mesh.set_meta(ORIGINAL_OVERRIDE_META, mesh.material_override)
+	var source_override: Variant = mesh.get_meta(ORIGINAL_OVERRIDE_META)
+	if source_override is BaseMaterial3D:
+		var filtered: Variant = mesh.get_meta(FILTERED_OVERRIDE_META) if mesh.has_meta(FILTERED_OVERRIDE_META) else null
+		if not filtered is BaseMaterial3D:
+			filtered = (source_override as BaseMaterial3D).duplicate()
+			mesh.set_meta(FILTERED_OVERRIDE_META, filtered)
+		(filtered as BaseMaterial3D).texture_filter = filter_quality
+		mesh.material_override = filtered as Material
+		return
+	if source_override != null or mesh.mesh == null:
+		return
+	for surface in mesh.mesh.get_surface_count():
+		var original_key := StringName("astrolabe_settings_original_surface_%d" % surface)
+		var filtered_key := StringName("astrolabe_settings_filtered_surface_%d" % surface)
+		if not mesh.has_meta(original_key):
+			mesh.set_meta(original_key, mesh.get_active_material(surface))
+		var source_material: Variant = mesh.get_meta(original_key)
+		if not source_material is BaseMaterial3D:
+			continue
+		var filtered_material: Variant = mesh.get_meta(filtered_key) if mesh.has_meta(filtered_key) else null
+		if not filtered_material is BaseMaterial3D:
+			filtered_material = (source_material as BaseMaterial3D).duplicate()
+			mesh.set_meta(filtered_key, filtered_material)
+		(filtered_material as BaseMaterial3D).texture_filter = filter_quality
+		mesh.set_surface_override_material(surface, filtered_material as Material)
+
+func _apply_image_settings_to_tree_quality() -> void:
+	var source_quality := int(image_values.shadow_quality)
+	var filter_quality := RenderingServer.SHADOW_QUALITY_HARD
+	match source_quality:
+		2: filter_quality = RenderingServer.SHADOW_QUALITY_SOFT_VERY_LOW
+		3: filter_quality = RenderingServer.SHADOW_QUALITY_SOFT_LOW
+		4: filter_quality = RenderingServer.SHADOW_QUALITY_SOFT_HIGH
+	RenderingServer.directional_soft_shadow_filter_set_quality(filter_quality)
+	RenderingServer.positional_soft_shadow_filter_set_quality(filter_quality)
+
+func _apply_image_settings_to_tree(root_node: Node) -> void:
+	_apply_image_settings_to_tree_quality()
+	_apply_image_settings_recursive(root_node)
+
+func _apply_image_setting(name: String) -> void:
+	var group: StringName
+	match name:
+		"shadow_quality":
+			_apply_image_settings_to_tree_quality()
+			group = LIGHT_SETTINGS_GROUP
+		"screen_framing":
+			group = CAMERA_SETTINGS_GROUP
+		"texture_quality":
+			group = MESH_SETTINGS_GROUP
+		for node in get_tree().get_nodes_in_group(group):
+			_apply_image_settings_to_node(node)
+
+func _apply_reverse_stereo_to_tree(root_node: Node) -> void:
+	_apply_reverse_stereo_recursive(root_node)
+
+func _apply_reverse_stereo_recursive(node: Node) -> void:
+	_apply_reverse_stereo_to_node(node)
+	for child in node.get_children():
+		_apply_reverse_stereo_recursive(child)
+
+func _apply_reverse_stereo_to_node(node: Node) -> void:
+	if not (node is AudioStreamPlayer or node is AudioStreamPlayer2D or node is AudioStreamPlayer3D):
+		return
+	var player := node
+	if not player.has_meta(AUDIO_ORIGINAL_META):
+		player.set_meta(AUDIO_ORIGINAL_META, player.get("stream"))
+	var original: Variant = player.get_meta(AUDIO_ORIGINAL_META)
+	if not reverse_stereo or original == null:
+		_set_player_stream(player, original as AudioStream)
+		return
+	var reversed := _reversed_stream(original as AudioStream)
+	_set_player_stream(player, reversed if reversed != null else original as AudioStream)
+
+func _set_player_stream(player: Node, stream: AudioStream) -> void:
+	if player.get("stream") == stream:
+		return
+	var resume := bool(player.call("is_playing"))
+	var playback_position := float(player.call("get_playback_position")) if resume else 0.0
+	player.call("stop")
+	player.set("stream", stream)
+	if resume:
+		player.call("play", playback_position)
+
+func _reversed_stream(stream: AudioStream) -> AudioStreamWAV:
+	if not stream is AudioStreamWAV:
+		return null
+	var original := stream as AudioStreamWAV
+	if not original.stereo or not [AudioStreamWAV.FORMAT_8_BITS, AudioStreamWAV.FORMAT_16_BITS].has(original.format):
+		return null
+	var key := original.get_instance_id()
+	if _reversed_audio_cache.has(key):
+		return _reversed_audio_cache[key] as AudioStreamWAV
+	var bytes := original.data
+	var sample_bytes := 1 if original.format == AudioStreamWAV.FORMAT_8_BITS else 2
+	var frame_bytes := sample_bytes * 2
+	if bytes.is_empty() or bytes.size() % frame_bytes != 0:
+		return null
+	for frame_offset in range(0, bytes.size(), frame_bytes):
+		for sample_offset in sample_bytes:
+			var left_index := frame_offset + sample_offset
+			var right_index := frame_offset + sample_bytes + sample_offset
+			var left_byte := bytes[left_index]
+			bytes[left_index] = bytes[right_index]
+			bytes[right_index] = left_byte
+	var copy := original.duplicate() as AudioStreamWAV
+	copy.data = bytes
+	_reversed_audio_cache[key] = copy
+	return copy
+
+func _make_stereo_test_stream() -> AudioStreamWAV:
+	const RATE := 22050
+	const TONE_FRAMES := 6615 # 300 ms per channel
+	const GAP_FRAMES := 2205 # 100 ms between channels
+	var data := PackedByteArray()
+	data.resize((TONE_FRAMES * 2 + GAP_FRAMES) * 4)
+	for frame in TONE_FRAMES * 2 + GAP_FRAMES:
+		var left := 0
+		var right := 0
+		if frame < TONE_FRAMES:
+			left = roundi(sin(TAU * 440.0 * float(frame) / RATE) * 12000.0)
+		elif frame >= TONE_FRAMES + GAP_FRAMES:
+			right = roundi(sin(TAU * 440.0 * float(frame - TONE_FRAMES - GAP_FRAMES) / RATE) * 12000.0)
+		var offset := frame * 4
+		data.encode_s16(offset, left)
+		data.encode_s16(offset + 2, right)
+	var stream := AudioStreamWAV.new()
+	stream.format = AudioStreamWAV.FORMAT_16_BITS
+	stream.stereo = true
+	stream.mix_rate = RATE
+	stream.data = data
+	return stream
+
 func _ensure_bus(bus_name: String) -> void:
 	if AudioServer.get_bus_index(bus_name) >= 0:
 		return
@@ -237,6 +500,9 @@ func _save() -> bool:
 	var file := ConfigFile.new()
 	for group in BUSES:
 		file.set_value("audio", group, values[group])
+	file.set_value("audio", "reverse_stereo", reverse_stereo)
+	for setting in IMAGE_DEFAULTS:
+		file.set_value("video", setting, image_values[setting])
 	file.set_value("controls", "keyboard", keyboard_bindings)
 	file.set_value("controls", "controller", controller_bindings)
 	var error := file.save(FILE_PATH)

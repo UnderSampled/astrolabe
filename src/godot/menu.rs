@@ -112,7 +112,7 @@ pub(super) fn export(
         format!("{directory}/menu.tscn"),
         scene(project, value, directory)?.as_bytes(),
     )?;
-    project.diagnostic(format!("{}: English source layout/actions/navigation exported as editable native Controls; original normal/glow artwork baked ahead of runtime; Sound settings use persistent native sliders and Controls map the five playable actions to keyboard or generic Godot joypad events",value.path));
+    project.diagnostic(format!("{}: English source layout/actions/navigation exported as editable native Controls; original normal/glow artwork baked ahead of runtime; Sound settings include persistent native volume controls and stereo actions, Images maps source shadow/framing/texture controls to documented Godot equivalents, and Controls map the five playable actions to keyboard or generic Godot joypad events",value.path));
     Ok(())
 }
 
@@ -403,8 +403,12 @@ fn configuration_scene(
         (find("DisplayWithSound", "sound")?, "Effects"),
         (find("DisplayWithSound", "voices")?, "Voices"),
     ];
-    // Source ImageSlider1/2/3 are shadow quality, camera-to-viewport adjustment,
-    // and OpenSpace texture swapping. No direct Godot equivalent is verified.
+    let stereo_rows = [
+        find("DisplayWithSound", "stereo test")?,
+        find("DisplayWithSound", "reverse stereo")?,
+    ];
+    // The port maps the source's renderer controls to native Godot equivalents:
+    // shadow filtering, perspective framing, and material texture filtering.
     let image_rows = [
         (find("DisplayWithImage", "graphic")?, "Graphic"),
         (find("DisplayWithImage", "screen")?, "Screen"),
@@ -419,7 +423,8 @@ fn configuration_scene(
         "Images" | "Controls" | "Sound" => initial.action.as_str(),
         action => anyhow::bail!("unsupported source configuration initial action {action}"),
     };
-    let ext_count = 2 + 1 + tabs.len() * 2 + sound_rows.len() + image_rows.len();
+    let ext_count =
+        2 + 1 + tabs.len() * 2 + sound_rows.len() + stereo_rows.len() * 2 + image_rows.len();
     let load_steps = ext_count + 2; // one material subresource and the scene itself
     let mut text = format!("[gd_scene load_steps={load_steps} format=3]\n\n");
     for (id, kind, path) in [
@@ -459,6 +464,16 @@ fn configuration_scene(
             quoted(&format!("res://{directory}/{}_normal.png", item.name)),
             quoted(&format!("{}_normal", item.name))
         )?;
+    }
+    for item in stereo_rows {
+        for state in ["normal", "selected"] {
+            writeln!(
+                text,
+                "[ext_resource type=\"Texture2D\" path={} id={}]",
+                quoted(&format!("res://{directory}/{}_{state}.png", item.name)),
+                quoted(&format!("{}_{state}", item.name))
+            )?;
+        }
     }
     writeln!(
         text,
@@ -513,16 +528,95 @@ fn configuration_scene(
             quoted(bus)
         )?;
     }
-    for (item, label) in image_rows {
+    let image_ranges = [(0.0, 4.0, 1.0), (60.0, 100.0, 1.0), (0.0, 1.0, 0.01)];
+    for (index, ((item, label), (minimum, maximum, step))) in
+        image_rows.iter().zip(image_ranges).enumerate()
+    {
+        let item = *item;
+        let label = *label;
         append_configuration_label(&mut text, item, "Canvas/ImagesPage", label)?;
+        let center_x = item.position[0];
+        let setting = match label {
+            "Graphic" => "shadow_quality",
+            "Screen" => "screen_framing",
+            _ => "texture_quality",
+        };
+        let tooltip = match label {
+            "Graphic" => "0 disables shadows; 1–4 select Godot shadow filtering quality.",
+            "Screen" => {
+                "Source viewport crop mapped to perspective camera field of view; interface stays full size."
+            }
+            _ => "Godot material filtering approximates the source texture-streaming ratio.",
+        };
+        writeln!(
+            text,
+            "\n[node name={} type=\"VSlider\" parent=\"Canvas/ImagesPage\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = 220.0\noffset_right = {}\noffset_bottom = 338.0\nmin_value = {}\nmax_value = {}\nstep = {}\nvalue = {}\ntooltip_text = {}\nmetadata/source_slider = {}\nmetadata/source_action = \"DisplayWithImage\"\nmetadata/native_setting = {}",
+            quoted(label),
+            center_x - 10.0,
+            center_x + 10.0,
+            minimum,
+            maximum,
+            step,
+            maximum,
+            quoted(tooltip),
+            quoted(&format!("ImageSlider{}", index + 1)),
+            quoted(setting),
+        )?;
+        writeln!(
+            text,
+            "\n[node name={} type=\"Label\" parent=\"Canvas/ImagesPage\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = 341.0\noffset_right = {}\noffset_bottom = 359.0\nhorizontal_alignment = 1\ntext = {}\ntheme_override_font_sizes/font_size = 12",
+            quoted(&format!("{label}Value")),
+            center_x - 27.0,
+            center_x + 27.0,
+            quoted(&maximum.to_string()),
+        )?;
     }
     writeln!(
         text,
-        "\n[node name=\"UnsupportedImageSettings\" type=\"Label\" parent=\"Canvas/ImagesPage\"]\nlayout_mode = 0\noffset_left = 170.0\noffset_top = 356.0\noffset_right = 600.0\noffset_bottom = 410.0\ntext = {}\nautowrap_mode = 3\nhorizontal_alignment = 1\nmetadata/source_actions = \"ImageSlider1,ImageSlider2,ImageSlider3\"",
+        "\n[node name=\"ImageMappingNote\" type=\"Label\" parent=\"Canvas/ImagesPage\"]\nlayout_mode = 0\noffset_left = 192.0\noffset_top = 367.0\noffset_right = 615.0\noffset_bottom = 408.0\ntext = {}\nautowrap_mode = 3\nhorizontal_alignment = 1\ntheme_override_font_sizes/font_size = 11",
         quoted(
-            "Graphic: source shadow quality is not mapped to Godot.\nTextures: source texture swapping is OpenSpace-specific.\nScreen: source camera-to-viewport adjustment (60–100) is not mapped to Godot.",
+            "Godot mapping: source shadow level, camera framing and texture-streaming controls use native render settings; framing and streaming are approximations."
         )
     )?;
+    for (item, node) in stereo_rows.iter().zip(["StereoTest", "ReverseStereo"]) {
+        append_configuration_label(
+            &mut text,
+            item,
+            "Canvas/SoundPage",
+            &format!("{node}Artwork"),
+        )?;
+        let [relative_x, relative_y, width, height] = item.rect;
+        let x = item.position[0] + relative_x;
+        let y = item.position[1] + relative_y;
+        writeln!(
+            text,
+            "\n[node name={} type=\"TextureRect\" parent=\"Canvas/SoundPage\"]\nmaterial = SubResource(\"Additive\")\nlayout_mode = 0\noffset_left = {x}\noffset_top = {y}\noffset_right = {}\noffset_bottom = {}\nmouse_filter = 2\ntexture = ExtResource({})\nexpand_mode = 1\nstretch_mode = 0\nvisible = false",
+            quoted(&format!("{node}Selected")),
+            x + width,
+            y + height,
+            quoted(&format!("{}_selected", item.name)),
+        )?;
+        writeln!(
+            text,
+            "\n[node name={} type=\"Button\" parent=\"Canvas/SoundPage\"]\nlayout_mode = 0\noffset_left = {x}\noffset_top = {y}\noffset_right = {}\noffset_bottom = {}\nflat = true\ntext = \"\"\ntooltip_text = {}\nmetadata/source_action = {}",
+            quoted(node),
+            x + width,
+            y + height,
+            quoted(if node == "StereoTest" {
+                "Play a left-channel then right-channel test tone."
+            } else {
+                "Toggle stereo channel reversal for stereo PCM WAV streams."
+            }),
+            quoted(if node == "StereoTest" {
+                "TestButton"
+            } else {
+                "ReverseButton"
+            }),
+        )?;
+    }
+    text.push_str(
+        "\n[node name=\"StereoStatus\" type=\"Label\" parent=\"Canvas/SoundPage\"]\nlayout_mode = 0\noffset_left = 370.0\noffset_top = 386.0\noffset_right = 620.0\noffset_bottom = 413.0\nautowrap_mode = 3\ntheme_override_font_sizes/font_size = 12",
+    );
     writeln!(
         text,
         "\n[node name=\"Back\" type=\"Button\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_left = 32.0\noffset_top = 424.0\noffset_right = 180.0\noffset_bottom = 464.0\ntext = \"Back\"\ntheme_override_colors/font_color = Color(1, 1, 1, 1)\ntheme_override_colors/font_focus_color = Color(1, 1, 1, 1)\ntheme_override_colors/font_hover_color = Color(1, 1, 1, 1)\ntheme_override_colors/font_pressed_color = Color(1, 1, 1, 1)\ntheme_override_font_sizes/font_size = 16\nfocus_neighbor_top = NodePath(\"../TabSound\")"
@@ -742,13 +836,22 @@ mod tests {
                 .join("generated/hype/shared/menu/configuration/en/menu.tscn");
             let configuration_text = std::fs::read_to_string(configuration_scene)?;
             ensure!(
-                configuration_text.matches(" type=\"VSlider\"").count() == 3
-                    && configuration_text.matches(" type=\"Button\"").count() == 4
+                configuration_text.matches(" type=\"VSlider\"").count() == 6
+                    && configuration_text.matches(" type=\"Button\"").count() == 6
                     && configuration_text.contains("initial_page = &\"Images\"")
                     && configuration_text.contains("theme_override_font_sizes/font_size = 16")
                     && configuration_text.contains("metadata/source_slider = \"SoundSlider1\"")
-                    && configuration_text.contains("ImageSlider1,ImageSlider2,ImageSlider3")
-                    && configuration_text.contains("camera-to-viewport adjustment")
+                    && configuration_text.contains("metadata/source_slider = \"ImageSlider1\"")
+                    && configuration_text.contains("metadata/source_slider = \"ImageSlider2\"")
+                    && configuration_text.contains("metadata/source_slider = \"ImageSlider3\"")
+                    && configuration_text.contains("metadata/native_setting = \"shadow_quality\"")
+                    && configuration_text.contains("metadata/native_setting = \"screen_framing\"")
+                    && configuration_text.contains("metadata/native_setting = \"texture_quality\"")
+                    && configuration_text.contains("name=\"StereoTest\" type=\"Button\"")
+                    && configuration_text.contains("name=\"ReverseStereo\" type=\"Button\"")
+                    && configuration_text.contains("Source viewport crop mapped to perspective camera field of view")
+                    && configuration_text.contains("Godot material filtering approximates the source texture-streaming ratio")
+                    && !configuration_text.contains("UnsupportedImageSettings")
                     && configuration_text.contains("metadata/native_mapping_scope = \"Button_Left,Button_Right,Button_Up,Button_Down,Button_Hit\"")
                     && configuration_text.contains("source Paddle/Joystick hardware modes are not emulated")
                     && !configuration_text.contains("UnsupportedControls")

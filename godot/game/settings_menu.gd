@@ -9,8 +9,10 @@ var control_mode := "Keyboard"
 var capture_action := ""
 var binding_buttons: Dictionary = {}
 var control_status: Label
+var stereo_status: Label
 var keyboard_mode_button: Button
 var controller_mode_button: Button
+var reverse_stereo_button: Button
 
 func _ready() -> void:
 	resized.connect(_fit)
@@ -24,11 +26,26 @@ func _ready() -> void:
 			return
 		preferences.name = "UserSettings"
 		get_tree().root.add_child(preferences)
+	for pair in [["Graphic", "shadow_quality"], ["Screen", "screen_framing"], ["Textures", "texture_quality"]]:
+		var slider := $Canvas/ImagesPage.get_node(pair[0]) as VSlider
+		slider.value = float(preferences.call("get_image_setting", pair[1]))
+		slider.value_changed.connect(_set_image_setting.bind(pair[1], pair[0]))
+		_update_image_value(pair[0], slider.value)
 	_build_controls_page()
 	for group: String in ["Music", "Effects", "Voices"]:
 		var slider := $Canvas/SoundPage/Audio.get_node(group) as VSlider
 		slider.value = float(preferences.call("get_volume", group)) * 127.0
 		slider.value_changed.connect(_set_volume.bind(group))
+	stereo_status = $Canvas/SoundPage/StereoStatus as Label
+	var test_stereo_button := $Canvas/SoundPage/StereoTest as Button
+	test_stereo_button.pressed.connect(_play_stereo_test)
+	_connect_source_action_art("StereoTest")
+	reverse_stereo_button = $Canvas/SoundPage/ReverseStereo as Button
+	reverse_stereo_button.toggle_mode = true
+	reverse_stereo_button.button_pressed = bool(preferences.call("get_reverse_stereo"))
+	reverse_stereo_button.pressed.connect(_toggle_reverse_stereo)
+	_connect_source_action_art("ReverseStereo")
+	_refresh_stereo_status()
 	$Canvas/TabImages.pressed.connect(_show_page.bind(&"Images"))
 	$Canvas/TabControls.pressed.connect(_show_page.bind(&"Controls"))
 	$Canvas/TabSound.pressed.connect(_show_page.bind(&"Sound"))
@@ -64,6 +81,50 @@ func close() -> void:
 
 func _set_volume(value: float, group: String) -> void:
 	preferences.call("set_volume", group, value)
+
+func _set_image_setting(value: float, setting: String, control: String) -> void:
+	preferences.call("set_image_setting", setting, value)
+	_update_image_value(control, value)
+
+func _update_image_value(control: String, value: float) -> void:
+	var label := $Canvas/ImagesPage.get_node_or_null(control + "Value") as Label
+	if label == null:
+		return
+	label.text = "%.2f" % value if control == "Textures" else str(roundi(value))
+
+func _play_stereo_test() -> void:
+	if bool(preferences.call("play_stereo_test")):
+		stereo_status.text = "Playing left then right test tones."
+		get_tree().create_timer(0.8).timeout.connect(_refresh_stereo_status)
+
+func _toggle_reverse_stereo() -> void:
+	var reversed := bool(reverse_stereo_button.button_pressed)
+	preferences.call("set_reverse_stereo", reversed)
+	_refresh_stereo_status()
+
+func _refresh_stereo_status() -> void:
+	if not is_instance_valid(stereo_status) or preferences == null:
+		return
+	var state := "On" if bool(preferences.call("get_reverse_stereo")) else "Off"
+	stereo_status.text = "Reverse stereo: %s. Applies to stereo PCM WAV clips." % state
+
+func _connect_source_action_art(action: String) -> void:
+	var button := $Canvas/SoundPage.get_node(action) as Button
+	button.set_meta("astrolabe_menu_mouse_hover", false)
+	button.focus_entered.connect(_refresh_source_action_art.bind(action))
+	button.focus_exited.connect(_refresh_source_action_art.bind(action))
+	button.mouse_entered.connect(_set_source_action_hover.bind(action, true))
+	button.mouse_exited.connect(_set_source_action_hover.bind(action, false))
+
+func _set_source_action_hover(action: String, hovered: bool) -> void:
+	var button := $Canvas/SoundPage.get_node(action) as Button
+	button.set_meta("astrolabe_menu_mouse_hover", hovered)
+	_refresh_source_action_art(action)
+
+func _refresh_source_action_art(action: String) -> void:
+	var button := $Canvas/SoundPage.get_node(action) as Button
+	var artwork := $Canvas/SoundPage.get_node(action + "Selected") as TextureRect
+	artwork.visible = button.has_focus() or bool(button.get_meta("astrolabe_menu_mouse_hover", false))
 
 func _build_controls_page() -> void:
 	var old_message := $Canvas/ControlsPage.get_node_or_null("UnsupportedControls")

@@ -16,16 +16,21 @@ Configure opens `game/settings_menu.tscn`, an authored route alias for the
 source-generated configuration scene. The scene root keeps the existing
 `closed` signal, `focus_initial()` and `cancel_input_capture()` interface while
 leaving its source artwork and native page layout under generated ownership.
-The source-backed Images, Controls and Sound tabs use native persisted volume
-controls. Controls remaps the five gameplay actions
+The source-backed Images, Controls and Sound tabs use editable native controls.
+Images maps source shadow quality to Godot shadow filtering and shadow disable,
+source viewport crop to camera framing, and OpenSpace's texture-stream ratio to
+Godot material texture filtering. Framing and texture streaming are explicit
+approximations; texture filtering does not emulate resource residency. These
+settings persist in `user://hype-settings.cfg`. Sound keeps the native persisted
+volume controls, adds a generated left-then-right stereo test tone and reverses
+channels for stereo 8/16-bit PCM WAVs. Unsupported mono/compressed/non-WAV
+streams remain unchanged. Controls remaps the five gameplay actions
 currently consumed by the Godot session, with physical keyboard keys or generic
 Godot joypad buttons and axes. Reassigning an occupied input swaps the two
 actions. Escape cancels a capture before closing configuration. Reset restores
 Astrolabe's current arrow/Space defaults and clears controller mappings; it does
 not claim to recover the game's original options file defaults. The legacy
-Paddle/Joystick device modes are not emulated. Images retains the original
-labels and explains why source renderer settings have no verified Godot
-equivalent. Credits exports all 400 English key/value records and the original
+Paddle/Joystick device modes are not emulated. Credits exports all 400 English key/value records and the original
 `Playmo_Font2_0` atlas into an editable native scene, while showing the first
 397 entries as the source routine does. It retains the original black
 background, paired left/right rows and source spacing, with Back/Escape return
@@ -33,10 +38,10 @@ navigation and automatic return when the final row scrolls offscreen. The
 decompiled routine's timer multiplier initializer is absent from the available
 decompilation, so the authored credits controller exposes an editable default
 scroll rate; pixel-timed parity remains unverified. Internet explicitly reports
-that the old route is obsolete and does not launch the external URL. Menu music
-and spoken idle prompts remain outside this increment. The source Sound page
-also names Stereo Test and Reverse Stereo; those entries are not exposed because
-the current Godot mixer has no verified equivalent.
+that the old route is obsolete and does not launch the external URL. No music or
+spoken idle prompt is established for the main-menu dispatcher in the inspected
+decompilation. Credits starts a track whose `playmo_cd.c` package is absent from
+the local disc data, so no replacement music has been invented.
 
 Generate the independent menu closure with the same converter used for gameplay:
 
@@ -52,8 +57,9 @@ godot --headless --path godot --script res://tests/settings_menu_route_smoke.gd
 ```
 
 The smoke check verifies the forwarded route API, source pages, three audio
-sliders on the original 0–127 scale, five implemented action bindings, the
-explicitly unsupported image settings, and Back-to-menu signaling.
+sliders on the original 0–127 scale, all three source image controls, five
+implemented action bindings, stereo actions and effects, and Back-to-menu
+signaling.
 
 The `menu` publication owner is separate from `manoir`, so menu regeneration
 preserves generated gameplay. It also exports
@@ -61,9 +67,9 @@ preserves generated gameplay. It also exports
 configuration backdrop and all three source tabs. The Sound page has native
 vertical Music, Sound and Voices sliders. They store source-scale values from 0
 to 127 in `user://hype-settings.cfg` and apply them to the Astrolabe Music,
-Effects and Voice buses. The Images page identifies source shadow quality,
-camera-to-viewport adjustment and OpenSpace texture swapping as unsupported.
-The Controls page provides keyboard and generic controller capture, current
+Effects and Voice buses. The Images page exposes shadow quality, screen framing,
+and native texture-filter quality with source ranges and documents their mapping
+limits. Sound exposes the source stereo actions. The Controls page provides keyboard and generic controller capture, current
 binding labels, swap-on-conflict behavior, Escape cancellation and an Astrolabe
 defaults reset. Preferences persist alongside sound values in
 `user://hype-settings.cfg`; only the five gameplay actions already consumed by

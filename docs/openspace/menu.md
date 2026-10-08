@@ -76,18 +76,32 @@ native vertical sliders on the source `0..127` scale, applies them to Godot audi
 buses, and persists them through `UserSettings`. A missing source option defaults
 to 127.
 
-The Images page identifies the original settings without claiming an unsupported
-Godot effect. `ImageSlider1` sets source shadow quality through
-`SHW_fn_vSetLevelOfQualityOfShadows`; `ImageSlider2` passes its `60..100` value
-to `FUN_004054c0`, which adjusts the active source camera's viewport rectangle;
-`ImageSlider3` controls the OpenSpace texture-swapping ratio. Godot exposes
-renderer shadow controls and camera viewport properties, but those APIs do not
-provide a verified semantic mapping for the source's 0..4 shadow levels or
-global camera adjustment. Texture swapping is a source streaming policy without
-a corresponding Godot control for these locally loaded assets. None of the
-three has a verified behavior-preserving equivalent in this project, so the
-page says they are unsupported and provides no functional sliders. The
-Controls page provides native remapping for the five source actions that the
+`ImageSlider1` sets OpenSpace shadow quality through
+`SHW_fn_vSetLevelOfQualityOfShadows`; its native mapping disables scene shadows
+at 0 and uses Godot's global shadow-filter quality at 1–4. `ImageSlider2`
+passes a `60..100` value to `FUN_004054c0`, which narrows the active source
+camera viewport rectangle. The Godot port applies its central-crop fraction as
+a perspective field-of-view adjustment (or native camera size for
+orthographic/frustum cameras) while keeping the UI at full size. This preserves
+the zoom/framing direction but is not pixel-identical viewport behavior.
+`ImageSlider3` controls OpenSpace's texture-swapping ratio. Godot has no matching
+streaming policy for these exported local assets, so the port uses a clearly
+identified native material-filter quality range from nearest sampling through
+mipmapped anisotropic filtering. This changes texture sampling, not residency or
+streaming. The original `0..4`, `60..100`, and `0..1` ranges remain represented
+by editable native sliders, and the selections persist in
+`user://hype-settings.cfg`.
+
+`FUN_00414b00`/`FUN_00413bd0` identify `TestButton` and `ReverseButton`, and the
+source action resolves stereo-test and reverse-stereo items in the Sound page.
+The native test action synthesizes a short left-channel then right-channel tone.
+Reverse Stereo swaps interleaved channels for stereo 8/16-bit PCM WAV streams
+through cached copies, without editing the exported resources; mono, IMA ADPCM,
+QOA and non-WAV streams keep their original channels. This is a usable
+Godot-side equivalent for the project's WAV output, not a recreation of the
+external source sound-system API.
+
+The Controls page provides native remapping for the five source actions that the
 current Godot session actually consumes: left, right, up, down and hit. It
 persists physical keyboard keys and generic Godot joypad buttons/axis directions
 in `user://hype-settings.cfg`; the current binding transfers to another action
@@ -140,4 +154,8 @@ source black background is used without extra artwork.
 The dispatcher sends `Internet` through its legacy branch, which writes a
 temporary HTML file and asks the installed browser to open the old Playmobil
 destination. Godot reports that this route is obsolete and does not open an
-external page.
+external page. The inspected main-menu dispatcher does not establish a music
+or idle-prompt playback path. Credits starts a track through `FUN_0040e9a0`, but
+its `playmo_cd.c` package is absent from local disc data; a second credits clip
+is loaded without a located playback call. The port does not synthesize
+replacement background audio.
