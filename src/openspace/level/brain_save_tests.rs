@@ -111,6 +111,32 @@ fn godot_facing_brain_projection_contains_only_semantic_identity_and_value() -> 
 }
 
 #[test]
+fn global_intro_gate_projection_is_address_free_and_typed() -> Result<()> {
+    let identity = ActorBrainFieldIdentity::new("fix:/persos/15", ActorBrainFieldId::dsg(147))?;
+    let projection = ActorBrainSaveProjection {
+        fields: BTreeMap::from([(
+            identity,
+            ActorBrainFieldValue {
+                value: DesignerValue::Boolean(true),
+                appearance_aliases: Vec::new(),
+            },
+        )]),
+    };
+    let payload = godot_payload(&projection)?;
+    let json = serde_json::to_string(&payload)?;
+    ensure!(json.contains("fix:/persos/15"));
+    ensure!(json.contains("\"field\":\"dsg_147\""));
+    ensure!(json.contains("\"Boolean\":true"));
+    for forbidden in ["0:17:4562", "address", "offset", "relocation", "save_flags"] {
+        ensure!(
+            !json.contains(forbidden),
+            "semantic Global flag payload leaked {forbidden}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn canonical_owner_keeps_level_appearance_alias_separate() -> Result<()> {
     let identity = ActorBrainFieldIdentity::new("fix:/persos/15", ActorBrainFieldId::dsg(149))?;
     let appearance = AssetPath::new("level:/persos/world/0/1")?;
@@ -198,28 +224,42 @@ fn source_brain_fields_join_to_named_owner_and_typed_value() -> Result<()> {
     let records = [
         source_bool_record(0, 17, 15_586, 0)?,
         source_bool_record(1, 17, 187_072, 1)?,
+        source_bool_record(0, 17, 4_562, 1)?,
     ];
     let identities = [
         ActorBrainFieldIdentity::new("level:/persos/world/0/0", ActorBrainFieldId::dsg(11))?,
         ActorBrainFieldIdentity::new("level:/persos/world/0/174", ActorBrainFieldId::dsg(1))?,
+        ActorBrainFieldIdentity::new("fix:/persos/15", ActorBrainFieldId::dsg(147))?,
     ];
     let projection = project_actor_brain_save_fields(&game, &selection, &records, &identities)?;
-    ensure!(projection.fields.len() == 2);
+    ensure!(projection.fields.len() == 3);
     ensure!(projection.fields[&identities[0]].value == DesignerValue::Boolean(false));
     ensure!(projection.fields[&identities[1]].value == DesignerValue::Boolean(true));
+    ensure!(projection.fields[&identities[2]].value == DesignerValue::Boolean(true));
     ensure!(
-        projection
-            .fields
-            .values()
-            .all(|value| value.appearance_aliases.is_empty())
+        projection.fields[&identities[0]]
+            .appearance_aliases
+            .is_empty()
+    );
+    ensure!(
+        projection.fields[&identities[1]]
+            .appearance_aliases
+            .is_empty()
+    );
+    ensure!(
+        projection.fields[&identities[2]].appearance_aliases
+            == [AssetPath::new("level:/persos/world/0/1")?]
     );
     let json = serde_json::to_string(&godot_payload(&projection)?)?;
     ensure!(json.contains("level:/persos/world/0/0"));
     ensure!(json.contains("level:/persos/world/0/174"));
-    ensure!(json.contains("dsg_11") && json.contains("dsg_1"));
+    ensure!(json.contains("fix:/persos/15"));
+    ensure!(json.contains("level:/persos/world/0/1"));
+    ensure!(json.contains("dsg_11") && json.contains("dsg_1") && json.contains("dsg_147"));
     for forbidden in [
         "0:17:15586",
         "1:17:187072",
+        "0:17:4562",
         "address",
         "offset",
         "relocation",
