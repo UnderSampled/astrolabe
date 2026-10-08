@@ -2,6 +2,7 @@ extends Node
 ## User-owned audio and gameplay input preferences for native Godot menus.
 
 const FILE_PATH := "user://hype-settings.cfg"
+const AUDIO_SCALE_VERSION := 1
 const BUSES := {
 	"Music": "Astrolabe Music",
 	"Effects": "Astrolabe Effects",
@@ -10,17 +11,14 @@ const BUSES := {
 const IMAGE_DEFAULTS := {
     "shadow_quality": 4,
     "screen_framing": 100,
-    "texture_quality": 1.0,
 }
+const AUDIO_DEFAULTS := {"Music": 100.0, "Effects": 100.0, "Voices": 100.0}
 const ORIGINAL_SHADOW_META := &"astrolabe_settings_original_shadow_enabled"
 const ORIGINAL_FOV_META := &"astrolabe_settings_original_fov"
 const ORIGINAL_SIZE_META := &"astrolabe_settings_original_camera_size"
-const ORIGINAL_OVERRIDE_META := &"astrolabe_settings_original_material_override"
-const FILTERED_OVERRIDE_META := &"astrolabe_settings_filtered_material_override"
 const AUDIO_ORIGINAL_META := &"astrolabe_settings_original_audio_stream"
 const LIGHT_SETTINGS_GROUP := &"astrolabe_settings_lights"
 const CAMERA_SETTINGS_GROUP := &"astrolabe_settings_cameras"
-const MESH_SETTINGS_GROUP := &"astrolabe_settings_meshes"
 const CONTROL_ACTIONS := [
 	{"action": "Button_Left", "label": "Move Left", "default_key": KEY_LEFT},
 	{"action": "Button_Right", "label": "Move Right", "default_key": KEY_RIGHT},
@@ -31,7 +29,8 @@ const CONTROL_ACTIONS := [
 const RESERVED_KEYS := [KEY_ESCAPE, KEY_TAB, KEY_F5, KEY_R]
 const PAD_AXIS_CAPTURE_THRESHOLD := 0.65
 
-var values: Dictionary = {"Music": 1.0, "Effects": 1.0, "Voices": 1.0}
+## Keep the original mixer units in settings; Voice -20 is its silent UI sentinel.
+var values: Dictionary = AUDIO_DEFAULTS.duplicate(true)
 var image_values: Dictionary = IMAGE_DEFAULTS.duplicate(true)
 var keyboard_bindings: Dictionary = {}
 var controller_bindings: Dictionary = {}
@@ -46,12 +45,18 @@ func _ready() -> void:
 	_reset_control_binding_data()
 	var file := ConfigFile.new()
 	if file.load(FILE_PATH) == OK:
+		var stored_audio_scale_version := int(file.get_value("meta", "audio_scale_version", 0))
 		for group in BUSES:
-			values[group] = clampf(float(file.get_value("audio", group, 1.0)), 0.0, 1.0)
+			var maximum := 107.0 if group == "Voices" else 127.0
+			var stored_value: float
+			if stored_audio_scale_version < AUDIO_SCALE_VERSION:
+				stored_value = float(file.get_value("audio", group, 1.0)) * 127.0
+			else:
+				stored_value = float(file.get_value("audio", group, AUDIO_DEFAULTS[group]))
+			values[group] = clampf(stored_value, 0.0, maximum)
 		reverse_stereo = bool(file.get_value("audio", "reverse_stereo", false))
-		image_values["shadow_quality"] = clampi(int(file.get_value("video", "shadow_quality", IMAGE_DEFAULTS.shadow_quality)), 0, 4)
+		image_values["shadow_quality"] = clampi(int(file.get_value("video", "shadow_quality", IMAGE_DEFAULTS.shadow_quality)), 1, 4)
 		image_values["screen_framing"] = clampi(int(file.get_value("video", "screen_framing", IMAGE_DEFAULTS.screen_framing)), 60, 100)
-		image_values["texture_quality"] = clampf(float(file.get_value("video", "texture_quality", IMAGE_DEFAULTS.texture_quality)), 0.0, 1.0)
 		_load_control_bindings(file)
 	get_tree().node_added.connect(_on_node_added)
 	_apply()
@@ -59,19 +64,22 @@ func _ready() -> void:
 	_apply_reverse_stereo_to_tree(get_tree().root)
 
 func get_volume(group: String) -> float:
-	return float(values.get(group, 1.0))
+	var source_value := float(values.get(group, AUDIO_DEFAULTS.get(group, 100.0)))
+	return -20.0 if group == "Voices" and source_value <= 0.0 else source_value
 
-## Native slider values retain the original 0..127 source scale.
+## Stores original source units. Voices' negative slider values all mean zero gain.
 func set_volume(group: String, source_value: float) -> void:
 	if not BUSES.has(group):
 		return
-	values[group] = clampf(source_value / 127.0, 0.0, 1.0)
+	var minimum := -20.0 if group == "Voices" else 0.0
+	var maximum := 107.0 if group == "Voices" else 127.0
+	values[group] = maxf(0.0, clampf(source_value, minimum, maximum))
 	_apply_group(group)
 	_save()
 
 func reset_audio() -> void:
 	for group in BUSES:
-		values[group] = 1.0
+		values[group] = AUDIO_DEFAULTS[group]
 	_apply()
 	_save()
 
@@ -83,11 +91,9 @@ func set_image_setting(name: String, value: float) -> void:
 		return
 	match name:
 		"shadow_quality":
-			image_values[name] = clampi(roundi(value), 0, 4)
+			image_values[name] = clampi(roundi(value), 1, 4)
 		"screen_framing":
 			image_values[name] = clampi(roundi(value), 60, 100)
-		"texture_quality":
-			image_values[name] = clampf(value, 0.0, 1.0)
 	_apply_image_setting(name)
 	_save()
 
@@ -295,7 +301,8 @@ func _apply_group(group: String) -> void:
 	var index := AudioServer.get_bus_index(BUSES[group])
 	if index < 0:
 		return
-	AudioServer.set_bus_volume_db(index, linear_to_db(maxf(float(values[group]), 0.000001)))
+	var linear_gain := float(values[group]) / 127.0
+	AudioServer.set_bus_volume_db(index, linear_to_db(maxf(linear_gain, 0.000001)))
 
 func _on_node_added(node: Node) -> void:
 	# Wait until the instanced scene has finished assigning exported properties.
@@ -319,16 +326,12 @@ func _apply_image_settings_to_node(node: Node) -> void:
 		_apply_shadow_to_light(node as Light3D)
 	elif node is Camera3D:
 		_apply_screen_framing(node as Camera3D)
-	elif node is MeshInstance3D:
-		_apply_texture_filter(node as MeshInstance3D)
 
 func _register_image_settings_node(node: Node) -> void:
 	if node is Light3D and not node.is_in_group(LIGHT_SETTINGS_GROUP):
 		node.add_to_group(LIGHT_SETTINGS_GROUP)
 	elif node is Camera3D and not node.is_in_group(CAMERA_SETTINGS_GROUP):
 		node.add_to_group(CAMERA_SETTINGS_GROUP)
-	elif node is MeshInstance3D and not node.is_in_group(MESH_SETTINGS_GROUP):
-		node.add_to_group(MESH_SETTINGS_GROUP)
 
 func _apply_shadow_to_light(light: Light3D) -> void:
 	if not light.has_meta(ORIGINAL_SHADOW_META):
@@ -337,9 +340,12 @@ func _apply_shadow_to_light(light: Light3D) -> void:
 		if source_wrapper != null and source_wrapper.has_meta("source_light") and not light.light_negative:
 			source_shadow_enabled = true
 		light.set_meta(ORIGINAL_SHADOW_META, source_shadow_enabled)
-	light.shadow_enabled = bool(light.get_meta(ORIGINAL_SHADOW_META)) and int(image_values.shadow_quality) > 0
+	light.shadow_enabled = bool(light.get_meta(ORIGINAL_SHADOW_META))
 
 func _apply_screen_framing(camera: Camera3D) -> void:
+	# FUN_004054c0 sets the centered source viewport rectangle to [100 - value, value].
+	# Its aperture fraction is exactly 2*value - 100 percent. Scale tan(FOV/2)
+	# (or orthographic size) by that fraction to preserve the source projection.
 	var source_crop := clampf((2.0 * float(image_values.screen_framing) - 100.0) / 100.0, 0.2, 1.0)
 	if camera.projection == Camera3D.PROJECTION_PERSPECTIVE:
 		if not camera.has_meta(ORIGINAL_FOV_META):
@@ -350,36 +356,6 @@ func _apply_screen_framing(camera: Camera3D) -> void:
 		if not camera.has_meta(ORIGINAL_SIZE_META):
 			camera.set_meta(ORIGINAL_SIZE_META, camera.size)
 		camera.size = float(camera.get_meta(ORIGINAL_SIZE_META)) * source_crop
-
-func _apply_texture_filter(mesh: MeshInstance3D) -> void:
-	var filter_quality := clampi(roundi(float(image_values.texture_quality) * 5.0), 0, 5)
-	if not mesh.has_meta(ORIGINAL_OVERRIDE_META):
-		mesh.set_meta(ORIGINAL_OVERRIDE_META, mesh.material_override)
-	var source_override: Variant = mesh.get_meta(ORIGINAL_OVERRIDE_META)
-	if source_override is BaseMaterial3D:
-		var filtered: Variant = mesh.get_meta(FILTERED_OVERRIDE_META) if mesh.has_meta(FILTERED_OVERRIDE_META) else null
-		if not filtered is BaseMaterial3D:
-			filtered = (source_override as BaseMaterial3D).duplicate()
-			mesh.set_meta(FILTERED_OVERRIDE_META, filtered)
-		(filtered as BaseMaterial3D).texture_filter = filter_quality
-		mesh.material_override = filtered as Material
-		return
-	if source_override != null or mesh.mesh == null:
-		return
-	for surface in mesh.mesh.get_surface_count():
-		var original_key := StringName("astrolabe_settings_original_surface_%d" % surface)
-		var filtered_key := StringName("astrolabe_settings_filtered_surface_%d" % surface)
-		if not mesh.has_meta(original_key):
-			mesh.set_meta(original_key, mesh.get_active_material(surface))
-		var source_material: Variant = mesh.get_meta(original_key)
-		if not source_material is BaseMaterial3D:
-			continue
-		var filtered_material: Variant = mesh.get_meta(filtered_key) if mesh.has_meta(filtered_key) else null
-		if not filtered_material is BaseMaterial3D:
-			filtered_material = (source_material as BaseMaterial3D).duplicate()
-			mesh.set_meta(filtered_key, filtered_material)
-		(filtered_material as BaseMaterial3D).texture_filter = filter_quality
-		mesh.set_surface_override_material(surface, filtered_material as Material)
 
 func _apply_image_settings_to_tree_quality() -> void:
 	var source_quality := int(image_values.shadow_quality)
@@ -403,8 +379,6 @@ func _apply_image_setting(name: String) -> void:
 			group = LIGHT_SETTINGS_GROUP
 		"screen_framing":
 			group = CAMERA_SETTINGS_GROUP
-		"texture_quality":
-			group = MESH_SETTINGS_GROUP
 	for node in get_tree().get_nodes_in_group(group):
 		_apply_image_settings_to_node(node)
 
@@ -498,6 +472,7 @@ func _ensure_bus(bus_name: String) -> void:
 
 func _save() -> bool:
 	var file := ConfigFile.new()
+	file.set_value("meta", "audio_scale_version", AUDIO_SCALE_VERSION)
 	for group in BUSES:
 		file.set_value("audio", group, values[group])
 	file.set_value("audio", "reverse_stereo", reverse_stereo)

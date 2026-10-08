@@ -112,7 +112,7 @@ pub(super) fn export(
         format!("{directory}/menu.tscn"),
         scene(project, value, directory)?.as_bytes(),
     )?;
-    project.diagnostic(format!("{}: English source layout/actions/navigation exported as editable native Controls; original normal/glow artwork baked ahead of runtime; Sound settings include persistent native volume controls and stereo actions, Images maps source shadow/framing/texture controls to documented Godot equivalents, and Controls map the five playable actions to keyboard or generic Godot joypad events",value.path));
+    project.diagnostic(format!("{}: English source layout/actions/navigation exported as editable native Controls; original normal/glow artwork baked ahead of runtime; Sound settings preserve source mixer values and stereo actions, Images maps source shadow/framing settings and marks source texture swapping unsupported, and Controls map the five playable actions to keyboard or generic Godot joypad events",value.path));
     Ok(())
 }
 
@@ -407,8 +407,9 @@ fn configuration_scene(
         find("DisplayWithSound", "stereo test")?,
         find("DisplayWithSound", "reverse stereo")?,
     ];
-    // The port maps the source's renderer controls to native Godot equivalents:
-    // shadow filtering, perspective framing, and material texture filtering.
+    // Keep the source settings' meanings. The texture-swapping ratio has no
+    // corresponding Godot renderer setting, so its original row is explicit
+    // about being unsupported instead of substituting material filtering.
     let image_rows = [
         (find("DisplayWithImage", "graphic")?, "Graphic"),
         (find("DisplayWithImage", "screen")?, "Screen"),
@@ -515,12 +516,19 @@ fn configuration_scene(
     );
     for (index, (item, bus)) in sound_rows.iter().enumerate() {
         let center_x = item.position[0];
+        let (minimum, maximum) = if *bus == "Voices" {
+            (-20.0, 107.0)
+        } else {
+            (0.0, 127.0)
+        };
         writeln!(
             text,
-            "\n[node name={} type=\"VSlider\" parent=\"Canvas/SoundPage/Audio\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = 220.0\noffset_right = {}\noffset_bottom = 338.0\nmin_value = 0.0\nmax_value = 127.0\nstep = 1.0\nvalue = 127.0\nmetadata/source_slider = \"SoundSlider{}\"\nmetadata/source_position = Vector3({}, {}, {})\nmetadata/source_action = \"DisplayWithSound\"\nmetadata/volume_bus = {}",
+            "\n[node name={} type=\"VSlider\" parent=\"Canvas/SoundPage/Audio\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = 220.0\noffset_right = {}\noffset_bottom = 338.0\nmin_value = {}\nmax_value = {}\nstep = 1.0\nvalue = 100.0\nmetadata/source_slider = \"SoundSlider{}\"\nmetadata/source_position = Vector3({}, {}, {})\nmetadata/source_action = \"DisplayWithSound\"\nmetadata/volume_bus = {}",
             quoted(bus),
             center_x - 10.0,
             center_x + 10.0,
+            minimum,
+            maximum,
             index + 1,
             configuration.slider_positions[index][0],
             configuration.slider_positions[index][1],
@@ -528,10 +536,7 @@ fn configuration_scene(
             quoted(bus)
         )?;
     }
-    let image_ranges = [(0.0, 4.0, 1.0), (60.0, 100.0, 1.0), (0.0, 1.0, 0.01)];
-    for (index, ((item, label), (minimum, maximum, step))) in
-        image_rows.iter().zip(image_ranges).enumerate()
-    {
+    for (index, (item, label)) in image_rows.iter().enumerate() {
         let item = *item;
         let label = *label;
         append_configuration_label(
@@ -541,27 +546,34 @@ fn configuration_scene(
             &format!("{label}Artwork"),
         )?;
         let center_x = item.position[0];
-        let setting = match label {
-            "Graphic" => "shadow_quality",
-            "Screen" => "screen_framing",
-            _ => "texture_quality",
+        if label == "Textures" {
+            writeln!(
+                text,
+                "\n[node name=\"TexturesUnsupported\" type=\"Label\" parent=\"Canvas/ImagesPage\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = 254.0\noffset_right = {}\noffset_bottom = 304.0\nhorizontal_alignment = 1\nvertical_alignment = 1\nautowrap_mode = 3\ntext = \"Unsupported: Godot has no source texture-swapping ratio.\"\ntooltip_text = \"The source control changes GLI texture swapping. This port does not substitute texture filtering.\"\nmetadata/source_slider = \"ImageSlider3\"\nmetadata/source_action = \"DisplayWithImage\"\nmetadata/source_support = \"unsupported: no native texture-swapping ratio\"\ntheme_override_font_sizes/font_size = 12",
+                center_x - 74.0,
+                center_x + 74.0,
+            )?;
+            continue;
+        }
+        let (setting, minimum, maximum) = match label {
+            "Graphic" => ("shadow_quality", 1.0, 4.0),
+            _ => ("screen_framing", 60.0, 100.0),
         };
         let tooltip = match label {
-            "Graphic" => "0 disables shadows; 1–4 select Godot shadow filtering quality.",
+            "Graphic" => "Four source shadow levels map to Godot's native shadow filter quality.",
             "Screen" => {
-                "Source viewport crop mapped to perspective camera field of view; interface stays full size."
+                "The source uses a centered viewport crop. Godot scales the camera projection to match; this does not change window resolution."
             }
-            _ => "Godot material filtering approximates the source texture-streaming ratio.",
+            _ => unreachable!(),
         };
         writeln!(
             text,
-            "\n[node name={} type=\"VSlider\" parent=\"Canvas/ImagesPage\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = 220.0\noffset_right = {}\noffset_bottom = 338.0\nmin_value = {}\nmax_value = {}\nstep = {}\nvalue = {}\ntooltip_text = {}\nmetadata/source_slider = {}\nmetadata/source_action = \"DisplayWithImage\"\nmetadata/native_setting = {}",
+            "\n[node name={} type=\"VSlider\" parent=\"Canvas/ImagesPage\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = 220.0\noffset_right = {}\noffset_bottom = 338.0\nmin_value = {}\nmax_value = {}\nstep = 1.0\nvalue = {}\ntooltip_text = {}\nmetadata/source_slider = {}\nmetadata/source_action = \"DisplayWithImage\"\nmetadata/native_setting = {}",
             quoted(label),
             center_x - 10.0,
             center_x + 10.0,
             minimum,
             maximum,
-            step,
             maximum,
             quoted(tooltip),
             quoted(&format!("ImageSlider{}", index + 1)),
@@ -580,7 +592,7 @@ fn configuration_scene(
         text,
         "\n[node name=\"ImageMappingNote\" type=\"Label\" parent=\"Canvas/ImagesPage\"]\nlayout_mode = 0\noffset_left = 192.0\noffset_top = 367.0\noffset_right = 615.0\noffset_bottom = 408.0\ntext = {}\nautowrap_mode = 3\nhorizontal_alignment = 1\ntheme_override_font_sizes/font_size = 11",
         quoted(
-            "Godot mapping: source shadow level, camera framing and texture-streaming controls use native render settings; framing and streaming are approximations."
+            "Screen framing matches the source centered camera crop. Textures is unsupported: its source texture-swapping ratio has no Godot equivalent."
         )
     )?;
     for (item, node) in stereo_rows.iter().zip(["StereoTest", "ReverseStereo"]) {
@@ -841,7 +853,7 @@ mod tests {
                 .join("generated/hype/shared/menu/configuration/en/menu.tscn");
             let configuration_text = std::fs::read_to_string(configuration_scene)?;
             ensure!(
-                configuration_text.matches(" type=\"VSlider\"").count() == 6
+                configuration_text.matches(" type=\"VSlider\"").count() == 5
                     && configuration_text.matches(" type=\"Button\"").count() == 6
                     && configuration_text.contains("initial_page = &\"Images\"")
                     && configuration_text.contains("theme_override_font_sizes/font_size = 16")
@@ -851,14 +863,22 @@ mod tests {
                     && configuration_text.contains("metadata/source_slider = \"ImageSlider3\"")
                     && configuration_text.contains("metadata/native_setting = \"shadow_quality\"")
                     && configuration_text.contains("metadata/native_setting = \"screen_framing\"")
-                    && configuration_text.contains("metadata/native_setting = \"texture_quality\"")
                     && configuration_text.contains("name=\"GraphicArtwork\" type=\"TextureRect\"")
                     && configuration_text.contains("name=\"ScreenArtwork\" type=\"TextureRect\"")
                     && configuration_text.contains("name=\"TexturesArtwork\" type=\"TextureRect\"")
+                    && configuration_text.contains("name=\"TexturesUnsupported\" type=\"Label\"")
+                    && configuration_text.contains("unsupported: no native texture-swapping ratio")
+                    && configuration_text.contains("min_value = 1\nmax_value = 4\nstep = 1.0")
+                    && configuration_text.contains("min_value = 60\nmax_value = 100\nstep = 1.0")
+                    && configuration_text.matches("min_value = 0\nmax_value = 127\nstep = 1.0").count() == 2
+                    && configuration_text.contains("min_value = -20\nmax_value = 107")
+                    && configuration_text.contains("value = 100.0\nmetadata/source_slider = \"SoundSlider1\"")
+                    && configuration_text.matches("value = 100.0\nmetadata/source_slider = \"SoundSlider").count() == 3
+                    && !configuration_text.contains("[node name=\"Textures\" type=\"VSlider\"")
                     && configuration_text.contains("name=\"StereoTest\" type=\"Button\"")
                     && configuration_text.contains("name=\"ReverseStereo\" type=\"Button\"")
-                    && configuration_text.contains("Source viewport crop mapped to perspective camera field of view")
-                    && configuration_text.contains("Godot material filtering approximates the source texture-streaming ratio")
+                    && configuration_text.contains("The source uses a centered viewport crop. Godot scales the camera projection to match")
+                    && configuration_text.contains("source texture-swapping ratio has no Godot equivalent")
                     && !configuration_text.contains("UnsupportedImageSettings")
                     && configuration_text.contains("metadata/native_mapping_scope = \"Button_Left,Button_Right,Button_Up,Button_Down,Button_Hit\"")
                     && configuration_text.contains("source Paddle/Joystick hardware modes are not emulated")

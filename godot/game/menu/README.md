@@ -17,12 +17,16 @@ source-generated configuration scene. The scene root keeps the existing
 `closed` signal, `focus_initial()` and `cancel_input_capture()` interface while
 leaving its source artwork and native page layout under generated ownership.
 The source-backed Images, Controls and Sound tabs use editable native controls.
-Images maps source shadow quality to Godot shadow filtering and shadow disable,
-source viewport crop to camera framing, and OpenSpace's texture-stream ratio to
-Godot material texture filtering. Framing and texture streaming are explicit
-approximations; texture filtering does not emulate resource residency. These
-settings persist in `user://hype-settings.cfg`. Sound keeps the native persisted
-volume controls, adds a generated left-then-right stereo test tone and reverses
+Graphic presents the four original shadow levels and maps them to Godot's
+shadow-filter choices. Screen reproduces the centered source viewport crop by
+scaling perspective frustum tangent or orthographic size; it does not change
+window resolution. Textures retains its source artwork and clearly reports that
+the original texture-swapping ratio has no supported Godot equivalent; it does
+not substitute material filtering. These settings persist in
+`user://hype-settings.cfg`. Sound stores original mixer units and initializes
+Music, Sound and Voices to 100. Music and Sound use 0–127; Voices uses the
+source -20 silent UI sentinel through 107, with negative values applied as zero
+gain. Sound adds a generated left-then-right stereo test tone and reverses
 channels for stereo 8/16-bit PCM WAVs. Unsupported mono/compressed/non-WAV
 streams remain unchanged. Controls remaps the five gameplay actions
 currently consumed by the Godot session, with physical keyboard keys or generic
@@ -56,20 +60,22 @@ generated scene with:
 godot --headless --path godot --script res://tests/settings_menu_route_smoke.gd
 ```
 
-The smoke check verifies the forwarded route API, source pages, three audio
-sliders on the original 0–127 scale, all three source image controls, five
-implemented action bindings, stereo actions and effects, and Back-to-menu
-signaling.
+The smoke check verifies the forwarded route API, source pages, original audio
+slider scales/defaults, four Graphic levels, Screen crop math, the explicit
+unsupported Textures status, five implemented action bindings, stereo actions
+and effects, and Back-to-menu signaling.
 
 The `menu` publication owner is separate from `manoir`, so menu regeneration
 preserves generated gameplay. It also exports
 `generated/hype/shared/menu/configuration/en/menu.tscn` with the original
 configuration backdrop and all three source tabs. The Sound page has native
-vertical Music, Sound and Voices sliders. They store source-scale values from 0
-to 127 in `user://hype-settings.cfg` and apply them to the Astrolabe Music,
-Effects and Voice buses. The Images page exposes shadow quality, screen framing,
-and native texture-filter quality with source ranges and documents their mapping
-limits. Sound exposes the source stereo actions. The Controls page provides keyboard and generic controller capture, current
+vertical Music, Sound and Voices sliders. It stores original values in
+`user://hype-settings.cfg` and applies them to the Astrolabe Music, Effects and
+Voice buses. Music and Sound range 0–127; Voices shows -20 for silence and
+ranges through 107. The Images page maps four source shadow levels and centered
+screen framing; it explicitly marks the texture-swapping ratio unsupported
+instead of offering a different texture control. Sound exposes the source
+stereo actions. The Controls page provides keyboard and generic controller capture, current
 binding labels, swap-on-conflict behavior, Escape cancellation and an Astrolabe
 defaults reset. Preferences persist alongside sound values in
 `user://hype-settings.cfg`; only the five gameplay actions already consumed by

@@ -26,7 +26,7 @@ func _ready() -> void:
 			return
 		preferences.name = "UserSettings"
 		get_tree().root.add_child(preferences)
-	for pair in [["Graphic", "shadow_quality"], ["Screen", "screen_framing"], ["Textures", "texture_quality"]]:
+	for pair in [["Graphic", "shadow_quality"], ["Screen", "screen_framing"]]:
 		var slider := $Canvas/ImagesPage.get_node(pair[0]) as VSlider
 		slider.value = float(preferences.call("get_image_setting", pair[1]))
 		slider.value_changed.connect(_set_image_setting.bind(pair[1], pair[0]))
@@ -34,7 +34,7 @@ func _ready() -> void:
 	_build_controls_page()
 	for group: String in ["Music", "Effects", "Voices"]:
 		var slider := $Canvas/SoundPage/Audio.get_node(group) as VSlider
-		slider.value = float(preferences.call("get_volume", group)) * 127.0
+		slider.value = float(preferences.call("get_volume", group))
 		slider.value_changed.connect(_set_volume.bind(group))
 	stereo_status = $Canvas/SoundPage/StereoStatus as Label
 	var test_stereo_button := $Canvas/SoundPage/StereoTest as Button
@@ -90,7 +90,7 @@ func _update_image_value(control: String, value: float) -> void:
 	var label := $Canvas/ImagesPage.get_node_or_null(control + "Value") as Label
 	if label == null:
 		return
-	label.text = "%.2f" % value if control == "Textures" else str(roundi(value))
+	label.text = str(roundi(value))
 
 func _play_stereo_test() -> void:
 	if bool(preferences.call("play_stereo_test")):

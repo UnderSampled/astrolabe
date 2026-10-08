@@ -29,23 +29,34 @@ func run() -> void:
 	for page in ["ImagesPage", "ControlsPage", "SoundPage"]:
 		if settings.get_node_or_null("Canvas/" + page) == null:
 			missing.append(page)
-	for bus in ["Music", "Effects", "Voices"]:
+	var sound_limits := {
+		"Music": Vector2(0.0, 127.0),
+		"Effects": Vector2(0.0, 127.0),
+		"Voices": Vector2(-20.0, 107.0),
+	}
+	for bus in sound_limits:
 		var slider := settings.get_node_or_null("Canvas/SoundPage/Audio/" + bus) as VSlider
-		if slider == null or slider.min_value != 0.0 or slider.max_value != 127.0:
+		var limits: Vector2 = sound_limits[bus]
+		if slider == null or slider.min_value != limits.x or slider.max_value != limits.y or slider.step != 1.0:
 			missing.append("source-scale %s slider" % bus)
 	var image_limits := {
-		"Graphic": Vector2(0.0, 4.0),
+		"Graphic": Vector2(1.0, 4.0),
 		"Screen": Vector2(60.0, 100.0),
-		"Textures": Vector2(0.0, 1.0),
 	}
 	for name in image_limits:
 		var slider := settings.get_node_or_null("Canvas/ImagesPage/" + name) as VSlider
 		var artwork := settings.get_node_or_null("Canvas/ImagesPage/" + name + "Artwork") as TextureRect
 		var limits: Vector2 = image_limits[name]
-		if slider == null or slider.min_value != limits.x or slider.max_value != limits.y:
+		if slider == null or slider.min_value != limits.x or slider.max_value != limits.y or slider.step != 1.0:
 			missing.append("source-scale %s image slider" % name)
 		if artwork == null:
 			missing.append("%s source label artwork" % name)
+	var textures_artwork := settings.get_node_or_null("Canvas/ImagesPage/TexturesArtwork") as TextureRect
+	var textures_unsupported := settings.get_node_or_null("Canvas/ImagesPage/TexturesUnsupported") as Label
+	if textures_artwork == null or textures_unsupported == null or not textures_unsupported.text.contains("Unsupported") or not textures_unsupported.text.contains("texture-swapping"):
+		missing.append("explicitly unsupported source texture-swapping control")
+	if settings.get_node_or_null("Canvas/ImagesPage/Textures") != null:
+		missing.append("unrelated filtering slider presented as source Textures")
 	for action in ["Button_Left", "Button_Right", "Button_Up", "Button_Down", "Button_Hit"]:
 		if settings.get_node_or_null("Canvas/ControlsPage/Binding_" + action) == null:
 			missing.append("%s binding" % action)
@@ -79,8 +90,23 @@ func run() -> void:
 		return
 	var old_shadow := float(preferences.call("get_image_setting", "shadow_quality"))
 	var old_framing := float(preferences.call("get_image_setting", "screen_framing"))
-	var old_texture := float(preferences.call("get_image_setting", "texture_quality"))
 	var old_reverse := bool(preferences.call("get_reverse_stereo"))
+	var old_volumes := {}
+	for bus in sound_limits:
+		old_volumes[bus] = float(preferences.call("get_volume", bus))
+	preferences.call("reset_audio")
+	for bus in sound_limits:
+		if float(preferences.call("get_volume", bus)) != 100.0:
+			fail("Reset Audio did not restore the original 100 mixer value for %s" % bus)
+			return
+	preferences.call("set_volume", "Voices", -5.0)
+	if float(preferences.call("get_volume", "Voices")) != -20.0:
+		fail("Voice values below zero did not preserve the source silent sentinel")
+		return
+	preferences.call("set_volume", "Voices", 127.0)
+	if float(preferences.call("get_volume", "Voices")) != 107.0:
+		fail("Voice slider values above the source maximum did not clamp to 107")
+		return
 
 	var light := DirectionalLight3D.new()
 	light.shadow_enabled = true
@@ -88,38 +114,38 @@ func run() -> void:
 	var camera := Camera3D.new()
 	camera.fov = 75.0
 	root.add_child(camera)
-	var material := StandardMaterial3D.new()
-	var mesh := MeshInstance3D.new()
-	mesh.mesh = BoxMesh.new()
-	mesh.material_override = material
-	root.add_child(mesh)
+	var ortho_camera := Camera3D.new()
+	ortho_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	ortho_camera.size = 10.0
+	root.add_child(ortho_camera)
 	await process_frame
 
-	preferences.call("set_image_setting", "shadow_quality", 0.0)
-	if light.shadow_enabled:
-		fail("Graphic quality 0 did not disable native light shadows")
+	preferences.call("set_image_setting", "shadow_quality", 1.0)
+	if not light.shadow_enabled:
+		fail("Graphic source level 1 disabled a source-enabled light shadow")
 		return
 	preferences.call("set_image_setting", "shadow_quality", 4.0)
 	if not light.shadow_enabled:
-		fail("Restoring Graphic quality did not restore the light's shadow state")
+		fail("Graphic source level 4 disabled a source-enabled light shadow")
 		return
 	preferences.call("set_image_setting", "screen_framing", 60.0)
-	if camera.fov >= 75.0:
-		fail("Screen framing did not narrow perspective field of view")
+	var minimum_crop := 0.2 # Original centered viewport spans 60 - (100 - 60) percent.
+	var minimum_fov := rad_to_deg(2.0 * atan(tan(deg_to_rad(75.0) * 0.5) * minimum_crop))
+	if absf(camera.fov - minimum_fov) > 0.01 or absf(ortho_camera.size - 2.0) > 0.01:
+		fail("Screen framing minimum did not reproduce the source centered viewport crop")
+		return
+	preferences.call("set_image_setting", "screen_framing", 80.0)
+	var source_crop := 0.6 # Original centered viewport spans 80 - (100 - 80) percent.
+	var expected_fov := rad_to_deg(2.0 * atan(tan(deg_to_rad(75.0) * 0.5) * source_crop))
+	if absf(camera.fov - expected_fov) > 0.01:
+		fail("Screen framing did not reproduce the source centered perspective crop")
+		return
+	if absf(ortho_camera.size - 6.0) > 0.01:
+		fail("Screen framing did not reproduce the source orthographic viewport crop")
 		return
 	preferences.call("set_image_setting", "screen_framing", 100.0)
-	if absf(camera.fov - 75.0) > 0.01:
-		fail("Screen framing 100 did not restore the original field of view")
-		return
-	preferences.call("set_image_setting", "texture_quality", 0.0)
-	var filtered := mesh.material_override as BaseMaterial3D
-	if filtered == null or filtered.texture_filter != BaseMaterial3D.TEXTURE_FILTER_NEAREST or material.texture_filter == BaseMaterial3D.TEXTURE_FILTER_NEAREST:
-		fail("Textures slider did not apply a non-destructive material filtering override")
-		return
-	preferences.call("set_image_setting", "texture_quality", 1.0)
-	filtered = mesh.material_override as BaseMaterial3D
-	if filtered.texture_filter != BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC:
-		fail("Textures quality 1 did not select Godot's mipmapped anisotropic filter")
+	if absf(camera.fov - 75.0) > 0.01 or absf(ortho_camera.size - 10.0) > 0.01:
+		fail("Screen framing 100 did not restore original camera projection values")
 		return
 
 	var pcm := PackedByteArray()
@@ -173,14 +199,15 @@ func run() -> void:
 	# Confirm saved settings reach disk, then survive closing and reopening the route.
 	preferences.call("set_image_setting", "shadow_quality", 2.0)
 	preferences.call("set_image_setting", "screen_framing", 80.0)
-	preferences.call("set_image_setting", "texture_quality", 0.5)
+	for bus in sound_limits:
+		preferences.call("set_volume", bus, 100.0)
 	preferences.call("set_reverse_stereo", true)
 	var saved := ConfigFile.new()
 	if saved.load("user://hype-settings.cfg") != OK:
 		fail("Settings were not saved to user://hype-settings.cfg")
 		return
-	if int(saved.get_value("video", "shadow_quality", -1)) != 2 or int(saved.get_value("video", "screen_framing", -1)) != 80 or absf(float(saved.get_value("video", "texture_quality", -1.0)) - 0.5) > 0.001 or not bool(saved.get_value("audio", "reverse_stereo", false)):
-		fail("Image and stereo preferences did not persist their values")
+	if int(saved.get_value("video", "shadow_quality", -1)) != 2 or int(saved.get_value("video", "screen_framing", -1)) != 80 or float(saved.get_value("audio", "Music", -1.0)) != 100.0 or float(saved.get_value("audio", "Effects", -1.0)) != 100.0 or float(saved.get_value("audio", "Voices", -1.0)) != 100.0 or not bool(saved.get_value("audio", "reverse_stereo", false)):
+		fail("Source-scale audio and Image/Stereo preferences did not persist their values")
 		return
 
 	if not await _close_route(settings):
@@ -197,8 +224,8 @@ func run() -> void:
 	root.add_child(reloaded_preferences)
 	await process_frame
 	preferences = reloaded_preferences
-	if int(preferences.call("get_image_setting", "shadow_quality")) != 2 or int(preferences.call("get_image_setting", "screen_framing")) != 80 or absf(float(preferences.call("get_image_setting", "texture_quality")) - 0.5) > 0.001 or not bool(preferences.call("get_reverse_stereo")):
-		fail("UserSettings did not reload Image/Stereo preferences from disk")
+	if int(preferences.call("get_image_setting", "shadow_quality")) != 2 or int(preferences.call("get_image_setting", "screen_framing")) != 80 or float(preferences.call("get_volume", "Music")) != 100.0 or float(preferences.call("get_volume", "Effects")) != 100.0 or float(preferences.call("get_volume", "Voices")) != 100.0 or not bool(preferences.call("get_reverse_stereo")):
+		fail("UserSettings did not reload source-scale audio and Image/Stereo preferences")
 		return
 	for cycle in range(2):
 		var reopened := packed.instantiate() as Control
@@ -209,12 +236,12 @@ func run() -> void:
 		await process_frame
 		var reopened_shadow := reopened.get_node("Canvas/ImagesPage/Graphic") as VSlider
 		var reopened_framing := reopened.get_node("Canvas/ImagesPage/Screen") as VSlider
-		var reopened_texture := reopened.get_node("Canvas/ImagesPage/Textures") as VSlider
 		var reopened_reverse := reopened.get_node("Canvas/SoundPage/ReverseStereo") as Button
-		if reopened_shadow == null or reopened_framing == null or reopened_texture == null or reopened_reverse == null:
+		var reopened_textures_unsupported := reopened.get_node_or_null("Canvas/ImagesPage/TexturesUnsupported") as Label
+		if reopened_shadow == null or reopened_framing == null or reopened_reverse == null or reopened_textures_unsupported == null:
 			fail("Reopened settings controls were missing on cycle %d" % cycle)
 			return
-		if int(reopened_shadow.value) != 2 or int(reopened_framing.value) != 80 or absf(reopened_texture.value - 0.5) > 0.001 or not reopened_reverse.button_pressed:
+		if int(reopened_shadow.value) != 2 or int(reopened_framing.value) != 80 or float((reopened.get_node("Canvas/SoundPage/Audio/Voices") as VSlider).value) != 100.0 or not reopened_reverse.button_pressed:
 			fail("Saved Image/Stereo values did not reload on cycle %d" % cycle)
 			return
 		if not await _close_route(reopened):
@@ -223,11 +250,12 @@ func run() -> void:
 
 	preferences.call("set_image_setting", "shadow_quality", old_shadow)
 	preferences.call("set_image_setting", "screen_framing", old_framing)
-	preferences.call("set_image_setting", "texture_quality", old_texture)
+	for bus in old_volumes:
+		preferences.call("set_volume", bus, old_volumes[bus])
 	preferences.call("set_reverse_stereo", old_reverse)
 	light.queue_free()
 	camera.queue_free()
-	mesh.queue_free()
+	ortho_camera.queue_free()
 	player.queue_free()
 	var stereo_player := root.get_node_or_null("StereoTestPlayer") as AudioStreamPlayer
 	if stereo_player != null:
@@ -248,7 +276,7 @@ func _close_route(settings: Control) -> bool:
 
 func _finish() -> void:
 	await process_frame
-	print("SETTINGS ROUTE SMOKE: source controls, image effects/persistence, PCM stereo actions, and three open/close cycles passed")
+	print("SETTINGS ROUTE SMOKE: source-scale audio, shadow/framing mappings, unsupported texture-swapping disclosure, PCM stereo actions, and three open/close cycles passed")
 	quit(0)
 
 func fail(message: String) -> void:
