@@ -768,6 +768,14 @@ func source_camera_update_position() -> bool:
         return false
     return bool(camera.call("source_update_position"))
 
+## Function_Camera_GetShiftAlpha reads the selected Perso camera's raw +0x44.
+## Null signals an unsupported selector or missing native camera component.
+func source_camera_get_shift_alpha(selector: int) -> Variant:
+    var camera := get_node_or_null("SourceCamera")
+    if camera == null or not camera.has_method("source_get_shift_alpha"):
+        return null
+    return camera.call("source_get_shift_alpha", selector)
+
 ## Procedure 157 selects the referenced camera's supported motion state.
 func source_camera_change_state(camera_asset: String, state: int) -> bool:
     var actor := source_actor_node(camera_asset)

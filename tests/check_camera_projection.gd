@@ -19,6 +19,19 @@ func run() -> void:
     actor.set("motion_enabled", false)
     var camera := actor.get_node("SourceCamera") as Camera3D
     root.add_child(scene)
+    if not require(is_equal_approx(camera.source_shift_alpha, 0.375), "camera parameter +0x44 was not exported to SourceCamera"): return
+    if not require(is_equal_approx(camera.mode_zero_yaw_limits.y, 0.375), "raw +0x44 value did not remain the source radians-window width"): return
+    var alpha: Variant = actor.call("source_camera_get_shift_alpha", 1)
+    if not require(typeof(alpha) == TYPE_FLOAT and is_equal_approx(float(alpha), 0.375), "Function_Camera_GetShiftAlpha did not return the raw nonzero +0x44 float"): return
+    var nonzero_window_edge: Variant = camera.call("_source_clamp_mode_zero_angle", PI, 0.0, float(alpha))
+    if not require(typeof(nonzero_window_edge) == TYPE_FLOAT and absf(float(nonzero_window_edge) - 0.3751) < 0.000001, "nonzero raw shift alpha did not reach the existing radians-window consumer unchanged"): return
+    camera.source_shift_alpha = 0.0
+    alpha = actor.call("source_camera_get_shift_alpha", 1)
+    if not require(typeof(alpha) == TYPE_FLOAT and float(alpha) == 0.0, "Function_Camera_GetShiftAlpha did not return source zero unchanged"): return
+    var zero_window_edge: Variant = camera.call("_source_clamp_mode_zero_angle", PI, 0.0, float(alpha))
+    if not require(typeof(zero_window_edge) == TYPE_FLOAT and float(zero_window_edge) == 0.0, "zero raw shift alpha did not reach the existing radians-window consumer unchanged"): return
+    camera.source_shift_alpha = 0.375
+    if not require(actor.call("source_camera_get_shift_alpha", 2) == null, "unsupported camera selector did not fail closed"): return
     if not require(camera.global_position.is_equal_approx(Vector3(3,2,-4)), "saved camera placement differs"): return
     if not require((-camera.global_basis.z).is_equal_approx(Vector3.RIGHT), "source camera view axis is reversed"): return
     if not require(camera.keep_aspect == Camera3D.KEEP_WIDTH and absf(deg_to_rad(camera.fov) - 1.2) < 0.000001, "edited horizontal FoV differs"): return

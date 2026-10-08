@@ -199,6 +199,9 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::InventoryQuantity(value)
                 | Expression::MagicRemovePoints(value)
                 | Expression::ActorListContains { actor: value, .. }
+                | Expression::CameraShiftAlpha {
+                    selector: value, ..
+                }
                 | Expression::VectorComponent { vector: value, .. } => {
                     self.expressions(child_depth, &[value]);
                 }

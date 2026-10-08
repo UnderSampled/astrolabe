@@ -1281,6 +1281,18 @@ impl Parser<'_> {
                     )?)
                 }
             }
+            (3, 59) => {
+                let selector = Box::new(self.expression(indent + 1)?);
+                let actor = self.expression(indent + 1)?;
+                if let Expression::Actor(receiver) = actor {
+                    Expression::CameraShiftAlpha { selector, receiver }
+                } else {
+                    Expression::Unsupported(self.unsupported(
+                        at,
+                        "Function_Camera_GetShiftAlpha requires a Perso receiver".into(),
+                    )?)
+                }
+            }
             (3, 184) => Expression::CurrentAnimationFrame,
             (3, 201) => Expression::InventoryWeapon,
             (3, 208) => Expression::InventoryQuantity(Box::new(self.expression(indent + 1)?)),
@@ -1953,6 +1965,15 @@ impl Writer<'_> {
                 self.node(3, 35, indent);
                 self.node(0, 4, indent + 1);
             }
+            Expression::CameraShiftAlpha { selector, receiver } => {
+                self.node(3, 59, indent);
+                self.expression(selector, indent + 1)?;
+                match receiver {
+                    ActorTarget::Keyword(ActorKeyword::SelfActor) => self.node(0, 4, indent + 1),
+                    ActorTarget::Keyword(ActorKeyword::MainActor) => self.node(0, 5, indent + 1),
+                    ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
+                }
+            }
             Expression::Vector(values) => {
                 self.node(16, 0, indent);
                 for value in values.iter() {
@@ -2287,6 +2308,31 @@ mod partial_tests {
             [Statement::CameraUpdatePosition {
                 preceded_by_return_zero: true
             }]
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn camera_shift_alpha_keeps_selector_and_perso_receiver() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (2, 11, 1),
+            (11, 0, 2),
+            (3, 59, 2),
+            (12, 1, 3),
+            (0, 4, 3),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            script.statements.as_slice(),
+            [Statement::Assign {
+                variable: 0,
+                value: Expression::CameraShiftAlpha {
+                    selector,
+                    receiver: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                },
+            }] if **selector == Expression::Integer(1)
         ));
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())

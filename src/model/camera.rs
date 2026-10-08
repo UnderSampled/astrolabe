@@ -56,9 +56,10 @@ impl CameraParameters {
         )
     }
 
-    /// `00440bf0` reads the camera parameter float at source offset `+0x44`.
-    /// The current useful model keeps this scalar in its source-ordered tail.
-    pub fn yaw_upper_bound(&self) -> f32 {
+    /// `00440bf0` / Function_Camera_GetShiftAlpha read the camera parameter
+    /// float at source offset `+0x44`; the consumer treats it as an angular
+    /// window width in radians, but the getter returns this value unchanged.
+    pub fn shift_alpha(&self) -> f32 {
         f32::from_le_bytes(
             self.unknown[20..24]
                 .try_into()
@@ -168,11 +169,11 @@ mod tests {
     }
 
     #[test]
-    fn camera_angle_upper_bounds_are_read_from_source_offsets() {
+    fn camera_shift_alpha_and_pitch_upper_bound_are_read_from_source_offsets() {
         let mut value = parameters();
         value.unknown[20..24].copy_from_slice(&1.25_f32.to_le_bytes());
         value.unknown[24..28].copy_from_slice(&0.75_f32.to_le_bytes());
-        assert_eq!(value.yaw_upper_bound(), 1.25);
+        assert_eq!(value.shift_alpha(), 1.25);
         assert_eq!(value.pitch_upper_bound(), 0.75);
     }
 

@@ -15,6 +15,10 @@ extends Camera3D
 @export var mode_zero_distance: Vector2 = Vector2.ZERO
 @export var mode_zero_target_child_index: int = 0
 @export var mode_zero_yaw_limits: Vector2 = Vector2.ZERO
+## Function_Camera_GetShiftAlpha reads camera parameter +0x44 directly.
+## 00440070 initializes this source float to zero; the angular consumer applies
+## its own radians-window rules after this raw getter returns.
+@export var source_shift_alpha: float = 0.0
 @export var mode_zero_pitch_limits: Vector2 = Vector2.ZERO
 @export var mode_zero_parameter_flags: int = 0
 @export var source_owner_position_flags: int = 0 # 004406d0 clears Position+0xce; relevant setters OR bit 2
@@ -45,6 +49,14 @@ var _source_previous_history_position := Vector3.ZERO
 # A new SourceCamera represents a new DNM context; 00409840 zero-fills payload
 # +0x32c before 00527e00 exposes that byte as camera +0x254.
 var _source_camera_collision_guard := false
+
+## 0x0053d300 dispatches Function_Camera_GetShiftAlpha (selector L, Perso P)
+## to 00440bf0, which reads the unmodified float at parameter +0x44. Only the
+## source-observed selector 1 is mapped in the current native component.
+func source_get_shift_alpha(selector: int) -> Variant:
+    if selector != 1:
+        return null
+    return source_shift_alpha
 
 func _ready() -> void:
     motion_mode = initial_motion_mode

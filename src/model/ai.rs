@@ -423,6 +423,14 @@ pub enum Expression {
         actor: ActorTarget,
         waypoint: AssetRef<Waypoint>,
     },
+    /// Function_Camera_GetShiftAlpha (category 3/id 59, native 0x0053d300)
+    /// takes a typed integer selector and a Perso receiver. The observed
+    /// camera-model call passes selector 1 and SelfActor; its float result is
+    /// the receiver's camera-parameter +0x44 value, unchanged.
+    CameraShiftAlpha {
+        selector: Box<Expression>,
+        receiver: ActorTarget,
+    },
     /// Cond_CollisionWP (category 1/op 108, 005356c0) tests 0052e810's full
     /// 3D distance minus 005169e0's radius <= 0. 005173f0 resolves an
     /// actor-relative waypoint location each evaluation. Expressions retain
@@ -1083,6 +1091,12 @@ impl Script {
                     if let ActorTarget::Reference(actor) = actor {
                         ensure!(actor.path.member().is_none(), "distance actor is a member");
                     }
+                }
+                Expression::CameraShiftAlpha { selector, receiver } => {
+                    if let ActorTarget::Reference(actor) = receiver {
+                        ensure!(actor.path.member().is_none(), "camera receiver is a member");
+                    }
+                    expression(selector, variables, depth + 1, count)?;
                 }
                 Expression::IsInBehavior {
                     actor: ActorTarget::Reference(actor),

@@ -463,7 +463,7 @@ pub(super) fn export_perso(
         let initially_current = initial.registered_viewport() == Some(1);
         writeln!(
             project.builder,
-            "    var {name}_camera = Camera3D.new()\n    {name}_camera.name = \"SourceCamera\"\n    {name}_camera.set_script(load(\"res://addons/astrolabe/camera/source_camera.gd\"))\n    {name}_camera.rotation.y = PI\n    {name}_camera.keep_aspect = Camera3D.KEEP_WIDTH\n    {name}_camera.fov = {}\n    {name}_camera.near = {}\n    {name}_camera.far = {}\n    {name}_camera.motion_mode = {}\n    {name}_camera.initial_motion_mode = {}\n    {name}_camera.actor_offset = {}\n    {name}_camera.look_offset = {}\n    {name}_camera.mode_zero_target_offset = {}\n    {name}_camera.mode_zero_actor_offset = {}\n    {name}_camera.mode_zero_look_offset = {}\n    {name}_camera.mode_zero_distance = {}\n    {name}_camera.mode_zero_yaw_limits = Vector2({}, {})\n    {name}_camera.mode_zero_pitch_limits = Vector2({}, {})\n    {name}_camera.mode_zero_parameter_flags = {}\n    {name}_camera.source_mode_zero_action_flags = {}\n    {name}_camera.mode_zero_target_child_index = {}\n    {name}_camera.initially_current = {}\n    {name}.add_child({name}_camera)\n    {name}_camera.owner = {name}",
+            "    var {name}_camera = Camera3D.new()\n    {name}_camera.name = \"SourceCamera\"\n    {name}_camera.set_script(load(\"res://addons/astrolabe/camera/source_camera.gd\"))\n    {name}_camera.rotation.y = PI\n    {name}_camera.keep_aspect = Camera3D.KEEP_WIDTH\n    {name}_camera.fov = {}\n    {name}_camera.near = {}\n    {name}_camera.far = {}\n    {name}_camera.motion_mode = {}\n    {name}_camera.initial_motion_mode = {}\n    {name}_camera.actor_offset = {}\n    {name}_camera.look_offset = {}\n    {name}_camera.mode_zero_target_offset = {}\n    {name}_camera.mode_zero_actor_offset = {}\n    {name}_camera.mode_zero_look_offset = {}\n    {name}_camera.mode_zero_distance = {}\n    {name}_camera.mode_zero_yaw_limits = Vector2({}, {})\n    {name}_camera.source_shift_alpha = {}\n    {name}_camera.mode_zero_pitch_limits = Vector2({}, {})\n    {name}_camera.mode_zero_parameter_flags = {}\n    {name}_camera.source_mode_zero_action_flags = {}\n    {name}_camera.mode_zero_target_child_index = {}\n    {name}_camera.initially_current = {}\n    {name}.add_child({name}_camera)\n    {name}_camera.owner = {name}",
             framing.horizontal_fov.to_degrees(),
             camera.clip_planes[0],
             camera.clip_planes[1],
@@ -476,7 +476,8 @@ pub(super) fn export_perso(
             vec3(vector(initial.look_offset)),
             format!("Vector2({},{})", initial.distance[0], initial.distance[1]),
             initial.yaw,
-            initial.yaw_upper_bound(),
+            initial.shift_alpha(),
+            initial.shift_alpha(),
             initial.pitch,
             initial.pitch_upper_bound(),
             initial.angle_flags(),

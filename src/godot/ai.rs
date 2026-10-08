@@ -879,7 +879,8 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::IsValidActor(_)
         | Expression::ApplyArmoredDamage(_)
         | Expression::ArmorResistance
-        | Expression::ArmorCount => true,
+        | Expression::ArmorCount
+        | Expression::CameraShiftAlpha { .. } => true,
         Expression::IsInBehavior { .. } => true,
         Expression::Variable(index) => unresolved_variable(model, *index),
         Expression::ActorListContains { actor, .. } => needs_guard(actor, model),
@@ -1055,6 +1056,30 @@ fn guarded_expression(
                     "{} requires resolved absolute waypoint {}",
                     model.path, waypoint.path
                 ))
+            )?;
+            value_local
+        }
+        Expression::CameraShiftAlpha { selector, receiver } => {
+            let selector = guarded_expression(out, selector, model, depth, flow)?;
+            let receiver = match receiver {
+                ActorTarget::Keyword(ActorKeyword::SelfActor) => "character()".to_owned(),
+                ActorTarget::Keyword(ActorKeyword::MainActor) => "main_actor".to_owned(),
+                ActorTarget::Reference(actor) => format!(
+                    "character().source_actor_node({})",
+                    quoted(actor.path.as_str())
+                ),
+            };
+            let id = flow.local;
+            flow.local += 1;
+            let actor_local = format!("camera_shift_actor_{id}");
+            let value_local = format!("camera_shift_alpha_{id}");
+            let failure = quoted(&format!(
+                "{} Function_Camera_GetShiftAlpha requires camera selector 1 on a bound Perso with SourceCamera",
+                model.path
+            ));
+            writeln!(
+                out,
+                "{pad}var {actor_local} = {receiver}\n{pad}if typeof({actor_local}) != TYPE_OBJECT or not is_instance_valid({actor_local}) or not ({actor_local} is Node3D) or not {actor_local}.has_method(\"source_camera_get_shift_alpha\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {value_local} = {actor_local}.call(\"source_camera_get_shift_alpha\", int({selector}))\n{pad}if typeof({value_local}) != TYPE_FLOAT:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
             )?;
             value_local
         }
@@ -1512,6 +1537,7 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         | Expression::IsValidActor(_)
         | Expression::ApplyArmoredDamage(_)
         | Expression::DistanceToWaypoint { .. }
+        | Expression::CameraShiftAlpha { .. }
         | Expression::WaypointSphereContains { .. } => {
             anyhow::bail!("actor or numeric expression requires guarded compilation")
         }
@@ -2729,9 +2755,9 @@ mod source_position_tests {
     use crate::model::{
         AssetPath, AssetRef,
         ai::{
-            ActorTarget, AiModel, Behavior, BehaviorGroup, BehaviorRef, BehaviorSet, Comparison,
-            DesignerArray, DesignerValue, DesignerVariable, Expression, KillPersoTarget, Script,
-            Statement,
+            ActorKeyword, ActorTarget, AiModel, Behavior, BehaviorGroup, BehaviorRef, BehaviorSet,
+            Comparison, DesignerArray, DesignerValue, DesignerVariable, Expression,
+            KillPersoTarget, Script, Statement,
         },
         character::Perso,
     };
@@ -3228,6 +3254,57 @@ mod source_position_tests {
         assert!(generated.contains("character().source_actor_node(\"level:/persos/world/0/34\")"));
         assert!(generated.contains("source_distance_to_waypoint(distance_receiver_"));
         assert!(generated.contains("requires resolved absolute waypoint level:/waypoints/17-1/58"));
+        Ok(())
+    }
+
+    #[test]
+    fn compiles_camera_shift_alpha_with_selector_and_guarded_perso_receiver() -> anyhow::Result<()>
+    {
+        let model = AiModel {
+            path: AssetPath::new("fix:/ai/models/camera-shift-alpha")?,
+            name: "Camera Shift Alpha".into(),
+            normal: Some(BehaviorSet {
+                behaviors: vec![Behavior {
+                    id: 0,
+                    rules: vec![Some(Script {
+                        statements: vec![Statement::If {
+                            condition: Expression::Compare {
+                                operation: Comparison::Greater,
+                                left: Box::new(Expression::CameraShiftAlpha {
+                                    selector: Box::new(Expression::Integer(1)),
+                                    receiver: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                                }),
+                                right: Box::new(Expression::Real(0.0)),
+                            },
+                            then: vec![Statement::Noop],
+                            otherwise: None,
+                        }],
+                    })],
+                    schedule: None,
+                    unknown: [0; 3],
+                }],
+                default_behavior: Some(0),
+                action_capacity: 0,
+                unknown: [0; 3],
+            }),
+            reflex: None,
+            variables: Vec::new(),
+            designer_unknown: [0; 3],
+            unknown: [0; 4],
+        };
+        let generated = compile(&model, &[])?;
+        assert!(
+            generated.contains("source_camera_get_shift_alpha\", int(1)"),
+            "{generated}"
+        );
+        assert!(
+            generated.contains("camera_shift_actor_0 = character()"),
+            "{generated}"
+        );
+        assert!(
+            generated.contains("requires camera selector 1 on a bound Perso"),
+            "{generated}"
+        );
         Ok(())
     }
 }
