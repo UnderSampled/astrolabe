@@ -12,8 +12,9 @@ fn source_nodes() -> (AiScriptCodec, Vec<u8>) {
     // Cond_Equal(MTH_Modulus(dsg[132], 40), 0) and
     // Cond_Equal(MTH_Modulus(dsg[132] + 20, 40), 0), joined with the
     // designer[2]/designer[3] == 1 checks by Cond_And. The 40 operands are
-    // not the outer comparison values. The callee at 0x00539fc0 is absent
-    // from the local decompilation, so opcode 189 remains unsupported.
+    // not the outer comparison values. Installed table row 188 names handler
+    // 0x00539f60 MTH_Modulus; its callee semantics remain unverified, so raw
+    // ID 188 stays unsupported. Row 189 is RelativeXPositionOfPerso.
     let nodes: [(u8, u32, u8); 25] = [
         (0, 0, 1),   // If
         (1, 0, 2),   // Cond_And
@@ -21,7 +22,7 @@ fn source_nodes() -> (AiScriptCodec, Vec<u8>) {
         (11, 2, 4),  // designer[2]
         (12, 1, 4),  // integer 1
         (1, 3, 3),   // Cond_Equal
-        (3, 189, 4), // MTH_Modulus
+        (3, 188, 4), // MTH_Modulus
         (11, 132, 5),
         (12, 40, 5),
         (12, 0, 4),  // compare the first result with integer 0
@@ -32,7 +33,7 @@ fn source_nodes() -> (AiScriptCodec, Vec<u8>) {
         (11, 3, 4),  // designer[3]
         (12, 1, 4),  // integer 1
         (1, 3, 3),   // Cond_Equal
-        (3, 189, 4), // MTH_Modulus
+        (3, 188, 4), // MTH_Modulus
         (2, 0, 5),   // Plus
         (11, 132, 6),
         (12, 20, 6),
@@ -125,7 +126,7 @@ fn unresolved_modulus_calls_remain_preserved_and_guarded() -> Result<()> {
     assert_eq!(first.start, 6);
     assert_eq!(
         first.reason,
-        "unsupported AI expression category 3 operation 189 at node 6"
+        "unsupported AI expression category 3 operation 188 at node 6"
     );
     assert_eq!(
         first.nodes,
@@ -134,7 +135,7 @@ fn unresolved_modulus_calls_remain_preserved_and_guarded() -> Result<()> {
                 category: 3,
                 indent: 4,
                 reserved: [0; 2],
-                operand: PreservedAiOperand::NonRelocated(189_u32.to_le_bytes()),
+                operand: PreservedAiOperand::NonRelocated(188_u32.to_le_bytes()),
             },
             PreservedAiNode {
                 category: 11,
@@ -155,7 +156,7 @@ fn unresolved_modulus_calls_remain_preserved_and_guarded() -> Result<()> {
     assert_eq!(second.start, 17);
     assert_eq!(
         second.reason,
-        "unsupported AI expression category 3 operation 189 at node 17"
+        "unsupported AI expression category 3 operation 188 at node 17"
     );
     assert_eq!(
         second.nodes,
@@ -164,7 +165,7 @@ fn unresolved_modulus_calls_remain_preserved_and_guarded() -> Result<()> {
                 category: 3,
                 indent: 4,
                 reserved: [0; 2],
-                operand: PreservedAiOperand::NonRelocated(189_u32.to_le_bytes()),
+                operand: PreservedAiOperand::NonRelocated(188_u32.to_le_bytes()),
             },
             PreservedAiNode {
                 category: 2,
@@ -202,10 +203,10 @@ fn unresolved_modulus_calls_remain_preserved_and_guarded() -> Result<()> {
     let code = godot::ai::compile(&reopened, &[])?;
     assert!(code.contains("fail_unsupported("));
     assert!(code.contains(
-        "source AI node 6: unsupported AI expression category 3 operation 189 at node 6"
+        "source AI node 6: unsupported AI expression category 3 operation 188 at node 6"
     ));
     assert!(code.contains(
-        "source AI node 17: unsupported AI expression category 3 operation 189 at node 17"
+        "source AI node 17: unsupported AI expression category 3 operation 188 at node 17"
     ));
     assert!(
         !code.contains('%'),
