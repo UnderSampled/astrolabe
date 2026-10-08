@@ -577,6 +577,9 @@ impl Parser<'_> {
                     selector: self.expression(indent + 1)?,
                     value: self.expression(indent + 1)?,
                 },
+                (4, 171) => Statement::CameraResetVerticalMaximum {
+                    actor: self.expression(indent + 1)?,
+                },
                 (4, 136 | 157 | 160 | 163 | 166) => {
                     let operand = self.at;
                     if !self
@@ -2435,6 +2438,10 @@ impl Writer<'_> {
                     for value in [actor, selector, value] {
                         self.expression(value, indent + 1)?;
                     }
+                }
+                Statement::CameraResetVerticalMaximum { actor } => {
+                    self.node(4, 171, indent);
+                    self.expression(actor, indent + 1)?;
                 }
                 Statement::SetObjectActive { actor, active } => {
                     self.node(4, if *active { 3 } else { 4 }, indent);

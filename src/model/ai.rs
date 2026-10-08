@@ -364,6 +364,10 @@ pub enum Statement {
         selector: Expression,
         value: Expression,
     },
+    /// Proc171 evaluates one actor and resets only its camera's vertical maximum.
+    CameraResetVerticalMaximum {
+        actor: Expression,
+    },
     /// Source screen-fade material selection and value remain presentation API
     /// calls owned by the active screen.
     SetFadeTexture(Expression),
@@ -2044,6 +2048,9 @@ impl Script {
                         for value in [actor, selector, value] {
                             expression(value, variables, depth + 1, count)?;
                         }
+                    }
+                    Statement::CameraResetVerticalMaximum { actor } => {
+                        expression(actor, variables, depth + 1, count)?;
                     }
                     Statement::SetSelfAbsolutePosition(position) => {
                         expression(position, variables, depth + 1, count)?;

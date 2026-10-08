@@ -220,6 +220,9 @@ impl<'a> Iterator for AstWalk<'a> {
                 Statement::ChangeCameraFocal { actor, selector, value } => {
                     self.expressions(child_depth, &[actor, selector, value]);
                 }
+                Statement::CameraResetVerticalMaximum { actor } => {
+                    self.expressions(child_depth, &[actor]);
+                }
                 Statement::SwitchMicrophone {
                     actor,
                     evaluated_second,

@@ -143,10 +143,9 @@ Its float32 stores are represented; x87 equivalence is not claimed.
 Proc141 and Proc158 now have paired typed reader/writer/compiler paths. Primary
 viewport reselection restores the old target's opacity, including the same-camera
 early return used by the key's `(1,1,0,camera)` call. The final viewport follow-on
-below connects that owner independently of an authored rendered camera. Switching
-to another already registered camera without an old-camera reset is supported;
-source registration forces placement policy zero in that branch. Controller
-reset, unregistered activation and secondary viewports remain explicit failures.
+below connects that owner independently of an authored rendered camera.
+Different-owner selection, controller reset, unregistered activation and
+secondary viewports remain explicit failures pending the full sector/reset path.
 Focal changes skip selector/value evaluation when unregistered. The reached key
 request overwrites source horizontal FOV with 1.3 radians. Source modes101/104/105
 and relative-focal flag0x20 remain unsupported. Initial FOV is exported separately
@@ -222,13 +221,14 @@ Thus key703 Normal2's `(1,1,0,world/0/2)` connects to the source camera and can
 continue to the existing DSG56 release after the owned dialogue completes.
 There is no key, Manor or actor-index conditional in the implementation.
 
-Registration availability and viewport context are distinct. Switching away
-without a reset clears only the old context; it does not clear availability.
-Selecting an already registered destination forces placement policy zero after
-operand evaluation, as the source does. Unregistered destinations and resetting
-a different previous camera remain explicit unsupported branches; this follow-on
-does not bypass them. Invalid/unloaded owner references still fail. Weak ownership
-does not retain an unloaded level's camera.
+Registration availability and viewport context are distinct in the exported
+values. The source's different-owner path clears only the old context when no
+reset is requested and forces placement zero for an already registered destination.
+The later complete C corroboration also establishes sector refresh after that
+placement-zero branch. The final correction below therefore makes all
+different-owner selections explicit unsupported branches rather than claim
+partial success without sector refresh. Invalid/unloaded owner references still
+fail. Weak ownership does not retain an unloaded level's camera.
 
 This follow-on leaves Rete60 unchanged and advances the Godot support interface
 79→80. It changes `src/model/camera.rs`, `src/godot/character.rs`,
@@ -241,6 +241,56 @@ level unloading together with the merged training/UI dependencies.
 
 For the presentation importer follow-on, retained `keysico_gogood` item header
 bytes are `[1,0,5,0]`; its u32 fields at +08 and +20 hex are both zero.
+
+## Camera Proc171 and source corroboration
+
+Func171 is the vector-angle function already implemented. **Proc171 is
+Camera_ResetCameraZMax**, with exactly one actor operand. Static inspection of
+the original shared procedure handler and its bound-address helper establishes
+that it evaluates that actor, captures its camera component, then writes the
+finite maximum float32 sentinel. It does not evaluate another scalar, reset
+framing or modify the lower bound. The neighboring set-max/set-min/reset-min
+arms are separate procedures and are not new implementation claims here.
+
+There is no identified reachable Manor Proc171 caller or operand to report.
+The raw rooted-actor traversal covered 47 distinct models, 416 Normal/Reflex
+behaviors and 678 unique script allocations, including key703 and Gogoud991;
+it found zero procedure171 nodes. An independent scan of all retained Fix/Manor
+allocations matching complete AI node/sentinel structure found 792 scripts,
+seven procedure141 nodes and zero procedures170..173. This is static file/AST
+inspection, not runtime reachability evidence for other levels or later-loaded
+assets. The integration's absence of Proc171 support was correctly reported;
+the implemented Func171 never implied a camera procedure implementation.
+
+The missing procedure now has a typed `CameraResetVerticalMaximum` statement,
+recursive actor traversal/validation, paired source reader/writer, and guarded
+native compilation. The sole actor operand is evaluated/captured before camera
+lookup. The native setter writes the existing actor-owned vertical-limit pair,
+preserving its lower value, and resets only the upper value. The maintained
+mode-zero camera candidate calculation already consumes this pair. Training's
+Proc136 reset continues to initialize the same owned pair; neither procedure
+substitutes for the other. Missing camera actors or malformed native ownership
+still fail before mutation.
+
+The independent clean-C Proc141 checkpoint is
+`d93d30ffe7a46271338a3a677a72003883b9c245`, authored in task19's
+`hype-presentation/src/camera/camera_change_procedure.c` and
+`camera_viewport_records.c`. Reading those complete bodies corroborates all
+operand evaluation, opacity and same-owner ordering used by the key path.
+The native make-current handback binds Godot's renderer to its semantic owner;
+it is not claimed to be an original same-owner renderer call. The complete
+different-owner path includes camera registration, captured-pointer resets and
+sector refresh. This checkpoint removes the earlier partial native switching
+branch. The reached same-owner key path and its subsequent DSG56 release are
+preserved. No geometry or source C translation is authored here.
+
+This final typed procedure advances Rete60→61 and support80→81. The maintained
+version JSON and existing support assertion are aligned with81. The integration
+must merge the new statement alongside its retained Proc136/166 declarations
+and preserve their existing native reset/flag methods. No test, compilation,
+formatter, lint, syntax check, export or runtime command was run. The original
+shared procedure170..173 has no newly authored clean-C body in this branch;
+the native contract uses direct static PE evidence.
 
 After the owned training/UI dependencies are integrated, runtime verification
 still needs:

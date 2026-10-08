@@ -121,7 +121,7 @@ func _source_publish_primary() -> void:
 
 ## Proc141 always restores the previous source target's opacity, including
 ## a request for the already selected camera. Only the primary viewport is mapped.
-func source_select_primary(context: Variant, previous_policy: Variant, _placement_policy: Variant) -> bool:
+func source_select_primary(context: Variant, _previous_policy: Variant, _placement_policy: Variant) -> bool:
     var owner := get_parent() as Node3D
     if owner == null or not owner.has_method("source_scalar_word") or int(owner.call("source_scalar_word", context)) != 1:
         return false
@@ -135,16 +135,10 @@ func source_select_primary(context: Variant, previous_policy: Variant, _placemen
         # authored presentation camera had temporarily taken Godot's current slot.
         make_current()
         return true
-    # Switching through an unregistered/reset controller or copying its pose
-    # needs the remaining source camera reset/placement contracts. Preserve a
-    # reached failure for those requests rather than substitute an authored eye.
-    if not source_viewport_registered or int(owner.call("source_scalar_word", previous_policy)) != 0:
-        return false
-    # An already registered destination forces source placement policy zero.
-    # Switching away clears the old context, retaining its registration flag.
-    previous.set("source_viewport_context", 0)
-    _source_publish_primary()
-    return true
+    # Different-owner selection also refreshes the selected actor's sector,
+    # including placement zero. That contract and the reset/copy branches
+    # remain unsupported here; opacity restoration above still occurs first.
+    return false
 
 ## Proc158's unregistered branch returns before evaluating selector or value.
 ## Source modes 101/104/105 select another parameter set that is not mapped here.
@@ -775,6 +769,20 @@ func source_mode_zero_vertical_limits() -> Vector2:
         push_error("Source mode-0 owner vertical limits metadata is invalid")
         return Vector2.ZERO
     return Vector2(SOURCE_POSITION_DEFAULT_MIN, SOURCE_POSITION_DEFAULT_MAX)
+
+## Proc171 resets only the actor-owned maximum vertical bound. Its sole
+## operand is the camera actor; no extra scalar evaluation or framing reset.
+func source_reset_vertical_maximum() -> bool:
+    var owner := get_parent() as Node3D
+    if owner == null: return false
+    var limits := Vector2(SOURCE_POSITION_DEFAULT_MIN, SOURCE_POSITION_DEFAULT_MAX)
+    if owner.has_meta("source_mode_zero_vertical_limits"):
+        var previous: Variant = owner.get_meta("source_mode_zero_vertical_limits")
+        if not (previous is Vector2): return false
+        limits = previous
+    limits.y = SOURCE_POSITION_DEFAULT_MAX
+    owner.set_meta("source_mode_zero_vertical_limits", limits)
+    return true
 
 func _source_rotate_axis_angle(direction: Vector3, axis: Vector3, angle: float) -> Vector3:
     var cosine := cos(angle)

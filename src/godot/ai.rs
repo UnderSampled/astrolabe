@@ -3492,6 +3492,17 @@ fn statements(
                     quoted(&format!("{} requires supported source focal values", model.path))
                 )?;
             }
+            Statement::CameraResetVerticalMaximum { actor } => {
+                let id = flow.local;
+                flow.local += 1;
+                let actor = guarded_expression(out, actor, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}var bound_actor_{id} = {actor}\n{pad}if typeof(bound_actor_{id}) != TYPE_OBJECT or not is_instance_valid(bound_actor_{id}) or not (bound_actor_{id} is Node3D):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var bound_camera_{id} = bound_actor_{id}.get_node_or_null(\"SourceCamera\")\n{pad}if bound_camera_{id} == null or not bound_camera_{id}.has_method(\"source_reset_vertical_maximum\") or not bound_camera_{id}.source_reset_vertical_maximum():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!("{} requires a native camera actor for vertical maximum reset", model.path)),
+                    quoted(&format!("{} requires an actor-owned camera vertical bound", model.path))
+                )?;
+            }
             Statement::SetSelfAbsolutePosition(position) => {
                 let value = guarded_expression(out, position, model, depth, flow)?;
                 writeln!(
