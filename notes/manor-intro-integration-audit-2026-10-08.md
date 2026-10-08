@@ -177,3 +177,47 @@ choice/loop/stop/mixer regression passes in6.44s, strict all-target Clippy and
 the six selection safeguards pass. An initial new-test path assertion failed
 and was corrected to the existing `.voices/` layout; that failed log is retained.
 Root preparation will be retried after rebuilding this coherent sharing fix.
+
+## Actual root publication and first acceptance attempt
+
+The sharing fix is committed as `bac48e1`. Its release build passed in64.85s.
+The reviewed `prepare-game disc godot` retry passed all four scopes in410.53s:
+Manor8,785 files, menu88, inventory192 and pause-menu27. The supervisor reports
+no timeout, leaked children or remaining processes. The native root remains
+`godot/`, with bootstrap as its actual entry scene and support interface72.
+Authored files remain intact; destination import created native UID sidecars.
+
+The first rendered bootstrap/New Game observer failed readiness at70.04s,
+before observing any intro stage. Its outer run exited1 in74.06s and cleaned
+all children. Sound event103/102, model1332 and its actor scene emitted resource
+errors after the observer quit. A direct actual-root parser check of model1332
+and its two sound preloads then passed in0.064s. A fresh headless threaded load
+of the entire native Manor PackedScene, without instantiation or AI, completed
+in20.16s. Its resource result succeeds; an exit warning reports43 cached objects.
+These observations do not prove that the reported sound files are invalid.
+The audio peer's connected read-only audit finds no sound dependency cycle;
+shutdown fallout is an inference pending rendered loading diagnosis.
+
+Full camera/dialogue/player-handoff acceptance is therefore **unrun**. The
+failure is currently in actual rendered startup readiness. Raw evidence is in
+`output/integration-resume-20261008/actual-intro*`, `ambient-ai-parser.log` and
+`native-level-load*`; the failed run is preserved. The camera peer owns a bounded
+read-only rendered resource-load comparison. No further full export is running.
+
+An independent audio/UI source audit finds no finite first-visit dialogue
+completion blocker: all eight required voice samples are nonlooping and
+stoppable, and their final pages have finite deadlines. Native speech-holder
+gates remain distinct from ordinary actor voices. Driver-clock calibration and
+lip-animation selection remain fidelity limits. Global's null Micro also remains
+an unverified pose-publication limit; native selection succeeds without an
+invented pose or failstop. Neither limit has yet caused the native startup failure.
+
+The final bounded comparison loads the same native resource under rendering in
+24.93s without a cap. A temporary30-FPS actual bootstrap startup then completes
+the resource request in20.42s and reaches readiness in41.31s, restoring the prior
+cap0 before exit. This is observed improvement, not an isolated engine mechanism.
+It exposes critical World154 selected-armor and Camera437 active identity-card
+callback failures after loading. No production cap or new semantic fix is applied.
+Full intro acceptance remains pending. Work is parked at the user's request;
+the [wrap-up inventory and next plan](intro-integration-wrapup-2026-10-08.md)
+account for exact results, preserved UID sidecars and unmerged optional commits.
