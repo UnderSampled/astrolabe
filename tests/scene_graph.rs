@@ -69,6 +69,7 @@ fn word(b: &[u8], p: usize) -> u32 {
 fn scene_graph_rete_edits_derived_hierarchy_and_embedded_matrix_targets() -> Result<()> {
     let mut scene = fixture()?;
     scene.nodes[1].properties.source_kind = Some(0x15);
+    scene.nodes[1].properties.source_visual_lod_count = Some(1);
     scene.nodes[1].properties.opacity = 127.5;
     scene.nodes[1].properties.initial_global_transform = Some(SourceTransform {
         translation: [1., 2., 3.],
@@ -83,6 +84,7 @@ fn scene_graph_rete_edits_derived_hierarchy_and_embedded_matrix_targets() -> Res
     drop(store);
     let mut store = rete::Store::new(temp.path(), selection)?;
     let mut scene = (*store.load(&reference)?).clone();
+    assert_eq!(scene.nodes[1].properties.source_visual_lod_count, Some(1));
     scene.nodes[0].transform.as_mut().unwrap().translation[0] = 20.;
     let mut dependencies = SceneDependencies {
         data: BTreeMap::from([

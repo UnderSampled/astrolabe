@@ -951,7 +951,7 @@ func source_publish_mode_zero_translation(
     if resolved_sector_id.is_empty():
         var sector_result := source_resolve_mode_zero_sector(third_argument_position)
         if not bool(sector_result.get("complete", false)):
-            push_error("Source 0051c7b0 publication needs the full 004e0020 sector query; active child physical-visual geometry is not available as an equivalent source ray input")
+            push_error("Source 0051c7b0 publication needs a complete 004e0020 sector result; type-1/11 child GEO and physical visuals with multiple source LODs are not represented faithfully")
             return false
         resolved_sector_id = str(sector_result.get("sector_id", ""))
     if resolved_sector_id.is_empty():
@@ -970,9 +970,8 @@ func source_publish_mode_zero_translation(
     _source_previous_history_position = owner.global_position
     return true
 
-## Exact border-GEO branch of 004e0020. The routine also tests active-sector
-## children of source kinds 1, 11, 13 and 21; if any are present this reports
-## the nearest border hit for inspection but marks the full result incomplete.
+## 004e0020 drops a one-unit semiaxis from the query point and chooses the
+## nearest hit among active nonvirtual sector borders and eligible child GEOs.
 func source_resolve_mode_zero_sector(position: Vector3) -> Dictionary:
     if not position.is_finite():
         return {}
@@ -980,48 +979,146 @@ func source_resolve_mode_zero_sector(position: Vector3) -> Dictionary:
     if not is_instance_valid(root):
         push_error("Source camera has no level root for 004e0020 sector lookup")
         return {}
-    var nearest_fraction := 2.0
+    var nearest_distance := INF
     var nearest_sector_id := ""
-    for candidate in root.find_children("SectorBoundary", "MeshInstance3D", true, false):
-        var boundary := candidate as Node3D
-        var sector := _source_sector_for(boundary)
-        if sector == null or not sector.has_meta("source_sector") or not sector.has_meta("source_sector_id"):
+    var complete := true
+    var source_nodes := root.find_children("*", "Node3D", true, false)
+    for candidate in source_nodes:
+        if not candidate.has_meta("source_sector_id"):
             continue
+        if not candidate.has_meta("source_sector"):
+            complete = false
+            continue
+        var sector := candidate
         var source_data = JSON.parse_string(str(sector.get_meta("source_sector")))
         if not source_data is Dictionary:
+            complete = false
             continue
         if int(source_data.get("virtual_sector", 0)) != 0 or (int(source_data.get("activation", 0)) & 4) == 0:
             continue
-        if not boundary.has_method("intersect_segment"):
+        var sector_id := str(sector.get_meta("source_sector_id"))
+        if not source_data.has("boundary"):
+            complete = false
             continue
-        var hit: Dictionary = boundary.call("intersect_segment", position, position + Vector3.DOWN)
-        if hit.is_empty():
+        var boundary_data = source_data.get("boundary")
+        if boundary_data is Dictionary:
+            var boundary := sector.get_node_or_null("SectorBoundary") as Node3D
+            var boundary_vertices: Variant = boundary.get("vertices") if boundary != null else null
+            if not boundary_vertices is PackedVector3Array or boundary_vertices.size() % 3 != 0:
+                complete = false
+            else:
+                var border_distance := _source_sector_mesh_ray_distance(boundary, position, boundary_vertices)
+                if border_distance >= 0.0 and border_distance < nearest_distance:
+                    nearest_distance = border_distance
+                    nearest_sector_id = sector_id
+
+        var unknown_bytes = source_data.get("unknown")
+        if not unknown_bytes is Array or unknown_bytes.is_empty():
+            complete = false
             continue
-        var fraction := float(hit.get("fraction", 2.0))
-        if fraction < nearest_fraction:
-            nearest_fraction = fraction
-            nearest_sector_id = str(sector.get_meta("source_sector_id"))
-    if nearest_sector_id.is_empty():
+        if int(unknown_bytes[0]) != 0:
+            continue
+        for physical_visual in source_nodes:
+            var source_kind := int(physical_visual.get_meta("source_node_kind", -1))
+            if source_kind not in [1, 11, 13, 21] or physical_visual == sector:
+                continue
+            if _source_sector_for(physical_visual) != sector:
+                continue
+            var visual_hit := _source_sector_physical_visual_ray(physical_visual, position)
+            if not bool(visual_hit.get("complete", false)):
+                complete = false
+            var visual_distance := float(visual_hit.get("distance", -1.0))
+            if visual_distance >= 0.0 and visual_distance < nearest_distance:
+                nearest_distance = visual_distance
+                nearest_sector_id = sector_id
+    if nearest_sector_id.is_empty() and complete:
         return {}
-    var child_geometry_missing := _source_has_active_sector_physical_visuals(root)
     return {
         "sector_id": nearest_sector_id,
-        "fraction": nearest_fraction,
-        "complete": not child_geometry_missing,
+        "distance": nearest_distance,
+        "fraction": nearest_distance,
+        "complete": complete,
     }
 
-func _source_has_active_sector_physical_visuals(root: Node) -> bool:
-    for candidate in root.find_children("*", "Node3D", true, false):
-        var source_kind := int(candidate.get_meta("source_node_kind", -1))
-        if source_kind not in [1, 11, 13, 21]:
-            continue
-        var sector := _source_sector_for(candidate)
-        if sector == null or not sector.has_meta("source_sector"):
-            continue
-        var source_data = JSON.parse_string(str(sector.get_meta("source_sector")))
-        if source_data is Dictionary and int(source_data.get("virtual_sector", 0)) == 0 and (int(source_data.get("activation", 0)) & 4) != 0:
-            return true
-    return false
+## 004e0020 uses the same semi-axis against sector-border and child GEO faces.
+## Transforming the origin and one-unit direction into local space preserves
+## the source ray parameter even when a node has a nonuniform basis.
+func _source_sector_mesh_ray_distance(node: Node3D, position: Vector3, vertices: PackedVector3Array) -> float:
+    var local_origin := node.to_local(position)
+    var local_direction := node.to_local(position + Vector3.DOWN) - local_origin
+    return _source_sector_faces_ray_distance(local_origin, local_direction, vertices)
+
+func _source_sector_physical_visual_ray(node: Node3D, position: Vector3) -> Dictionary:
+    var source_kind := int(node.get_meta("source_node_kind", -1))
+    if source_kind in [13, 21]:
+        if not node.has_meta("source_visual_lod_count") or int(node.get_meta("source_visual_lod_count")) != 1:
+            return {"complete": false, "distance": -1.0}
+        var meshes: Array[Node] = []
+        if node is MeshInstance3D:
+            meshes.append(node)
+        meshes.append_array(node.find_children("*", "MeshInstance3D", true, false))
+        if meshes.is_empty():
+            return {"complete": false, "distance": -1.0}
+        var nearest_distance := INF
+        for candidate in meshes:
+            var mesh_node := candidate as MeshInstance3D
+            if mesh_node == null or mesh_node.mesh == null:
+                return {"complete": false, "distance": -1.0}
+            var faces := mesh_node.mesh.get_faces()
+            if faces.size() % 3 != 0:
+                return {"complete": false, "distance": -1.0}
+            var local_origin := mesh_node.to_local(position)
+            var local_direction := mesh_node.to_local(position + Vector3.DOWN) - local_origin
+            var distance := _source_sector_faces_ray_distance(local_origin, local_direction, faces)
+            if distance >= 0.0 and distance < nearest_distance:
+                nearest_distance = distance
+        return {"complete": true, "distance": nearest_distance if is_finite(nearest_distance) else -1.0}
+    # Types 1/11 expose GEO through source records that the current useful
+    # scene model does not promote. Do not substitute picking/collision bounds.
+    return {"complete": false, "distance": -1.0}
+
+func _source_sector_faces_ray_distance(
+    origin: Vector3,
+    direction: Vector3,
+    vertices: PackedVector3Array
+) -> float:
+    if direction.length_squared() < 0.0000000001 or vertices.size() % 3 != 0:
+        return -1.0
+    var nearest_distance := INF
+    for index in range(0, vertices.size(), 3):
+        var distance := _source_ray_triangle_distance(
+            origin, direction, vertices[index], vertices[index + 1], vertices[index + 2]
+        )
+        if distance >= 0.0 and distance < nearest_distance:
+            nearest_distance = distance
+    return nearest_distance if is_finite(nearest_distance) else -1.0
+
+func _source_ray_triangle_distance(
+    origin: Vector3,
+    direction: Vector3,
+    a: Vector3,
+    b: Vector3,
+    c: Vector3
+) -> float:
+    var edge_ab := b - a
+    var edge_ac := c - a
+    var determinant_vector := direction.cross(edge_ac)
+    var determinant := edge_ab.dot(determinant_vector)
+    if absf(determinant) < 0.00000001:
+        return -1.0
+    var inverse_determinant := 1.0 / determinant
+    var from_a := origin - a
+    var u := from_a.dot(determinant_vector) * inverse_determinant
+    if u < -0.000001 or u > 1.000001:
+        return -1.0
+    var cross_from_a := from_a.cross(edge_ab)
+    var v := direction.dot(cross_from_a) * inverse_determinant
+    if v < -0.000001 or u + v > 1.000001:
+        return -1.0
+    var distance := edge_ac.dot(cross_from_a) * inverse_determinant
+    if distance < -0.000001:
+        return -1.0
+    return maxf(distance, 0.0)
 
 func _source_collision_context() -> Dictionary:
     var owner := get_parent() as Node3D

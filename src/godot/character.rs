@@ -410,7 +410,7 @@ pub(super) fn export_perso(
         // Source camera local -Y becomes the converted actor's +Z. Godot's
         // camera looks along local -Z, hence the child half-turn above.
         project.diagnostic(format!(
-            "{}: source parameter set 0 supplies camera mode, controller/action flags, and primary viewport registration; parameter set 1 supplies FOV and mode-3 framing; the scene binds the exact MainActor target; mode-0 dispatch and collision use source-derived inputs; the live +0x254 guard and 0051ec70 interpolation path remain explicit gaps",
+            "{}: source parameter set 0 supplies camera mode, controller/action flags, and primary viewport registration; parameter set 1 supplies FOV and mode-3 framing; the scene binds the exact MainActor target; mode-0 dispatch/collision use source-derived inputs; +0x254 and 0051ec70 remain explicit conditional gaps",
             perso.path
         ));
     }

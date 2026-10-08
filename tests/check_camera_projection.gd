@@ -150,7 +150,7 @@ func run() -> void:
     probe_root.set_meta("source_level_scene", true)
     var probe_sector := Node3D.new()
     probe_sector.set_meta("source_sector_id", "camera-sector-probe")
-    probe_sector.set_meta("source_sector", JSON.stringify({"virtual_sector": 0, "activation": 4, "collision": []}))
+    probe_sector.set_meta("source_sector", JSON.stringify({"virtual_sector": 0, "activation": 4, "collision": [], "unknown": [0,0,0], "boundary": {}}))
     probe_root.add_child(probe_sector)
     var probe_owner := Node3D.new()
     probe_owner.position = Vector3(0,0.5,0)
@@ -290,10 +290,55 @@ func run() -> void:
     if not require(probe_owner.global_position.is_equal_approx(Vector3(0.5,0.5,0)), "source same-sector pose publication chose the wrong argument"): return
     var next_sector := Node3D.new()
     next_sector.set_meta("source_sector_id", "camera-sector-next")
-    next_sector.set_meta("source_sector", JSON.stringify({"virtual_sector": 0, "activation": 4, "collision": []}))
+    next_sector.set_meta("source_sector", JSON.stringify({"virtual_sector": 0, "activation": 4, "collision": [], "unknown": [0,0,0], "boundary": null}))
     probe_root.add_child(next_sector)
     if not require(probe_camera.source_publish_mode_zero_translation(Vector3(2,0.5,0),Vector3(1,0.5,0),"camera-sector-next"), "source cross-sector pose publication failed"): return
     if not require(probe_owner.global_position.is_equal_approx(Vector3(2,0.5,0)), "source cross-sector pose publication chose the wrong argument"): return
+    var farther_sector := Node3D.new()
+    farther_sector.set_meta("source_sector_id", "camera-sector-farther-boundary")
+    farther_sector.set_meta("source_sector", JSON.stringify({"virtual_sector": 0, "activation": 4, "collision": [], "unknown": [0,0,0], "boundary": {}}))
+    probe_root.add_child(farther_sector)
+    var farther_boundary := MeshInstance3D.new()
+    farther_boundary.name = "SectorBoundary"
+    farther_boundary.set_script(load("res://addons/astrolabe/scene/sector_boundary.gd"))
+    farther_boundary.vertices = PackedVector3Array([
+        Vector3(-1,0.25,-1), Vector3(1,0.25,-1), Vector3(0,0.25,1)
+    ])
+    farther_boundary.neighbors = PackedStringArray([""])
+    farther_boundary.surfaces = PackedInt32Array([0])
+    farther_boundary.face_normals = PackedVector3Array([Vector3.UP])
+    farther_sector.add_child(farther_boundary)
+    var gated_child := Node3D.new()
+    gated_child.set_meta("source_node_kind", 1)
+    probe_sector.add_child(gated_child)
+    probe_sector.set_meta("source_sector", JSON.stringify({"virtual_sector": 0, "activation": 4, "collision": [], "unknown": [1,0,0], "boundary": {}}))
+    resolved_sector = probe_camera.source_resolve_mode_zero_sector(Vector3(0,0.5,0))
+    if not require(resolved_sector.get("complete", false), "source 004e0020 traversed sector children when Sector.unknown[0] disables them"): return
+    probe_sector.set_meta("source_sector", JSON.stringify({"virtual_sector": 0, "activation": 4, "collision": [], "unknown": [0,0,0], "boundary": {}}))
+    gated_child.free()
+    var physical_visual := Node3D.new()
+    physical_visual.set_meta("source_node_kind", 13)
+    physical_visual.set_meta("source_visual_lod_count", 1)
+    probe_sector.add_child(physical_visual)
+    var visual_mesh := ArrayMesh.new()
+    var visual_arrays: Array = []
+    visual_arrays.resize(Mesh.ARRAY_MAX)
+    visual_arrays[Mesh.ARRAY_VERTEX] = PackedVector3Array([
+        Vector3(-1,0.4,-1), Vector3(1,0.4,-1), Vector3(0,0.4,1)
+    ])
+    visual_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, visual_arrays)
+    var visual_instance := MeshInstance3D.new()
+    visual_instance.mesh = visual_mesh
+    physical_visual.add_child(visual_instance)
+    resolved_sector = probe_camera.source_resolve_mode_zero_sector(Vector3(0,0.5,0))
+    if not require(resolved_sector.get("sector_id", "") == "camera-sector-probe" and absf(float(resolved_sector.get("distance", -1.0)) - 0.1) < 0.00001, "source 004e0020 did not select the nearer active type-13 visual face over another sector border"): return
+    var multi_lod_visual := Node3D.new()
+    multi_lod_visual.set_meta("source_node_kind", 21)
+    multi_lod_visual.set_meta("source_visual_lod_count", 2)
+    probe_sector.add_child(multi_lod_visual)
+    resolved_sector = probe_camera.source_resolve_mode_zero_sector(Vector3(0,0.5,0))
+    if not require(not resolved_sector.get("complete", true), "source 004e0020 claimed a complete result for a multi-LOD child visual"): return
+    multi_lod_visual.free()
     var unmodeled_child := Node3D.new()
     unmodeled_child.set_meta("source_node_kind", 13)
     probe_sector.add_child(unmodeled_child)

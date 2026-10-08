@@ -152,11 +152,14 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
             n => NodeKind::Unknown(n),
         };
         let mut instance = None;
+        let mut source_visual_lod_count = None;
 
         if kind == NodeKind::Object {
             let ipo = session.required(node.address, SuperObjectWire::DATA)?;
             let po = session.required(ipo, InstantiatedObjectWire::PHYSICAL_OBJECT)?;
             let visual = session.required(po, PhysicalObjectWire::VISUAL_SET)?;
+            let visual_header: VisualSetWire = wire(session.bytes(visual, 16)?)?;
+            source_visual_lod_count = Some(visual_header.lods);
             let geometry =
                 session.required(session.required(visual, VisualSetWire::OBJECTS)?, 0)?;
             let geo: GeometryWire = wire(session.bytes(geometry, 48)?)?;
@@ -206,6 +209,7 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
         result.scene.nodes.push(SceneNode {
             properties: crate::model::scene::SceneNodeProperties {
                 source_kind: Some(header.kind),
+                source_visual_lod_count,
                 transform_space: if header.last_compute_frame == u32::MAX {
                     crate::model::scene::TransformSpace::World
                 } else {

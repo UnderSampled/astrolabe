@@ -183,6 +183,12 @@ impl Project {
                 "    {name}.set_meta(\"source_node_properties\", {})",
                 quoted(&serde_json::to_string(&node.properties)?)
             )?;
+            if let Some(lod_count) = node.properties.source_visual_lod_count {
+                writeln!(
+                    self.builder,
+                    "    {name}.set_meta(\"source_visual_lod_count\", {lod_count})"
+                )?;
+            }
             if let Some(reference) = &node.properties.bounding_geometry {
                 let bounds = source.load(reference)?;
                 bounds.validate_reference(&reference.path)?;

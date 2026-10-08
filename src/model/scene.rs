@@ -56,6 +56,11 @@ pub struct SceneNode {
 pub struct SceneNodeProperties {
     /// Preserve Hype's two IPO kind identities without splitting useful objects.
     pub source_kind: Option<u32>,
+    /// Source VisualSet LOD count for physical visuals. Camera sector
+    /// membership queries must use the same geometry selected by the source;
+    /// an imported LOD-0 mesh is only equivalent when this is exactly one.
+    #[serde(default)]
+    pub source_visual_lod_count: Option<u16>,
     pub transform_space: TransformSpace,
     pub initial_global_transform: Option<SourceTransform>,
     /// Bounds used for source visibility/picking; these are not collision bodies.
@@ -114,6 +119,7 @@ impl Default for SceneNodeProperties {
     fn default() -> Self {
         Self {
             source_kind: None,
+            source_visual_lod_count: None,
             transform_space: TransformSpace::Local,
             initial_global_transform: None,
             bounding_geometry: None,
@@ -196,6 +202,12 @@ impl Content for Scene {
                         NodeKind::Unknown(n) => kind == n,
                     },
                     "source node kind disagrees with useful node kind"
+                );
+            }
+            if let Some(lod_count) = node.properties.source_visual_lod_count {
+                ensure!(
+                    lod_count > 0 && matches!(node.properties.source_kind, Some(0xd | 0x15)),
+                    "source visual LOD count requires a type-13/21 physical visual"
                 );
             }
             ensure!(

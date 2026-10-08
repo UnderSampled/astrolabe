@@ -109,11 +109,11 @@ target in the actor case.
 against that sector's border GEO and then against child physical visuals of
 source kinds `1`, `0xd`, `0x15`, and `0xb`. It selects the closest hit;
 `004b7ab0` mode 0 performs the face-geometry semi-axis query. The exporter now
-preserves each node's raw `source_node_kind`, and native support runs the exact
-downward border-GEO query over the saved SectorBoundary triangles. If active
-child physical-visual nodes are present, the result is marked incomplete
-because their visual-set triangles/LOD are not exported for this query; the
-pose publisher refuses that partial result.
+preserves each node's raw `source_node_kind` and each type-13/21 VisualSet's
+LOD count. Native support applies `Sector.unknown[0]` as the child traversal
+gate, tests saved border triangles, and tests type-13/21 visual faces when the
+source VisualSet has exactly one LOD. Type-1/11 GEO and multi-LOD physical
+visuals are marked incomplete; pose publication refuses those partial results.
 
 ### Earlier Data3D blocker (superseded below)
 
@@ -203,10 +203,10 @@ The shared state Resource separates `DAT_007219d0` from the last-good
 and `DAT_007219d1` flags, and follows the distinct success/failure distance
 hysteresis rules. When the source gate sets d1, the native path reaches
 `0051c7b0` and uses its active-sector decision to publish the selected pose.
-The sector resolver still accepts the exact border-GEO portion of `004e0020`
-only; if active physical visuals of source kinds 1, 11, 13 or 21 could affect
-the lookup, it reports the missing equivalent rather than claiming a complete
-sector result.
+The sector resolver follows `004e0020`'s border and child-GEO query for the
+currently exported cases: borders and type-13/21 visuals with a single source
+LOD. Active type-1/11 children and physical visuals with multiple LODs still
+make the result incomplete rather than substituting bounds or an arbitrary LOD.
 
 Two narrower behavior gaps remain explicit. First, the rare `0051f670`
 target-head-blocked branch reads controller-owner `+0x254`, which
@@ -223,9 +223,9 @@ branches are implemented independently of these cases.
 
 The other startup inputs now have source-backed adapters: the target's source
 +Y orientation selector, camera-owner Position sentinel bounds, Godot Y-up
-conversion, and the sector border-GEO lookup. The three collision rays reuse
-exported source collision identifiers, reachable sectors, and owner/target
-exclusions.
+conversion, and supported `004e0020` sector GEO inputs. The three collision
+rays reuse exported source collision identifiers, reachable sectors, and
+owner/target exclusions.
 
 Letterboxing already has a maintained `Screen` component: compiled source UI
 calls route to `source_toggle_widescreen()`, which shows the bars and suppresses
@@ -271,3 +271,48 @@ The final focused reruns after correcting both `0051f670` calls to
 (`1 passed, 4 local-game cases ignored`) and camera model unit tests (`17
 passed, 1 local-game-data case ignored`). Formatting and whitespace checks
 also passed.
+
+## 2026-10-08 source-first continuation
+
+Camera target binding is concrete. Camera activation at `00440820` initializes
+component `+0x10` from `MainActor` through `00440fd0`; procedure 160 (`00548070`)
+writes its resolved Perso, and procedure 163 (`00548250`) restores `MainActor`.
+Manor camera record 0 preserves target-child selector `-1` at parameter `+0xa0`,
+so generated `SourceCamera.targeted_actor` binds the exact exported
+`scene.main_actor` reference. No arbitrary scene child is selected.
+
+The `+0x254` camera collision guard is not an authored startup value. The mode-0
+reader is `0051f670`. Its concrete camera-callback writer is `005796ea`: it
+clears the byte at callback entry, then sets it when the source `00463df0`
+obstruction query hits. That writer is reached from `00578020` only while the
+camera callback's `+0xe0` flag is active. In the identified type-3 secondary
+callback, `0057910c` receives a zero sixth argument at `00443eeb`, clears
+`+0xe0`, and returns before pose calculation; `00578020` then skips the writer.
+The callback table also has a type-40 path (`0057d3b4` / `0057d788`) that writes
+a byte at its own runtime base `+0x32c`, but this does not establish the initial
+`+0x254` value for the manor camera target. The available manual reconstruction
+of allocator wrapper `005012b0` zero-fills its requested allocation, but the
+checked call graph does not connect the target DNM runtime-card allocation to
+that wrapper or establish that its requested size covers this byte. The
+target-specific allocation and initialization path is therefore still missing;
+the native branch continues to require a live guard value only on the
+target-head-blocked, streak-at-most-50 branch and does not guess zero or a
+collision result.
+
+Selector 1 remains a player-input branch, not an authored manor intro call:
+`005200a0` changes `DAT_00721b0c` from the `BT_CameraInOldMode` and
+`BT_CameraInNewMode` actions. It is initialized to zero in BSS and the reviewed
+manor intro AI has no call that synthesizes either action. The existing camera
+port computes selector state and collision inputs, but reports failure when
+`0051ec70`'s controller-offset interpolation is reached; this does not block
+the source-authored mode-0 update path.
+
+The completed source-sector query now matches the source filters for retained
+content. It searches nonvirtual, activation-bit-4 sectors, checks border GEO,
+and traverses child GEO only when `Sector.unknown[0] == 0`. For type-13/21
+children it traces the imported face triangles only when the VisualSet has one
+LOD, recorded from `VisualSetWire.lods` through Rete and emitted as
+`source_visual_lod_count`. Missing type-1/11 GEO and multi-LOD visuals mark the
+whole lookup incomplete, which prevents `0051c7b0` from publishing a pose from
+a partial result. Focused Godot assertions cover the source child gate, nearer
+physical-visual face selection over a border, and multi-LOD refusal.
