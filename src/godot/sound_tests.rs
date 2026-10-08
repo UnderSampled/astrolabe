@@ -215,3 +215,108 @@ fn sound_program_rete_edit_native_choice_loop_stop_and_mixer() -> Result<()> {
     assert!(log.contains("SOUND_PROGRAM_OK"));
     Ok(())
 }
+
+#[test]
+#[ignore = "requires native Godot; source microphone pose API"]
+fn native_microphone_basis_selects_position_and_orientation_sources() -> Result<()> {
+    use std::time::Duration;
+    let temp = tempfile::tempdir()?;
+    crate::godot::support::initialize(temp.path())?;
+    let script = r#"extends SceneTree
+const Audio = preload("res://addons/astrolabe/audio/emitter.gd")
+func _initialize(): call_deferred("check")
+func check():
+    var requester = Node.new()
+    root.add_child(requester)
+    var actor = Node3D.new()
+    root.add_child(actor)
+    actor.position = Vector3(3, 4, 5)
+    actor.rotation.y = 0.4
+    var emitter = Audio.new()
+    emitter.name = "SoundEmitter"
+    actor.add_child(emitter)
+    assert(Audio.microphone_basis_for(actor) == null, "unimported Micro basis must stay explicit")
+    var global_actor = Node3D.new()
+    global_actor.name = "Global"
+    root.add_child(global_actor)
+    assert(Audio.microphone_basis_for(global_actor) == null)
+    assert(Audio.switch_old_micro_perso(requester, global_actor, null), "orientation setter does not require a position selection")
+    var listener = root.get_node("AstrolabeListener")
+    assert(listener.microphone_position_actor == null and listener.microphone_orientation_actor == global_actor)
+    assert(listener.microphone_orientation_basis == null and not listener.microphone_pose_known)
+    assert(Audio.switch_micro_perso(requester, global_actor, actor, null), "null Micro does not reject actor selection")
+    assert(listener.microphone_position_actor == global_actor and listener.microphone_orientation_actor == global_actor)
+    assert(listener.microphone_orientation_basis == null and not listener.microphone_pose_known)
+    assert(not listener.is_current(), "unknown source pose is not fabricated")
+    var offset = Basis(Vector3.RIGHT, 0.25)
+    emitter.microphone_basis = offset
+    emitter.microphone_basis_known = true
+    assert(Audio.microphone_basis_for(actor).is_equal_approx(offset))
+    assert(Audio.switch_micro_perso(requester, null, actor, offset))
+    assert(listener is AudioListener3D and listener.is_current())
+    assert(listener.global_position.is_equal_approx(actor.global_position))
+    assert(listener.global_basis.is_equal_approx(actor.global_basis * offset))
+    var known_pose = listener.global_transform
+    assert(Audio.switch_micro_perso(requester, global_actor, actor, null))
+    assert(listener.microphone_position_actor == global_actor and listener.microphone_orientation_basis == null)
+    assert(not listener.microphone_pose_known and listener.global_transform.is_equal_approx(known_pose))
+    assert(Audio.switch_old_micro_perso(requester, actor, null))
+    assert(listener.microphone_position_actor == global_actor and listener.microphone_orientation_actor == actor)
+    assert(listener.microphone_orientation_basis == null and not listener.microphone_pose_known)
+    assert(Audio.switch_micro_perso(requester, actor, actor, offset))
+    requester.queue_free()
+    actor.position = Vector3(-3, 1, 8)
+    actor.rotation.y = -0.6
+    await create_timer(0.05).timeout
+    assert(listener.is_current())
+    assert(listener.global_position.is_equal_approx(actor.global_position), "listener follows actor after caller destruction")
+    var other = Node3D.new()
+    other.position = Vector3(90, 80, 70)
+    other.rotation.z = 0.8
+    root.add_child(other)
+    assert(Audio.switch_old_micro_perso(other, other, Basis.IDENTITY))
+    assert(listener.global_position.is_equal_approx(actor.global_position), "old microphone setter keeps current position")
+    assert(listener.global_basis.is_equal_approx(other.global_basis))
+    assert(Audio.switch_micro_perso(other, other, actor, Basis.IDENTITY))
+    assert(listener.global_position.is_equal_approx(other.global_position))
+    assert(listener.microphone_position_actor == other and listener.microphone_orientation_actor == other)
+    other.queue_free()
+    await create_timer(0.05).timeout
+    assert(not listener.is_current(), "freed microphone actor invalidates binding")
+    actor.free()
+    global_actor.free()
+    listener.free()
+    print("NATIVE_MICROPHONE_OK")
+    quit(0)
+"#;
+    std::fs::write(temp.path().join("check_microphone.gd"), script)?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    crate::godot::run_godot(
+        &engine,
+        temp.path(),
+        &[
+            "--headless",
+            "--log-file",
+            "microphone-parser.log",
+            "--check-only",
+            "--script",
+            "res://check_microphone.gd",
+        ],
+        Duration::from_secs(10),
+    )?;
+    let evidence = crate::godot::run_godot(
+        &engine,
+        temp.path(),
+        &[
+            "--headless",
+            "--log-file",
+            "microphone.log",
+            "--script",
+            "res://check_microphone.gd",
+        ],
+        Duration::from_secs(10),
+    )?;
+    ensure!(evidence.contains("NATIVE_MICROPHONE_OK"), "{evidence}");
+    println!("{evidence}");
+    Ok(())
+}

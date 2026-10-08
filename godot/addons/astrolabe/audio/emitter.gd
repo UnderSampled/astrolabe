@@ -8,6 +8,75 @@ var selectors: Dictionary = {}
 var voices: Array[Dictionary] = []
 var previous_choices: Dictionary = {}
 var random := RandomNumberGenerator.new()
+## Dialogue owns this record independently of ordinary effects/music voices.
+var source_dialogue_record: Resource
+## Populated by source conversion. Unknown authored Micro data stays unbound.
+@export var microphone_basis: Basis = Basis.IDENTITY
+@export var microphone_basis_known: bool = false
+var microphone_position_actor: Node3D
+var microphone_orientation_actor: Node3D
+var microphone_orientation_basis: Variant = null
+var microphone_pose_known: bool = false
+var is_microphone: bool = false
+
+## Native APIs consume already converted Micro basis; no source tables are read.
+static func microphone_basis_for(actor: Node3D) -> Variant:
+    if not is_instance_valid(actor): return null
+    var component := actor.get_node_or_null("SoundEmitter")
+    if component == null or not bool(component.get("microphone_basis_known")): return null
+    return component.get("microphone_basis")
+
+static func microphone_listener(requester: Node) -> AudioListener3D:
+    if not is_instance_valid(requester) or not requester.is_inside_tree(): return null
+    var listener = requester.get_tree().root.get_node_or_null("AstrolabeListener")
+    if listener == null:
+        listener = AudioListener3D.new()
+        listener.name = "AstrolabeListener"
+        listener.set_script(load("res://addons/astrolabe/audio/emitter.gd"))
+        listener.is_microphone = true
+        requester.get_tree().root.add_child(listener)
+        listener.clear_current()
+    if not listener is AudioListener3D or not listener.is_microphone: return null
+    return listener
+
+static func switch_micro_perso(requester: Node, selected: Node3D, default_main: Node3D, local_basis: Variant) -> bool:
+    var actor := selected if selected != null else default_main
+    if not is_instance_valid(actor) or not actor.is_inside_tree(): return false
+    if local_basis != null and (not local_basis is Basis or not local_basis.is_finite()): return false
+    var listener = microphone_listener(requester)
+    if listener == null: return false
+    listener.microphone_position_actor = actor
+    listener.microphone_orientation_actor = actor
+    listener.microphone_orientation_basis = local_basis
+    # The source setter accepts an actor with null Micro. Record that selection
+    # without inventing an orientation; publication for this case is unproven.
+    if listener.update_microphone_pose(): listener.make_current()
+    return true
+
+## Proc404 changes the orientation source while keeping the position source.
+static func switch_old_micro_perso(requester: Node, actor: Node3D, local_basis: Variant) -> bool:
+    if not is_instance_valid(actor) or not actor.is_inside_tree(): return false
+    if local_basis != null and (not local_basis is Basis or not local_basis.is_finite()): return false
+    var listener = microphone_listener(requester)
+    if listener == null: return false
+    listener.microphone_orientation_actor = actor
+    listener.microphone_orientation_basis = local_basis
+    if listener.update_microphone_pose(): listener.make_current()
+    return true
+
+func update_microphone_pose() -> bool:
+    microphone_pose_known = false
+    if not is_instance_valid(microphone_position_actor) or not is_instance_valid(microphone_orientation_actor):
+        if is_microphone: call("clear_current")
+        return false
+    if microphone_orientation_basis == null: return false
+    global_transform = Transform3D(microphone_orientation_actor.global_basis * microphone_orientation_basis, microphone_position_actor.global_position)
+    microphone_pose_known = true
+    return true
+
+func _physics_process(_delta: float) -> void:
+    if is_microphone: update_microphone_pose()
+
 ## Per-object effects volume; source413 applies it before starting its event.
 var object_volume: float = 127.0
 var volume_fades: Array[Tween] = []
