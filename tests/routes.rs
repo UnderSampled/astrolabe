@@ -238,7 +238,7 @@ fn compiled_routes_use_native_contact_and_actor_local_progress() -> Result<()> {
         inventory_stock: None,
         motion_binding_present: false,
         picking_bounds: None,
-        contact_eligible: true,
+        activation: None,
         custom_bits: 0,
         microphone: None,
         camera: None,

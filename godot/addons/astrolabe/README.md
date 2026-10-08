@@ -1,4 +1,12 @@
-# Astrolabe support, interface 78
+# Astrolabe support, interface 79
+
+Interface79 carries actor-owned activation/suppression and placed/generated
+removal, preserves paused compiled Brains, permits direct Proc12 placement of
+the bound camera and null-card key, and implements immediate Proc166 camera
+flags. Source reset-on-kill and deferred camera flag groups remain unsupported.
+The authored game's optional training checkpoint retains settled logical state;
+no source execution cursor is serialized. See
+[`Manor training static handoff`](../../../notes/manor-training-static-2026-10-08.md).
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.

@@ -417,10 +417,16 @@ pub(super) fn export_perso(
     export_stock(project, perso, &name)?;
     writeln!(
         project.builder,
-        "    {name}.source_contact_eligible = {}\n    {name}.source_custom_bits = {}",
-        perso.contact_eligible,
+        "    {name}.source_custom_bits = {}",
         perso.custom_bits
     )?;
+    if let Some(activation) = perso.activation {
+        writeln!(
+            project.builder,
+            "    {name}.source_activation_known = true\n    {name}.source_object_active = {}\n    {name}.source_return_suppressed = {}\n    {name}.source_kill_resets_components = {}",
+            activation.active, activation.return_suppressed, activation.reset_on_kill
+        )?;
+    }
     if let Some(reference) = &perso.picking_bounds {
         let bounds = source.load(reference)?;
         bounds.validate_reference(&reference.path)?;

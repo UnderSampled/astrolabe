@@ -251,6 +251,12 @@ impl<'a> Iterator for AstWalk<'a> {
                     to,
                     duration_seconds,
                 } => self.expressions(child_depth, &[from, to, duration_seconds]),
+                Statement::CameraChangeFlag {
+                    group,
+                    operation,
+                    selector,
+                    ..
+                } => self.expressions(child_depth, &[group, operation, selector]),
                 Statement::SoundFadeAll {
                     target,
                     duration_ms,

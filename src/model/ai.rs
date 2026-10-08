@@ -458,6 +458,14 @@ pub enum Statement {
     CameraReset {
         camera: AssetRef<Perso>,
     },
+    /// Proc166 evaluates camera, flag group, operation and selector in order.
+    /// Operation -1 restores a bit from initial framing; 0 clears and 1 sets.
+    CameraChangeFlag {
+        camera: AssetRef<Perso>,
+        group: Expression,
+        operation: Expression,
+        selector: Expression,
+    },
     /// Source camera procedure 157 selects a motion mode; -1 restores the
     /// original preset's mode. Unsupported transitions fail at the target API.
     CameraChangeState {
@@ -1903,6 +1911,17 @@ impl Script {
                     Statement::CameraChangeState { camera, state } => {
                         ensure!(camera.path.member().is_none(), "camera is a member");
                         expression(state, variables, depth + 1, count)?;
+                    }
+                    Statement::CameraChangeFlag {
+                        camera,
+                        group,
+                        operation,
+                        selector,
+                    } => {
+                        ensure!(camera.path.member().is_none(), "camera is a member");
+                        expression(group, variables, depth + 1, count)?;
+                        expression(operation, variables, depth + 1, count)?;
+                        expression(selector, variables, depth + 1, count)?;
                     }
                     Statement::CameraChangeTargetedPerso { camera, target } => {
                         ensure!(camera.path.member().is_none(), "camera is a member");

@@ -563,7 +563,7 @@ impl Parser<'_> {
                     selector: self.expression(indent + 1)?,
                     value: self.expression(indent + 1)?,
                 },
-                (4, 136 | 157 | 160 | 163) => {
+                (4, 136 | 157 | 160 | 163 | 166) => {
                     let operand = self.at;
                     if !self
                         .nodes
@@ -581,6 +581,13 @@ impl Parser<'_> {
                     let camera = self.codec.actors[&operand].clone();
                     if id == 136 {
                         Statement::CameraReset { camera }
+                    } else if id == 166 {
+                        Statement::CameraChangeFlag {
+                            camera,
+                            group: self.expression(indent + 1)?,
+                            operation: self.expression(indent + 1)?,
+                            selector: self.expression(indent + 1)?,
+                        }
                     } else if id == 157 {
                         Statement::CameraChangeState {
                             camera,
@@ -2267,6 +2274,18 @@ impl Writer<'_> {
                     self.node(4, 157, indent);
                     self.actor_node(camera, indent + 1)?;
                     self.expression(state, indent + 1)?;
+                }
+                Statement::CameraChangeFlag {
+                    camera,
+                    group,
+                    operation,
+                    selector,
+                } => {
+                    self.node(4, 166, indent);
+                    self.actor_node(camera, indent + 1)?;
+                    self.expression(group, indent + 1)?;
+                    self.expression(operation, indent + 1)?;
+                    self.expression(selector, indent + 1)?;
                 }
                 Statement::SetActorAbsolutePosition { actor, position } => {
                     self.node(2, 24, indent);

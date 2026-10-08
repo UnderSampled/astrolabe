@@ -28,9 +28,6 @@ pub struct StateRef {
     pub family: AssetRef<Family>,
     pub state: u32,
 }
-fn contact_eligible_default() -> bool {
-    true
-}
 impl StateRef {
     pub fn validate_family(&self, family: &Family) -> Result<()> {
         ensure!(
@@ -119,9 +116,10 @@ pub struct Perso {
     /// origin when absent. Template bounds must survive generation as well.
     #[serde(default)]
     pub picking_bounds: Option<AssetRef<super::collision::Collision>>,
-    /// StandardGame activation admits contact only for latch 0 and active 1.
-    #[serde(default = "contact_eligible_default")]
-    pub contact_eligible: bool,
+    /// Actor-local activation and kill policy; absent on manually authored assets.
+    /// Source addresses and component-event dispatch stay in the source adapter.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activation: Option<ActorActivation>,
     /// Actor-owned StandardGame custom flags, independent of display/activation.
     #[serde(default)]
     pub custom_bits: u32,
@@ -139,6 +137,15 @@ pub struct Perso {
     pub brain: Option<super::ai::Brain>,
     pub collisions: Option<CharacterCollisions>,
     pub particles: Option<super::particle::ParticleComponent>,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ActorActivation {
+    pub active: bool,
+    /// Nonzero source NeverBack latch suppresses later activation.
+    pub return_suppressed: bool,
+    /// Source return policy 1 dispatches a full actor reset when killed.
+    /// This distinct reset contract must not become a permanent removal.
+    pub reset_on_kill: bool,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Microphone {

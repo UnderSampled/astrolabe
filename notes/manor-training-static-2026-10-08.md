@@ -45,9 +45,12 @@ training sequence. Its local stage field 0 has source save flag **zero**; it is
 not a proven original-save field. Its Normal behaviors choose stage positions,
 play dialogues, set/release MainActor control flags and inspect the separate
 mannequin completion fields. Normal 4 advances a successful exercise; Normal 11
-sets Global designer field 219 and finishes the final sequence. That completion
-flag also gates the model's startup `KillSelf` path. No training stage or
-completion flag is forced by authored game code in this change.
+returns to Normal16's crossbow exercise. The earlier report incorrectly
+attributed a Global219 write to Normal11. Normal18 sets Global152 and stage5,
+then its final dialogue completes into Normal19, which produces the physical
+key. Global219 gates startup `KillSelf`; the audited Manor writer is the World
+actor's mode6 setup path, not a proved ordinary training-completion write.
+No training stage or completion flag is forced by authored game code.
 
 The barrel helper is different content: Fix model 671, actor
 `level:/persos/world/0/76`. Its nearby-barrel branch writes MainActor field 119
@@ -92,8 +95,9 @@ successful contact, then activation runs. Both placement helpers skip when
 dynamics is missing, but activation still runs. The native Character0 path uses
 `CharacterBody3D.move_and_collide` for the downward step and clears native
 velocity only when it reports contact. It retains the actor's current rotation,
-AI behavior and action clips. Other mechanics, missing cards and actors under
-moving character parents fail before placement. Native scene hierarchy remains
+AI behavior and action clips. The follow-up admits the converted null card and
+bound camera mode3 through this direct placement path. Other mechanics and actors
+under moving character parents fail before placement. Native scene hierarchy remains
 stable for supported Manor actors; the original moving-parent detachment is
 not claimed. Exact original contact response, contact flags in the same tick,
 velocity mapping and floating-point edge behavior require runtime verification.
@@ -109,15 +113,134 @@ Kip owns integration and later acceptance. Shared AI model/import/compiler,
 character support, Rete/version literals and support inventory may overlap
 sibling patches. The presentation sibling also provisionally uses Rete59 and
 support78; these need one deliberate union version. This branch does not touch
-the session filename rename. Actor snapshot integration must retain each
-mannequin's three saved fields and its current behavior/action. Any authored
-mid-training checkpoint must also retain Gogoud's transient Brain state; that
-requirement must not be described as an original DSG save flag.
+the session filename rename. The follow-up below defines a bounded native
+checkpoint for the independently owned mannequin fields and transient Gogoud
+state. It does not serialize an original execution cursor or claim that
+Gogoud's stage has an original DSG save flag.
 
 Static review covered operand/evaluation order, tree reconstruction, traversal,
 native API names, resource ownership, support staging and version literals.
 It is not type checking, GDScript parsing or runtime acceptance. Content must
 be regenerated after integration. Later verification must cover both spin
 directions/armature channels, wrong-action dialogue, all three stage transitions,
-final Global219 completion, moving pursuit targets, activation contact, camera
+Normal18/dialogue/Normal19 completion, moving pursuit targets, activation contact, camera
 target preservation, and save/resume during training.
+
+## Follow-up: training checkpoints, activation and death camera
+
+Checkpoint `84a124449b4470194e4080a508ed190dcaa5a5bf` is preserved. The
+follow-up remains in this isolated branch; main `78a1c86` and the integration
+worktree are read-only. The integration review at
+`output/worktrees/integration-manor-static-20261008/notes/manor-static-integration-2026-10-08.md`
+identified the old unconditional self-deletion and stopped retained Brain.
+No tests, builds, compiler/formatter/lint/syntax checks, conversion, probes,
+game/Godot runs or replay harnesses were run for the follow-up.
+
+The final dialogue `gogood_master_finimannequin` explicitly selects model991
+Normal19. That behavior approaches MainActor, turns, sets its lever latch and
+activates actor142 at MainActor position plus sighting multiplied by0.1. It
+eventually restores camera mode/target/framing, releases Hype56 and enters
+Normal23. `whatif05` instead completes into Normal17. The key is StockAction
+item21, Object category, quantity-1: inventory admission proves ownership;
+a nonnegative quantity test would reject this legitimate key. All seven Gogoud
+variables have source save0/init0. Source `005162c0` selects initial behaviors
+and resets the designer buffer; the World actor's stage assignments are guarded
+setup paths, not evidence that a normal save load reconstructs completed stages.
+
+The optional native schema4 `training` section has its own version1. It admits
+only settled stages1..5, Normal14/15/16/22/23 with Reflex0 and action23, live
+mannequins at Normal3/Reflex0/action0, and no claimed/suspended trainer rule.
+It retains the trainer's stage, lever-event latch and world pose; each
+mannequin's byte selector and two Boolean side flags; and Hype's three transient
+attack permissions. Global152/219 are independently saved Boolean fields.
+Stages2/3 also require default ammunition latches, avoiding a saved refill timer.
+Stage0 uses source startup only while the three mannequin fields match the
+converted seed (actors152/153/154 selectors2/1/3, side flagsfalse). Older slots
+without the new section retain their existing bounded restore behavior.
+
+Capture rejects stage5 until item21 is admitted and the key's placed owner is
+inactive/suppressed. This is after model703 Normal2's presentation and KillSelf;
+it does not bypass the source box5 dialogue. Its presentation follow-up remains
+a separately owned integration dependency. Restore preflights every
+semantic actor/model/field/action binding, activation policy, Global flags and
+the private inventory snapshot before modifying any live component. It restores
+the selected settled behaviors/actions before automatic Brain startup and
+retains the key's owned removal. No coroutine, clock or engine scheduler is
+persisted. Original-save overlays cannot contain this native section, and a
+progressed trainer combined with Global219 is rejected rather than guessed.
+
+Original `00437940` releases generated/pool actors and sends placed actors
+through `00437860`. Its non-reset branch disables activity and sets the
+NeverBack suppression latch. Return policy1 instead dispatches component reset
+event5; that wider reset remains explicitly unsupported by native kill.
+`004377e0` and the active setter guard the suppression latch; ordinary
+`00437800` deactivation leaves it alone. None of ordinary activation,
+deactivation or the non-reset placed kill resets Brain selections. These facts
+now survive as `ActorActivation`, replacing the lossy `contact_eligible` field.
+Native placed KillSelf/KillPerso retains identity and pauses the Brain;
+generated instances release their own node. Initial inactive actors defer first
+behavior entry, and ordinary reactivation resumes existing native awaits.
+Generated component initialization clears suppression, and the authored release
+cue enables its pending activity. Barrel checkpoint capture recognizes a
+retained suppression tombstone as well as an already released owner.
+
+The key worker independently read the source StandardGame records for actors142
+and155: both have active1, suppression0 and return policy4, so these specific
+owners use the non-reset removal contract. These initial values do not prove
+activity after the World's startup events. Native inactive processing retains
+awaits, but equivalence of elapsed-time waits across a deactivated interval is
+still unverified; the existing actor-local clock does not claim a source global
+clock implementation.
+
+Actor deactivation calls emitter `kill_all` without synchronously clearing the
+dialogue holder. The presentation owner independently proved that original
+`004ecc00` does not call `0041e910`; later speech status polling clears it. That
+worker's next-process-frame completion adaptation is a required sibling change,
+separate from explicit immediate dialogue stop.
+
+Proc12's common placement chain `0052ee40/0052edc0` guards the dynamics workspace,
+not the selected identity card. `0057162f/00571df3` snapshot/contact helpers
+likewise run their common contact path before the retained pose-mode handling.
+The selected camera's type3 movement callback is not required to place it.
+Native Proc12 therefore permits the bound mode3 SourceCamera in the actual
+cliff path as well as Character0 and converted null-card key. It temporarily
+permits the synchronous native contact query for an inactive body, restores its
+process mode, then applies activation; suppressed actors still receive placement
+but remain suppressed. This does not broaden generic type3 movement. Original
+moving-parent reparenting, contact response/flags and exact pose-history/reset
+equivalence remain unverified.
+
+The installed PE callable catalogue maps Procedure166 `Camera_ChangeFlag`
+(`PLLL`) to `00548690..005488f1`, with tables `005488f4/00548918`. It evaluates
+camera, group, operation, selector in that order. Immediate group0 modifies
+parameter flags; group1 modifies controller/action flags. Operation0 clears,
+1 sets and-1 copies the selected bit from initial parameters. Selectors map
+through the proved source bit lists; out-of-range masks arezero and other
+immediate operations are ignored. Hype Normal24's exact call(camera,1,0,3)
+clears controller bit4 before Proc136 resets framing. Typed model, validator,
+walker, source writer and compiled native component call retain all operands.
+Deferred groups2/3 require their own real consumers and fail explicitly.
+Original-C presentation worker owns full handler reconstruction, including those
+deferred groups. The native target has no source flag scheduler or opcode table.
+
+The follow-up stamps are provisional Rete60/support79. Kip owns one aggregate
+version and fresh content generation; no persisted package under these stamps
+was created here. Adjacent key-worker custom-bit/model/export hunks need merging,
+not duplication. Tunnel's named KillPerso compiler must consume the new native
+Boolean removal result and fail visibly for reset-on-kill/unknown policy, while
+using this canonical helper. Keep the accepted `game_session`/`session_camera`
+filenames; this follow-up edits neither older session filename.
+
+Key-worker source tracing fixes model703 Normal2's viewport restoration to
+Proc141(1,1,0, camera actor2). Its bounded native implementation requires that
+SourceCamera already owns the primary viewport; an authored free camera cannot
+silently satisfy that contract. Kip must resolve this binding alongside the
+style5 dialogue completion before claiming key presentation or control-release
+acceptance. Preserve the key worker's Brain exit-tree guard for synchronous
+child-channel reparenting when merging this branch's activity guard.
+
+Remaining acceptance includes both mannequin clip directions, source transitions
+and callback chains, save/resume at every admitted stage, key presentation,
+placed/generated lifecycle, emission completion timing, activation from inactive
+state, cliff contact/camera pose and death's flags/reset order. Static review
+establishes the connected code and evidence, not runtime acceptance.

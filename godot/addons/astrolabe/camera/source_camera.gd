@@ -186,6 +186,27 @@ func source_reset_targeted_perso(actor: Node3D) -> bool:
     targeted_actor = actor
     return true
 
+## Proc166's immediate flag groups update active framing. Selectors name source
+## API bits rather than bit positions. Deferred groups2/3 need an owned consumer.
+func source_change_flag(group: int, operation: int, selector: int) -> bool:
+    if group not in [0, 1]: return false
+    var bits := [0, 1, 2, 4, 16, 512, 1024, 2048, 8192] if group == 0 else [0, 1, 2, 4, 16, 64, 256, 128, 32, 512, 32768, 1024, 2048]
+    # The source's unsigned range check leaves an invalid selector's mask zero.
+    if selector < 0 or selector >= bits.size(): return true
+    var mask: int = bits[selector]
+    var set_bit := operation == 1
+    if operation == -1:
+        if initial_framing == null: return false
+        var initial: int = initial_framing.parameter_flags if group == 0 else initial_framing.action_flags
+        set_bit = (initial & mask) != 0
+    elif operation not in [0, 1]:
+        return true
+    if group == 0:
+        mode_zero_parameter_flags = ((mode_zero_parameter_flags | mask) if set_bit else (mode_zero_parameter_flags & ~mask)) & 65535
+    else:
+        source_mode_zero_action_flags = ((source_mode_zero_action_flags | mask) if set_bit else (source_mode_zero_action_flags & ~mask)) & 65535
+    return true
+
 ## Proc136 copies initial framing to active framing and requests the first
 ## snapped update. Reset only component-owned progress; controller_state owns
 ## the distinct process-wide history. The selected target is preserved.

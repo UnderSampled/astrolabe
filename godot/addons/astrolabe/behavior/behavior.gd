@@ -210,6 +210,10 @@ func source_execute_fade(from_alpha: int, to_alpha: int, duration_seconds: float
 func advance(seconds: float) -> void:
 	assert(is_finite(seconds) and seconds >= 0.0)
 	if not running: return
+	# Inactive placed actors retain their selected behaviors and native awaits.
+	# Initial inactive actors enter their first behavior only upon activation.
+	var body := get_parent() as NativeCharacter
+	if body != null and not body.source_object_active: return
 	frame_seconds = seconds
 	clock_milliseconds += seconds * 1000.0
 	reflex_controls_tick = false

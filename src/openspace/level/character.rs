@@ -257,10 +257,14 @@ impl<'a> Importer<'a> {
                 .flatten()
                 .map(|bounds| self.bounding_geometry(bounds, "perso-picking-bounds"))
                 .transpose()?,
-            contact_eligible: {
+            activation: {
                 let standard = self.session.required(perso, 4)?;
                 let state: StandardSaveWire = wire(self.session.bytes(standard, 56)?)?;
-                state.never_back_latch == 0 && state.active == 1
+                Some(ActorActivation {
+                    active: state.active == 1,
+                    return_suppressed: state.never_back_latch != 0,
+                    reset_on_kill: state.return_policy == 1,
+                })
             },
             custom_bits: {
                 let standard = self.session.required(perso, 4)?;

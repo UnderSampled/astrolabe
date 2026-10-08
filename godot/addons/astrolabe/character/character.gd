@@ -51,7 +51,8 @@ var source_transparent_display: bool:
 @export var motion_enabled: bool = false
 @export_node_path("Marker3D") var source_picking_center_path: NodePath
 @export_node_path("Node3D") var source_contact_sector_path: NodePath
-@export var source_contact_eligible: bool = true
+var source_contact_eligible: bool:
+    get: return source_object_active and not source_return_suppressed
 ## StandardGame custom flags belong to this actor; draw/activation flags are separate.
 @export var source_custom_bits: int = 0
 var _contact_sector: Node3D
@@ -103,7 +104,10 @@ var source_hud_display: Dictionary = {}
 ## Last evaluated local displacement, including every native substep and loop.
 var root_motion_displacement: Vector3 = Vector3.ZERO
 ## Native activation gates rendering, decision ticks and actor contact eligibility.
-var source_object_active: bool = true
+@export var source_object_active: bool = true
+@export var source_activation_known: bool = false
+@export var source_return_suppressed: bool = false
+@export var source_kill_resets_components: bool = false
 var restored_configuration: bool = false
 var suppress_cues: bool = false
 var playback_revision: int = 0
@@ -154,6 +158,7 @@ func _ready() -> void:
     # Selection only; the saved initial pose is usable without this callback.
     if autoplay and initial_state >= 0:
         select_state(initial_state)
+    source_set_object_active_state(source_object_active and not source_return_suppressed)
 
 func _configure_motion() -> void:
     if motion_enabled:
@@ -707,21 +712,24 @@ func source_initialize_motion(value: Vector3) -> void:
 func source_go_relative() -> void:
     source_relative_motion = true
 
-func source_kill() -> void:
-    source_kill_perso()
-    queue_free()
+func source_kill() -> bool:
+    return source_kill_perso()
 
-## Proc226 removes a placed actor from active simulation without discarding
-## its saved identity. Source placed-actor cleanup retains non-pool Perso storage;
-## generated self-owned drops use source_kill() to release their native node.
-func source_kill_perso() -> void:
-    var brain := get_node_or_null("Brain")
-    if brain != null: brain.call("stop")
-    var emitter := get_node_or_null("SoundEmitter")
-    if emitter != null and emitter.has_method("kill_all"): emitter.call("kill_all")
-    # Disabled native CollisionObjects leave the physics space; the authored
-    # shape/layer state stays on the retained instance for later activation.
+## KillSelf and named KillPerso share one actor-owned removal contract.
+## Placed actors retain identity; generated scene instances release their node.
+## The source reset-on-kill policy requires a separate full component reset.
+func source_kill_perso() -> bool:
+    var generated := has_meta("astrolabe_generated_template")
+    if not generated and (not source_activation_known or source_kill_resets_components): return false
     source_set_object_active_state(false)
+    source_return_suppressed = true
+    if generated:
+        var brain := get_node_or_null("Brain")
+        if brain != null: brain.call("stop")
+        queue_free()
+    # Retained Brains keep their selected behavior and suspended native awaits.
+    # The suppression latch prevents ordinary activation after this kill.
+    return true
 
 func source_set_impulse(value: Vector3) -> void:
     assert(value.is_finite())
@@ -1112,6 +1120,10 @@ func source_execute_action_and_generate_object(template_path: String, action: in
     var clip_name := StringName(("restored/" if restored_configuration else "") + "state_%d" % selected)
     var waits_for_release := animation_player.has_animation(clip_name) and bool(animation_player.get_animation(clip_name).get_meta("releases_generated_object", false))
     if generated is CharacterBody3D:
+        # Source generation's component initialization clears suppression.
+        # A held object remains inactive until its authored release cue.
+        generated.set("source_return_suppressed", false)
+        generated.set("source_object_active", not waits_for_release)
         generated.set("motion_enabled", true)
         generated.set("physical_environment", physical_environment)
         generated.set("source_inventory", source_inventory)
@@ -1146,10 +1158,10 @@ func source_execute_action_and_generate_object(template_path: String, action: in
         if waits_for_release: generated_brain.set("automatic", false)
     if generated.has_method("source_contact_sector"):
         generated.set("_contact_sector", source_contact_sector())
+    generated.set_meta("astrolabe_generated_template", template_path)
     destination.add_child(generated)
     if generated_brain != null:
         generated_brain.set("main_actor_path", generated_brain.get_path_to(generated_brain.get("main_actor")))
-    generated.set_meta("astrolabe_generated_template", template_path)
     if waits_for_release:
         generated.visible = false
         generated.set_physics_process(false)
@@ -1364,6 +1376,12 @@ func source_set_object_active(actor_asset: String, active: bool) -> bool:
     return bool(actor.call("source_set_object_active_state", active))
 
 func source_set_object_active_state(active: bool) -> bool:
+    # Original activation ignores a suppressed actor without resetting its AI.
+    if active and source_return_suppressed: return true
+    if not active:
+        var emitter := get_node_or_null("SoundEmitter")
+        if emitter != null:
+            if emitter.has_method("kill_all"): emitter.call("kill_all")
     source_object_active = active
     visible = active
     process_mode = Node.PROCESS_MODE_INHERIT if active else Node.PROCESS_MODE_DISABLED
@@ -1371,12 +1389,18 @@ func source_set_object_active_state(active: bool) -> bool:
 
 ## Proc12 raises the requested source Z by half a unit, snapshots that pose,
 ## then lowers the rounded vector by half a unit through contact and activates.
-## Character0 uses native contact. Other mechanics and moving parent bindings
-## need their own supported placement contract before this call can mutate them.
+## Direct placement uses the dynamics binding independently of its normal motion
+## callback. Character0, the bound camera and a converted null card are covered;
+## other movement and moving-parent contracts remain separate.
 func source_activate_at_position(point: Vector3) -> bool:
     if not is_inside_tree() or not point.is_finite(): return false
     if source_motion_binding_present:
-        if current_mechanics == null or int(current_mechanics.mode) != 0: return false
+        # Placement depends on the dynamics workspace, not the selected card.
+        # The key's null card is explicitly marked by native conversion.
+        if current_mechanics == null:
+            if not source_camera_retains_position_history: return false
+        elif int(current_mechanics.mode) != 0 and not (int(current_mechanics.mode) == 3 and get_node_or_null("SourceCamera") != null):
+            return false
         var ancestor := get_parent()
         while ancestor != null:
             if ancestor is CharacterBody3D: return false
@@ -1386,8 +1410,13 @@ func source_activate_at_position(point: Vector3) -> bool:
         if not is_finite(raised_z) or not is_finite(lowered_z): return false
         var raised := Vector3(point.x, raised_z, -point.y)
         var lowered := Vector3(point.x, lowered_z, -point.y)
+        # Placement still queries contact for an initially inactive actor.
+        # This synchronous query does not enter its Brain or change active state.
+        var previous_process_mode := process_mode
+        process_mode = Node.PROCESS_MODE_INHERIT
         global_position = raised
         var collision := move_and_collide(lowered - raised, false, safe_margin, true)
+        process_mode = previous_process_mode
         if collision != null:
             # The source's contact-success branch clears its velocity packet.
             velocity = Vector3.ZERO
@@ -1790,6 +1819,8 @@ func _cue(action: Resource, frame: int, channel: int, slot: int, channel_path: S
         generated_object = null
         generated.global_transform = attachment.global_transform
         generated_object_released.emit(generated, attachment)
+        if generated.has_method("source_set_object_active_state"):
+            generated.call("source_set_object_active_state", true)
         generated.visible = true
         generated.set_physics_process(true)
         generated.set_process(true)

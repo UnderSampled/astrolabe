@@ -227,7 +227,7 @@ mod tests {
                 inventory_stock: None,
                 motion_binding_present: false,
                 picking_bounds: None,
-                contact_eligible: true,
+                activation: None,
                 custom_bits: 0,
                 microphone: None,
                 routes: Vec::new(),
@@ -2930,7 +2930,11 @@ fn statements(
                 )?;
             }
             Statement::KillSelf => {
-                writeln!(out, "{pad}character().source_kill()\n{pad}{exit}")?;
+                writeln!(
+                    out,
+                    "{pad}if not character().source_kill():\n{pad}    fail_unsupported({})\n{pad}{exit}",
+                    quoted(&format!("{} requires supported actor removal policy", model.path))
+                )?;
             }
             Statement::PlayerIsDead => {
                 let id = flow.local;
@@ -2967,9 +2971,13 @@ fn statements(
                 flow.local += 1;
                 writeln!(
                     out,
-                    "{pad}var kill_actor_{id}: Node3D = {actor}\n{pad}if not is_instance_valid(kill_actor_{id}) or not kill_actor_{id}.has_method(\"source_kill_perso\"):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}kill_actor_{id}.call(\"source_kill_perso\")\n{pad}if kill_actor_{id} == character(): {exit}",
+                    "{pad}var kill_actor_{id}: Node3D = {actor}\n{pad}if not is_instance_valid(kill_actor_{id}) or not kill_actor_{id}.has_method(\"source_kill_perso\"):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}if not bool(kill_actor_{id}.call(\"source_kill_perso\")):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}if kill_actor_{id} == character(): {exit}",
                     quoted(&format!(
                         "{} KillPerso requires a bound native actor",
+                        model.path
+                    )),
+                    quoted(&format!(
+                        "{} KillPerso requires supported actor removal policy",
                         model.path
                     ))
                 )?;
@@ -3293,6 +3301,33 @@ fn statements(
                         "{} requires supported camera state for {}",
                         model.path, camera.path
                     ))
+                )?;
+            }
+            Statement::CameraChangeFlag {
+                camera,
+                group,
+                operation,
+                selector,
+            } => {
+                let id = flow.local;
+                flow.local += 1;
+                let failure = quoted(&format!(
+                    "{} requires supported native camera flags for {}",
+                    model.path, camera.path
+                ));
+                writeln!(
+                    out,
+                    "{pad}var flag_actor_{id} := character().source_actor_node({})\n{pad}if not is_instance_valid(flag_actor_{id}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var flag_camera_{id} := flag_actor_{id}.get_node_or_null(\"SourceCamera\")\n{pad}if not is_instance_valid(flag_camera_{id}) or not flag_camera_{id}.has_method(\"source_change_flag\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}",
+                    quoted(camera.path.as_str())
+                )?;
+                let group = guarded_expression(out, group, model, depth, flow)?;
+                writeln!(out, "{pad}var flag_group_{id} := int({group})")?;
+                let operation = guarded_expression(out, operation, model, depth, flow)?;
+                writeln!(out, "{pad}var flag_operation_{id} := int({operation})")?;
+                let selector = guarded_expression(out, selector, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}var flag_selector_{id} := int({selector})\n{pad}if not bool(flag_camera_{id}.call(\"source_change_flag\", flag_group_{id}, flag_operation_{id}, flag_selector_{id})):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
                 )?;
             }
             Statement::SetActorAbsolutePosition { actor, position } => {

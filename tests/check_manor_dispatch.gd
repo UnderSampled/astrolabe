@@ -201,9 +201,9 @@ func run():
     player_zone.get_node("Shape").set_meta("source_collision_identifier", 2)
     if not check(not barrel.source_collide_perso_zde_no_with_type_zde(1, 4098), "actual dispatcher accepted partial mask"): return
     player_zone.get_node("Shape").set_meta("source_collision_identifier", 4098)
-    player.source_contact_eligible = false
+    player.source_return_suppressed = true
     if not check(not barrel.source_collide_perso_zde_no_with_type_zde(1, 4098), "actual dispatcher ignored StandardGame eligibility"): return
-    player.source_contact_eligible = true
+    player.source_return_suppressed = false
     sector.set_meta("contact_sector_active", false)
     if not check(not barrel.source_collide_perso_zde_no_with_type_zde(1, 4098), "actual dispatcher ignored inactive sector"): return
     sector.set_meta("contact_sector_active", true)

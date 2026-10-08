@@ -19,6 +19,15 @@ const INVENTORY = preload("res://addons/astrolabe/character/inventory.gd")
 const FIRST_PICKUP_FLAGS: Array[String] = ["dsg_220", "dsg_221", "dsg_222", "dsg_223", "dsg_224", "dsg_225", "dsg_226", "dsg_227", "dsg_228"]
 # Placed actor ownership, never the shared barrel model or spawned pickup DSG[0].
 const BARRELS := ["level:/persos/world/0/71", "level:/persos/world/0/72", "level:/persos/world/0/73", "level:/persos/world/0/74"]
+# Source-saved flags and separately owned native checkpoint continuity.
+const TRAINING_FLAGS: Array[String] = ["dsg_152", "dsg_219"]
+const TRAINER := "level:/persos/world/0/155"
+const MANNEQUINS := ["level:/persos/world/0/152", "level:/persos/world/0/153", "level:/persos/world/0/154"]
+const INITIAL_EXERCISES := {"level:/persos/world/0/152": 2, "level:/persos/world/0/153": 1, "level:/persos/world/0/154": 3}
+const EXERCISE_IDLE := {1: 14, 2: 15, 3: 16, 4: 22, 5: 23}
+const ATTACK_PERMISSIONS: Array[String] = ["dsg_0", "dsg_55", "dsg_58"]
+const MANOR_KEY := 21
+const KEY_ACTOR := "level:/persos/world/0/142"
 
 
 static func path() -> String:
@@ -114,19 +123,21 @@ static func checkpoint_error(actor: CharacterBody3D, level: Node3D) -> String:
     var life: Resource = actor.get("source_hit_points") if _has_property(actor, "source_hit_points") else null
     if not _has_property(life, "current") or not _integer(life.get("current"), 1, 255):
         return "Save when Hype is alive with supported native life state."
-    return ""
+    return _training_checkpoint_error(actor, level)
 
 
 static func validate(value: Variant) -> String:
     if not value is Dictionary:
         return "Save is not an object."
-    if not _only_keys(value, ["schema", "level", "actors", "world", "checkpoint"]):
+    if not _only_keys(value, ["schema", "level", "actors", "world", "checkpoint", "training"]):
         return "Save has unsupported top-level state."
     if not _integer(value.get("schema"), 1, SCHEMA) or not [1, SCHEMA].has(int(value["schema"])):
         return "Save version is unsupported."
     var schema := int(value["schema"])
     if schema == 1 and value.has("checkpoint"):
         return "Legacy save has unsupported checkpoint state."
+    if schema == 1 and value.has("training"):
+        return "Original save overlays do not contain native training checkpoints."
     if schema == SCHEMA and value.get("checkpoint") != CHECKPOINT:
         return "Save checkpoint is unsupported."
     if value.get("level") != "manoir":
@@ -204,15 +215,16 @@ static func validate(value: Variant) -> String:
         var global_brain: Variant = global_state["brain"]
         var supported_flags: Array[String] = ["dsg_149", "dsg_147"]
         supported_flags.append_array(FIRST_PICKUP_FLAGS)
+        supported_flags.append_array(TRAINING_FLAGS)
         if not global_brain is Dictionary or not global_brain.has("dsg_149") or not _only_keys(global_brain, supported_flags) or not global_brain["dsg_149"] is bool:
             return "Save has invalid Global Brain state."
         # DSG[147] was added as an optional schema-1 field. Older slots leave
         # the level's authored initial value intact when this key is absent.
         if global_brain.has("dsg_147") and not global_brain["dsg_147"] is bool:
             return "Save has invalid optional Global Brain state."
-        for property_name in FIRST_PICKUP_FLAGS:
+        for property_name in FIRST_PICKUP_FLAGS + TRAINING_FLAGS:
             if global_brain.has(property_name) and not global_brain[property_name] is bool:
-                return "Save has invalid first-pickup Brain state."
+                return "Save has invalid saved Global Brain state."
     # Older schema-1 slots predate world flags; missing world state starts from
     # the measured manor seed. When present, validate the complete supported
     # native flag before applying any part of the save.
@@ -235,6 +247,12 @@ static func validate(value: Variant) -> String:
             if not barrel is Dictionary or not _only_keys(barrel, ["dsg_8", "removed"]) or not barrel.get("dsg_8") is bool or not barrel.get("removed") is bool:
                 return "Save has invalid barrel state."
             if barrel["removed"] and not barrel["dsg_8"]: return "Removed barrel has no consumed flag."
+    if value.has("training"):
+        var flags: Dictionary = actors[GLOBAL]["brain"]
+        for field in TRAINING_FLAGS:
+            if not flags.has(field): return "Training checkpoint is missing a Global training flag."
+        if flags["dsg_219"]: return "Training checkpoint retains an actor whose source startup removes it."
+        return _validate_training(value["training"])
     return ""
 
 
@@ -321,6 +339,224 @@ static func _source_brain(level: Node3D, identity: String) -> Node:
     return brain if brain != null and level.is_ancestor_of(brain) else null
 
 
+static func _training_brain(level: Node3D, identity: String) -> Node:
+    var candidate := _source_brain(level, identity)
+    var model := "fix:/ai/models/28" if identity == PLAYER else "level:/ai/models/991" if identity == TRAINER else "level:/ai/models/703" if identity == KEY_ACTOR else "level:/ai/models/939"
+    if not _has_property(candidate, "source_model_path") or candidate.get("source_model_path") != model:
+        return null
+    var character := candidate.get_parent() as CharacterBody3D
+    if character == null or str(character.get_meta("source_perso", "")) != identity:
+        return null
+    if character.is_queued_for_deletion(): return null
+    return candidate
+
+
+static func _training_key_collected(inventory: Resource) -> bool:
+    # Stock quantity -1 is a valid owned Object. Admission proves collection.
+    if not _has_property(inventory, "source_initialized") or inventory.get("source_initialized") != true:
+        return false
+    if not _has_property(inventory, "admission_known") or inventory.get("admission_known") != true or not inventory.has_method("presentation_quantities"):
+        return false
+    var owned: Dictionary = inventory.call("presentation_quantities")
+    return owned.has(MANOR_KEY)
+
+
+static func _training_removal_supported(character: Node) -> bool:
+    return (
+        _has_boolean_field(character, "source_activation_known") and character.get("source_activation_known")
+        and _has_boolean_field(character, "source_kill_resets_components") and not character.get("source_kill_resets_components")
+        and _has_boolean_field(character, "source_object_active")
+        and _has_boolean_field(character, "source_return_suppressed")
+        and character.has_method("source_kill_perso")
+    )
+
+
+static func _training_checkpoint_error(actor: CharacterBody3D, level: Node3D) -> String:
+    # Old exports and the bounded save fixture have no training actor bindings.
+    # Once a binding exists, a missing owner cannot silently lose progress.
+    var bindings: Variant = level.get_meta("source_actor_brains", {})
+    if not bindings is Dictionary: return "The converted actor bindings are invalid."
+    if not bindings.has(TRAINER):
+        for identity in MANNEQUINS:
+            if bindings.has(identity): return "The training actor binding is missing."
+        return ""
+    if _brain_path(level, TRAINER).is_empty(): return "The training actor binding is invalid."
+    var trainer := _training_brain(level, TRAINER)
+    var global_brain := _source_brain(level, GLOBAL)
+    if trainer == null:
+        return "The training Brain is missing."
+    if not _has_integer_properties(trainer, ["dsg_0", "current_normal", "current_reflex"]):
+        return "The training Brain has incompatible checkpoint state."
+    var stage := int(trainer.get("dsg_0"))
+    # A fresh stage zero can use source startup only while its independent
+    # mannequin fields still match the converted Manor seed.
+    if stage == 0:
+        for identity in MANNEQUINS:
+            var mannequin := _training_brain(level, identity)
+            if not _has_integer_properties(mannequin, ["dsg_0"]) or not _has_boolean_field(mannequin, "dsg_1") or not _has_boolean_field(mannequin, "dsg_2"):
+                return "A mannequin Brain has incompatible checkpoint state."
+            if mannequin.get("dsg_0") != INITIAL_EXERCISES[identity] or mannequin.get("dsg_1") or mannequin.get("dsg_2"):
+                return "The fresh training stage differs from its mannequin progress."
+        return ""
+    if _has_boolean_field(global_brain, "dsg_219") and global_brain.get("dsg_219"):
+        return "Save after the completed training actor's lifecycle has settled."
+    if not EXERCISE_IDLE.has(stage) or trainer.get("current_normal") != EXERCISE_IDLE[stage] or trainer.get("current_reflex") != 0:
+        return "Save after Gogoud's training dialogue or movement has finished."
+    # Loose ground-key progress has a separate owner and is not captured here.
+    # The settled final checkpoint retains only its completed pickup/removal.
+    if stage == 5:
+        if not _training_key_collected(actor.get("source_inventory") as Resource):
+            return "Collect Gogoud's key before saving this training checkpoint."
+        var key := _training_brain(level, KEY_ACTOR)
+        if key == null or not _training_removal_supported(key.get_parent()) or key.get_parent().get("source_object_active") or not key.get_parent().get("source_return_suppressed"):
+            return "Save after the manor key pickup presentation has finished."
+    if not _has_property(trainer, "running") or trainer.get("running") != true or not _has_property(trainer, "unsupported_failure") or not str(trainer.get("unsupported_failure")).is_empty():
+        return "Stopped or unsupported training cannot be saved."
+    for field in ["normal_rule_claimed", "reflex_rule_claimed", "reflex_controls_tick"]:
+        if not _has_boolean_field(trainer, field) or trainer.get(field):
+            return "Save after Gogoud's suspended training action has finished."
+    # Stages2/3 can suspend while replenishing ammunition. Keep their native
+    # default latches only when neither replenishment is in flight.
+    if stage in [2, 3] and (not _has_boolean_field(trainer, "dsg_3") or not _has_boolean_field(trainer, "dsg_4") or not trainer.get("dsg_3") or not trainer.get("dsg_4")):
+        return "Save after training ammunition replenishment has settled."
+    if not _has_boolean_field(trainer, "dsg_5"):
+        return "The training Brain has no native lever-event latch."
+    if not _has_integer_properties(trainer.get_parent(), ["current_state"]) or trainer.get_parent().get("current_state") != 23:
+        return "Save after Gogoud's training action has settled."
+    if not _has_boolean_field(trainer.get_parent(), "source_object_active") or not trainer.get_parent().get("source_object_active"):
+        return "Inactive training cannot be saved as a live checkpoint."
+    for field in ATTACK_PERMISSIONS:
+        if not _has_boolean_field(actor.get_node_or_null("Brain"), field):
+            return "The player Brain has incompatible training permissions."
+    for field in TRAINING_FLAGS:
+        if not _has_boolean_field(global_brain, field): return "The Global Brain has incompatible training flags."
+    for identity in MANNEQUINS:
+        var mannequin := _training_brain(level, identity)
+        if not _has_integer_properties(mannequin, ["dsg_0", "current_normal", "current_reflex"]) or not _has_boolean_field(mannequin, "dsg_1") or not _has_boolean_field(mannequin, "dsg_2"):
+            return "A mannequin Brain has incompatible checkpoint state."
+        if mannequin.get("current_normal") != 3 or mannequin.get("current_reflex") != 0:
+            return "Save after the mannequins have finished reacting."
+        if not _has_integer_properties(mannequin.get_parent(), ["current_state"]) or mannequin.get_parent().get("current_state") != 0:
+            return "Save after the mannequin action has settled."
+        if not _has_property(mannequin, "running") or mannequin.get("running") != true or not _has_property(mannequin, "unsupported_failure") or not str(mannequin.get("unsupported_failure")).is_empty():
+            return "Stopped or unsupported mannequin behavior cannot be saved."
+        if not _has_boolean_field(mannequin.get_parent(), "source_object_active") or not mannequin.get_parent().get("source_object_active"):
+            return "Inactive mannequin behavior cannot be saved."
+    return ""
+
+
+static func _capture_training(actor: CharacterBody3D, level: Node3D) -> Dictionary:
+    var trainer := _training_brain(level, TRAINER)
+    if trainer == null or not _has_integer_properties(trainer, ["dsg_0"]) or trainer.get("dsg_0") == 0: return {}
+    if not _training_checkpoint_error(actor, level).is_empty(): return {}
+    var owners := {}
+    var permissions := {}
+    for field in ATTACK_PERMISSIONS: permissions[field] = actor.get_node("Brain").get(field)
+    owners[PLAYER] = {"brain": permissions}
+    var pose := (trainer.get_parent() as Node3D).global_transform
+    owners[TRAINER] = {
+        "brain": {"dsg_0": trainer.get("dsg_0"), "dsg_5": trainer.get("dsg_5")},
+        "transform": {"position": [pose.origin.x, pose.origin.y, pose.origin.z], "basis": [
+            [pose.basis.x.x, pose.basis.x.y, pose.basis.x.z],
+            [pose.basis.y.x, pose.basis.y.y, pose.basis.y.z],
+            [pose.basis.z.x, pose.basis.z.y, pose.basis.z.z],
+        ]},
+    }
+    for identity in MANNEQUINS:
+        var mannequin := _training_brain(level, identity)
+        owners[identity] = {"brain": {"dsg_0": mannequin.get("dsg_0"), "dsg_1": mannequin.get("dsg_1"), "dsg_2": mannequin.get("dsg_2")}}
+    if trainer.get("dsg_0") == 5: owners[KEY_ACTOR] = {"removed": true}
+    return {"schema": 1, "actors": owners}
+
+
+static func _validate_training(value: Variant) -> String:
+    if not value is Dictionary or not _only_keys(value, ["schema", "actors"]) or not _integer(value.get("schema"), 1, 1): return "Invalid native training checkpoint."
+    var owners: Variant = value.get("actors")
+    var identities: Array[String] = [PLAYER, TRAINER]
+    identities.append_array(MANNEQUINS)
+    var trainer: Variant = owners.get(TRAINER) if owners is Dictionary else null
+    var memory: Variant = trainer.get("brain") if trainer is Dictionary else null
+    if memory is Dictionary and _integer(memory.get("dsg_0"), 5, 5): identities.append(KEY_ACTOR)
+    if not owners is Dictionary or owners.size() != identities.size() or not _only_keys(owners, identities): return "Training checkpoint has invalid actor ownership."
+    for identity in identities:
+        if identity == KEY_ACTOR:
+            if not owners[identity] is Dictionary or not _only_keys(owners[identity], ["removed"]) or owners[identity].get("removed") != true or not owners[identity].get("removed") is bool:
+                return "Training checkpoint has an invalid collected key owner."
+            continue
+        var fields: Array[String] = ["brain", "transform"] if identity == TRAINER else ["brain"]
+        if not owners[identity] is Dictionary or not _only_keys(owners[identity], fields): return "Training checkpoint has invalid actor state."
+        var fields_saved: Variant = owners[identity].get("brain")
+        var expected: Array[String] = ["dsg_0", "dsg_5"] if identity == TRAINER else ATTACK_PERMISSIONS if identity == PLAYER else ["dsg_0", "dsg_1", "dsg_2"]
+        if not fields_saved is Dictionary or fields_saved.size() != expected.size() or not _only_keys(fields_saved, expected): return "Training checkpoint has invalid Brain fields."
+        for field in expected:
+            if field == "dsg_0" and identity != PLAYER:
+                if not _integer(fields_saved[field], 0, 255) or identity == TRAINER and not EXERCISE_IDLE.has(int(fields_saved[field])): return "Training checkpoint has an invalid stage."
+            elif not fields_saved[field] is bool: return "Training checkpoint has a non-Boolean permission."
+    var transform: Variant = owners[TRAINER].get("transform")
+    if not transform is Dictionary or not _only_keys(transform, ["position", "basis"]) or not _valid_vector(transform.get("position"), INF): return "Training checkpoint has an invalid trainer position."
+    var axes: Variant = transform.get("basis")
+    if not axes is Array or axes.size() != 3 or not _valid_vector(axes[0], INF) or not _valid_vector(axes[1], INF) or not _valid_vector(axes[2], INF): return "Training checkpoint has an invalid trainer basis."
+    var determinant := Basis(_as_vector(axes[0]), _as_vector(axes[1]), _as_vector(axes[2])).determinant()
+    if not is_finite(determinant) or absf(determinant) <= 0.000001: return "Training checkpoint has a singular trainer basis."
+    return ""
+
+
+static func _preflight_training(level: Node3D, value: Dictionary, inventory: Resource) -> String:
+    # Apply occurs before automatic Brain startup. No coroutine is serialized.
+    if int(value["actors"][TRAINER]["brain"]["dsg_0"]) == 5 and not _training_key_collected(inventory):
+        return "The training checkpoint has no collected manor key."
+    for identity in value["actors"]:
+        var owner := _training_brain(level, identity)
+        if owner == null or not _has_property(owner, "running") or owner.get("running") != false:
+            return "Training checkpoints require stopped, matching actor Brains."
+        if not _has_integer_properties(owner, ["current_normal", "current_reflex"]): return "Training actor has incompatible behavior selection."
+        if identity == KEY_ACTOR:
+            if not _training_removal_supported(owner.get_parent()): return "Converted key has an unsupported removal policy."
+            continue
+        for field in value["actors"][identity]["brain"]:
+            if not _has_property(owner, field):
+                return "Converted actor has incompatible training Brain fields."
+            var live_field: Variant = owner.get(field)
+            if field == "dsg_0" and identity != PLAYER:
+                if not live_field is int: return "Converted actor has an incompatible training stage."
+            elif not live_field is bool:
+                return "Converted actor has incompatible training Brain fields."
+        if identity == PLAYER: continue
+        var character := owner.get_parent()
+        if not _has_boolean_field(character, "source_activation_known") or not character.get("source_activation_known") or not _has_boolean_field(character, "source_return_suppressed") or character.get("source_return_suppressed") or not character.has_method("source_set_object_active_state"):
+            return "Converted training actor has incompatible activation state."
+        var state := 23 if identity == TRAINER else 0
+        if not character.has_method("select_state") or not _has_property(character, "animation_player") or not _has_property(character, "restored_configuration"):
+            return "Converted training actor has incompatible native action support."
+        var player := character.get("animation_player") as AnimationPlayer
+        var prefix := "restored/" if character.get("restored_configuration") else ""
+        if player == null or not player.has_animation(StringName(prefix + "state_%d" % state)):
+            return "Converted training actor is missing its settled action."
+    for field in TRAINING_FLAGS:
+        if not _has_boolean_field(_source_brain(level, GLOBAL), field): return "Converted Global Brain is missing a training flag."
+    return ""
+
+
+static func _restore_training(level: Node3D, value: Dictionary) -> void:
+    for identity in value["actors"]:
+        var owner := _training_brain(level, identity)
+        if identity == KEY_ACTOR:
+            owner.get_parent().call("source_kill_perso")
+            continue
+        var memory: Dictionary = value["actors"][identity]["brain"]
+        for field in memory: owner.set(field, int(memory[field]) if field == "dsg_0" and identity != PLAYER else memory[field])
+        if identity == PLAYER: continue
+        owner.set("current_normal", EXERCISE_IDLE[int(memory["dsg_0"])] if identity == TRAINER else 3)
+        owner.set("current_reflex", 0)
+        owner.get_parent().call("select_state", 23 if identity == TRAINER else 0)
+        owner.get_parent().call("source_set_object_active_state", true)
+    var trainer := _training_brain(level, TRAINER)
+    var character := trainer.get_parent() as CharacterBody3D
+    var pose: Dictionary = value["actors"][TRAINER]["transform"]
+    var axes: Array = pose["basis"]
+    character.global_transform = Transform3D(Basis(_as_vector(axes[0]), _as_vector(axes[1]), _as_vector(axes[2])), _as_vector(pose["position"]))
+
+
 static func _valid_barrel(brain: Node) -> bool:
     return (
         _has_property(brain, "source_model_path")
@@ -351,6 +587,7 @@ static func _armor_state(level: Node3D, catalog: Resource) -> Resource:
 static func capture(actor: CharacterBody3D, level: Node3D) -> Dictionary:
     if not is_instance_valid(actor) or resolve_player(level) != actor or str(level.get_meta("source_level", "")) != "manoir":
         return {}
+    if not _training_checkpoint_error(actor, level).is_empty(): return {}
     var magick: Resource = actor.get("source_magick")
     var inventory: Resource = actor.get("source_inventory")
     var life: Resource = actor.get("source_hit_points") if _has_property(actor, "source_hit_points") else null
@@ -370,7 +607,7 @@ static func capture(actor: CharacterBody3D, level: Node3D) -> Dictionary:
         global_brain_state["dsg_147"] = global_brain.get("dsg_147")
     # Source Global[220..228] all have player-save mask0x200. These are
     # per-item first-pickup flags; HUD bookkeeping19..23 is transient.
-    for property_name in FIRST_PICKUP_FLAGS:
+    for property_name in FIRST_PICKUP_FLAGS + TRAINING_FLAGS:
         if not _has_property(global_brain, property_name): continue
         var first_pickup: Variant = global_brain.get(property_name)
         if not first_pickup is bool: return {}
@@ -388,6 +625,8 @@ static func capture(actor: CharacterBody3D, level: Node3D) -> Dictionary:
         var barrel_brain := _source_brain(level, identity)
         if _brain_path(level, identity).is_empty(): return {}
         var removed := barrel_brain == null or barrel_brain.get_parent().is_queued_for_deletion()
+        if not removed and _has_boolean_field(barrel_brain.get_parent(), "source_return_suppressed"):
+            removed = bool(barrel_brain.get_parent().get("source_return_suppressed"))
         if not removed and not _valid_barrel(barrel_brain): return {}
         world[identity] = {"dsg_8": true if removed else bool(barrel_brain.get("dsg_8")), "removed": removed}
     var transform := actor.global_transform
@@ -426,6 +665,8 @@ static func capture(actor: CharacterBody3D, level: Node3D) -> Dictionary:
         "world": world,
     }
     if inventory.has_method("capture_snapshot"): state["actors"][ACTOR]["inventory"]["snapshot"] = inventory_snapshot
+    var training := _capture_training(actor, level)
+    if not training.is_empty(): state["training"] = training
     return state
 
 
@@ -529,10 +770,13 @@ static func apply(actor: CharacterBody3D, level: Node3D, value: Dictionary) -> S
     if not error.is_empty():
         return error
     if value["actors"].has(GLOBAL):
-        for property_name in FIRST_PICKUP_FLAGS:
+        for property_name in FIRST_PICKUP_FLAGS + TRAINING_FLAGS:
             if not value["actors"][GLOBAL]["brain"].has(property_name): continue
             if not _has_boolean_field(global_brain, property_name):
-                return "Converted manor has no Boolean first-pickup Brain field: " + property_name
+                return "Converted manor has no saved Boolean Global Brain field: " + property_name
+    if value.has("training"):
+        error = _preflight_training(level, value["training"], checked_inventory)
+        if not error.is_empty(): return error
     var saved_world: Dictionary = value.get("world", {})
     for identity in BARRELS:
         if not saved_world.has(identity): continue
@@ -544,6 +788,8 @@ static func apply(actor: CharacterBody3D, level: Node3D, value: Dictionary) -> S
             return "Converted manor has no live saved barrel: " + identity
         if not _valid_barrel(barrel_brain):
             return "Converted manor has incompatible saved barrel: " + identity
+        if saved_world[identity]["removed"] and barrel_brain.get_parent().has_method("source_kill_perso") and not _training_removal_supported(barrel_brain.get_parent()):
+            return "Converted manor has an unsupported saved barrel removal policy."
         if barrel_brain.get_parent().is_queued_for_deletion() and not saved_world[identity]["removed"]:
             return "Converted manor cannot restore a removed barrel: " + identity
     if int(value["schema"]) == SCHEMA:
@@ -567,7 +813,7 @@ static func apply(actor: CharacterBody3D, level: Node3D, value: Dictionary) -> S
         global_brain.set("dsg_149", saved_global_brain["dsg_149"])
         if saved_global_brain.has("dsg_147"):
             global_brain.set("dsg_147", saved_global_brain["dsg_147"])
-        for property_name in FIRST_PICKUP_FLAGS:
+        for property_name in FIRST_PICKUP_FLAGS + TRAINING_FLAGS:
             if saved_global_brain.has(property_name):
                 global_brain.set(property_name, saved_global_brain[property_name])
     var world: Dictionary = value.get("world", {})
@@ -586,4 +832,5 @@ static func apply(actor: CharacterBody3D, level: Node3D, value: Dictionary) -> S
             if barrel_actor.has_method("source_set_object_active_state"):
                 barrel_actor.call("source_set_object_active_state", false)
         if state["removed"]: barrel_brain.get_parent().call("source_kill")
+    if value.has("training"): _restore_training(level, value["training"])
     return ""

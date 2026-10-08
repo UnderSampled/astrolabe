@@ -474,7 +474,7 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
         inventory_stock: None,
         motion_binding_present: false,
         picking_bounds: None,
-        contact_eligible: true,
+        activation: None,
         custom_bits: 0,
         microphone: None,
         camera: None,

@@ -233,7 +233,7 @@ fn native_motion_survives_rete_and_drives_character_contact() -> Result<()> {
         inventory_stock: None,
         motion_binding_present: false,
         picking_bounds: None,
-        contact_eligible: true,
+        activation: None,
         custom_bits: 0,
         microphone: None,
         camera: None,
