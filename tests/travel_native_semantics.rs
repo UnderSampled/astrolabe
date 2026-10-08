@@ -1,4 +1,4 @@
-//! Static prerequisites for the connected manor traveling-camera API.
+//! Source prerequisites and native point/waypoint behavior for manor travel.
 use anyhow::{Context, Result, ensure};
 use astrolabe::{
     godot,
@@ -114,6 +114,10 @@ fn manor_travel_dependencies_are_bound() -> Result<()> {
         }
         if actor == 45 {
             ensure!(
+                perso.motion_binding_present,
+                "traveling Mass actor lost its effective source dynamics binding"
+            );
+            ensure!(
                 perso.routes.len() == 2,
                 "traveling camera lost its two ways"
             );
@@ -177,7 +181,7 @@ fn manor_travel_dependencies_are_bound() -> Result<()> {
         }
         actors.push(serde_json::json!({"perso":perso.as_ref(),"family":family.as_ref(),"brain":brain.as_ref(),"mechanics":mechanics,"routes":routes}));
     }
-    let report = serde_json::json!({"scope":"source import and Rete prerequisites; motion algorithms not accepted", "actors":actors});
+    let report = serde_json::json!({"scope":"static source import and Rete proof; native motion checked independently", "actors":actors});
     if let Some(path) = std::env::var_os("ASTROLABE_TRAVEL_AUDIT_REPORT") {
         fs::write(path, serde_json::to_vec_pretty(&report)?)?;
     }

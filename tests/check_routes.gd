@@ -17,6 +17,8 @@ func check() -> void:
     actor.motion_enabled = false
     var second = actor.duplicate()
     second.name = "Independent"
+    # The duplicate is reparented from walker/Walker to the level root.
+    second.source_state_owner_path = NodePath("..")
     second.get_node("Brain").automatic = false
     second.motion_enabled = false
     scene.add_child(second)

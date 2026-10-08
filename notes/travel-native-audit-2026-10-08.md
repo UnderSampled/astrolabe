@@ -1,10 +1,11 @@
 # Native travel prerequisites — 2026-10-08
 
 This follows camera checkpoint `ffd1220` (integrated on main as `ab7bacc`).
-The completed native changes are the **pure meta19 point-turn geometry API**
-and saved actor-local current/previous waypoint progress properties.
-Meta30/32/33 movement is still gated on the original Mass consumer, point
-movement and selected-waypoint/advance contracts below. No original executable
+The completed native changes are the **pure meta19 point-turn geometry API**,
+saved actor-local current/previous waypoint progress, and **meta30/32/33 point
+requests using native CharacterBody3D motion**. The finite traveling actor's
+Mass consumer, selected fixed waypoint and no-hit application contracts are
+closed by the source evidence below. No original executable
 was run, and no comparison/font worktree was read or changed. The source-only
 checkout is `/tmp/astrolabe-camera-native-20261008`; builds, test projects,
 configuration and evidence are isolated there. Shared AI/model/export changes,
@@ -24,9 +25,18 @@ The complete point/way progress checkpoint is
 `933b8f31ebc84b9d445248def7e80ddfd08b5479`, read from
 `/home/stephen/Documents/Codex/2026-10-08/task-13/hype-sol-core/`:
 `src/ai/waypoint_motion.c`, `src/waypoint/waypoint_progress.c` and
-`movement_dependencies.c`. This worker did not edit or compile original-engine C.
+`movement_dependencies.c`. Its StaticLine dispatch checkpoint is
+`288ec333edcfb4f7ea9376c92bebfd34eaf79fad`, `src/waypoint/link_sampling.c`.
+Mass12 is `4826d81795b17d0a4fb0baa29ec25f4b3adb9215`, independently reviewed
+and integrated into original-engine main as `21935f4`. The six source modules
+are `src/dynamics/{force_record,mass_integration,mass_control,mass_update,
+mass_contact,mass_apply}.c`. Their twelve complete code spans total8,837 bytes.
+The full Proc19–32 handler and angle helpers are checkpoint
+`f6f56c1bc00b3736ed1b2faf59b9fc91d3330db4`, `src/ai/ai_vector_speed.c` and
+`angle_math.c`, integrated into original main as `742ee86`.
+This worker did not edit or compile original-engine C.
 
-Both PE profiles have identical bytes for all 42 recorded spans and the
+Both PE profiles have identical bytes for all 53 recorded spans and the
 meta33 height constant. Whole-file SHA-256 values are those in the
 [camera audit](camera-native-audit-2026-10-08.md). The section table supplies
 each file offset. Ignored `output/travel-native-evidence/pe-spans.json` retains
@@ -44,7 +54,10 @@ Inclusive span | File offset | Bytes | SHA-256
 
 Hashes establish provenance; they do not establish host x87 or runtime parity.
 The point/advance algorithms now have complete static clean-C contracts.
-The Mass helper bodies are authored and remain pending their reviewed checkpoint.
+All twelve Mass spans independently match the reviewed checkpoint's hashes in
+both profiles. The additional Walk control span00589bfa–0058a40f is2070 bytes,
+SHA-256 `253ad819326f1c3fcd1e2a39a6645d918e8c75489d5d9a0d383bf07ff8b0910b`.
+Its two dispatch tables select event14 branch00589cd6, independently of Mass9.
 
 ## Closed point-turn API and compiler contract
 
@@ -193,9 +206,13 @@ caller's separate dynamics component. The finite authored travel calls use self
 for both. The branch sets scalar speed to full3D vector length, normalizes a nonzero vector,
 and stores direction. Source-zero uses float-zero at005c4160 and scalar zero.
 The original behavior is more than storing a deferred raw vector. The native
-point consumer can derive scalar1.4/0.8 from the captured source vector, while
-immediate velocity clearing and direction storage need their own motion batch
-and jump regression. No change to the existing speed setter is guessed here.
+speed setter now clears caller body/external velocity immediately, retains the
+configured vector and pending impulse, and leaves the pose unchanged. The point
+consumer derives positive scalar1.4/0.8 from its full3D length. Native jump checks
+verify that old velocity is cleared without discarding the impulse or changing
+the relative orientation used when the jump commits. Ultra calls with a different
+receiver still require separate compiler treatment: parameter writes select the
+receiver, but the original caller owns velocity clearing.
 005404d0–005408f7 is1064 bytes, SHA-256
 `c56a2a737fa5caf0812910a345f34ba474e7db23021afdf1cfe1521b71b1f3ed`;
 the56-byte dispatch table hashes to
@@ -213,20 +230,18 @@ inverse mass and time, then adds dynamics+64 velocity; the event has already
 zeroed that velocity. 005a05c8/005a0642 apply another rounded velocity*time
 step to translation/angular displacement. Algebraic mass/time cancellation
 does not prove exact float behavior. Contact0059a504 and final application
-0059f46d have now been authored in the Mass worker's twelve-body slice, pending
-its static-reviewed commit. No-hit query signed<=0 leaves the integrated
+0059f46d are now complete and reviewed in the Mass twelve-body checkpoint.
+No-hit query signed<=0 leaves the integrated
 candidate intact. Positive responses dispatch00599703/00597be6; zero response
 does not make Mass update skip final application, while seven attempts or
 response20 roll back candidate and zero velocity. Final application publishes
 global/relative transforms and handles numeric motion spaces0/1/2 distinctly.
-Positive-contact algorithms, application-space proof and exact helper evidence
-remain required where those branches are reached; they do not block actor45's
-proved absent-query branch. The Walk event14 handler is
+Positive-contact algorithms remain unverified where those branches are reached;
+they do not block actor45's proved absent-query branch. Null-query00463df0 calls
+00448280 before its Perso+18 null gate and returns zero without clearing the
+contact table; a separate debug branch clears that table. The Walk event14 handler is
 00589bfa; animation-root speed, horizontal projection and ordinary Character
-gravity cannot be assumed for Mass9. Clean C for the Mass pair, velocity/time
-integration helpers is requested from the original-C coordinator. The latter's
-point core/advance checkpoint is complete. No native motion implementation is
-guessed here. Exact dispatcher instructions00443e00/00443f00 convert unsigned
+gravity cannot be assumed for Mass9. Exact dispatcher instructions00443e00/00443f00 convert unsigned
 millisecond DAT00754af8 with float0.001 and pass the rounded seconds to both
 control and update callbacks; native physics delta therefore uses seconds.
 The source identity-to-motion-space table0060dd90 selects zero for kinds0 and9.
@@ -235,13 +250,60 @@ read-only importer probe confirms actor45 Perso+8→wrapper+10→base+10 is zero
 its owned evidence is `output/integration-resume-20261008/source-motion-mode.log`
 in the main checkout. Thus this actor reaches no-hit world-space application.
 
-The proposed native API remains `source_begin_point_motion(point, radius,
+The implemented native API is `source_begin_point_motion(point, radius,
 horizontal=false) -> int` and `source_begin_next_waypoint(slot) -> int`, with
-`source_point_motion_finished(ticket)` and `source_cancel_point_motion(ticket)`.
+`source_point_motion_finished(ticket)`, `source_point_motion_failure(ticket)`
+and `source_cancel_point_motion(ticket)`.
 Named targets, actor-owned progress and native physics own runtime state;
-raw pointers/addresses remain source-reader evidence. Selected destination,
-radius, effective binding, speed and advancement contracts must close before
-these methods are implemented.
+raw pointers/addresses remain source-reader evidence. These methods consume
+the saved Curve3D, radii and per-point/per-link support properties. They do not
+rebuild event lists, dynamics layouts, force queues, or a source scheduler.
+
+Begin returns -1 on a reached unsupported/malformed request, zero for immediate
+completion, or a positive revision while active. A null/empty lookup retains
+the previously captured route; no capture completes immediately. A failed active
+request becomes finished and retains its reason under its positive ticket.
+Compiled AI must check failure after polling and before cancelling, so reaching
+a later curve cannot silently resume the schedule. New requests supersede older
+tickets. Completion/cancellation holds animation steering until the next accepted
+action or motion request; Character gravity/contact continues normally.
+
+Mass9 event14 uses full3D normalized target displacement and the positive configured
+speed magnitude. It sets the source +X heading, with the near-vertical 0.001
+threshold, and applies native world velocity through CharacterBody3D. The actor45
+no-shape/no-hit branch advances in world space without Character gravity or
+animation speed. Source force/time/mass float stages are understood, but the native
+API does not reproduce an original force-record stack tail or claim x87 bit parity.
+Positive contacts use Godot body contact facilities and do not claim the original
+external response algorithms' behavior.
+
+Character0 uses native animation displacement magnitude, mechanics speed/turn
+limits, and ordinary body contact/gravity. Walk event14's00589d2f–00589d77 computes
+the planar length and **multiplies** the planar direction by it. Heading reads
+that scaled direction in00589e5d–00589ed8 with signed acos; replacing it with a
+fresh planar normalization or atan2 changes an inclined target's heading. The
+native point API preserves this finite geometry and both signed PI endpoints.
+Point and whole-route Character requests share this steering helper, avoiding
+two different implementations of the same event14 velocity/heading geometry.
+Inclined no-animation input turns without inventing translation. Detailed source
+contact projection and tilted-environment parity remain outside this finite check.
+
+Meta33 refreshes current native height+0.05 on each control update; its captured
+height does not become a fixed vertical destination. Radius is first rounded to
+source float32. Equality at radius0.05 therefore completes, while0.049 requests
+motion. Missing effective dynamics completes before snapping. Nonzero radii never
+snap; zero radius uses the separate0.25 fallback and snaps all three coordinates.
+Nonfinite native inputs fail explicitly; source unordered/x87 exception behavior
+is retained as evidence, not emulated as a gameplay policy.
+
+Next-waypoint completion advances at most one vertex or sample per update. The
+previous-vertex -1 branch selects the actual point even on a route with later
+unsupported geometry. StaticLine selects its endpoint at every sample and reports
+last-sample immediately. Current sample still wraps modulo256 and old sample is
+saved as previous sample. Open terminals reset and complete; closed terminals
+reset and yield one continuation. Unsupported next-link initialization preserves
+the already advanced progress and reports failure. It never scans a whole route
+or substitutes a line for a reached curve.
 
 ## Focused checks and limits
 
@@ -254,20 +316,70 @@ also passes after sharing the geometry helper. The local source/Rete test has
 a bounded selection and checks the concrete Mass, waypoint/radius/progress and
 Gogoud mechanics prerequisites above. Mandatory supervisor/selection/nextest/
 recording safeguards, release build and formatting are recorded separately.
-The final combined native/source check passes in 36.51 seconds after 4.11
+The earlier point-turn prerequisite's combined native/source check passed in36.51 seconds after4.11
 seconds of build time; the compiled actor-turn regression passes in 0.41
 seconds. The release build passes in 67 seconds. The four safeguards pass
-7/6/2/14 tests respectively. Workspace Clippy
-remains blocked by the existing warnings listed in the camera audit; no lint
-suppression or unrelated source repair is included.
+7/6/2/14 tests respectively. That prerequisite's Clippy warnings were later
+repaired in the lead-owned shared checkpoint.
 
-Shared typed meta19 compilation, bool persistence/export, manifest entries and
-version coordination are lead-owned. Native meta30/32/33, later route curves,
-exceptional x87/NaN parity, authored full intro and final control handoff remain
-unverified. This batch makes no claim of complete travel or game acceptance.
+Shared typed AI compilation, bool persistence/export, manifest entries and
+version coordination are lead-owned. This branch incorporates reviewed shared
+main checkpoint8d68004, including the audio/API dependencies, effective bool,
+Mass9 resource, all four progress arrays and selected-point/link support flags.
+The source-compiled meta30/32/33 integration and actual-game handoff remain the
+lead's acceptance work. Later curves/relative routes, positive original Mass
+contact algorithms, exceptional x87/NaN behavior and other mechanics modes
+remain unverified. This batch makes no claim of full intro or game acceptance.
 
 The saved-progress prerequisite additionally passes native scene save/reopen
 and actor instance isolation in0.31 seconds. Its combined native/source check
 passes in27.45 seconds after0.44 seconds of build time, including the assertion
 that actor45 has no collision component. Logs and the refreshed canonical
 dependency report are `progress-final.log` and `dependencies-progress.json`.
+
+The motion batch's final native parser/runtime check passes in2.93 seconds
+after4.22 seconds of build time (`shared-character-steering.log`). The unchanged test name is
+`native_point_turn_geometry_uses_source_coordinates`; its scope now also covers
+Proc29/jumps, full3D Mass/no gravity/source+X heading, radius equality/zero snap,
+meta33 height refresh, Character root motion/wall/floor contact/cancellation,
+inclined no-animation heading, both signed half-turn directions, selected
+StaticLine on an otherwise unsupported route, low-byte/retained selection,
+coincident vertices, sample wrapping, open/closed terminal reset and reached
+unsupported point/link failures. Native scene save/reopen and independent actor
+progress remain in this harness. Godot Euler extraction exposes a positive PI
+pose as negative PI; point motion reads the wrapped world forward heading and
+retains source float32 facing/half-turn boundaries instead of choosing the other
+turn direction.
+
+`manor_travel_dependencies_are_bound` passes in the combined source/native run
+(50.63 seconds after0.46 seconds of build time), including effective dynamics
+presence and the no-collision-query assertion. Canonical source/Rete evidence is
+`dependencies-motion.json`. AI integration26 tests, intro API1, locomotion1
+(21.12 seconds), source/model/compiler AI65 tests (11 local cases deliberately
+excluded), and all four mandatory safeguards7/6/2/14 pass. The legacy route
+fixture passes in9.41 seconds after its lead-approved test-only repair: its
+duplicate was reparented directly under the level but retained the original
+actor's deeper shared-service NodePath. Updating that duplicate's owner path
+preserves real shared inventory/magick ownership and strict error checking.
+No runtime ownership guard or diagnostic suppression was added.
+
+The first native half-turn/contact fixture attempts exposed the native Euler
+boundary and1.5mm vertical floor recovery. The final cancellation assertion
+checks no horizontal steering, zero velocity and continued native floor contact.
+The first sandboxed legacy AI checks failed because the Godot editor's loopback
+listener was denied; narrowly permitted isolated reruns passed. These failures
+and their corrections remain in the ignored evidence logs.
+
+Formatting and root `cargo clippy --locked --offline --all-targets -- -D warnings`
+pass (15.14 seconds for Clippy). Workspace-wide Clippy reports the pre-existing
+eight-argument `observe_magick_behavior` in unowned `crates/orrery/src/orrery.rs:722`.
+No suppression or unrelated controller change is included. Build/check process
+ownership and cleanup are recorded by the existing supervisor in the evidence
+directory; no original-game processes were launched.
+
+After consolidating Character steering, the final release build passes in68.14
+seconds, root all-target Clippy in3.73 seconds, and formatting in0.70 seconds.
+Their supervised results report no timeout, leaked children or remaining owned
+processes (`release-motion-shared.json`, `clippy-root-motion-shared.json`,
+`fmt-motion-shared.json`). No root game publication or long acceptance run was
+performed in this worker checkout.

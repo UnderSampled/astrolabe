@@ -67,6 +67,18 @@ var source_route_slot: int = -1
 var source_route_revision: int = 0
 var source_route_active: bool = false
 var source_route_holds_motion: bool = false
+## One native movement request; compiled scripts own waiting and cancellation.
+var source_point_revision: int = 0
+var source_point_active: bool = false
+var source_point_holds_motion: bool = false
+var _source_point_target: Vector3 = Vector3.ZERO
+var _source_point_radius: float = 0.0
+var _source_point_horizontal: bool = false
+var _source_point_route_slot: int = -1
+var _source_point_mass_motion: bool = false
+var _source_point_failure: String = ""
+var _source_next_waypoint_slot: int = -1
+var _source_next_waypoint_route: Resource
 var source_generated_object_count: int = 0
 ## A generated actor waits for the native animation's release cue.
 var generated_object: Node3D
@@ -148,9 +160,20 @@ func _physics_process(delta: float) -> void:
     # The animation never changes this body's position. Apply its local motion
     # once, through native contact resolution. Forces/impulses persist independently.
     var motion := global_basis.orthonormalized() * root_motion_displacement / delta
-    if source_route_holds_motion: motion = Vector3.ZERO
-    if source_route_active:
+    if source_point_active or source_point_holds_motion:
+        motion = _source_point_motion(delta)
+        if _source_point_mass_motion:
+            # Mass9 event14 supplies full world velocity. Its proved no-hit
+            # path has neither animation displacement nor Character gravity.
+            external_velocity = Vector3.ZERO
+            velocity = motion
+            move_and_slide()
+            source_camera_data3d_step(delta)
+            return
+    elif source_route_active:
         motion = _source_route_motion(delta)
+    elif source_route_holds_motion:
+        motion = Vector3.ZERO
     if source_relative_motion:
         external_velocity = _source_relative_vector(source_vector_speed)
         source_relative_motion = false
@@ -286,6 +309,10 @@ func _source_relative_vector(value: Vector3) -> Vector3:
 func source_set_vector_speed(value: Vector3) -> void:
     assert(value.is_finite())
     source_vector_speed = value
+    # Proc29 clears existing caller motion before the next control request.
+    # The configured vector retains both direction and positive speed length.
+    external_velocity = Vector3.ZERO
+    velocity = Vector3.ZERO
 
 ## Explicitly deferred: the typed source call and operand remain visible, but
 ## the requested opening-slice target behavior is a no-op pending wind parity.
@@ -320,11 +347,226 @@ func source_inventory_add_object(target: Node) -> int:
 
 func source_reset_route(slot: int) -> bool:
     if slot < 0 or slot >= source_routes.size(): return false
-    if source_route_points.size() != source_routes.size(): return false
-    source_route_points[slot] = 0
+    if not _source_route_progress_present(): return false
+    _source_reset_route_progress(slot)
     if source_route_slot == slot:
         source_cancel_route(source_route_revision)
+    if _source_point_route_slot == slot:
+        source_cancel_point_motion(source_point_revision)
     return true
+
+func _source_route_progress_present() -> bool:
+    var count := source_routes.size()
+    return source_route_points.size() == count and source_route_samples.size() == count and source_route_previous_points.size() == count and source_route_previous_samples.size() == count
+
+func _source_reset_route_progress(slot: int) -> void:
+    source_route_points[slot] = 0
+    source_route_samples[slot] = 0
+    source_route_previous_points[slot] = -1
+    source_route_previous_samples[slot] = -1
+
+## Meta32 captures an absolute source Position. Meta33 instead follows current
+## height+0.05 on each update, retaining a three-dimensional arrival sphere.
+func source_begin_point_motion(point: Vector3, radius: float, horizontal: bool = false) -> int:
+    _source_new_point_request()
+    if not point.is_finite() or not is_finite(radius):
+        return _source_fail_point_request("point motion requires finite position and radius")
+    _source_point_target = Vector3(point.x,point.z,-point.y)
+    _source_point_radius = PackedFloat32Array([radius])[0]
+    if not is_finite(_source_point_radius):
+        return _source_fail_point_request("point motion radius exceeds source real range")
+    _source_point_horizontal = horizontal
+    return _source_start_point_request()
+
+## Meta30 selects a single next waypoint. A failed slot lookup retains the
+## preceding captured route, matching its initializer's failed replacement.
+func source_begin_next_waypoint(slot: int) -> int:
+    _source_new_point_request()
+    slot &= 255
+    if slot < source_routes.size() and source_routes[slot] != null:
+        var candidate = source_routes[slot]
+        if candidate.curve == null:
+            return _source_fail_point_request("selected route has no native curve")
+        if candidate.curve.point_count > 0:
+            _source_next_waypoint_slot = slot
+            _source_next_waypoint_route = candidate
+    if _source_next_waypoint_route == null: return 0
+    _source_point_route_slot = _source_next_waypoint_slot
+    return _source_start_point_request()
+
+func _source_new_point_request() -> void:
+    source_point_revision += 1
+    source_point_active = false
+    source_point_holds_motion = false
+    _source_point_route_slot = -1
+    _source_point_horizontal = false
+    _source_point_failure = ""
+
+func _source_start_point_request() -> int:
+    source_point_active = true
+    source_point_holds_motion = true
+    source_route_active = false
+    source_route_holds_motion = false
+    _source_point_mass_motion = current_mechanics != null and int(current_mechanics.mode) == 9
+    _source_point_control()
+    if not _source_point_failure.is_empty(): return -1
+    if not source_point_active: return 0
+    source_relative_motion = false
+    external_velocity = Vector3.ZERO
+    motion_enabled = true
+    _configure_motion()
+    return source_point_revision
+
+func source_point_motion_finished(ticket: int) -> bool:
+    return ticket <= 0 or ticket != source_point_revision or not source_point_active
+
+func source_point_motion_failure(ticket: int) -> String:
+    return _source_point_failure if ticket == source_point_revision or ticket == -1 else ""
+
+func source_cancel_point_motion(ticket: int) -> void:
+    if ticket <= 0 or ticket != source_point_revision: return
+    source_point_active = false
+    source_point_holds_motion = true
+    _source_point_failure = ""
+
+func _source_fail_point_request(reason: String) -> int:
+    source_point_active = false
+    source_point_holds_motion = true
+    _source_point_failure = reason
+    return -1
+
+func _source_select_waypoint_target() -> bool:
+    var slot := _source_point_route_slot
+    if slot >= source_routes.size() or source_routes[slot] != _source_next_waypoint_route:
+        _source_fail_point_request("captured route no longer has its actor binding")
+        return false
+    if not _source_route_progress_present():
+        _source_fail_point_request("selected route has incomplete actor progress")
+        return false
+    var route = source_routes[slot]
+    if route.curve == null:
+        _source_fail_point_request("selected route has no native curve")
+        return false
+    var count: int = route.curve.point_count
+    if count == 0 or count > 255 or count != route.radii.size() or count != route.point_supported.size() or route.link_supported.size() != count-1:
+        _source_fail_point_request("selected route has inconsistent native geometry")
+        return false
+    var point := source_route_points[slot]
+    var previous := source_route_previous_points[slot]
+    var sample := source_route_samples[slot]
+    if point < 0 or point >= count or sample < 0 or sample > 255 or previous < -1 or previous >= count or source_route_previous_samples[slot] < -1 or source_route_previous_samples[slot] > 255:
+        _source_fail_point_request("selected route has invalid actor progress")
+        return false
+    var selected := point
+    if previous != -1 and not (point == 0 and sample == 0):
+        var link: int
+        if previous < point:
+            link = previous
+        elif source_route_previous_samples[slot] == 0:
+            link = point-1
+        else:
+            link = point
+        if link < 0 or link >= route.link_supported.size() or route.link_supported[link] == 0:
+            _source_fail_point_request("selected waypoint needs unsupported link geometry")
+            return false
+        # Supported StaticLine selects its endpoint directly at every sample.
+        selected = link+1
+    if selected < 0 or selected >= route.point_supported.size() or route.point_supported[selected] == 0:
+        _source_fail_point_request("selected waypoint needs unsupported relative geometry")
+        return false
+    _source_point_target = route.curve.get_point_position(selected)
+    _source_point_radius = route.radii[point]
+    if not _source_point_target.is_finite() or not is_finite(_source_point_radius):
+        _source_fail_point_request("selected waypoint requires finite position and radius")
+        return false
+    return true
+
+## Arrival advances at most one vertex. Sampled curved links remain explicit
+## failures; fixed StaticLine reports last-sample immediately.
+func _source_advance_next_waypoint() -> bool:
+    var slot := _source_point_route_slot
+    var route = source_routes[slot]
+    var point := source_route_points[slot]
+    var previous := source_route_previous_points[slot]
+    var sample := source_route_samples[slot]
+    source_route_previous_samples[slot] = sample
+    if point != 0 and previous != -1:
+        var link := mini(previous,point)
+        if link < 0 or link >= route.link_supported.size() or route.link_supported[link] == 0:
+            _source_fail_point_request("waypoint advancement needs unsupported link geometry")
+            return false
+        source_route_samples[slot] = (sample+1)&255
+        if point+1 == route.curve.point_count:
+            _source_reset_route_progress(slot)
+            return bool(route.closed)
+    if previous == -1 and point+1 == route.curve.point_count:
+        source_route_points[slot] = 0
+        source_route_previous_points[slot] = -1
+    else:
+        source_route_points[slot] = (point+1)&255
+        source_route_previous_points[slot] = point
+    if source_route_previous_points[slot] != -1:
+        if source_route_points[slot] != 0: source_route_samples[slot] = 0
+        var link := mini(source_route_previous_points[slot],source_route_points[slot])
+        if link < 0 or link >= route.link_supported.size() or route.link_supported[link] == 0:
+            _source_fail_point_request("next waypoint initialization needs unsupported link geometry")
+    return false
+
+func _source_point_control() -> bool:
+    if _source_point_route_slot >= 0 and not _source_select_waypoint_target(): return false
+    if _source_point_horizontal: _source_point_target.y = global_position.y+0.05
+    # The source returns completion before arrival/snap if dynamics is absent.
+    var moving := source_motion_binding_present
+    if moving:
+        var distance := global_position.distance_to(_source_point_target)
+        moving = distance > _source_point_radius and not (_source_point_radius == 0.0 and distance <= 0.25)
+        if not moving and _source_point_radius == 0.0: global_position = _source_point_target
+    if not moving:
+        var continuing := _source_advance_next_waypoint() if _source_point_route_slot >= 0 else false
+        if not continuing: source_point_active = false
+        return false
+    if current_mechanics == null or int(current_mechanics.mode) not in [0,9]:
+        _source_fail_point_request("point motion needs supported Character0 or Mass9 mechanics")
+        return false
+    _source_point_mass_motion = int(current_mechanics.mode) == 9
+    return true
+
+func _source_point_motion(delta: float) -> Vector3:
+    if not source_point_active or not _source_point_control(): return Vector3.ZERO
+    var direction := (_source_point_target-global_position).normalized()
+    if _source_point_mass_motion:
+        # Mass uses its +X horizontal axis for heading and the entire 3D vector
+        # for translation. Native physics replaces source force-list plumbing.
+        var horizontal_length := Vector2(direction.x,direction.z).length()
+        var heading := atan2(-direction.z,direction.x) if horizontal_length > 0.001 else 0.0
+        global_rotation = Vector3(0,heading,0)
+        return direction * source_vector_speed.length() if current_mechanics.mass > 0.0 else Vector3.ZERO
+    return _source_character_point_motion(direction,delta)
+
+func _source_character_point_motion(direction: Vector3, delta: float) -> Vector3:
+    direction -= up_direction * direction.dot(up_direction)
+    # Walk event14 multiplies the planar direction by its planar length. It
+    # uses that scaled vector for both speed and its signed acos heading.
+    direction *= direction.length()
+    var speed := root_motion_displacement.length()/delta
+    if current_mechanics != null:
+        speed = minf(speed,absf(current_mechanics.max_linear_speed))
+    if not direction.is_zero_approx():
+        var facing := acos(clampf(direction.z,-1.0,1.0))
+        if direction.x < 0.0: facing = -facing
+        facing = PackedFloat32Array([facing])[0]
+        # Euler extraction can represent a positive PI pose as negative PI.
+        # Read the same wrapped world forward heading as the point-turn API.
+        var current_heading := _source_turn_angles_to_world_position(global_position).x
+        var turn := facing-current_heading
+        var half_turn: float = PackedFloat32Array([PI])[0]
+        if turn > half_turn: turn -= 2.0*half_turn
+        elif turn < -half_turn: turn += 2.0*half_turn
+        if current_mechanics != null:
+            var limit: float = absf(current_mechanics.max_angular_speed)*delta
+            turn = clampf(turn,-limit,limit)
+        global_rotation.y = current_heading+turn
+    return direction * speed
 
 ## GoOverWay retains actor-local progress. Fixed route vertices are native
 ## Curve3D points; animation supplies speed and CharacterBody3D supplies contact.
@@ -341,6 +583,8 @@ func source_begin_route(slot: int) -> int:
     source_route_slot = slot
     source_route_active = true
     source_route_holds_motion = false
+    source_point_active = false
+    source_point_holds_motion = false
     motion_enabled = true
     _configure_motion()
     _source_route_target()
@@ -381,22 +625,7 @@ func _source_route_motion(delta: float) -> Vector3:
     var target := _source_route_target()
     if not source_route_active: return Vector3.ZERO
     var direction := (target - global_position).normalized()
-    direction -= up_direction * direction.dot(up_direction)
-    # 00589bfa mode 0x14 steers horizontal world velocity, clamps linear/angular
-    # rates with the action's mechanics card, and leaves vertical contact to physics.
-    # 004436c0 supplies the magnitude, not a signed forward component. Gogoud's
-    # walk is source negative Y (native +Z), like source_sighting().
-    var speed := root_motion_displacement.length() / delta
-    if current_mechanics != null:
-        speed = clampf(speed, -absf(current_mechanics.max_linear_speed), absf(current_mechanics.max_linear_speed))
-    if not direction.is_zero_approx():
-        var facing := atan2(direction.x, direction.z)
-        var turn := wrapf(facing - global_rotation.y, -PI, PI)
-        if current_mechanics != null:
-            var limit: float = absf(current_mechanics.max_angular_speed) * delta
-            turn = clampf(turn, -limit, limit)
-        global_rotation.y += turn
-    return direction * direction.length() * speed
+    return _source_character_point_motion(direction,delta)
 
 ## Object generation retains a local velocity until activation. The animation
 ## release cue changes the object's transform before mechanics starts
@@ -1001,6 +1230,7 @@ func select_state(id: int) -> bool:
     action_controlled = false
     requested_action_state = id
     source_route_holds_motion = false
+    source_point_holds_motion = false
     action_complete = false
     animation_complete = false
     return _select_state(id)
@@ -1040,6 +1270,7 @@ func request_action(id: int, restart: bool = false) -> bool:
     requested_action_state = id
     animation_complete = false
     source_route_holds_motion = false
+    source_point_holds_motion = false
     _play_action_state(selected)
     action_request_traced.emit(id, restart, previous, selected, true)
     return true
