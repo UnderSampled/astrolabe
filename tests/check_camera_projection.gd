@@ -19,6 +19,7 @@ func run() -> void:
     actor.set("motion_enabled", false)
     var camera := actor.get_node("SourceCamera") as Camera3D
     root.add_child(scene)
+    if not require(camera.owner_motion_binding_present, "owning Perso motion-binding presence was not exported to the saved camera"): return
     var main_actor := scene.get_node("world/main/MainActor")
     var inventory: Resource = scene.get_meta("source_inventory")
     if not require(actor.source_inventory == inventory and main_actor.source_inventory == inventory and inventory.source_initialized, "saved actors do not share the native inventory catalogue"): return
@@ -353,9 +354,10 @@ func run() -> void:
     await physics_frame
 
     if not require(probe_camera.controller_state.call("set_mode_zero_collision_selector", 1), "source selector did not switch to 0051f290"): return
-    if not require(probe_camera.call("source_update_position"), "source 0051f290/0052bb50 clear camera-ray path did not complete"): return
-    if not require(probe_camera.controller_state.call("mode_zero_update_has_position"), "source 0051f290 clear 0052bb50 branch did not set DAT_007219d0"): return
-    if not require(int(probe_owner.get_meta("source_camera_static_obstruction_count", 0)) == 1, "source 0052bb50 did not use the first static-geometry obstruction sample"): return
+    var first_static_obstruction: Variant = probe_camera.call("_source_mode_zero_should_wait_for_static_obstruction", Vector3(0,0.5,0), Vector3(0,0.5,-4), Vector3(0,0.5,-4), source_collision_context)
+    if not require(first_static_obstruction == true and probe_camera.static_obstruction_frames == 1, "source 0052bb50 did not report the first blocked static probe"): return
+    # This selector's failed-candidate path still requires camera interpolation;
+    # checking the obstruction predicate does not claim a complete update.
 
     var gate_script = load("res://addons/astrolabe/camera/source_controller_state.gd")
     var unblocked_gate: Resource = gate_script.new()
@@ -366,7 +368,7 @@ func run() -> void:
             "evaluate_mode_zero_teleport_gate", true, false, false, true, 1,
             Vector3(20,0,0), Vector3.ZERO, 4.0, false, false
         )
-    if not require(unblocked_gate_result, "source 005200a0 distance hysteresis did not reach 0051c7b0 with owner flag bit 2 clear"): return
+    if not require(unblocked_gate_result, "source 005200a0 distance hysteresis did not reach 0051c7b0 with supplied eye displacement absent"): return
     var blocked_gate: Resource = gate_script.new()
     blocked_gate.call("record_candidate_collision", true)
     var blocked_gate_result := false
@@ -375,7 +377,7 @@ func run() -> void:
             "evaluate_mode_zero_teleport_gate", true, false, false, true, 1,
             Vector3(20,0,0), Vector3.ZERO, 4.0, false, true
         )
-    if not require(not blocked_gate_result, "source 005200a0 failed to suppress the candidate-result pose write when owner Position bit 2 is set"): return
+    if not require(not blocked_gate_result, "source 005200a0 failed to suppress the candidate-result pose write when camera has supplied eye displacement"): return
     var fallback_gate: Resource = gate_script.new()
     fallback_gate.call("record_candidate_collision", true)
     var fallback_gate_result := false
@@ -385,8 +387,10 @@ func run() -> void:
             Vector3.ZERO, Vector3.ZERO, 4.0, false, true
         )
     if not require(fallback_gate_result, "source fallback-result hysteresis incorrectly applied the candidate-branch owner-bit gate"): return
-    if not require(probe_camera.source_owner_set_target_offset(Vector3(1,2,3)) and (probe_camera.source_owner_position_flag_word() & 2) != 0, "source 00440fe0 owner flag writer did not set Position bit 2"): return
-    if not require(probe_camera.source_owner_clear_position_flags(2) and (probe_camera.source_owner_position_flag_word() & 2) == 0, "source owner flag clear did not restore the source startup flag word"): return
+    if not require(probe_camera.source_set_eye_displacement(Vector3(1,2,3)) and probe_camera.source_has_eye_displacement(), "source 00440fe0 did not supply camera eye displacement"): return
+    if not require(not probe_owner.has_meta("source_position_flag_word") and not probe_owner.has_meta("source_position_target_offset"), "camera motion leaked into owner Position metadata"): return
+    probe_camera.source_clear_eye_displacement()
+    if not require(not probe_camera.source_has_eye_displacement(), "camera eye displacement clear failed"): return
 
     var resolved_sector: Dictionary = probe_camera.source_resolve_mode_zero_sector(Vector3(0,0.5,0))
     if not require(resolved_sector.get("sector_id", "") == "camera-sector-probe" and resolved_sector.get("complete", false), "source downward sector geometry did not resolve the active border GEO"): return

@@ -1,7 +1,7 @@
 extends Camera3D
 ## Native target and framing addressed by the compiled camera AI API.
-## Mode 3 uses the actor's eye position and aims at the selected target.
-## Follow modes, viewport selection and procedure reset fields remain separate.
+## Mode 3 aims the authored eye; mode 6 preserves its authored orientation.
+## Follow modes and viewport selection remain separate.
 
 @export var motion_mode: int = 0
 @export var initial_motion_mode: int = 0
@@ -21,8 +21,21 @@ extends Camera3D
 @export var source_shift_alpha: float = 0.0
 @export var mode_zero_pitch_limits: Vector2 = Vector2.ZERO
 @export var mode_zero_parameter_flags: int = 0
-@export var source_owner_position_flags: int = 0 # 004406d0 clears Position+0xce; relevant setters OR bit 2
 @export var controller_state: Resource
+## Imported from the owning Perso's motion component edge. Mechanics identity
+## and camera presence alone cannot establish this binding.
+@export var owner_motion_binding_present := false
+## Actor-owned camera progress. The target-switch procedure resets these,
+## while restoring MainActor leaves them alone. Obstruction history is separate.
+var fallback_motion_frames := 0
+var collision_recovery_frames := 0
+var look_direction_hold_frames := 0
+var static_probe_frames := 0
+var static_obstruction_frames := 0
+var previous_look_radius := 0.0
+var slope_pitch_adjustment := 0.0
+var _eye_displacement_pending := false
+var _eye_displacement := Vector3.ZERO
 var source_mode_zero_action_flags: int = 0 # parameter +0x92, read by 00440e30
 var source_controller_position_24 := Vector3.ZERO
 var source_controller_position_30 := Vector3.ZERO
@@ -40,7 +53,6 @@ const SOURCE_MODE_ZERO_FALLBACK_YAWS := [0.7853982, 5.497787, 1.5707964, 4.71238
 const SOURCE_POSITION_DEFAULT_MIN := -3.402822e38 # 004406d0 writes 0xff7ffff8 at Position+0xa4
 const SOURCE_POSITION_DEFAULT_MAX := 3.402822e38 # 004406d0 writes 0x7f7ffff8 at Position+0xa8
 const SOURCE_WALK_DATA3D_CALLBACK := 0x00585d51 # DAT_00757320[0/8]
-const SOURCE_POSITION_FLAG_HAS_TARGET_OFFSET := 2 # 00440fe0 writes owner Position+0xce and +0x50
 
 var targeted_actor: Node3D
 var _reported_mode_zero_gap := false
@@ -100,7 +112,18 @@ func source_change_targeted_perso(actor: Node3D) -> bool:
     if not is_instance_valid(actor):
         return false
     targeted_actor = actor
+    _reset_target_progress()
     return true
+
+## 00548070 resets the four word-sized progress values and two float histories.
+## The static obstruction streak and session-wide pivot/teleport history survive.
+func _reset_target_progress() -> void:
+    fallback_motion_frames = 0
+    collision_recovery_frames = 0
+    look_direction_hold_frames = 0
+    static_probe_frames = 0
+    previous_look_radius = 0.0
+    slope_pitch_adjustment = 0.0
 
 ## Proc163 only assigns MainActor; no opacity restoration or progress reset.
 func source_reset_targeted_perso(actor: Node3D) -> bool:
@@ -111,12 +134,13 @@ func source_reset_targeted_perso(actor: Node3D) -> bool:
 
 ## 00547be0 restores the original preset for -1 and leaves equal modes alone.
 ## The observed opening transition 0 -> 3 has no extra reset branches.
-## Other transitions require follow/obstruction state that is not mapped yet.
+## Mode 6's frame consumer preserves orientation. Other transitions require
+## follow/obstruction state that is not mapped yet.
 func source_change_state(state: int) -> bool:
     var selected := initial_motion_mode if state == -1 else state
     if selected == motion_mode:
         return true
-    if motion_mode not in [0,3] or selected not in [0,3]:
+    if motion_mode not in [0,3,6] or selected not in [0,3,6]:
         return false
     motion_mode = selected
     return true
@@ -125,8 +149,37 @@ func source_change_state(state: int) -> bool:
 ## Mode 3 leaves ordinary eye motion to the camera actor (005200a0/0051e620).
 ## Zero look offset defaults to source [0,-0.05,0], or native [0,0,0.05].
 func source_update_position() -> bool:
+    # Capture before calculation; source clears only the initially present bit.
+    var clear_initial_snap := (mode_zero_parameter_flags & 8) != 0
+    var result := false
     if motion_mode == 0:
-        return _source_update_mode_zero()
+        result = _source_update_mode_zero()
+    elif motion_mode == 3:
+        result = _source_update_mode_three()
+    elif motion_mode == 6:
+        result = _source_update_mode_six()
+    if not result:
+        return false
+    # 00545d80's null caller motion-component branch is after frame application
+    # and skips ordinary cleanup. Preserve the mapped transient values there.
+    if owner_motion_binding_present:
+        if clear_initial_snap:
+            mode_zero_parameter_flags &= ~8
+        source_clear_eye_displacement()
+    return true
+
+## 005200a0 supplies no displacement in mode6. Its 0x100 frame-action branch
+## in 0057b17f writes translation and skips the rotation-matrix calculation.
+## The authored traveling actor can keep moving the eye through the normal
+## position API; this component preserves that eye and its previous basis.
+func _source_update_mode_six() -> bool:
+    var eye := get_parent() as Node3D
+    if eye == null or not eye.is_inside_tree() or not is_instance_valid(targeted_actor):
+        return false
+    _reset_motion_progress()
+    return true
+
+func _source_update_mode_three() -> bool:
     if motion_mode != 3 or not is_instance_valid(targeted_actor):
         return false
     var eye := get_parent() as Node3D
@@ -142,7 +195,16 @@ func source_update_position() -> bool:
     # Converted source -Y is the actor's +Z. The saved child half-turn makes
     # Camera3D's -Z look in that same direction. Update the meaningful actor pose.
     eye.look_at(point, Vector3.UP, true)
+    # The mode-3 calculation resets word-sized progress, but not look radius.
+    _reset_motion_progress()
     return true
+
+func _reset_motion_progress() -> void:
+    fallback_motion_frames = 0
+    collision_recovery_frames = 0
+    look_direction_hold_frames = 0
+    static_probe_frames = 0
+    slope_pitch_adjustment = 0.0
 
 ## Exposes the mapped 0051c8d0/0051d330/0051d140 geometry. The next source
 ## controller stage supplies its smoothed eye (+0x30) and collision result.
@@ -287,7 +349,9 @@ func source_compute_mode_zero_candidate(
         push_error("Source mode-0 candidate direction lost unit length")
         return {}
     var distance := desired.length()
-    if mode_zero_distance.x <= distance and mode_zero_distance.y < distance:
+    if distance < mode_zero_distance.x:
+        distance = mode_zero_distance.x
+    elif mode_zero_distance.y < distance:
         distance = mode_zero_distance.y
     if distance <= 0.01:
         distance = 0.01
@@ -870,32 +934,31 @@ func _source_mode_zero_should_wait_for_static_obstruction(
     candidate_30: Vector3,
     context: Dictionary
 ) -> Variant:
-    var owner := get_parent() as Node
-    if owner == null:
-        push_error("Source 0052bb50 has no camera-owner counter context")
-        return null
-    if (source_owner_position_flag_word() & SOURCE_POSITION_FLAG_HAS_TARGET_OFFSET) != 0:
+    if _eye_displacement_pending:
         return false
     if motion_mode not in [0, 0x65, 7] or (mode_zero_parameter_flags & 0x41) != 0:
         return false
-    var stable_count := int(owner.get_meta("source_camera_static_probe_count", 0)) + 1
-    owner.set_meta("source_camera_static_probe_count", stable_count)
+    static_probe_frames = _source_increment_signed_word(static_probe_frames)
     if (source_mode_zero_action_flags & 0x8000) != 0 or (mode_zero_parameter_flags & 8) != 0:
         return false
-    if stable_count < 1:
+    if static_probe_frames < 1:
         return false
-    owner.set_meta("source_camera_static_probe_count", 0)
+    static_probe_frames = 0
     var end_point := candidate_24 if (source_mode_zero_action_flags & 2) == 0 and motion_mode in [0, 7] else candidate_30
     var geometry_blocked: Variant = _source_mode_zero_static_geometry_blocked(anchor_3c, end_point, context)
     if geometry_blocked == null:
         return null
     if not bool(geometry_blocked):
-        owner.set_meta("source_camera_static_obstruction_count", 0)
+        static_obstruction_frames = 0
         controller_state.call("record_mode_zero_candidate_obstruction", false)
         return false
-    var obstruction_count := int(owner.get_meta("source_camera_static_obstruction_count", 0)) + 1
-    owner.set_meta("source_camera_static_obstruction_count", obstruction_count)
-    return obstruction_count > 60
+    static_obstruction_frames = _source_increment_signed_word(static_obstruction_frames)
+    # 0052bb50 returns one for every obstructed probe. The >60 branch also
+    # returns one; it is not a grace period during which obstruction is ignored.
+    return true
+
+func _source_increment_signed_word(value: int) -> int:
+    return ((value + 1 + 32768) & 65535) - 32768
 
 func _source_mode_zero_collision_adjusted_position(ray_result: Dictionary, normal_distance: float) -> Variant:
     if not ray_result.has("hit_position") or not ray_result.has("hit_normal"):
@@ -943,33 +1006,20 @@ func _source_mode_zero_apply_input_flags(include_side_actions: bool) -> void:
 func _source_camera_input_pressed(action_name: String) -> bool:
     return InputMap.has_action(action_name) and Input.is_action_pressed(action_name)
 
-## 00440fe0 sets owner Position bit 2 and writes the associated +0x50 vector.
-## The intro starts with flags clear from 004406d0; expose the writer so later
-## compiled camera procedures can carry the exact owner state into this gate.
-func source_owner_position_flag_word() -> int:
-    var owner := get_parent() as Node
-    if owner != null and owner.has_meta("source_position_flag_word"):
-        return int(owner.get_meta("source_position_flag_word"))
-    return source_owner_position_flags
-
-func source_owner_set_target_offset(offset: Vector3) -> bool:
+## 00440fe0 supplies one update's eye displacement to the camera component.
+## It does not write SuperObject Position or attach state to the parent node.
+func source_set_eye_displacement(offset: Vector3) -> bool:
     if not offset.is_finite():
         return false
-    var owner := get_parent() as Node
-    if owner == null:
-        return false
-    source_owner_position_flags = source_owner_position_flag_word() | SOURCE_POSITION_FLAG_HAS_TARGET_OFFSET
-    owner.set_meta("source_position_flag_word", source_owner_position_flags)
-    owner.set_meta("source_position_target_offset", offset)
+    _eye_displacement = offset
+    _eye_displacement_pending = true
     return true
 
-func source_owner_clear_position_flags(mask: int) -> bool:
-    var owner := get_parent() as Node
-    if owner == null:
-        return false
-    source_owner_position_flags = source_owner_position_flag_word() & ~mask
-    owner.set_meta("source_position_flag_word", source_owner_position_flags)
-    return true
+func source_has_eye_displacement() -> bool:
+    return _eye_displacement_pending
+
+func source_clear_eye_displacement() -> void:
+    _eye_displacement_pending = false
 
 ## 0051c7b0 tests its third position argument against the active source sector.
 ## It publishes that point when it belongs to another sector, otherwise its
@@ -1414,7 +1464,7 @@ func _source_update_mode_zero() -> bool:
         push_error("Source camera controller state does not expose DAT_00721b0c")
         return false
     var collision_selector := int(controller_state.call("mode_zero_collision_selector"))
-    var owner_flags := source_owner_position_flag_word()
+    var supplied_eye_displacement := _eye_displacement_pending
     controller_state.call("begin_mode_zero_update")
     var live_pivot := source_mode_zero_live_pivot()
     if live_pivot.is_empty():
@@ -1426,17 +1476,9 @@ func _source_update_mode_zero() -> bool:
     var anchor_3c: Vector3 = live_pivot["anchor"]
     var candidate_24: Vector3
     var candidate_30: Vector3
-    if (owner_flags & SOURCE_POSITION_FLAG_HAS_TARGET_OFFSET) != 0:
-        if not owner.has_meta("source_position_target_offset"):
-            push_error("Source Position bit 2 is set without its 00440fe0 +0x50 vector")
-            return false
-        var source_offset = owner.get_meta("source_position_target_offset")
-        if not source_offset is Vector3 or not source_offset.is_finite():
-            push_error("Source Position+0x50 controller vector is missing or invalid")
-            return false
-        # 0051db70's bit-2 branch copies +0x50 to +0x48 and forms +0x24
-        # directly from current +0x18; it bypasses target angle/range solving.
-        candidate_24 = current_eye + source_offset
+    if supplied_eye_displacement:
+        # The supplied motion bypasses target angle/range solving.
+        candidate_24 = current_eye + _eye_displacement
         candidate_30 = candidate_24
     else:
         var candidate := source_compute_mode_zero_candidate(
@@ -1493,7 +1535,7 @@ func _source_update_mode_zero() -> bool:
         bool(controller_state.call("mode_zero_update_obstructed"))
     )
     var pose_write_requested := bool(controller_state.call("mode_zero_pose_write_requested"))
-    if pose_write_requested and (not candidate_result or (owner_flags & SOURCE_POSITION_FLAG_HAS_TARGET_OFFSET) == 0):
+    if pose_write_requested and (not candidate_result or not supplied_eye_displacement):
         if candidate_result and bool(controller_state.call("can_recover_mode_zero_position")):
             if not bool(controller_state.call("record_mode_zero_good_position", current_eye)):
                 push_error("Source 0051c8a0 rejected the current camera position as the stable candidate")
