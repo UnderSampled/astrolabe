@@ -4,6 +4,7 @@ signal completed(item: Resource)
 const SpanView = preload("res://addons/astrolabe/ui/dialogue_span_view.tscn")
 @export var font: Font
 @export var panel_style: StyleBox
+## Authored items without source presentation may choose a Tween duration.
 @export var fade_seconds: float = 0.11
 @onready var panel: Control = $Panel
 @onready var text: RichTextLabel = $Text
@@ -20,6 +21,13 @@ var voice_emitter: Node
 var active_voice_identity: String = ""
 var active_speech_record: Resource
 var _generation: int = 0
+const SOURCE_OPEN_STEP_SECONDS: float = 0.010
+const SOURCE_ALPHA_STEP: float = 0.10000000149011612
+var _source_presentation: bool = false
+var _source_opening: bool = false
+var _source_opened: bool = false
+var _source_closing: bool = false
+var _source_step_elapsed: float = 0.0
 
 func _ready() -> void:
     modulate.a = 0.0
@@ -27,8 +35,11 @@ func _ready() -> void:
     if font != null: text.add_theme_font_override("normal_font", font)
     panel.configure(null, panel_style)
 
+func can_run(value: Resource, run_mode: int) -> bool:
+    return value != null and run_mode == 1 and value.box in [1, 3]
+
 func run(value: Resource, run_mode: int, emitter: Node = null) -> bool:
-    if value == null or run_mode != 1 or value.box not in [1, 3]: return false
+    if not can_run(value, run_mode): return false
     cancel()
     _generation += 1
     item = value
@@ -36,7 +47,10 @@ func run(value: Resource, run_mode: int, emitter: Node = null) -> bool:
     page_start = 0
     elapsed = 0.0
     closing = false
-    modulate.a = 0.0
+    _source_presentation = item.presentation != null
+    _source_opening = _source_presentation
+    modulate.a = 1.0 if _source_presentation else 0.0
+    panel.modulate.a = 0.0 if _source_presentation else 1.0
     show()
     panel.visible = item.box != 3
     panel.configure(item.presentation, panel_style)
@@ -48,28 +62,50 @@ func run(value: Resource, run_mode: int, emitter: Node = null) -> bool:
     if item.voice != null and emitter != null:
         voice_emitter = emitter
         active_speech_record = item
-        emitter.set("source_dialogue_record", active_speech_record)
         active_voice_identity = str(item.voice.identity)
         emitter.voice_started.connect(_voice_started)
-        item.voice.execute(emitter)
+        emitter.play_dialogue_speech(active_speech_record)
         emitter.voice_started.disconnect(_voice_started)
         if is_instance_valid(voice_player):
             var selected_record := active_speech_record
+            var generation := _generation
             voice_player.finished.connect(func():
-                if is_instance_valid(emitter) and emitter.get("source_dialogue_record") == selected_record:
+                if generation == _generation and is_instance_valid(emitter) and emitter.get("source_dialogue_record") == selected_record:
                     emitter.set("source_dialogue_record", null))
         else:
             emitter.set("source_dialogue_record", null)
-    fade = create_tween()
-    fade.tween_property(self, "modulate:a", 1.0, fade_seconds)
+    if not _source_presentation:
+        fade = create_tween()
+        fade.tween_property(self, "modulate:a", 1.0, fade_seconds)
     return true
 
 func _voice_started(info: Dictionary) -> void:
     if str(info.event) == active_voice_identity: voice_player = info.player
 
 func _process(delta: float) -> void:
+    if _source_closing:
+        # 0056d960: decrement once per draw; the >10ms timer only controls
+        # reset/start and does not gate this subtraction.
+        var next_alpha := panel.modulate.a - SOURCE_ALPHA_STEP
+        if next_alpha < 0.0 or is_nan(next_alpha): _complete_source_close()
+        else: panel.modulate.a = float(PackedFloat32Array([next_alpha])[0])
+        return
     if item == null or closing: return
     elapsed += delta
+    if _source_opening:
+        _source_step_elapsed += delta
+        if _source_step_elapsed <= SOURCE_OPEN_STEP_SECONDS: return
+        _source_step_elapsed = 0.0
+        # 0056d860 compares the unrounded sum before the float32 store.
+        # Equality is not terminal; a slow draw never catches up several steps.
+        var next_alpha := panel.modulate.a + SOURCE_ALPHA_STEP
+        if next_alpha > 1.0:
+            _source_opening = false
+            _source_opened = true
+            source_text.show()
+        else:
+            panel.modulate.a = float(PackedFloat32Array([next_alpha])[0])
+            return
     var clock := elapsed
     if is_instance_valid(voice_player):
         clock = float(voice_player.get_playback_position()) + AudioServer.get_time_since_last_mix()
@@ -86,6 +122,7 @@ func _render_page() -> void:
     var end: int = mini(page_start + item.lines_per_page(), item.lines.size())
     text.clear()
     text.visible = item.presentation == null
+    source_text.visible = _source_opened
     _clear_source_text()
     var style: Resource = item.presentation
     var origin: Vector2 = Vector2.ZERO if style == null else style.text_origin(position, item.box)
@@ -119,6 +156,7 @@ func scroll(direction: int) -> void:
 
 func select() -> void:
     if item == null or closing or modulate.a < 0.99: return
+    if _source_presentation and not _source_opened: return
     if page_start + item.lines_per_page() < item.lines.size():
         page_start += item.lines_per_page()
         _render_page()
@@ -145,6 +183,19 @@ func _finish(notify_completion: bool = true) -> void:
         _clear_source_text()
         answers.hide()
     _stop_voice()
+    if _source_presentation:
+        # EndDraw clears text immediately and starts the shared stencil close.
+        text.clear()
+        _clear_source_text()
+        source_text.hide()
+        _source_opening = false
+        if _source_opened:
+            panel.modulate.a = 1.0
+            _source_closing = true
+        else:
+            _complete_source_close()
+        if notify_completion: completed.emit(finished)
+        return
     if fade != null and fade.is_running(): fade.kill()
     fade = create_tween()
     fade.tween_property(self, "modulate:a", 0.0, fade_seconds)
@@ -156,7 +207,23 @@ func _finish(notify_completion: bool = true) -> void:
     if notify_completion: completed.emit(finished)
 
 func is_over() -> bool:
+    # 0056c8c0/0056da60 clear stencil alpha once the current dialog is gone
+    # and alpha is at most double0.1. This query can finish a pending close.
+    if _source_closing:
+        if panel.modulate.a > 0.1: return false
+        _complete_source_close()
     return item == null and modulate.a <= 0.1
+
+func _complete_source_close() -> void:
+    item = null
+    modulate.a = 0.0
+    closing = false
+    _source_opening = false
+    _source_opened = false
+    _source_closing = false
+    panel.modulate.a = 0.0
+    source_text.hide()
+    hide()
 
 func cancel() -> void:
     _generation += 1
@@ -165,6 +232,12 @@ func cancel() -> void:
     item = null
     modulate.a = 0.0
     closing = false
+    _source_presentation = false
+    _source_opening = false
+    _source_opened = false
+    _source_closing = false
+    _source_step_elapsed = 0.0
+    if is_instance_valid(panel): panel.modulate.a = 1.0
     hide()
     _clear_source_text()
     if is_instance_valid(panel) and panel.is_inside_tree(): panel.configure(null, panel_style)
@@ -176,10 +249,8 @@ func _clear_source_text() -> void:
         child.queue_free()
 
 func _stop_voice() -> void:
-    if is_instance_valid(voice_emitter) and active_voice_identity != "":
-        voice_emitter.stop_event(active_voice_identity)
     if is_instance_valid(voice_emitter) and voice_emitter.get("source_dialogue_record") == active_speech_record:
-        voice_emitter.set("source_dialogue_record", null)
+        voice_emitter.stop_dialogue_speech()
     voice_player = null
     voice_emitter = null
     active_voice_identity = ""

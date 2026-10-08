@@ -22,7 +22,7 @@ var _revealed: bool = false
 func _ready() -> void:
     cancel()
 
-func run(value: Resource, run_mode: int, _emitter: Node = null) -> bool:
+func can_run(value: Resource, run_mode: int) -> bool:
     if value == null or run_mode != 1 or value.box != 4: return false
     var style: Resource = value.presentation
     if style == null or style.font == null or style.center == null: return false
@@ -31,6 +31,11 @@ func run(value: Resource, run_mode: int, _emitter: Node = null) -> bool:
     if value.lines.is_empty() or value.lines.size() > 2: return false
     for line in value.lines:
         if line.flags != 0 or line.end_seconds < 3.0e38: return false
+    return true
+
+func run(value: Resource, run_mode: int, _emitter: Node = null) -> bool:
+    if not can_run(value, run_mode): return false
+    var style: Resource = value.presentation
     cancel()
     item = value
     panel.texture = style.center

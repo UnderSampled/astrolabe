@@ -10,6 +10,7 @@ var previous_choices: Dictionary = {}
 var random := RandomNumberGenerator.new()
 ## Dialogue owns this record independently of ordinary effects/music voices.
 var source_dialogue_record: Resource
+var _dialogue_speech_request: bool = false
 ## Populated by source conversion. Unknown authored Micro data stays unbound.
 @export var microphone_basis: Basis = Basis.IDENTITY
 @export var microphone_basis_known: bool = false
@@ -111,10 +112,36 @@ func request_music(event: Resource) -> bool:
     if event != null: event.execute(self)
     return music_failure.is_empty()
 
+## 0041e8a0 dispatches on the voice module, independently of this actor's
+## effects volume. The dialogue owns the useful record, not a request integer.
+func play_dialogue_speech(record: Resource) -> void:
+    source_dialogue_record = record
+    var voice: Resource = record.get("voice") as Resource
+    if voice == null: return
+    var bus_index := AudioServer.get_bus_index(&"Astrolabe Voice")
+    if bus_index < 0:
+        AudioServer.add_bus()
+        AudioServer.set_bus_name(AudioServer.bus_count - 1, &"Astrolabe Voice")
+    var previous_request := _dialogue_speech_request
+    _dialogue_speech_request = true
+    voice.execute(self)
+    _dialogue_speech_request = previous_request
+
+## 0041e910 clears the speech holder even when no stop is needed. Ordinary
+## effects and the shared music channel do not own this record.
+func stop_dialogue_speech() -> void:
+    var record := source_dialogue_record
+    source_dialogue_record = null
+    if record == null: return
+    # Source kills this object's voice module; a matching event on the effects
+    # module must survive, even when both requests use the same resource.
+    for info in voices.duplicate():
+        if not bool(info.get("uses_object_volume", true)): _stop_voice_info(info)
+
 func set_object_volume(value: float) -> void:
     object_volume = clampf(value, 0.0, 127.0)
     for info in voices:
-        if is_instance_valid(info.player):
+        if bool(info.get("uses_object_volume", true)) and is_instance_valid(info.player):
             info.player.volume_db = linear_to_db(maxf(info.gain * object_volume / 127.0, 0.000001))
 
 ## Proc413 is nonblocking: silence this object's effects, send the event, then
@@ -169,15 +196,16 @@ func play_voice(voice: Resource, identity: String, pitch_variation: float, stopp
             return
     var spatial: bool = voice.spatial and not is_music
     var player: Node = AudioStreamPlayer3D.new() if spatial else AudioStreamPlayer.new()
-    player.bus = voice_bus
+    player.bus = &"Astrolabe Voice" if _dialogue_speech_request else voice_bus
     player.stream = voice.stream
-    player.volume_db = linear_to_db(maxf(voice.gain * object_volume / 127.0, 0.000001))
+    var object_gain := 1.0 if _dialogue_speech_request else object_volume / 127.0
+    player.volume_db = linear_to_db(maxf(voice.gain * object_gain, 0.000001))
     player.pitch_scale = maxf(1.0 + random.randf_range(-pitch_variation, pitch_variation), 0.001) if voice.pitchable else 1.0
     add_child(player)
     if player is Node3D and not dynamic:
         player.top_level = true
         player.global_transform = global_transform
-    var info := {"event": identity, "stream": voice.stream.resource_path, "pitch": player.pitch_scale, "gain": voice.gain, "choices": voice.trace, "spatial": spatial, "stoppable": stoppable, "player": player, "theme": voice.theme_identity}
+    var info := {"event": identity, "stream": voice.stream.resource_path, "pitch": player.pitch_scale, "gain": voice.gain, "choices": voice.trace, "spatial": spatial, "stoppable": stoppable, "player": player, "theme": voice.theme_identity, "uses_object_volume": not _dialogue_speech_request}
     voices.append(info)
     player.finished.connect(func(): release_voice(info))
     player.play()
@@ -186,15 +214,18 @@ func play_voice(voice: Resource, identity: String, pitch_variation: float, stopp
 func stop_event(identity: Variant = null) -> void:
     for voice in voices.duplicate():
         if identity == null or voice.event == identity:
-            if voice.stoppable:
-                voice.player.stop()
-                release_voice(voice)
-            else:
-                voices.erase(voice)
-                if voice.player is Node3D:
-                    var placement: Transform3D = voice.player.global_transform
-                    voice.player.top_level = true
-                    voice.player.global_transform = placement
+            _stop_voice_info(voice)
+
+func _stop_voice_info(voice: Dictionary) -> void:
+    if voice.stoppable:
+        voice.player.stop()
+        release_voice(voice)
+    else:
+        voices.erase(voice)
+        if voice.player is Node3D:
+            var placement: Transform3D = voice.player.global_transform
+            voice.player.top_level = true
+            voice.player.global_transform = placement
 
 func release_voice(info: Dictionary) -> void:
     voices.erase(info)

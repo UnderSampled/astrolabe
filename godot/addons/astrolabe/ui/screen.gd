@@ -162,12 +162,22 @@ func source_run_dialog(identity: String, run_mode: int, caller: Node = null) -> 
             break
         if value.locale == "en": selected = value
     if selected == null: return false
-    var actor: Node = _actor(selected.owner_identity)
+    # 00543c00 overwrites the active DLG owner with the executing actor. The
+    # saved owner remains useful conversion metadata and an authored default.
+    var actor: Node = _actor(selected.owner_identity) if caller == null else caller.get_parent()
+    if caller != null and (actor == null or actor.get_node_or_null("Brain") != caller): return false
     var emitter: Node = actor.get_node_or_null("SoundEmitter") if actor != null else null
     var brain: Node = actor.get_node_or_null("Brain") if actor != null else null
-    if selected.voice != null and emitter == null: return false
+    if selected.voice != null and (emitter == null or not emitter.has_method("play_dialogue_speech") or not emitter.has_method("stop_dialogue_speech")): return false
     if selected.completion_normal >= 0 and (brain == null or str(brain.get("source_model_path")) != selected.completion_model): return false
     var presenter: Control = location_title if selected.box == 4 else dialogue
+    # RunDialog first clears MainActor's speech holder (0041e910). Validate
+    # the selected native presentation before changing any live voice.
+    if not presenter.can_run(selected, run_mode): return false
+    var main_actor := _source_main_actor()
+    var main_emitter := main_actor.get_node_or_null("SoundEmitter") if main_actor != null else null
+    if main_emitter != null and main_emitter.has_method("stop_dialogue_speech"):
+        main_emitter.call("stop_dialogue_speech")
     # Validate/run first so an unavailable item cannot cancel the live one.
     if not presenter.run(selected, run_mode, emitter): return false
     if presenter == location_title: dialogue.cancel()
@@ -230,8 +240,7 @@ func source_dialog_is_over(main_actor: Node3D = null) -> bool:
     if not dialogue.is_over() or not location_title.is_over(): return false
     # The source gate belongs to MainActor, independently of the current
     # dialogue owner and unrelated object effects or music.
-    if main_actor == null and is_instance_valid(source_level) and source_level.has_meta("source_main_actor"):
-        main_actor = _actor(str(source_level.get_meta("source_main_actor"))) as Node3D
+    if main_actor == null: main_actor = _source_main_actor()
     if not is_instance_valid(main_actor): return true
     var emitter := main_actor.get_node_or_null("SoundEmitter")
     return emitter != null and emitter.get("source_dialogue_record") == null
@@ -254,6 +263,10 @@ func _actor(identity: String) -> Node:
     if not is_instance_valid(source_level) or not source_level.has_meta("source_actor_nodes"): return null
     var paths: Dictionary = source_level.get_meta("source_actor_nodes")
     return source_level.get_node_or_null(paths[identity]) if paths.has(identity) else null
+
+func _source_main_actor() -> Node3D:
+    if not is_instance_valid(source_level) or not source_level.has_meta("source_main_actor"): return null
+    return _actor(str(source_level.get_meta("source_main_actor"))) as Node3D
 
 func _dialogue_completed(_item: Resource) -> void:
     # The source sets a pending callback. Proc_DLG_ChangeComport consumes it;
