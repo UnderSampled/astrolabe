@@ -133,7 +133,9 @@ pub struct DialogueLineLayout {
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DialogueSpan {
-    pub text: String,
+    /// Missing text differs from an allocated empty string: the dialogue draw
+    /// uses the first span's text presence when replacing the page deadline.
+    pub text: Option<String>,
     /// Horizontal layout measured in the source font's coordinate space.
     pub offset: f32,
     pub emphasis: bool,
@@ -180,7 +182,8 @@ impl Content for Dialogue {
             ensure!(line.spans.len() <= 64, "too many dialogue spans");
             for span in &line.spans {
                 ensure!(
-                    span.offset.is_finite() && span.text.len() <= 4096,
+                    span.offset.is_finite()
+                        && span.text.as_ref().is_none_or(|text| text.len() <= 4096),
                     "invalid dialogue span"
                 );
             }

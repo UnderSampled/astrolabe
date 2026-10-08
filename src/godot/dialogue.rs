@@ -48,15 +48,16 @@ pub(super) fn export(
                 project.builder,
                 "    dialogue_translation_{n}.add_message({}, {})",
                 quoted(&key),
-                quoted(&span.text)
+                quoted(span.text.as_deref().unwrap_or_default())
             )?;
             let id = format!("span_{i}_{j}");
             spans.push(format!("SubResource(\"{id}\")"));
             count += 1;
             writeln!(
                 resources,
-                "[sub_resource type=\"Resource\" id=\"{id}\"]\nscript = ExtResource(\"span\")\nkey = {}\nsource_offset = {:?}\nemphasis = {}\n",
+                "[sub_resource type=\"Resource\" id=\"{id}\"]\nscript = ExtResource(\"span\")\nkey = {}\ntext_present = {}\nsource_offset = {:?}\nemphasis = {}\n",
                 quoted(&key),
+                span.text.is_some(),
                 span.offset,
                 span.emphasis
             )?;

@@ -423,11 +423,7 @@ impl ItemDecoder<'_> {
                     )));
                 }
                 spans.push(DialogueSpan {
-                    text: s
-                        .pointer(a, 4)?
-                        .map(|a| string(s, a))
-                        .transpose()?
-                        .unwrap_or_default(),
+                    text: s.pointer(a, 4)?.map(|a| string(s, a)).transpose()?,
                     offset: h.offset,
                     emphasis: font == self.fonts[1],
                 });

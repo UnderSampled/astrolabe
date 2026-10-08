@@ -179,7 +179,7 @@ func source_run_dialog(identity: String, run_mode: int, caller: Node = null) -> 
     if main_emitter != null and main_emitter.has_method("stop_dialogue_speech"):
         main_emitter.call("stop_dialogue_speech")
     # Validate/run first so an unavailable item cannot cancel the live one.
-    if not presenter.run(selected, run_mode, emitter): return false
+    if not presenter.run(selected, run_mode, emitter, main_emitter): return false
     if presenter == location_title: dialogue.cancel()
     else: location_title.cancel()
     active_presentation = presenter

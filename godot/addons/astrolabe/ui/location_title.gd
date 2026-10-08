@@ -10,6 +10,8 @@ const ALPHA_STEP: float = 0.10000000149011612
 @onready var panel: TextureRect = $Panel
 @onready var source_text: Control = $SourceText
 var item: Resource
+var main_speech_emitter: Node
+var _draw_started: bool = false
 var _opening: bool = false
 var _opened: bool = false
 var _closing: bool = false
@@ -33,11 +35,12 @@ func can_run(value: Resource, run_mode: int) -> bool:
         if line.flags != 0 or line.end_seconds < 3.0e38: return false
     return true
 
-func run(value: Resource, run_mode: int, _emitter: Node = null) -> bool:
+func run(value: Resource, run_mode: int, _emitter: Node = null, main_emitter: Node = null) -> bool:
     if not can_run(value, run_mode): return false
     var style: Resource = value.presentation
     cancel()
     item = value
+    main_speech_emitter = main_emitter
     panel.texture = style.center
     refresh_layout()
     _opening = true
@@ -74,6 +77,16 @@ func refresh_layout() -> void:
     _apply_reveal()
 
 func _process(delta: float) -> void:
+    # Source drawing waits for MainActor's speech, while both timers keep time.
+    if item != null and is_instance_valid(main_speech_emitter) and main_speech_emitter.get("source_dialogue_record") != null:
+        if _opening: _step_elapsed += delta
+        _reveal_elapsed += delta
+        return
+    if item != null and not _draw_started:
+        _draw_started = true
+        _step_elapsed += delta
+        _reveal_elapsed += delta
+        return
     if _opening:
         _step_elapsed += delta
         # Source text timer starts with RunDialog and keeps running while the
@@ -168,6 +181,8 @@ func is_over() -> bool:
 
 func cancel() -> void:
     item = null
+    main_speech_emitter = null
+    _draw_started = false
     _opening = false
     _opened = false
     _closing = false

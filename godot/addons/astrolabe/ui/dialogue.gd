@@ -18,16 +18,20 @@ var closing: bool = false
 var fade: Tween
 var voice_player: Node
 var voice_emitter: Node
+var main_speech_emitter: Node
 var active_voice_identity: String = ""
 var active_speech_record: Resource
 var _generation: int = 0
 const SOURCE_OPEN_STEP_SECONDS: float = 0.010
 const SOURCE_ALPHA_STEP: float = 0.10000000149011612
+const SOURCE_UNTIMED_SECONDS: float = 3.3999999521443642e38
 var _source_presentation: bool = false
+var _source_draw_started: bool = false
 var _source_opening: bool = false
 var _source_opened: bool = false
 var _source_closing: bool = false
 var _source_step_elapsed: float = 0.0
+var _source_page_deadline: float = SOURCE_UNTIMED_SECONDS
 
 func _ready() -> void:
     modulate.a = 0.0
@@ -36,13 +40,18 @@ func _ready() -> void:
     panel.configure(null, panel_style)
 
 func can_run(value: Resource, run_mode: int) -> bool:
-    return value != null and run_mode == 1 and value.box in [1, 3]
+    if value == null or run_mode != 1 or value.box not in [1, 3]: return false
+    if value.presentation != null:
+        for line in value.lines:
+            if line.flags != 0: return false
+    return true
 
-func run(value: Resource, run_mode: int, emitter: Node = null) -> bool:
+func run(value: Resource, run_mode: int, emitter: Node = null, main_emitter: Node = null) -> bool:
     if not can_run(value, run_mode): return false
     cancel()
     _generation += 1
     item = value
+    main_speech_emitter = main_emitter
     mode = run_mode
     page_start = 0
     elapsed = 0.0
@@ -63,21 +72,26 @@ func run(value: Resource, run_mode: int, emitter: Node = null) -> bool:
         voice_emitter = emitter
         active_speech_record = item
         active_voice_identity = str(item.voice.identity)
-        emitter.voice_started.connect(_voice_started)
-        emitter.play_dialogue_speech(active_speech_record)
-        emitter.voice_started.disconnect(_voice_started)
-        if is_instance_valid(voice_player):
-            var selected_record := active_speech_record
-            var generation := _generation
-            voice_player.finished.connect(func():
-                if generation == _generation and is_instance_valid(emitter) and emitter.get("source_dialogue_record") == selected_record:
-                    emitter.set("source_dialogue_record", null))
-        else:
-            emitter.set("source_dialogue_record", null)
+        if not _source_presentation: _begin_voice()
     if not _source_presentation:
         fade = create_tween()
         fade.tween_property(self, "modulate:a", 1.0, fade_seconds)
     return true
+
+func _begin_voice() -> void:
+    if active_speech_record == null or not is_instance_valid(voice_emitter): return
+    var emitter := voice_emitter
+    emitter.voice_started.connect(_voice_started)
+    emitter.play_dialogue_speech(active_speech_record)
+    emitter.voice_started.disconnect(_voice_started)
+    if is_instance_valid(voice_player):
+        var selected_record := active_speech_record
+        var generation := _generation
+        voice_player.finished.connect(func():
+            if generation == _generation and is_instance_valid(emitter) and emitter.get("source_dialogue_record") == selected_record:
+                emitter.set("source_dialogue_record", null))
+    else:
+        emitter.set("source_dialogue_record", null)
 
 func _voice_started(info: Dictionary) -> void:
     if str(info.event) == active_voice_identity: voice_player = info.player
@@ -92,8 +106,17 @@ func _process(delta: float) -> void:
         return
     if item == null or closing: return
     elapsed += delta
+    if _source_opening: _source_step_elapsed += delta
+    # Active source drawing is gated by MainActor's speech holder. Its timers
+    # continue while drawing waits; closing with no active item is independent.
+    if _source_presentation and is_instance_valid(main_speech_emitter) and main_speech_emitter.get("source_dialogue_record") != null: return
+    if _source_presentation and not _source_draw_started:
+        _source_draw_started = true
+        _begin_voice()
+        # The first draw initializes the zero-alpha panel and returns; the
+        # independent opening timer has already run since RunDialog.
+        return
     if _source_opening:
-        _source_step_elapsed += delta
         if _source_step_elapsed <= SOURCE_OPEN_STEP_SECONDS: return
         _source_step_elapsed = 0.0
         # 0056d860 compares the unrounded sum before the float32 store.
@@ -106,6 +129,18 @@ func _process(delta: float) -> void:
         else:
             panel.modulate.a = float(PackedFloat32Array([next_alpha])[0])
             return
+    if _source_presentation:
+        # Source compares playback only while the owner's speech record exists.
+        # Its draw overwrites the deadline in line order, never takes a minimum.
+        if is_instance_valid(voice_emitter) and voice_emitter.get("source_dialogue_record") != null:
+            if is_instance_valid(voice_player):
+                var playback := float(voice_player.get_playback_position()) + AudioServer.get_time_since_last_mix()
+                if playback > _source_page_deadline: select()
+        elif item.voice != null and is_instance_valid(voice_emitter) and page_start + item.lines_per_page() >= item.lines.size() and not is_nan(_source_page_deadline) and _source_page_deadline != SOURCE_UNTIMED_SECONDS:
+            # A voiced exhausted page whose holder cleared selects then ends.
+            # Supported resources have no successor/choice module to publish.
+            select()
+        return
     var clock := elapsed
     if is_instance_valid(voice_player):
         clock = float(voice_player.get_playback_position()) + AudioServer.get_time_since_last_mix()
@@ -120,6 +155,9 @@ func _process(delta: float) -> void:
 
 func _render_page() -> void:
     var end: int = mini(page_start + item.lines_per_page(), item.lines.size())
+    _source_page_deadline = SOURCE_UNTIMED_SECONDS
+    if page_start < item.lines.size():
+        _source_page_deadline = float(PackedFloat32Array([item.lines[page_start].end_seconds])[0])
     text.clear()
     text.visible = item.presentation == null
     source_text.visible = _source_opened
@@ -127,8 +165,12 @@ func _render_page() -> void:
     var style: Resource = item.presentation
     var origin: Vector2 = Vector2.ZERO if style == null else style.text_origin(position, item.box)
     for index in range(page_start, end):
+        var line: Resource = item.lines[index]
+        if not line.spans.is_empty() and line.spans[0].text_present:
+            _source_page_deadline = float(PackedFloat32Array([line.end_seconds])[0])
         if index > page_start: text.add_text("\n")
-        for span in item.lines[index].spans:
+        for span in line.spans:
+            if not span.text_present: continue
             if style != null:
                 var view: Label = SpanView.instantiate()
                 view.text = item.message(span.key)
@@ -233,10 +275,13 @@ func cancel() -> void:
     modulate.a = 0.0
     closing = false
     _source_presentation = false
+    _source_draw_started = false
     _source_opening = false
     _source_opened = false
     _source_closing = false
     _source_step_elapsed = 0.0
+    _source_page_deadline = SOURCE_UNTIMED_SECONDS
+    main_speech_emitter = null
     if is_instance_valid(panel): panel.modulate.a = 1.0
     hide()
     _clear_source_text()
