@@ -13,15 +13,17 @@ probe, export or runtime command was run during this integration. Statements
 below describe source review, not executed verification. The tunnel worker's
 earlier build/check report belongs to its isolated original revision only.
 
-Current source union: **Rete61/support81**, including settled training,
+Current source union: **Rete61/support82**, including settled training,
 actor-owned suppression, the primary source-camera owner, and the Proc166
 evaluation-order correction. Earlier findings below are dated integration
 checkpoints; the final follow-on section records which they resolve.
 The final presentation section additionally connects exact key box5, next-frame
 forced voice completion and the localized Global GameOver vignette. No sibling
 dependency already included in the provenance table remains awaiting a merge.
-The complete trace exposes a distinct reached Proc141 camera-switch contract
-before key box5; its exact caller and bounds are recorded below.
+The complete trace exposed both real Proc141 camera switches around key box5.
+The final approved key contribution connects both sites; the earlier blocker
+and its resolution are recorded below. Three independently reviewed transition
+and Orrery fixture defects are also corrected on this isolated branch.
 
 ## Exact provenance and order
 
@@ -47,6 +49,12 @@ worker checkouts are preserved.
 | GameOver vignette and next-frame voice completion | `9f28edc9bbd9b76bbf4dc68d096ee182da7f7588` | `60c62bac7c85b170a67b04f1b3ea828bbf4503ac` |
 | Exact style5 key dialogue and completion | `b12752b3bcacdf3382e1323c8fb1ae08457eb538` | `3f4ab7c33c7260f0329638c604cd70b1e2fc6757` |
 | Camera Proc171 and explicit different-owner bounds | `b2604c751f80bdc8b34c33f3b3c4968152839c21` | `01ab4a92f7b7b490c7e4e75feccfa6780b59ba83` |
+| Both key camera switches and native sector refresh | `8ff318ab14e8b44fe158477056fa222a0149e537` | `c9f2df558cfd82364d3f0bb8c8facc7633337aa0` |
+
+Integration-owned review fixes are committed separately as
+`d9710d7cc69fb5f1f0b511b2b0da7ed0abfb53eb`: automatic inactive destination
+Brain startup, independent semantic-camera rollback and the Orrery Perso
+fixture initializer. That commit precedes the final key cherry-pick.
 
 Training comes from `/tmp/astrolabe-manor-training-static-oct08`; tunnel from
 `/tmp/astrolabe-manor-tunnel-static-20261008`; presentation from
@@ -437,8 +445,8 @@ the newly composed parser. No new import/export or runtime was performed.
 | Connected chain | Source route and final native connection |
 | --- | --- |
 | Training progression and physical key | Gogoud991 stage3/World154 mode4 enters Normal18, writes Global152/stage5 and runs `gogood_master_finimannequin`. The calling actor's dialogue continuation selects Gogoud Normal19. Its native actions/pursuit/turn place key142 via the single Proc12 at MainActor position plus sighting×0.1; the converted null-card binding is admitted. It restores camera targeting/mode through Proc160/157/136 and ends in settled Normal23. This placement grants no inventory item. |
-| Key acquisition and box5 | Key703 Reflex0 applies proximity/facing/relative-Z guards, freezes the player's source fields, admits Object21 from its own StockAction, records key identity and selects Hype33. The custom-bit handshake through Hype61 starts key Normal1. It attaches channel20 and computes actor sighting/vector Func171, but its Proc141(1,1,0,iCamera_HypePrendObjet) reaches an unsupported different-owner branch before later Proc158 and `keysico_gogood`. The exact renderer/Resource are integrated: five flags3 rows, two null-text padding rows, one center-only panel, no voice or extra answer effects, and selection after opening/draw. They are not yet reachable through this full chain. |
-| Key completion and settled stage5 | Screen's implemented accepted-selection path sets pending completion; Proc330 waits for close and applies model703 Normal2 with generation/owner guards. Its source continuation waits, detaches channel20, calls Proc141(1,1,0,StdCamer), clears MainActor DSG56 and KillSelf. A real preceding switch to camera147 would make the return a different-owner/reset request too; same-owner reselection does not connect that complete sequence. Stage5 checkpoint capture correctly rejects progress until the key is inactive/suppressed AND Object21 admitted, not quantity-1 alone. |
+| Key acquisition and box5 | Key703 Reflex0 applies proximity/facing/relative-Z guards, freezes the player's source fields, admits Object21 from its own StockAction, records key identity and selects Hype33. The custom-bit handshake through Hype61 starts key Normal1. It attaches channel20, computes actor sighting/vector Func171 and calls Proc141(1,1,0,iCamera_HypePrendObjet) at node57. The final native path changes owner from2 to147, resets/registers its initial framing/context and refreshes its actor-owned sector. Later source assignments, Proc158 FOV1.3 and Proc157 mode6 remain ordered before the action4 `keysico_gogood` route. The exact Resource/renderer has five flags3 rows, two null-text padding rows, one center-only panel, no voice or extra answer effects, and selection after opening/draw. |
+| Key completion and settled stage5 | Screen's accepted-selection path sets pending completion; Proc330 waits for close and applies model703 Normal2 with generation/owner guards. Its source continuation waits, detaches channel20, calls Proc141(1,1,0,StdCamer) at node37, clears MainActor DSG56 and KillSelf. The final native return changes owner from147 to2, resetting/registering camera2 and resetting the previous camera's active availability, with placement0 sector refresh. Stage5 checkpoint capture still requires the retained inactive/suppressed key AND admitted Object21 after this continuation, not quantity-1 alone. Both switches are connected source paths; their executed behavior remains unverified. |
 | Selected key and gate | The actual inventory UI selects an admitted Object. World154's lock guard requires selected21, distance/facing/control fields, binds lock150 into Hype DSG133, selects Hype34 and waits on DSG49. Runtime actor-valued Meta23 turns toward the lock. Source writes Global149, waits1000ms and starts gate272 Normal1. Its two captured native MoveLift requests retain +2.3X/factor4.5 then +0.3X/factor0.3, completion and Normal3. Normal0's saved Global149 branch restores +2.6X. No item consumption or authored gate displacement replaces these AST operands. |
 | Cliff/bridge recovery | Watcher759 samples after300ms and enters Global Normal2 with DSG201=1; its later Proc445 and two Proc12 calls place Hype/camera before resuming its watch. Bound camera-mode3 placement is admitted. Watcher855 uses the distinct economic Proc415 branch after750ms. Global recovery has its native fade/Meta61, microphone, Proc136, guarded armor damage and Hype94/95/96 control/presentation paths. The two placement contracts and recover-versus-dead branches remain distinct. |
 | Death and GameOver | Source damage callers select Hype24/95, including immediate Proc166 group1 clear and Proc136 reset; death actions activate Statue688 Normal3, then its Normal0 selects Global Normal2 with DSG201=0. Global's safety threshold below-1000 reaches the same GameOver branch. It fades channels/black, waits Meta61, stops/requests music, and calls Proc307 at physical Normal2 schedule node166 with `multilanguage\\gameover.bmp` and9000ms. Import resolves English Vignette.cnt artwork into a useful texture reference; compiled AI preloads its native PNG. The authored native vignette waits after its first drawn frame, tears down, then leaves for bootstrap. Explicit Proc0's terminal reset request remains a separate bounded route. |
@@ -454,7 +462,7 @@ original RNG/x87 remain acceptance limits. Original phase8/Proc8/14,
 reset-on-kill placed actors and deferred camera flag groups remain bounded
 unsupported APIs, rather than incomplete merges of these contributions.
 
-### Reached key camera-switch contract
+### Reached key camera-switch contract and resolution
 
 Key703 **Normal1 schedule node57** is category4 Proc141 with integer operands
 **1,1,0** and the Level-owned camera actor **`level:/persos/world/0/147`,
@@ -465,11 +473,11 @@ registration1 and context1, while camera147 has registration0 and context0
 and initial/active motion mode3. These are useful identity/parameter observations;
 original allocation joins remain in the source reader.
 
-`source_select_primary` restores old target opacity, then returns early only
-for the same native source owner. The final `b2604c7` explicitly rejects every
+At `b2604c7`, `source_select_primary` restores old target opacity, then returns
+early only for the same native source owner. That checkpoint rejects every
 different-owner request because sector refresh also occurs with placement0.
-Thus Normal1's actual request returns false **before RunDialog**. After a
-genuine switch to147, Normal2's return to camera2 would also be different-owner
+At that checkpoint Normal1's actual request returned false **before RunDialog**.
+After a genuine switch to147, Normal2's return to camera2 would also be different-owner
 with previous-policy1. The earlier claim that same-owner restoration alone
 admits the complete key path was too broad; `ee9c6f0` establishes that subcase.
 
@@ -480,9 +488,11 @@ blocks; with previous-policy1 reset the previous camera and clear its active
 registration; preserve placement0's translation/sector refresh. Same-owner
 requests return before those effects. The native target must express the
 needed supported cases through its camera/actor components, not source
-viewport records, matrices or a scheduler. This executor records the blocker
-without expanding the approved native patch set. No ownership grant,
-checkpoint relaxation or bypass masks the failure.
+viewport records, matrices or a scheduler. This executor recorded the blocker
+without expanding the then-approved patch set. The lead assigned the exact
+follow-on to the key worker and subsequently approved `8ff318a`; its integrated
+resolution is detailed below. No ownership grant, checkpoint relaxation or
+dialogue bypass substitutes for either source camera switch.
 
 ### Numeric171 namespaces and actual callsite
 
@@ -514,7 +524,7 @@ before component lookup. Model validation/walker, reader/writer and native
 setter coexist with Func171 and training Proc136/166. Proc171 is consequently
 neither missing from the final union nor a reachable Manor blocker. No full
 source-C translation is claimed for its shared handler; the worker records
-direct static PE evidence. The final union advances to **Rete61/support81**,
+direct static PE evidence. The `b2604c7` union advances to **Rete61/support81**,
 with maintained version JSON/README and existing affected assertion literals
 aligned by source inspection. No package under either evolving schema was
 written; no support update occurs on main.
@@ -541,18 +551,81 @@ installation code and maintained component contracts themselves.
   fails. `_resume_previous_level` restores the old binding before restoring
   physics or restarting outgoing Brains; an absent/null old binding removes
   destination metadata. The rendered Camera3D snapshot remains independent.
-  Both snapshots are cleared after commit or rollback. No SourceCamera file
-  is changed, no registration/context republishing is invoked, and the key
-  worker's different-owner Proc141 follow-on remains a separate patch.
+  Both snapshots are cleared after commit or rollback. This review-fix commit
+  does not change SourceCamera or invoke registration/context republishing; the key
+  worker's different-owner Proc141 follow-on is integrated as a separate patch
+  below, using the same shared metadata key and WeakRef lifecycle.
 * `crates/orrery/tests/comparison.rs` replaces the removed Perso
   `contact_eligible` field with `activation: None` and `custom_bits: 0`, matching
   the manually authored fixture's absence of source activation policy and
   default native active state. The fixture was source-reviewed, not executed.
 
 The affected diff and startup/failure call chains were inspected statically.
-The model, support interface81 and Rete61 are unchanged. No build, formatter,
+Those review fixes leave the model, support interface81 and Rete61 unchanged. No build, formatter,
 lint, syntax check, test, runtime, import or export was run. Published main
 and its generated manifest remain untouched.
+
+## Final key camera union and complete static path review
+
+The full key-worker handoff was read at clean original commit
+`8ff318ab14e8b44fe158477056fa222a0149e537` before cherry-picking it. The eight
+authored files integrate without a Git conflict. This delta advances support
+81→82 while leaving Rete61 unchanged. The maintained version JSON, support
+constant and its existing assertion agree on 82; this final review updates the
+support README as well. No support package or generated content is published.
+
+Both actual Key703 calls are different-owner switches: Normal1 node57 selects
+`level:/persos/world/0/147`, then Normal2 node37 returns to
+`level:/persos/world/0/2`, each with `(1,1,0,actor)`. The compiler captures all
+four operands in source order before component lookup. Native selection restores
+old target opacity first and preserves the same-owner/old-context returns.
+For the reached switch it publishes the weak semantic owner, resets an
+unregistered destination through the already merged Proc136 initial-framing
+Resource, publishes active/secondary registration and active/secondary/auxiliary
+context, resets the previous camera and clears its active availability. The
+previous secondary state survives its initial-to-active reset, as in the source.
+No source parameter pointer or viewport record enters native state.
+
+Placement 0 still refreshes the selected actor's contact sector at its unchanged
+position. The generic scene exporter binds the last ordered sibling sector as
+a native NodePath. SourceSession's depth-first child-list traversal and the
+scene model's Vec insertion retain that sibling order; the exporter diagnoses
+an unsupported mixed-parent sector set rather than inventing a fallback.
+The existing native downward ray distinguishes a complete no-hit result from
+an incomplete query. Only a complete no-hit may choose the bound fallback;
+the selected actor's ordinary contact-sector reference and camera position
+history are refreshed together. Other sector-query callers still reject an
+empty sector identity instead of accidentally treating the new complete no-hit
+Dictionary as a hit.
+
+The worker's bounded static data inspection reports 29 ordered sibling sectors
+and 37 physical visuals, all kind13 and one LOD, with no rooted kind1/11/21 nodes.
+This is source-data evidence for the existing ray query's admitted node kinds,
+not a new native resource/mesh verification. Neither actual camera actor has
+the source light/stream bindings that would need additional observable work.
+No Manor ID, actor index, key award or authored camera position bypass exists
+in the generic helper. Pose-copy, optimal placement and secondary viewports
+remain outside these two actual calls.
+
+The final review composes the training producer/Proc12 placement, the key's
+StockAction admission and custom-bit handshake, channel20 attachment, both
+camera switches, focal/mode assignments, exact style5 draw/selection and
+caller-owned Normal2 completion, control release, placed-key suppression,
+settled stage5 capture, admission-aware inventory selection and source lock/gate
+movement. The other traced cliff/bridge, death/GameOver, dialogue/title/voice
+and tunnel paths retain their existing owners and ordered calls. Transition
+startup now arms inactive automatic Brains through their existing activity
+guard, and rollback restores the separate semantic camera binding before any
+outgoing Brain restarts. The final SourceCamera delta retains that metadata
+key/WeakRef representation, so it does not overlap or invalidate the rollback
+fix. The Orrery fixture uses the current Perso fields.
+
+No newly identified reachable implementation gap remains in these bounded
+static chains, and no exact approved contribution remains awaiting integration.
+This is source connectivity only: runtime acceptance, contact/sector outcomes,
+native resource correctness, asynchronous timing and visual/float fidelity are
+unverified. The former paired-camera blocker is resolved by connected production
+code, not by declaring its same-owner subcase sufficient.
 
 ## Acceptance boundary
 
@@ -561,6 +634,7 @@ parsing, reconstructed bytes, fresh Rete/native resources and runtime behavior
 are unverified. No assets are published or main merged. Later lead-directed
 work must preserve the model/component boundaries and separately authorize
 aggregate executable validation or content preparation. All exact contributions
-approved in this wave are included; the reached key camera-switch contract
-above remains an implementation blocker. The user may open
+approved in this wave are included, including both actual key camera switches
+and the three reviewed integration fixes. No newly identified source-path
+blocker remains in the bounded audit. The user may open
 the accepted main Godot project throughout this source-only integration.

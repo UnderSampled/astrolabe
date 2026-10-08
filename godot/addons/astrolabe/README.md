@@ -1,6 +1,6 @@
-# Astrolabe support, interface 81
+# Astrolabe support, interface 82
 
-Interface81 retains actor-owned activation/suppression and placed/generated
+Interface82 retains actor-owned activation/suppression and placed/generated
 removal, preserves paused compiled Brains, permits direct Proc12 placement of
 the bound camera and null-card key, and implements immediate Proc166 camera
 flags. Source reset-on-kill and deferred camera flag groups remain unsupported.
@@ -8,8 +8,11 @@ Source primary-camera ownership remains independent of an authored presentation
 camera. Initial registration and viewport context remain distinct. Proc166
 evaluates its scalar operands before reloading the immediate camera binding.
 Proc171 resets the camera actor's upper vertical limit while retaining its
-lower limit. Different-owner Proc141 selection fails explicitly until native
-reset/sector-refresh semantics are supported; same-owner handback is retained.
+lower limit. Primary Proc141 selection connects different camera owners through
+the maintained framing reset, separate registration/context fields and native
+actor contact-sector refresh. Export binds the ordered no-hit sector fallback
+as a scene NodePath. Same-owner handback remains; pose-copy/optimal placement
+and secondary viewports remain unsupported.
 The authored game's optional training checkpoint retains settled logical state;
 no source execution cursor is serialized. See
 [`Manor training static handoff`](../../../notes/manor-training-static-2026-10-08.md).
