@@ -443,6 +443,13 @@ pub enum Expression {
     MainActorDistance,
     /// Func_DistanceToPerso resolves a typed actor operand from the active scene.
     ActorDistance(Box<Expression>),
+    /// The installed Hype category-3/raw-ID-8 handler returns the source-XY
+    /// magnitude between its current actor and the actor operand in that
+    /// operand's local frame. The installed table names row 8
+    /// `Func_DistanceXZToPerso`, while the handler passes selector 3 to the
+    /// helper, whose selector 3 computes XY. Keep this behavior named from the
+    /// handler and preserve the API-name mismatch in source evidence.
+    ActorLocalSourceXYDistance(Box<Expression>),
     /// Cond_IsValidObject observes whether its actor handle is non-null/valid.
     IsValidActor(Box<Expression>),
     /// Func_ApplyArmoredDamage mutates shared armor and returns remaining main life.
@@ -1028,6 +1035,7 @@ impl Script {
                 | Expression::Square(value)
                 | Expression::AbsoluteValue(value)
                 | Expression::ActorDistance(value)
+                | Expression::ActorLocalSourceXYDistance(value)
                 | Expression::IsValidActor(value)
                 | Expression::ApplyArmoredDamage(value)
                 | Expression::InventoryQuantity(value)

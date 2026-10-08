@@ -1120,6 +1120,21 @@ impl Parser<'_> {
                     Expression::ActorDistance(Box::new(Expression::Actor(actor)))
                 }
             }
+            // Installed Hype PE row 8 is named Func_DistanceXZToPerso, but
+            // handler 0x537aa0 passes selector 3 to 0x52ea00; helper 0x52e910
+            // selector 3 computes the source-XY magnitude after transforming
+            // the displacement into the explicit target actor's local frame.
+            (3, 8) => {
+                let actor = self.expression(indent + 1)?;
+                let Expression::Actor(actor) = actor else {
+                    return Ok(Expression::Unsupported(self.unsupported_range(
+                        at,
+                        end,
+                        "installed category-3 ID 8 requires an actor operand".into(),
+                    )?));
+                };
+                Expression::ActorLocalSourceXYDistance(Box::new(Expression::Actor(actor)))
+            }
             (3, 25) => Expression::Square(Box::new(self.expression(indent + 1)?)),
             (3, 22) => Expression::IntegerCast(Box::new(self.expression(indent + 1)?)),
             (3, 33) => Expression::AbsoluteValue(Box::new(self.expression(indent + 1)?)),
@@ -1730,6 +1745,10 @@ impl Writer<'_> {
             }
             Expression::ActorDistance(value) => {
                 self.node(3, 4, indent);
+                self.expression(value, indent + 1)?;
+            }
+            Expression::ActorLocalSourceXYDistance(value) => {
+                self.node(3, 8, indent);
                 self.expression(value, indent + 1)?;
             }
             Expression::ApplyArmoredDamage(value) => {

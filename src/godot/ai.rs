@@ -758,6 +758,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::Square(_)
         | Expression::AbsoluteValue(_)
         | Expression::ActorDistance(_)
+        | Expression::ActorLocalSourceXYDistance(_)
         | Expression::IsValidActor(_)
         | Expression::ApplyArmoredDamage(_)
         | Expression::ArmorResistance
@@ -833,6 +834,26 @@ fn guarded_expression(
             )?;
             format!(
                 "character().global_position.distance_to((distance_actor_{id} as Node3D).global_position)"
+            )
+        }
+        Expression::ActorLocalSourceXYDistance(actor) => {
+            let value = guarded_expression(out, actor, model, depth, flow)?;
+            let id = flow.local;
+            flow.local += 1;
+            writeln!(
+                out,
+                "{pad}var local_xy_distance_actor_{id} = {value}\n{pad}if typeof(local_xy_distance_actor_{id}) != TYPE_OBJECT or not is_instance_valid(local_xy_distance_actor_{id}) or not (local_xy_distance_actor_{id} is Node3D) or not local_xy_distance_actor_{id}.is_inside_tree() or not character().is_inside_tree():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                quoted(&format!(
+                    "{} local source-XY distance requires positioned actors",
+                    model.path
+                ))
+            )?;
+            writeln!(
+                out,
+                "{pad}var local_xy_distance_delta_{id}: Vector3 = (local_xy_distance_actor_{id} as Node3D).global_transform.affine_inverse() * character().global_position"
+            )?;
+            format!(
+                "Vector2(local_xy_distance_delta_{id}.x, local_xy_distance_delta_{id}.z).length()"
             )
         }
         Expression::Square(value) | Expression::AbsoluteValue(value) => {
@@ -1304,6 +1325,7 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         Expression::Square(_)
         | Expression::AbsoluteValue(_)
         | Expression::ActorDistance(_)
+        | Expression::ActorLocalSourceXYDistance(_)
         | Expression::IsValidActor(_)
         | Expression::ApplyArmoredDamage(_)
         | Expression::DistanceToWaypoint { .. } => {

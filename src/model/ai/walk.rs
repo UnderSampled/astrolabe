@@ -161,6 +161,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::Square(value)
                 | Expression::AbsoluteValue(value)
                 | Expression::ActorDistance(value)
+                | Expression::ActorLocalSourceXYDistance(value)
                 | Expression::IsValidActor(value)
                 | Expression::ApplyArmoredDamage(value)
                 | Expression::IsInAction(value)
