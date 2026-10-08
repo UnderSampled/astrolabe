@@ -45,6 +45,10 @@ static func _has_property(object: Object, property_name: String) -> bool:
     return object.get_property_list().any(func(property): return str(property["name"]) == property_name)
 
 
+static func _has_boolean_field(brain: Node, property_name: String) -> bool:
+    return _has_property(brain, property_name) and brain.get(property_name) is bool
+
+
 static func validate(value: Variant) -> String:
     if not value is Dictionary:
         return "Save is not an object."
@@ -212,10 +216,12 @@ static func capture(actor: CharacterBody3D, level: Node3D) -> Dictionary:
     var inventory: Resource = actor.get("source_inventory")
     var dummy_brain := _dummy_brain(level)
     var global_brain := _source_brain(level, GLOBAL)
-    if magick == null or inventory == null or dummy_brain == null or not _has_property(global_brain, "dsg_149"):
+    if magick == null or inventory == null or not _has_boolean_field(dummy_brain, "dsg_8") or not _has_boolean_field(global_brain, "dsg_149"):
         return {}
     var global_brain_state := {"dsg_149": global_brain.get("dsg_149")}
     if _has_property(global_brain, "dsg_147"):
+        if not _has_boolean_field(global_brain, "dsg_147"):
+            return {}
         global_brain_state["dsg_147"] = global_brain.get("dsg_147")
     var quantities: Dictionary = {}
     for item in inventory.get("quantities"):
@@ -285,12 +291,14 @@ static func apply(actor: CharacterBody3D, level: Node3D, value: Dictionary) -> S
         return "Converted player has no native magick or inventory."
     if dummy_brain == null:
         return "Converted manor has no saved dummy world flag."
-    if value["actors"].has(GLOBAL) and not _has_property(global_brain, "dsg_149"):
+    if not _has_boolean_field(dummy_brain, "dsg_8"):
+        return "Converted manor has no Boolean dummy world flag."
+    if value["actors"].has(GLOBAL) and not _has_boolean_field(global_brain, "dsg_149"):
         return "Converted manor has no saved Global Brain field."
     if (
         value["actors"].has(GLOBAL)
         and value["actors"][GLOBAL]["brain"].has("dsg_147")
-        and not _has_property(global_brain, "dsg_147")
+        and not _has_boolean_field(global_brain, "dsg_147")
     ):
         return "Converted manor has no saved optional Global Brain field."
     var player: Dictionary = value["actors"][ACTOR]

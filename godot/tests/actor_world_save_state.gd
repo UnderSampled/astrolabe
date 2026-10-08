@@ -23,6 +23,17 @@ class DummyBrain extends Node:
 class PlayerBrain extends Node:
     var dsg_11: bool = true
 
+class InvalidDummyBrain extends Node:
+    var dsg_8: int = 0
+
+class InvalidGlobalBrain extends Node:
+    var dsg_149: int = 0
+    var dsg_147: bool = true
+
+class InvalidOptionalBrain extends Node:
+    var dsg_149: bool = false
+    var dsg_147: int = 0
+
 func _initialize() -> void:
     call_deferred("run")
 
@@ -143,12 +154,22 @@ func reload_stage(actor: Player, level: Node3D, global_brain: GlobalBrain, dummy
         return "Omitted optional Boolean did not preserve its scene value."
     # Missing optional live property must be rejected before changing other components.
     global_brain.get_parent().remove_child(global_brain)
-    global_brain.free()
     var without_optional := GlobalWithoutOptional.new()
     without_optional.name = "Brain"
     level.get_node("Global").add_child(without_optional)
     error = check_atomic_rejection(actor, level, state)
     if not error.is_empty(): return error
+    level.get_node("Global").remove_child(without_optional)
+    without_optional.free()
+    level.get_node("Global").add_child(global_brain)
+    # A valid envelope must not partially mutate other components when the
+    # authored live Brain has a wrong property type or no mapped property.
+    for brain in [InvalidDummyBrain.new(), Node.new()]:
+        error = check_invalid_live_brain(actor, level, "Dummy", brain, state)
+        if not error.is_empty(): return error
+    for brain in [InvalidGlobalBrain.new(), InvalidOptionalBrain.new(), Node.new()]:
+        error = check_invalid_live_brain(actor, level, "Global", brain, state)
+        if not error.is_empty(): return error
     print("ACTOR_SLOT_RELOAD fresh process restored named Boolean fields; repeats were idempotent; invalid slots were atomic; unmapped fields rejected; omission preserved scene state")
     return ""
 
@@ -162,6 +183,27 @@ func check_atomic_rejection(actor: Player, level: Node3D, state: Dictionary) -> 
     var prior: Dictionary = SAVE_STATE.capture(actor, level)
     if SAVE_STATE.apply(actor, level, state).is_empty(): return "Invalid slot was accepted."
     if SAVE_STATE.capture(actor, level) != prior: return "Rejected slot partially changed live state."
+    return ""
+
+func check_invalid_live_brain(actor: Player, level: Node3D, owner: String, replacement: Node, state: Dictionary) -> String:
+    var parent := level.get_node(owner)
+    var original := parent.get_node("Brain")
+    parent.remove_child(original)
+    replacement.name = "Brain"
+    parent.add_child(replacement)
+    var before_mana: int = actor.source_magick.current_points
+    var before_quantities: Dictionary = actor.source_inventory.quantities.duplicate()
+    var changed := state.duplicate(true)
+    changed["actors"][SAVE_STATE.ACTOR]["magick"]["current_points"] = 17
+    changed["actors"][SAVE_STATE.ACTOR]["inventory"]["quantities"]["21"] = 1
+    var error: String = SAVE_STATE.apply(actor, level, changed)
+    var capture: Dictionary = SAVE_STATE.capture(actor, level)
+    var unchanged: bool = actor.source_magick.current_points == before_mana and actor.source_inventory.quantities == before_quantities
+    parent.remove_child(replacement)
+    replacement.free()
+    parent.add_child(original)
+    if error.is_empty() or not unchanged or not capture.is_empty():
+        return "Incompatible live " + owner + " Brain was accepted or partially changed components."
     return ""
 
 func finish(error: String) -> void:

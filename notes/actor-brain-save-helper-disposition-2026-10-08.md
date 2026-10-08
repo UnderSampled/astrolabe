@@ -4,6 +4,12 @@ Audit baseline: `edb7704b2597c26c78086acad2f58eaba1db7a78`. Work is isolated
 on `codex/brain-snapshot-integration-20261008`; main and peer checkouts are
 unchanged by this worker.
 
+Follow-up: the [save fork capability audit](save-fork-capability-audit-2026-10-08.md)
+identifies useful persistence lost from `294bd26`. Retiring the generic Brain
+wrapper does not retire that fuller component save behavior. Schema/inventory
+adoption is assigned to the pickup worker; this branch additionally fixes live
+Boolean target preflight without changing slot schema or admitted fields.
+
 ## Decision and contribution accounting
 
 Do not replay `f21a7fcb2976109682d6bf6ac5cc88e434ea58ec`'s
@@ -106,7 +112,8 @@ The source-free production-slot regression checks:
 3. Repeated restore/capture is idempotent (JSON numeric normalization is
    accounted for; parser numeric scalars are floats).
 4. A valid earlier flag change plus an unknown/non-Boolean field is rejected
-   atomically. Unavailable optional live fields also fail before mutation.
+   atomically. Missing or type-mismatched live dummy, required Global and
+   optional Global fields also fail before mutation and invalidate capture.
 5. Omission preserves the optional scene value; rejected writes preserve the
    prior slot; the old Hype/lever demonstration fields remain outside admission.
 
@@ -120,6 +127,15 @@ owned stage logs and the synthetic saved slot are in ignored
 These tests establish supported slot storage semantics;
 they do not establish full original save parity, gate/lever animation behavior
 or original-engine continuation.
+
+After adding live Boolean preflight, the final packaged regression passed in
+0.43 seconds under its 25-second supervisor deadline, with no timeout, leaked
+children or remaining processes. Evidence is in ignored
+`TestResults/brain-snapshot-typed-deadline-final/`. Its negative control uses
+the pre-fix production slot from `9284244` with the same final test: writing
+passes, then reload fails on the incompatible dummy Brain. The fixture restores
+the valid Global Brain before each independent invalid-live-field case, so
+missing optional state cannot mask a dummy-field failure.
 
 There is a pre-existing baseline discrepancy outside this helper assignment:
 the executable `game/save_state.gd` supports schema 1, while
@@ -143,7 +159,12 @@ Additional checks:
   setting `ASTROLABE_NEXTEST` to the already installed pin resolved it.
 - `cargo fmt --all --check`, `git diff --check`, and
   `cargo clippy --locked --offline -p godot-harness --all-targets -- -D warnings`
-  passed; the scoped clippy run took 15.48 seconds.
+  passed, including the final live-preflight edit; final clippy evidence is
+  `TestResults/brain-snapshot-final-clippy.log`.
+- The earlier supervised `cargo build --release --locked --offline` passed in
+  90.32 seconds with no leaked children. Final validation after the small
+  GDScript preflight change used packaged Godot execution and scoped clippy;
+  it did not repeat the release build.
 - Full supervised `python3 tools/test.py --area save --offline --timeout 900`
   failed at build/discovery after 105.94 seconds, before tests ran:
   `crates/orrery/tests/comparison.rs:37` initializes `Perso` without
@@ -152,3 +173,11 @@ Additional checks:
   `TestResults/brain-snapshot-save-20261008.log.json`, with source unchanged and
   successful cleanup. Required whole-selection safeguards therefore remain
   unverified; the focused passes are not a green save-suite result.
+
+Integration subsequently reported those Orrery fixture/lint repairs in main
+`98a3d2e` and inventory/loading changes in
+`c375693b5c8310ffc8450dd97ce3be0e910083a3`. This isolated branch remains on
+the declared audit baseline, does not duplicate those repairs, and does not
+claim validation of the newer combined main. Integration owns applying the
+narrow shared-file preflight and adapting this schema-1 regression to the
+reconciled slot schema; the generic helper itself has no pending integration.
