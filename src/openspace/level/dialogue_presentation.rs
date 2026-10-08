@@ -61,20 +61,58 @@ pub(super) struct FontInputs {
     pub(super) atlas: DialogueTexture,
     pub(super) color: [f32; 4],
 }
+
+fn font_name(s: &SourceSession, address: Address) -> Result<String> {
+    let name_data = &s.block(address)?.data[address.offset..];
+    let end = name_data
+        .iter()
+        .take(256)
+        .position(|b| *b == 0)
+        .context("unbounded font name")?;
+    super::dialogue::decode_cp1252(&name_data[..end])
+}
+
+/// Find a Fix sprite font by the name consumed by FON_fn_xGetFont.
+///
+/// Fix fonts in the supplied profile are type-17 declarations in block 19:1;
+/// their source meaning is the same regardless of the UI that requests them.
+pub(super) fn named_font(s: &SourceSession, name: &str) -> Result<(Address, FontInputs)> {
+    let key = BlockKey(19, 1);
+    let mut found = None;
+    for &offset in s.allocation_indices(Owner::Fix, key)?.keys() {
+        let address = Address {
+            owner: Owner::Fix,
+            key,
+            offset,
+        };
+        let Ok(bytes) = s.bytes(address, 20) else {
+            continue;
+        };
+        if u32_at(bytes, 16)? != 17 {
+            continue;
+        }
+        let Some(name_address) = s.pointer(address, 12)? else {
+            continue;
+        };
+        if font_name(s, name_address)? != name {
+            continue;
+        }
+        ensure!(
+            found.replace(address).is_none(),
+            "duplicate Fix font {name}"
+        );
+    }
+    let address = found.with_context(|| format!("required Fix font {name} absent"))?;
+    Ok((address, font(s, address)?))
+}
+
 pub(super) fn font(s: &SourceSession, address: Address) -> Result<FontInputs> {
     let h: FontWire = wire(s.bytes(address, 32)?)?;
     ensure!(
         h.encoding == 0x11 && h.count > 0 && h.count <= 1024,
         "unsupported dialogue font profile"
     );
-    let name_address = s.required(address, 12)?;
-    let name_data = &s.block(name_address)?.data[name_address.offset..];
-    let end = name_data
-        .iter()
-        .take(256)
-        .position(|b| *b == 0)
-        .context("unbounded font name")?;
-    let name = std::str::from_utf8(&name_data[..end])?.to_owned();
+    let name = font_name(s, s.required(address, 12)?)?;
     let table = s.required(address, 24)?;
     s.bytes(table, h.count as usize * 4)?;
     let mut glyphs = Vec::new();

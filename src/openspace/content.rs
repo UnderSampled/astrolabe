@@ -595,7 +595,7 @@ pub fn import_hud(game: &Path, selection: Selection) -> Result<Imported> {
         usage: TextureUsage::Material,
     }
     .read(&read(&game.join("Gamedata/Textures.cnt"))?)?;
-    let presentation = level::import_hud_presentation(game, &selection, &archive)?;
+    let mut presentation = level::import_hud_presentation(game, &selection, &archive)?;
     for artwork in &presentation.artwork {
         let entry = archive.find_entry(&artwork.source_name).with_context(|| {
             format!("missing HUD image {} in Textures.cnt", artwork.source_name)
@@ -603,6 +603,24 @@ pub fn import_hud(game: &Path, selection: Selection) -> Result<Imported> {
         if !imported.assets.contains(&entry.texture.path) {
             imported.put(&entry.texture, archive.image(entry)?.clone(), false)?;
         }
+    }
+    let font = presentation
+        .currency_font
+        .as_mut()
+        .context("HUD source InventoryFont is missing")?;
+    let entry = archive
+        .find_entry(font.atlas.texture.file())
+        .context("HUD InventoryFont atlas absent from Textures.cnt")?;
+    ensure!(
+        [
+            archive.image(entry)?.width(),
+            archive.image(entry)?.height()
+        ] == font.atlas.size,
+        "HUD InventoryFont atlas dimensions differ"
+    );
+    font.atlas.texture = entry.texture.path.clone();
+    if !imported.assets.contains(&entry.texture.path) {
+        imported.put(&entry.texture, archive.image(entry)?.clone(), false)?;
     }
     imported.put(
         &AssetRef::from_path(presentation.path.clone()),

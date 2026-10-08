@@ -12,7 +12,7 @@ use astrolabe::{
     rete,
 };
 use serde::Serialize;
-use std::{fs, path::PathBuf};
+use std::{fs, path::PathBuf, process::Command};
 
 fn legacy_hud() -> Result<HudPresentation> {
     Ok(HudPresentation {
@@ -22,6 +22,9 @@ fn legacy_hud() -> Result<HudPresentation> {
         panels: Vec::new(),
         source_textures: std::array::from_fn(|_| None),
         artwork: Vec::new(),
+        currency_source_object: None,
+        currency_item_id: None,
+        currency_font: None,
         rectangle_tables: [Vec::new(), Vec::new()],
         source_words: [0; 2],
         text_offsets: [[0.0; 2]; 2],
@@ -40,14 +43,32 @@ fn verified_hud_import_rete_roundtrip_and_godot_export() -> Result<()> {
     ensure!(imported.roots.len() == 1);
     ensure!(imported.roots[0].reference == hud_path);
     ensure!(
-        imported.inventory.len() == 7,
-        "six texture dependencies and one HUD asset expected"
+        imported.inventory.len() == 8,
+        "six HUD images, one font atlas, and one HUD asset expected"
     );
     ensure!(imported.diagnostics.is_empty());
 
     let hud = imported.load(&AssetRef::<HudPresentation>::from_path(hud_path.clone()))?;
     ensure!(hud.source_layout_version == 1);
     ensure!(hud.panels.iter().all(|panel| !panel.enabled));
+    ensure!(hud.currency_item_id == Some(0));
+    ensure!(hud.currency_source_object.as_ref().is_some_and(|object| {
+        object.role == astrolabe::model::ai::SourceRole::Fix && object.block == [6, 1]
+    }));
+    let currency_font = hud
+        .currency_font
+        .as_ref()
+        .expect("source HUD font should be imported");
+    ensure!(currency_font.name == "InventoryFont");
+    ensure!(currency_font.source_object.block == [19, 1]);
+    ensure!(currency_font.glyphs.len() == 127);
+    ensure!(currency_font.atlas.texture.as_str() == "texture:/FixTex/MOTORTXT/lettrageb.gf");
+    ensure!(currency_font.atlas.size == [256, 256]);
+    let font_atlas = imported.load(&AssetRef::<Texture>::from_path(
+        currency_font.atlas.texture.clone(),
+    ))?;
+    ensure!([font_atlas.width(), font_atlas.height()] == [256, 256]);
+    ensure!(font_atlas.usage == TextureUsage::Material);
     ensure!(hud.elements.iter().any(|element| {
         element.role == "enemy_meter_background_fill_pairs"
             && element.entries == [11, 12, 13, 14, 15, 16]
@@ -91,12 +112,13 @@ fn verified_hud_import_rete_roundtrip_and_godot_export() -> Result<()> {
     ensure!(*reopened_hud == *hud);
 
     let output = temp.path().join("godot");
+    let godot_bin = std::env::var("GODOT_BIN").unwrap_or_else(|_| "godot".into());
     let manifest = godot::export(
         &mut store,
         &package.roots,
         package.selection,
         &output,
-        &std::env::var("GODOT_BIN").unwrap_or_else(|_| "godot".into()),
+        &godot_bin,
     )?;
     let scene_rel = "generated/hype/shared/hud/en.tscn";
     let script_rel = "generated/hype/shared/hud/en.gd";
@@ -115,6 +137,7 @@ fn verified_hud_import_rete_roundtrip_and_godot_export() -> Result<()> {
         "EnemyMeter2Background",
         "EnemyMeter2Fill",
         "CurrencyIcon",
+        "CurrencyCount",
     ] {
         ensure!(
             scene.contains(&format!("name=\"{node}\"")),
@@ -123,6 +146,20 @@ fn verified_hud_import_rete_roundtrip_and_godot_export() -> Result<()> {
     }
     ensure!(script.contains("func set_life_fraction"));
     ensure!(script.contains("func set_enemy_meter"));
+    ensure!(script.contains("const CURRENCY_ITEM_ID: int = 0"));
+    ensure!(script.contains("func bind_actor(actor: Node)"));
+    ensure!(script.contains("func set_currency_count(value: int)"));
+    ensure!(scene.contains("offset_left = 330.0\noffset_top = 454.0"));
+    let font_rel = "generated/hype/shared/hud/en/counter.font.tres";
+    ensure!(
+        manifest.files.contains_key(font_rel),
+        "native HUD FontFile missing"
+    );
+    let font_image_rel = "generated/hype/textures/FixTex/MOTORTXT/lettrageb.gf.hud-font.png";
+    ensure!(
+        manifest.files.contains_key(font_image_rel),
+        "native HUD font atlas image missing"
+    );
     for artwork in &hud.artwork {
         let image_rel = format!("generated/hype/textures/{}.hud.png", artwork.texture.file());
         ensure!(
@@ -130,6 +167,79 @@ fn verified_hud_import_rete_roundtrip_and_godot_export() -> Result<()> {
             "native HUD image missing: {image_rel}"
         );
     }
+
+    // Exercise the emitted scene, native FontFile and actor-owned source value.
+    let actor_script = output.join("hud_counter_actor.gd");
+    fs::write(
+        &actor_script,
+        "extends Node\nvar source_inventory: Resource\n",
+    )?;
+    let check_script = output.join("check_hud_counter.gd");
+    fs::write(
+        &check_script,
+        r#"extends SceneTree
+func _initialize() -> void:
+    call_deferred("_run")
+
+func _check(value: bool, message: String) -> bool:
+    if not value:
+        push_error(message)
+        quit(1)
+        return false
+    return true
+
+func _run() -> void:
+    var packed := load("res://generated/hype/shared/hud/en.tscn") as PackedScene
+    if not _check(packed != null, "native HUD scene did not load"):
+        return
+    var hud := packed.instantiate()
+    root.add_child(hud)
+    await process_frame
+    var actor_script := load("res://hud_counter_actor.gd") as Script
+    var inventory_script := load("res://addons/astrolabe/character/inventory.gd") as Script
+    if not _check(actor_script != null and inventory_script != null, "native actor inventory scripts did not load"):
+        return
+    var actor := actor_script.new() as Node
+    var inventory := inventory_script.new() as Resource
+    actor.set("source_inventory", inventory)
+    if not _check(int(inventory.call("quantity", 0)) == 0, "source currency default was not zero"):
+        return
+    if not _check(int(inventory.call("quantity", 21)) == -1, "ordinary missing item sentinel changed"):
+        return
+    hud.call("bind_actor", actor)
+    await process_frame
+    var label := hud.get_node("Canvas/Source/CurrencyCount") as Label
+    if not _check(label.visible and label.text == "0", "zero source currency was not visible"):
+        return
+    inventory.set("quantities", {0: 27})
+    hud.call("_process", 0.0)
+    if not _check(label.visible and label.text == "27", "actor currency update did not reach HUD text"):
+        return
+    inventory.set("quantities", {0: -1})
+    hud.call("_process", 0.0)
+    if not _check(not label.visible and label.text == "", "negative source currency was not hidden"):
+        return
+    inventory.set("quantities", {0: 0})
+    hud.call("_process", 0.0)
+    if not _check(label.visible and label.text == "0", "currency counter did not reappear at zero"):
+        return
+    print("HUD currency/font binding passed")
+    quit(0)
+"#,
+    )?;
+    let result = Command::new(&godot_bin)
+        .arg("--headless")
+        .arg("--path")
+        .arg(&output)
+        .arg("--script")
+        .arg("res://check_hud_counter.gd")
+        .output()?;
+    ensure!(
+        result.status.success(),
+        "Godot HUD counter visibility check failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
     Ok(())
 }
 

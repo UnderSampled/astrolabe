@@ -1,12 +1,16 @@
 //! Fix HUD declarations and direct-draw inputs for the installed Hype profile.
 use super::{
     container::{file, pointer_file, u32_at, wire},
-    records::{Address, BlockKey, Owner, TextureInfoWire},
+    dialogue_presentation,
+    records::{Address, BlockKey, Owner, SuperObjectWire, TextureInfoWire},
     session::SourceSession,
 };
 use crate::model::{
     AssetPath, Selection,
-    hud::{HudArtwork, HudElementLayout, HudPanel, HudPanelLayer, HudPresentation, HudTextureRole},
+    hud::{
+        HudArtwork, HudCounterFont, HudElementLayout, HudPanel, HudPanelLayer, HudPresentation,
+        HudTextureRole,
+    },
     io::Content,
 };
 use anyhow::{Context, Result, ensure};
@@ -45,6 +49,19 @@ struct LayerWire {
     u1: f32,
     v0: f32,
     v1: f32,
+}
+
+#[derive(BinRead)]
+#[br(little)]
+struct CurrencyItemWire {
+    _links: [u32; 5],
+    _capacity: i16,
+    _gestion_mode: u16,
+    _external_condition: u8,
+    _available: u8,
+    _permissions: [u8; 2],
+    id: i16,
+    _unknown: [u8; 2],
 }
 
 #[derive(Debug)]
@@ -90,18 +107,21 @@ impl FixTextureTable {
     }
 }
 
-fn gpt_hud_cursor(sda: &[u8]) -> Result<usize> {
+fn gpt_hud_offsets(sda: &[u8]) -> Result<(usize, usize)> {
     // 00401e00's sequential GPT reads before 0040bcc0. Counts come from the
-    // simultaneously-open Fix.sda stream: FON glyph count at +8, and 004e5150's
+    // simultaneously-open Fix.sda stream: FON text-handle count at +8, and 004e5150's
     // inclusive shadow index at +0x198. FUN_004e94c0 uses the SDA FILE* while
     // FUN_004e97a0/FUN_004e9800 use the separate GPT FILE*.
-    let fon_count = usize::try_from(u32_at(sda, 8)?)?;
+    let text_handle_count = usize::try_from(u32_at(sda, 8)?)?;
     let shadow_last = i16::from_le_bytes(
         sda.get(0x198..0x19a)
             .context("Fix.sda shadow count missing")?
             .try_into()?,
     );
-    ensure!(fon_count == 409, "unsupported Fix FON count {fon_count}");
+    ensure!(
+        text_handle_count == 409,
+        "unsupported Fix FON text-handle count {text_handle_count}"
+    );
     ensure!(
         shadow_last == 4,
         "unsupported Fix shadow extent {shadow_last}"
@@ -112,11 +132,12 @@ fn gpt_hud_cursor(sda: &[u8]) -> Result<usize> {
     // matrix pointers, then 4 + 0xc + 0x20 raw-byte reads.
     cursor += 8 * 4 + 0x90 + 0x3d54 + 100 * 4 + 4 + 0xc + 0x20;
     // fn_vReadFONGeneral: 4 fixed words, count words, 0xc raw bytes.
-    cursor += 0x1c + fon_count * 4;
+    cursor += 0x1c + text_handle_count * 4;
     // 0x10 raw, three pointers, FUN_00421f30 (12 pointers), five pointers.
     cursor += 0x10 + 3 * 4 + 12 * 4 + 5 * 4;
     // DLG (8), 0050d270, 0040b750, inventory (1) GPT pointer words.
     cursor += 8 * 4 + 3 * 4;
+    let currency_root = cursor + 9 * 4; // FUN_0041c290's DAT_006107bc.
     cursor += 18 * 4; // 0041c290
     // 00416420: 4 + 100 + 7 + 1 GPT words. Its 60 e9a60 reads use another stream.
     cursor += 112 * 4;
@@ -130,7 +151,11 @@ fn gpt_hud_cursor(sda: &[u8]) -> Result<usize> {
         cursor == FIX_HUD_GPT_OFFSET,
         "Fix.gpt cursor accounting differs: {cursor:#x}"
     );
-    Ok(cursor)
+    Ok((currency_root, cursor))
+}
+
+fn gpt_hud_cursor(sda: &[u8]) -> Result<usize> {
+    Ok(gpt_hud_offsets(sda)?.1)
 }
 
 fn fix_pointer(
@@ -148,6 +173,38 @@ fn fix_pointer(
         return Ok(None);
     }
     Ok(Some(session.resolve_local(Owner::Fix, key, value)?))
+}
+
+fn currency_item(
+    session: &SourceSession,
+    refs: &BTreeMap<u32, BlockKey>,
+    gpt: &[u8],
+    gpt_offset: usize,
+) -> Result<(Address, i32)> {
+    let root_value = u32_at(gpt, gpt_offset)?;
+    let root = fix_pointer(session, refs, root_value)?
+        .context("Fix HUD currency inventory root is null")?;
+    let child = session
+        .pointer(root, 8)?
+        .context("Fix HUD currency item is absent")?;
+    let root_wire: SuperObjectWire = wire(session.bytes(root, 64)?)?;
+    ensure!(
+        root_wire.child_count == 1,
+        "Fix HUD currency root child count differs"
+    );
+    ensure!(
+        session.required(child, 28)? == root && session.pointer(child, 20)?.is_none(),
+        "Fix HUD currency item is not the sole direct child"
+    );
+    ensure!(
+        u32_at(session.bytes(child, 4)?, 0)? == 18,
+        "Fix HUD currency child is not an inventory item"
+    );
+    let item_handle = session.required(child, 4)?;
+    let item_definition = session.required(item_handle, 0)?;
+    let item: CurrencyItemWire = wire(session.bytes(item_definition, 32)?)?;
+    ensure!(item.id >= 0, "Fix HUD currency item id is negative");
+    Ok((child, i32::from(item.id)))
 }
 
 fn f32_at(bytes: &[u8], offset: usize) -> Result<f32> {
@@ -389,6 +446,19 @@ pub(crate) fn import(
         .try_into()
         .map_err(|_| anyhow::anyhow!("Fix HUD slot count differs"))?;
 
+    let (currency_root_offset, _) = gpt_hud_offsets(&sda)?;
+    let (currency_source, currency_item_id) =
+        currency_item(&session, &refs, &gpt, currency_root_offset)?;
+    let (font_address, font) = dialogue_presentation::named_font(&session, "InventoryFont")?;
+    let currency_font = HudCounterFont {
+        source_object: session.source_identity(font_address)?,
+        name: font.name,
+        atlas: font.atlas,
+        glyphs: font.glyphs,
+        tracking: font.tracking,
+        color: font.color,
+    };
+
     // 0040bcc0 reads this section from the separate Fix.sda stream. Its two
     // raw words, two XY offsets and 24x6-float tables follow the sequential
     // SDA readers through 0040f300; the verified cursor for this profile is 0x9b4.
@@ -452,6 +522,9 @@ pub(crate) fn import(
         panels,
         source_textures,
         artwork,
+        currency_source_object: Some(session.source_identity(currency_source)?),
+        currency_item_id: Some(currency_item_id),
+        currency_font: Some(currency_font),
         rectangle_tables,
         source_words,
         text_offsets,
@@ -511,6 +584,19 @@ mod tests {
                 .iter()
                 .all(|a| a.source_object.role == crate::model::ai::SourceRole::Fix)
         );
+        ensure!(value.currency_item_id == Some(0));
+        ensure!(value.currency_source_object.as_ref().is_some_and(|object| {
+            object.role == crate::model::ai::SourceRole::Fix && object.block == [6, 1]
+        }));
+        let font = value
+            .currency_font
+            .as_ref()
+            .context("HUD currency font absent")?;
+        ensure!(font.name == "InventoryFont");
+        ensure!(font.source_object.block == [19, 1]);
+        ensure!(font.glyphs.len() == 127);
+        ensure!(font.atlas.size == [256, 256]);
+        ensure!(font.atlas.texture.as_str() == "texture:/fixtex/motortxt/lettrageb.tga");
         ensure!(value.artwork.iter().all(|a| {
             a.texture
                 .as_str()

@@ -387,23 +387,7 @@ pub(crate) fn import(game: &Path, selection: &Selection) -> Result<InventoryPres
             available: h.available,
         });
     }
-    let mut font_address = None;
-    for &offset in s.allocation_indices(Owner::Fix, BlockKey(19, 1))?.keys() {
-        let a = Address {
-            owner: Owner::Fix,
-            key: BlockKey(19, 1),
-            offset,
-        };
-        if u32_at(s.bytes(a, 20)?, 16)? == 17
-            && s.pointer(a, 12)
-                .ok()
-                .flatten()
-                .is_some_and(|p| string(&s, p).is_ok_and(|n| n == "InventoryFont"))
-        {
-            ensure!(font_address.replace(a).is_none(), "duplicate InventoryFont");
-        }
-    }
-    let font = dialogue_presentation::font(&s, font_address.context("InventoryFont absent")?)?;
+    let (_, font) = dialogue_presentation::named_font(&s, "InventoryFont")?;
     let background = string(&s, root(18140)?)?
         .replace('\\', "/")
         .to_ascii_lowercase();

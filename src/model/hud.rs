@@ -1,5 +1,10 @@
 //! Source-verified Fix HUD declarations and direct-draw inputs for the Hype build.
-use super::{AssetPath, ai::SourceObjectIdentity, io::Content};
+use super::{
+    AssetPath,
+    ai::SourceObjectIdentity,
+    dialogue::{DialogueGlyph, DialogueTexture},
+    io::Content,
+};
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 
@@ -19,6 +24,15 @@ pub struct HudPresentation {
     /// GLI texture object. Empty in legacy Rete values.
     #[serde(default)]
     pub artwork: Vec<HudArtwork>,
+    /// The dedicated Fix inventory object read by FUN_0041d400.
+    #[serde(default)]
+    pub currency_source_object: Option<SourceObjectIdentity>,
+    /// Source ItemWire.id for the dedicated currency element.
+    #[serde(default)]
+    pub currency_item_id: Option<i32>,
+    /// FON's named InventoryFont used by the HUD stats text handle.
+    #[serde(default)]
+    pub currency_font: Option<HudCounterFont>,
     /// Fix.sda's default and active 24-entry screen rectangles.
     pub rectangle_tables: [Vec<[f32; 6]>; 2],
     /// The two source thresholds read before the layout tables.
@@ -27,6 +41,16 @@ pub struct HudPresentation {
     pub text_offsets: [[f32; 2]; 2],
     /// Layout row uses verified against the direct-draw routines.
     pub elements: Vec<HudElementLayout>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HudCounterFont {
+    pub source_object: SourceObjectIdentity,
+    pub name: String,
+    pub atlas: DialogueTexture,
+    pub glyphs: Vec<DialogueGlyph>,
+    pub tracking: f32,
+    pub color: [f32; 4],
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -133,6 +157,44 @@ impl Content for HudPresentation {
         anyhow::ensure!(
             self.artwork.len() == 6,
             "HUD requires six verified Fix texture objects"
+        );
+        anyhow::ensure!(
+            self.currency_source_object
+                .as_ref()
+                .is_some_and(|identity| {
+                    identity.role == super::ai::SourceRole::Fix && identity.block == [6, 1]
+                }),
+            "HUD currency source object is missing or not Fix-owned"
+        );
+        anyhow::ensure!(
+            self.currency_item_id == Some(0),
+            "HUD currency ItemWire identity is missing or out of range"
+        );
+        let font = self
+            .currency_font
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("HUD source InventoryFont is missing"))?;
+        anyhow::ensure!(
+            font.source_object.role == super::ai::SourceRole::Fix
+                && font.source_object.block == [19, 1]
+                && font.name == "InventoryFont"
+                && font.glyphs.len() == 127
+                && font.atlas.texture.role() == super::PackageRole::Texture
+                && matches!(
+                    font.atlas.texture.file().to_ascii_lowercase().as_str(),
+                    "fixtex/motortxt/lettrageb.tga" | "fixtex/motortxt/lettrageb.gf"
+                )
+                && font.atlas.size == [256, 256]
+                && font.atlas.size.iter().all(|size| *size >= 2)
+                && font.tracking.is_finite()
+                && font.tracking >= 0.0
+                && font.color.iter().all(|value| value.is_finite()),
+            "HUD source InventoryFont declaration differs (source={:?}, name={}, atlas={}, size={:?}, glyphs={})",
+            font.source_object,
+            font.name,
+            font.atlas.texture,
+            font.atlas.size,
+            font.glyphs.len()
         );
         let expected_roles = [
             HudTextureRole::EnemyMeterFill,
