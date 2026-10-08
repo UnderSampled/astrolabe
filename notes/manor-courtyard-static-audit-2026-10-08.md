@@ -175,7 +175,9 @@ inside Godot merely to obtain a clean-C counterpart.
 The separate source translator subsequently supplied authored bodies in
 `/home/stephen/Documents/Codex/2026-10-08/task-18/hype-sol-manor/src/sector/sector_research.c`
 and `sector_traversal.c`. Both files and their private header were read only.
-Their review/commit is pending; no compiled or runtime acceptance is implied.
+They are now committed in source checkpoint
+`d24078a897ce98ba4f9b4e6725eab1fa0a84d73a`; no compiled or runtime acceptance
+is implied. Kip owns integration.
 
 The `004e0020` body corroborates the ordered downward `(0, 0, -1)` search,
 initial closest-distance bits `0x7f7ffff8`, sector-data `+0x94` exclusion,
@@ -195,7 +197,9 @@ face traversal, the PE-recovered equality/unordered entry gate, and signed16
 face-link indices. These details do not exclude the identified forest wall:
 the inspected forest and bridge activation words have all bits set.
 
-External `004b7ab0`, `00551710`, and `00552b50` remain unreconstructed
-dependencies of those translated bodies. Their exact intersection/return
-contracts remain source-work gaps. The missing actual user-contact
-observation and the no-defect-proven disposition above are unchanged.
+At that checkpoint, external `004b7ab0`, `00551710`, and `00552b50` remain
+unreconstructed dependencies. Kip assigned their recovery exclusively to the
+same source translator; this consumer does not duplicate that work. Their
+exact intersection/return contracts remain source-work gaps. The missing
+actual user-contact observation and the no-defect-proven disposition above
+are unchanged.
