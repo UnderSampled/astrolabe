@@ -40,6 +40,7 @@ var opening_finished := false
 var _transition_snapshot: Dictionary = {}
 var _transition_brain_states: Array[Dictionary] = []
 var _transition_physics_states: Array[Dictionary] = []
+var _transition_camera: Camera3D
 var _initial_transition_pending := false
 var _initial_failure_recovery_started := false
 var _initial_failure_recovery_cancelled := false
@@ -301,6 +302,10 @@ func begin_level_transition() -> bool:
     if inventory_host.has_method("close_inventory"):
         inventory_host.call("close_inventory")
     _transition_snapshot = _capture_transition_state()
+    if not str(_transition_snapshot.get("error", "")).is_empty():
+        _transition_snapshot.clear()
+        return false
+    _transition_camera = get_viewport().get_camera_3d()
     _transition_brain_states.clear()
     _transition_physics_states.clear()
     for source_brain in level.find_children("Brain", "Node", true, false):
@@ -334,9 +339,31 @@ func install_level_transition(destination: Node3D, entry: String, camera_entry: 
         camera_actor = _destination_entry(destination, camera_entry)
         if camera_actor == null:
             return {"ok": false, "message": "The destination camera entry actor %s is missing or ambiguous." % camera_entry}
+    var destination_camera := _destination_camera(destination)
+    if camera_actor != null and destination_camera == null:
+        return {"ok": false, "message": "The destination has no unambiguous primary source camera for its named entry."}
+    # Source level initialization copies both named marker matrices before
+    # actor startup. Compose native local transforms outside the scene tree so
+    # contact and camera _ready callbacks observe the intended entry poses.
+    _place_destination_actor(destination, new_actor, entry_actor)
+    if camera_actor != null:
+        _place_destination_actor(destination, destination_camera.get_parent() as Node3D, camera_actor)
     var new_brain := new_actor.get_node_or_null("Brain")
     if new_brain == null:
         return {"ok": false, "message": "The destination main actor has no Brain."}
+    var restore_error := _restore_transition_resources(new_actor, destination, true)
+    if not restore_error.is_empty():
+        return {"ok": false, "message": restore_error}
+
+    # All destination actors are fresh instances. Suppress each automatic
+    # deferred Brain start until Fix state, entry placement and physics are ready.
+    var destination_brains: Array[Dictionary] = []
+    for source_brain in destination.find_children("Brain", "Node", true, false):
+        destination_brains.append({"brain": source_brain, "automatic": bool(source_brain.get("automatic"))})
+        source_brain.set("automatic", false)
+    var destination_bodies: Array[Dictionary] = []
+    for body in destination.find_children("*", "CharacterBody3D", true, false):
+        destination_bodies.append({"body": body})
 
     var previous_level := level
     destination.name = "Level_" + str(destination.get_meta("source_level", "destination"))
@@ -346,20 +373,24 @@ func install_level_transition(destination: Node3D, entry: String, camera_entry: 
     new_brain.set("automatic", false)
     _bind_source_camera_controller_state(destination)
     add_child(destination)
-    # Global transforms are only valid after the destination has a scene-tree parent.
-    # Keep Hype's physics and Brain paused until his authored entry pose is applied.
-    new_actor.global_transform = entry_actor.global_transform
-    _apply_transition_state(new_actor, destination)
+    for state in destination_bodies:
+        state["enabled"] = state["body"].is_physics_processing()
+        state["body"].set_physics_process(false)
+    restore_error = _apply_transition_state(new_actor, destination)
+    if not restore_error.is_empty():
+        remove_child(destination)
+        destination.queue_free()
+        return {"ok": false, "message": restore_error}
     if content_cache != null:
         content_cache.call("retain_level", "res://generated/hype/levels/%s/level.tscn" % str(destination.get_meta("source_level", "")).to_lower(), packed)
 
     demo_camera.set("target", new_actor)
-    if is_instance_valid(camera_actor):
-        demo_camera.call("hold_transition_view", camera_actor.global_transform)
-    else:
-        demo_camera.set("target", new_actor)
+    if destination_camera != null:
         demo_camera.call("release_transition_view")
-    demo_camera.make_current()
+        destination_camera.make_current()
+    else:
+        demo_camera.call("release_transition_view")
+        demo_camera.make_current()
     if new_actor is CharacterBody3D:
         new_actor.set_physics_process(true)
     await get_tree().physics_frame
@@ -370,19 +401,34 @@ func install_level_transition(destination: Node3D, entry: String, camera_entry: 
         return {"ok": false, "message": "The game session ended while preparing the destination."}
     new_brain.set("automatic", true)
     if not bool(new_brain.call("start")):
+        remove_child(destination)
         destination.queue_free()
-        _resume_previous_level()
         return {"ok": false, "message": "The destination main actor's behavior could not start."}
 
     level = destination
     actor = new_actor as CharacterBody3D
     brain = new_brain
     world_brain = null
+    for state in destination_bodies:
+        if state["body"] != new_actor:
+            state["body"].set_physics_process(bool(state["enabled"]))
+    for state in destination_brains:
+        var source_brain := state["brain"] as Node
+        if source_brain == new_brain: continue
+        source_brain.set("automatic", bool(state["automatic"]))
+        var source_actor := source_brain.get_parent()
+        if bool(state["automatic"]) and bool(source_actor.get("source_object_active")):
+            source_brain.call("start")
+    if new_game:
+        opening_brains.clear()
+        for state in destination_brains: opening_brains.append(state["brain"])
+        opening_camera = destination_camera
     ready_to_play = true
     loading = false
     _transition_snapshot.clear()
     _transition_brain_states.clear()
     _transition_physics_states.clear()
+    _transition_camera = null
     if is_instance_valid(previous_level):
         remove_child(previous_level)
         previous_level.queue_free()
@@ -408,11 +454,13 @@ func _resume_previous_level() -> void:
     if is_instance_valid(actor):
         demo_camera.set("target", actor)
         demo_camera.call("release_transition_view")
+    if is_instance_valid(_transition_camera): _transition_camera.make_current()
     ready_to_play = true
     loading = false
     _transition_snapshot.clear()
     _transition_brain_states.clear()
     _transition_physics_states.clear()
+    _transition_camera = null
     stage("playable", "Explore the manor" if str(level.get_meta("source_level", "manoir")) == "manoir" else "Explore %s" % str(level.get_meta("source_level", "the level")))
 
 func _destination_actor(destination: Node3D) -> CharacterBody3D:
@@ -431,19 +479,50 @@ func _destination_entry(destination: Node3D, name: String) -> Node3D:
         return null
     return destination.get_node_or_null(candidates[0]) as Node3D
 
+func _destination_camera(destination: Node3D) -> Camera3D:
+    var selected: Camera3D
+    for camera in destination.find_children("SourceCamera", "Camera3D", true, false):
+        if not bool(camera.get("initially_current")): continue
+        if not camera.get_parent() is Node3D: return null
+        if selected != null: return null
+        selected = camera as Camera3D
+    return selected
+
+func _destination_pose(destination: Node3D, node: Node) -> Transform3D:
+    var pose := Transform3D.IDENTITY
+    while node != null and node != destination:
+        if node is Node3D: pose = node.transform * pose
+        node = node.get_parent()
+    return pose
+
+func _place_destination_actor(destination: Node3D, target: Node3D, marker: Node3D) -> void:
+    var parent_pose := _destination_pose(destination, target.get_parent())
+    target.transform = parent_pose.affine_inverse() * _destination_pose(destination, marker)
+    # A named marker's imported physical-sector binding supplies the new
+    # starting context; entry placement is not a walk through old-sector portals.
+    var sector_path: Variant = marker.get("source_contact_sector_path")
+    if sector_path is NodePath and not sector_path.is_empty():
+        var sector := marker.get_node_or_null(sector_path)
+        if sector != null: target.set("source_contact_sector_path", target.get_path_to(sector))
+
 func _capture_transition_state() -> Dictionary:
-    var state: Dictionary = {"player": {}, "main_brain": {}, "fix_brains": {}}
+    var state: Dictionary = {"player": {}, "main_brain": {}, "fix_brains": {}, "error": ""}
     if not is_instance_valid(actor):
         return state
     var inventory: Resource = actor.get("source_inventory")
     var magick: Resource = actor.get("source_magick")
     var hit_points: Resource = actor.get("source_hit_points")
     if inventory != null:
-        state["player"]["inventory"] = {"selected_weapon": inventory.get("selected_weapon"), "quantities": inventory.get("quantities").duplicate(true)}
+        state["player"]["inventory"] = inventory.call("capture_snapshot")
+        if state["player"]["inventory"].is_empty(): state["error"] = "The outgoing inventory state is unsupported."
     if magick != null:
         state["player"]["magick"] = {"current_points": magick.get("current_points"), "maximum_points": magick.get("maximum_points"), "selected_spell_code": magick.get("selected_spell_code")}
     if hit_points != null:
-        state["player"]["hit_points"] = {"current": hit_points.get("current"), "maximum": hit_points.get("maximum"), "limit": hit_points.get("limit")}
+        state["player"]["hit_points"] = hit_points.call("capture_snapshot")
+    var armor_catalog: Resource = level.get_meta("source_armor_catalog", null) as Resource
+    if armor_catalog != null:
+        state["player"]["armor"] = armor_catalog.call("capture_snapshot")
+        if state["player"]["armor"].is_empty(): state["error"] = "The outgoing armor state is unsupported."
     state["main_brain"] = _capture_brain_state(brain)
     var source_actor_nodes: Variant = level.get_meta("source_actor_nodes", {})
     if source_actor_nodes is Dictionary:
@@ -469,25 +548,50 @@ func _capture_brain_state(source_brain: Node) -> Dictionary:
             values[property_name] = value.duplicate(true) if value is Array or value is Dictionary else value
     return {"model": str(source_brain.get("source_model_path")), "values": values}
 
-func _apply_transition_state(new_actor: CharacterBody3D, destination: Node3D) -> void:
+func _restore_transition_resources(new_actor: CharacterBody3D, destination: Node3D, validate_only: bool) -> String:
     if not _transition_snapshot.has("player"):
-        return
+        return ""
     var player: Dictionary = _transition_snapshot["player"]
-    var inventory: Resource = new_actor.get("source_inventory")
-    if inventory != null and player.has("inventory"):
-        var inventory_state: Dictionary = player["inventory"]
-        var inventory_error: String = inventory.call("restore_legacy", int(inventory_state["selected_weapon"]), inventory_state["quantities"])
-        if not inventory_error.is_empty():
-            fail(inventory_error)
-            return
-    var magick: Resource = new_actor.get("source_magick")
-    if magick != null and player.has("magick"):
+    for component in [{"key": "inventory", "property": "source_inventory"}, {"key": "hit_points", "property": "source_hit_points"}]:
+        var key: String = component["key"]
+        if not player.has(key): continue
+        # Inventory is level-owned and is bound to the actor in _enter_tree.
+        # Preflight runs before that binding; use the same saved native owner.
+        var target: Resource = destination.get_meta("source_inventory", null) as Resource if key == "inventory" else new_actor.get(component["property"])
+        if target == null or not target.has_method("apply_snapshot"):
+            return "The destination actor has no native %s state." % key
+        if validate_only:
+            # Inventory owns nested definitions explicitly; generic Resource
+            # duplication is not its ownership contract. Life has scalar fields.
+            target = target.call("clone_for_scene") if target.has_method("clone_for_scene") else target.duplicate(false)
+            if target == null: return "The destination %s state cannot be cloned." % key
+        var error: String = target.call("apply_snapshot", player[key])
+        if not error.is_empty(): return error
+    if player.has("armor"):
+        var armor: Resource = destination.get_meta("source_armor_state", null) as Resource
+        if armor == null or not armor.has_method("restore_snapshot"):
+            return "The destination level has no shared native armor state."
+        if validate_only:
+            var catalog: Resource = armor.get("catalog")
+            if catalog == null or not catalog.has_method("clone_for_scene"):
+                return "The destination armor catalogue cannot be cloned."
+            var owned_catalog: Resource = catalog.call("clone_for_scene")
+            if owned_catalog == null: return "The destination armor catalogue cannot be cloned."
+            armor = armor.duplicate(false)
+            armor.set("catalog", owned_catalog)
+        var armor_error: String = armor.call("restore_snapshot", player["armor"])
+        if not armor_error.is_empty(): return armor_error
+    var magick: Resource = destination.get_meta("source_magick", null) as Resource
+    if player.has("magick"):
+        if magick == null: return "The destination actor has no native magick state."
+        if validate_only: magick = magick.duplicate(false)
         for key in player["magick"]:
             magick.set(key, player["magick"][key])
-    var hit_points: Resource = new_actor.get("source_hit_points")
-    if hit_points != null and player.has("hit_points"):
-        for key in player["hit_points"]:
-            hit_points.set(key, player["hit_points"][key])
+    return ""
+
+func _apply_transition_state(new_actor: CharacterBody3D, destination: Node3D) -> String:
+    var error := _restore_transition_resources(new_actor, destination, false)
+    if not error.is_empty(): return error
     var new_brain := new_actor.get_node_or_null("Brain")
     _apply_brain_state(new_brain, _transition_snapshot.get("main_brain", {}))
     var fix_states: Dictionary = _transition_snapshot.get("fix_brains", {})
@@ -499,6 +603,7 @@ func _apply_transition_state(new_actor: CharacterBody3D, destination: Node3D) ->
             var target_actor := destination.get_node_or_null(source_actor_nodes[identity])
             var target_brain := target_actor.get_node_or_null("Brain") if target_actor != null else null
             _apply_brain_state(target_brain, fix_states[identity])
+    return ""
 
 func _apply_brain_state(target_brain: Node, saved: Dictionary) -> void:
     if target_brain == null or saved.is_empty() or str(target_brain.get("source_model_path")) != str(saved.get("model", "")):

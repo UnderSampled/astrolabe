@@ -2097,6 +2097,12 @@ fn blocking(
     } else {
         None
     };
+    if let Statement::CameraGoToWaypoint { camera, waypoint } = statement {
+        let camera = guarded_expression(out, camera, model, depth, flow)?;
+        writeln!(out, "{pad}var request_camera_{id}: Variant = {camera}")?;
+        let waypoint = guarded_expression(out, waypoint, model, depth, flow)?;
+        writeln!(out, "{pad}var request_waypoint_{id}: Variant = {waypoint}")?;
+    }
     let operand = match statement {
         Statement::Wait { milliseconds } => {
             Some(guarded_expression(out, milliseconds, model, depth, flow)?)
@@ -2216,6 +2222,7 @@ fn blocking(
             point_motion_guard(out, model, &pad, id, exit)?;
             format!("character().source_point_motion_finished(motion_ticket_{id})")
         }
+        Statement::CameraGoToWaypoint { .. } => format!("camera_request_result_{id} == 4"),
         Statement::ExecuteAction(_) => {
             writeln!(
                 out,
@@ -2261,6 +2268,16 @@ fn blocking(
     }
     if group == "reflex" {
         writeln!(out, "{pad}        reflex_controls_tick = true")?;
+    }
+    if matches!(statement, Statement::CameraGoToWaypoint { .. }) {
+        writeln!(
+            out,
+            "{pad}        var camera_request_result_{id}: int = character().source_camera_go_to_waypoint(request_camera_{id}, request_waypoint_{id})\n{pad}        if camera_request_result_{id} < 0:\n{pad}            fail_unsupported({})\n{pad}            {exit}",
+            quoted(&format!(
+                "{} requires a resolved camera and waypoint for Meta49",
+                model.path
+            ))
+        )?;
     }
     writeln!(out, "{pad}        if {complete}: break")?;
     if matches!(statement, Statement::WaitFrames(_)) {
@@ -2787,19 +2804,38 @@ fn statements(
                 writeln!(out, "{pad}character().source_kill()\n{pad}{exit}")?;
             }
             Statement::KillPerso { target } => {
-                // The pinned Hype PC dispatcher at 0x0053fc30 routes operation
-                // 226 to its default return. Preserve the true source target in
-                // the IR/comment, but do not invent a target-side deletion.
-                let target = match target {
-                    KillPersoTarget::SelfActor => "self".to_owned(),
-                    KillPersoTarget::MainActor => "main actor".to_owned(),
-                    KillPersoTarget::Reference(actor) => actor.path.to_string(),
-                    KillPersoTarget::Source(identity) => format!(
-                        "source {:?} block {:02x}:{:02x} allocation {}",
-                        identity.role, identity.block[0], identity.block[1], identity.allocation
+                // The source dispatch kills the target and cancels this
+                // schedule only when the target is its executing actor.
+                // Unpromoted source identities cannot bind runtime actors.
+                let actor = match target {
+                    KillPersoTarget::SelfActor => "character()".to_owned(),
+                    KillPersoTarget::MainActor => "main_actor".to_owned(),
+                    KillPersoTarget::Reference(actor) => format!(
+                        "character().source_actor_node({})",
+                        quoted(actor.path.as_str())
                     ),
+                    KillPersoTarget::Source(_) => {
+                        writeln!(
+                            out,
+                            "{pad}fail_unsupported({})\n{pad}{exit}",
+                            quoted(&format!(
+                                "{} KillPerso requires a promoted actor reference",
+                                model.path
+                            ))
+                        )?;
+                        continue;
+                    }
                 };
-                writeln!(out, "{pad}pass # source Proc_KillPerso target: {target}")?;
+                let id = flow.local;
+                flow.local += 1;
+                writeln!(
+                    out,
+                    "{pad}var kill_actor_{id}: Node3D = {actor}\n{pad}if not is_instance_valid(kill_actor_{id}) or not kill_actor_{id}.has_method(\"source_kill_perso\"):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}kill_actor_{id}.call(\"source_kill_perso\")\n{pad}if kill_actor_{id} == character(): {exit}",
+                    quoted(&format!(
+                        "{} KillPerso requires a bound native actor",
+                        model.path
+                    ))
+                )?;
             }
             Statement::ExecuteFade {
                 from,
@@ -3191,9 +3227,10 @@ fn statements(
             Statement::ChangeMap { level } => {
                 writeln!(
                     out,
-                    "{pad}if not LevelTransition.request_level_change({}, \"\", \"\"):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}{exit}",
+                    "{pad}if not source_switch_microphone(null):\n{pad}    fail_unsupported(\"Map change requires the main actor microphone binding\")\n{pad}    {exit}\n{pad}if not LevelTransition.request_level_change({}, \"\", \"\"):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}if not active_{}(token): {exit}",
                     quoted(level),
-                    quoted(&format!("{} could not request map {level:?}", model.path))
+                    quoted(&format!("{} could not request map {level:?}", model.path)),
+                    flow.group
                 )?;
             }
             Statement::ChangeMapAtPosition {
@@ -3203,14 +3240,15 @@ fn statements(
             } => {
                 writeln!(
                     out,
-                    "{pad}if not LevelTransition.request_level_change({}, {}, {}):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}{exit}",
+                    "{pad}if not source_switch_microphone(null):\n{pad}    fail_unsupported(\"Map change requires the main actor microphone binding\")\n{pad}    {exit}\n{pad}if not LevelTransition.request_level_change({}, {}, {}):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}if not active_{}(token): {exit}",
                     quoted(level),
                     quoted(entry),
                     quoted(camera_entry),
                     quoted(&format!(
                         "{} could not request positioned map {level:?}",
                         model.path
-                    ))
+                    )),
+                    flow.group
                 )?;
             }
             Statement::ToggleWideScreen
@@ -3326,6 +3364,27 @@ fn statements(
                 index,
                 value,
             } => {
+                if matches!(
+                    array,
+                    Expression::MainActorFieldRead(_) | Expression::ActorFieldRead { .. }
+                ) {
+                    let id = flow.local;
+                    flow.local += 1;
+                    let array = guarded_expression(out, array, model, depth, flow)?;
+                    writeln!(out, "{pad}var shared_array_{id}: Variant = {array}")?;
+                    let index = guarded_expression(out, index, model, depth, flow)?;
+                    writeln!(
+                        out,
+                        "{pad}var shared_index_{id}: int = int({index})\n{pad}if not shared_array_{id} is Array or shared_index_{id} < 0 or shared_index_{id} >= shared_array_{id}.size():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                        quoted(&format!(
+                            "{} requires a bound actor designer array and valid index",
+                            model.path
+                        ))
+                    )?;
+                    let value = guarded_expression(out, value, model, depth, flow)?;
+                    writeln!(out, "{pad}shared_array_{id}[shared_index_{id}] = {value}")?;
+                    continue;
+                }
                 let variable = match array {
                     Expression::Variable(variable) if !unresolved_variable(model, *variable) => {
                         *variable
@@ -3384,6 +3443,7 @@ fn statements(
             | Statement::GoToPosition { .. }
             | Statement::PursueActor { .. }
             | Statement::GoToNextWaypoint(_)
+            | Statement::CameraGoToWaypoint { .. }
             | Statement::ExecuteAction(_)
             | Statement::ExecuteActionAndGenerateObject { .. }
             | Statement::WaitEndOfAction
@@ -4212,11 +4272,7 @@ mod source_position_tests {
         let waypoint = crate::model::AssetRef::<crate::model::route::Waypoint>::new(
             "level:/waypoints/17-1/58",
         )?;
-        let target = crate::model::ai::SourceObjectIdentity {
-            role: crate::model::ai::SourceRole::Level,
-            block: [5, 1],
-            allocation: 9217,
-        };
+        let target = crate::model::AssetRef::new("level:/persos/world/0/159")?;
         let transition = Statement::If {
             condition: Expression::Compare {
                 operation: Comparison::Less,
@@ -4227,14 +4283,13 @@ mod source_position_tests {
                 right: Box::new(Expression::Real(5.0)),
             },
             then: vec![
-                Statement::SetGameState(Expression::Integer(1)),
                 Statement::ExecuteFade {
                     from: Expression::Integer(0),
                     to: Expression::Integer(255),
                     duration_seconds: Expression::Real(2.0),
                 },
                 Statement::KillPerso {
-                    target: KillPersoTarget::Source(target),
+                    target: KillPersoTarget::Reference(target),
                 },
                 Statement::SoundFadeAll {
                     target: Expression::Integer(0),
@@ -4286,10 +4341,9 @@ mod source_position_tests {
             &[],
         )?;
         let sequence = [
-            "source_game_session()",
-            "call(\"source_set_game_state\", int(1))",
             "if not source_execute_fade(int(0), int(255), float(2.0)):",
-            "pass # source Proc_KillPerso target: source Level block 05:01 allocation 9217",
+            "character().source_actor_node(\"level:/persos/world/0/159\")",
+            "call(\"source_kill_perso\")",
             "sound_fade_all(int(0), int(2000))",
             "var duration_2 := float(2000)",
             "sound_kill_music()",

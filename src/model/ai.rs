@@ -284,6 +284,13 @@ pub enum Statement {
         actor: Expression,
         point: Expression,
     },
+    /// Meta49 captures a camera actor and waypoint reference. Each update
+    /// supplies the remaining eye displacement until within the waypoint's
+    /// radius; the camera's ordinary position API consumes that displacement.
+    CameraGoToWaypoint {
+        camera: Expression,
+        waypoint: Expression,
+    },
     GoRelative,
     /// Proc_KillPerso(Me): remove the current generated Perso.
     KillSelf,
@@ -1733,6 +1740,10 @@ impl Script {
                     Statement::ActivateActorAtPosition { actor, point } => {
                         expression(actor, variables, depth + 1, count)?;
                         expression(point, variables, depth + 1, count)?;
+                    }
+                    Statement::CameraGoToWaypoint { camera, waypoint } => {
+                        expression(camera, variables, depth + 1, count)?;
+                        expression(waypoint, variables, depth + 1, count)?;
                     }
                     Statement::ChangeActorBehavior { actor, .. } => {
                         if let ActorTarget::Reference(actor) = actor {

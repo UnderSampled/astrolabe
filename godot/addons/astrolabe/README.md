@@ -107,6 +107,18 @@ properties. `Camera_Reset` restores those mapped parameters, the first-update
 snap flag, camera-local progress and finite vertical limits. It preserves the
 selected target and the separate session-owned controller history.
 
+`source_camera_go_to_waypoint(camera_actor, waypoint)` implements the compiled
+`Camera_GoToWP` request over captured native references. Each tick samples the
+waypoint's current world position and camera actor translation, returns 4 for
+inclusive radius arrival, or supplies displacement to `SourceCamera` and returns
+1. Invalid bindings return -1 and fail the compiled caller. The camera's ordinary
+position update owns motion; the request does not install a tween. MainActor and
+external actor designer-array writes mutate their bound Brain arrays directly.
+`source_kill_perso()` stops a placed actor's Brain and voices and disables the
+retained native instance; `source_kill()` additionally removes generated drops.
+These additions have static source/type verification only; see the dated Manor
+tunnel note for required runtime acceptance and pool-lifecycle limits.
+
 `request_action(id, restart)` selects compiled family transitions, prohibited
 destinations, repeat counts and next states. A repeated request preserves the
 action unless `restart` is true. `requested_action_state` differs from

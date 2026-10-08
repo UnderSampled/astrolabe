@@ -134,6 +134,9 @@ impl<'a> Iterator for AstWalk<'a> {
                 Statement::GoToPosition { point, radius, .. } => {
                     self.expressions(child_depth, &[point, radius]);
                 }
+                Statement::CameraGoToWaypoint { camera, waypoint } => {
+                    self.expressions(child_depth, &[camera, waypoint]);
+                }
                 Statement::SetHitPointsMaximum { actor, value }
                 | Statement::SetInventoryMaximum { item: actor, value }
                 | Statement::AddHitPoints { actor, value } => {

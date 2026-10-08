@@ -694,14 +694,20 @@ func source_go_relative() -> void:
     source_relative_motion = true
 
 func source_kill() -> void:
+    source_kill_perso()
+    queue_free()
+
+## Proc226 removes a placed actor from active simulation without discarding
+## its saved identity. Source placed-actor cleanup retains non-pool Perso storage;
+## generated self-owned drops use source_kill() to release their native node.
+func source_kill_perso() -> void:
     var brain := get_node_or_null("Brain")
     if brain != null: brain.call("stop")
-    visible = false
-    collision_layer = 0
-    collision_mask = 0
-    set_physics_process(false)
-    set_process(false)
-    queue_free()
+    var emitter := get_node_or_null("SoundEmitter")
+    if emitter != null and emitter.has_method("kill_all"): emitter.call("kill_all")
+    # Disabled native CollisionObjects leave the physics space; the authored
+    # shape/layer state stays on the retained instance for later activation.
+    source_set_object_active_state(false)
 
 func source_set_impulse(value: Vector3) -> void:
     assert(value.is_finite())
@@ -1212,6 +1218,28 @@ func source_camera_update_position() -> bool:
     if camera == null or not camera.has_method("source_update_position"):
         return false
     return bool(camera.call("source_update_position"))
+
+## Camera_GoToWP samples the captured waypoint's current world location and
+## camera translation on every update. Source arrival squares the radius, including
+## negative values, and includes equality. Camera position updates consume the
+## supplied displacement; this API does not teleport or tween the actor.
+func source_camera_go_to_waypoint(camera_actor: Variant, waypoint: Variant) -> int:
+    if not camera_actor is Node3D or not is_instance_valid(camera_actor) or not camera_actor.is_inside_tree():
+        return -1
+    if not waypoint is Resource or not is_instance_valid(waypoint) or not waypoint.has_method("source_world_position"):
+        return -1
+    var point: Variant = waypoint.call("source_world_position", self)
+    var radius: Variant = waypoint.get("radius")
+    if not point is Vector3 or not point.is_finite() or not (radius is float or radius is int) or not is_finite(float(radius)):
+        return -1
+    var camera: Node = camera_actor.get_node_or_null("SourceCamera")
+    if camera == null or not camera.has_method("source_set_eye_displacement"):
+        return -1
+    var native_point := Vector3(point.x, point.z, -point.y)
+    var displacement: Vector3 = native_point - camera_actor.global_position
+    if not displacement.is_finite(): return -1
+    if displacement.length_squared() <= float(radius) * float(radius): return 4
+    return 1 if bool(camera.call("source_set_eye_displacement", displacement)) else -1
 
 func source_activate_map_name(name_id: int, active: int) -> bool:
     var level: Node = self

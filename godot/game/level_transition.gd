@@ -39,18 +39,22 @@ func is_transitioning() -> bool:
 func request_level_change(level: String, entry: String = "", camera_entry: String = "") -> bool:
 	if _busy:
 		return false
-	var normalized := level.strip_edges().to_lower()
+	var normalized := _source_name(level).to_lower()
 	if not _valid_level_name(normalized):
-		return false
-	var path := LEVEL_PREFIX + normalized + "/level.tscn"
-	if not ResourceLoader.exists(path, "PackedScene"):
 		return false
 	var session := get_tree().current_scene
 	if not is_instance_valid(session) or not session.has_method("begin_level_transition"):
 		return false
+	# Source map-change helpers compare the map case-insensitively before writing
+	# entry state or entering loading. A same-map request continues the AI.
+	if _current_level(session).to_lower() == normalized:
+		return true
+	var path := LEVEL_PREFIX + normalized + "/level.tscn"
+	if not ResourceLoader.exists(path, "PackedScene"):
+		return false
 	if not bool(session.call("begin_level_transition")):
 		return false
-	return _start_request(session, normalized, entry.strip_edges(), camera_entry.strip_edges(), path, false, true)
+	return _start_request(session, normalized, _source_name(entry), _source_name(camera_entry), path, false, true)
 
 func request_initial_level(level: String) -> bool:
 	if _busy:
@@ -144,6 +148,9 @@ func _load_and_install(level: String, entry: String, camera_entry: String, path:
 								_restore_loading_frames()
 								transition_completed.emit(level, entry)
 						else:
+							if is_instance_valid(destination) and not destination.is_queued_for_deletion():
+								if destination.is_inside_tree(): destination.queue_free()
+								else: destination.free()
 							_fail(str(result.get("message", "The destination level could not be installed.")))
 			else:
 				if not _cancel_requested:
@@ -188,6 +195,11 @@ func _valid_level_name(level: String) -> bool:
 		if not ((code >= 97 and code <= 122) or (code >= 48 and code <= 57) or code == 45 or code == 95 or code == 126):
 			return false
 	return true
+
+## Source string literals can carry a single trailing '~'. Proc5 strips it
+## from the map; Proc13 strips it independently from map and both actor names.
+func _source_name(value: String) -> String:
+	return value.left(value.length() - 1) if value.ends_with("~") else value
 
 # Measured startup mitigation: the actual service route bypasses the session's
 # fallback cap. Limit rendering only while loading/installing, without changing

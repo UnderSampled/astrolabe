@@ -422,6 +422,10 @@ impl Parser<'_> {
                     actor: self.expression(indent + 1)?,
                     point: self.expression(indent + 1)?,
                 },
+                (5, 49) => Statement::CameraGoToWaypoint {
+                    camera: self.expression(indent + 1)?,
+                    waypoint: self.expression(indent + 1)?,
+                },
                 (4, 29) => Statement::SetVectorSpeed(self.expression(indent + 1)?),
                 (4, 30) => Statement::AddWind(self.expression(indent + 1)?),
                 (4, 220) | (5, 27 | 30) => {
@@ -1944,6 +1948,11 @@ impl Writer<'_> {
                     self.node(4, 12, indent);
                     self.expression(actor, indent + 1)?;
                     self.expression(point, indent + 1)?;
+                }
+                Statement::CameraGoToWaypoint { camera, waypoint } => {
+                    self.node(5, 49, indent);
+                    self.expression(camera, indent + 1)?;
+                    self.expression(waypoint, indent + 1)?;
                 }
                 Statement::SetVectorSpeed(value) => {
                     self.node(4, 29, indent);

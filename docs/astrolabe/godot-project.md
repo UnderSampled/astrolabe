@@ -65,6 +65,18 @@ request still occupies the service slot until drained. The cap is a measured
 startup mitigation; a particular engine starvation or lock mechanism is unproved.
 The session's older direct-loading fallback also has a temporary cap.
 
+Source map calls remove one trailing literal `~`, reset the listener to
+MainActor and treat a case-insensitive same-map request as a continuation without
+new placement. Positioned changes resolve named Hype and camera markers in the
+fresh destination. The session composes native local transforms before child
+initialization, transfers the marker sector binding when present and initializes
+the unambiguous registered primary source camera. Destination Brains remain held
+until component state and physics readiness are restored. Inventory, life and
+armor transfer uses component-owned snapshot APIs; Fix Brain primitives bind by
+semantic identity and matching model. This in-session state transfer does not
+extend the native save envelope. The [static tunnel implementation](../../notes/manor-tunnel-static-2026-10-08.md)
+records source evidence, integration dependencies and pending runtime checks.
+
 The session currently owns crossbow input and camera sight-ray routing directly.
 `game/level_preparation.gd` and `game/crossbow_input.gd` remain preserved packaged
 components from the earlier fork, but the actual session does not instantiate
