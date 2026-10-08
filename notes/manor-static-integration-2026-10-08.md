@@ -519,6 +519,41 @@ with maintained version JSON/README and existing affected assertion literals
 aligned by source inspection. No package under either evolving schema was
 written; no support update occurs on main.
 
+## Static review fixes after 9212699
+
+The lead supplied three proven source defects from independent review and
+authorized these bounded fixes in this isolated branch. No specific Brigand
+actor was established by that review; the transition defects follow from the
+installation code and maintained component contracts themselves.
+
+* `game_session.gd` suppresses fresh destination Brains' deferred automatic
+  startup until installation is ready. It now calls `start()` for every
+  originally automatic non-main Brain, including inactive actors, instead of
+  filtering by `source_object_active`. `behavior.gd::start` arms the pending
+  Normal/Reflex entries; `advance` returns before either entry or clock changes
+  when the owning native character is inactive. Ordinary later activation
+  therefore resumes a running Brain without forcing inactive behavior to run.
+  Originally nonautomatic Brains retain that setting; explicit main startup
+  remains the existing required transition step.
+* The transition snapshot now separately retains the viewport's semantic
+  primary-camera metadata presence and binding, using SourceCamera's shared
+  constant. Destination `_ready` can replace it before later installation
+  fails. `_resume_previous_level` restores the old binding before restoring
+  physics or restarting outgoing Brains; an absent/null old binding removes
+  destination metadata. The rendered Camera3D snapshot remains independent.
+  Both snapshots are cleared after commit or rollback. No SourceCamera file
+  is changed, no registration/context republishing is invoked, and the key
+  worker's different-owner Proc141 follow-on remains a separate patch.
+* `crates/orrery/tests/comparison.rs` replaces the removed Perso
+  `contact_eligible` field with `activation: None` and `custom_bits: 0`, matching
+  the manually authored fixture's absence of source activation policy and
+  default native active state. The fixture was source-reviewed, not executed.
+
+The affected diff and startup/failure call chains were inspected statically.
+The model, support interface81 and Rete61 are unchanged. No build, formatter,
+lint, syntax check, test, runtime, import or export was run. Published main
+and its generated manifest remain untouched.
+
 ## Acceptance boundary
 
 There is no unresolved Git conflict in this slice. Compilation, GDScript

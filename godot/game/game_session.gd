@@ -8,6 +8,7 @@ const GATE_ACTOR := "world/0/15/iMGrille_Manoir_Pont"
 const MANOIR_START = preload("res://game/manoir_start.gd")
 const SAVE_STATE = preload("res://game/save_state.gd")
 const NATIVE_AUDIO_EMITTER = preload("res://addons/astrolabe/audio/emitter.gd")
+const SOURCE_CAMERA = preload("res://addons/astrolabe/camera/source_camera.gd")
 const LOADING_SCREEN_PATH := NodePath("/root/LevelTransition/LoadingScreen")
 const INITIAL_ROUTE_ERROR_META := "astrolabe_initial_route_error"
 @export var new_game: bool = false
@@ -43,6 +44,7 @@ var _transition_snapshot: Dictionary = {}
 var _transition_brain_states: Array[Dictionary] = []
 var _transition_physics_states: Array[Dictionary] = []
 var _transition_camera: Camera3D
+var _transition_source_camera_owner: Dictionary = {}
 var _initial_transition_pending := false
 var _initial_failure_recovery_started := false
 var _initial_failure_recovery_cancelled := false
@@ -399,7 +401,14 @@ func begin_level_transition() -> bool:
     if not str(_transition_snapshot.get("error", "")).is_empty():
         _transition_snapshot.clear()
         return false
-    _transition_camera = get_viewport().get_camera_3d()
+    var viewport := get_viewport()
+    _transition_camera = viewport.get_camera_3d()
+    # Destination _ready publishes its semantic owner before installation can
+    # fail. Keep this binding independently of the rendered presentation camera.
+    _transition_source_camera_owner = {
+        "present": viewport.has_meta(SOURCE_CAMERA.SOURCE_PRIMARY_CAMERA_OWNER),
+        "binding": viewport.get_meta(SOURCE_CAMERA.SOURCE_PRIMARY_CAMERA_OWNER, null),
+    }
     _transition_brain_states.clear()
     _transition_physics_states.clear()
     for source_brain in level.find_children("Brain", "Node", true, false):
@@ -510,8 +519,9 @@ func install_level_transition(destination: Node3D, entry: String, camera_entry: 
         var source_brain := state["brain"] as Node
         if source_brain == new_brain: continue
         source_brain.set("automatic", bool(state["automatic"]))
-        var source_actor := source_brain.get_parent()
-        if bool(state["automatic"]) and bool(source_actor.get("source_object_active")):
+        # Arm inactive automatic actors too. Brain.advance keeps first entry
+        # pending until activation; enabling actor processing alone cannot start it.
+        if bool(state["automatic"]):
             source_brain.call("start")
     if new_game:
         opening_brains.clear()
@@ -523,6 +533,7 @@ func install_level_transition(destination: Node3D, entry: String, camera_entry: 
     _transition_brain_states.clear()
     _transition_physics_states.clear()
     _transition_camera = null
+    _transition_source_camera_owner.clear()
     if is_instance_valid(previous_level):
         remove_child(previous_level)
         previous_level.queue_free()
@@ -534,6 +545,15 @@ func abort_level_transition() -> void:
         _resume_previous_level()
 
 func _resume_previous_level() -> void:
+    # Restore source selection before a restarted outgoing Brain can call the
+    # camera API. An absent/null old binding must remove destination ownership.
+    var viewport := get_viewport()
+    var binding: Variant = _transition_source_camera_owner.get("binding", null)
+    if not _transition_source_camera_owner.is_empty():
+        if bool(_transition_source_camera_owner.get("present", false)) and binding != null:
+            viewport.set_meta(SOURCE_CAMERA.SOURCE_PRIMARY_CAMERA_OWNER, binding)
+        elif viewport.has_meta(SOURCE_CAMERA.SOURCE_PRIMARY_CAMERA_OWNER):
+            viewport.remove_meta(SOURCE_CAMERA.SOURCE_PRIMARY_CAMERA_OWNER)
     for state in _transition_physics_states:
         var body := state.get("body") as Node
         if is_instance_valid(body):
@@ -555,6 +575,7 @@ func _resume_previous_level() -> void:
     _transition_brain_states.clear()
     _transition_physics_states.clear()
     _transition_camera = null
+    _transition_source_camera_owner.clear()
     stage("playable", "Explore the manor" if str(level.get_meta("source_level", "manoir")) == "manoir" else "Explore %s" % str(level.get_meta("source_level", "the level")))
 
 func _destination_actor(destination: Node3D) -> CharacterBody3D:
