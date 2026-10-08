@@ -138,6 +138,7 @@ fn verified_hud_import_rete_roundtrip_and_godot_export() -> Result<()> {
         nodes: vec![SceneNode {
             properties: SceneNodeProperties {
                 source_kind: Some(0),
+                source_visual_lod_count: None,
                 transform_space: TransformSpace::Local,
                 initial_global_transform: None,
                 bounding_geometry: None,
@@ -209,6 +210,10 @@ fn verified_hud_import_rete_roundtrip_and_godot_export() -> Result<()> {
     ensure!(script.contains("const CURRENCY_ITEM_ID: int = 0"));
     ensure!(script.contains("func bind_actor(actor: Node)"));
     ensure!(script.contains("func set_currency_count(value: int)"));
+    ensure!(
+        !script.contains(".region_rect"),
+        "TextureRect crop must not use the unsupported region_rect property"
+    );
     ensure!(scene.contains("offset_left = 330.0\noffset_top = 454.0"));
     let font_rel = "generated/hype/shared/hud/en/counter.font.tres";
     ensure!(
@@ -271,6 +276,28 @@ func _run() -> void:
     hud.call("bind_actor", actor)
     await process_frame
     var label := hud.get_node("Source/CurrencyCount") as Label
+    hud.call("set_life_fraction", 0.5)
+    var life_fill := hud.get_node("Source/PlayerLifeFill") as TextureRect
+    var life_remainder := hud.get_node("Source/PlayerLifeRemainder") as TextureRect
+    var life_atlas := life_fill.texture as AtlasTexture
+    var remainder_atlas := life_remainder.texture as AtlasTexture
+    if not _check(life_atlas != null and remainder_atlas != null, "life textures were not wrapped as native atlas regions"):
+        return
+    var life_size := life_atlas.atlas.get_size()
+    var remainder_size := remainder_atlas.atlas.get_size()
+    if not _check(absf(life_atlas.region.size.x - life_size.x * 0.5) < 0.001, "life fill atlas region did not crop to the requested fraction"):
+        return
+    if not _check(absf(remainder_atlas.region.position.x - life_size.x * 0.5) < 0.001 and absf(remainder_atlas.region.size.x - remainder_size.x * 0.5) < 0.001, "life remainder atlas region did not start at the fill edge"):
+        return
+    if not _check(bool(hud.call("set_enemy_meter", 0, 0.25)), "enemy fill update was rejected"):
+        return
+    var enemy_fill := hud.get_node("Source/EnemyMeter0Fill") as TextureRect
+    var enemy_atlas := enemy_fill.texture as AtlasTexture
+    if not _check(enemy_atlas != null, "enemy fill texture was not wrapped as a native atlas region"):
+        return
+    var enemy_size := enemy_atlas.atlas.get_size()
+    if not _check(absf(enemy_atlas.region.position.x - enemy_size.x * 0.75) < 0.001 and absf(enemy_atlas.region.size.x - enemy_size.x * 0.25) < 0.001, "enemy fill atlas region did not crop to the requested fraction"):
+        return
     actor.emit_signal("hud_visibility_requested", "life", true)
     var life_handle := hud.get_node("Source/PlayerLifeHandle") as TextureRect
     if not _check(life_handle.visible, "actor life visibility did not reach the source HUD"):
@@ -289,7 +316,7 @@ func _run() -> void:
     hud.call("_process", 0.0)
     if not _check(label.visible and label.text == "0", "currency counter did not reappear at zero"):
         return
-    print("HUD currency/font binding passed")
+    print("HUD native texture regions and currency/font binding passed")
     quit(0)
 "#,
     )?;
@@ -305,6 +332,17 @@ func _run() -> void:
         "Godot HUD counter visibility check failed\nstdout:\n{}\nstderr:\n{}",
         String::from_utf8_lossy(&result.stdout),
         String::from_utf8_lossy(&result.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&result.stdout);
+    let stderr = String::from_utf8_lossy(&result.stderr);
+    ensure!(
+        stdout.contains("HUD native texture regions and currency/font binding passed"),
+        "Godot did not complete the focused HUD runtime checks\nstdout:\n{stdout}\nstderr:\n{stderr}"
+    );
+    ensure!(
+        !stdout.contains("Invalid assignment of property or key 'region_rect'")
+            && !stderr.contains("Invalid assignment of property or key 'region_rect'"),
+        "Godot still reported the unsupported TextureRect.region_rect assignment\nstdout:\n{stdout}\nstderr:\n{stderr}"
     );
     Ok(())
 }

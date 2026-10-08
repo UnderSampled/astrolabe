@@ -235,6 +235,9 @@ fn emit(
     $Source/EnemyMeter1Fill,
     $Source/EnemyMeter2Fill,
 ]
+var _life_fill_atlas: AtlasTexture
+var _life_remainder_atlas: AtlasTexture
+var _enemy_fill_atlases: Array[AtlasTexture] = []
 
 const LIFE_LEFT: float = @@LIFE_LEFT@@
 const LIFE_TOP: float = @@LIFE_TOP@@
@@ -253,7 +256,19 @@ var _life_remainder_active: bool = true
 var _last_currency_count: int = -2147483648
 
 func _ready() -> void:
+    _life_fill_atlas = _wrap_texture_region(_life_fill)
+    _life_remainder_atlas = _wrap_texture_region(_life_remainder)
+    for fill in _enemy_fills:
+        _enemy_fill_atlases.append(_wrap_texture_region(fill))
     refresh()
+
+func _wrap_texture_region(rect: TextureRect) -> AtlasTexture:
+    var source := rect.texture
+    var atlas := AtlasTexture.new()
+    atlas.atlas = source
+    atlas.region = Rect2(Vector2.ZERO, source.get_size())
+    rect.texture = atlas
+    return atlas
 
 func bind_actor(actor: Node) -> void:
     if is_instance_valid(_actor) and _actor.has_signal("hud_visibility_requested"):
@@ -322,10 +337,12 @@ func set_life_fraction(value: float) -> void:
     _life_fill.offset_right = fill_right
     _life_remainder.offset_left = fill_right
     _life_remainder.offset_right = LIFE_RIGHT
-    var fill_size := _life_fill.texture.get_size()
-    var remainder_size := _life_remainder.texture.get_size()
-    _life_fill.region_rect = Rect2(0.0, 0.0, fill_size.x * fraction, fill_size.y)
-    _life_remainder.region_rect = Rect2(fill_size.x * fraction, 0.0, remainder_size.x * (1.0 - fraction), remainder_size.y)
+    var fill_size := _life_fill_atlas.atlas.get_size()
+    var remainder_size := _life_remainder_atlas.atlas.get_size()
+    if fraction > 0.0:
+        _life_fill_atlas.region = Rect2(0.0, 0.0, fill_size.x * fraction, fill_size.y)
+    if fraction < 1.0:
+        _life_remainder_atlas.region = Rect2(fill_size.x * fraction, 0.0, remainder_size.x * (1.0 - fraction), remainder_size.y)
     _life_fill_active = fraction > 0.0
     _life_remainder_active = fraction < 1.0 and LIFE_RIGHT > fill_right
     refresh()
@@ -340,8 +357,10 @@ func set_enemy_meter(slot: int, value: float) -> bool:
     var extent := float(fill.get_meta("source_hype_extent"))
     fill.offset_left = left + (1.0 - fraction) * extent
     fill.offset_right = right
-    var tex_size := fill.texture.get_size()
-    fill.region_rect = Rect2(tex_size.x * (1.0 - fraction), 0.0, tex_size.x * fraction, tex_size.y)
+    var atlas := _enemy_fill_atlases[slot]
+    var tex_size := atlas.atlas.get_size()
+    if fraction > 0.0:
+        atlas.region = Rect2(tex_size.x * (1.0 - fraction), 0.0, tex_size.x * fraction, tex_size.y)
     _enemy_active[slot] = true
     _enemy_fill_active[slot] = fraction > 0.0
     refresh()
