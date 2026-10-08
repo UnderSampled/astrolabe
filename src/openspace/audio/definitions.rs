@@ -267,6 +267,56 @@ fn resource_data(block: &Block, disk: Option<&Block>) -> Result<SoundResourceDat
                 choices,
             }
         }
+        "TYPE_THEME" => {
+            let disk = disk.unwrap();
+            let list = child("SndThemePartListM")?;
+            let parts = list
+                .children
+                .iter()
+                .map(|part| -> Result<ThemeSoundPart> {
+                    ensure!(
+                        label(&part.header) == "SndThemePartM",
+                        "unknown theme sound part"
+                    );
+                    let transition =
+                        match value(part, "SetTransitionType").unwrap_or("TRANSITION_CROSSFADE") {
+                            "TRANSITION_ATENDOFPART" => ThemeTransition::EndOfPart,
+                            "TRANSITION_CROSSFADE" => ThemeTransition::Crossfade,
+                            "TRANSITION_OUTRO" => ThemeTransition::Outro,
+                            other => ThemeTransition::Unknown(other.into()),
+                        };
+                    Ok(ThemeSoundPart {
+                        resource: member_reference(
+                            value(part, "LoadResource").context("theme part lacks resource")?,
+                            "SndResourceM:",
+                        )?,
+                        transition,
+                        start_loop: boolean(part, "SetStartLoop")?,
+                        end_loop: boolean(part, "SetEndLoop")?,
+                        loops: value(part, "SetNumberOfLoops").unwrap_or("0").parse()?,
+                        transition_duration: value(part, "SetFadeDuration")
+                            .unwrap_or("0")
+                            .parse()?,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+            let count: usize = value(disk, "SetNumberOfElements")
+                .context("theme lacks part count")?
+                .parse()?;
+            ensure!(
+                count == parts.len(),
+                "theme part count differs from declaration"
+            );
+            SoundResourceData::Theme {
+                start_loop: value(disk, "SetStartLoop")
+                    .context("theme lacks loop entry")?
+                    .parse()?,
+                main_loops: value(disk, "SetNbMainLoop")
+                    .context("theme lacks main loop count")?
+                    .parse()?,
+                parts,
+            }
+        }
         _ => {
             let mut members = Vec::new();
             all_commands(block, "LoadResource", &mut members);

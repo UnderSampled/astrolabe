@@ -16,6 +16,114 @@ fn fixture() -> Sound {
         fidelity_notes: vec![],
     }
 }
+
+#[test]
+fn theme_parts_and_transitions_survive_rete_and_edits() -> anyhow::Result<()> {
+    use astrolabe::model::audio::{SoundDefinitions, SoundResourceData, ThemeTransition};
+    use astrolabe::model::{
+        AssetRef, Selection,
+        io::{Load, Save},
+    };
+    let text = r#"{CsbHeader:
+ VersionNumber(524)
+}
+{SndResourceM:7
+ {SndResourceDisk:7(TYPE_THEME)
+  SetVolume(75)
+  SetLoop(TRUE)
+  SetNumberOfElements(2)
+  SetStartLoop(1)
+  SetNbMainLoop(0)
+ }
+ {SndThemePartListM:
+  {SndThemePartM:0
+   SetTransitionType(TRANSITION_CROSSFADE)
+   LoadResource(test.csb^SndResourceM:8)
+  }
+  {SndThemePartM:1
+   SetStartLoop(TRUE)
+   SetEndLoop(TRUE)
+   SetNumberOfLoops(-2)
+   SetFadeDuration(0.25)
+   SetTransitionType(TRANSITION_ATENDOFPART)
+   LoadResource(test.csb^SndResourceM:9)
+  }
+ }
+}"#;
+    let mut value = astrolabe::openspace::audio::read_sound_definitions(text, "test.csb")?;
+    let SoundResourceData::Theme {
+        start_loop,
+        main_loops,
+        parts,
+    } = &mut value.resources[0].data
+    else {
+        panic!("theme not promoted")
+    };
+    assert_eq!((*start_loop, *main_loops), (1, 0));
+    assert_eq!(
+        parts.iter().map(|p| p.resource.id).collect::<Vec<_>>(),
+        [8, 9]
+    );
+    assert_eq!(parts[0].transition, ThemeTransition::Crossfade);
+    assert!(parts[1].start_loop && parts[1].end_loop);
+    assert_eq!(parts[1].loops, -2);
+    assert_eq!(parts[1].transition_duration, 0.25);
+    assert_eq!((parts[0].loops, parts[0].transition_duration), (0, 0.0));
+    parts[0].resource.id = 10;
+    parts[0].transition = ThemeTransition::Unknown("SOURCE_FUTURE_TRANSITION".into());
+    let temp = tempfile::tempdir()?;
+    let reference = AssetRef::<SoundDefinitions>::new("sound:/Sound/test.csb")?;
+    let selection = Selection::hype("music", "en")?;
+    let mut store = astrolabe::rete::Store::new(temp.path(), selection.clone())?;
+    store.save(&reference, &value)?;
+    drop(store);
+    let mut store = astrolabe::rete::Store::new(temp.path(), selection)?;
+    let reopened = store.load(&reference)?;
+    assert_eq!(*reopened, value);
+    assert_eq!(reopened.resources[0].data.members()[0].id, 10);
+    assert!(
+        astrolabe::openspace::audio::read_sound_definitions(
+            &text.replace("SetNumberOfElements(2)", "SetNumberOfElements(3)"),
+            "bad.csb"
+        )
+        .is_err()
+    );
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires local source sound definitions"]
+fn manor_intro_music_theme_has_complete_source_parts() -> anyhow::Result<()> {
+    use astrolabe::model::audio::{SoundResourceData, ThemeTransition};
+    let game = std::env::var_os("ASTROLABE_GAME_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("disc"));
+    let text = std::fs::read_to_string(game.join("Sound/M_ManoirGogood.csb"))?;
+    let value = astrolabe::openspace::audio::read_sound_definitions(&text, "M_ManoirGogood.csb")?;
+    let resource = value.resource(18)?;
+    assert_eq!(resource.name, "Intro2");
+    assert_eq!(resource.volume, Some(75.0));
+    assert!(resource.looped);
+    let SoundResourceData::Theme {
+        start_loop,
+        main_loops,
+        parts,
+    } = &resource.data
+    else {
+        panic!("Manor intro is not a theme")
+    };
+    assert_eq!((*start_loop, *main_loops), (0, 0));
+    assert_eq!(
+        parts.iter().map(|p| p.resource.id).collect::<Vec<_>>(),
+        [16, 31, 31, 31, 31]
+    );
+    assert!(
+        parts
+            .iter()
+            .all(|p| p.transition == ThemeTransition::Crossfade && !p.start_loop && !p.end_loop)
+    );
+    Ok(())
+}
 #[test]
 fn apm_writer_derives_header_and_quantizes_current_samples() {
     let mut sound = fixture();

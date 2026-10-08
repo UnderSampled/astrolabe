@@ -164,6 +164,13 @@ fn export_resource(
                             .diagnostic(format!("{}: unbound sound waveform", identity(&member)));
                     }
                 }
+                SoundResourceData::Theme { .. } => {
+                    writeln!(
+                        script,
+                        "    var source_voice = load({})\n    if source_voice == null:\n        return null\n    var voice = source_voice.duplicate()\n    voice.gain = gain\n    voice.trace = trace\n    return voice",
+                        quoted(&resource_path(project, &member, "voices"))
+                    )?;
+                }
                 SoundResourceData::Random {
                     silence_probability,
                     repeat_silence,
@@ -250,15 +257,14 @@ fn export_resource(
                 .as_ref()
                 .with_context(|| format!("unbound sample {}", identity(reference)))?;
             export_sample_voice(
-                project,
-                source,
-                &member,
-                sample,
-                controls,
-                selected.looped,
-                selected.loop_region.as_ref(),
-                written,
+                project, source, &member, sample, controls, selected, written,
             )?;
+        }
+        SoundResourceData::Theme { .. } => {
+            for child in selected.data.members() {
+                export_resource(project, source, child, written, active)?;
+            }
+            export_theme_voice(project, source, &member, selected, written)?;
         }
         _ => {
             for child in selected.data.members() {
@@ -270,14 +276,95 @@ fn export_resource(
     Ok(())
 }
 
+fn export_theme_voice(
+    project: &mut Project,
+    source: &mut impl ContentSource,
+    reference: &SoundMemberRef,
+    theme: &SoundResourceDefinition,
+    _written: &mut BTreeSet<AssetPath>,
+) -> Result<()> {
+    let SoundResourceData::Theme {
+        start_loop,
+        main_loops,
+        parts,
+    } = &theme.data
+    else {
+        unreachable!()
+    };
+    let voice = resource_path(project, reference, "voices");
+    if project.generated.contains(&voice[6..]) {
+        return Ok(());
+    }
+    ensure!(
+        !parts.is_empty() && parts.len() <= 63,
+        "{}: native theme clip limit exceeded",
+        identity(reference)
+    );
+    ensure!(
+        (*start_loop as usize) < parts.len()
+            && *main_loops == 0
+            && theme.looped
+            && parts.iter().all(|part| !part.start_loop
+                && !part.end_loop
+                && part.loops == 0
+                && part.transition_duration == 0.0
+                && matches!(
+                    part.transition,
+                    ThemeTransition::Crossfade | ThemeTransition::EndOfPart
+                )),
+        "{}: theme loop groups or transition semantics require additional source coverage",
+        identity(reference)
+    );
+    let stream = resource_path(project, reference, "streams");
+    project.reserve(&stream[6..])?;
+    let n = project.sound_count;
+    project.sound_count += 1;
+    writeln!(
+        project.builder,
+        "    var theme_stream_{n} = AudioStreamInteractive.new()\n    theme_stream_{n}.clip_count = {}\n    theme_stream_{n}.initial_clip = 0",
+        parts.len()
+    )?;
+    for (i, part) in parts.iter().enumerate() {
+        let definitions = source.load(&part.resource.definitions)?;
+        let resource = definitions.resource(part.resource.id)?;
+        ensure!(
+            matches!(resource.data, SoundResourceData::Sample { .. }),
+            "{}: nested theme parts are unsupported",
+            identity(reference)
+        );
+        let gain = resource.volume.map_or(1.0, |v| (v / 127.0).clamp(0.0, 1.0));
+        let next = if i + 1 < parts.len() {
+            i + 1
+        } else {
+            *start_loop as usize
+        };
+        // 004fa770 always queues the next part via SetNextTransition. The
+        // authored crossfade flag only governs a request for a different theme.
+        writeln!(
+            project.builder,
+            "    var theme_part_{n}_{i} = load({})\n    var theme_gain_{n}_{i} = AudioStreamSynchronized.new()\n    theme_gain_{n}_{i}.stream_count = 1\n    theme_gain_{n}_{i}.set_sync_stream(0, theme_part_{n}_{i}.stream)\n    theme_gain_{n}_{i}.set_sync_stream_volume(0, linear_to_db(maxf({gain}, 0.000001)))\n    theme_stream_{n}.set_clip_name({i}, {})\n    theme_stream_{n}.set_clip_stream({i}, theme_gain_{n}_{i})\n    theme_stream_{n}.set_clip_auto_advance({i}, AudioStreamInteractive.AUTO_ADVANCE_ENABLED)\n    theme_stream_{n}.set_clip_auto_advance_next_clip({i}, {next})\n    theme_stream_{n}.add_transition({i}, {next}, AudioStreamInteractive.TRANSITION_FROM_TIME_END, AudioStreamInteractive.TRANSITION_TO_TIME_START, AudioStreamInteractive.FADE_DISABLED, 0.0)",
+            quoted(&resource_path(project, &part.resource, "voices")),
+            quoted(&format!("part_{i}"))
+        )?;
+    }
+    writeln!(
+        project.builder,
+        "    if ResourceSaver.save(theme_stream_{n}, {}) != OK:\n        push_error(\"Cannot save native music theme\")\n        quit(1)\n        return",
+        quoted(&stream)
+    )?;
+    project.write(voice[6..].into(), format!(
+        "[gd_resource type=\"Resource\" load_steps=3 format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/audio/voice.gd\" id=\"script\"]\n[ext_resource type=\"AudioStreamInteractive\" path={} id=\"stream\"]\n\n[resource]\nscript = ExtResource(\"script\")\nstream = ExtResource(\"stream\")\nspatial = false\npitchable = false\nsource_sample = {}\ntheme_identity = {}\n", quoted(&stream), quoted(&stream), quoted(&identity(reference))).as_bytes())?;
+    project.diagnostic(format!("{}: native ordered theme parts and loop entry; natural boundaries queue the next part without invented crossfade. Switching an active theme remains unsupported pending audio-driver timing; driver buffering and volume quantization are not matched", identity(reference)));
+    Ok(())
+}
+
 fn export_sample_voice(
     project: &mut Project,
     source: &mut impl ContentSource,
     member: &SoundMemberRef,
     sample: &SoundSampleRef,
     controls: &SoundSampleControls,
-    looped: bool,
-    loop_region: Option<&crate::model::audio::SampleLoop>,
+    resource: &SoundResourceDefinition,
     written: &mut BTreeSet<AssetPath>,
 ) -> Result<()> {
     let voice = resource_path(project, member, "voices");
@@ -293,10 +380,10 @@ fn export_sample_voice(
         project.builder,
         "    var voice_stream_{n} = load({}).duplicate()\n    voice_stream_{n}.loop_mode = {}",
         quoted(&stream),
-        i32::from(looped)
+        i32::from(resource.looped)
     )?;
-    if looped {
-        if let Some(region) = loop_region {
+    if resource.looped {
+        if let Some(region) = &resource.loop_region {
             writeln!(
                 project.builder,
                 "    voice_stream_{n}.loop_begin = {}\n    voice_stream_{n}.loop_end = {}",

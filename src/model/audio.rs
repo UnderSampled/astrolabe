@@ -270,6 +270,12 @@ impl SoundDefinitions {
                 reference.validate()?;
             }
             match &resource.data {
+                SoundResourceData::Theme { parts, .. } => {
+                    anyhow::ensure!(
+                        parts.iter().all(|p| p.transition_duration.is_finite()),
+                        "nonfinite theme transition duration"
+                    );
+                }
                 SoundResourceData::Random {
                     silence_probability,
                     choices,
@@ -481,6 +487,12 @@ pub enum SoundResourceData {
         maintain: bool,
         choices: Vec<SwitchSoundChoice>,
     },
+    /// Ordered musical parts with source-authored transitions and loop regions.
+    Theme {
+        start_loop: i32,
+        main_loops: i32,
+        parts: Vec<ThemeSoundPart>,
+    },
     Other {
         kind: String,
         members: Vec<SoundMemberRef>,
@@ -502,6 +514,24 @@ pub struct SwitchSoundChoice {
     pub resource: SoundMemberRef,
     pub value: String,
 }
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ThemeSoundPart {
+    pub resource: SoundMemberRef,
+    pub transition: ThemeTransition,
+    pub start_loop: bool,
+    pub end_loop: bool,
+    pub loops: i32,
+    /// Authored transition-duration scalar; source quantizes it to 16.16.
+    pub transition_duration: f64,
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum ThemeTransition {
+    EndOfPart,
+    Crossfade,
+    Outro,
+    /// Unrecognized source transition retained for investigation.
+    Unknown(String),
+}
 impl SoundDefinitionTarget {
     pub fn member(&self) -> &SoundMemberRef {
         match self {
@@ -520,6 +550,7 @@ impl SoundResourceData {
             Self::Sample { .. } => Vec::new(),
             Self::Random { choices, .. } => choices.iter().map(|v| &v.resource).collect(),
             Self::Switch { choices, .. } => choices.iter().map(|v| &v.resource).collect(),
+            Self::Theme { parts, .. } => parts.iter().map(|v| &v.resource).collect(),
             Self::Other { members, .. } => members.iter().collect(),
         }
     }
@@ -528,6 +559,7 @@ impl SoundResourceData {
             Self::Sample { .. } => Vec::new(),
             Self::Random { choices, .. } => choices.iter_mut().map(|v| &mut v.resource).collect(),
             Self::Switch { choices, .. } => choices.iter_mut().map(|v| &mut v.resource).collect(),
+            Self::Theme { parts, .. } => parts.iter_mut().map(|v| &mut v.resource).collect(),
             Self::Other { members, .. } => members.iter_mut().collect(),
         }
     }

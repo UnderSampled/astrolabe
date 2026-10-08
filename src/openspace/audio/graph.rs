@@ -301,7 +301,7 @@ impl SoundGraph {
                     self.resource(child, library, materialize_samples)?;
                 }
             }
-            SoundResourceData::Random { .. } => {
+            SoundResourceData::Random { .. } | SoundResourceData::Theme { .. } => {
                 for child in data.members() {
                     self.resource(child, library, materialize_samples)?;
                 }
@@ -431,6 +431,64 @@ impl SoundGraph {
         if !self.banks.contains_key(path) {
             let bank = read_bnm(&self.bank_sources[path], path.file())?;
             self.banks.insert(path.clone(), bank);
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    #[ignore = "requires local game corpus; static music dependency closure"]
+    fn manor_intro_theme_resolves_native_sample_dependencies() -> Result<()> {
+        let game = std::env::var_os("ASTROLABE_GAME_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("disc"));
+        let path = AssetPath::new("sound:/Sound/playmo_b.lcb")?;
+        let library = super::super::read_sound_definitions(
+            &std::fs::read_to_string(game.join(path.file()))?,
+            path.file(),
+        )?;
+        let event = SoundEventLink {
+            library: AssetRef::from_path(path.clone()),
+            bank: 36,
+            member: 0,
+        };
+        let graph = SoundGraph::import(
+            &game,
+            &Selection::hype("manoir", "en")?,
+            &[(path, library)],
+            [&event],
+        )?;
+        let definitions = &graph.definitions[&AssetPath::new("sound:/Sound/M_ManoirGogood.csb")?];
+        let SoundResourceData::Theme { parts, .. } = &definitions.resource(18)?.data else {
+            anyhow::bail!("missing Intro2 theme")
+        };
+        assert_eq!(
+            parts.iter().map(|p| p.resource.id).collect::<Vec<_>>(),
+            [16, 31, 31, 31, 31]
+        );
+        for id in [16, 31] {
+            let SoundResourceData::Sample {
+                sample: Some(sample),
+                ..
+            } = &definitions.resource(id)?.data
+            else {
+                anyhow::bail!("theme sample not resolved")
+            };
+            let sound = match sample {
+                SoundSampleRef::Sound(reference) => &graph.sounds[&reference.path],
+                SoundSampleRef::Bank { bank, resource_id } => graph.banks[&bank.path]
+                    .sounds
+                    .iter()
+                    .find(|s| s.resource_id == Some(*resource_id))
+                    .context("theme bank sample absent")?,
+            };
+            ensure!(
+                sound.frame_count() > 0 && sound.sample_rate == 44100 && sound.channels == 2,
+                "theme sample format/content missing"
+            );
         }
         Ok(())
     }
