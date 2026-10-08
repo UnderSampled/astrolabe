@@ -171,9 +171,9 @@ generic placeholder meters are hidden instead of presented as original art.
 
 ### Fix HUD extraction status
 
-The earlier Fix HUD reader used incorrect offsets and is quarantined. Corrected
-reader/writer byte accounting places both `FUN_0040bcc0` and `FUN_0040bda0` at
-Fix.gpt offset `0x4a38`. The 64-byte block there contains four disabled
+The earlier `0x4904/0x4944` layout hypothesis was rejected after byte-level
+reader/writer accounting. Both `FUN_0040bcc0` and `FUN_0040bda0` read the
+corrected layout at Fix.gpt offset `0x4a38`. The 64-byte block there contains four disabled
 16-byte panel descriptors. Each layer-array pointer resolves to a Fix block
 5:0 allocation whose payload extent is exactly `count * 0x24` (31, 7, 14 and
 4 records). The `+4` and `+8` references resolve to Fix block 6:1 allocations

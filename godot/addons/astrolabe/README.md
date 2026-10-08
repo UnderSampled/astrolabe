@@ -163,10 +163,12 @@ Attaching this Brain does not yet reproduce the intro or follow camera.
 The compiled `Stats_DisplayMainActor*` calls retain their requested Boolean
 visibility in `source_hud_display` and emit `hud_visibility_requested`. An
 authored HUD can bind that signal to its native `Control` nodes. The English
-Fix HUD layout is importable as a separate root and exports to an editable
-scene, but is not yet attached to the saved level screen. Its original texture
-handles are not mapped to archive art, so the exported nodes remain transparent;
-the signal and layout data alone do not establish visual HUD parity.
+Fix HUD is attached to generated level screens. Its six GLI handles join through
+Fix.ptx/Fix.rtt to named members in `Textures.cnt`; export creates editable
+native `TextureRect` nodes and binds player life to actor state. Currency uses
+the source `InventoryFont` atlas and dedicated item-0 inventory quantity. These
+source joins and saved-scene composition are verified; complete rendered and
+runtime parity is still open.
 
 `character/mechanics.gd` exposes promoted mechanics parameters for inspection;
 it does not simulate the original dynamics. Family bounds are saved hidden
