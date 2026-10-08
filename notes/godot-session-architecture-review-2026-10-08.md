@@ -51,28 +51,61 @@ not authorize a bulk rename or a production architecture migration.
 ## Recovery-specific observation
 
 `Demo.fail()` schedules `_return_to_menu_after_initial_failure()` for an initial
-route error. The focused Godot 4.7.2 Load Game failure probe confirmed the
-Dismiss button is visible, in-tree, enabled, and focused. A parsed mouse move to
-the button's reported global-rect center did not hover a control, and the click
-did not activate it. The same probe sent Enter mapped to `ui_accept`; that
-closed the presenter and production recovery automatically opened
-`bootstrap.tscn`, showing the route error status. No test-only scene-change
-fallback was needed, and this run produced no outside-tree lookup error.
+route error. The first focused Godot 4.7.2 probe used the `SceneTree` harness's
+default 64x64 root and sent the Dismiss center at `(32,70)`, outside its visible
+height. The follow-up explicitly set the root Window and content scale to the
+project's 1024x768 viewport. Both the legacy canvas point and the point from
+`get_global_transform_with_canvas()` then hovered Dismiss at `(512,422)`. A
+parsed mouse click hid the presenter and production recovery automatically
+opened `bootstrap.tscn` with the route error status. This identifies the miss as
+a test-harness viewport setup issue; no production presenter layout change is
+needed. Enter mapped to `ui_accept` also remains a working recovery path.
 
-The mouse evidence does not identify the cause. The button rect was
-`position=(-178,53), size=(420,34)`, while the input point was `(32,70)` and
-`gui_get_hovered_control()` returned empty. The probe did not record the live
-root viewport size, content scale, or canvas transform. Project settings specify
-1024x768; the authored presenter uses full-rect anchors and has no explicit
-CanvasLayer transform, while its content has a 420px minimum width. The
-negative X coordinate is consistent with a smaller centered parent viewport
-if the canvas transform is identity, but that condition was not measured. Do
-not infer a production layout defect from this report alone.
+The follow-up probe's attempt to report one CanvasLayer visibility diagnostic
+called a method CanvasLayer does not provide, leaving that field empty. It did
+not affect the captured root/viewport sizes, visible rect, hover, mouse click,
+or recovery result. The later route acceptance used the configured viewport;
+the diagnostic error remains limited to that earlier probe. The production
+recovery coroutine captures the autoload-owned presenter before yielding, exits
+if the session is canceled or no longer
+current, and checks the scene-change result. The focused stage is
+`output/frozen-manor-newgame-camera-20261008/failure-only-viewport-input-20261008/`;
+the fixture hash remained unchanged. The later bounded route acceptance passed
+New Game, original-import Load,
+native schema-1 precedence and malformed-import dismissal/recovery with
+`NEW_GAME_AND_LOAD_GAME_ROUTES_OK`. It used the frozen project under
+`output/frozen-manor-newgame-camera-20261008/route-acceptance-clean-20261008/evidence/`,
+which predates current exporter/support and optional Global DSG[147]. See the
+[fork ledger](fork-first-integration-2026-10-08.md); this is not a fresh current
+branch or complete intro acceptance.
 
-The production recovery coroutine captures the autoload-owned presenter before
-it yields, exits if the session is canceled or no longer current, and checks
-the scene-change result. Keep keyboard recovery intact. The focused probe is
-preserved at
-`output/frozen-manor-newgame-camera-20261008/failure-only-hit-test-20261008/`;
-its fixture was restored with the expected hash. No further run was authorized
-after this one, so no full-route acceptance rerun has been made.
+## Safe naming cleanup after integration
+
+`godot/project.godot` launches `game/bootstrap.tscn`. New Game inherits the
+production `game/demo.tscn`; Load Game and restart also route to that scene.
+`demo_camera.gd` is the authored production fallback/aim camera. These are not
+optional demo-only dependencies. `godot/tests/demo_smoke.gd` is an observer of
+that same production session, rather than another game implementation.
+
+After title/pickup/armor/camera merges, rename filenames together:
+`demo.gd` → `game_session.gd`, `demo.tscn` → `game_session.tscn`, and
+`demo_camera.gd` → `session_camera.gd`. Move each `.gd.uid` unchanged. Keep the
+existing scene/node names and observer fields during the first filename change
+to avoid coupling it to an API migration. A later explicit node/field cleanup
+may rename `ManorDemo`, `DemoCamera` and `demo_camera` with its own regression.
+
+The filename change must update all of these current references:
+
+- `godot/game/bootstrap.gd` Load Game and `godot/game/demo.gd` restart routes;
+- `godot/game/new_game.tscn` inherited scene, and `demo.tscn` session/camera scripts;
+- `src/godot/support.rs` starter paths and UID sidecar inventory;
+- `crates/godot-harness/tests/new_game.rs` production session parser path;
+- `godot/README.md`, game menu/inventory READMEs and the stable project guide.
+
+If node/field names also change later, update `$DemoCamera` in the session,
+`godot/tests/demo_smoke.gd`, and `godot/tests/level_transition_entry_smoke.gd`.
+Search the final merged tree again before renaming, since workers may add actual
+session references. Verify support initialization/update, scene parser checks,
+New/Load/restart routes, failure/cancel recovery and named-entry camera handoff.
+Regenerate local content only when the agreed aggregate validation is authorized.
+No rename or component refactor is part of this reconciliation.

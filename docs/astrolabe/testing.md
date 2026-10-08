@@ -7,6 +7,7 @@ The test supervisor in `tools/test.py` selects declared Rust tests, prepares fix
 ```sh
 python3 tools/test.py --offline
 python3 tools/test.py --area movement --local --offline
+python3 tools/test.py --area inventory --area loading --local --offline
 python3 tools/test.py --area source --area rete --offline
 python3 tools/test.py --local --offline
 python3 tools/test.py --release --offline
@@ -15,6 +16,13 @@ python3 tools/test.py --area movement --local --offline --no-headless
 ```
 
 Area runs include declared dependencies and mandatory safeguards. `--local` enables tests that need ignored local game data; without an area it selects the full existing converter inventory. `--release` selects the complete declared matrix. `--list` discovers the selected tests and reports `not_run`, never a pass. See `python3 tools/test.py --help` for fixture and budget options.
+
+The focused `inventory` area imports only the inventory closure, reloads its
+Rete assets, exports native animations and exercises the maintained UI against
+admitted catalogue state. `loading` uses the production `LevelTransition` with
+synthetic scenes to check cap restoration, lower limits, installation failure,
+cancellation while the loader drains, and service exit. Both selections retain
+mandatory safeguards; neither exports or accepts the complete game.
 
 The manor camera checks distinguish unchanged camera-rule aiming from the
 original World three-shot excerpt. The latter preserves source targets,

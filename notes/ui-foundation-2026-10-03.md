@@ -247,3 +247,77 @@ runner/selection checks passed using the existing pinned nextest executable
 read-only; root-package offline Clippy for all targets and formatting passed.
 The test manifest retains all281 existing cases and adds two pure scene cases
 for283 total. The parent owns native syntax/reload and integrated validation.
+
+## Reconciled retained evidence — 2026-10-08
+
+The following R7/R9 and HUD evidence was preserved on the UI branch but missing
+from the integrated note. It is retained here without replacing later production
+facts. Font property normalization is integrated in `259ae71`; this closes the
+minimal native reload assignment, while visible complete intro/font parity
+remains governed by the actual-game acceptance. The original HUD survey below
+predates integrated HUD assets and crops (`92ebebc`, `7be1b7b`, `99bb41b`,
+`8ff522b`). Its “parked/incomplete” statements describe that survey, not current
+implementation status. Full rendered HUD parity is still unproved.
+
+The minimal R7 native metric-only diagnostic at clean
+`d0e90efd187f469b37d34e71c0d5869bd778e744` passed in0.610s with no Cargo build,
+level/media import or game session. The exact cached advance is16.2338; shaped
+glyph advances are16.21875 each, summing32.4375 within native1/64px precision.
+Native bounds are correctly33.0. Parser/API/serialization/shaping checks passed
+on Godot4.7.2; both stages reported no errors, timeouts, leaked children or
+remaining processes. Evidence stays outside Git at
+`task-2/ui-font-metric-20261003-r7/report.json`. This resolves measurement
+semantics and does not establish actual font/frame or New Game visual parity.
+
+R9 at frozen `3b2ba700d6bcf8e91246c27fa4f24c512fc6ff63` passed all four
+syntax/API/reload stages in2.055s on Godot4.7.2. The retained original resource
+loaded caches `[(16,0),(21,0),(21,1)]` and reported all133 source characters
+missing through has_char. The property-ordered copy loaded only
+`[(21,0),(21,1)]`, exposed all133 characters with no missing codes, and retained
+identical name and A/é advances. A, é and the Unicode curly quote were available.
+The small named-font preflight also passed with only the21px cache. There were
+no errors, warnings, timeouts, leaked children or remaining processes, and the
+source remained unchanged. Evidence is
+`task-2/ui-font-reload-20261003-r9/report.json` with immutable input hashes.
+This confirms the cache-order diagnosis and native mapping fix; full integrated
+dialogue/frame validation and visible New Game parity still require their
+existing integration checks. The parent sent3b2ba70 to core for integration.
+UI work is parked until an actual integration issue is observed; no additional
+run or feature expansion is queued by this worker.
+
+### Historical HUD layout investigation (Oct 3 snapshot)
+
+The parent relayed the completed read-only investigation
+`01a1042d-dacc-710c-93c3-218fc20490f4` ("Inspect HUD layout storage").
+The Fix HUD [reader](../reference/decompilation/functions/0040bcc0_FUN_0040bcc0.c)
+and [writer](../reference/decompilation/functions/0040bda0_FUN_0040bda0.c)
+persist four panel descriptors, texture/font references, text offsets and two
+24-entry rectangle tables. Installed `Fix.sda` scalars begin at `0x9b4`, with
+tables at `0x9cc` and `0xc0c`; the inspected tables match. Each entry contains
+six floats covering position, inclusive endpoints and size. The investigator
+corroborated the following roles and concrete values against draw routines:
+
+| Component | Entry | Position | Size | Maintained behavior |
+| --- | --- | --- | --- | --- |
+| Life | 0/1 | 0: (65,435) | 0: 38.4×38.4 | Hit-point ratio and full/empty texture split; entry 1 provides fill dimensions |
+| Armor | 2 | (10,420) | 48×48 | Selected armor definition's linked texture/UV pieces |
+| Magic | 5–7 | (450,425),(505,425),(560,425) | 48×48 each | Inventory icon selection and coded perimeter fill/quarter thresholds |
+| Selected object | 10 | (10,360) | 48×48 | Selected inventory image, quantity and serialized counter offsets |
+| Weapon | 22 | (269,404) | 48×60 | Current weapon's inventory image |
+
+Panel descriptors also carry ordered texture layers, rectangles and UV bounds.
+This evidence supports a useful shared `HUDPresentation` content asset, exported
+to editable native Godot scenes/resources with inherited consumer overrides.
+State remains in existing character/inventory/magick domains; maintained
+components implement filling, selection, counters and visibility. No serialized
+Godot anchors, containers or complete widget hierarchy were established, and
+draw-code constants must not be presented as imported layout. Source addresses
+stay at the OpenSpace boundary. Original artwork remains untracked.
+
+Current authored HUD positions remain provisional, and armor/object/weapon
+presentation is incomplete. Exact texture closure, every rectangle role and
+rendered parity were not verified by that investigation. This is retained
+architecture evidence for the existing HUD scope, not an implemented resource,
+new schema or implementation authorization. The parent has parked this stage
+until its priority is authorized. This worker made only these documentation
+updates; no implementation, tests or native sessions were launched.

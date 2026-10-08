@@ -129,7 +129,6 @@ that session's actors. The maintained
 which compiled AI propagates through its ordinary unsupported-behavior path.
 Failed unsupported pickups reject before native inventory mutation.
 
-Native checkpoint schema 3 composes inventory and armor Resource snapshots.
 Inventory Resource snapshot version 2 retains ordered admitted slots,
 per-member quantities, selected flags and capacities, the first-ID quantity
 view, gold, derived Weapon/Object/Magic selections, and the admission-known
@@ -138,8 +137,12 @@ flags retain selections for distinct exact Magic kinds; the scalar
 `selected_magic` exposes only the first selected Magic member in catalogue
 order. Replacement rules remain generated definition relationships rather
 than mutable snapshot fields. Ordered catalogue source identities and category
-sizes bind the snapshot to its native graph. Resource shape/binding validation and snapshot
-application on isolated clones finish before live player state changes.
-Schema 1/2 migration retains the sparse fixture fallback and seeded values for
-fields those schemas omitted. Broader unimplemented effects remain unsupported
-rather than invented by persistence.
+sizes bind the snapshot to its native graph. Resource shape/binding validation
+and snapshot application support isolated clones.
+
+The current production schema-1 game save restores sparse quantities and weapon
+selection through `restore_legacy`; it does not compose full inventory and armor
+snapshots. The fuller schema-3 checkpoint from the earlier fork was superseded
+by integration. See the [current native save contract](../astrolabe/godot-project.md#native-save-contract)
+for the active owner and omitted state. Broader unimplemented effects remain
+unsupported rather than invented by persistence.

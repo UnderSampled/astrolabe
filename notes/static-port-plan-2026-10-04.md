@@ -1,4 +1,11 @@
 # Static port implementation plan — 2026-10-04
+Current-state reconciliation (2026-10-08): this is the preserved earlier-fork
+implementation ledger. Its schema-3 save and extracted session-component claims
+were superseded when `56a769f` retained the newer main schema-1 session. Shared
+inventory/armor Resource APIs survived; their full snapshots are not composed by
+the current save envelope. The [current project contract](../docs/astrolabe/godot-project.md)
+and [integration disposition](integration-disposition-2026-10-08.md) take precedence
+for present wiring and validation. The original evidence below remains dated.
 
 This is the working implementation ledger for the requested source-first port.
 The initial pass deferred tests, builds, conversion runs and gameplay checks.

@@ -6,6 +6,12 @@
 
 ## Common records
 
+The [integration disposition](integration-disposition-2026-10-08.md) audits all
+preserved worker branches/worktrees, records merged/superseded/active work, and
+reconciles missing evidence. The [save/AI research catalogue](save-ai-gap-catalogue-2026-10-08.md)
+retains source traces with a current integration-status override, rather than
+replaying its old worker queue.
+
 The [Manor intro integration wrap-up](intro-integration-wrapup-2026-10-08.md)
 records the rebuilt actual root game, bounded startup results, critical armor
 and camera blockers, parked peer commits and the proposed next steps.

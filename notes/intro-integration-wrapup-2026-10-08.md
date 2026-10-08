@@ -1,5 +1,10 @@
 # Manor intro integration checkpoint — 2026-10-08
 
+Follow-up: the [integration disposition](integration-disposition-2026-10-08.md)
+records the resumed main-checkout audit, inventory/loading work, reconciled
+evidence and separately assigned title/pickup/armor/camera/save contributions.
+The parked state and “no production cap patch” below describe this checkpoint.
+
 Root content is rebuilt, but the complete opening is not accepted. Work is
 parked at the user's request; no next implementation batch is started here.
 The real launch path is `godot --path /home/stephen/Projects/astrolabe/godot`,
