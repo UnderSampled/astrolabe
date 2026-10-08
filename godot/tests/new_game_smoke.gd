@@ -81,6 +81,9 @@ func _vector2_array(value: Vector2) -> Array:
 func _vector2i_array(value: Vector2i) -> Array:
     return [value.x, value.y]
 
+func _safe_node_path(node: Node) -> String:
+    return str(node.get_path()) if node != null and node.is_inside_tree() else ""
+
 func _transform_array(value: Transform2D) -> Dictionary:
     return {"x":[value.x.x, value.x.y],"y":[value.y.x, value.y.y],"origin":[value.origin.x, value.origin.y]}
 
@@ -156,7 +159,7 @@ func _record_session_stage(stage_name: String, elapsed_ms: float, session: Node)
         "stage":stage_name,"elapsed_ms":elapsed_ms,"observed_at_ms":Time.get_ticks_msec(),"presenter_visible":bool(presenter.get("visible")) if presenter != null else false,
         "phase":phase.text if phase != null else "","progress_visible":progress.visible if progress != null else false,
         "progress_value":progress.value if progress != null else -1.0,
-        "actor_position":[actor.global_position.x, actor.global_position.y, actor.global_position.z] if actor != null else [],
+        "actor_position":[actor.global_position.x, actor.global_position.y, actor.global_position.z] if actor != null and actor.is_inside_tree() else [],
         "actor_physics_enabled":actor.is_physics_processing() if actor != null else false,
         "hype_brain":_actor_brain_snapshot(actor),"gogoud_brain_dialogue":_gogoud_session_snapshot(session)})
 
@@ -185,7 +188,7 @@ func _record_transition_completed(level: String, entry: String) -> void:
         "loading":bool(session.get("loading")) if session != null else true,
         "loading_stage":str(session.get("loading_stage")) if session != null else "",
         "mana":int(magick.get("current_points")) if magick != null else -1,
-        "position":[actor.global_position.x, actor.global_position.y, actor.global_position.z] if actor != null else [],
+        "position":[actor.global_position.x, actor.global_position.y, actor.global_position.z] if actor != null and actor.is_inside_tree() else [],
         "hype_brain":_actor_brain_snapshot(actor),"gogoud_brain_dialogue":_gogoud_session_snapshot(session)})
 
 func _actor_brain_snapshot(actor: CharacterBody3D) -> Dictionary:
@@ -194,7 +197,7 @@ func _actor_brain_snapshot(actor: CharacterBody3D) -> Dictionary:
     var brain := actor.get_node_or_null("Brain")
     if brain == null:
         return {"present":false,"actor":str(actor.get_path())}
-    return {"present":true,"actor":str(actor.get_path()),"action":actor.get("current_state"),"normal":brain.get("current_normal"),
+    return {"present":true,"inside_tree":actor.is_inside_tree(),"actor":_safe_node_path(actor),"action":actor.get("current_state"),"normal":brain.get("current_normal"),
         "reflex":brain.get("current_reflex"),"running":brain.get("running"),"automatic":brain.get("automatic"),
         "clock_ms":brain.get("clock_milliseconds"),"failure":brain.get("unsupported_failure")}
 
@@ -218,16 +221,17 @@ func _gogoud_session_snapshot(session: Node) -> Dictionary:
             dialogue_owner = adopted
     var dialogue := dialogue_owner.get("dialogue") as Control if dialogue_owner != null else null
     var item: Resource = dialogue.get("item") as Resource if dialogue != null else null
-    var source_dialogue_over: Variant = screen.call("source_dialog_is_over") if screen != null and screen.is_node_ready() and screen.has_method("source_dialog_is_over") else null
-    return {"present":true,"identity":"level:/persos/world/0/5","path":str(actor.get_path()),
+    var source_dialogue_over: Variant = screen.call("source_dialog_is_over") if screen != null and screen.is_inside_tree() and screen.is_node_ready() and screen.has_method("source_dialog_is_over") else null
+    var actor_in_tree := actor.is_inside_tree()
+    return {"present":true,"inside_tree":actor_in_tree,"identity":"level:/persos/world/0/5","path":_safe_node_path(actor),
         "action":actor.get("current_state"),"normal":brain.get("current_normal") if brain != null else null,
         "reflex":brain.get("current_reflex") if brain != null else null,"brain_running":brain.get("running") if brain != null else null,
         "brain_automatic":brain.get("automatic") if brain != null else null,"brain_clock_ms":brain.get("clock_milliseconds") if brain != null else null,
         "brain_failure":brain.get("unsupported_failure") if brain != null else null,"route_active":actor.get("source_route_active"),
-        "position_source_axes":[actor.global_position.x,-actor.global_position.z,actor.global_position.y],
+        "position_source_axes":[actor.global_position.x,-actor.global_position.z,actor.global_position.y] if actor_in_tree else [],
         "global_gate":_global_gate_snapshot(level),
         "manor_gate":_manor_gate_snapshot(level),
-        "dialogue_presenter":str(dialogue.get_path()) if dialogue != null else "",
+        "dialogue_presenter":_safe_node_path(dialogue),
         "dialogue_visible":dialogue.visible if dialogue != null else false,
         "dialogue_item":item.get("identity") if item != null else "",
         "dialogue_over":source_dialogue_over}
@@ -240,7 +244,7 @@ func _global_gate_snapshot(level: Node3D) -> Dictionary:
     var property_names := global_brain.get_property_list().map(func(property: Dictionary) -> String: return str(property.get("name", "")))
     var has_dsg_147 := property_names.has("dsg_147")
     var has_dsg_149 := property_names.has("dsg_149")
-    return {"present":true,"identity":"fix:/persos/15","path":str(global_brain.get_path()),
+    return {"present":true,"identity":"fix:/persos/15","inside_tree":global_brain.is_inside_tree(),"path":_safe_node_path(global_brain),
         "has_dsg_147":has_dsg_147,"dsg_147":global_brain.get("dsg_147") if has_dsg_147 else null,
         "has_dsg_149":has_dsg_149,"dsg_149":global_brain.get("dsg_149") if has_dsg_149 else null}
 
@@ -253,7 +257,7 @@ func _manor_gate_snapshot(level: Node3D) -> Dictionary:
     var brain := gate.get_node_or_null("Brain")
     var local_position := gate.position
     var global_position := gate.global_position if gate.is_inside_tree() else Vector3.ZERO
-    return {"present":true,"identity":"level:/persos/world/0/15","path":str(gate.get_path()),
+    return {"present":true,"inside_tree":gate.is_inside_tree(),"identity":"level:/persos/world/0/15","path":_safe_node_path(gate),
         "local_position":[local_position.x,local_position.y,local_position.z],
         "global_position":[global_position.x,global_position.y,global_position.z] if gate.is_inside_tree() else [],
         "source_position":[global_position.x,-global_position.z,global_position.y] if gate.is_inside_tree() else [],
