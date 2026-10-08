@@ -1,4 +1,4 @@
-# Astrolabe support, interface 58
+# Astrolabe support, interface 59
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
