@@ -41,6 +41,12 @@ Reconstructed source authority:
   `src/ai/life_damage_procedures.c`, `economic_placement.c`,
   `src/gameplay/life_bytes.c`, `armor_damage.c`, `player_death.c`,
   `initial_placement.c`, and its source-call/evidence reports.
+- Final translator checkpoint `dd59ab7` adds three sector/geometry query bodies
+  after `d24078a`: 45 complete bodies, 75 matching PE spans and nine missing-raw
+  recoveries in the final report. Its geometry queries do not change the traced
+  death/fall API contracts or establish all upstream actor collision filters.
+  Native contact/sector equivalence remains unverified. The final source handoff
+  is `research/worker-deltas/sol-manor-handoff.md` in that source worktree.
 - Interaction translator commit `f474a3a` in
   `/tmp/hype-sol-key-training-20261008` contains the complete Proc12 helper in
   `src/ai/training_receivers.c`. This branch reads it; it does not duplicate C.
