@@ -208,13 +208,8 @@ currently exported cases: borders and type-13/21 visuals with a single source
 LOD. Active type-1/11 children and physical visuals with multiple LODs still
 make the result incomplete rather than substituting bounds or an arbitrary LOD.
 
-Two narrower behavior gaps remain explicit. First, the rare `0051f670`
-target-head-blocked branch reads controller-owner `+0x254`, which
-`005796ea` resets and sets from its own collision ray. The native actor does
-not yet expose that writer's result. If the `DAT_0072198c` streak exceeds 50,
-the source branch is determined without that flag and is implemented; at 50
-or below, this specific branch reports the missing live guard input. Second,
-when a failed candidate sets `DAT_007218fd` without reaching d1,
+One behavior gap remains explicit. When a failed candidate sets
+`DAT_007218fd` without reaching d1,
 `005200a0` calls `0051ec70`, which updates controller offset interpolation
 through `0052c7f0`, `0051e350`, and `0051e600`. That native camera-motion API is
 not implemented, so the camera update returns an error on that path instead of
@@ -281,23 +276,25 @@ Manor camera record 0 preserves target-child selector `-1` at parameter `+0xa0`,
 so generated `SourceCamera.targeted_actor` binds the exact exported
 `scene.main_actor` reference. No arbitrary scene child is selected.
 
-The `+0x254` camera collision guard is not an authored startup value. The mode-0
-reader is `0051f670`. Its concrete camera-callback writer is `005796ea`: it
-clears the byte at callback entry, then sets it when the source `00463df0`
-obstruction query hits. That writer is reached from `00578020` only while the
-camera callback's `+0xe0` flag is active. In the identified type-3 secondary
-callback, `0057910c` receives a zero sixth argument at `00443eeb`, clears
-`+0xe0`, and returns before pose calculation; `00578020` then skips the writer.
-The callback table also has a type-40 path (`0057d3b4` / `0057d788`) that writes
-a byte at its own runtime base `+0x32c`, but this does not establish the initial
-`+0x254` value for the manor camera target. The available manual reconstruction
-of allocator wrapper `005012b0` zero-fills its requested allocation, but the
-checked call graph does not connect the target DNM runtime-card allocation to
-that wrapper or establish that its requested size covers this byte. The
-target-specific allocation and initialization path is therefore still missing;
-the native branch continues to require a live guard value only on the
-target-head-blocked, streak-at-most-50 branch and does not guess zero or a
-collision result.
+The `+0x254` camera collision guard is now source-resolved for startup. The
+camera callback context is created by `0044cde0`: it allocates a `0x400`-byte
+payload through `00409810`, whose `00409840` implementation zeroes every
+requested dword and the tail bytes, then stores the payload at context `+0x10`
+through `0044d2d0`. `00527e00` obtains that payload with `0044d2c0`, stores its
+base at camera-structure `+4`, and uses `base + 0xd8` as `*param1`. Therefore
+`0051f670`'s `*param1 + 0x254` read is payload `+0x32c`, inside the zero-filled
+allocation: the startup value is false. The native `SourceCamera` initializes
+its camera-local guard to false and consumes that value in the guarded
+target-head branch.
+
+The dynamic writer remains conditional. `005796ea` clears payload `+0x32c` at
+callback entry and sets it when its `00463df0` obstruction query hits, but
+`00578020` invokes that writer only while the type-3 callback's `+0xe0` flag is
+active. The identified zero-activation call at `00443eeb` reaches
+`0057910c`, which explicitly clears `+0xe0`; that path skips the writer. The
+native camera has a tested callback-result update method, but no manor runtime
+producer currently activates and feeds this callback. Do not infer dynamic
+changes on paths where its activation has not been established.
 
 Selector 1 remains a player-input branch, not an authored manor intro call:
 `005200a0` changes `DAT_00721b0c` from the `BT_CameraInOldMode` and
