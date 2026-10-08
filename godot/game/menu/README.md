@@ -12,8 +12,12 @@ font table, menu interpreter or source-disc access are needed at runtime.
 `NewGame` opens the actual manor opening through `game/new_game.tscn`;
 `SavedGames` keeps the existing Load Game/save route through `game/demo.tscn`.
 The named `NewGame` and `LoadGame` Buttons remain discoverable by session tests.
-Configure opens the source-backed Images, Controls and Sound tabs. Sound uses
-native persisted volume controls. Controls remaps the five gameplay actions
+Configure opens `game/settings_menu.tscn`, an authored route alias for the
+source-generated configuration scene. The scene root keeps the existing
+`closed` signal, `focus_initial()` and `cancel_input_capture()` interface while
+leaving its source artwork and native page layout under generated ownership.
+The source-backed Images, Controls and Sound tabs use native persisted volume
+controls. Controls remaps the five gameplay actions
 currently consumed by the Godot session, with physical keyboard keys or generic
 Godot joypad buttons and axes. Reassigning an occupied input swaps the two
 actions. Escape cancels a capture before closing configuration. Reset restores
