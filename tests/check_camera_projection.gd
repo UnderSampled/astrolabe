@@ -169,6 +169,11 @@ func run() -> void:
     floor_boundary.face_normals = PackedVector3Array([Vector3.UP])
     probe_sector.add_child(floor_boundary)
     root.add_child(probe_root)
+    if not require(not probe_camera.source_camera_collision_guard_value(), "fresh SourceCamera did not start with the zero-filled DNM +0x254 guard"): return
+    probe_camera.source_camera_collision_callback_update(true)
+    if not require(probe_camera.source_camera_collision_guard_value(), "005796ea obstruction result did not set the camera DNM guard"): return
+    probe_camera.source_camera_collision_callback_update(false)
+    if not require(not probe_camera.source_camera_collision_guard_value(), "next 005796ea callback did not clear the previous camera DNM guard"): return
     probe_owner.global_position = Vector3(0,0.5,-4)
     probe_camera.mode_zero_target_child_index = -1
     probe_camera.mode_zero_distance = Vector2(0,10)
@@ -247,6 +252,60 @@ func run() -> void:
     if not require(probe_camera.source_controller_candidate_result and probe_camera.source_controller_position_30.is_equal_approx(Vector3(0,0.5,0)), "source 0051f670 did not move the +0x30 candidate back to +0x3c on the clear target-head branch"): return
     if not require(probe_camera.controller_state.call("mode_zero_update_obstructed") and probe_camera.controller_state.call("mode_zero_candidate_obstruction_streak") == 1, "source 0051f670 did not preserve the blocked-ray flags and counter"): return
     if not require(probe_owner.global_position.is_equal_approx(blocked_owner_position), "source mode-0 unsupported blocked branch published an unverified pose"): return
+
+    var controller_blocker := StaticBody3D.new()
+    controller_blocker.collision_layer = 1
+    controller_blocker.set_meta("source_collision_reachable", true)
+    var controller_blocker_shape := CollisionShape3D.new()
+    var controller_blocker_box := BoxShape3D.new()
+    controller_blocker_box.size = Vector3(0.5,0.5,0.5)
+    controller_blocker_shape.shape = controller_blocker_box
+    controller_blocker_shape.set_meta("source_collision_identifier", 1)
+    controller_blocker.add_child(controller_blocker_shape)
+    controller_blocker.position = Vector3(3,3,0)
+    probe_sector.add_child(controller_blocker)
+    var target_head_blocker := StaticBody3D.new()
+    target_head_blocker.collision_layer = 1
+    target_head_blocker.set_meta("source_collision_reachable", true)
+    var target_head_blocker_shape := CollisionShape3D.new()
+    var target_head_blocker_box := BoxShape3D.new()
+    target_head_blocker_box.size = Vector3(0.5,0.5,0.5)
+    target_head_blocker_shape.shape = target_head_blocker_box
+    target_head_blocker_shape.set_meta("source_collision_identifier", 1)
+    target_head_blocker.add_child(target_head_blocker_shape)
+    target_head_blocker.position = Vector3(1.5,1.4,0)
+    probe_sector.add_child(target_head_blocker)
+    await physics_frame
+    probe_camera.mode_zero_actor_offset = Vector3(2,0,0)
+    probe_camera.targeted_actor = clear_target
+    var source_collision_context: Dictionary = probe_camera.call("_source_collision_context")
+    if not require(not source_collision_context.is_empty(), "source guard regression could not resolve the active collision sector"): return
+    var branch_anchor := Vector3(0,5,0)
+    var branch_origin := Vector3(3,0.5,0)
+    var branch_candidate := Vector3(3,5,0)
+    probe_camera.source_camera_collision_callback_update(false)
+    probe_camera.controller_state = load("res://addons/astrolabe/camera/source_controller_state.gd").new()
+    var unguarded_branch: Dictionary = probe_camera.call(
+        "_source_mode_zero_controller_670", branch_anchor, branch_origin,
+        branch_candidate, branch_candidate, source_collision_context
+    )
+    if not require(not unguarded_branch.get("first_ray_initially_blocked", true) and unguarded_branch.get("target_head_checked", false) and unguarded_branch.get("second_ray_blocked", false), "guard regression did not reach the second-ray plus target-head blocked controller branch"): return
+    if not require(probe_camera.source_controller_position_30.is_equal_approx(branch_candidate), "zero +0x254 guard did not preserve the ordinary blocked-branch candidate"): return
+    probe_camera.source_camera_collision_callback_update(true)
+    probe_camera.controller_state = load("res://addons/astrolabe/camera/source_controller_state.gd").new()
+    var guarded_branch: Dictionary = probe_camera.call(
+        "_source_mode_zero_controller_670", branch_anchor, branch_origin,
+        branch_candidate, branch_candidate, source_collision_context
+    )
+    if not require(not guarded_branch.get("first_ray_initially_blocked", true) and guarded_branch.get("target_head_checked", false) and guarded_branch.get("second_ray_blocked", false) and probe_camera.source_camera_collision_guard_value(), "guarded source callback did not retain its blocked target-head input"): return
+    if not require(probe_camera.source_controller_position_30.is_equal_approx(clear_target.global_position + probe_camera.mode_zero_actor_offset), "set +0x254 guard did not select the 0051f670 raw target-plus-offset candidate"): return
+    if not require((probe_camera.source_mode_zero_action_flags & 0x414) == 0x414, "set +0x254 guard did not apply the 0051f670 special-case action flags"): return
+    probe_camera.source_camera_collision_callback_update(false)
+    if not require(not probe_camera.source_camera_collision_guard_value(), "post-obstruction callback did not reset the camera guard for the next controller update"): return
+    controller_blocker.queue_free()
+    target_head_blocker.queue_free()
+    probe_camera.mode_zero_actor_offset = Vector3.ZERO
+    await physics_frame
 
     if not require(probe_camera.controller_state.call("set_mode_zero_collision_selector", 1), "source selector did not switch to 0051f290"): return
     if not require(probe_camera.call("source_update_position"), "source 0051f290/0052bb50 clear camera-ray path did not complete"): return

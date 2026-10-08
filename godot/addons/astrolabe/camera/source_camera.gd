@@ -42,6 +42,9 @@ var targeted_actor: Node3D
 var _reported_mode_zero_gap := false
 var _source_active_sector: Node
 var _source_previous_history_position := Vector3.ZERO
+# A new SourceCamera represents a new DNM context; 00409840 zero-fills payload
+# +0x32c before 00527e00 exposes that byte as camera +0x254.
+var _source_camera_collision_guard := false
 
 func _ready() -> void:
     motion_mode = initial_motion_mode
@@ -55,6 +58,16 @@ func _ready() -> void:
         make_current()
     else:
         clear_current(false)
+
+## 005796ea clears camera payload +0x32c at callback entry, then sets it when
+## its 00463df0 obstruction query blocks. Feed the callback's computed result.
+func source_camera_collision_callback_update(obstructed: bool) -> void:
+    _source_camera_collision_guard = false
+    if obstructed:
+        _source_camera_collision_guard = true
+
+func source_camera_collision_guard_value() -> bool:
+    return _source_camera_collision_guard
 
 func source_change_targeted_perso(actor: Node3D) -> bool:
     if not is_instance_valid(actor):
@@ -766,15 +779,7 @@ func _source_mode_zero_controller_670(
 
     candidate_24 = candidate_30
     var obstruction_count := int(controller_state.call("mode_zero_collision_streak"))
-    var collision_guard: Variant = null
-    var owner := get_parent() as Node
-    if obstruction_count <= SOURCE_MODE_ZERO_CAMERA_BLOCK_STREAK_LIMIT:
-        if owner != null and owner.has_meta("source_camera_collision_guard"):
-            collision_guard = bool(owner.get_meta("source_camera_collision_guard"))
-        else:
-            push_error("Source 0051f670 needs the live +0x254 flag written by 005796ea on this blocked subpath")
-            return {}
-    if obstruction_count > SOURCE_MODE_ZERO_CAMERA_BLOCK_STREAK_LIMIT or bool(collision_guard):
+    if obstruction_count > SOURCE_MODE_ZERO_CAMERA_BLOCK_STREAK_LIMIT or source_camera_collision_guard_value():
         # The source special case adds the raw parameter +0x24 vector to the
         # target's world translation; unlike 0051c8d0, it does not rotate it.
         candidate_24 = targeted_actor.global_position + mode_zero_actor_offset
