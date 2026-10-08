@@ -114,6 +114,22 @@ impl<'a> Iterator for AstWalk<'a> {
                 Statement::ExecuteActionAndGenerateObject { action, vector, .. } => {
                     self.expressions(child_depth, &[action, vector]);
                 }
+                Statement::AdjustPersoOnObject {
+                    target,
+                    near_threshold,
+                    far_threshold,
+                    far_action,
+                    near_action,
+                } => self.expressions(
+                    child_depth,
+                    &[
+                        target,
+                        near_threshold,
+                        far_threshold,
+                        far_action,
+                        near_action,
+                    ],
+                ),
                 Statement::SoundFadeMusic { arg0, arg1 } => {
                     self.expressions(child_depth, &[arg0, arg1]);
                 }

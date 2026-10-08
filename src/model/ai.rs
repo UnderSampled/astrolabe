@@ -201,6 +201,20 @@ pub enum Statement {
         to: Expression,
         duration_seconds: Expression,
     },
+    /// Meta-action 17 selects an action from the receiver's distance to a
+    /// runtime Perso operand, then repeatedly adjusts its position toward that
+    /// Perso. Source init checks strict `distance < arg1` first and selects
+    /// `near_action` (operand 4); only otherwise it checks strict
+    /// `distance > arg2` and selects `far_action` (operand 3). If neither
+    /// branch matches it selects no action. The update routine's
+    /// movement/completion contract is not yet ported.
+    AdjustPersoOnObject {
+        target: Expression,
+        near_threshold: Expression,
+        far_threshold: Expression,
+        far_action: Expression,
+        near_action: Expression,
+    },
     SetImpulse(Expression),
     JumpAbsolute,
     JumpWithoutAddingSpeed,

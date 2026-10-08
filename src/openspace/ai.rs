@@ -714,6 +714,18 @@ impl Parser<'_> {
                 },
                 (4, 218) => Statement::ChangeAction(self.expression(indent + 1)?),
                 (5, 4) => Statement::ExecuteAction(self.expression(indent + 1)?),
+                // Meta-action 17 is PXXAA: runtime Perso expression, two
+                // distance thresholds, then far/near action references.
+                // The useful representation preserves these source operands;
+                // Godot currently rejects execution until its movement/update
+                // semantics are implemented from the remaining source trace.
+                (5, 17) => Statement::AdjustPersoOnObject {
+                    target: self.expression(indent + 1)?,
+                    near_threshold: self.expression(indent + 1)?,
+                    far_threshold: self.expression(indent + 1)?,
+                    far_action: self.expression(indent + 1)?,
+                    near_action: self.expression(indent + 1)?,
+                },
                 (5, 15) => {
                     let operand = self.at;
                     if !self
@@ -1730,6 +1742,20 @@ impl Writer<'_> {
                     self.node(24, handle, indent + 1);
                     self.expression(action, indent + 1)?;
                     self.expression(vector, indent + 1)?;
+                }
+                Statement::AdjustPersoOnObject {
+                    target,
+                    near_threshold,
+                    far_threshold,
+                    far_action,
+                    near_action,
+                } => {
+                    self.node(5, 17, indent);
+                    self.expression(target, indent + 1)?;
+                    self.expression(near_threshold, indent + 1)?;
+                    self.expression(far_threshold, indent + 1)?;
+                    self.expression(far_action, indent + 1)?;
+                    self.expression(near_action, indent + 1)?;
                 }
                 Statement::WaitEndOfAction => self.node(5, 6, indent),
                 Statement::WaitEndOfAnimation => self.node(5, 8, indent),
@@ -3461,6 +3487,79 @@ mod partial_tests {
             } if *target == template
         ));
         assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn adjust_perso_on_object_preserves_threshold_values_and_action_order() -> Result<()> {
+        let (mut codec, bytes) = partial(&[
+            (5, 17, 1),
+            (11, 133, 2),
+            (13, 1.3_f32.to_bits(), 2),
+            (13, 1.4_f32.to_bits(), 2),
+            (25, 0x1234, 2),
+            (25, 0x5678, 2),
+            (8, 0, 0),
+        ]);
+        let family = AssetRef::new("fix:/families/7")?;
+        let far = crate::model::character::StateRef {
+            family: family.clone(),
+            state: 21,
+        };
+        let near = crate::model::character::StateRef { family, state: 22 };
+        codec.actions.insert(4, Some(far.clone()));
+        codec.actions.insert(5, Some(near.clone()));
+        codec.action_handles.push((Some(far.clone()), 0x1234));
+        codec.action_handles.push((Some(near.clone()), 0x5678));
+
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            &script.statements[..],
+            [Statement::AdjustPersoOnObject {
+                target: Expression::Variable(133),
+                near_threshold: Expression::Real(near_threshold),
+                far_threshold: Expression::Real(far_threshold),
+                far_action: Expression::Action(Some(actual_far)),
+                near_action: Expression::Action(Some(actual_near)),
+            }]
+                if *near_threshold == 1.3
+                    && *far_threshold == 1.4
+                    && actual_far == &far
+                    && actual_near == &near
+        ));
+        let action_ids: Vec<_> = script
+            .walk()
+            .filter_map(|(node, _)| match node {
+                crate::model::ai::walk::AstNode::Expression(Expression::Action(Some(action))) => {
+                    Some(action.state)
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(action_ids, [21, 22]);
+        assert_eq!(codec.write(&script)?, bytes);
+
+        // A missing relocated action remains an explicit unsupported operand,
+        // and the writer refuses to fabricate its missing source handle.
+        let (mut missing_action, bytes) = partial(&[
+            (5, 17, 1),
+            (11, 133, 2),
+            (13, 1.3_f32.to_bits(), 2),
+            (13, 1.4_f32.to_bits(), 2),
+            (25, 0x1234, 2),
+            (25, 0x5678, 2),
+            (8, 0, 0),
+        ]);
+        missing_action.actions.insert(4, Some(far));
+        let partial_script = missing_action.read(&bytes)?;
+        assert!(matches!(
+            &partial_script.statements[..],
+            [Statement::AdjustPersoOnObject {
+                near_action: Expression::Unsupported(fragment),
+                ..
+            }] if fragment.reason == "unbound action at node 5"
+        ));
+        assert!(missing_action.write(&partial_script).is_err());
         Ok(())
     }
 

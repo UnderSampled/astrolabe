@@ -2444,6 +2444,16 @@ fn statements(
                     "{pad}sound_kill_music()\n{pad}if not active_{group}(token): {exit}"
                 )?;
             }
+            Statement::AdjustPersoOnObject { .. } => {
+                writeln!(
+                    out,
+                    "{pad}fail_unsupported({})\n{pad}{exit}",
+                    quoted(&format!(
+                        "{} reaches Action_AdjustPersoOnObject (0054ac30/0054ad00), whose native movement and completion semantics are not implemented",
+                        model.path
+                    ))
+                )?;
+            }
             Statement::Sound { event: None } | Statement::Noop => writeln!(out, "{pad}pass")?,
             Statement::Unsupported(fragment) => {
                 writeln!(
@@ -2607,6 +2617,49 @@ mod source_position_tests {
         ));
         assert!(generated.contains("if change_normal(3, false):"));
         assert!(!generated.contains("unsupported AI statement category 4 operation 253"));
+        Ok(())
+    }
+
+    #[test]
+    fn adjust_perso_on_object_fails_closed_until_native_update_is_supported() -> anyhow::Result<()>
+    {
+        let model = AiModel {
+            path: AssetPath::new("level:/ai/models/adjust_perso_fixture")?,
+            name: "Adjust Perso fixture".into(),
+            normal: Some(BehaviorSet {
+                behaviors: vec![Behavior {
+                    id: 0,
+                    rules: Vec::new(),
+                    schedule: Some(Script {
+                        statements: vec![Statement::AdjustPersoOnObject {
+                            target: Expression::Variable(0),
+                            near_threshold: Expression::Real(1.3),
+                            far_threshold: Expression::Real(1.4),
+                            far_action: Expression::Action(None),
+                            near_action: Expression::Action(None),
+                        }],
+                    }),
+                    unknown: [0; 3],
+                }],
+                default_behavior: Some(0),
+                action_capacity: 0,
+                unknown: [0; 3],
+            }),
+            reflex: None,
+            variables: vec![DesignerVariable {
+                default: DesignerValue::Actor(None),
+                save: 0,
+                initialize: 0,
+            }],
+            designer_unknown: [0; 3],
+            unknown: [0; 4],
+        };
+
+        let generated = compile(&model, &[])?;
+        assert!(generated.contains("reaches Action_AdjustPersoOnObject (0054ac30/0054ad00)"));
+        assert!(generated.contains("fail_unsupported("));
+        assert!(!generated.contains("source_adjust_perso_on_object"));
+        assert!(!generated.contains("request_action(int(dsg_0)"));
         Ok(())
     }
 
