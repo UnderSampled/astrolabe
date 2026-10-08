@@ -72,25 +72,23 @@ See [pause composition](../../godot/game/menu/README.md#pause-menu-composition).
 `FUN_00414b00` routes `Options` into `DAT_007523f4` and enters configuration mode
 `0x25`; the source initial item is `Images`. The separate Godot scene retains
 all three original tabs and glyph labels. Its Music, Sound and Voices page uses
-native vertical sliders on the source `0..127` scale, applies them to Godot audio
-buses, and persists them through `UserSettings`. A missing source option defaults
-to 127.
+native vertical sliders on the source scales, applies them to Godot audio buses,
+and persists them through `UserSettings`. `FUN_00428a60` initializes the three
+sound values to 100/127. Music and Sound use `0..127`; Voices displays `-20..107`
+and clamps negative values to zero when applying volume.
 
-`ImageSlider1` sets OpenSpace shadow quality through
-`SHW_fn_vSetLevelOfQualityOfShadows`; its native mapping disables scene shadows
-at 0 and uses Godot's global shadow-filter quality at 1–4. `ImageSlider2`
-passes a `60..100` value to `FUN_004054c0`, which narrows the active source
-camera viewport rectangle. The Godot port applies its central-crop fraction as
-a perspective field-of-view adjustment (or native camera size for
-orthographic/frustum cameras) while keeping the UI at full size. This preserves
-the zoom/framing direction but is not pixel-identical viewport behavior.
-`ImageSlider3` controls OpenSpace's texture-swapping ratio. Godot has no matching
-streaming policy for these exported local assets, so the port uses a clearly
-identified native material-filter quality range from nearest sampling through
-mipmapped anisotropic filtering. This changes texture sampling, not residency or
-streaming. The original `0..4`, `60..100`, and `0..1` ranges remain represented
-by editable native sliders, and the selections persist in
-`user://hype-settings.cfg`.
+`ImageSlider1` has four discrete quality choices, 1–4, and calls
+`SHW_fn_vSetLevelOfQualityOfShadows`; Godot maps these to available shadow
+filter qualities as an explicit approximation. `ImageSlider2` ranges from 60 to
+100 and passes that value to `FUN_004054c0`, which narrows the active source
+camera viewport. The Godot port maps the centered crop to a perspective FOV
+adjustment (or orthographic camera-size adjustment) while keeping the UI at full
+size. This preserves the source framing direction but is not pixel-identical
+viewport behavior. `ImageSlider3` passes a 0–1 texture-swapping ratio to the
+OpenSpace resource system. The converted Godot project loads local assets and
+has no matching streaming policy, so it retains the source label and explains
+that texture swapping is unsupported; it does not substitute material
+filtering.
 
 `FUN_00414b00`/`FUN_00413bd0` identify `TestButton` and `ReverseButton`, and the
 source action resolves stereo-test and reverse-stereo items in the Sound page.
