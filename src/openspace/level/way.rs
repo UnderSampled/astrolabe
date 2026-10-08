@@ -231,6 +231,7 @@ fn point(
         position: p.position,
         radius: p.radius,
         relative_actor: p.actor,
+        relative_actor_ref: None,
         unknown: p.unknown,
         tail: p.tail,
     };

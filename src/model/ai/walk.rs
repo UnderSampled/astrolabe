@@ -220,7 +220,11 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::Minus(left, right)
                 | Expression::Divide(left, right)
                 | Expression::And(left, right)
-                | Expression::Or(left, right) => self.expressions(child_depth, &[left, right]),
+                | Expression::Or(left, right)
+                | Expression::WaypointSphereContains {
+                    actor: left,
+                    waypoint: right,
+                } => self.expressions(child_depth, &[left, right]),
                 Expression::Unsupported(_)
                 | Expression::AbsentButton(_)
                 | Expression::Nobody
@@ -231,6 +235,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::Real(_)
                 | Expression::SelfPosition
                 | Expression::SelfPositionField
+                | Expression::WaypointReference(_)
                 | Expression::WaypointPosition(_)
                 | Expression::DistanceToWaypoint { .. }
                 | Expression::GameTime

@@ -1,6 +1,10 @@
 //! Resolve shared route/waypoint assets into native Curve3D resources at export.
 use super::{Project, disk_path, quoted, vec3, vector};
-use crate::model::{content::ContentSource, io::Content, route::Route};
+use crate::model::{
+    content::ContentSource,
+    io::Content,
+    route::{Route, Waypoint},
+};
 use anyhow::Result;
 use std::fmt::Write as _;
 
@@ -25,6 +29,9 @@ pub(super) fn export_route(
             Ok(p)
         })
         .collect::<Result<Vec<_>>>()?;
+    for point in &points {
+        export_waypoint(project, point)?;
+    }
     let supported = points.iter().all(|p| p.relative_actor.is_none())
         && route.links.iter().enumerate().all(|(i, link)| {
             link.as_ref().is_some_and(|l| {
@@ -59,6 +66,63 @@ pub(super) fn export_route(
     )?;
     if !supported {
         project.diagnostic(format!("{}: fixed StaticLine routes with dynamic kind zero are supported; a reached other route fails explicitly", route.path));
+    }
+    Ok(path)
+}
+
+pub(super) fn export_waypoint(project: &mut Project, waypoint: &Waypoint) -> Result<String> {
+    waypoint.validate()?;
+    let path = disk_path(&project.selection, &waypoint.path, "res");
+    if project.generated.contains(&path) {
+        return Ok(path);
+    }
+    project.reserve(&path)?;
+    let id = format!(
+        "waypoint_asset_{}",
+        super::digest(waypoint.path.as_str().as_bytes())[..12].to_owned()
+    );
+    let relative_actor_path = waypoint
+        .relative_actor_ref
+        .as_ref()
+        .map_or("", |actor| actor.path.as_str());
+    let relative_actor_identity =
+        waypoint
+            .relative_actor
+            .as_ref()
+            .map_or_else(String::new, |identity| {
+                format!(
+                    "{}:{:02x}/{:02x}/{}",
+                    match identity.role {
+                        crate::model::ai::SourceRole::Fix => "fix",
+                        crate::model::ai::SourceRole::Level => "level",
+                    },
+                    identity.block[0],
+                    identity.block[1],
+                    identity.allocation
+                )
+            });
+    let supported = waypoint.relative_actor.is_none() || waypoint.relative_actor_ref.is_some();
+    writeln!(
+        project.builder,
+        "    var {id} = load(\"res://addons/astrolabe/character/waypoint.gd\").new()\n    {id}.source_position = {}\n    {id}.radius = {}\n    {id}.relative_actor_path = {}\n    {id}.relative_actor_identity = {}\n    {id}.source_identity = {}\n    {id}.supported = {supported}",
+        vec3(waypoint.position),
+        waypoint.radius,
+        quoted(relative_actor_path),
+        quoted(&relative_actor_identity),
+        quoted(waypoint.path.as_str()),
+    )?;
+    writeln!(
+        project.builder,
+        "    if not save_binary_resource({id}, {}, {}):\n        quit(1)\n        return",
+        quoted(&format!("res://{path}")),
+        quoted(&super::engine::resource_uid(&path))
+    )?;
+    if !supported {
+        project.diagnostic(format!(
+            "{}: actor-relative waypoint target {} is outside the imported actor graph; a reached location query fails explicitly",
+            waypoint.path,
+            waypoint.relative_actor.as_ref().map_or("unknown", |_| "unresolved")
+        ));
     }
     Ok(path)
 }

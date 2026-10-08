@@ -418,6 +418,23 @@ func source_distance_to_waypoint(actor: Node3D, waypoint: Vector3) -> float:
     var source_actor_position := Vector3(actor.global_position.x, -actor.global_position.z, actor.global_position.y)
     return source_actor_position.distance_to(waypoint)
 
+func source_actor_in_waypoint_sphere(actor: Node3D, waypoint: Resource) -> Variant:
+    if not is_instance_valid(actor) or not actor.is_inside_tree() or not is_inside_tree():
+        return null
+    if not is_instance_valid(waypoint) or not waypoint.has_method("source_world_position"):
+        return null
+    var radius: Variant = waypoint.get("radius")
+    if typeof(radius) not in [TYPE_FLOAT, TYPE_INT] or not is_finite(float(radius)) or float(radius) < 0.0:
+        return null
+    var point: Variant = waypoint.call("source_world_position", self)
+    if typeof(point) != TYPE_VECTOR3 or not point.is_finite():
+        return null
+    var source_actor_position := Vector3(actor.global_position.x, -actor.global_position.z, actor.global_position.y)
+    if not source_actor_position.is_finite():
+        return null
+    # The original condition tests distance - radius <= 0 (inclusive).
+    return source_actor_position.distance_to(point) - float(radius) <= 0.0
+
 func source_game_time() -> int:
     var brain := get_node_or_null("Brain")
     assert(brain != null)

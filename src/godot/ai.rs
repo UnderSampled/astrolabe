@@ -7,7 +7,7 @@ use crate::model::{
     content::ContentSource,
     io::Content,
 };
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use std::{collections::BTreeSet, fmt::Write as _};
 
 fn waypoint_constant(reference: &crate::model::AssetRef<crate::model::route::Waypoint>) -> String {
@@ -22,6 +22,21 @@ fn configuration_constant(reference: &crate::model::AssetRef<ObjectList>) -> Str
         super::digest(reference.path.as_str().as_bytes())
     )
 }
+
+fn waypoint_resource_constant(
+    reference: &crate::model::AssetRef<crate::model::route::Waypoint>,
+) -> String {
+    format!(
+        "waypoint_asset_{}",
+        super::digest(reference.path.as_str().as_bytes())
+    )
+}
+
+type WaypointBinding = (
+    crate::model::AssetRef<crate::model::route::Waypoint>,
+    Option<[f32; 3]>,
+    Option<String>,
+);
 
 fn model_script_file(path: &AssetPath) -> String {
     let file = path.file();
@@ -125,7 +140,7 @@ pub(super) fn export_program(
         .transpose()?;
     let mut waypoints = Vec::new();
     for reference in model.waypoint_references() {
-        if waypoints.iter().any(|(r, _)| r == reference) {
+        if waypoints.iter().any(|(r, _, _)| r == reference) {
             continue;
         }
         let point = source.load(reference)?;
@@ -134,9 +149,11 @@ pub(super) fn export_program(
         // Fixed waypoints lower to native vector constants at conversion,
         // just as route points lower to Curve3D control points. Relative
         // bindings remain explicit failures when the source reaches them.
+        let resource = super::route::export_waypoint(project, &point)?;
         waypoints.push((
             reference.clone(),
             point.relative_actor.is_none().then_some(point.position),
+            Some(format!("res://{resource}")),
         ));
     }
     let mut particles = Vec::new();
@@ -280,10 +297,7 @@ fn compile_with_templates(
     events: &[(crate::model::audio::SoundEventLink, String)],
     family: Option<&crate::model::character::Family>,
     templates: &[(crate::model::AssetRef<Perso>, String)],
-    waypoints: &[(
-        crate::model::AssetRef<crate::model::route::Waypoint>,
-        Option<[f32; 3]>,
-    )],
+    waypoints: &[WaypointBinding],
     particles: &[(
         crate::model::AssetRef<crate::model::particle::ParticleGenerator>,
         String,
@@ -296,10 +310,7 @@ fn compile_with_bindings(
     events: &[(crate::model::audio::SoundEventLink, String)],
     family: Option<&crate::model::character::Family>,
     templates: &[(crate::model::AssetRef<Perso>, String)],
-    waypoints: &[(
-        crate::model::AssetRef<crate::model::route::Waypoint>,
-        Option<[f32; 3]>,
-    )],
+    waypoints: &[WaypointBinding],
     particles: &[(
         crate::model::AssetRef<crate::model::particle::ParticleGenerator>,
         String,
@@ -323,7 +334,7 @@ fn compile_with_bindings(
     )?;
     for reference in model.waypoint_references() {
         ensure!(
-            waypoints.iter().any(|(r, _)| r == reference),
+            waypoints.iter().any(|(r, _, _)| r == reference),
             "AI waypoint requires conversion binding: {}",
             reference.path
         );
@@ -347,9 +358,21 @@ fn compile_with_bindings(
             quoted(resource)
         )?;
     }
-    for (reference, position) in waypoints {
+    for (reference, position, resource) in waypoints {
         let value = position.map(super::vec3).unwrap_or_else(|| "null".into());
         writeln!(out, "const {} = {value}", waypoint_constant(reference))?;
+        if let Some(resource) = resource {
+            ensure!(
+                resource.starts_with("res://"),
+                "AI waypoint resource must be project-local"
+            );
+            writeln!(
+                out,
+                "const {} = preload({})",
+                waypoint_resource_constant(reference),
+                quoted(resource)
+            )?;
+        }
     }
     for reference in model.particle_generators() {
         let (_, resource) = particles
@@ -405,7 +428,7 @@ fn compile_with_bindings(
             out,
             "@export var dsg_{i}: {} = {}",
             value_type(&v.default),
-            literal(&v.default)
+            literal(&v.default, waypoints, true)?
         )?;
     }
     let inputs: BTreeSet<_> = model
@@ -539,12 +562,37 @@ fn value_type(v: &DesignerValue) -> &'static str {
         DesignerValue::ActorList(_) => "Array[Node3D]",
         DesignerValue::Actor(_) | DesignerValue::SourceActor(_) => "Node3D",
         DesignerValue::SourceWaypoint(_) | DesignerValue::SourceWaypointArray(_) => "Variant",
+        DesignerValue::Waypoint(_) => "Resource",
+        DesignerValue::WaypointArray(_) => "Array[Resource]",
         DesignerValue::Opaque { .. } => "PackedByteArray",
     }
 }
-fn literal(v: &DesignerValue) -> String {
+fn literal(
+    v: &DesignerValue,
+    waypoints: &[WaypointBinding],
+    use_preloaded_constants: bool,
+) -> Result<String> {
     let array = |kind: &str, values: Vec<String>| format!("{kind}([{}])", values.join(", "));
-    match v {
+    let waypoint = |reference: &crate::model::AssetRef<crate::model::route::Waypoint>| {
+        waypoints
+            .iter()
+            .find(|(candidate, _, _)| candidate == reference)
+            .and_then(|(_, _, resource)| resource.as_ref())
+            .map(|resource| {
+                if use_preloaded_constants {
+                    waypoint_resource_constant(reference)
+                } else {
+                    format!("load({})", quoted(resource))
+                }
+            })
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "designer waypoint requires native resource binding: {}",
+                    reference.path
+                )
+            })
+    };
+    Ok(match v {
         DesignerValue::Boolean(v) => v.to_string(),
         DesignerValue::Integer(v) => v.to_string(),
         DesignerValue::Byte(v) => v.to_string(),
@@ -582,6 +630,23 @@ fn literal(v: &DesignerValue) -> String {
         DesignerValue::SourceWaypointArray(v) => {
             format!("[{}]", vec!["null"; v.values.len()].join(", "))
         }
+        DesignerValue::Waypoint(value) => value
+            .as_ref()
+            .map(waypoint)
+            .transpose()?
+            .unwrap_or_else(|| "null".into()),
+        DesignerValue::WaypointArray(value) => format!(
+            "[{}]",
+            value
+                .values
+                .iter()
+                .map(|value| value.as_ref().map(waypoint).transpose())
+                .collect::<Result<Vec<_>>>()?
+                .into_iter()
+                .map(|value| value.unwrap_or_else(|| "null".into()))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
         DesignerValue::ActorList(_) => "[]".into(),
         DesignerValue::Opaque { bytes, .. } => format!(
             "PackedByteArray([{}])",
@@ -591,7 +656,7 @@ fn literal(v: &DesignerValue) -> String {
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
-    }
+    })
 }
 fn opaque_accessed_variable(statement: &Statement, model: &AiModel) -> Option<u16> {
     // The outer If owns its condition; nested statements are compiled by the
@@ -799,6 +864,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         Expression::Unsupported(_)
         | Expression::WaypointPosition(_)
         | Expression::DistanceToWaypoint { .. }
+        | Expression::WaypointSphereContains { .. }
         | Expression::CollideWithNothing
         | Expression::LaserDirection
         | Expression::MagicCurrentSpell
@@ -991,6 +1057,44 @@ fn guarded_expression(
                 ))
             )?;
             value_local
+        }
+        Expression::WaypointSphereContains { actor, waypoint } => {
+            let actor_value = guarded_expression(out, actor, model, depth, flow)?;
+            let actor_id = flow.local;
+            flow.local += 1;
+            let actor_local = format!("waypoint_actor_{actor_id}");
+            let failure = quoted(&format!(
+                "{} Cond_CollisionWP requires a live actor and resolved waypoint",
+                model.path
+            ));
+            writeln!(
+                out,
+                "{pad}var {actor_local}: Variant = {actor_value}\n{pad}if typeof({actor_local}) != TYPE_OBJECT or not is_instance_valid({actor_local}) or not ({actor_local} is Node3D) or not {actor_local}.is_inside_tree():\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
+            )?;
+            let waypoint_local = format!("waypoint_operand_{actor_id}");
+            if let Expression::ArrayElement { array, index } = waypoint.as_ref() {
+                let array_value = guarded_expression(out, array, model, depth, flow)?;
+                let index_value = guarded_expression(out, index, model, depth, flow)?;
+                let array_local = format!("waypoint_array_{actor_id}");
+                let index_local = format!("waypoint_index_{actor_id}");
+                writeln!(
+                    out,
+                    "{pad}var {array_local}: Variant = {array_value}\n{pad}var {index_local}: int = int({index_value})\n{pad}if typeof({array_local}) != TYPE_ARRAY or {index_local} < 0 or {index_local} >= {array_local}.size():\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {waypoint_local}: Variant = {array_local}[{index_local}]"
+                )?;
+            } else {
+                let waypoint_value = guarded_expression(out, waypoint, model, depth, flow)?;
+                writeln!(out, "{pad}var {waypoint_local}: Variant = {waypoint_value}")?;
+            }
+            writeln!(
+                out,
+                "{pad}if typeof({waypoint_local}) != TYPE_OBJECT or not is_instance_valid({waypoint_local}) or not {waypoint_local}.has_method(\"source_world_position\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
+            )?;
+            let result_local = format!("waypoint_contains_{actor_id}");
+            writeln!(
+                out,
+                "{pad}var {result_local}: Variant = character().source_actor_in_waypoint_sphere({actor_local} as Node3D, {waypoint_local} as Resource)\n{pad}if typeof({result_local}) != TYPE_BOOL:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
+            )?;
+            result_local
         }
         Expression::DialogIsOver => {
             writeln!(
@@ -1302,6 +1406,7 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         Expression::IntegerCast(value) => format!("int({})", expression(value, model)?),
         Expression::SelfPosition => "character().source_position()".into(),
         Expression::SelfPositionField => "character().source_position()".into(),
+        Expression::WaypointReference(reference) => waypoint_resource_constant(reference),
         Expression::WaypointPosition(reference) => waypoint_constant(reference),
         Expression::GameTime => "character().source_game_time()".into(),
         Expression::TimeElapsed { start, duration } => format!(
@@ -1389,7 +1494,8 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         | Expression::ActorLocalSourceXYDistance(_)
         | Expression::IsValidActor(_)
         | Expression::ApplyArmoredDamage(_)
-        | Expression::DistanceToWaypoint { .. } => {
+        | Expression::DistanceToWaypoint { .. }
+        | Expression::WaypointSphereContains { .. } => {
             anyhow::bail!("actor or numeric expression requires guarded compilation")
         }
         Expression::ArmorResistance | Expression::ArmorCount => {
@@ -2500,6 +2606,27 @@ pub(super) fn component(
     for action in model.state_references() {
         action.validate_family(&family)?;
     }
+    let mut waypoints = Vec::new();
+    for reference in model.waypoint_references() {
+        if waypoints
+            .iter()
+            .any(|(candidate, _, _)| candidate == reference)
+        {
+            continue;
+        }
+        let waypoint = source.load(reference)?;
+        waypoint.validate_reference(&reference.path)?;
+        waypoint.validate()?;
+        let resource = super::route::export_waypoint(project, &waypoint)?;
+        waypoints.push((
+            (*reference).clone(),
+            waypoint
+                .relative_actor
+                .is_none()
+                .then_some(waypoint.position),
+            Some(format!("res://{resource}")),
+        ));
+    }
     let script = export_program(project, source, &model, written)?;
     writeln!(
         project.builder,
@@ -2517,7 +2644,8 @@ pub(super) fn component(
         writeln!(
             project.builder,
             "    {parent}_brain.dsg_{i} = {}",
-            literal(v)
+            literal(v, &waypoints, false)
+                .with_context(|| format!("{} Brain designer field {i}", brain.model.path))?
         )?;
     }
     for (name, selection) in [("normal", &brain.normal), ("reflex", &brain.reflex)] {
@@ -2865,7 +2993,7 @@ mod source_position_tests {
             &[],
             None,
             &[],
-            &[(waypoint, Some([0.0, 0.0, 0.0]))],
+            &[(waypoint, Some([0.0, 0.0, 0.0]), None)],
             &[],
         )?;
         let sequence = [
@@ -2926,12 +3054,65 @@ mod source_position_tests {
             &[],
             None,
             &[],
-            &[(waypoint.clone(), Some([1.0, 2.0, 3.0]))],
+            &[(waypoint.clone(), Some([1.0, 2.0, 3.0]), None)],
             &[],
         )?;
         let symbol = super::waypoint_constant(&waypoint);
         assert!(generated.contains(&format!("const {symbol} = Vector3(")));
         assert!(generated.contains(&format!(" = {symbol}")));
+        Ok(())
+    }
+
+    #[test]
+    fn declares_direct_waypoint_values_as_native_resources() -> anyhow::Result<()> {
+        let path = AssetPath::new("level:/ai/models/direct-waypoint")?;
+        let waypoint = crate::model::AssetRef::<crate::model::route::Waypoint>::new(
+            "level:/waypoints/17-1/56",
+        )?;
+        let model = AiModel {
+            path,
+            name: "direct-waypoint".into(),
+            normal: Some(BehaviorSet {
+                behaviors: vec![Behavior {
+                    id: 0,
+                    rules: Vec::new(),
+                    schedule: Some(Script {
+                        statements: vec![Statement::MainActorFieldAssign {
+                            variable: 0,
+                            value: Expression::WaypointReference(waypoint.clone()),
+                        }],
+                    }),
+                    unknown: [0; 3],
+                }],
+                default_behavior: Some(0),
+                action_capacity: 0,
+                unknown: [0; 3],
+            }),
+            reflex: None,
+            variables: vec![crate::model::ai::DesignerVariable {
+                default: crate::model::ai::DesignerValue::Waypoint(None),
+                save: 0,
+                initialize: 0,
+            }],
+            designer_unknown: [0; 3],
+            unknown: [0; 4],
+        };
+        let resource = "res://waypoints/17-1/56.tres";
+        let generated = compile_with_templates(
+            &model,
+            &[],
+            None,
+            &[],
+            &[(
+                waypoint.clone(),
+                Some([1.0, 2.0, 3.0]),
+                Some(resource.into()),
+            )],
+            &[],
+        )?;
+        let constant = super::waypoint_resource_constant(&waypoint);
+        assert!(generated.contains(&format!("const {constant} = preload(\"{resource}\")")));
+        assert!(generated.contains(&format!(".set(\"dsg_0\", {constant})")));
         Ok(())
     }
 
@@ -2979,7 +3160,7 @@ mod source_position_tests {
             &[],
             None,
             &[],
-            &[(waypoint, Some([-85.744194, 14.145693, 1.973552]))],
+            &[(waypoint, Some([-85.744194, 14.145693, 1.973552]), None)],
             &[],
         )?;
         assert!(generated.contains("character().source_actor_node(\"level:/persos/world/0/34\")"));

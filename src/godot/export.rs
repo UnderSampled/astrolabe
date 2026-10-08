@@ -76,8 +76,8 @@ pub fn export<R: ContentSource>(
             Asset::Route(route) => {
                 super::route::export_route(&mut project, source, &route)?;
             }
-            Asset::Waypoint(_) => {
-                anyhow::bail!("waypoint export requires its owning route");
+            Asset::Waypoint(waypoint) => {
+                super::route::export_waypoint(&mut project, &waypoint)?;
             }
             Asset::Collision(_) => {
                 anyhow::bail!("collision export requires its owning scene")

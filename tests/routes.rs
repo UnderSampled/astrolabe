@@ -131,6 +131,7 @@ fn compiled_routes_use_native_contact_and_actor_local_progress() -> Result<()> {
         position: [0.; 3],
         radius: 0.25,
         relative_actor: None,
+        relative_actor_ref: None,
         unknown: [0; 4],
         tail: [0; 4],
     };

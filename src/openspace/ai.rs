@@ -53,7 +53,7 @@ impl FormatCodec for AiScriptCodec {
             format: "Hype AI script",
             reads: true,
             writes: true,
-            notes: "Typed scalar/Boolean trees, source actor/math calls, armor operations, branches, assignment, waits, and sound requests; unsupported operations fail explicitly",
+            notes: "Typed expressions include category-29 Waypoint values and inclusive 3D Cond_CollisionWP; actor/math calls, armor, branches, assignment, waits, and sound requests remain typed; unsupported operands fail explicitly",
         }
     }
     fn read(&self, bytes: &[u8]) -> Result<Script> {
@@ -883,6 +883,12 @@ impl Parser<'_> {
                 self.expression(indent + 1)?,
             ])),
             (9, 0) => Expression::SelfPositionField,
+            (29, _) => match self.codec.waypoints.get(&at) {
+                Some(reference) => Expression::WaypointReference(reference.clone()),
+                None => Expression::Unsupported(
+                    self.unsupported(at, format!("unbound Waypoint reference at node {at}"))?,
+                ),
+            },
             (11, n) => Expression::Variable(n.try_into()?),
             (1, 53) => {
                 let (_, list) = self.take(indent + 1)?;
@@ -1022,6 +1028,10 @@ impl Parser<'_> {
                     target,
                 }
             }
+            (1, 108) => Expression::WaypointSphereContains {
+                actor: Box::new(self.expression(indent + 1)?),
+                waypoint: Box::new(self.expression(indent + 1)?),
+            },
             (2, 24) => {
                 let (receiver_at, actor) = self.take(indent + 1)?;
                 let receiver = match (actor.kind, actor.parameter) {
@@ -2088,6 +2098,16 @@ impl Writer<'_> {
             Expression::SelfSighting => self.node(3, 164, indent),
             Expression::SelfPosition => self.node(3, 0, indent),
             Expression::SelfPositionField => self.node(9, 0, indent),
+            Expression::WaypointReference(reference) => {
+                let handle = self
+                    .codec
+                    .waypoint_handles
+                    .iter()
+                    .find(|(candidate, _)| candidate == reference)
+                    .context("missing Waypoint reference handle")?
+                    .1;
+                self.node(29, handle, indent);
+            }
             Expression::WaypointPosition(reference) => {
                 let handle = self
                     .codec
@@ -2129,6 +2149,11 @@ impl Writer<'_> {
                     .1;
                 self.node(3, 11, function_indent);
                 self.node(29, handle, waypoint_indent);
+            }
+            Expression::WaypointSphereContains { actor, waypoint } => {
+                self.node(1, 108, indent);
+                self.expression(actor, indent + 1)?;
+                self.expression(waypoint, indent + 1)?;
             }
             Expression::GameTime => self.node(3, 41, indent),
             Expression::RandomInt { lower, upper } => {

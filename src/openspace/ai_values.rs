@@ -39,6 +39,16 @@ pub struct DesignerValueCodec {
         u32,
     )>,
     pub source_actors: std::collections::BTreeMap<usize, Option<SourceObjectIdentity>>,
+    /// Resolved waypoint assets, keyed by byte offset in the value. A present
+    /// `None` is a real null source pointer; an absent entry stays unresolved.
+    pub waypoints: std::collections::BTreeMap<
+        usize,
+        Option<crate::model::AssetRef<crate::model::route::Waypoint>>,
+    >,
+    pub waypoint_handles: Vec<(
+        Option<crate::model::AssetRef<crate::model::route::Waypoint>>,
+        u32,
+    )>,
     /// Resolved source waypoint references, keyed by byte offset in the value.
     pub source_objects: std::collections::BTreeMap<usize, Option<SourceObjectIdentity>>,
 }
@@ -67,6 +77,8 @@ impl DesignerValueCodec {
             DesignerValue::ActionArray(_) => 25,
             DesignerValue::SourceWaypoint(_) => 8,
             DesignerValue::SourceWaypointArray(_) => 23,
+            DesignerValue::Waypoint(_) => 8,
+            DesignerValue::WaypointArray(_) => 23,
             DesignerValue::Opaque { kind, .. } => *kind,
         }
     }
@@ -89,8 +101,8 @@ impl FormatCodec for DesignerValueCodec {
         FormatSupport {
             format: "Hype designer value",
             reads: true,
-            writes: !matches!(self.kind, 8 | 23),
-            notes: "Exact scalars, vectors, family-owned actions and Montreal arrays; waypoint references remain source identities pending reconstruction",
+            writes: true,
+            notes: "Exact scalars, vectors, resolved actor/waypoint links and Montreal arrays; unresolved source identities are retained but cannot yet be reconstructed",
         }
     }
     fn read(&self, bytes: &[u8]) -> Result<DesignerValue> {
@@ -156,7 +168,10 @@ impl FormatCodec for DesignerValueCodec {
                 }
             }
             14 => DesignerValue::Action(self.action(0)?),
-            8 => DesignerValue::SourceWaypoint(self.source_object(0)?),
+            8 => match self.waypoints.get(&0) {
+                Some(reference) => DesignerValue::Waypoint(reference.clone()),
+                None => DesignerValue::SourceWaypoint(self.source_object(0)?),
+            },
             25 => {
                 let raw: DesignerArray<u32> = read_array(&mut c, 14, true)?;
                 DesignerValue::ActionArray(DesignerArray {
@@ -169,13 +184,30 @@ impl FormatCodec for DesignerValueCodec {
             }
             23 => {
                 let raw: DesignerArray<u32> = read_array(&mut c, 8, true)?;
-                DesignerValue::SourceWaypointArray(DesignerArray {
-                    values: (0..raw.values.len())
-                        .map(|i| self.source_object(8 + i * 12))
-                        .collect::<Result<_>>()?,
-                    unknown: raw.unknown,
-                    element_unknown: raw.element_unknown,
-                })
+                let mut values = Vec::with_capacity(raw.values.len());
+                let mut resolved = true;
+                for index in 0..raw.values.len() {
+                    let offset = 8 + index * 12;
+                    match self.waypoints.get(&offset) {
+                        Some(reference) => values.push(reference.clone()),
+                        None => resolved = false,
+                    }
+                }
+                if resolved {
+                    DesignerValue::WaypointArray(DesignerArray {
+                        values,
+                        unknown: raw.unknown,
+                        element_unknown: raw.element_unknown,
+                    })
+                } else {
+                    DesignerValue::SourceWaypointArray(DesignerArray {
+                        values: (0..raw.values.len())
+                            .map(|i| self.source_object(8 + i * 12))
+                            .collect::<Result<_>>()?,
+                        unknown: raw.unknown,
+                        element_unknown: raw.element_unknown,
+                    })
+                }
             }
             _ => bail!("unsupported designer type {}", self.kind),
         };
@@ -253,6 +285,21 @@ impl FormatCodec for DesignerValueCodec {
             DesignerValue::SourceWaypoint(_) | DesignerValue::SourceWaypointArray(_) => {
                 bail!("source waypoint reconstruction is not implemented")
             }
+            DesignerValue::Waypoint(value) => self.waypoint_handle(value)?.write_le(&mut c)?,
+            DesignerValue::WaypointArray(value) => write_array(
+                &mut c,
+                &DesignerArray {
+                    values: value
+                        .values
+                        .iter()
+                        .map(|value| self.waypoint_handle(value))
+                        .collect::<Result<Vec<_>>>()?,
+                    unknown: value.unknown,
+                    element_unknown: value.element_unknown.clone(),
+                },
+                8,
+                true,
+            )?,
             DesignerValue::Opaque { kind, .. } => {
                 bail!("opaque source designer type {kind} cannot be reconstructed")
             }
@@ -279,6 +326,16 @@ impl DesignerValueCodec {
             .get(&offset)
             .cloned()
             .with_context(|| format!("unbound source waypoint at +{offset}"))
+    }
+    fn waypoint_handle(
+        &self,
+        value: &Option<crate::model::AssetRef<crate::model::route::Waypoint>>,
+    ) -> Result<u32> {
+        self.waypoint_handles
+            .iter()
+            .find(|(reference, _)| reference == value)
+            .map(|(_, handle)| *handle)
+            .context("missing assigned designer waypoint handle")
     }
 }
 fn read_array<T>(c: &mut Cursor<&[u8]>, kind: u32, scalar: bool) -> Result<DesignerArray<T>>

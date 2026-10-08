@@ -1276,6 +1276,7 @@ fn actor_ai_at_node(
                     selected_actor.set(target);
                     Ok(target.map(|_| actor_ref.clone()))
                 },
+                |_| Ok(None),
             )?;
             let value = match value {
                 DesignerValue::Action(value) => {

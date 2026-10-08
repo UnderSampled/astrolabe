@@ -22,6 +22,7 @@ use crate::{
         ai::*,
         character::{Perso, StateRef},
         io::{Content, Diagnostic, Severity},
+        route::Waypoint,
     },
     openspace::{
         ai::{AiScriptCodec, NodeWire},
@@ -689,6 +690,7 @@ fn values(
     s: &SourceSession,
     states: &BTreeMap<Address, StateRef>,
     actors: &BTreeMap<Address, AssetRef<crate::model::character::Perso>>,
+    result: &mut SceneImport,
     a: Address,
     infos: &[InfoWire],
     length: usize,
@@ -738,6 +740,11 @@ fn values(
                         .transpose()
                 },
                 |target| Ok(target.and_then(|target| actors.get(&target).cloned())),
+                |target| {
+                    target
+                        .map(|target| import_waypoint_asset(s, target, result))
+                        .transpose()
+                },
             )?
         };
         out.push(value);
@@ -772,6 +779,57 @@ fn values(
     ensure!(end == length, "unrepresented designer memory tail");
     Ok(out)
 }
+
+fn source_actor_links(
+    s: &SourceSession,
+    actors: &BTreeMap<Address, AssetRef<Perso>>,
+) -> Result<Vec<(SourceObjectIdentity, AssetRef<Perso>)>> {
+    let mut links: Vec<(SourceObjectIdentity, AssetRef<Perso>)> = Vec::with_capacity(actors.len());
+    for (&address, reference) in actors {
+        let identity = s.source_identity(address)?;
+        if let Some((_, previous)) = links.iter().find(|(source, _)| source == &identity) {
+            ensure!(
+                previous == reference,
+                "ambiguous source actor identity {:?}",
+                identity
+            );
+        } else {
+            links.push((identity, reference.clone()));
+        }
+    }
+    Ok(links)
+}
+
+fn bind_waypoint_actor(
+    waypoint: &mut Waypoint,
+    source_actor_links: &[(SourceObjectIdentity, AssetRef<Perso>)],
+) -> Result<()> {
+    waypoint.relative_actor_ref = waypoint.relative_actor.as_ref().and_then(|identity| {
+        source_actor_links
+            .iter()
+            .find(|(source, _)| source == identity)
+            .map(|(_, reference)| reference.clone())
+    });
+    waypoint.validate()
+}
+
+fn import_waypoint_asset(
+    s: &SourceSession,
+    address: Address,
+    result: &mut SceneImport,
+) -> Result<AssetRef<Waypoint>> {
+    super::way::import_waypoint(s, address, result)
+}
+
+fn bind_existing_waypoint_actors(
+    result: &mut SceneImport,
+    source_actor_links: &[(SourceObjectIdentity, AssetRef<Perso>)],
+) -> Result<()> {
+    for waypoint in &mut result.waypoints {
+        bind_waypoint_actor(waypoint, source_actor_links)?;
+    }
+    Ok(())
+}
 fn selection(
     s: &SourceSession,
     mind: Address,
@@ -804,6 +862,7 @@ pub(super) fn import(
     result: &mut SceneImport,
     material_ids: &mut BTreeMap<Address, AssetPath>,
 ) -> Result<()> {
+    let source_actor_links = source_actor_links(s, actors)?;
     if u32_at(&s.gpt, 0x2ae0)? != 0 {
         let a = s.root(0x2ae0)?;
         let _: MainActorWire = wire(allocated(s, a, 20)?)?;
@@ -899,10 +958,11 @@ pub(super) fn import(
         let mind = s.required(a, 0)?;
         let m: MindWire = wire(allocated(s, mind, 20)?)?;
         let model = s.required(mind, 0)?;
-        let perso = result
+        let perso_name = result
             .persos
-            .iter_mut()
+            .iter()
             .find(|p| p.path == perso_reference.path)
+            .map(|p| p.name.clone())
             .with_context(|| {
                 format!(
                     "AI perso {} missing from imported content",
@@ -940,6 +1000,7 @@ pub(super) fn import(
                         s,
                         states,
                         actors,
+                        result,
                         s.required(*a, 0)?,
                         infos,
                         h.length as usize,
@@ -950,7 +1011,7 @@ pub(super) fn import(
                 .unwrap_or_default();
             let value = AiModel {
                 path: path.clone(),
-                name: perso.name.clone(),
+                name: perso_name,
                 normal: sets[0]
                     .as_ref()
                     .map(|set| {
@@ -1000,7 +1061,7 @@ pub(super) fn import(
             definition,
             fields: infos,
         } = designer;
-        let ai = &result.ai_models[*index];
+        let ai = result.ai_models[*index].clone();
         let mut memory = ai.variables.iter().map(|v| v.default.clone()).collect();
         let mut initial = None;
         if let Some(mem) = s.pointer(mind, 12)? {
@@ -1013,13 +1074,13 @@ pub(super) fn import(
                 "designer memory refers to another definition"
             );
             if let Some(a) = s.pointer(mem, 8)? {
-                memory = values(s, states, actors, a, infos, h.length as usize)
+                memory = values(s, states, actors, result, a, infos, h.length as usize)
                     .with_context(|| format!("AI model {path} current designer memory"))?;
             }
             initial = s
                 .pointer(mem, 4)?
                 .map(|a| {
-                    values(s, states, actors, a, infos, h.length as usize)
+                    values(s, states, actors, result, a, infos, h.length as usize)
                         .with_context(|| format!("AI model {path} initial designer memory"))
                 })
                 .transpose()?;
@@ -1033,8 +1094,19 @@ pub(super) fn import(
             unknown: b.unknown,
             mind_unknown: m.unknown,
         };
-        brain.validate_model(ai)?;
-        perso.brain = Some(brain);
+        brain.validate_model(&ai)?;
+        result
+            .persos
+            .iter_mut()
+            .find(|p| p.path == perso_reference.path)
+            .with_context(|| {
+                format!(
+                    "AI perso {} missing from imported content",
+                    perso_reference.path
+                )
+            })?
+            .brain = Some(brain);
     }
+    bind_existing_waypoint_actors(result, &source_actor_links)?;
     Ok(())
 }

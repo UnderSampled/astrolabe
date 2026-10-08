@@ -14,6 +14,7 @@ use crate::{
         AssetRef,
         ai::{BehaviorSelection, DesignerValue, SourceObjectIdentity},
         character::{Perso, StateRef},
+        route::Waypoint,
     },
     openspace::{ai_values::DesignerValueCodec, codec::FormatCodec},
 };
@@ -222,18 +223,20 @@ pub(super) fn designer_view<S: RecordSource>(
 /// Decode one declared designer value through the production value codec. The
 /// caller supplies semantic bindings for relocated action and actor pointers;
 /// this keeps capture-local locations out of the useful model.
-pub(super) fn designer_value<S, A, P>(
+pub(super) fn designer_value<S, A, P, W>(
     source: &mut S,
     values: S::Location,
     info: InfoWire,
     length: usize,
     mut action: A,
     mut actor: P,
+    mut waypoint: W,
 ) -> Result<(DesignerValue, usize)>
 where
     S: RecordSource,
     A: FnMut(Option<S::Location>) -> Result<Option<StateRef>>,
     P: FnMut(Option<S::Location>) -> Result<Option<AssetRef<Perso>>>,
+    W: FnMut(Option<S::Location>) -> Result<Option<AssetRef<Waypoint>>>,
 {
     let offset: usize = info.offset.try_into()?;
     let address = source.add(values, offset)?;
@@ -320,10 +323,24 @@ where
             let target = if matches!(u32_at(&source.bytes(site, 4)?, 0)?, 0 | u32::MAX) {
                 None
             } else {
-                let target = source.required(site, 0)?;
-                Some(source.source_identity(target)?)
+                Some(source.required(site, 0)?)
             };
-            codec.source_objects.insert(operand, target);
+            codec.source_objects.insert(
+                operand,
+                target
+                    .map(|target| source.source_identity(target))
+                    .transpose()?,
+            );
+            match target {
+                None => {
+                    codec.waypoints.insert(operand, None);
+                }
+                Some(target) => {
+                    if let Some(reference) = waypoint(Some(target))? {
+                        codec.waypoints.insert(operand, Some(reference));
+                    }
+                }
+            }
         }
     }
     Ok((codec.read(&bytes)?, extent))

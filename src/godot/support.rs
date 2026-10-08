@@ -37,6 +37,7 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/character/particle_generator.gd.uid",
     "addons/astrolabe/character/route.gd",
     "addons/astrolabe/character/route.gd.uid",
+    "addons/astrolabe/character/waypoint.gd",
     "addons/astrolabe/character/inventory.gd",
     "addons/astrolabe/character/magick.gd",
     "addons/astrolabe/character/hit_points.gd",

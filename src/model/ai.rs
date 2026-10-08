@@ -393,6 +393,9 @@ pub enum Expression {
     /// Source Field.Position reads the current receiver's world translation.
     /// Keep this distinct from Func_GetPersoAbsolutePosition for source fidelity.
     SelfPositionField,
+    /// A category-29 source operand used as a typed Waypoint value (for
+    /// example, a saved designer-array assignment), distinct from its position.
+    WaypointReference(AssetRef<Waypoint>),
     /// Func_GetWPAbsolutePosition resolves a meaningful shared waypoint asset.
     WaypointPosition(AssetRef<Waypoint>),
     /// Func_DistanceToWP evaluates a source-space waypoint distance on its
@@ -400,6 +403,14 @@ pub enum Expression {
     DistanceToWaypoint {
         actor: ActorTarget,
         waypoint: AssetRef<Waypoint>,
+    },
+    /// Cond_CollisionWP (category 1/op 108, 005356c0) tests 0052e810's full
+    /// 3D distance minus 005169e0's radius <= 0. 005173f0 resolves an
+    /// actor-relative waypoint location each evaluation. Expressions retain
+    /// dynamic ArrayElement selection and are evaluated on every check.
+    WaypointSphereContains {
+        actor: Box<Expression>,
+        waypoint: Box<Expression>,
     },
     /// Source gameplay clock value; its target implementation is owned by Godot.
     GameTime,
@@ -593,6 +604,10 @@ pub enum DesignerValue {
     /// Source waypoint identity until the route/waypoint model is promoted.
     SourceWaypoint(Option<SourceObjectIdentity>),
     SourceWaypointArray(DesignerArray<Option<SourceObjectIdentity>>),
+    /// A resolved reference to the existing shared waypoint asset model.
+    Waypoint(Option<AssetRef<Waypoint>>),
+    /// Resolved waypoint assets selected through a source array operation.
+    WaypointArray(DesignerArray<Option<AssetRef<Waypoint>>>),
     /// Preserved bytes for a source designer field whose value semantics are
     /// not understood. The payload is never traversed as pointers or executed.
     Opaque {
@@ -839,17 +854,29 @@ impl AiModel {
         out
     }
     pub fn waypoint_references(&self) -> Vec<&AssetRef<Waypoint>> {
-        self.expressions()
+        let mut out: Vec<_> = self
+            .expressions()
             .into_iter()
             .filter_map(|e| match e {
                 Expression::WaypointPosition(reference)
+                | Expression::WaypointReference(reference)
                 | Expression::DistanceToWaypoint {
                     waypoint: reference,
                     ..
                 } => Some(reference),
                 _ => None,
             })
-            .collect()
+            .collect();
+        for variable in &self.variables {
+            match &variable.default {
+                DesignerValue::Waypoint(Some(reference)) => out.push(reference),
+                DesignerValue::WaypointArray(array) => {
+                    out.extend(array.values.iter().flatten());
+                }
+                _ => {}
+            }
+        }
+        out
     }
     pub fn configuration_references(&self) -> Vec<&AssetRef<ObjectList>> {
         let mut out = Vec::new();
@@ -916,6 +943,20 @@ impl DesignerValue {
             Self::IntegerArray(v) => v.validate()?,
             Self::ActionArray(v) => v.validate()?,
             Self::SourceWaypointArray(v) => v.validate()?,
+            Self::Waypoint(Some(reference)) => ensure!(
+                reference.path.member().is_none(),
+                "designer waypoint must identify its asset"
+            ),
+            Self::WaypointArray(v) => {
+                v.validate()?;
+                ensure!(
+                    v.values
+                        .iter()
+                        .flatten()
+                        .all(|reference| reference.path.member().is_none()),
+                    "designer waypoint array entry must identify its asset"
+                );
+            }
             Self::ActorList(v) => v.validate()?,
             Self::RealArray(v) => {
                 v.validate()?;
@@ -945,6 +986,8 @@ impl DesignerValue {
     pub fn same_type(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Actor(_), Self::SourceActor(_)) | (Self::SourceActor(_), Self::Actor(_)) => true,
+            (Self::Waypoint(_), Self::SourceWaypoint(_))
+            | (Self::SourceWaypoint(_), Self::Waypoint(_)) => true,
             (Self::IntegerArray(a), Self::IntegerArray(b)) => a.values.len() == b.values.len(),
             (Self::RealArray(a), Self::RealArray(b)) => a.values.len() == b.values.len(),
             (Self::VectorArray(a), Self::VectorArray(b)) => a.values.len() == b.values.len(),
@@ -952,6 +995,11 @@ impl DesignerValue {
             (Self::SourceWaypointArray(a), Self::SourceWaypointArray(b)) => {
                 a.values.len() == b.values.len()
             }
+            (Self::WaypointArray(a), Self::SourceWaypointArray(b))
+            | (Self::SourceWaypointArray(b), Self::WaypointArray(a)) => {
+                a.values.len() == b.values.len()
+            }
+            (Self::WaypointArray(a), Self::WaypointArray(b)) => a.values.len() == b.values.len(),
             (Self::ActorList(a), Self::ActorList(b)) => a.slots.len() == b.slots.len(),
             (
                 Self::Opaque {
@@ -999,7 +1047,7 @@ impl Script {
             match e {
                 Expression::Unsupported(fragment) => fragment.validate()?,
                 Expression::Real(v) => ensure!(v.is_finite(), "nonfinite AI real"),
-                Expression::WaypointPosition(r) => {
+                Expression::WaypointPosition(r) | Expression::WaypointReference(r) => {
                     ensure!(r.path.member().is_none(), "waypoint is a member")
                 }
                 Expression::DistanceToWaypoint { actor, waypoint } => {
@@ -1079,7 +1127,11 @@ impl Script {
                     item: left,
                     count: right,
                 }
-                | Expression::VectorCos(left, right) => {
+                | Expression::VectorCos(left, right)
+                | Expression::WaypointSphereContains {
+                    actor: left,
+                    waypoint: right,
+                } => {
                     expression(left, variables, depth + 1, count)?;
                     expression(right, variables, depth + 1, count)?;
                 }

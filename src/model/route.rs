@@ -11,6 +11,10 @@ pub struct Waypoint {
     pub radius: f32,
     /// Unpromoted actor-relative binding; fixed points have no binding.
     pub relative_actor: Option<SourceObjectIdentity>,
+    /// Rooted actor resolved from `relative_actor`; absent when the target is
+    /// outside the imported actor graph and native world positioning is pending.
+    #[serde(default)]
+    pub relative_actor_ref: Option<AssetRef<super::character::Perso>>,
     pub unknown: [u8; 4],
     pub tail: [u8; 4],
 }
@@ -61,6 +65,13 @@ impl Content for Waypoint {
                 && self.radius >= 0.0,
             "invalid waypoint geometry"
         );
+        ensure!(
+            self.relative_actor_ref.is_none() || self.relative_actor.is_some(),
+            "waypoint actor reference lacks its source identity"
+        );
+        if let Some(actor) = &self.relative_actor_ref {
+            ensure!(actor.path.member().is_none(), "waypoint actor is a member");
+        }
         Ok(())
     }
 }
