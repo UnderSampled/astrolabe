@@ -4,6 +4,8 @@ extends SceneTree
 const SAVE_STATE = preload("res://game/save_state.gd")
 const ORIGINAL_IMPORT_PATH := "res://game/original_save_import.json"
 const NEW_GAME_SCENE_PATH := "res://game/new_game.tscn"
+const FLOAT32_EPSILON := 0.00000011920928955078125
+const FLOAT32_ROUNDTRIP_EPSILONS := 2.0
 var report: Dictionary = {"scope":"actual New Game and Load Game routes, original import/native precedence, normal opening walk/contact checkpoint", "intro_acceptance":"pending"}
 var evidence_path: String
 var gogoud_actions: Array[int] = []
@@ -15,6 +17,37 @@ var original_import_changed := false
 var new_game_scene_source_abs := ""
 var new_game_scene_backup_abs := ""
 const SLOT_PROBE := "{\"schema\":999,\"level\":\"manoir\"}\n"
+
+func _float32_roundtrip_tolerance(expected: Vector3) -> Vector3:
+    var scale := Vector3(maxf(1.0, absf(expected.x)), maxf(1.0, absf(expected.y)), maxf(1.0, absf(expected.z)))
+    return scale * FLOAT32_EPSILON * FLOAT32_ROUNDTRIP_EPSILONS
+
+func _matches_float32_roundtrip(expected: Vector3, observed: Vector3) -> bool:
+    var tolerance := _float32_roundtrip_tolerance(expected)
+    var delta := observed - expected
+    return absf(delta.x) <= tolerance.x and absf(delta.y) <= tolerance.y and absf(delta.z) <= tolerance.z
+
+func _check_float32_tolerance_contract() -> bool:
+    var source_position := Vector3(-74.381462097168, 4.56865549087524, -28.5058479309082)
+    var observed_roundtrip := Vector3(-74.3814544677734, 4.56865501403809, -28.5058441162109)
+    var measured_roundtrip_accepted := _matches_float32_roundtrip(source_position, observed_roundtrip)
+    var unit_position := Vector3.ONE
+    var boundary_tolerance := _float32_roundtrip_tolerance(unit_position).x
+    var at_boundary := Vector3(unit_position.x + boundary_tolerance, unit_position.y, unit_position.z)
+    var beyond_boundary := Vector3(unit_position.x + boundary_tolerance * 1.5, unit_position.y, unit_position.z)
+    var boundary_accepted := _matches_float32_roundtrip(unit_position, at_boundary)
+    var beyond_boundary_rejected := not _matches_float32_roundtrip(unit_position, beyond_boundary)
+    var wrong_pose := Vector3(source_position.x + 0.001, source_position.y, source_position.z)
+    var wrong_pose_rejected := not _matches_float32_roundtrip(source_position, wrong_pose)
+    report["float32_position_tolerance_contract"] = {"rule":"two float32 machine epsilons scaled by max(1, abs(expected component)) per axis",
+        "measured_roundtrip_delta":[observed_roundtrip.x - source_position.x, observed_roundtrip.y - source_position.y, observed_roundtrip.z - source_position.z],
+        "boundary_two_epsilons_accepted":boundary_accepted,"three_epsilons_rejected":beyond_boundary_rejected,
+        "one_millimeter_wrong_pose_rejected":wrong_pose_rejected}
+    if not require(measured_roundtrip_accepted, "float32 round-trip comparison rejected the measured source-position representation"): return false
+    if not require(boundary_accepted, "float32 comparison rejected its two-epsilon boundary"): return false
+    if not require(beyond_boundary_rejected, "float32 comparison accepted a value beyond its precision boundary"): return false
+    if not require(wrong_pose_rejected, "float32 comparison accepted a 1 mm wrong-pose control"): return false
+    return true
 
 func _initialize() -> void:
     node_added.connect(_watch_session_node)
@@ -225,15 +258,19 @@ func _check_route_lifecycle(route_name: String, start_index: int, expected_mana:
                 restored_pose = event
                 break
         var restored_values: Array = restored_pose.get("actor_position", [])
-        var restored_position := Vector3(float(restored_values[0]), float(restored_values[1]), float(restored_values[2])) if restored_values.size() == 3 else Vector3.INF
-        var exact_restore: bool = restored_position == expected_restored_position
+        var restored_position := Vector3(float(restored_values[0]), float(restored_values[1]), float(restored_values[2])) if restored_values.size() == 3 else Vector3.ZERO
+        var float32_restore: bool = restored_values.size() == 3 and _matches_float32_roundtrip(expected_restored_position, restored_position)
+        var restore_delta: Vector3 = restored_position - expected_restored_position
+        var restore_tolerance: Vector3 = _float32_roundtrip_tolerance(expected_restored_position)
         report[route_name + "_restore_pose_boundary"] = {"expected":[expected_restored_position.x,expected_restored_position.y,expected_restored_position.z],
             "observed":[restored_position.x,restored_position.y,restored_position.z] if restored_values.size() == 3 else [],
-            "actor_physics_enabled":restored_pose.get("actor_physics_enabled", true),"exact":exact_restore,
-            "reason":"Demo emits restored synchronously after SAVE_STATE.apply and before enabling actor physics.",
-            "accepted":not restored_pose.is_empty() and not bool(restored_pose.get("actor_physics_enabled", true)) and exact_restore}
-        if not require(not restored_pose.is_empty() and not bool(restored_pose.get("actor_physics_enabled", true)) and exact_restore,
-            route_name + " did not restore the exact saved position before actor physics resumed"): return false
+            "delta":[restore_delta.x,restore_delta.y,restore_delta.z],
+            "tolerance_m":[restore_tolerance.x,restore_tolerance.y,restore_tolerance.z],
+            "actor_physics_enabled":restored_pose.get("actor_physics_enabled", true),"within_float32_roundtrip":float32_restore,
+            "reason":"Demo emits restored synchronously after SAVE_STATE.apply and before enabling actor physics; only two float32 machine epsilons at coordinate scale are allowed.",
+            "accepted":not restored_pose.is_empty() and not bool(restored_pose.get("actor_physics_enabled", true)) and float32_restore}
+        if not require(not restored_pose.is_empty() and not bool(restored_pose.get("actor_physics_enabled", true)) and float32_restore,
+            route_name + " did not restore the saved position within float32 transform precision before actor physics resumed"): return false
     for event in transition_events:
         if event.get("event") == "progress" and event.get("observed_at_ms", 0) >= started.get("observed_at_ms", 0) and event.get("observed_at_ms", 0) <= completed.get("observed_at_ms", 0):
             if not require(event.get("phase") == "resource_loading" and float(event.get("fraction", -1.0)) >= 0.0 and float(event.get("fraction", 2.0)) <= 1.0, route_name + " reported a non-resource fraction as load progress"): return false
@@ -357,6 +394,7 @@ func run() -> void:
     var args := OS.get_cmdline_user_args()
     if not require(args.size() == 1,"requires evidence JSON path"): return
     evidence_path = args[0]
+    if not _check_float32_tolerance_contract(): return
     if not require(not FileAccess.file_exists(SAVE_STATE.path()),"isolated slot must begin absent"): return
     original_import_backup = FileAccess.get_file_as_string(ORIGINAL_IMPORT_PATH) if FileAccess.file_exists(ORIGINAL_IMPORT_PATH) else ""
     var imported_fixture: Dictionary = SAVE_STATE.read_original_import()
