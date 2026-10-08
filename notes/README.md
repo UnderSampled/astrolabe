@@ -6,6 +6,11 @@
 
 ## Common records
 
+The [isolated Manor static integration](manor-static-integration-2026-10-08.md)
+records exact training/tunnel/presentation provenance, conflict reconciliation,
+the unpublished schema/interface union and lifecycle findings without tests,
+exports or changes to the accepted main Godot project.
+
 The [Manor courtyard static audit](manor-courtyard-static-audit-2026-10-08.md)
 records the finite source wall, adjacent passage, material/sector eligibility,
 saved gate branch and missing user-contact observation without runtime acceptance.

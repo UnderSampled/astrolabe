@@ -136,8 +136,9 @@ assets, nodes and component properties.
 
 No save-envelope schema or general world persistence is added here. This is
 in-session transfer through the existing transition framework. The production
-schema-1 save path remains limited to its documented fields and Manor route;
-saving/loading arbitrary destination levels remains a separate save-owner task.
+schema4 checkpoint writer and schema1/4 readers remain limited to their
+documented fields and Manor route; schema1 is the original-save import overlay.
+Saving/loading arbitrary destination levels remains a separate save-owner task.
 Shared configuration permutations and arbitrary actor continuation are not added
 to this bounded transfer.
 
