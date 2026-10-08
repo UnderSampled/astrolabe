@@ -2664,6 +2664,34 @@ fn statements(
                     "{pad}sound_kill_music()\n{pad}if not active_{group}(token): {exit}"
                 )?;
             }
+            Statement::SetVisualGMTDiffuseCoef { material, value } => {
+                let Expression::Variable(variable) = value else {
+                    anyhow::bail!(
+                        "Proc_SetVisualGMTDiffuseCoef requires a direct designer-variable operand"
+                    );
+                };
+                let designer_variable = model
+                    .variables
+                    .get(usize::from(*variable))
+                    .context("Proc_SetVisualGMTDiffuseCoef designer field is missing")?;
+                ensure!(
+                    matches!(
+                        &designer_variable.default,
+                        DesignerValue::Integer(_) | DesignerValue::UnsignedInteger(_)
+                    ),
+                    "Proc_SetVisualGMTDiffuseCoef requires a 32-bit integer designer field"
+                );
+                let value = guarded_expression(out, value, model, depth, flow)?;
+                let failure = quoted(&format!(
+                    "{} Proc_SetVisualGMTDiffuseCoef requires native shared visual-material state for {}",
+                    model.path, material.path
+                ));
+                writeln!(
+                    out,
+                    "{pad}if not character().has_method(\"source_set_visual_gmt_diffuse_coef\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if not bool(character().call(\"source_set_visual_gmt_diffuse_coef\", {}, int({value}))):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if not active_{group}(token): {exit}",
+                    quoted(material.path.as_str())
+                )?;
+            }
             Statement::AdjustPersoOnObject { .. } => {
                 writeln!(
                     out,

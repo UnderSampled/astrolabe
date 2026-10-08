@@ -3,6 +3,7 @@ use super::{
     AssetPath, AssetRef,
     audio::SoundEventLink,
     character::{ObjectList, Perso, StateRef},
+    geometry::Material,
     io::Content,
     route::Waypoint,
 };
@@ -207,6 +208,15 @@ pub enum Statement {
         from: Expression,
         to: Expression,
         duration_seconds: Expression,
+    },
+    /// Proc_SetVisualGMTDiffuseCoef (category 4, operation 237) overwrites
+    /// the four source diffuse coefficients on a referenced GMT visual
+    /// material from the packed bytes of one live designer variable. The
+    /// target keeps the shared source Material identity; the renderer owns
+    /// the material-wide state and its lifetime.
+    SetVisualGMTDiffuseCoef {
+        material: AssetRef<Material>,
+        value: Expression,
     },
     /// Meta-action 17 selects an action from the receiver's distance to a
     /// runtime Perso operand, then repeatedly adjusts its position toward that
@@ -1422,6 +1432,17 @@ impl Script {
                         expression(from, variables, depth + 1, count)?;
                         expression(to, variables, depth + 1, count)?;
                         expression(duration_seconds, variables, depth + 1, count)?;
+                    }
+                    Statement::SetVisualGMTDiffuseCoef { material, value } => {
+                        ensure!(
+                            material.path.member().is_none(),
+                            "visual material target is a member"
+                        );
+                        ensure!(
+                            matches!(value, Expression::Variable(_)),
+                            "visual diffuse coefficient requires a direct designer variable"
+                        );
+                        expression(value, variables, depth + 1, count)?;
                     }
                     Statement::SoundFadeAll {
                         target,

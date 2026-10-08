@@ -5126,6 +5126,51 @@
       "release": true
     },
     {
+      "binary": "astrolabe::ai_visual_material_diffuse",
+      "test": "raw237_does_not_guess_an_unbound_gmt_identity",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed Proc_SetVisualGMTDiffuseCoef source, AST/Rete round trip and guarded native lowering",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_visual_material_diffuse",
+      "test": "raw237_preserves_source_material_identity_and_live_dsg_gate",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed Proc_SetVisualGMTDiffuseCoef source, AST/Rete round trip and guarded native lowering",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_visual_material_diffuse",
+      "test": "raw237_rejects_non_integer_designer_storage_without_reinterpretation",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed Proc_SetVisualGMTDiffuseCoef source, AST/Rete round trip and guarded native lowering",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
       "binary": "astrolabe::ai_behavior_actor_query",
       "test": "generated_behavior_query_reads_self_main_cross_model_and_null_slots",
       "areas": [

@@ -21,6 +21,7 @@ use crate::{
         AssetPath, AssetRef, Selection,
         ai::*,
         character::{Perso, StateRef},
+        geometry::Material,
         io::{Content, Diagnostic, Severity},
         route::Waypoint,
     },
@@ -504,6 +505,22 @@ fn decode_script(
             && let Some(actor) = actors.get(&target)
         {
             codec.actors.insert(i, actor.clone());
+        }
+        if n.kind == 36
+            && let Some(target) = s.pointer(add(script.address, i * 8), 0)?
+        {
+            let identity = s.source_identity(target)?;
+            let role = match identity.role {
+                SourceRole::Fix => "fix",
+                SourceRole::Level => "level",
+            };
+            let path = AssetPath::new(format!(
+                "{role}:/materials/{:02x}-{:02x}/{}",
+                identity.block[0], identity.block[1], identity.allocation
+            ))?;
+            codec
+                .materials
+                .insert(i, AssetRef::<Material>::from_path(path));
         }
         if n.kind == 35 {
             let configuration = s

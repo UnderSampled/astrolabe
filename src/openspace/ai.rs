@@ -6,6 +6,7 @@ use crate::model::{
     ai::*,
     audio::SoundEventLink,
     character::{ObjectList, Perso},
+    geometry::Material,
     io::FormatSupport,
     route::Waypoint,
 };
@@ -39,6 +40,9 @@ pub struct AiScriptCodec {
     pub behavior_handles: Vec<(BehaviorRef, u32)>,
     pub actors: BTreeMap<usize, AssetRef<Perso>>,
     pub actor_handles: Vec<(AssetRef<Perso>, u32)>,
+    /// Source category-36 GameMaterialRef operands and write-time handles.
+    pub materials: BTreeMap<usize, AssetRef<Material>>,
+    pub material_handles: Vec<(AssetRef<Material>, u32)>,
     pub waypoints: BTreeMap<usize, AssetRef<Waypoint>>,
     pub waypoint_handles: Vec<(AssetRef<Waypoint>, u32)>,
     pub configurations: BTreeMap<usize, Option<AssetRef<ObjectList>>>,
@@ -53,7 +57,7 @@ impl FormatCodec for AiScriptCodec {
             format: "Hype AI script",
             reads: true,
             writes: true,
-            notes: "Typed expressions include category-29 Waypoint values and inclusive 3D Cond_CollisionWP; actor/math calls, armor, branches, assignment, waits, and sound requests remain typed; unsupported operands fail explicitly",
+            notes: "Typed expressions include category-29 Waypoint values and inclusive 3D Cond_CollisionWP; actor/math calls, armor, branches, assignment, waits, sound requests, and source visual diffuse-material calls remain typed; unsupported operands fail explicitly",
         }
     }
     fn read(&self, bytes: &[u8]) -> Result<Script> {
@@ -773,6 +777,33 @@ impl Parser<'_> {
                     target: self.expression(indent + 1)?,
                     duration_ms: self.expression(indent + 1)?,
                 },
+                (4, 237) => {
+                    let material_at = self.at;
+                    let is_material = self
+                        .nodes
+                        .get(material_at)
+                        .is_some_and(|node| node.indent == indent + 1 && node.kind == 36);
+                    let is_bound = self.codec.materials.contains_key(&material_at);
+                    let is_designer_variable = self
+                        .nodes
+                        .get(material_at + 1)
+                        .is_some_and(|node| node.indent == indent + 1 && node.kind == 11);
+                    if !is_material || !is_bound || !is_designer_variable {
+                        out.push(Statement::Unsupported(self.unsupported(
+                            at,
+                            format!(
+                                "Proc_SetVisualGMTDiffuseCoef requires a bound category-36 material and category-11 designer field at node {material_at}"
+                            ),
+                        )?));
+                        continue;
+                    }
+                    self.take(indent + 1)?;
+                    let value = self.expression(indent + 1)?;
+                    Statement::SetVisualGMTDiffuseCoef {
+                        material: self.codec.materials[&material_at].clone(),
+                        value,
+                    }
+                }
                 (4, 206) => Statement::Noop,
                 _ => Statement::Unsupported(self.unsupported(
                     at,
@@ -1889,6 +1920,24 @@ impl Writer<'_> {
                     self.node(4, 411, indent);
                     self.expression(target, indent + 1)?;
                     self.expression(duration_ms, indent + 1)?;
+                }
+                Statement::SetVisualGMTDiffuseCoef { material, value } => {
+                    ensure!(
+                        matches!(value, Expression::Variable(_)),
+                        "Proc_SetVisualGMTDiffuseCoef writer requires a direct designer variable"
+                    );
+                    let handle = self
+                        .codec
+                        .material_handles
+                        .iter()
+                        .find(|(reference, _)| reference == material)
+                        .with_context(|| {
+                            format!("missing AI visual material handle for {}", material.path)
+                        })?
+                        .1;
+                    self.node(4, 237, indent);
+                    self.node(36, handle, indent + 1);
+                    self.expression(value, indent + 1)?;
                 }
                 Statement::SoundKillMusic => self.node(4, 382, indent),
                 Statement::Noop => self.node(4, 206, indent),

@@ -99,7 +99,8 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::SetSelfAbsolutePosition(value)
                 | Statement::RunDialog { mode: value, .. }
                 | Statement::ScrollDialog(value)
-                | Statement::SetHudVisible { visible: value, .. } => {
+                | Statement::SetHudVisible { visible: value, .. }
+                | Statement::SetVisualGMTDiffuseCoef { value, .. } => {
                     self.expressions(child_depth, &[value]);
                 }
                 Statement::ArrayAssign {
