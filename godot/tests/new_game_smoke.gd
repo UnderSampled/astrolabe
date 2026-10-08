@@ -106,7 +106,7 @@ func _record_transition_completed(level: String, entry: String) -> void:
         "loading":bool(session.get("loading")) if session != null else true,
         "loading_stage":str(session.get("loading_stage")) if session != null else "",
         "mana":int(magick.get("current_points")) if magick != null else -1,
-        "position":[actor.global_position.x, actor.global_position.y, actor.global_position.z] if actor != null else [])
+        "position":[actor.global_position.x, actor.global_position.y, actor.global_position.z] if actor != null else []})
 
 func _record_transition_failed(level: String, message: String) -> void:
     transition_events.append({"event":"failed","level":level,"message":message,"observed_at_ms":Time.get_ticks_msec()})
@@ -503,7 +503,7 @@ func run() -> void:
     var import_position_values: Array = import_player["transform"]["position"]
     var import_position := Vector3(float(import_position_values[0]), float(import_position_values[1]), float(import_position_values[2]))
     var stale_import_menu := current_scene
-    if not require(get_tree().change_scene_to_file("res://game/bootstrap.tscn") == OK, "could not refresh menu availability after clearing the invalid slot"): return
+    if not require(change_scene_to_file("res://game/bootstrap.tscn") == OK, "could not refresh menu availability after clearing the invalid slot"): return
     var import_menu: Node = await wait_menu(stale_import_menu)
     if not require(import_menu != null, "refreshed main menu did not appear before Load Game"): return
     var import_load_button := import_menu.find_child("LoadGame", true, false) as Button
