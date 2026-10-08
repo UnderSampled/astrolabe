@@ -106,13 +106,17 @@ func source_execute_fade(from_alpha: int, to_alpha: int, duration_seconds: float
     _source_fade_tween.tween_property(fade, "color:a", target_alpha, duration_seconds)
     return true
 
-## STE_FADE slots require explicit source asset bindings. Never substitute an
-## unrelated texture or the authored black fade rectangle for an unknown slot.
-func source_set_fade_texture(_index: int) -> bool:
+## Empty STE_FADE slots are accepted by the source engine as no-ops. Never
+## substitute an unrelated texture or the authored black fade rectangle.
+func source_set_fade_texture(index: int) -> bool:
+    if index < 0 or index > 9:
+        return false
     if is_instance_valid(adopted_screen):
         if not adopted_screen.has_method("source_set_fade_texture"): return false
-        return bool(adopted_screen.call("source_set_fade_texture", _index))
-    return false
+        return bool(adopted_screen.call("source_set_fade_texture", index))
+    # No source binding is present in the imported scene. The original
+    # handler leaves the initialized material untextured and returns normally.
+    return true
 
 func source_set_fade_value(value: int) -> bool:
     if is_instance_valid(adopted_screen):
