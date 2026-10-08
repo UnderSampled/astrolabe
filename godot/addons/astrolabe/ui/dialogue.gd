@@ -120,8 +120,8 @@ func request_select() -> void:
 
 func _finish() -> void:
     closing = true
+    # The screen uses a live item to own Button_Hit until the fade completes.
     var finished := item
-    item = null
     var generation := _generation
     _stop_voice()
     if fade != null and fade.is_running(): fade.kill()
