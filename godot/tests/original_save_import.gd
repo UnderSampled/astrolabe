@@ -28,6 +28,20 @@ func run() -> void:
     if typeof(global_flag) != TYPE_BOOL or not global_flag:
         fail("Authentic manor checkpoint must retain Boolean Global DSG[149]")
         return
+    var saved_currency: Variant = state["actors"][SAVE_STATE.ACTOR]["inventory"]["quantities"].get("0")
+    if typeof(saved_currency) != TYPE_INT or int(saved_currency) != 20:
+        fail("Authentic SaveGame0 item-0 balance must restore its saved value 20")
+        return
+    var player_records: Array = report["source_save"]["members"]["Level000.sav"]["records"]["records"]
+    var currency_record: Dictionary = {}
+    for record in player_records:
+        var header: Dictionary = record["header"]
+        if int(header["block"]) == 0 and int(header["module"]) == 10 and int(header["offset"]) == 5790:
+            currency_record = record
+            break
+    if currency_record.is_empty() or int(currency_record["header"]["data_type"]) != 2 or currency_record["value_hex"] != "1400":
+        fail("Authentic SaveGame0 item-0 balance is not backed by SAI record 0:10:5790")
+        return
     var transform: Dictionary = state["actors"][SAVE_STATE.ACTOR]["transform"]
     if not transform.has("position") or transform["position"].size() != 3:
         fail("Authentic manor checkpoint is missing Hype's source position")
@@ -47,7 +61,7 @@ func run() -> void:
     if not bool(actor.source_set_absolute_position(target_source_position)) or absf(actor.global_position.x - 3.6) > 0.0001 or absf(actor.global_position.y - 2.0) > 0.0001 or absf(actor.global_position.z - 3.0) > 0.0001:
         fail("Native self-position API did not apply the source-space gate displacement")
         return
-    print("ORIGINAL_SAVE_IMPORT_PROOF SaveGame0 restores Hype transform and Global DSG[149]=true; stale import rejected; source position API moved +2.6 X")
+    print("ORIGINAL_SAVE_IMPORT_PROOF SaveGame0 restores item-0 balance=20, Hype transform and Global DSG[149]=true; stale import rejected; source position API moved +2.6 X")
     actor.free()
     quit(0)
 

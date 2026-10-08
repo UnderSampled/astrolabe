@@ -60,6 +60,48 @@ fn signed_i16(save: &SaveSlot, identity: &str) -> Result<i16> {
     ))
 }
 
+fn source_resource_balance(save: &SaveSlot) -> Result<i16> {
+    // FUN_00417fe0 registers the separate inventory handle's +0x0a word and
+    // its linked item's +0x14 maximum. The source accessor reads/writes the
+    // balance as a signed 16-bit value (0041d400, 004a19d0/004a19e0); keep the
+    // balance label deliberately generic because its authored resource name
+    // is not established by the source join.
+    let balance = signed_i16(save, "0:10:5790")?;
+    let maximum = signed_i16(save, "0:10:5828")?;
+    ensure!(
+        balance >= 0 && maximum >= 0 && balance <= maximum,
+        "English PC save has an invalid item-0 resource balance"
+    );
+    Ok(balance)
+}
+
+fn supported_inventory_quantities(save: &SaveSlot) -> Result<serde_json::Map<String, Value>> {
+    let mut quantities = serde_json::Map::new();
+
+    // The native HUD calls Fix ItemWire id 0 currency. Its source record is a
+    // separately rooted resource balance, not an ordinary inventory handle.
+    // Require the record and preserve an explicit zero instead of falling
+    // back to Inventory.quantity(0)'s default.
+    quantities.insert("0".to_owned(), json!(source_resource_balance(save)?));
+
+    // Inventory main-list +10 stores signed instantiated item numbers. Map
+    // only the item handles used by the current Godot manor slice; every
+    // unselected/unmapped record remains in the attached source table.
+    for (item, identity) in [
+        ("21", "0:10:4242"),
+        ("54", "0:10:1562"),
+        ("61", "0:10:1738"),
+        ("74", "0:10:2802"),
+        ("80", "0:10:214"),
+    ] {
+        let value = signed_i16(save, identity)?;
+        if value >= -1 {
+            quantities.insert(item.to_owned(), json!(value));
+        }
+    }
+    Ok(quantities)
+}
+
 fn source_position_prefix(save: &SaveSlot) -> Result<&[u8]> {
     let record = player_record(save, "2:6:1463692")?;
     ensure!(
@@ -198,22 +240,7 @@ fn godot_state(save: &SaveSlot) -> Result<Option<(Value, Vec<String>)>> {
     let rotation = source_rotation(source_position);
     let global_gate_sequence = saved_bool(save, "0:17:4560", 0x10)?;
 
-    // Inventory main-list +10 stores signed instantiated item numbers. Map
-    // only the item handles used by the current Godot manor slice; every
-    // unselected/unmapped record remains in the attached source table.
-    let mut quantities = serde_json::Map::new();
-    for (item, identity) in [
-        ("21", "0:10:4242"),
-        ("54", "0:10:1562"),
-        ("61", "0:10:1738"),
-        ("74", "0:10:2802"),
-        ("80", "0:10:214"),
-    ] {
-        let value = signed_i16(save, identity)?;
-        if value >= -1 {
-            quantities.insert(item.to_owned(), json!(value));
-        }
-    }
+    let quantities = supported_inventory_quantities(save)?;
 
     let magick = json!({
         "current_points": current_mana,
@@ -224,7 +251,7 @@ fn godot_state(save: &SaveSlot) -> Result<Option<(Value, Vec<String>)>> {
 
     let lever = saved_bool(save, "0:17:297732", 0x10)?;
     let mut warnings = Vec::new();
-    if quantities.len() != 5 {
+    if quantities.len() != 6 {
         warnings.push(
             "One or more supported source item numbers use special negative values; their raw records remain preserved.".to_owned(),
         );
@@ -288,13 +315,15 @@ pub fn import_original_slot(input: &Path, output: &Path, profile: &str) -> Resul
             "Hype saved position and uniquely recoverable orientation",
             "Hype current and maximum mana",
             "Hype selected magic slot",
-            "supported manor inventory item numbers",
+            "reserved item-0 resource balance and supported manor inventory item numbers",
             "iDummy_PourCercles.DSG[8] manor lever state",
             "fix:/persos/15 Global.DSG[149], read by manor gate AI model 272",
         ],
         "not_restored": [
             "Hype current AI behavior state",
-            "active weapon selection",
+            "Hype default magic points at 0:5:4986210; the native magick API has no separate default-points field",
+            "Hype health and armor; no Hype-owned save identity is mapped to the native hit-point resource",
+            "active weapon selection; the fixture's selected-item flags do not identify one active weapon",
             "other source records without a supported Godot field mapping",
         ],
         "source_save": save,
@@ -309,7 +338,44 @@ pub fn import_original_slot(input: &Path, output: &Path, profile: &str) -> Resul
 
 #[cfg(test)]
 mod tests {
-    use super::{godot_basis, source_rotation};
+    use super::{
+        godot_basis, source_resource_balance, source_rotation, supported_inventory_quantities,
+    };
+    use crate::openspace::save_game::{SaveMember, SaveSlot, parse_records};
+    use std::collections::BTreeMap;
+
+    fn synthetic_save(records: &[(u32, i16)]) -> SaveSlot {
+        let mut bytes = Vec::new();
+        for (offset, value) in records {
+            bytes.extend_from_slice(&[0, 10]);
+            bytes.extend_from_slice(&offset.to_le_bytes());
+            bytes.extend_from_slice(&0x0204u16.to_le_bytes());
+            bytes.extend_from_slice(&[0, 0x02]);
+            bytes.extend_from_slice(&value.to_le_bytes());
+        }
+        let table = parse_records(&bytes).expect("synthetic SAI records parse");
+        let member = SaveMember {
+            name: "Level000.sav".to_owned(),
+            role: "player".to_owned(),
+            encoded_size: bytes.len(),
+            sha256: String::new(),
+            decoded_size: Some(bytes.len()),
+            decoded_sha256: None,
+            raw_hex: None,
+            u32_values: None,
+            text_lines: None,
+            records: Some(table),
+        };
+        SaveSlot {
+            schema: 1,
+            format: "hype-pc-save".to_owned(),
+            slot: "SaveGame0".to_owned(),
+            current_level: "manoir".to_owned(),
+            display_name: String::new(),
+            game_timer_ms: 0,
+            members: BTreeMap::from([("Level000.sav".to_owned(), member)]),
+        }
+    }
 
     #[test]
     fn reconstructs_source_rotation_from_five_saved_floats() {
@@ -342,5 +408,34 @@ mod tests {
             bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
         }
         assert!(source_rotation(&bytes).is_none());
+    }
+
+    #[test]
+    fn item_zero_balance_preserves_an_explicit_zero() {
+        let save = synthetic_save(&[
+            (5790, 0),
+            (5828, 200),
+            (4242, -1),
+            (1562, -1),
+            (1738, -1),
+            (2802, -1),
+            (214, 8),
+        ]);
+        let quantities = supported_inventory_quantities(&save).expect("supported quantities");
+        assert_eq!(quantities["0"], 0);
+        assert_eq!(quantities["80"], 8);
+        assert_eq!(quantities.len(), 6);
+    }
+
+    #[test]
+    fn item_zero_balance_requires_a_valid_saved_record_and_capacity() {
+        let missing_balance = synthetic_save(&[(5828, 200)]);
+        assert!(source_resource_balance(&missing_balance).is_err());
+
+        let over_capacity = synthetic_save(&[(5790, 201), (5828, 200)]);
+        assert!(source_resource_balance(&over_capacity).is_err());
+
+        let negative_balance = synthetic_save(&[(5790, -1), (5828, 200)]);
+        assert!(source_resource_balance(&negative_balance).is_err());
     }
 }

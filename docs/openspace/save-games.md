@@ -36,12 +36,23 @@ not interpret source-address tables at runtime. A native Godot slot takes
 precedence when one already exists.
 
 The `manoir` overlay restores Hype's saved position and a uniquely recoverable
-orientation, source-backed mana and selected magic slot, supported inventory
-handle numbers, `iDummy_PourCercles.DSG[8]`, and the Global Brain Boolean
-`fix:/persos/15.DSG[149]`. Current AI behavior and active-weapon selection
-remain unsupported. Original SAI addresses and bytes stay in the import report;
-Godot receives only the canonical actor/world state and applies it before
-starting the compiled Brains.
+orientation, source-backed mana and selected magic slot, the reserved ItemWire
+0 balance, supported inventory handle numbers, `iDummy_PourCercles.DSG[8]`, and
+the Global Brain Boolean `fix:/persos/15.DSG[149]`. The item's source join
+identifies a separately rooted signed balance at player record `0:10:5790` and
+its linked maximum capacity at `0:10:5828`; the supplied fixture stores 20 and
+200 respectively. Hype displays and uses this value as a shared resource/effect
+balance. The source does not establish its authored name, so the importer maps
+the existing item-0 quantity without assigning another meaning. A missing or
+invalid balance record is an import error, and an explicit saved zero remains
+present in native state. Current AI behavior and active-weapon selection remain
+unsupported; the supplied slot has selected-item flags set for both item 21 and
+item 80, so neither alone identifies the active weapon. `0:5:4986210` is a
+source-verified default magic-point amount, but the native magick resource has
+no separate default-points field yet. Hype health and armor also lack a mapped
+player-owned save identity. Original SAI addresses and bytes stay in the import
+report; Godot receives only the canonical actor/world state and applies it
+before starting the compiled Brains.
 
 The supplied authentic `SaveGame0` contains player record `0:17:4560`,
 one-byte Boolean value `01`, with save flags `0x0204`. The typed source join

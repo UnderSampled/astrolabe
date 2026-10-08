@@ -137,8 +137,12 @@ func run() -> void:
         if int(magick.get("current_points")) != 30 or int(magick.call("remove_points", 7)) != 1:
             fail("Measured starting mana or native consumption differs")
             return
+        if int(inventory.call("quantity", 0)) != 20:
+            fail("Original SaveGame0 item-0 balance was not applied to the native inventory")
+            return
         var quantities: Dictionary = inventory.get("quantities").duplicate()
         quantities[21] = 2
+        quantities[0] = 0
         inventory.set("quantities", quantities)
         dummy_brain.set("dsg_8", true)
         key(KEY_F5, true)
@@ -156,6 +160,10 @@ func run() -> void:
         if int(saved["state"]["actors"][SAVE_STATE.ACTOR]["inventory"]["quantities"]["61"]) != -1:
             fail("F5 did not preserve the measured unavailable-item sentinel")
             return
+        var saved_quantities: Dictionary = saved["state"]["actors"][SAVE_STATE.ACTOR]["inventory"]["quantities"]
+        if not saved_quantities.has("0") or int(saved_quantities["0"]) != 0:
+            fail("F5 did not preserve an explicit item-0 balance of zero")
+            return
         var original := FileAccess.get_file_as_string(SAVE_STATE.path())
         magick.set("current_points", 1000)
         key(KEY_F5, true)
@@ -163,7 +171,7 @@ func run() -> void:
         if FileAccess.get_file_as_string(SAVE_STATE.path()) != original:
             fail("Invalid state overwrote a valid slot")
             return
-        print("SAVE_PROOF wrote mana=23, inventory=2, sentinel=-1 and dummy dsg_8=true; invalid write preserved slot")
+        print("SAVE_PROOF wrote mana=23, inventory=2, item-0 balance=0, sentinel=-1 and dummy dsg_8=true; invalid write preserved slot")
     else:
         if int(magick.get("current_points")) != 23 or int(inventory.call("quantity", 21)) != 2:
             fail("Fresh process did not restore mana and inventory")
@@ -177,10 +185,14 @@ func run() -> void:
         if int(inventory.call("quantity", 61)) != -1:
             fail("Fresh process did not restore the unavailable-item sentinel")
             return
+        var restored_quantities: Dictionary = inventory.get("quantities")
+        if not restored_quantities.has(0) or int(restored_quantities[0]) != 0 or int(inventory.call("quantity", 0)) != 0:
+            fail("Fresh process did not restore the explicit item-0 zero over its default")
+            return
         if int(magick.call("remove_points", 5)) != 1 or int(magick.get("current_points")) != 18:
             fail("Restored mana was not usable by the native component")
             return
-        print("SAVE_PROOF fresh process restored mana=23, inventory=2, and dummy dsg_8=true; native mana remained usable")
+        print("SAVE_PROOF fresh process restored mana=23, inventory=2, explicit item-0 zero and dummy dsg_8=true; native mana remained usable")
     await shutdown(0)
 
 func shutdown(exit_code: int) -> void:
