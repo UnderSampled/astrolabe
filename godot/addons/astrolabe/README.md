@@ -184,6 +184,10 @@ Texture2D artwork, normalized pieces, damage factors, resistance ranks, source
 order, and unknown bytes. The HUD still uses its existing placeholder; armor
 rendering is not part of this slice.
 
+`character/snapshot_values.gd` provides strict exact-key and integer-range
+checks for native save-state Resources. It rejects extra/missing fields and
+non-integer numeric values before any checkpoint state is applied.
+
 `audio/voice.gd` carries a native AudioStreamWAV and playback properties.
 `audio/emitter.gd` owns native voices, selectors, weighted/nonrepeat choice,
 random pitch and event-targeted stopping. Compiled event Resources provide

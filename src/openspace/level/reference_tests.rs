@@ -1,4 +1,69 @@
 use super::*;
+use crate::model::Selection;
+use anyhow::Context;
+
+#[test]
+#[ignore = "requires local Hype source data; verifies retained Brigand AI fields"]
+fn brigand_actor_brain_keeps_opaque_designer_fields_and_bindings() -> Result<()> {
+    let game = std::env::var_os("ASTROLABE_GAME_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("disc"));
+    let selection = Selection::hype("brigand", "en")?;
+    let imported = scene::import_scene(&game, &selection)?;
+    let target_path = AssetPath::new("level:/persos/world/0/88")?;
+    let target = imported
+        .persos
+        .iter()
+        .find(|perso| perso.path == target_path)
+        .context("Brigand source actor world/0/88 was not imported")?;
+    let brain = target
+        .brain
+        .as_ref()
+        .context("Brigand source actor world/0/88 has a Brain in the source data")?;
+    assert_eq!(brain.model.path, AssetPath::new("level:/ai/models/1060")?);
+
+    let model = imported
+        .ai_models
+        .iter()
+        .find(|model| model.path == brain.model.path)
+        .context("Brigand actor Brain model 1060 was not imported")?;
+    for (index, kind, size) in [(46, 19, 44), (51, 13, 4), (52, 13, 4)] {
+        let Some(crate::model::ai::DesignerValue::Opaque {
+            kind: actual_kind,
+            bytes,
+        }) = model.variables.get(index).map(|variable| &variable.default)
+        else {
+            anyhow::bail!("designer field {index} was not retained as opaque bytes");
+        };
+        assert_eq!(*actual_kind, kind, "designer field {index} source type");
+        assert_eq!(bytes.len(), size, "designer field {index} source span");
+    }
+    for index in [16, 36] {
+        assert!(
+            matches!(
+                model.variables.get(index).map(|variable| &variable.default),
+                Some(crate::model::ai::DesignerValue::Boolean(_))
+            ),
+            "field {index} used by source scripts should remain a Boolean"
+        );
+    }
+
+    let writes = imported
+        .ai_models
+        .iter()
+        .flat_map(crate::model::ai::AiModel::actor_field_writes)
+        .filter_map(|(actor, field)| (actor.path == target_path).then_some(field))
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(writes, [16, 36].into_iter().collect());
+    let reads = imported
+        .ai_models
+        .iter()
+        .flat_map(crate::model::ai::AiModel::actor_field_reads)
+        .filter_map(|(actor, field)| (actor.path == target_path).then_some(field))
+        .collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(reads, [36].into_iter().collect());
+    Ok(())
+}
 #[test]
 fn generated_sna_block_preserves_values_and_resolves_generated_relocations() -> Result<()> {
     let m = super::tests::model();

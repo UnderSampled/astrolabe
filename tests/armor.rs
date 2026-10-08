@@ -1,6 +1,7 @@
 //! Fix-owned armor catalog import, Rete persistence, and native export.
 use anyhow::Result;
 use astrolabe::{
+    godot,
     model::{
         AssetPath, AssetRef, Selection,
         ai::{SourceObjectIdentity, SourceRole},
@@ -12,6 +13,7 @@ use astrolabe::{
     },
     openspace, rete,
 };
+use std::{fs, time::Duration};
 
 fn texture() -> Result<Texture> {
     Ok(Texture {
@@ -130,5 +132,31 @@ fn armor_catalog_survives_rete_storage_reload() -> Result<()> {
     let mut store = rete::Store::new(&rete_dir, selection.clone())?;
     let loaded = store.load(&catalog_ref)?;
     assert_eq!(*loaded, catalog);
+    Ok(())
+}
+
+#[test]
+fn native_snapshot_helper_and_scene_local_catalog_clone_work() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    let project = temp.path().join("godot");
+    godot::support::initialize(&project)?;
+    fs::write(
+        project.join("check_snapshot_values.gd"),
+        include_bytes!("check_snapshot_values.gd"),
+    )?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    let evidence = godot::run_godot(
+        &engine,
+        &project,
+        &[
+            "--headless",
+            "--script",
+            "res://check_snapshot_values.gd",
+            "--log-file",
+            "snapshot-values.log",
+        ],
+        Duration::from_secs(20),
+    )?;
+    assert!(evidence.contains("SNAPSHOT_VALUES_OK"), "{evidence}");
     Ok(())
 }

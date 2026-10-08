@@ -757,6 +757,19 @@ impl Parser<'_> {
         start: usize,
     ) -> Result<Statement> {
         let operand = self.at;
+        if !self
+            .nodes
+            .get(operand)
+            .is_some_and(|node| node.kind == 32 && node.indent == indent + 1)
+        {
+            return Ok(Statement::Unsupported(self.unsupported_range(
+                start,
+                self.end(start),
+                format!(
+                    "behavior request at node {start} has a non-behavior operand at node {operand}"
+                ),
+            )?));
+        }
         if self
             .nodes
             .get(operand)
@@ -2331,6 +2344,20 @@ mod partial_tests {
             }
         ));
         assert_eq!(script.unsupported_fragments().len(), 1);
+        assert!(codec.write(&script).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn dynamic_behavior_operand_is_preserved_as_an_explicit_unsupported_fragment() -> Result<()> {
+        let (codec, bytes) = partial(&[(4, 209, 1), (11, 45, 2), (8, 0, 0)]);
+        let script = codec.read(&bytes)?;
+        let Statement::Unsupported(fragment) = &script.statements[0] else {
+            anyhow::bail!("dynamic behavior operand was interpreted as a fixed behavior");
+        };
+        assert!(fragment.reason.contains("non-behavior operand"));
+        assert_eq!(fragment.nodes.len(), 2);
+        assert_eq!(fragment.nodes, codec.preserved_nodes[..2]);
         assert!(codec.write(&script).is_err());
         Ok(())
     }

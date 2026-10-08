@@ -23,9 +23,10 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/audio/emitter.gd.uid",
     "addons/astrolabe/character/character.gd",
     "addons/astrolabe/character/armor_state.gd",
+    "addons/astrolabe/character/snapshot_values.gd",
+    "addons/astrolabe/character/snapshot_values.gd.uid",
     "addons/astrolabe/character/armor_catalog.gd",
     "addons/astrolabe/character/armor_catalog.gd.uid",
-    "addons/astrolabe/character/snapshot_values.gd",
     "addons/astrolabe/character/armor_definition.gd",
     "addons/astrolabe/character/armor_definition.gd.uid",
     "addons/astrolabe/character/armor_piece.gd",
@@ -341,6 +342,31 @@ mod tests {
                     offset = start + end + 1;
                 }
             }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn snapshot_validation_helper_is_in_interface_58_and_staged() -> Result<()> {
+        let output = tempfile::tempdir()?;
+        initialize(output.path())?;
+        let version: serde_json::Value = serde_json::from_slice(&fs::read(
+            output.path().join("addons/astrolabe/version.json"),
+        )?)?;
+        assert_eq!(version["interface"].as_u64(), Some(u64::from(INTERFACE)));
+        assert_eq!(INTERFACE, 58);
+
+        let staged = tempfile::tempdir()?;
+        stage(staged.path(), output.path())?;
+        for path in [
+            "addons/astrolabe/character/snapshot_values.gd",
+            "addons/astrolabe/character/snapshot_values.gd.uid",
+        ] {
+            assert_eq!(
+                fs::read(staged.path().join(path))?,
+                fs::read(output.path().join(path))?,
+                "staged support differs for {path}"
+            );
         }
         Ok(())
     }

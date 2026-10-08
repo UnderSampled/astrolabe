@@ -1,6 +1,12 @@
 //! Typed AI trees become ordinary GDScript control flow and native resource calls.
 use super::{Project, quoted};
-use crate::model::{AssetPath, ai::*, character::Perso, content::ContentSource, io::Content};
+use crate::model::{
+    AssetPath,
+    ai::{walk::AstNode, *},
+    character::Perso,
+    content::ContentSource,
+    io::Content,
+};
 use anyhow::{Result, ensure};
 use std::{collections::BTreeSet, fmt::Write as _};
 
@@ -38,10 +44,13 @@ pub(super) fn export_program(
     }
     for (actor, field) in model.actor_field_writes() {
         let target = source.load(&actor)?;
-        let brain = target
-            .brain
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("{} actor field target lacks a Brain", actor.path))?;
+        let Some(brain) = &target.brain else {
+            project.diagnostic(format!(
+                "{} actor field write {}.{} has no saved Brain, so its field cannot be validated; a reached write will fail explicitly",
+                model.path, actor.path, field
+            ));
+            continue;
+        };
         let target_model = source.load(&brain.model)?;
         brain.validate_model(&target_model)?;
         ensure!(
@@ -141,6 +150,100 @@ pub(super) fn export_program(
     )?;
     project.write(path.clone(), script.as_bytes())?;
     Ok(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::{
+        AssetRef, Selection,
+        ai::{
+            Behavior, BehaviorSet, DesignerValue, DesignerVariable, Expression, Script, Statement,
+        },
+        character::Perso,
+        content::Collection,
+    };
+    use anyhow::Result;
+    use std::fs;
+
+    #[test]
+    fn field_write_to_brainless_source_target_keeps_reached_failure() -> Result<()> {
+        let target = AssetRef::<Perso>::new("level:/persos/world/0/88")?;
+        let mut collection = Collection::default();
+        collection.insert(
+            &target,
+            Perso {
+                path: target.path.clone(),
+                name: "iThievesCommun_Brigand_01".into(),
+                family: AssetRef::new("level:/families/0")?,
+                initial_state: None,
+                current_state: None,
+                secondary_state: None,
+                configuration: None,
+                initial_configuration: None,
+                object_types: [0; 3],
+                camera: None,
+                hit_points: None,
+                routes: Vec::new(),
+                brain: None,
+                collisions: None,
+                particles: None,
+            },
+        )?;
+        let model = AiModel {
+            path: AssetPath::new("level:/ai/models/brainless_target_writer")?,
+            name: "Brainless Target Writer".into(),
+            normal: Some(BehaviorSet {
+                behaviors: vec![Behavior {
+                    id: 0,
+                    rules: Vec::new(),
+                    schedule: Some(Script {
+                        statements: vec![Statement::ActorFieldAssign {
+                            actor: target,
+                            variable: 36,
+                            value: Expression::Integer(1),
+                        }],
+                    }),
+                    unknown: [0; 3],
+                }],
+                default_behavior: Some(0),
+                action_capacity: 1,
+                unknown: [0; 3],
+            }),
+            reflex: None,
+            variables: vec![DesignerVariable {
+                default: DesignerValue::Integer(0),
+                save: 0,
+                initialize: 0,
+            }],
+            designer_unknown: [0; 3],
+            unknown: [0; 4],
+        };
+        let output = tempfile::tempdir()?;
+        let mut project = Project::new(output.path(), Selection::hype("brigand", "en")?)?;
+        let mut written = BTreeSet::new();
+        let script_path = export_program(&mut project, &mut collection, &model, &mut written)?;
+        let script = fs::read_to_string(project.stage.path().join(&script_path))?;
+
+        assert!(
+            project.diagnostics.iter().any(|diagnostic| {
+                diagnostic.contains("level:/persos/world/0/88.36")
+                    && diagnostic.contains("a reached write will fail explicitly")
+            }),
+            "diagnostics: {:?}",
+            project.diagnostics
+        );
+        assert!(
+            script.contains("if not is_instance_valid(actor_brain_0_target_0)"),
+            "{script}"
+        );
+        assert!(
+            script.contains("requires actor level:/persos/world/0/88 Brain field 36"),
+            "{script}"
+        );
+        assert!(script_path.ends_with(".gd"));
+        Ok(())
+    }
 }
 /// Exposed for authored tooling and focused tests; dependencies have already been
 /// resolved to native resource paths by this adapter, never by generated code.
@@ -385,6 +488,7 @@ fn value_type(v: &DesignerValue) -> &'static str {
         DesignerValue::ActorList(_) => "Array[Node3D]",
         DesignerValue::Actor(_) | DesignerValue::SourceActor(_) => "Node3D",
         DesignerValue::SourceWaypoint(_) | DesignerValue::SourceWaypointArray(_) => "Variant",
+        DesignerValue::Opaque { .. } => "PackedByteArray",
     }
 }
 fn literal(v: &DesignerValue) -> String {
@@ -428,7 +532,68 @@ fn literal(v: &DesignerValue) -> String {
             format!("[{}]", vec!["null"; v.values.len()].join(", "))
         }
         DesignerValue::ActorList(_) => "[]".into(),
+        DesignerValue::Opaque { bytes, .. } => format!(
+            "PackedByteArray([{}])",
+            bytes
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
     }
+}
+fn opaque_accessed_variable(statement: &Statement, model: &AiModel) -> Option<u16> {
+    // The outer If owns its condition; nested statements are compiled by the
+    // recursive call and must not fail before their branch is reached.
+    let statement = match statement {
+        Statement::If { condition, .. } => Statement::If {
+            condition: condition.clone(),
+            then: Vec::new(),
+            otherwise: None,
+        },
+        _ => statement.clone(),
+    };
+    let scan = Script {
+        statements: vec![statement],
+    };
+    for (node, _) in scan.walk() {
+        let index = match node {
+            AstNode::Expression(Expression::Variable(index) | Expression::SelfFieldRead(index)) => {
+                Some(*index)
+            }
+            AstNode::Expression(Expression::ActorListContains { list, .. }) => Some(*list),
+            AstNode::Statement(
+                Statement::Assign { variable, .. }
+                | Statement::MainActorFieldAssign { variable, .. }
+                | Statement::SubtractAssign { variable, .. }
+                | Statement::AddAssign { variable, .. },
+            ) => Some(*variable),
+            AstNode::Statement(Statement::VectorComponentAssign { vector, .. }) => Some(*vector),
+            AstNode::Statement(Statement::ArrayAssign {
+                array: Expression::Variable(index),
+                ..
+            }) => Some(*index),
+            AstNode::Statement(
+                Statement::Increment {
+                    target: FieldTarget::Variable(index),
+                }
+                | Statement::Decrement {
+                    target: FieldTarget::Variable(index),
+                },
+            ) => Some(*index),
+            AstNode::Statement(Statement::ActorListAdd { list, .. }) => Some(*list),
+            _ => None,
+        };
+        if index.is_some_and(|index| {
+            model
+                .variables
+                .get(usize::from(index))
+                .is_some_and(|variable| matches!(variable.default, DesignerValue::Opaque { .. }))
+        }) {
+            return index;
+        }
+    }
+    None
 }
 fn unresolved_variable(model: &AiModel, index: u16) -> bool {
     model
@@ -508,6 +673,35 @@ fn actor_list_capacity(model: &AiModel, index: u16) -> Result<usize> {
         _ => anyhow::bail!("AI field {index} is not a source actor list"),
     }
 }
+fn vector_expression(e: &Expression, model: &AiModel) -> bool {
+    match e {
+        Expression::Vector(_)
+        | Expression::SelfPosition
+        | Expression::SelfPositionField
+        | Expression::WaypointPosition(_)
+        | Expression::SelfSighting
+        | Expression::LaserDirection
+        | Expression::VectorPlus(_, _) => true,
+        Expression::Variable(index) | Expression::SelfFieldRead(index) => matches!(
+            model
+                .variables
+                .get(usize::from(*index))
+                .map(|variable| &variable.default),
+            Some(DesignerValue::Vector(_))
+        ),
+        Expression::ArrayElement { array, .. } => match array.as_ref() {
+            Expression::Variable(index) | Expression::SelfFieldRead(index) => matches!(
+                model
+                    .variables
+                    .get(usize::from(*index))
+                    .map(|variable| &variable.default),
+                Some(DesignerValue::VectorArray(_))
+            ),
+            _ => false,
+        },
+        _ => false,
+    }
+}
 fn comparison_code(
     operation: Comparison,
     left: &Expression,
@@ -540,6 +734,10 @@ fn comparison_code(
         } else {
             right_code
         };
+        format!("({left_code} {op} {right_code})")
+    } else if vector_expression(left, model) || vector_expression(right, model) {
+        // GDScript's float() accepts scalar numeric values; applying it to a
+        // Vector3 is a parse error. Vector equality is native Godot behavior.
         format!("({left_code} {op} {right_code})")
     } else {
         format!("(float({left_code}) {op} float({right_code}))")
@@ -1411,6 +1609,17 @@ fn statements(
         writeln!(out, "{pad}pass")?;
     }
     for statement in values {
+        if let Some(index) = opaque_accessed_variable(statement, model) {
+            writeln!(
+                out,
+                "{pad}fail_unsupported({})\n{pad}{exit}",
+                quoted(&format!(
+                    "{} accesses opaque source designer field {index}",
+                    model.path
+                ))
+            )?;
+            continue;
+        }
         match statement {
             Statement::If {
                 condition,
@@ -2215,7 +2424,8 @@ mod source_position_tests {
         AssetPath, AssetRef,
         ai::{
             ActorTarget, AiModel, Behavior, BehaviorGroup, BehaviorRef, BehaviorSet, Comparison,
-            Expression, KillPersoTarget, Script, Statement,
+            DesignerArray, DesignerValue, DesignerVariable, Expression, KillPersoTarget, Script,
+            Statement,
         },
         character::Perso,
     };
@@ -2332,6 +2542,80 @@ mod source_position_tests {
         assert!(generated.contains(
             "LevelTransition.request_level_change(\"brigand\", \"i_brigand_dummy_gogood_hype\", \"i_brigand_dummy_gogood_camera\")"
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn compares_vector_designer_fields_without_scalar_casts() -> anyhow::Result<()> {
+        let path = AssetPath::new("level:/ai/models/vector_comparison")?;
+        let vector = |variable| DesignerVariable {
+            default: variable,
+            save: 0,
+            initialize: 0,
+        };
+        let model = AiModel {
+            path,
+            name: "Vector comparison".into(),
+            normal: Some(BehaviorSet {
+                behaviors: vec![Behavior {
+                    id: 0,
+                    rules: Vec::new(),
+                    schedule: Some(Script {
+                        statements: vec![
+                            Statement::If {
+                                condition: Expression::Compare {
+                                    operation: Comparison::Equal,
+                                    left: Box::new(Expression::Variable(0)),
+                                    right: Box::new(Expression::Vector(Box::new([
+                                        Expression::Real(0.0),
+                                        Expression::Real(0.0),
+                                        Expression::Real(0.0),
+                                    ]))),
+                                },
+                                then: vec![Statement::Noop],
+                                otherwise: None,
+                            },
+                            Statement::If {
+                                condition: Expression::Compare {
+                                    operation: Comparison::Different,
+                                    left: Box::new(Expression::ArrayElement {
+                                        array: Box::new(Expression::Variable(1)),
+                                        index: Box::new(Expression::Integer(0)),
+                                    }),
+                                    right: Box::new(Expression::Variable(0)),
+                                },
+                                then: vec![Statement::Noop],
+                                otherwise: None,
+                            },
+                        ],
+                    }),
+                    unknown: [0; 3],
+                }],
+                default_behavior: Some(0),
+                action_capacity: 0,
+                unknown: [0; 3],
+            }),
+            reflex: None,
+            variables: vec![
+                vector(DesignerValue::Vector([0.0; 3])),
+                vector(DesignerValue::VectorArray(DesignerArray::new(vec![[
+                    1.0, 2.0, 3.0,
+                ]]))),
+            ],
+            designer_unknown: [0; 3],
+            unknown: [0; 4],
+        };
+        let generated = compile(&model, &[])?;
+        assert!(generated.contains("(dsg_0 == Vector3("), "{generated}");
+        assert!(
+            generated.contains("(dsg_1[int(0)] != dsg_0)"),
+            "{generated}"
+        );
+        assert!(
+            !generated.contains("float(dsg_0) == float(Vector3("),
+            "{generated}"
+        );
+        assert!(!generated.contains("float(dsg_1[int(0)])"), "{generated}");
         Ok(())
     }
 

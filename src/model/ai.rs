@@ -562,6 +562,12 @@ pub enum DesignerValue {
     /// Source waypoint identity until the route/waypoint model is promoted.
     SourceWaypoint(Option<SourceObjectIdentity>),
     SourceWaypointArray(DesignerArray<Option<SourceObjectIdentity>>),
+    /// Preserved bytes for a source designer field whose value semantics are
+    /// not understood. The payload is never traversed as pointers or executed.
+    Opaque {
+        kind: u32,
+        bytes: Vec<u8>,
+    },
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DesignerActorList {
@@ -887,6 +893,9 @@ impl DesignerValue {
                     "nonfinite designer array vector"
                 );
             }
+            Self::Opaque { bytes, .. } => {
+                ensure!(!bytes.is_empty(), "empty opaque designer field");
+            }
             _ => {}
         }
         Ok(())
@@ -902,6 +911,16 @@ impl DesignerValue {
                 a.values.len() == b.values.len()
             }
             (Self::ActorList(a), Self::ActorList(b)) => a.slots.len() == b.slots.len(),
+            (
+                Self::Opaque {
+                    kind: a_kind,
+                    bytes: a,
+                },
+                Self::Opaque {
+                    kind: b_kind,
+                    bytes: b,
+                },
+            ) => a_kind == b_kind && a.len() == b.len(),
             _ => std::mem::discriminant(self) == std::mem::discriminant(other),
         }
     }

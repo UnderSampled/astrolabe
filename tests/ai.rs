@@ -34,6 +34,73 @@ fn native_magick_service_follows_verified_remove_points_contract() -> Result<()>
 }
 
 #[test]
+fn vector_designer_comparisons_parse_as_native_gdscript() -> Result<()> {
+    let mut model = model()?;
+    model.variables.extend([
+        DesignerVariable {
+            default: DesignerValue::Vector([0.0; 3]),
+            save: 0,
+            initialize: 0,
+        },
+        DesignerVariable {
+            default: DesignerValue::VectorArray(DesignerArray::new(vec![[1.0, 2.0, 3.0]])),
+            save: 0,
+            initialize: 0,
+        },
+    ]);
+    model.normal.as_mut().unwrap().behaviors[0].schedule = Some(Script {
+        statements: vec![
+            Statement::If {
+                condition: Expression::Compare {
+                    operation: Comparison::Equal,
+                    left: Box::new(Expression::Variable(2)),
+                    right: Box::new(Expression::Vector(Box::new([
+                        Expression::Real(0.0),
+                        Expression::Real(0.0),
+                        Expression::Real(0.0),
+                    ]))),
+                },
+                then: vec![Statement::Noop],
+                otherwise: None,
+            },
+            Statement::If {
+                condition: Expression::Compare {
+                    operation: Comparison::Different,
+                    left: Box::new(Expression::ArrayElement {
+                        array: Box::new(Expression::Variable(3)),
+                        index: Box::new(Expression::Integer(0)),
+                    }),
+                    right: Box::new(Expression::Variable(2)),
+                },
+                then: vec![Statement::Noop],
+                otherwise: None,
+            },
+        ],
+    });
+    let code = godot::ai::compile(&model, &[])?;
+
+    let temp = tempfile::tempdir()?;
+    let project = temp.path().join("godot");
+    godot::support::initialize(&project)?;
+    fs::write(project.join("compiled_vector.gd"), code)?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    godot::run_godot(
+        &engine,
+        &project,
+        &[
+            "--headless",
+            "--check-only",
+            "--script",
+            "res://compiled_vector.gd",
+            "--log-file",
+            "compiled-vector.log",
+        ],
+        Duration::from_secs(10),
+    )?;
+    Ok(())
+}
+
+#[test]
 fn fight_change_armor_round_trips_and_updates_level_shared_selection_state() -> Result<()> {
     // Hype model 28's reached node 987: procedure 429, then byte index 0.
     let source_nodes = [
@@ -711,6 +778,62 @@ fn typed_ai_codec_preserves_branches_values_and_rejects_unknown_or_malformed_nod
             })
             .is_err()
     );
+    Ok(())
+}
+
+#[test]
+fn opaque_designer_values_round_trip_and_reached_access_fails_explicitly() -> Result<()> {
+    let bytes = vec![0, 255, 1, 128];
+    let mut source = model()?;
+    source.variables.push(DesignerVariable {
+        default: DesignerValue::Opaque {
+            kind: 13,
+            bytes: bytes.clone(),
+        },
+        save: 0,
+        initialize: 0,
+    });
+    source.normal.as_mut().unwrap().behaviors[0]
+        .schedule
+        .as_mut()
+        .unwrap()
+        .statements
+        .push(Statement::Assign {
+            variable: 2,
+            value: Expression::Integer(9),
+        });
+
+    let reopened = rete::decode::<AiModel>(&rete::encode(&source)?)?;
+    assert_eq!(reopened, source);
+    let code = godot::ai::compile(&reopened, &[])?;
+    assert!(
+        code.contains("@export var dsg_2: PackedByteArray = PackedByteArray([0, 255, 1, 128])"),
+        "{code}"
+    );
+    assert!(
+        code.contains("level:/ai/proximity accesses opaque source designer field 2"),
+        "{code}"
+    );
+    assert!(!code.contains("dsg_2 = int(9)"), "{code}");
+
+    let temp = tempfile::tempdir()?;
+    let project = temp.path().join("godot");
+    godot::support::initialize(&project)?;
+    fs::write(project.join("compiled_opaque.gd"), code)?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    godot::run_godot(
+        &engine,
+        &project,
+        &[
+            "--headless",
+            "--check-only",
+            "--script",
+            "res://compiled_opaque.gd",
+            "--log-file",
+            "compiled-opaque.log",
+        ],
+        Duration::from_secs(10),
+    )?;
     Ok(())
 }
 
