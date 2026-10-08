@@ -5,7 +5,7 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, path::Path};
 
-pub const INTERFACE: u32 = 74;
+pub const INTERFACE: u32 = 75;
 const PACKAGE: &str = "addons/astrolabe";
 const RECEIPT: &str = "addons/astrolabe/installed.json";
 
@@ -85,6 +85,9 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/ui/screen.gd",
     "addons/astrolabe/ui/screen.gd.uid",
     "addons/astrolabe/ui/screen.tscn",
+    "addons/astrolabe/ui/location_title.gd",
+    "addons/astrolabe/ui/location_title.gd.uid",
+    "addons/astrolabe/ui/location_title.tscn",
     "addons/astrolabe/ui/dialogue.gd",
     "addons/astrolabe/ui/dialogue.gd.uid",
     "addons/astrolabe/ui/dialogue.tscn",
@@ -382,7 +385,7 @@ mod tests {
             output.path().join("addons/astrolabe/version.json"),
         )?)?;
         assert_eq!(version["interface"].as_u64(), Some(u64::from(INTERFACE)));
-        assert_eq!(INTERFACE, 74);
+        assert_eq!(INTERFACE, 75);
 
         let staged = tempfile::tempdir()?;
         stage(staged.path(), output.path())?;
@@ -399,6 +402,9 @@ mod tests {
             "addons/astrolabe/character/inventory_definition.gd.uid",
             "addons/astrolabe/character/inventory_stock.gd",
             "addons/astrolabe/character/inventory_stock.gd.uid",
+            "addons/astrolabe/ui/location_title.gd",
+            "addons/astrolabe/ui/location_title.gd.uid",
+            "addons/astrolabe/ui/location_title.tscn",
             "addons/astrolabe/ui/map_name.gd",
             "addons/astrolabe/ui/map_names.gd",
         ] {

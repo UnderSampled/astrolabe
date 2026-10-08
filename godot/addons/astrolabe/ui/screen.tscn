@@ -1,8 +1,9 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 [ext_resource type="Script" path="res://addons/astrolabe/ui/screen.gd" id="1"]
 [ext_resource type="PackedScene" path="res://addons/astrolabe/ui/dialogue.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://addons/astrolabe/ui/hud.tscn" id="3"]
 [ext_resource type="Theme" path="res://addons/astrolabe/ui/theme.tres" id="4"]
+[ext_resource type="PackedScene" path="res://addons/astrolabe/ui/location_title.tscn" id="5"]
 [node name="AstrolabeUI" type="CanvasLayer"]
 layer = 20
 script = ExtResource("1")
@@ -30,6 +31,7 @@ offset_bottom = 480.0
 mouse_filter = 2
 color = Color(0, 0, 0, 1)
 [node name="Dialogue" parent="Canvas" instance=ExtResource("2")]
+[node name="LocationTitle" parent="Canvas" instance=ExtResource("5")]
 [node name="Fade" type="ColorRect" parent="Canvas"]
 layout_mode = 0
 offset_right = 640.0

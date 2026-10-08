@@ -4,7 +4,7 @@ The maintained UI lives in `godot/addons/astrolabe/ui/`. Its scenes, theme and
 scripts are authored Godot support. Text, voices, fonts and original textures
 are converted inputs under ignored `generated/`; content regeneration does not
 rewrite the maintained scenes. The screen-space HUD/dialogue slice targets
-manor; the main menu and level-loading presentation remain separate components.
+manor and the source Astrolabe location title; the main menu and level-loading presentation remain separate components.
 
 ## Level-loading presentation
 
@@ -34,7 +34,7 @@ for paths, hashes and validation limits.
 ## Composition and layout
 
 `screen.tscn` is a CanvasLayer named `AstrolabeUI`, at layer 20. Its Control tree
-owns HUD, letterboxes, dialogue and a fade ColorRect in source draw order.
+owns HUD, letterboxes, dialogue, location title and a fade ColorRect in source draw order.
 Dialogue is drawn above the bars; fade is drawn above dialogue. The camera,
 projection and world viewport belong to the existing camera implementation.
 ToggleWideScreen changes presentation only: top/bottom rectangles each cover
@@ -68,9 +68,9 @@ behavior completion target. Rete persists those values and a shared
 presentation reference. Source addresses and relocation decisions remain in
 OpenSpace import.
 
-The manor adapter reuses SNA/LZO, pointer-file and relocation codecs for English
+The Manor/Astrolabe adapter reuses SNA/LZO, pointer-file and relocation codecs for English
 `.lng/.rtg/.dlg/.rtd/.snd/.rts` inputs. `.dlg` word zero is the name table; word
-one is the circular item catalogue. Installed manor RTG has header byte 11 but
+one is the circular item catalogue. Installed Manor/Astrolabe RTG has header byte 11 but
 only two groups; its header meaning is unresolved. A narrowly scoped adapter
 recognizes the evidenced Fix/level headers, checks every actual group and
 requires all populated language blocks to be covered. The general relocation
@@ -133,7 +133,7 @@ with a diagnostic. There is no runtime source opcode interpreter.
 | Installed source API | Native method / effect |
 | --- | --- |
 | Proc_ToggleWideScreen, 323 | Toggle global presentation state |
-| Proc_EndDialog, 324 | Cancel active dialogue and its pending callback |
+| Proc_EndDialog, 324 | Close active presentation and clear its pending callback |
 | Proc_RunDialog, 325(name, mode) | Select localized item and start its existing SoundEmitter event |
 | Proc_ScrollDialog, 326(direction) | Cycle answers; no text-page advance in this selected non-branching slice |
 | Proc_SelectDialog, 327 | Advance a page or finish |
@@ -288,3 +288,38 @@ component checks are diagnostic gates. Canonical end-to-end acceptance is the
 normal authored New Game entry with the original imported AI, compared against
 the actual original opening. A demo or a synthetic UI fixture cannot establish
 that integrated result.
+
+## Source location title
+
+English Astrolabe's `astrolabe_txt2` is imported from the actual language
+catalogue as style 4, with two untimed lines, no voice, and completion to its
+owner's model 659 normal 1.
+The shared Screen instances the registered `location_title.tscn` sibling and
+routes the source Position/Run/Select/End/IsOver APIs through the active owner.
+The single center stencil, source bitmap font and span layout remain native
+Godot resources. Opening alpha steps only after more than 10 ms; closing steps
+once per draw, matching the source's asymmetric arithmetic.
+
+Actor `level:/persos/world/0/91`, model `level:/ai/models/659`, owns the unchanged
+cue: wait 200 ms; PositionDialog(160,70); Run only when GetGameState()==2; change
+to normal 1; wait 3000 ms; EndDialog; deactivate SelfActor. Other selectors still
+execute the unconditional transition, End and deactivation. There is no
+authored every-level trigger. Func 195 compiles to the actual shared game-session
+getter; combined masks fail with an explicit stale-result diagnostic rather
+than receive a fabricated selector. Rete schema 57 retains the typed query alongside inventory motion.
+
+End animates the active presentation's close without invoking completion. Level
+adoption/release and teardown cancel both presentations immediately. Ordinary
+dialogue retains its pending-behavior and MainActor speech contracts; title
+selection uses the same pending completion contract. Focused tests execute
+synthetic and unchanged imported cue programs against the maintained components and session getter,
+including native physics startup and map cancellation/reentry. Full level
+conversion/game routes and original-game pixel/cadence parity are separate
+validation scopes.
+
+The optional line drawing anchor retains font alignment selectors and source
+X/Y offsets. The importer declares that structure before reading it; Rete and
+Godot export semantic values. Native bitmap-font metrics resolve first-to-last
+glyph center width and the vertical space-glyph anchor during prefix reveal.
+The title's first and second anchors are `[1,1] / [1.8,-0.2]` and
+`[1,1] / [1.9,-0.4]`. Source addresses and relocation stay private to import.

@@ -990,6 +990,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::LaserDirection
         | Expression::MagicCurrentSpell
         | Expression::DialogIsOver
+        | Expression::GameState
         | Expression::DialogIsOverAndChangeBehavior
         | Expression::MagicPoints
         | Expression::SelfHitPoints
@@ -1349,6 +1350,21 @@ fn guarded_expression(
                 "{pad}var {result_local}: Variant = character().source_actor_in_waypoint_sphere({actor_local} as Node3D, {waypoint_local} as Resource)\n{pad}if typeof({result_local}) != TYPE_BOOL:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
             )?;
             result_local
+        }
+        Expression::GameState => {
+            let id = flow.local;
+            flow.local += 1;
+            let session = format!("game_state_session_{id}");
+            let local = format!("game_state_selector_{id}");
+            let failure = quoted(&format!(
+                "{} Func_GetGameState requires a session selector; combined source masks have an unrepresented stale result",
+                model.path
+            ));
+            writeln!(
+                out,
+                "{pad}var {session} := source_game_session()\n{pad}if not is_instance_valid({session}) or not {session}.has_method(\"source_get_game_state\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {local}: Variant = {session}.call(\"source_get_game_state\")\n{pad}if typeof({local}) != TYPE_INT:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
+            )?;
+            local
         }
         Expression::DialogIsOver | Expression::DialogIsOverAndChangeBehavior => {
             writeln!(
@@ -1711,6 +1727,7 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         }
         Expression::WaypointPosition(reference) => waypoint_constant(reference),
         Expression::GameTime => "character().source_game_time()".into(),
+        Expression::GameState => anyhow::bail!("game state must use guarded session query"),
         Expression::TimeElapsed { start, duration } => format!(
             "source_time_elapsed(int({}), int({}))",
             expression(start, model)?,

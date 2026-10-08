@@ -26,3 +26,23 @@ func span_origin(message: String, offset: float) -> float:
     # uses left bearings, so only this span origin needs the half-width adjustment.
     var glyph := font.get_glyph_index(FONT_SIZE, message.unicode_at(0), 0)
     return offset * SOURCE_SCALE - font.get_glyph_size(0, Vector2i(FONT_SIZE, 0), glyph).x * 0.5
+
+func line_origin(message: String, alignment: Vector2i, offset: Vector2) -> Vector2:
+    var origin := offset * SOURCE_SCALE * Vector2(1.0, -1.0)
+    # The source's FON width measures first-to-last glyph centers. Reuse the
+    # native bitmap metrics, including source tracking, rather than an asset table.
+    if alignment.x != 0 and message.length() > 1:
+        var width := 0.0
+        for index in range(message.length()):
+            var glyph := font.get_glyph_index(FONT_SIZE, message.unicode_at(index), 0)
+            var glyph_width := font.get_glyph_size(0, Vector2i(FONT_SIZE, 0), glyph).x
+            if index == message.length() - 1: width += glyph_width * 0.5
+            else:
+                var advance := font.get_glyph_advance(0, FONT_SIZE, glyph).x
+                width += advance - (glyph_width * 0.5 if index == 0 else 0.0)
+        origin.x -= width * (0.5 if alignment.x == 1 else 1.0)
+    if alignment.y != 0:
+        var space := font.get_glyph_index(FONT_SIZE, 32, 0)
+        var half_height := -font.get_glyph_size(0, Vector2i(FONT_SIZE, 0), space).y * 0.5
+        origin.y += half_height * (0.5 if alignment.y == 1 else 1.0)
+    return origin

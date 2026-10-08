@@ -24,7 +24,8 @@ func run() -> void:
 	item.box = 1
 	var line := LINE_SCRIPT.new()
 	item.lines = [line]
-	if not screen.dialogue.run(item, 1):
+	screen.dialogue_items.assign([item])
+	if not screen.source_run_dialog(item.identity, 1):
 		fail("Test dialogue did not open")
 		return
 	await create_timer(0.2).timeout

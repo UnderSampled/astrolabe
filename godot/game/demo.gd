@@ -55,6 +55,21 @@ func source_set_game_state(state_id: int) -> void:
     var shift := (state_byte - 1) & 0x1f
     source_game_state_mask = (1 << shift) & 0xff
 
+## Func195 recognizes zero and individual bits. Combined masks preserve a
+## stale evaluator result in Hype; native compiled callers diagnose null.
+func source_get_game_state() -> Variant:
+    match source_game_state_mask & 0xff:
+        0: return 0
+        1: return 1
+        2: return 2
+        4: return 3
+        8: return 4
+        16: return 5
+        32: return 6
+        64: return 7
+        128: return 8
+    return null
+
 func _ready() -> void:
     # Lock the incoming session before its deferred initial request starts.
     # The resource loader is active before open_level begins restoration.

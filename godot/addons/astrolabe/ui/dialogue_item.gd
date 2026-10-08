@@ -13,7 +13,7 @@ extends Resource
 @export var allow_skip: bool = true
 
 func lines_per_page() -> int:
-    return 2 if box == 3 else 6
+    return 2 if box in [3, 4] else 6
 
 func message(key: StringName) -> String:
     # A selected locale owns a whole bundle, including voice and timing. Native

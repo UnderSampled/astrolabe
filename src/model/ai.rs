@@ -565,6 +565,10 @@ pub enum Expression {
     },
     /// Source gameplay clock value; its target implementation is owned by Godot.
     GameTime,
+    /// Func_GetGameState returns the shared session selector (0..8).
+    /// Unrecognized combined masks leave the source result stale; targets must
+    /// diagnose that unrepresented case rather than return the raw mask.
+    GameState,
     /// Cond_IsTimeElapsed checks the shared gameplay clock against a saved
     /// timestamp and duration (the reached Hype case uses 1600 ms).
     TimeElapsed {

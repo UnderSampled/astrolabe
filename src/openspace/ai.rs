@@ -1576,6 +1576,7 @@ impl Parser<'_> {
                 }
             }
             (3, 41) => Expression::GameTime,
+            (3, 195) => Expression::GameState,
             (3, 27) => Expression::RandomInt {
                 lower: Box::new(self.expression(indent + 1)?),
                 upper: Box::new(self.expression(indent + 1)?),
@@ -2766,6 +2767,7 @@ impl Writer<'_> {
                 self.expression(waypoint, indent + 1)?;
             }
             Expression::GameTime => self.node(3, 41, indent),
+            Expression::GameState => self.node(3, 195, indent),
             Expression::RandomInt { lower, upper } => {
                 self.node(3, 27, indent);
                 self.expression(lower, indent + 1)?;
@@ -2984,6 +2986,25 @@ mod partial_tests {
                 && entry == "i_brigand_dummy_gogood_hype"
                 && camera_entry == "i_brigand_dummy_gogood_camera"
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn func_get_game_state_round_trips_as_a_typed_session_query() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (0, 0, 1),
+            (1, 3, 2),
+            (3, 195, 3),
+            (12, 2, 3),
+            (0, 1, 1),
+            (4, 324, 2),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(script.statements.as_slice(), [Statement::If {
+            condition: Expression::Compare { left, .. }, ..
+        }] if **left == Expression::GameState));
+        assert_eq!(codec.write(&script)?, bytes);
         Ok(())
     }
 
