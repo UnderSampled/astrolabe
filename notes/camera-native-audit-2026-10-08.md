@@ -117,10 +117,10 @@ World154 normal2 schedule | actor33/wp86 → actor18/wp84 → actor19/wp82 | mod
 World154 normal3 rule0, dsg0=4/1/2/3/5/6 | 20/67, 29/69, 19/81, 31/79, 21/80, 26/47 | mode3; dsg0=1 branch waits1200
 World154 normal3 rule1, Gogoud dsg4=1 | 21/80 → 43/78 → 21/80 → 25/81 → 21/80 → 31/77 → actor29 | waits1100/1700/1400/4500/3000/2000/2100; final eye is actor45's Ultra Func0 Position
 World154 normal3 rule1 tail | actor29 / copied actor45 eye | wait700; actor45 switches to travel365 normal2; World returns normal0
-Travel365 normal2 rule0 + schedule | camera eye copies SelfPosition each tick | speed(0,-1.4,0), GoOverWay dsg slot0; waypoint135 sphere → **mode6**, statue actor28 dsg0=1, travel normal1
+Travel365 normal2 rule0 + schedule | camera eye copies SelfPosition each tick | speed(0,-1.4,0), GoToNextWPOfWay meta30 slot0; waypoint135 sphere → **mode6**, statue actor28 dsg0=1, travel normal1
 Statue294 normal5 rule0 | actor46/wp48 | waits dsg0=1; MainActor normal70; mode3; statue normal9
 Statue294 normal9 rule0 | MainActor / actor45 eye | MainActor dsg21=1; actor45 at wp134; Ultra Func0 eye copy; wait1200; travel normal4→normal3
-Travel365 normal3 rule0 + schedule | camera eye copies SelfPosition each tick | speed(0,+0.8,0), GoOverWay slot1; waypoint129 sphere → Gogoud dsg1=1
+Travel365 normal3 rule0 + schedule | camera eye copies SelfPosition each tick | speed(0,+0.8,0), GoToNextWPOfWay meta30 slot1; waypoint129 sphere → Gogoud dsg1=1
 Gogoud210 normal9 | no independent eye write | dsg3 and dsg1 gates; clear both, restore Gogoud normal2
 Gogoud210 normal12 schedule | actor47/wp52 → MainActor | mode3, wide-screen toggle, route/metas19/32/33; Proc160 MainActor then **mode -1**
 World154 normal5 schedule | camera wp55; MainActor wp58 plus wp57/53/54 route array | alternate setup/dialogue/control path; mode3 then -1
@@ -132,7 +132,7 @@ MainActor authored action/dialogue steps between those nodes. This camera
 batch does not replace them with an artificial acceptance path.
 
 Upstream failures must remain distinct: music/setup can stop before these shots;
-Ultra Func0 cross-actor Position, GoOverWay30, Gogoud route/meta19/32/33,
+Ultra Func0 cross-actor Position, GoToNextWPOfWay30, Gogoud route/meta19/32/33,
 procedure402, self-deactivation and several MainActor setup/dialogue branches
 were unresolved at this source base. The lead and original-C worker own their
 connected tracing and implementation. Mode0 failed-candidate interpolation

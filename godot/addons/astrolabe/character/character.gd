@@ -15,6 +15,9 @@ const SOURCE_CAMERA_DATA3D_WALK_CALLBACK := 0x00585d51 # DAT_00757320[0/8]
 @export var initial_state: int = -1
 @export var current_state: int = -1
 @export var current_mechanics: Resource
+## Effective source dynamics binding, retained by import/export independently
+## of the selected mechanics card. Compiled point-motion APIs check it.
+@export var source_motion_binding_present: bool = false
 @export var physical_environment: Resource
 @export var source_inventory: Resource
 @export_node_path("Node3D") var source_state_owner_path: NodePath
@@ -243,8 +246,20 @@ func turn(degrees_per_second: float, seconds: float) -> void:
 ## Source actor forward -Y maps to the native body's +Z axis.
 func source_turn_angles(target: Node3D) -> Vector2:
     if not is_instance_valid(target): return Vector2(NAN, NAN)
-    var forward := global_basis.orthonormalized().z
-    var direction := target.global_position - global_position
+    return _source_turn_angles_to_world_position(target.global_position)
+
+## Action_IncrementalTurnPosition snapshots a Position vector and uses the same
+## heading/shortest-delta helpers as the actor-targeted turn. The compiled
+## script owns its signed frame count and successive heading requests.
+func source_turn_angles_to_position(point: Vector3) -> Vector2:
+    if not point.is_finite(): return Vector2(NAN, NAN)
+    return _source_turn_angles_to_world_position(Vector3(point.x, point.z, -point.y))
+
+func _source_turn_angles_to_world_position(point: Vector3) -> Vector2:
+    # The source heading reads the transformed forward column directly.
+    # Orthonormalizing a composed/scaled basis can change that direction.
+    var forward := global_basis.z
+    var direction := point - global_position
     var start := fposmod(atan2(forward.x, forward.z), TAU)
     # The original angle helper chooses PI for a zero horizontal direction.
     var finish := PI if direction.x == 0.0 and direction.z == 0.0 else fposmod(atan2(direction.x, direction.z), TAU)
