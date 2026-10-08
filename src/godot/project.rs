@@ -401,15 +401,26 @@ environment = SubResource("environment")
             // Dense animations are also converted to binary resources.
             Duration::from_secs(360),
         );
-        if build_result.is_err()
-            && let Some(diagnostic_path) = std::env::var_os("ASTROLABE_FAILED_BUILD_SCRIPT")
-        {
-            let _ = fs::copy(
-                self.stage.path().join("build.gd"),
-                Path::new(&diagnostic_path),
-            );
+        if let Err(error) = build_result {
+            if let Some(diagnostic_path) = std::env::var_os("ASTROLABE_FAILED_BUILD_SCRIPT") {
+                let _ = fs::copy(
+                    self.stage.path().join("build.gd"),
+                    Path::new(&diagnostic_path),
+                );
+                // Explicit diagnostic capture also keeps the generated inputs
+                // and import cache available for static failure inspection.
+                let retained = self.stage.keep();
+                let _ = fs::write(
+                    Path::new(&diagnostic_path).with_extension("stage-path"),
+                    format!("{}\n", retained.display()),
+                );
+                return Err(error.context(format!(
+                    "native build staging retained at {}",
+                    retained.display()
+                )));
+            }
+            return Err(error);
         }
-        build_result?;
         self.reserve(&self.level_path("validation.json"))?;
         // Preserve path-derived resource/node identities across edits and cache rebuilds.
         for path in &self.generated {

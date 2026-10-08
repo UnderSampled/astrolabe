@@ -382,3 +382,38 @@ updated while node/observer API names remain stable. The earlier naming proposal
 is completed. The normal release CLI build and corrected source-content
 preparation are authorized artifact generation; no test suite, temporary probe,
 actual game or observer acceptance runs after the latest no-tests instruction.
+
+## Corrected preparation: systemic sector-array emission
+
+The privileged artifact retry builds the release CLI in70.061s, then gets past
+the original editor/socket/import blocker and stops in63.561s at the native
+builder's first invalid sector-neighbor expression, `build.gd:72864`:
+`boundary.neighbor_paths = Array[NodePath]([...])`. It exits1 without a timeout
+or remaining children. No scope completes and the consumer manifest hash is
+unchanged. Failed logs and the complete builder remain in ignored
+`output/integration-resume-20261008/artifact-retry/`.
+
+Static review of the complete retained builder finds20 occurrences, all emitted
+by one statement in `src/godot/scene.rs`. The entire statement now uses
+`boundary.neighbor_paths.assign([...])`, following the maintained native typed
+array pattern used for dialogue resources, actor routes and designer values.
+The property remains `Array[NodePath]`; every surface contributes one reference
+per triangle in the same order as its vertices/normals/surface metadata, and an
+unbound surface contributes an empty NodePath. No original addresses or runtime
+source tables are introduced. The remaining typed-array constructor strings
+belong to native `.tres`/`.tscn` resource syntax and are retained. All20 failing
+lines and their native-path counts are recorded in `static-array-audit.json`.
+
+The historical118-case focused selection excluded both `astrolabe::sectors`
+cases, including the existing fixture which exports a native sector boundary.
+Camera checks instantiate boundary support directly rather than invoking this
+scene emitter. Source/stock checks do not export the complete Manor scene.
+Those passes therefore did not cover this construct; they do not imply a
+successful full preparation. No tests are rerun under the current direction.
+
+The lead explicitly approves one artifact-generation retry after this systemic
+correction, with no tests or gameplay. The preceding TempDir has already been
+deleted and no resumable staging/cache path is supported. Explicit failed-build
+diagnostic capture now keeps any newly failed native-build staging project and
+records its path alongside the copied builder, preserving inputs and import
+cache for inspection. No imported cache is copied into the consumer project.

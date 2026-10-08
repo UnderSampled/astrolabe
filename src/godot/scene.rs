@@ -340,9 +340,12 @@ impl Project {
                         targets.extend(std::iter::repeat_n(target, surface.triangles.len()));
                     }
                     let targets = targets.join(", ");
+                    // Typed Array constructors belong to Godot's text resource
+                    // syntax, not GDScript. Populate the declared native array
+                    // without replacing its NodePath element type.
                     writeln!(
                         self.builder,
-                        "    {sector_name}_boundary.neighbor_paths = Array[NodePath]([{targets}])"
+                        "    {sector_name}_boundary.neighbor_paths.assign([{targets}])"
                     )?;
                 }
                 for actor_id in &sector.persos {
