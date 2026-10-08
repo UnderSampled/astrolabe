@@ -15,12 +15,12 @@ acceptance; this worker owns only the main-checkout changes assigned below.
 | Contribution | Original commit(s) | Disposition / dependency |
 | --- | --- | --- |
 | Inventory motion | `87485e17fbe52173fb39005c9f10f92a23f30800` | Adapted to current admitted inventory API, useful model and native animation resources in `c375693b5c8310ffc8450dd97ce3be0e910083a3` (initial Rete56/support73, combined Rete57/support75). Dedicated maintained runtime harness replaces duplicated test text; native prerequisites/deadlines are coordinated. Independent inventory export only. |
-| WaitInteger | `e79369362bc98ca6f2c2e991e6ac44efdce56e9b` | Pickup worker owns adaptation into its coherent compiler/consumer patch. Earlier adjustment/waypoint commits are already integrated. |
+| WaitInteger | `e79369362bc98ca6f2c2e991e6ac44efdce56e9b` | Adapted as `08b14751ab56fec8404d7dd1c804b1ad6e82e61b` inside pickup branch `3ad4937`, preserved by main merge `480ce152`. Earlier adjustment/waypoint commits are already integrated. |
 | Actor Boolean Brain save helper | `f21a7fcb2976109682d6bf6ac5cc88e434ea58ec` | Disposed through the real production-slot regression and live Boolean preflight, integrated as `6f35ceb773289f93af13c6320d649b7f8369721b` and `542c836e44ee748f396b4ccab6cc3c7b81fdc2c8`. Fresh-process reload and atomic rejection pass; the redundant generic helper is not installed. Broader fork capabilities remain separately assigned below. |
 | Location title/style/state | `e9296e88f92940d0e73ac206820e041cacd19181`, `f7dc29d915c57053392d156babf1fb6adf5d7795` | Connected branch tip `a93fa279cba48191fdb46ce345d7d05d7e4c8e8d` merged as `9e2061ce071bd2b0db3a32d1a6663fbfd97fcd0b`, preserving both original commits. Actual named catalogue/style4, typed Func195, shared Screen dispatch and unchanged model659 cue pass focused source/Rete/native checks. |
-| Pickup/barrel contact and lifetime | `1aa775e67368980153c11fc502d36ee3c64dc219`, `ed961c7` | Assigned pickup worker completes reached collision/material queries, actor fields, waits, picking-center, real consumers and persistence. Preserved clone had merged main as `8420af6573603bad6913c58e443e7bd82e2e00c8`. |
+| Pickup/barrel contact and lifetime | `1aa775e67368980153c11fc502d36ee3c64dc219`, `ed961c7` | Final branch `3ad4937074f08545d79e1a0e927b44f524d99cc5` merged as `480ce152b02b1daa43c1de6e45c5b3d2adbc901c`, preserving both originals and WaitInteger. Connected native dispatch/HUD/full inventory and placed-barrel persistence are reconciled with schema4 in `d493ef24859d9b2a0b18ed68f5ebb845e7feeebb`. |
 | First-visit armor and active camera callback | `fafdc78217a9ff0d65b0f9bed987836250d20c1a`, `2a33866e82ee1a8c3cba597b887a29c00c15136c` | Reviewed and cherry-picked as `4af33df5e96d4f90862aa61c6d4a5ba540b91ba5` and `77b98caa5225eb3d4bb11df9fe70d71886392080`. Real armor facade guard, semantic camera publisher and explicit no-card history state pass focused source/Rete/native checks. Combined interface and Gogoud parser follow-up: `e1c60bec0afb33963f7ec414881164b069965809`. |
-| Broader preserved native save | Fork `294bd260fcfa6d4c53b99799e60bce14614f2984` | Its schema3 envelope was replaced by newer main schema1 in `56a769fc9edfe2db7061aea6b5cacd687f942e81`. Broader health/equipment/idle-checkpoint capability was not composed into the active envelope. Replacement is not a disposal decision: assigned save worker compares useful capabilities and integrates coherently. |
+| Broader preserved native save | Fork `294bd260fcfa6d4c53b99799e60bce14614f2984` | Its original schema3 envelope was replaced by newer main schema1 in `56a769f`. Useful life/armor/idle-checkpoint/identity/integer-guard capabilities are now composed through approved `ab828ed` as main `d493ef24859d9b2a0b18ed68f5ebb845e7feeebb`, with pickup full inventory/barrel persistence and actual session ownership preserved. |
 
 The initial proposed order was WaitInteger → inventory → armor/camera → title
 (shared getter) → pickup/barrel → evidence/contract coordination → lead-directed
@@ -37,7 +37,7 @@ merging; this note does not prescribe a new sequence over that lead direction.
 | Menus, pause, settings and credits | Existing native actual-game paths; settings lifetime candidate `12db1a5` / earlier `a4eed4e`, credits `2090b62` reconciled in `809addb`. No old interface/schema replay. |
 | Font corrections / HUD assets and crops | Fractional glyph/cache-order fixes integrated (`239dafe`, `8e1382b`, `259ae71`); HUD source/assets/crops (`92ebebc`, `7be1b7b`, `99bb41b`, `8ff522b`). Missing dated R7/R9 and HUD investigation evidence is restored separately. |
 | Texture mip candidate / inherited mip prerequisite | `bdc8113e` / `b512833` patch represented by `eab0f77`; one shared texture-save implementation. |
-| Adjustment and waypoint candidates | `d0cd281` / `f5cecc2` and `365c4da` represented by `f6d7d3b`, `5cdc172` and native travel `e67e55e`. WaitInteger is a distinct still-active dependency above. |
+| Adjustment and waypoint candidates | `d0cd281` / `f5cecc2` and `365c4da` represented by `f6d7d3b`, `5cdc172` and native travel `e67e55e`. WaitInteger is separately preserved in the pickup merge above. |
 | AI control queries/dispatch and frame query | Distance `d4e1a2f`, explicit actor behavior query `3a92c29`, source model334 `e1cc0a0`, raw207 `d23c99c`, actor-query harness `61fa12d`, frame query `8384dbc`. Patch-equivalent query `86b7992` was not replayed. |
 | Brigand preservation | `ea05504` absorbed during fork integration; no duplicate replay. |
 | Level transition, tunnel and source camera selector | `481f643`, `7c74b13`, `4f62747`, `10a3702`, `f635f94` behavior present and expanded in actual production paths. |
@@ -64,9 +64,9 @@ merging; this note does not prescribe a new sequence over that lead direction.
   Dismiss. Its earlier test-only CanvasLayer diagnostic error and later successful
   bounded frozen route remain distinguished.
 - Current [project/save documentation](../docs/astrolabe/godot-project.md) now
-  describes actual schema1 wiring and disconnected retained components. The older
+  describes current schema4/schema1 wiring and disconnected retained components. The older
   [static plan](static-port-plan-2026-10-04.md) is explicitly dated/superseded where
-  its schema3/session claims differ; useful capability comparison remains assigned.
+  its schema3/session claims differ; the useful capabilities are now composed through the approved checkpoint union.
 
 ## Preserved dirty and historical work
 
@@ -178,8 +178,8 @@ full-level editor import deadline failures remain unverified, preserved failed
 evidence for lead-directed aggregate work. This focused selection performs no
 full-level export, original-game run or current full intro acceptance. Pickup,
 WaitInteger, full inventory/barrel persistence and the save worker's life/armor/
-checkpoint/identity follow-up remain their assigned active work, not disposed
-capabilities. The [production session naming plan](godot-session-architecture-review-2026-10-08.md#safe-naming-cleanup-after-integration)
+checkpoint/identity follow-up were subsequently merged below; those useful
+capabilities are now integrated. The [production session naming plan](godot-session-architecture-review-2026-10-08.md#safe-naming-cleanup-after-integration)
 remains a filename-only proposal after those merges; `demo.gd`/`demo.tscn` are the
 actual production session and have not been renamed here.
 
@@ -189,6 +189,36 @@ all-target Clippy with `-D warnings`, and `cargo build --release --locked
 `output/integration-resume-20261008/title-brain-main/build-checks-result.json`;
 no timeout or child leak occurred. The final README/evidence wording records
 these results without additional production behavior changes.
+
+## Final approved feature union
+
+Pickup/WaitInteger branch `3ad4937074f08545d79e1a0e927b44f524d99cc5` is
+merged as `480ce152b02b1daa43c1de6e45c5b3d2adbc901c`. Approved checkpoint
+`ab828edc1b7bcc38a1e4da7df0fd50a05a19c409` is composed as
+`d493ef24859d9b2a0b18ed68f5ebb845e7feeebb`. Canonical GameState/armor
+implementations are preserved; no duplicated compiler/getter path survives.
+Combined Rete58/support77 identify the resulting contracts. All useful completed
+contributions in the audited integration inventory are integrated or explicitly
+represented by current production equivalents. Historical research and unused
+retained helpers remain documented without an acceptance claim.
+
+The first pickup aggregate had 115/118 passes. It exposed missing pickup-artwork
+texture loading, a stale armor-guard assertion and JSON integer admission during
+slot reload. The checkpoint union fixes those failures and also validates named
+barrel tombstones before component publication. Failed logs remain preserved.
+The final run passes 118/118 Rust cases, all29 Python safeguard checks, complete
+419-case manifest classification, maintained input parser/runtime smoke, source
+freeze and cleanup in247.235s (build85.116s, execution155.093s). All301 excluded
+cases remain listed; no full release matrix or original backend is claimed.
+The complete production-slot union passes in1.102s. Build/style checks pass:
+release69.939s, strict workspace all-target Clippy11.119s, formatting0.705s
+and whitespace0.036s. Ignored evidence is
+`output/integration-resume-20261008/final-feature-main/`. The new synthetic
+fixture's unique native UID sidecar is tracked after the frozen behavior run;
+its addition changes no executable logic or packaged fixture references.
+
+The actual root preparation and New Game/Load Game acceptance are authorized
+next. They have separate evidence and cannot be inferred from these passes.
 
 ## Complete ref snapshot
 

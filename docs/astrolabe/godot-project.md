@@ -76,43 +76,48 @@ DSG[149]. New Game preserves complete imported AI and does not apply that fixtur
 
 ### Native save contract
 
-The production `game/save_state.gd` writes and accepts **schema 1** in
-`user://manoir-save-v1.json`. It captures native player position and three Basis
-columns, current/maximum magick and selected spell code, sparse inventory
-quantities and selected weapon, the dummy Brain's `dsg_8`, and the canonical
-Global Brain's `dsg_149` plus optional Boolean `dsg_147`. The legacy player
-payload key is `world/0/0/Hype`; Global and dummy references are semantic asset
-identities. Source addresses, relocation and registration details stay in the
-OpenSpace reader and diagnostic evidence.
+The production `game/save_state.gd` writes **schema 4** checkpoints and reads
+schemas 1 and 4 in `user://manoir-save-v1.json`. Schema 1 remains the bounded
+original-save import overlay. Schemas 2/3 from the archived fork are not admitted.
+The legacy player key is `world/0/0/Hype`; schema 4 also records and verifies
+`asset: level:/persos/world/0/0` and `checkpoint: manor-idle-v1`. The session resolves
+that semantic player through the level's named node map and checks its ancestry,
+actor metadata and manor context. Source addresses and relocation remain private
+to the OpenSpace reader and diagnostic evidence.
 
-Validation rejects unsupported keys, identities, levels and versions, invalid
-quantities, nonfinite placement and non-orthonormal saved Basis values. A private
-inventory clone validates `restore_legacy` before any live component changes.
-Missing optional Global DSG[147] leaves its current scene default intact.
-Missing world state in older schema-1 slots uses the measured dummy default.
-Writing uses temporary-file replacement; reading never upgrades an old slot.
-New Game saving is disabled. The current saved-start save gate checks session
-readiness, rather than the fuller idle/action/projectile admission described by
-the earlier fork.
+Checkpoints capture native transform, magick, full inventory v2 snapshots,
+actor-owned life v1 and level-owned armor v1. Inventory retains ordered member
+identities, capacities, quantities, selection, admitted category slots and special
+gold. Armor updates the shared level catalogue in place and synchronizes its
+facade; another level's clone remains independent. Life's three byte values are
+validated independently without clamping. Placement admits finite nonsingular
+scaled/sheared Basis values. Integral JSON floats are accepted after range checks;
+Boolean/fractional/nonfinite numbers and noncanonical item keys fail.
 
-The native inventory separates the full catalogue from admitted category slots.
-With known admission, `presentation_quantities()` projects admitted ownership;
-legacy sparse restoration retains only its saved IDs in `legacy_owned_ids` and
-reports unresolved admission to pickup/selection callers. Item definitions,
-capacities, gold, member selections and armor damage have native Resource
-snapshot APIs, but **the production schema-1 save envelope does not compose those
-full snapshots**. It also omits health, armor, arbitrary actor/Brain continuation,
-RNG state and general world progression. These Resource helpers alone are not
-native save acceptance.
+Supported Brain/world state includes Global `dsg_149`, optional `dsg_147` and
+first-pickup flags `dsg_220` through `dsg_228`, the dummy's `dsg_8`, and four placed
+barrels' consumed flags and removal tombstones. Barrels are actor instances,
+independent of shared model 488 and transient spawned drops. Local named bindings
+must be valid; a known removed actor can remain absent during repeated restoration.
+Missing or incompatible live fields fail before any component mutation. Private
+inventory/life/armor copies validate restoration before publication.
 
-The fork at `294bd260fcfa6d4c53b99799e60bce14614f2984` implemented a broader schema-3
-idle checkpoint, including placement/life and equipment snapshots. Integration
-merge `56a769fc9edfe2db7061aea6b5cacd687f942e81` retained the newer main schema-1
-session/save route instead. Schema 2/3 compatibility and full idle-checkpoint
-claims from that fork therefore do not describe current production behavior.
-The [integration disposition](../../notes/integration-disposition-2026-10-08.md)
-records this supersession; restoring it requires a separate agreed save-owner
-integration and native acceptance.
+Schema 1 may omit complete inventory snapshots, life/armor, Basis and optional
+Brain fields. Sparse legacy inventory restores its supported IDs and reports
+unknown admission to pickup/selection callers; omitted life/armor and optional
+Brain state retain their level defaults. Missing older world state uses the
+measured dummy default. Reading does not upgrade files. Writing replaces the
+slot atomically and admits a living, grounded, still player in action47,
+Normal4/Reflex3 with a running supported Brain, no pending movement/action,
+held/generated projectile or pressed gameplay control. New Game saving stays
+disabled in the authored session. This is a bounded native checkpoint policy,
+not arbitrary AI/coroutine, RNG or general world-progression restoration.
+
+The useful broader fork capabilities are composed through this concrete native
+slot and its fresh-process regression, rather than replaying its old schema3
+session. The [integration disposition](../../notes/integration-disposition-2026-10-08.md)
+and [checkpoint evidence](../../notes/native-checkpoint-restoration-2026-10-08.md)
+record implementation, source distinctions and current acceptance limits.
 
 Source-save import is also bounded: the compatibility import maps measured
 semantic fields into the supported schema-1 payload. Optional Global DSG[147]

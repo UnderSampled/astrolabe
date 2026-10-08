@@ -59,7 +59,7 @@ To import an extracted original Hype slot, run from the repository root:
 
 ```sh
 target/release/astrolabe import-save /path/to/SaveGame0 \
-  --profile hype-pc-english-supplied-save
+  --game disc --profile hype-pc-english-supplied-save
 ```
 
 The command writes `game/original_save_import.json`, which is ignored local
@@ -98,11 +98,14 @@ Unsupported actor behaviors retain exact console diagnostics. Full opening
 acceptance is tracked in the dated Manor integration audit; a first dialogue or
 successful conversion alone does not establish it.
 
-The [current checkpoint](../notes/intro-integration-wrapup-2026-10-08.md)
-rebuilt all four game scopes. Uncapped New Game startup stalled at50%; a temporary
-30-FPS diagnostic reached readiness, then exposed missing selected armor in
-World154 and an unmapped camera target mechanics callback. Full opening
-acceptance remains blocked. The diagnostic cap is not installed in production.
+The [integration disposition](../notes/integration-disposition-2026-10-08.md)
+records the current Rete58/support77 feature union. A service-owned temporary
+30-FPS cap now covers resource loading and awaited scene installation, preserves
+lower user caps, and restores the previous limit on completion/cancellation/exit.
+The selected armor and camera callback blockers have source-informed native fixes.
+Focused checks pass; actual complete opening acceptance is reported separately.
+The [earlier checkpoint](../notes/intro-integration-wrapup-2026-10-08.md) preserves
+the failed uncapped observations and their diagnostics.
 
 The project needs the locally generated assets to play. They are ignored by
 Git and must be regenerated on another machine. Open

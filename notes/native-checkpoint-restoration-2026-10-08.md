@@ -171,3 +171,10 @@ component mutation. Owned syntax/write/reload preflight passed in 0.708s with no
 script errors, timeout or remaining child. Evidence: ignored
 `output/integration-resume-20261008/final-feature-main/slot-result.json`. Full
 combined selected validation follows this preflight and is reported separately.
+
+Final combined selected validation passes all118 Rust cases plus29 Python
+safeguard checks in247.235s, with all419 discovered cases classified, unchanged
+source, no timeout and complete child cleanup. The combined production-slot
+case passes in1.102s. Workspace strict all-target Clippy and release build pass;
+full details are in the main integration disposition and ignored
+`final-feature-main/result.json` / `build-checks-result.json`.

@@ -109,3 +109,14 @@ passes fresh-process/type/atomicity checks in 1.01s, within the 42-case focused
 integration run. See [the integration disposition](integration-disposition-2026-10-08.md)
 for merged evidence and retained follow-up ownership; this does not adopt the
 broader life/armor/checkpoint/identity or inventory/barrel capabilities.
+
+## Main composition
+
+Approved `ab828ed` is integrated as `d493ef24859d9b2a0b18ed68f5ebb845e7feeebb`,
+following pickup merge `480ce152`. Native life, level-owned armor, bounded idle
+checkpoint, semantic player binding and JSON scalar guards now join full inventory
+and placed-barrel persistence in the actual schema4 writer/schema1 overlay. The
+maintained fresh-process regression exercises this union. Earlier “not adopted”
+statements above describe the audit baseline; no useful completed audited worker
+contribution remains queued for integration. Full actual-game acceptance is
+reported separately and is not inferred from component regression results.
