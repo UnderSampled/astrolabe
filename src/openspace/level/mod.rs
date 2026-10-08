@@ -116,5 +116,9 @@ mod environment_export;
 pub use environment_export::{EnvironmentDependencies, write_environments};
 
 mod ai;
+// Pending the separately owned importer integration; its behavior is covered
+// by source-backed tests meanwhile.
+#[allow(dead_code)]
+pub(crate) mod brain_save;
 mod scene_export;
 pub use scene_export::{SceneDependencies, SceneGraphExport, write_scene_graph};
