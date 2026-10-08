@@ -200,6 +200,36 @@ the inspected forest and bridge activation words have all bits set.
 At that checkpoint, external `004b7ab0`, `00551710`, and `00552b50` remain
 unreconstructed dependencies. Kip assigned their recovery exclusively to the
 same source translator; this consumer does not duplicate that work. Their
-exact intersection/return contracts remain source-work gaps. The missing
-actual user-contact observation and the no-defect-proven disposition above
-are unchanged.
+subsequent committed recovery is recorded below. The missing actual
+user-contact observation and the no-defect-proven disposition above are
+unchanged.
+
+## Connected query checkpoint
+
+Source checkpoint `dd59ab7215054f43d3bc80571f3960415462f23b` follows
+`d24078a` and adds complete authored `004b7ab0`, `00551710`, and `00552b50`
+bodies in `src/sector/semiaxis_query.c` and `segment_face_query.c`. These
+files and `research/worker-deltas/sol-manor-handoff.md` were read only.
+The handoff reports 45 worker bodies and 75 matching selected source/installed
+PE spans. Those counts describe source work, not port behavior or whole-profile
+equivalence. Kip owns source integration.
+
+`004b7ab0` mode 0 queries faces and conditionally sprite geometry; modes 1/2
+query edges/points and retain the original mixed-space distance calculation.
+`00551710` visits linear or octree face candidates of kinds 1/2/7/8 and reuses
+the source intersection primitives. Its octree generation and visit stamps
+are query bookkeeping, not additional actor eligibility predicates. Accepted
+face ordering/capacity still depends on the external collector `00551620`.
+
+`00552b50` calls the still-external first-face query `00551dd0`, passes its
+element/face indices to material getter `00473010`, and returns that material
+handle. The three recovered functions receive geometry and points, with no
+actor-activity predicate. That does not remove or establish upstream actor,
+sector, or physical collision filtering. Initial actor-sector assignment
+through `00447bf0` is upstream of these queries. First-face, material-getter,
+scene and POS dependencies remain explicit external contracts in this batch.
+
+The query recovery closes the previously missing clean-C body status for
+these three functions. It supplies no new observation of the user's approach
+and does not establish a cause or fix for the physical wall. No collision or
+controller implementation changed, and no tests or runtime work were run.
