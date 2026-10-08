@@ -98,6 +98,12 @@ Unsupported actor behaviors retain exact console diagnostics. Full opening
 acceptance is tracked in the dated Manor integration audit; a first dialogue or
 successful conversion alone does not establish it.
 
+The [current checkpoint](../notes/intro-integration-wrapup-2026-10-08.md)
+rebuilt all four game scopes. Uncapped New Game startup stalled at50%; a temporary
+30-FPS diagnostic reached readiness, then exposed missing selected armor in
+World154 and an unmapped camera target mechanics callback. Full opening
+acceptance remains blocked. The diagnostic cap is not installed in production.
+
 The project needs the locally generated assets to play. They are ignored by
 Git and must be regenerated on another machine. Open
 `generated/hype/levels/manoir/level.tscn` directly to inspect the saved scene,

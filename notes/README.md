@@ -6,6 +6,10 @@
 
 ## Common records
 
+The [Manor intro integration wrap-up](intro-integration-wrapup-2026-10-08.md)
+records the rebuilt actual root game, bounded startup results, critical armor
+and camera blockers, parked peer commits and the proposed next steps.
+
 The [fork-first integration ledger](fork-first-integration-2026-10-08.md)
 records the source fork, checkpoint merge, accepted queue, reconciliations,
 explicitly held work, and validation evidence.
