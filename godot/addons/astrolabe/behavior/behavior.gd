@@ -15,7 +15,6 @@ var main_actor: Node3D
 var sound_emitter: Node3D
 var running: bool = false
 var unsupported_failure: String = ""
-var audio_fades: Dictionary = {}
 var random_source := RandomNumberGenerator.new()
 var revision: int = 0
 var clock_milliseconds: float = 0.0
@@ -133,26 +132,52 @@ func _source_sound_bus(bus_name: StringName) -> int:
 		AudioServer.set_bus_name(bus, bus_name)
 	return bus
 
+func _source_audio_fades() -> Dictionary:
+	var root := get_tree().root
+	var fades: Variant = null
+	if root.has_meta(&"astrolabe_source_audio_fades"):
+		fades = root.get_meta(&"astrolabe_source_audio_fades")
+	if not fades is Dictionary:
+		fades = {}
+		root.set_meta(&"astrolabe_source_audio_fades", fades)
+	return fades
+
 func _source_sound_fade_bus(bus_name: StringName, target: int, duration_ms: int) -> void:
 	assert(duration_ms >= 0)
 	var bus := _source_sound_bus(bus_name)
 	var key := String(bus_name)
-	var previous: Tween = audio_fades.get(key)
-	if previous != null and previous.is_running(): previous.kill()
-	var goal := linear_to_db(maxf(float(clampi(target, 0, 127)) / 127.0, 0.000001))
-	if duration_ms <= 1:
-		AudioServer.set_bus_volume_db(bus, goal)
-		audio_fades.erase(key)
+	var fades := _source_audio_fades()
+	var previous_id := int(fades.get(key, 0))
+	if previous_id != 0:
+		var previous := instance_from_id(previous_id) as Tween
+		if is_instance_valid(previous) and previous.is_running(): previous.kill()
+	var start_level := clampf(db_to_linear(AudioServer.get_bus_volume_db(bus)) * 127.0, 0.0, 127.0)
+	var target_level := float(clampi(target, 0, 127))
+	var set_level := func(value: float) -> void:
+		AudioServer.set_bus_volume_db(bus, linear_to_db(maxf(value / 127.0, 0.000001)))
+	if duration_ms == 0:
+		set_level.call(target_level)
+		fades.erase(key)
 		return
-	var tween := create_tween()
-	audio_fades[key] = tween
-	tween.tween_method(
-		func(value: float): AudioServer.set_bus_volume_db(bus, value),
-		AudioServer.get_bus_volume_db(bus), goal, float(duration_ms) / 1000.0)
+	var tween := get_tree().create_tween()
+	var tween_id := tween.get_instance_id()
+	fades[key] = tween_id
+	tween.tween_method(set_level, start_level, target_level, float(duration_ms) / 1000.0).set_trans(Tween.TRANS_LINEAR)
+	tween.finished.connect(func() -> void:
+		if int(fades.get(key, 0)) == tween_id:
+			fades.erase(key))
 
 ## Proc_SND_FadeMusic(target 0..127, duration in milliseconds).
 func sound_fade_music(target: int, duration_ms: int) -> void:
 	_source_sound_fade_bus(&"Astrolabe Music", target, duration_ms)
+
+## Proc_SND_FadeVoice targets the source voice mixer channel.
+func sound_fade_voice(target: int, duration_ms: int) -> void:
+	_source_sound_fade_bus(&"Astrolabe Voice", target, duration_ms)
+
+## Proc_SND_FadeSound targets the source effects mixer channel.
+func sound_fade_sound(target: int, duration_ms: int) -> void:
+	_source_sound_fade_bus(&"Astrolabe Effects", target, duration_ms)
 
 ## Proc_SND_FadeAll applies the same target and duration to all three source
 ## mixer channels: music, effects and voices.

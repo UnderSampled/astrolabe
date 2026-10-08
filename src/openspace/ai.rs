@@ -765,6 +765,14 @@ impl Parser<'_> {
                     arg0: self.expression(indent + 1)?,
                     arg1: self.expression(indent + 1)?,
                 },
+                (4, 409) => Statement::SoundFadeVoice {
+                    target: self.expression(indent + 1)?,
+                    duration_ms: self.expression(indent + 1)?,
+                },
+                (4, 410) => Statement::SoundFadeSound {
+                    target: self.expression(indent + 1)?,
+                    duration_ms: self.expression(indent + 1)?,
+                },
                 (4, 206) => Statement::Noop,
                 _ => Statement::Unsupported(self.unsupported(
                     at,
@@ -1833,6 +1841,22 @@ impl Writer<'_> {
                     self.node(4, 408, indent);
                     self.expression(arg0, indent + 1)?;
                     self.expression(arg1, indent + 1)?;
+                }
+                Statement::SoundFadeVoice {
+                    target,
+                    duration_ms,
+                } => {
+                    self.node(4, 409, indent);
+                    self.expression(target, indent + 1)?;
+                    self.expression(duration_ms, indent + 1)?;
+                }
+                Statement::SoundFadeSound {
+                    target,
+                    duration_ms,
+                } => {
+                    self.node(4, 410, indent);
+                    self.expression(target, indent + 1)?;
+                    self.expression(duration_ms, indent + 1)?;
                 }
                 Statement::SoundFadeAll {
                     target,

@@ -133,6 +133,14 @@ impl<'a> Iterator for AstWalk<'a> {
                 Statement::SoundFadeMusic { arg0, arg1 } => {
                     self.expressions(child_depth, &[arg0, arg1]);
                 }
+                Statement::SoundFadeVoice {
+                    target,
+                    duration_ms,
+                }
+                | Statement::SoundFadeSound {
+                    target,
+                    duration_ms,
+                } => self.expressions(child_depth, &[target, duration_ms]),
                 Statement::ExecuteFade {
                     from,
                     to,

@@ -2574,6 +2574,28 @@ fn statements(
                     "{pad}sound_fade_music(int({arg0}), int({arg1}))\n{pad}if not active_{group}(token): {exit}"
                 )?;
             }
+            Statement::SoundFadeVoice {
+                target,
+                duration_ms,
+            } => {
+                let target = guarded_expression(out, target, model, depth, flow)?;
+                let duration = guarded_expression(out, duration_ms, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}sound_fade_voice(int({target}), int({duration}))\n{pad}if not active_{group}(token): {exit}"
+                )?;
+            }
+            Statement::SoundFadeSound {
+                target,
+                duration_ms,
+            } => {
+                let target = guarded_expression(out, target, model, depth, flow)?;
+                let duration = guarded_expression(out, duration_ms, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}sound_fade_sound(int({target}), int({duration}))\n{pad}if not active_{group}(token): {exit}"
+                )?;
+            }
             Statement::SoundFadeAll {
                 target,
                 duration_ms,

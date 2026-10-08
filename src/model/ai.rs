@@ -344,6 +344,18 @@ pub enum Statement {
         arg0: Expression,
         arg1: Expression,
     },
+    /// Hype Proc_SND_FadeVoice uses the global voice channel. The target is
+    /// clamped to 0..127 and the duration shares FadeMusic's millisecond clock.
+    SoundFadeVoice {
+        target: Expression,
+        duration_ms: Expression,
+    },
+    /// Hype Proc_SND_FadeSound uses the global sound/effects channel. The target
+    /// is clamped to 0..127 and the duration shares FadeMusic's millisecond clock.
+    SoundFadeSound {
+        target: Expression,
+        duration_ms: Expression,
+    },
     /// Proc_SND_FadeAll applies one target level (0..127) and duration
     /// (milliseconds) to music, effects and voice channels.
     SoundFadeAll {
@@ -1367,6 +1379,17 @@ impl Script {
                     Statement::SoundFadeMusic { arg0, arg1 } => {
                         expression(arg0, variables, depth + 1, count)?;
                         expression(arg1, variables, depth + 1, count)?;
+                    }
+                    Statement::SoundFadeVoice {
+                        target,
+                        duration_ms,
+                    }
+                    | Statement::SoundFadeSound {
+                        target,
+                        duration_ms,
+                    } => {
+                        expression(target, variables, depth + 1, count)?;
+                        expression(duration_ms, variables, depth + 1, count)?;
                     }
                     Statement::ExecuteFade {
                         from,

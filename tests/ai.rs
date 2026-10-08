@@ -914,6 +914,59 @@ fn hype_sound_fade_call_remains_typed_through_source_rete_and_godot() -> Result<
 }
 
 #[test]
+fn hype_voice_and_effect_fades_round_trip_and_share_tree_lifetime() -> Result<()> {
+    let script = Script {
+        statements: vec![
+            Statement::SoundFadeVoice {
+                target: Expression::Integer(0),
+                duration_ms: Expression::Integer(800),
+            },
+            Statement::SoundFadeSound {
+                target: Expression::Integer(0),
+                duration_ms: Expression::Integer(800),
+            },
+        ],
+    };
+    let bytes = AiScriptCodec::default().write(&script)?;
+    let source_nodes = [
+        0x99, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x04, // category 4 / op 409
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x0c, // integer 0
+        0x20, 0x03, 0x00, 0x00, 0x00, 0x00, 0x02, 0x0c, // integer 800
+        0x9a, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x04, // category 4 / op 410
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x0c, // integer 0
+        0x20, 0x03, 0x00, 0x00, 0x00, 0x00, 0x02, 0x0c, // integer 800
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, // sentinel
+    ];
+    assert_eq!(bytes, source_nodes);
+    assert_eq!(AiScriptCodec::default().read(&bytes)?, script);
+
+    let mut model = model()?;
+    model.normal.as_mut().unwrap().behaviors[0].schedule = Some(script);
+    let reopened = rete::decode::<AiModel>(&rete::encode(&model)?)?;
+    assert_eq!(reopened, model);
+    let compiled = godot::ai::compile(&reopened, &[])?;
+    assert!(compiled.contains("sound_fade_voice(int(0), int(800))"));
+    assert!(compiled.contains("sound_fade_sound(int(0), int(800))"));
+
+    let temp = tempfile::tempdir()?;
+    let project = temp.path().join("godot");
+    godot::support::initialize(&project)?;
+    fs::write(
+        project.join("check_audio_fades.gd"),
+        include_bytes!("check_audio_fades.gd"),
+    )?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    let evidence = godot::run_godot(
+        &engine,
+        &project,
+        &["--headless", "--script", "res://check_audio_fades.gd"],
+        Duration::from_secs(20),
+    )?;
+    assert!(evidence.contains("AUDIO_FADES_OK"), "{evidence}");
+    Ok(())
+}
+
+#[test]
 fn nowhere_clears_source_waypoint_without_enabling_unknown_writes() -> Result<()> {
     let mut model = model()?;
     model.variables.push(DesignerVariable {
