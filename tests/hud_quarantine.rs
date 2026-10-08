@@ -264,11 +264,16 @@ func _run() -> void:
     await process_frame
     var actor_script := load("res://hud_counter_actor.gd") as Script
     var inventory_script := load("res://addons/astrolabe/character/inventory.gd") as Script
-    if not _check(actor_script != null and inventory_script != null, "native actor inventory scripts did not load"):
+    var hit_points_script := load("res://addons/astrolabe/character/hit_points.gd") as Script
+    if not _check(actor_script != null and inventory_script != null and hit_points_script != null, "native actor state scripts did not load"):
         return
     var actor := actor_script.new() as Node
     var inventory := inventory_script.new() as Resource
+    var hit_points := hit_points_script.new() as Resource
+    hit_points.set("current", 50)
+    hit_points.set("maximum", 100)
     actor.set("source_inventory", inventory)
+    actor.set("source_hit_points", hit_points)
     if not _check(int(inventory.call("quantity", 0)) == 0, "source currency default was not zero"):
         return
     if not _check(int(inventory.call("quantity", 21)) == -1, "ordinary missing item sentinel changed"):
@@ -276,7 +281,7 @@ func _run() -> void:
     hud.call("bind_actor", actor)
     await process_frame
     var label := hud.get_node("Source/CurrencyCount") as Label
-    hud.call("set_life_fraction", 0.5)
+    hud.call("_process", 0.0)
     var life_fill := hud.get_node("Source/PlayerLifeFill") as TextureRect
     var life_remainder := hud.get_node("Source/PlayerLifeRemainder") as TextureRect
     var life_atlas := life_fill.texture as AtlasTexture
@@ -301,6 +306,8 @@ func _run() -> void:
     actor.emit_signal("hud_visibility_requested", "life", true)
     var life_handle := hud.get_node("Source/PlayerLifeHandle") as TextureRect
     if not _check(life_handle.visible, "actor life visibility did not reach the source HUD"):
+        return
+    if not _check(life_fill.visible and life_remainder.visible, "actor hit points did not activate the life fill/remainder"):
         return
     if not _check(label.visible and label.text == "0", "zero source currency was not visible"):
         return
