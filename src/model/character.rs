@@ -110,8 +110,6 @@ pub struct Perso {
     pub camera: Option<super::camera::Camera>,
     /// Source StandardGame bytes read by the life HUD; actor-local mutable state.
     pub hit_points: Option<HitPoints>,
-    /// Actor pickup binding and signed count, consumed by the shared inventory.
-    pub stock: Option<super::inventory_gameplay::InventoryStock>,
     /// Category-23 AI operands address these local slots, including empty ones.
     pub routes: Vec<super::route::RouteBinding>,
     pub brain: Option<super::ai::Brain>,

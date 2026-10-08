@@ -188,8 +188,8 @@ pub enum Statement {
     /// Source motion requests retain their order in the AI schedule. The
     /// character component owns their runtime effects.
     SetVectorSpeed(Expression),
-    /// Proc_AddWind assigns an actor-local drift vector in Hype. The native
-    /// target currently accepts this call as an explicitly deferred no-op.
+    /// Proc_AddWind is retained as typed source data; the native target accepts
+    /// it as an explicitly deferred no-op until source wind parity is ported.
     AddWind(Expression),
     /// Hype category-23 operands are actor-local route slot indices.
     ResetRoute(u8),

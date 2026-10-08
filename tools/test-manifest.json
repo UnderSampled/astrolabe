@@ -81,7 +81,9 @@
     },
     {
       "script": "test_compare_recordings.py",
-      "areas": ["comparison"],
+      "areas": [
+        "comparison"
+      ],
       "safeguard": "always",
       "timeout_seconds": 15
     }
@@ -211,7 +213,9 @@
     {
       "binary": "astrolabe",
       "test": "godot::engine::tests::bitmap_font_size_precedes_name_without_changing_native_glyphs",
-      "areas": ["scene"],
+      "areas": [
+        "scene"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "native named bitmap FontFile property order and Unicode cache entries",
@@ -222,7 +226,9 @@
     {
       "binary": "astrolabe",
       "test": "godot::engine::tests::dynamic_fonts_and_other_resources_keep_property_order",
-      "areas": ["scene"],
+      "areas": [
+        "scene"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "dynamic FontFile and other native resource property order",
@@ -291,7 +297,11 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::channel_and_hud_requests_decode_and_reconstruct",
-      "areas": ["ai", "source", "combat"],
+      "areas": [
+        "ai",
+        "source",
+        "combat"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic source AI nodes",
@@ -302,7 +312,10 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::actor_designer_assignment_reconstructs_dot_target",
-      "areas": ["ai", "source"],
+      "areas": [
+        "ai",
+        "source"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -313,7 +326,10 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::actor_designer_read_reconstructs_dot_expression",
-      "areas": ["ai", "source"],
+      "areas": [
+        "ai",
+        "source"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -324,7 +340,10 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::elapsed_clock_query_reconstructs_source_nodes",
-      "areas": ["ai", "source"],
+      "areas": [
+        "ai",
+        "source"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -335,7 +354,11 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::jump_motion_requests_reconstruct_source_nodes",
-      "areas": ["ai", "source", "jump"],
+      "areas": [
+        "ai",
+        "source",
+        "jump"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -346,7 +369,11 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::jump_queries_and_arithmetic_reconstruct_source_nodes",
-      "areas": ["ai", "source", "jump"],
+      "areas": [
+        "ai",
+        "source",
+        "jump"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -357,7 +384,10 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::main_actor_designer_read_reconstructs_dot_expression",
-      "areas": ["ai", "source"],
+      "areas": [
+        "ai",
+        "source"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -368,7 +398,11 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::main_actor_designer_assignment_reconstructs_dot_target",
-      "areas": ["ai", "source", "combat"],
+      "areas": [
+        "ai",
+        "source",
+        "combat"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic source AI nodes",
@@ -379,7 +413,11 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::kill_self_reconstructs_actor_operand",
-      "areas": ["ai", "source", "combat"],
+      "areas": [
+        "ai",
+        "source",
+        "combat"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic source AI nodes",
@@ -390,7 +428,11 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::ultra_see_perso_preserves_receiver_and_lexical_target",
-      "areas": ["ai", "source", "combat"],
+      "areas": [
+        "ai",
+        "source",
+        "combat"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic source AI nodes",
@@ -401,7 +443,11 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::object_action_retains_template_action_and_vector",
-      "areas": ["ai", "source", "jump"],
+      "areas": [
+        "ai",
+        "source",
+        "jump"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -412,7 +458,10 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::particle_generator_switch_reconstructs_source_nodes",
-      "areas": ["ai", "source"],
+      "areas": [
+        "ai",
+        "source"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -423,7 +472,10 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::self_hit_point_query_preserves_bytes_and_rejects_other_receivers",
-      "areas": ["ai", "source"],
+      "areas": [
+        "ai",
+        "source"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -434,7 +486,10 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::unrelated_dot_receiver_remains_a_partial_expression",
-      "areas": ["ai", "source"],
+      "areas": [
+        "ai",
+        "source"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -445,7 +500,10 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::partial_decode_still_rejects_malformed_known_trees",
-      "areas": ["ai", "source"],
+      "areas": [
+        "ai",
+        "source"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -456,7 +514,10 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::partial_expression_keeps_short_circuit_structure",
-      "areas": ["ai", "source"],
+      "areas": [
+        "ai",
+        "source"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -467,7 +528,10 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::partial_script_retains_branches_and_supported_siblings",
-      "areas": ["ai", "source"],
+      "areas": [
+        "ai",
+        "source"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -478,7 +542,10 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::source_null_reference_keywords_reconstruct_exact_script",
-      "areas": ["ai", "source"],
+      "areas": [
+        "ai",
+        "source"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -489,7 +556,10 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::vector_components_and_increment_reconstruct_exact_script",
-      "areas": ["ai", "source"],
+      "areas": [
+        "ai",
+        "source"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -500,7 +570,11 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::inventory_functions_reconstruct_exact_script",
-      "areas": ["ai", "source", "combat"],
+      "areas": [
+        "ai",
+        "source",
+        "combat"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -511,7 +585,11 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::crossbow_camera_mode_calls_decode_and_reconstruct",
-      "areas": ["ai", "source", "combat"],
+      "areas": [
+        "ai",
+        "source",
+        "combat"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic crossbow camera-mode script",
@@ -522,7 +600,11 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::integer_function_reconstructs_crossbow_camera_aim_math",
-      "areas": ["ai", "source", "combat"],
+      "areas": [
+        "ai",
+        "source",
+        "combat"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic crossbow camera aim script",
@@ -533,7 +615,11 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::laser_aim_calls_reconstruct_exact_script",
-      "areas": ["ai", "source", "combat"],
+      "areas": [
+        "ai",
+        "source",
+        "combat"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -544,7 +630,11 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::magick_functions_reconstruct_exact_script",
-      "areas": ["ai", "source", "magick"],
+      "areas": [
+        "ai",
+        "source",
+        "magick"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -555,7 +645,11 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::contact_nothing_condition_reconstructs_exact_script",
-      "areas": ["source", "ai", "combat"],
+      "areas": [
+        "source",
+        "ai",
+        "combat"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic source contact condition",
@@ -566,7 +660,11 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::camera_target_call_preserves_actor_and_main_actor_keyword",
-      "areas": ["source", "ai", "combat"],
+      "areas": [
+        "source",
+        "ai",
+        "combat"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic camera actor operand",
@@ -577,7 +675,11 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::external_main_actor_behavior_query_reconstructs_exact_script",
-      "areas": ["source", "ai", "magick"],
+      "areas": [
+        "source",
+        "ai",
+        "magick"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic external behavior member operand",
@@ -588,7 +690,11 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::main_actor_field_adjustments_reconstruct_exact_script",
-      "areas": ["ai", "source", "combat"],
+      "areas": [
+        "ai",
+        "source",
+        "combat"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -599,7 +705,11 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::vector_component_assignments_reconstruct_exact_script",
-      "areas": ["ai", "source", "combat"],
+      "areas": [
+        "ai",
+        "source",
+        "combat"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -734,7 +844,10 @@
     {
       "binary": "astrolabe",
       "test": "openspace::level::ai::tests::source_manor_lever_save_identity",
-      "areas": ["save", "ai"],
+      "areas": [
+        "save",
+        "ai"
+      ],
       "kind": "corpus",
       "prerequisites": [
         "disc"
@@ -747,7 +860,10 @@
     {
       "binary": "astrolabe",
       "test": "openspace::level::ai::tests::source_inventory_magic_flags_identity",
-      "areas": ["save", "ai"],
+      "areas": [
+        "save",
+        "ai"
+      ],
       "kind": "corpus",
       "prerequisites": [
         "disc"
@@ -760,7 +876,10 @@
     {
       "binary": "astrolabe",
       "test": "openspace::level::save_join::tests::source_save_join_checks_inventory_designer_and_allocation_bounds",
-      "areas": ["save", "source"],
+      "areas": [
+        "save",
+        "source"
+      ],
       "kind": "corpus",
       "prerequisites": [
         "disc"
@@ -773,7 +892,10 @@
     {
       "binary": "astrolabe",
       "test": "openspace::level::save_join::tests::source_save_join_maps_only_registered_standard_hitpoint_bytes",
-      "areas": ["save", "source"],
+      "areas": [
+        "save",
+        "source"
+      ],
       "kind": "corpus",
       "prerequisites": [
         "disc"
@@ -786,9 +908,14 @@
     {
       "binary": "astrolabe",
       "test": "openspace::level::save_join::tests::source_save_join_maps_relocated_gauge_pointer_chain",
-      "areas": ["save", "source"],
+      "areas": [
+        "save",
+        "source"
+      ],
       "kind": "corpus",
-      "prerequisites": ["disc"],
+      "prerequisites": [
+        "disc"
+      ],
       "fixture": "supplied Hype en manor Fix gauge root and child relocation chain",
       "timeout_seconds": 30,
       "ignored": true,
@@ -1022,7 +1149,10 @@
     {
       "binary": "astrolabe::ai",
       "test": "hype_sound_fade_call_remains_typed_through_source_rete_and_godot",
-      "areas": ["ai", "rete"],
+      "areas": [
+        "ai",
+        "rete"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -1033,9 +1163,14 @@
     {
       "binary": "astrolabe::ai",
       "test": "native_magick_service_follows_verified_remove_points_contract",
-      "areas": ["ai", "magick"],
+      "areas": [
+        "ai",
+        "magick"
+      ],
       "kind": "engine",
-      "prerequisites": ["godot"],
+      "prerequisites": [
+        "godot"
+      ],
       "fixture": "synthetic source mana state",
       "timeout_seconds": 30,
       "ignored": false,
@@ -1044,9 +1179,15 @@
     {
       "binary": "astrolabe::ai",
       "test": "generated_actor_receives_live_scene_actor_brain_binding",
-      "areas": ["ai", "magick", "runtime"],
+      "areas": [
+        "ai",
+        "magick",
+        "runtime"
+      ],
       "kind": "engine",
-      "prerequisites": ["godot"],
+      "prerequisites": [
+        "godot"
+      ],
       "fixture": "synthetic generated actor and level Brain map",
       "timeout_seconds": 30,
       "ignored": false,
@@ -1055,9 +1196,14 @@
     {
       "binary": "astrolabe::ai",
       "test": "fix_ai_programs_keep_distinct_level_projections",
-      "areas": ["ai", "runtime"],
+      "areas": [
+        "ai",
+        "runtime"
+      ],
       "kind": "engine",
-      "prerequisites": ["godot"],
+      "prerequisites": [
+        "godot"
+      ],
       "fixture": "synthetic shared Fix model in two level selections",
       "timeout_seconds": 60,
       "ignored": false,
@@ -1066,7 +1212,10 @@
     {
       "binary": "astrolabe::ai",
       "test": "unknown_contact_stops_compiled_ai_before_negated_branch",
-      "areas": ["ai", "combat"],
+      "areas": [
+        "ai",
+        "combat"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic arrow contact branch",
@@ -1077,7 +1226,10 @@
     {
       "binary": "astrolabe::ai",
       "test": "camera_target_call_keeps_source_actor_and_main_actor",
-      "areas": ["ai", "combat"],
+      "areas": [
+        "ai",
+        "combat"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic StdCamer source reference",
@@ -1087,8 +1239,11 @@
     },
     {
       "binary": "astrolabe::ai",
-      "test": "external_behavior_query_checks_main_actor_brain_identity_before_branch",
-      "areas": ["ai", "magick"],
+      "test": "external_behavior_query_uses_main_actor_behavior_id_without_model_guard",
+      "areas": [
+        "ai",
+        "magick"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic spell actor querying MainActor behavior",
@@ -1099,7 +1254,10 @@
     {
       "binary": "astrolabe::ai",
       "test": "nowhere_clears_source_waypoint_without_enabling_unknown_writes",
-      "areas": ["ai", "rete"],
+      "areas": [
+        "ai",
+        "rete"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -1110,7 +1268,10 @@
     {
       "binary": "astrolabe::ai",
       "test": "source_zde_collision_condition_compiles_to_native_query",
-      "areas": ["ai", "combat"],
+      "areas": [
+        "ai",
+        "combat"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic source ZDE collision condition",
@@ -1121,9 +1282,13 @@
     {
       "binary": "astrolabe::ai",
       "test": "partial_compiled_script_runs_supported_branch_and_stops_at_reached_fragment",
-      "areas": ["ai"],
+      "areas": [
+        "ai"
+      ],
       "kind": "engine",
-      "prerequisites": ["godot"],
+      "prerequisites": [
+        "godot"
+      ],
       "fixture": "synthetic",
       "timeout_seconds": 60,
       "ignored": false,
@@ -1145,7 +1310,10 @@
     {
       "binary": "astrolabe::ai",
       "test": "unsupported_source_script_survives_rete_without_becoming_executable",
-      "areas": ["ai", "rete"],
+      "areas": [
+        "ai",
+        "rete"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic",
@@ -2135,7 +2303,10 @@
     {
       "binary": "behavior-suite::behavior_synthetic",
       "test": "synthetic_movement_uses_shared_bdd_steps_and_report_pending_godot",
-      "areas": ["movement", "comparison"],
+      "areas": [
+        "movement",
+        "comparison"
+      ],
       "kind": "contract",
       "prerequisites": [],
       "fixture": "synthetic functional movement actor",
@@ -2146,7 +2317,10 @@
     {
       "binary": "behavior-suite::behavior_synthetic",
       "test": "synthetic_stationary_jump_uses_shared_bdd_and_checks_height",
-      "areas": ["jump", "comparison"],
+      "areas": [
+        "jump",
+        "comparison"
+      ],
       "kind": "contract",
       "prerequisites": [],
       "fixture": "synthetic stationary jump actor",
@@ -2157,7 +2331,10 @@
     {
       "binary": "behavior-suite::behavior_synthetic",
       "test": "synthetic_moving_jump_requires_continuous_walk_and_forward_air_motion",
-      "areas": ["jump", "comparison"],
+      "areas": [
+        "jump",
+        "comparison"
+      ],
       "kind": "contract",
       "prerequisites": [],
       "fixture": "synthetic moving jump actor",
@@ -2168,7 +2345,10 @@
     {
       "binary": "behavior-suite::behavior_synthetic",
       "test": "synthetic_wall_jump_checks_source_faces_and_landing",
-      "areas": ["jump", "comparison"],
+      "areas": [
+        "jump",
+        "comparison"
+      ],
       "kind": "contract",
       "prerequisites": [],
       "fixture": "synthetic manor corner actor",
@@ -2179,7 +2359,10 @@
     {
       "binary": "behavior-suite::behavior_synthetic",
       "test": "synthetic_sword_attack_requires_selection_attack_and_recovery",
-      "areas": ["combat", "comparison"],
+      "areas": [
+        "combat",
+        "comparison"
+      ],
       "kind": "contract",
       "prerequisites": [],
       "fixture": "synthetic manor actor with sword",
@@ -2190,7 +2373,10 @@
     {
       "binary": "behavior-suite::behavior_synthetic",
       "test": "synthetic_fire_cast_requires_action_order_and_mana_cost",
-      "areas": ["magick", "comparison"],
+      "areas": [
+        "magick",
+        "comparison"
+      ],
       "kind": "contract",
       "prerequisites": [],
       "fixture": "synthetic manor actor with selected Fire spell",
@@ -2201,7 +2387,10 @@
     {
       "binary": "behavior-suite::behavior_synthetic",
       "test": "synthetic_crossbow_initial_launch_requires_two_positions",
-      "areas": ["combat", "comparison"],
+      "areas": [
+        "combat",
+        "comparison"
+      ],
       "kind": "contract",
       "prerequisites": [],
       "fixture": "synthetic model-733 arrow trace",
@@ -2212,9 +2401,14 @@
     {
       "binary": "behavior-suite::behavior_original",
       "test": "original_movement_scenarios_share_one_game_session",
-      "areas": ["movement", "comparison"],
+      "areas": [
+        "movement",
+        "comparison"
+      ],
       "kind": "original-engine",
-      "prerequisites": ["original"],
+      "prerequisites": [
+        "original"
+      ],
       "fixture": "pinned Hype executable and supplied English SaveGame0",
       "timeout_seconds": 180,
       "ignored": true,
@@ -2223,9 +2417,14 @@
     {
       "binary": "behavior-suite::behavior_original",
       "test": "original_stationary_jump_and_landing",
-      "areas": ["jump", "comparison"],
+      "areas": [
+        "jump",
+        "comparison"
+      ],
       "kind": "original-engine",
-      "prerequisites": ["original"],
+      "prerequisites": [
+        "original"
+      ],
       "fixture": "pinned Hype executable and supplied English SaveGame0",
       "timeout_seconds": 140,
       "ignored": true,
@@ -2234,9 +2433,14 @@
     {
       "binary": "behavior-suite::behavior_original",
       "test": "original_moving_jump_and_landing",
-      "areas": ["jump", "comparison"],
+      "areas": [
+        "jump",
+        "comparison"
+      ],
       "kind": "original-engine",
-      "prerequisites": ["original"],
+      "prerequisites": [
+        "original"
+      ],
       "fixture": "pinned Hype executable and supplied English SaveGame0",
       "timeout_seconds": 140,
       "ignored": true,
@@ -2245,9 +2449,14 @@
     {
       "binary": "behavior-suite::behavior_original",
       "test": "original_wall_jump_and_landing",
-      "areas": ["jump", "comparison"],
+      "areas": [
+        "jump",
+        "comparison"
+      ],
       "kind": "original-engine",
-      "prerequisites": ["original"],
+      "prerequisites": [
+        "original"
+      ],
       "fixture": "pinned Hype executable and supplied English SaveGame0",
       "timeout_seconds": 140,
       "ignored": true,
@@ -2256,9 +2465,14 @@
     {
       "binary": "behavior-suite::behavior_original",
       "test": "original_sword_attack_and_recovery",
-      "areas": ["combat", "comparison"],
+      "areas": [
+        "combat",
+        "comparison"
+      ],
       "kind": "original-engine",
-      "prerequisites": ["original"],
+      "prerequisites": [
+        "original"
+      ],
       "fixture": "pinned Hype executable and supplied English SaveGame0",
       "timeout_seconds": 140,
       "ignored": true,
@@ -2267,9 +2481,14 @@
     {
       "binary": "behavior-suite::behavior_original",
       "test": "original_fire_cast_and_mana_cost",
-      "areas": ["magick", "comparison"],
+      "areas": [
+        "magick",
+        "comparison"
+      ],
       "kind": "original-engine",
-      "prerequisites": ["original"],
+      "prerequisites": [
+        "original"
+      ],
       "fixture": "pinned Hype executable and supplied English SaveGame0",
       "timeout_seconds": 140,
       "ignored": true,
@@ -2278,9 +2497,14 @@
     {
       "binary": "behavior-suite::behavior_original",
       "test": "original_crossbow_initial_launch",
-      "areas": ["combat", "comparison"],
+      "areas": [
+        "combat",
+        "comparison"
+      ],
       "kind": "original-engine",
-      "prerequisites": ["original"],
+      "prerequisites": [
+        "original"
+      ],
       "fixture": "pinned Hype executable and supplied English SaveGame0 with test-owned arrows",
       "timeout_seconds": 140,
       "ignored": true,
@@ -2289,9 +2513,15 @@
     {
       "binary": "behavior-suite::behavior_godot",
       "test": "godot_stationary_jump_and_landing",
-      "areas": ["jump", "comparison"],
+      "areas": [
+        "jump",
+        "comparison"
+      ],
       "kind": "gameplay",
-      "prerequisites": ["disc", "godot"],
+      "prerequisites": [
+        "disc",
+        "godot"
+      ],
       "fixture": "normal Hype manoir export with saved Brain",
       "timeout_seconds": 360,
       "ignored": true,
@@ -2300,9 +2530,15 @@
     {
       "binary": "behavior-suite::behavior_godot",
       "test": "godot_moving_jump_and_landing",
-      "areas": ["jump", "comparison"],
+      "areas": [
+        "jump",
+        "comparison"
+      ],
       "kind": "gameplay",
-      "prerequisites": ["disc", "godot"],
+      "prerequisites": [
+        "disc",
+        "godot"
+      ],
       "fixture": "normal Hype manoir export with saved Brain",
       "timeout_seconds": 360,
       "ignored": true,
@@ -2311,9 +2547,15 @@
     {
       "binary": "behavior-suite::behavior_godot",
       "test": "godot_wall_jump_and_landing",
-      "areas": ["jump", "comparison"],
+      "areas": [
+        "jump",
+        "comparison"
+      ],
       "kind": "gameplay",
-      "prerequisites": ["disc", "godot"],
+      "prerequisites": [
+        "disc",
+        "godot"
+      ],
       "fixture": "normal Hype manoir export with saved Brain",
       "timeout_seconds": 360,
       "ignored": true,
@@ -2322,9 +2564,15 @@
     {
       "binary": "behavior-suite::behavior_godot",
       "test": "godot_sword_attack_and_recovery",
-      "areas": ["combat", "comparison"],
+      "areas": [
+        "combat",
+        "comparison"
+      ],
       "kind": "gameplay",
-      "prerequisites": ["disc", "godot"],
+      "prerequisites": [
+        "disc",
+        "godot"
+      ],
       "fixture": "normal Hype manoir export with saved Brain",
       "timeout_seconds": 360,
       "ignored": true,
@@ -2333,9 +2581,15 @@
     {
       "binary": "behavior-suite::behavior_godot",
       "test": "godot_fire_cast_and_mana_cost",
-      "areas": ["magick", "comparison"],
+      "areas": [
+        "magick",
+        "comparison"
+      ],
       "kind": "gameplay",
-      "prerequisites": ["disc", "godot"],
+      "prerequisites": [
+        "disc",
+        "godot"
+      ],
       "fixture": "normal Hype manoir export with saved Brain",
       "timeout_seconds": 360,
       "ignored": true,
@@ -2344,9 +2598,15 @@
     {
       "binary": "behavior-suite::behavior_godot",
       "test": "godot_crossbow_initial_launch",
-      "areas": ["combat", "comparison"],
+      "areas": [
+        "combat",
+        "comparison"
+      ],
       "kind": "gameplay",
-      "prerequisites": ["disc", "godot"],
+      "prerequisites": [
+        "disc",
+        "godot"
+      ],
       "fixture": "normal Hype manoir export with saved Brain and test-owned arrows",
       "timeout_seconds": 360,
       "ignored": true,
@@ -2355,9 +2615,15 @@
     {
       "binary": "behavior-suite::behavior_godot",
       "test": "godot_movement_scenarios_share_saved_scene_and_brain",
-      "areas": ["movement", "comparison"],
+      "areas": [
+        "movement",
+        "comparison"
+      ],
       "kind": "gameplay",
-      "prerequisites": ["disc", "godot"],
+      "prerequisites": [
+        "disc",
+        "godot"
+      ],
       "fixture": "normal Hype manoir export with saved Brain",
       "timeout_seconds": 360,
       "ignored": true,
@@ -2480,7 +2746,12 @@
     {
       "binary": "astrolabe",
       "test": "openspace::level::source_view::tests::live_scene_actor_path_checks_source_identity",
-      "areas": ["source", "ai", "runtime", "combat"],
+      "areas": [
+        "source",
+        "ai",
+        "runtime",
+        "combat"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic relocated scene memory",
@@ -2491,7 +2762,12 @@
     {
       "binary": "astrolabe",
       "test": "openspace::level::source_view::tests::verified_live_inventory_filters_inactive_members_and_rejects_cycles",
-      "areas": ["source", "ai", "runtime", "combat"],
+      "areas": [
+        "source",
+        "ai",
+        "runtime",
+        "combat"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic relocated inventory memory",
@@ -2502,7 +2778,12 @@
     {
       "binary": "astrolabe",
       "test": "openspace::level::source_view::tests::verified_live_magic_selection_resolves_selected_inventory_code",
-      "areas": ["source", "ai", "runtime", "magick"],
+      "areas": [
+        "source",
+        "ai",
+        "runtime",
+        "magick"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic selected inventory and magic-name rows",
@@ -2513,7 +2794,12 @@
     {
       "binary": "astrolabe",
       "test": "openspace::level::source_view::tests::verified_live_laser_reads_target_independently_of_visibility",
-      "areas": ["source", "ai", "runtime", "combat"],
+      "areas": [
+        "source",
+        "ai",
+        "runtime",
+        "combat"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic live laser record",
@@ -2524,7 +2810,11 @@
     {
       "binary": "astrolabe",
       "test": "openspace::level::source_view::tests::verified_live_scene_tail_checks_reverse_links_and_bounds",
-      "areas": ["source", "runtime", "combat"],
+      "areas": [
+        "source",
+        "runtime",
+        "combat"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic relocated scene memory",
@@ -2718,7 +3008,12 @@
     {
       "binary": "orrery",
       "test": "save::tests::duplicate_and_truncated_records_fail",
-      "areas": ["source", "runtime", "comparison", "save"],
+      "areas": [
+        "source",
+        "runtime",
+        "comparison",
+        "save"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic malformed save records",
@@ -2729,7 +3024,12 @@
     {
       "binary": "orrery",
       "test": "save::tests::slots_keep_their_relative_paths",
-      "areas": ["source", "runtime", "comparison", "save"],
+      "areas": [
+        "source",
+        "runtime",
+        "comparison",
+        "save"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic multi-slot save root",
@@ -2740,7 +3040,12 @@
     {
       "binary": "orrery",
       "test": "save::tests::unknown_record_keeps_the_unparsed_tail",
-      "areas": ["source", "runtime", "comparison", "save"],
+      "areas": [
+        "source",
+        "runtime",
+        "comparison",
+        "save"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic unknown save record",
@@ -2751,9 +3056,16 @@
     {
       "binary": "orrery",
       "test": "save::tests::supplied_english_save_parses_without_record_loss",
-      "areas": ["source", "runtime", "comparison", "save"],
+      "areas": [
+        "source",
+        "runtime",
+        "comparison",
+        "save"
+      ],
       "kind": "source",
-      "prerequisites": ["original"],
+      "prerequisites": [
+        "original"
+      ],
       "fixture": "supplied English Savefile_EN.zip",
       "timeout_seconds": 5,
       "ignored": true,
@@ -2762,7 +3074,12 @@
     {
       "binary": "godot-harness::save_persistence",
       "test": "native_manor_save_survives_fresh_process_and_rejects_bad_slots",
-      "areas": ["runtime", "magick", "comparison", "save"],
+      "areas": [
+        "runtime",
+        "magick",
+        "comparison",
+        "save"
+      ],
       "kind": "process",
       "prerequisites": [
         "godot",
@@ -2777,9 +3094,18 @@
     {
       "binary": "godot-harness::new_game",
       "test": "menu_new_game_preserves_slot_and_restarts_original_opening",
-      "areas": ["runtime", "ai", "scene", "save"],
+      "areas": [
+        "runtime",
+        "ai",
+        "scene",
+        "save"
+      ],
       "kind": "process",
-      "prerequisites": ["godot", "xvfb", "disc"],
+      "prerequisites": [
+        "godot",
+        "xvfb",
+        "disc"
+      ],
       "fixture": "current generated manor and source pause assets with maintained UI and nine dialogues; unchanged normal New Game actor AI, Gogoud route/contact, five-frame turn and first source dialogue/actions, inactive global-data role, private slot/restart/Escape pause/Resume/Main Menu; full intro acceptance pending",
       "timeout_seconds": 180,
       "ignored": true,
@@ -2788,7 +3114,10 @@
     {
       "binary": "godot-harness::save_persistence",
       "test": "tests::accepts_clean_success_and_known_scene_diagnostics",
-      "areas": ["runtime", "save"],
+      "areas": [
+        "runtime",
+        "save"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic Godot stage logs with known scene diagnostics",
@@ -2799,7 +3128,10 @@
     {
       "binary": "godot-harness::save_persistence",
       "test": "tests::accepts_expected_corrupt_slot_diagnostic_only_in_corrupt_stage",
-      "areas": ["runtime", "save"],
+      "areas": [
+        "runtime",
+        "save"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic corrupt-slot stage log",
@@ -2810,7 +3142,10 @@
     {
       "binary": "godot-harness::save_persistence",
       "test": "tests::rejects_missing_success_marker",
-      "areas": ["runtime", "save"],
+      "areas": [
+        "runtime",
+        "save"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic incomplete Godot stage log",
@@ -2821,7 +3156,10 @@
     {
       "binary": "godot-harness::save_persistence",
       "test": "tests::rejects_script_error_even_with_known_engine_diagnostics_and_exit_one",
-      "areas": ["runtime", "save"],
+      "areas": [
+        "runtime",
+        "save"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic Godot script-error stage log",
@@ -2832,7 +3170,10 @@
     {
       "binary": "godot-harness::save_persistence",
       "test": "tests::rejects_unknown_engine_error_even_when_process_exits_successfully",
-      "areas": ["runtime", "save"],
+      "areas": [
+        "runtime",
+        "save"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic unknown engine-error stage log",
@@ -2843,7 +3184,10 @@
     {
       "binary": "orrery",
       "test": "audio::tests::private_client_environment_is_scoped",
-      "areas": ["runtime", "save"],
+      "areas": [
+        "runtime",
+        "save"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic private audio client environment",
@@ -2854,7 +3198,10 @@
     {
       "binary": "orrery",
       "test": "audio::tests::private_tone_is_captured_and_resources_are_removed",
-      "areas": ["runtime", "save"],
+      "areas": [
+        "runtime",
+        "save"
+      ],
       "kind": "process",
       "prerequisites": [
         "private_audio",
@@ -2868,7 +3215,10 @@
     {
       "binary": "orrery",
       "test": "audio::tests::failed_capture_start_reaps_private_server",
-      "areas": ["runtime", "save"],
+      "areas": [
+        "runtime",
+        "save"
+      ],
       "kind": "process",
       "prerequisites": [
         "private_audio",
@@ -2882,7 +3232,10 @@
     {
       "binary": "orrery",
       "test": "desktop::display_isolation_tests::nested_display_must_be_local_and_different_from_parent",
-      "areas": ["runtime", "save"],
+      "areas": [
+        "runtime",
+        "save"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic desktop and private Xwayland display names",
@@ -2893,7 +3246,13 @@
     {
       "binary": "behavior-suite::save_original",
       "test": "original_mana_save_survives_fresh_process",
-      "areas": ["source", "runtime", "comparison", "magick", "save"],
+      "areas": [
+        "source",
+        "runtime",
+        "comparison",
+        "magick",
+        "save"
+      ],
       "kind": "process",
       "prerequisites": [
         "original"
@@ -2906,7 +3265,13 @@
     {
       "binary": "behavior-suite::save_original",
       "test": "original_crossbow_quantity_survives_fresh_process",
-      "areas": ["source", "runtime", "comparison", "combat", "save"],
+      "areas": [
+        "source",
+        "runtime",
+        "comparison",
+        "combat",
+        "save"
+      ],
       "kind": "process",
       "prerequisites": [
         "original"
@@ -2919,7 +3284,12 @@
     {
       "binary": "behavior-suite::save_original",
       "test": "original_secret_lever_world_state_survives_reload",
-      "areas": ["source", "runtime", "comparison", "save"],
+      "areas": [
+        "source",
+        "runtime",
+        "comparison",
+        "save"
+      ],
       "kind": "process",
       "prerequisites": [
         "original"
@@ -2932,7 +3302,12 @@
     {
       "binary": "behavior-suite::save_original",
       "test": "original_no_action_save_is_stable_across_independent_runs",
-      "areas": ["source", "runtime", "comparison", "save"],
+      "areas": [
+        "source",
+        "runtime",
+        "comparison",
+        "save"
+      ],
       "kind": "process",
       "prerequisites": [
         "original"
@@ -2945,7 +3320,12 @@
     {
       "binary": "behavior-suite::save_original",
       "test": "original_player_and_named_save_precedence_for_manor_actor",
-      "areas": ["source", "runtime", "comparison", "save"],
+      "areas": [
+        "source",
+        "runtime",
+        "comparison",
+        "save"
+      ],
       "kind": "process",
       "prerequisites": [
         "original"
@@ -2958,7 +3338,12 @@
     {
       "binary": "behavior-suite::save_original",
       "test": "original_named_level_mode5_manor_record_precedence",
-      "areas": ["source", "runtime", "comparison", "save"],
+      "areas": [
+        "source",
+        "runtime",
+        "comparison",
+        "save"
+      ],
       "kind": "process",
       "prerequisites": [
         "original"
@@ -2971,7 +3356,9 @@
     {
       "binary": "behavior-suite::save_original",
       "test": "original_magic_inventory_survives_reload",
-      "areas": ["save"],
+      "areas": [
+        "save"
+      ],
       "kind": "process",
       "prerequisites": [
         "original"
@@ -2984,7 +3371,10 @@
     {
       "binary": "orrery",
       "test": "session::input_only_tests::input_only_directory_fixture_still_needs_local_root",
-      "areas": ["runtime", "comparison"],
+      "areas": [
+        "runtime",
+        "comparison"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic portable save-root manifest",
@@ -2995,7 +3385,10 @@
     {
       "binary": "orrery",
       "test": "session::input_only_tests::input_only_fixture_requires_matching_local_bytes_for_full_recapture",
-      "areas": ["runtime", "comparison"],
+      "areas": [
+        "runtime",
+        "comparison"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic portable and local save roots",
@@ -3006,7 +3399,10 @@
     {
       "binary": "orrery",
       "test": "session::input_only_tests::input_only_replays_held_edges_without_reinjecting_auto_repeat",
-      "areas": ["runtime", "comparison"],
+      "areas": [
+        "runtime",
+        "comparison"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic recorded physical key edges",
@@ -3017,7 +3413,10 @@
     {
       "binary": "orrery",
       "test": "session::input_only_tests::old_manifest_defaults_to_full_mode",
-      "areas": ["runtime", "comparison"],
+      "areas": [
+        "runtime",
+        "comparison"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "synthetic older recording manifest",
@@ -3028,7 +3427,10 @@
     {
       "binary": "orrery",
       "test": "session::input_only_tests::interactive_rejects_unsupported_capture_before_accessing_game_or_saves",
-      "areas": ["runtime", "comparison"],
+      "areas": [
+        "runtime",
+        "comparison"
+      ],
       "kind": "source",
       "prerequisites": [],
       "fixture": "interactive mode rejected before opening missing game/save paths",
@@ -3166,7 +3568,9 @@
     {
       "binary": "orrery",
       "test": "mcp::tests::base64_vectors",
-      "areas": ["runtime"],
+      "areas": [
+        "runtime"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "MCP image content vectors",
@@ -3177,7 +3581,9 @@
     {
       "binary": "orrery",
       "test": "mcp::tests::constant_time_comparison_has_exact_semantics",
-      "areas": ["runtime"],
+      "areas": [
+        "runtime"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "bearer token comparison vectors",
@@ -3188,7 +3594,9 @@
     {
       "binary": "orrery",
       "test": "mcp::tests::guarded_write_validation_requires_equal_bounded_values",
-      "areas": ["runtime"],
+      "areas": [
+        "runtime"
+      ],
       "kind": "contract",
       "prerequisites": [],
       "fixture": "synthetic guarded write values",
@@ -3199,7 +3607,9 @@
     {
       "binary": "orrery",
       "test": "mcp::tests::loopback_streamable_http_initializes_acknowledges_notification_and_lists_tools",
-      "areas": ["runtime"],
+      "areas": [
+        "runtime"
+      ],
       "kind": "process",
       "prerequisites": [],
       "fixture": "loopback HTTP socket",
@@ -3224,7 +3634,11 @@
     {
       "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::source_zde_collision_condition_decodes_and_reconstructs",
-      "areas": ["ai", "source", "combat"],
+      "areas": [
+        "ai",
+        "source",
+        "combat"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic source AI nodes",
@@ -3395,7 +3809,10 @@
     {
       "binary": "behavior-contract",
       "test": "crossbow::tests::original_arrow_zero_allocation_transform_is_not_motion_evidence",
-      "areas": ["combat", "comparison"],
+      "areas": [
+        "combat",
+        "comparison"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic model-733 observations with a zero allocation transform",
@@ -3433,7 +3850,10 @@
     {
       "binary": "godot-harness::bin/godot-harness",
       "test": "tests::project_provenance_includes_generated_assets_but_excludes_import_cache",
-      "areas": ["runtime", "comparison"],
+      "areas": [
+        "runtime",
+        "comparison"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic Godot project tree",
@@ -3444,7 +3864,10 @@
     {
       "binary": "session-recording::fixtures",
       "test": "event_prefix_and_recording_hash_include_frames",
-      "areas": ["runtime", "comparison"],
+      "areas": [
+        "runtime",
+        "comparison"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic event stream and frames",
@@ -3455,7 +3878,11 @@
     {
       "binary": "session-recording::fixtures",
       "test": "save_fixture_distinguishes_absent_empty_and_populated_and_prevents_contamination",
-      "areas": ["runtime", "comparison", "save"],
+      "areas": [
+        "runtime",
+        "comparison",
+        "save"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic save roots",
@@ -3466,7 +3893,10 @@
     {
       "binary": "orrery",
       "test": "navigation::tests::menu_route_is_explicit",
-      "areas": ["runtime", "comparison"],
+      "areas": [
+        "runtime",
+        "comparison"
+      ],
       "kind": "contract",
       "prerequisites": [],
       "fixture": "synthetic title-menu physical route",
@@ -3477,7 +3907,10 @@
     {
       "binary": "orrery",
       "test": "navigation::tests::gate_requires_stable_fresh_evidence_and_reports_delay",
-      "areas": ["runtime", "comparison"],
+      "areas": [
+        "runtime",
+        "comparison"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic visual gate observations",
@@ -3488,7 +3921,10 @@
     {
       "binary": "orrery",
       "test": "navigation::tests::gate_times_out_without_rewriting_later_inputs",
-      "areas": ["runtime", "comparison"],
+      "areas": [
+        "runtime",
+        "comparison"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic title-menu timeout",
@@ -3499,7 +3935,10 @@
     {
       "binary": "orrery",
       "test": "navigation::tests::visual_gates_normalize_resolution_and_reject_other_screens",
-      "areas": ["runtime", "comparison"],
+      "areas": [
+        "runtime",
+        "comparison"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic RGB menu frames",
@@ -3510,7 +3949,9 @@
     {
       "binary": "behavior-suite::behavior_synthetic",
       "test": "suite_owns_the_transition_from_recorded_evidence_to_behavior_pass",
-      "areas": ["comparison"],
+      "areas": [
+        "comparison"
+      ],
       "kind": "contract",
       "prerequisites": [],
       "fixture": "synthetic shared case and backend evidence",
@@ -3521,7 +3962,10 @@
     {
       "binary": "orrery",
       "test": "session::video_event_tests::replay_uses_session_end_before_later_video_finalization_event",
-      "areas": ["runtime", "comparison"],
+      "areas": [
+        "runtime",
+        "comparison"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic session and later video finalization events",
@@ -3532,7 +3976,10 @@
     {
       "binary": "orrery",
       "test": "session::video_event_tests::selected_save_slot_is_rejected_but_empty_or_absent_roots_are_allowed",
-      "areas": ["runtime", "comparison"],
+      "areas": [
+        "runtime",
+        "comparison"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic Hype save directory layouts",
@@ -3543,7 +3990,10 @@
     {
       "binary": "orrery",
       "test": "session::video_event_tests::video_end_event_uses_collection_time_and_preserves_capture_timing",
-      "areas": ["runtime", "comparison"],
+      "areas": [
+        "runtime",
+        "comparison"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic video finalization clocks",
@@ -3554,7 +4004,10 @@
     {
       "binary": "window-video",
       "test": "tests::frame_pts_keeps_epoch_microseconds_exact",
-      "areas": ["runtime", "comparison"],
+      "areas": [
+        "runtime",
+        "comparison"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic frame timestamps",
@@ -3565,7 +4018,10 @@
     {
       "binary": "orrery",
       "test": "save_registry::tests::maps_and_validates_node",
-      "areas": ["save", "runtime"],
+      "areas": [
+        "save",
+        "runtime"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic 36-byte SAI registry node and MMG block",
@@ -3576,7 +4032,10 @@
     {
       "binary": "orrery",
       "test": "save_registry::tests::rejects_cycle",
-      "areas": ["save", "runtime"],
+      "areas": [
+        "save",
+        "runtime"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic cyclic SAI registry list",
@@ -3587,7 +4046,10 @@
     {
       "binary": "orrery",
       "test": "save_registry::tests::rejects_bad_header_links_owner_and_limit",
-      "areas": ["save", "runtime"],
+      "areas": [
+        "save",
+        "runtime"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic malformed SAI registry invariants",
@@ -3669,9 +4131,19 @@
     {
       "binary": "astrolabe::cameras",
       "test": "imported_gogoud_opening_ai_drives_fourth_camera_cut",
-      "areas": ["source", "ai", "scene", "rete", "animation", "movement"],
+      "areas": [
+        "source",
+        "ai",
+        "scene",
+        "rete",
+        "animation",
+        "movement"
+      ],
       "kind": "corpus",
-      "prerequisites": ["disc", "godot"],
+      "prerequisites": [
+        "disc",
+        "godot"
+      ],
       "fixture": "unchanged Gogoud route/action AI produces World.dsg_0=4 and unchanged World behavior 3 consumes it for helper20/waypoint67; original World initialization shot excerpt, reflex and other Brains held, viewport/aim-rule invocation are harness setup",
       "timeout_seconds": 180,
       "ignored": true,
@@ -3943,9 +4415,14 @@
     {
       "binary": "astrolabe::ai",
       "test": "source_ai_math_actor_and_armor_operations_round_trip_and_compile",
-      "areas": ["ai", "armor"],
+      "areas": [
+        "ai",
+        "armor"
+      ],
       "kind": "engine",
-      "prerequisites": ["godot"],
+      "prerequisites": [
+        "godot"
+      ],
       "fixture": "synthetic source math, actor operations and Fix-owned armor operations through Rete and native GDScript parsing",
       "timeout_seconds": 30,
       "ignored": false,
@@ -3954,7 +4431,11 @@
     {
       "binary": "astrolabe::armor",
       "test": "armor_catalog_survives_rete_storage_reload",
-      "areas": ["armor", "rete", "media"],
+      "areas": [
+        "armor",
+        "rete",
+        "media"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic Fix catalog and RGBA artwork through MessagePack save and reload",
@@ -3965,7 +4446,10 @@
     {
       "binary": "astrolabe",
       "test": "godot::armor::tests::armor_catalog_writes_native_resource_graph_and_png_artwork",
-      "areas": ["armor", "media"],
+      "areas": [
+        "armor",
+        "media"
+      ],
       "kind": "unit",
       "prerequisites": [],
       "fixture": "synthetic armor definitions and pieces exported as a native resource graph and PNG artwork",
@@ -3976,11 +4460,956 @@
     {
       "binary": "astrolabe::armor",
       "test": "fix_armor_catalog_import_uses_fix_relocations_and_source_allocations",
-      "areas": ["armor", "source"],
+      "areas": [
+        "armor",
+        "source"
+      ],
       "kind": "corpus",
-      "prerequisites": ["disc"],
+      "prerequisites": [
+        "disc"
+      ],
       "fixture": "read-only English Hype Fix catalog root, relocation ownership, definition/piece allocations, texture links and factor matrices",
       "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::ai::source_position_tests::adjust_perso_on_object_fails_closed_until_native_update_is_supported",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed AI source, AST/Rete round trip and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::ai::source_position_tests::compares_vector_designer_fields_without_scalar_casts",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed AI source, AST/Rete round trip and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::ai::source_position_tests::compiles_both_source_map_transition_forms_to_native_level_api",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed AI source, AST/Rete round trip and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::ai::source_position_tests::compiles_saved_gate_branch_to_self_position_and_next_behavior",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed AI source, AST/Rete round trip and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::ai::source_position_tests::compiles_the_tunnel_fade_audio_and_positioned_transition_in_source_order",
+      "areas": [
+        "ai",
+        "media"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Source-ordered AI audio fade and transition operations",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::ai::source_position_tests::compiles_ultra_waypoint_distance_to_resolved_source_nodes",
+      "areas": [
+        "ai",
+        "movement",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed waypoint values, containment and native collision behavior",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::ai::source_position_tests::declares_direct_waypoint_values_as_native_resources",
+      "areas": [
+        "ai",
+        "movement",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed waypoint values, containment and native collision behavior",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::ai::source_position_tests::declares_waypoints_nested_in_integer_casts",
+      "areas": [
+        "ai",
+        "movement",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed waypoint values, containment and native collision behavior",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::ai::source_position_tests::fix_and_level_ai_models_with_same_number_keep_distinct_scene_scripts",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed AI source, AST/Rete round trip and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::ai::tests::field_write_to_brainless_source_target_keeps_reached_failure",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed AI source, AST/Rete round trip and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::bitmap_font::tests::multiple_bitmap_fonts_use_distinct_builder_locals",
+      "areas": [
+        "media",
+        "scene"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic multiple-bitmap-font resource export",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::save_import::tests::item_zero_balance_preserves_an_explicit_zero",
+      "areas": [
+        "save",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic semantic save records and address-free source joins",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::save_import::tests::item_zero_gameplay_payload_is_address_free_and_stable",
+      "areas": [
+        "save",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic semantic save records and address-free source joins",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::save_import::tests::omits_source_rotation_when_missing_component_is_ambiguous",
+      "areas": [
+        "save",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic semantic save records and address-free source joins",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::save_import::tests::reconstructs_source_rotation_from_five_saved_floats",
+      "areas": [
+        "save",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic semantic save records and address-free source joins",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::support::tests::every_bundled_gdscript_preload_is_staged",
+      "areas": [
+        "runtime",
+        "scene",
+        "ai"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Bundled Godot support interface staging",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::support::tests::snapshot_validation_helper_is_in_interface_60_and_staged",
+      "areas": [
+        "runtime"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Bundled Godot support interface staging",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "model::camera::tests::camera_angle_flags_are_read_from_source_offset_94",
+      "areas": [
+        "source",
+        "scene",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source camera records and typed AI target references",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "model::camera::tests::camera_angle_upper_bounds_are_read_from_source_offsets",
+      "areas": [
+        "source",
+        "scene",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source camera records and typed AI target references",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "model::camera::tests::camera_controller_flags_are_read_from_source_offset_92",
+      "areas": [
+        "source",
+        "scene",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source camera records and typed AI target references",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "model::camera::tests::camera_registration_uses_active_byte_and_context_word",
+      "areas": [
+        "source",
+        "scene",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source camera records and typed AI target references",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "model::camera::tests::camera_target_child_selector_uses_source_parameter_byte_a0",
+      "areas": [
+        "source",
+        "scene",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source camera records and typed AI target references",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::adjust_perso_on_object_preserves_threshold_values_and_action_order",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed AI source, AST/Rete round trip and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::camera_reset_target_procedure_reconstructs_and_roundtrips",
+      "areas": [
+        "source",
+        "scene",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source camera records and typed AI target references",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::dynamic_behavior_operand_is_preserved_as_an_explicit_unsupported_fragment",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed AI source, AST/Rete round trip and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::self_absolute_position_procedure_reconstructs_vector_plus_self",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed AI source, AST/Rete round trip and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::tunnel_transition_operations_preserve_target_arguments_and_order",
+      "areas": [
+        "ai",
+        "media"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Source-ordered AI audio fade and transition operations",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::hud::tests::cursor_uses_source_counts_and_targets_verified_fix_layout",
+      "areas": [
+        "source",
+        "scene"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "Hype en Fix.sda: source HUD cursor table and derived layout slots",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::hud::tests::local_hud_objects_join_fix_ptx_and_decoded_archive_images",
+      "areas": [
+        "source",
+        "scene",
+        "media"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "Hype en Fix PTX and decoded Textures.cnt HUD artwork",
+      "timeout_seconds": 90,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::reference_tests::brigand_actor_brain_keeps_opaque_designer_fields_and_bindings",
+      "areas": [
+        "source",
+        "scene",
+        "ai"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "Hype en Brigand actor world/0/88 and AI model 1060",
+      "timeout_seconds": 120,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::reference_tests::shared_fix_geometry_13949_source_values_match_between_manoir_and_brigand",
+      "areas": [
+        "source",
+        "scene"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "Hype en Manoir and Brigand shared Fix geometry 13949",
+      "timeout_seconds": 120,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::saved_inventory::tests::item_zero_semantic_join_rejects_unknown_and_ambiguous_sites",
+      "areas": [
+        "save",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic semantic save records and address-free source joins",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::saved_inventory::tests::item_zero_semantic_join_rejects_wrong_source_item",
+      "areas": [
+        "save",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic semantic save records and address-free source joins",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::saved_inventory::tests::item_zero_semantics_survive_source_block_and_allocation_relocation",
+      "areas": [
+        "save",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic semantic save records and address-free source joins",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::save_game::tests::decodes_envelope_and_preserves_unknown_record_tail",
+      "areas": [
+        "save",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic semantic save records and address-free source joins",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::save_game::tests::imports_an_extracted_original_slot_without_modifying_it",
+      "areas": [
+        "save",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic semantic save records and address-free source joins",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
+      "test": "camera_reset_target_passes_the_bound_main_actor",
+      "areas": [
+        "source",
+        "scene",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source camera records and typed AI target references",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
+      "test": "fight_change_armor_round_trips_and_updates_level_shared_selection_state",
+      "areas": [
+        "armor",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Source-backed armor catalog and level-shared native state",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
+      "test": "hype_voice_and_effect_fades_round_trip_and_share_tree_lifetime",
+      "areas": [
+        "ai",
+        "media"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Source-ordered AI audio fade and transition operations",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
+      "test": "opaque_designer_values_round_trip_and_reached_access_fails_explicitly",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed AI source, AST/Rete round trip and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
+      "test": "source_position_field_round_trips_and_compiles_to_the_current_actor_world_position",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed AI source, AST/Rete round trip and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
+      "test": "vector_designer_comparisons_parse_as_native_gdscript",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed AI source, AST/Rete round trip and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_animation_frame",
+      "test": "current_animation_frame_round_trips_and_fails_closed_without_a_clip",
+      "areas": [
+        "ai",
+        "animation",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed current-animation-frame AI query and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_behavior_actor_query",
+      "test": "generated_behavior_query_reads_self_main_cross_model_and_null_slots",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed AI source, AST/Rete round trip and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_behavior_actor_query",
+      "test": "manor_model_334_category24_resolves_through_level_actor_identity_map_and_rete",
+      "areas": [
+        "source",
+        "ai",
+        "rete"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "Hype en manor model 334 category-24 source actor binding and Rete projection",
+      "timeout_seconds": 120,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_behavior_actor_query",
+      "test": "raw57_actor_reference_remains_explicitly_unsupported",
+      "areas": [
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source/model adapter regression",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_behavior_actor_query",
+      "test": "source_actor_behavior_query_roundtrips_typed_reference_and_keywords",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed AI source, AST/Rete round trip and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_change_actor_behavior",
+      "test": "raw207_does_not_accept_the_separate_reflex_behavior_form",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed AI source, AST/Rete round trip and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_change_actor_behavior",
+      "test": "raw207_roundtrips_and_dispatches_to_the_bound_target_brain",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed AI source, AST/Rete round trip and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_change_actor_behavior",
+      "test": "self_target_raw207_stays_typed_but_codegen_fails_closed",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed AI source, AST/Rete round trip and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_change_actor_behavior",
+      "test": "unresolved_raw207_behavior_remains_preserved_and_unwritable_as_typed",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed AI source, AST/Rete round trip and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_collision_wp",
+      "test": "compiler_bounds_checks_array_and_keeps_unresolved_operands_explicit",
+      "areas": [
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source/model adapter regression",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_collision_wp",
+      "test": "designer_waypoint_array_preserves_null_unknown_bytes_and_unresolved_identities",
+      "areas": [
+        "ai",
+        "movement",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed waypoint values, containment and native collision behavior",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_collision_wp",
+      "test": "manor_waypoint_array_and_direct_category29_values_resolve_to_shared_assets",
+      "areas": [
+        "ai",
+        "movement",
+        "rete"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "Hype en manor waypoint arrays and direct category-29 values",
+      "timeout_seconds": 120,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_collision_wp",
+      "test": "native_waypoint_sphere_uses_inclusive_full_3d_and_fresh_actor_relative_position",
+      "areas": [
+        "ai",
+        "movement",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed waypoint values, containment and native collision behavior",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_collision_wp",
+      "test": "raw108_roundtrips_and_rete_keeps_dynamic_waypoint_array_identity",
+      "areas": [
+        "ai",
+        "movement",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed waypoint values, containment and native collision behavior",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_distance_source",
+      "test": "installed_id_8_preserves_source_bytes_and_lowers_the_handler_formula",
+      "areas": [
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source/model adapter regression",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_modulus_source_guard",
+      "test": "unresolved_modulus_calls_remain_preserved_and_guarded",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Typed AI source, AST/Rete round trip and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::armor",
+      "test": "native_snapshot_helper_and_scene_local_catalog_clone_work",
+      "areas": [
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source/model adapter regression",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::hud_quarantine",
+      "test": "legacy_hud_is_inspection_only_and_cannot_be_saved_or_exported",
+      "areas": [
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source/model adapter regression",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::hud_quarantine",
+      "test": "verified_hud_import_rete_roundtrip_and_godot_export",
+      "areas": [
+        "source",
+        "scene",
+        "rete"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "Hype en manor scene, Fix HUD records, and local texture archive",
+      "timeout_seconds": 180,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::texture_mips",
+      "test": "source_mip_chains_survive_rete_and_native_godot_projection",
+      "areas": [
+        "media",
+        "rete",
+        "scene"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "synthetic mip Resources exported and inspected by the local Godot executable",
+      "timeout_seconds": 90,
       "ignored": true,
       "release": true
     }

@@ -17,7 +17,6 @@ const SOURCE_CAMERA_DATA3D_WALK_CALLBACK := 0x00585d51 # DAT_00757320[0/8]
 @export var current_mechanics: Resource
 @export var physical_environment: Resource
 @export var source_inventory: Resource
-@export var source_stock: Resource
 var source_rendering := SOURCE_RENDERING.new()
 var source_opacity: int:
     get: return source_rendering.opacity
@@ -42,9 +41,6 @@ var source_transparent_display: bool:
 @export var gravity: Vector3 = Vector3.ZERO
 ## Velocity from forces/impulses, separate from the next animation displacement.
 var external_velocity: Vector3 = Vector3.ZERO
-## Proc_AddWind assigns a persistent world-space drift rate, independent of
-## impulses and gravity. Contact consumes it once per physics movement step.
-var source_wind_drift: Vector3 = Vector3.ZERO
 ## AI speed is committed by GoRelative or a jump procedure, then moved by
 ## CharacterBody3D with the current native animation and contact state.
 var source_vector_speed: Vector3 = Vector3.ZERO
@@ -144,7 +140,7 @@ func _physics_process(delta: float) -> void:
     if current_mechanics != null:
         gravity_ratio = float(current_mechanics.ratio)
     external_velocity += gravity * gravity_ratio * delta
-    velocity = motion + external_velocity + source_wind_drift
+    velocity = motion + external_velocity
     move_and_slide()
     for i in get_slide_collision_count():
         var normal := get_slide_collision(i).get_normal()
@@ -259,12 +255,10 @@ func source_set_vector_speed(value: Vector3) -> void:
     assert(value.is_finite())
     source_vector_speed = value
 
-## Despite its name, Proc_AddWind overwrites the actor's world-axis drift
-## (00540782 / 00589bfa). It is a velocity, not accumulated acceleration, and
-## uses no actor-facing rotation. A zero vector clears the previous assignment.
+## Explicitly deferred: the typed source call and operand remain visible, but
+## the requested opening-slice target behavior is a no-op pending wind parity.
 func source_add_wind(value: Vector3) -> void:
     assert(value.is_finite())
-    source_wind_drift = Vector3(value.x, value.z, -value.y)
 
 func source_change_armor(index: int) -> void:
     assert(source_armor != null, "Fight_ChangeArmor needs the converted shared armor catalog")
@@ -765,8 +759,9 @@ func source_camera_change_targeted_perso(camera_asset: String, target: Node3D) -
 func source_camera_reset_targeted_perso(camera_asset: String, target: Node3D) -> bool:
     return source_camera_change_targeted_perso(camera_asset, target)
 
-## Called by the compiled camera Brain. The native camera accepts mode-3 aiming;
-## other source motion modes fail explicitly.
+## Called by the compiled camera Brain. The native camera supports the mapped
+## mode-0 controller/collision branches and mode-3 aiming. Missing source
+## inputs and unported mode-0 branches still fail explicitly.
 func source_camera_update_position() -> bool:
     var camera := get_node_or_null("SourceCamera")
     if camera == null or not camera.has_method("source_update_position"):
@@ -1064,6 +1059,10 @@ func source_swap_configured_parts(first: int, second: int) -> bool:
     return bool(source_configuration.call("swap_slots", first, second))
 
 func _apply_source_configuration() -> void:
+    var channels := get_node_or_null("Channels")
+    # Synthetic, non-rendered actors used by focused behavior scenes may omit
+    # the imported channel hierarchy. There is no native payload to update.
+    if channels == null: return
     var order := PackedInt32Array()
     var restored: bool = restored_configuration
     var identity: String = ""
@@ -1072,7 +1071,7 @@ func _apply_source_configuration() -> void:
         restored = bool(source_configuration.get("restored"))
         identity = str(source_configuration.get("source_id"))
     var prefix: String = "reset_part_" if restored else "part_"
-    for channel in $Channels.get_children():
+    for channel in channels.get_children():
         var anchors: Array[Node] = []
         # Return existing payloads to their saved hidden banks. Object-free
         # channels remain native transform/cue targets without payload banks.

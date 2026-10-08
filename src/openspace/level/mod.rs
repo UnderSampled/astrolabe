@@ -78,6 +78,7 @@ pub use animation_export::{
 };
 pub use armor::import as import_armor;
 pub use configuration_export::write_configuration;
+pub use inventory_gameplay::import as import_inventory_catalog;
 mod family_export;
 #[cfg(test)]
 mod family_probe;

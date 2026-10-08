@@ -314,6 +314,7 @@ func snapshot(game: Node) -> Dictionary:
         "source_target": str(source_camera.get("targeted_actor").get_path()) if source_camera != null and is_instance_valid(source_camera.get("targeted_actor")) else "",
         "source_guard": bool(source_camera.call("source_camera_collision_guard_value")) if source_camera != null and source_camera.has_method("source_camera_collision_guard_value") else false,
         "source_brain_running": bool(source_camera_brain.get("running")) if source_camera_brain != null else false,
+        "source_brain_failure": str(source_camera_brain.get("unsupported_failure")) if source_camera_brain != null else "missing SourceCamera Brain",
         "active_path": str(active_camera.get_path()) if active_camera != null else ""
     }
     var screen_state := {
@@ -523,6 +524,8 @@ func run() -> void:
     report["gogoud"]["post_path_actions"] = post_path_actions
     if not require(str(report["gogoud"]["post_path"]["failure"]).is_empty(),"Gogoud stopped after his path: " + str(report["gogoud"]["post_path"]["failure"])): return
     if not require(not bool(report["ui_after_path"]["dialogue_over"]),"Gogoud did not reach his first original dialogue within 20 seconds after the path"): return
+    var opening_camera: Dictionary = report["post_path"].get("camera_state", {})
+    if not require(bool(opening_camera.get("source_brain_running", false)) and str(opening_camera.get("source_brain_failure", "missing SourceCamera Brain")).is_empty() and bool(opening_camera.get("source_current", false)) and not str(opening_camera.get("source_target", "")).is_empty() and str(opening_camera.get("active_path", "")) == str(opening_camera.get("source_path", "")), "normal New Game did not activate its source-registered camera through the first UI call: " + JSON.stringify(opening_camera)): return
     var dialog_owner := source_ui.get("adopted_screen") as Node
     if dialog_owner == null: dialog_owner = source_ui
     var active_dialog: Resource = dialog_owner.get("dialogue").get("item")

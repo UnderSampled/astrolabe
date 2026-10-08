@@ -505,7 +505,7 @@ fn fix_ai_programs_keep_distinct_level_projections() -> Result<()> {
     }
     for level in ["binding-a", "binding-b"] {
         let path = project.join(format!(
-            "generated/hype/levels/{level}/ai/models/shared-fixture.gd"
+            "generated/hype/levels/{level}/ai/models/fix/shared-fixture.gd"
         ));
         assert!(
             path.is_file(),
@@ -888,27 +888,8 @@ fn hype_sound_fade_call_remains_typed_through_source_rete_and_godot() -> Result<
     assert_eq!(reopened, model);
     let compiled = godot::ai::compile(&reopened, &[])?;
     assert!(
-        compiled
-            .lines()
-            .collect::<Vec<_>>()
-            .windows(3)
-            .any(|lines| {
-                let Some(first) = lines[0]
-                    .trim()
-                    .strip_prefix("var ")
-                    .and_then(|line| line.strip_suffix(": Variant = 127"))
-                else {
-                    return false;
-                };
-                let Some(second) = lines[1]
-                    .trim()
-                    .strip_prefix("var ")
-                    .and_then(|line| line.strip_suffix(": Variant = 1"))
-                else {
-                    return false;
-                };
-                lines[2].trim() == format!("sound_fade_music(int({first}), int({second}))")
-            })
+        compiled.contains("sound_fade_music(int(127), int(1))"),
+        "{compiled}"
     );
     Ok(())
 }

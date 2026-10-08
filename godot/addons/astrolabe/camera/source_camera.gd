@@ -1195,8 +1195,38 @@ func _source_update_sector_history(current_position: Vector3) -> bool:
     if not is_instance_valid(sector):
         sector = _source_sector_for(get_parent())
     if not is_instance_valid(sector):
-        push_error("Source camera has no initial sector for boundary history")
-        return false
+        # The registered camera Perso (world/0/2) is not a child of a Sector
+        # node and is absent from the static Sector.persos lists. Seed its
+        # runtime sector with the same point resolver used by source 004e0020
+        # before applying 004e03f0's ordered boundary crossings.
+        var initial_sector: Dictionary = source_resolve_mode_zero_sector(current_position)
+        if not bool(initial_sector.get("complete", false)):
+            push_error("Source camera cannot seed boundary history from an incomplete 004e0020 result")
+            return false
+        var initial_sector_id := str(initial_sector.get("sector_id", ""))
+        if initial_sector_id.is_empty():
+            push_error("Source 004e0020 found no initial sector for camera boundary history")
+            return false
+        var level_root := _source_level_root()
+        if not is_instance_valid(level_root):
+            push_error("Source camera has no level root for initial sector binding")
+            return false
+        var matches: Array[Node] = []
+        for candidate in level_root.find_children("*", "Node3D", true, false):
+            if candidate.has_meta("source_sector_id") and str(candidate.get_meta("source_sector_id")) == initial_sector_id:
+                matches.append(candidate)
+        if matches.size() != 1:
+            push_error("Source 004e0020 initial sector binding is missing or ambiguous")
+            return false
+        sector = matches[0]
+        if not sector.has_meta("source_sector"):
+            push_error("Source 004e0020 initial sector lacks source collision metadata")
+            return false
+        _source_active_sector = sector
+        # The point resolver establishes the sector at the current pose, so
+        # start boundary history here instead of traversing from a stale pose.
+        _source_previous_history_position = current_position
+        return true
     var cursor := _source_previous_history_position
     for _step in range(128):
         var boundary := sector.get_node_or_null("SectorBoundary")

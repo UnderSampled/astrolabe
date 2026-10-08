@@ -45,7 +45,6 @@ fn fixture() -> Result<(Scene, Perso, Family, ActorObservation)> {
         initial_configuration: None,
         object_types: [7, 3, 9],
         camera: None,
-        stock: None,
         hit_points: None,
         routes: vec![],
         brain: None,
@@ -54,7 +53,7 @@ fn fixture() -> Result<(Scene, Perso, Family, ActorObservation)> {
     };
     let scene = Scene {
         armor: None,
-        inventory: None,
+        hud: None,
         path: AssetPath::new("level:/scene")?,
         name: "fixture".into(),
         main_actor: Some(AssetRef::from_path(actor.path.clone())),

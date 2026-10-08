@@ -154,7 +154,7 @@ func run() -> void:
     probe_root.add_child(probe_sector)
     var probe_owner := Node3D.new()
     probe_owner.position = Vector3(0,0.5,0)
-    probe_sector.add_child(probe_owner)
+    probe_root.add_child(probe_owner)
     var probe_camera := Camera3D.new()
     probe_camera.set_script(load("res://addons/astrolabe/camera/source_camera.gd"))
     probe_owner.add_child(probe_camera)
@@ -169,6 +169,9 @@ func run() -> void:
     floor_boundary.face_normals = PackedVector3Array([Vector3.UP])
     probe_sector.add_child(floor_boundary)
     root.add_child(probe_root)
+    if not require(probe_owner.get_parent() == probe_root, "camera bootstrap fixture unexpectedly nested its owner under a source sector"): return
+    if not require(probe_camera.call("_source_update_sector_history", probe_owner.global_position), "source 004e0020 did not seed boundary history for the unparented camera Perso"): return
+    if not require(probe_camera.get("_source_active_sector") == probe_sector, "source 004e0020 bound the camera to the wrong initial sector"): return
     if not require(not probe_camera.source_camera_collision_guard_value(), "fresh SourceCamera did not start with the zero-filled DNM +0x254 guard"): return
     probe_camera.source_camera_collision_callback_update(true)
     if not require(probe_camera.source_camera_collision_guard_value(), "005796ea obstruction result did not set the camera DNM guard"): return

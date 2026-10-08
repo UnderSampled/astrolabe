@@ -34,6 +34,7 @@ fn legacy_hud() -> Result<HudPresentation> {
 }
 
 #[test]
+#[ignore = "requires local Hype game data and Fix HUD resources"]
 fn verified_hud_import_rete_roundtrip_and_godot_export() -> Result<()> {
     let game = std::env::var_os("ASTROLABE_GAME_DIR")
         .map(PathBuf::from)

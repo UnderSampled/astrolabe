@@ -45,13 +45,6 @@ pub struct InventoryAdmission {
     /// Header/artwork children are excluded. Empty positions remain useful slots.
     pub slots: Vec<Option<SourceObjectIdentity>>,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct InventoryStock {
-    pub category: Option<SourceObjectIdentity>,
-    pub item: Option<SourceObjectIdentity>,
-    pub count: i16,
-    pub unknown: [u8; 2],
-}
 impl Content for InventoryCatalog {
     const KIND: &'static str = "inventory-catalog";
     fn identity(&self) -> Option<&AssetPath> {

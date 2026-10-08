@@ -540,6 +540,7 @@ mod tests {
     use crate::model::texture::TextureUsage;
 
     #[test]
+    #[ignore = "requires local Hype Fix data"]
     fn cursor_uses_source_counts_and_targets_verified_fix_layout() -> Result<()> {
         let game = std::env::var_os("ASTROLABE_GAME_DIR")
             .map(std::path::PathBuf::from)
@@ -551,6 +552,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires local Hype Fix data and texture archive"]
     fn local_hud_objects_join_fix_ptx_and_decoded_archive_images() -> Result<()> {
         let game = std::env::var_os("ASTROLABE_GAME_DIR")
             .map(std::path::PathBuf::from)

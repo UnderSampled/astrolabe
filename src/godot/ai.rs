@@ -217,7 +217,6 @@ mod tests {
                 hit_points: None,
                 routes: Vec::new(),
                 brain: None,
-                stock: None,
                 collisions: None,
                 particles: None,
             },

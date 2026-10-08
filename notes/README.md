@@ -6,6 +6,10 @@
 
 ## Common records
 
+The [fork-first integration ledger](fork-first-integration-2026-10-08.md)
+records the source fork, checkpoint merge, accepted queue, reconciliations,
+explicitly held work, and validation evidence.
+
 The [armor catalog and AI port checkpoint](armor-ai-port-2026-10-07.md)
 records the isolated Fix-owned armor implementation, its source boundaries,
 and focused validation limits.

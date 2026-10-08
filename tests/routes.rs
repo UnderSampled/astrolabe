@@ -253,7 +253,6 @@ fn compiled_routes_use_native_contact_and_actor_local_progress() -> Result<()> {
             unknown: 0,
             mind_unknown: [0; 4],
         }),
-        stock: None,
         particles: None,
         collisions: Some(CharacterCollisions {
             groups,

@@ -4,7 +4,6 @@ The item catalogue and admitted category slots are different source-owned
 values. `InventoryCatalog` retains all 62 ordered main-list items, their useful
 IDs/kinds, signed quantities and capacities, selected flags, availability and
 management values, category slots, and the separate special-resource item.
-`InventoryStock` retains an actor's authored category/item references and count.
 Item source identity and catalogue order are distinct from the info ID: the
 twelve separate `NotFound` placeholders all have info ID 50 and quantity -1.
 Their identities must remain separate for replacement and admission. Full

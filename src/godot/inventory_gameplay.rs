@@ -10,30 +10,6 @@ fn key(identity: &SourceObjectIdentity) -> Result<String> {
     // Keys only compare retained identities; Godot never interprets this text.
     Ok(serde_json::to_string(identity)?)
 }
-pub(super) fn stock_fields(stock: &InventoryStock) -> Result<String> {
-    Ok(format!(
-        "category_key = {}\nitem_key = {}\ncount = {}\nunknown = PackedByteArray({},{})\n",
-        quoted(
-            &stock
-                .category
-                .as_ref()
-                .map(key)
-                .transpose()?
-                .unwrap_or_default()
-        ),
-        quoted(
-            &stock
-                .item
-                .as_ref()
-                .map(key)
-                .transpose()?
-                .unwrap_or_default()
-        ),
-        stock.count,
-        stock.unknown[0],
-        stock.unknown[1]
-    ))
-}
 pub(super) fn export(
     project: &mut Project,
     _: &mut impl ContentSource,

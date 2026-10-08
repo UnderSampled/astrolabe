@@ -47,17 +47,6 @@ struct ItemWire {
     id: i16,
     unknown: [u8; 2],
 }
-/// 0045c350/370/390 and AddObject's actor+0x38 forwarding in 00539bb1.
-#[derive(BinRead)]
-#[br(little)]
-struct StockWire {
-    _links: [u32; 2],
-    _category: u32,
-    _item: u32,
-    count: i16,
-    unknown: [u8; 2],
-}
-
 fn children(s: &SourceSession, a: Address) -> Result<Vec<Address>> {
     let h: SuperObjectWire = wire(s.bytes(a, 64)?)?;
     ensure!(h.child_count <= 256, "inventory gameplay child bound");
@@ -191,7 +180,7 @@ fn replacements(
     );
     Ok(out)
 }
-pub(crate) fn import(game: &Path, selection: &Selection) -> Result<InventoryCatalog> {
+pub fn import(game: &Path, selection: &Selection) -> Result<InventoryCatalog> {
     let s = SourceSession::open(game, selection)?;
     let folder = game.join("Gamedata/World/Levels");
     let gpt = file(&folder.join("Fix.gpt"))?;
@@ -299,19 +288,4 @@ fn admission(
         slots,
     });
     Ok(())
-}
-pub(super) fn stock(s: &SourceSession, perso: Address) -> Result<Option<InventoryStock>> {
-    let Some(a) = s.pointer(perso, 56)? else {
-        return Ok(None);
-    };
-    let value: StockWire = wire(s.bytes(a, 20)?)?;
-    Ok(Some(InventoryStock {
-        category: s.pointer(a, 8)?.map(|a| s.source_identity(a)).transpose()?,
-        item: s
-            .pointer(a, 12)?
-            .map(|a| s.source_identity(a))
-            .transpose()?,
-        count: value.count,
-        unknown: value.unknown,
-    }))
 }

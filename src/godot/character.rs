@@ -39,17 +39,6 @@ pub(super) fn perso_path(project: &Project, perso: &Perso) -> String {
         &super::digest(perso.path.as_str().as_bytes())[..10]
     ))
 }
-pub(super) fn export_stock(project: &mut Project, perso: &Perso) -> Result<Option<String>> {
-    let Some(stock) = &perso.stock else {
-        return Ok(None);
-    };
-    let path = disk_path(&project.selection, &perso.path, "stock.tres");
-    if !project.generated.contains(&path) {
-        let fields = super::inventory_gameplay::stock_fields(stock)?;
-        project.write(path.clone(), format!("[gd_resource type=\"Resource\" load_steps=2 format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/character/inventory_stock.gd\" id=\"script\"]\n[resource]\nresource_local_to_scene = true\nscript = ExtResource(\"script\")\n{fields}").as_bytes())?;
-    }
-    Ok(Some(format!("res://{path}")))
-}
 struct Part {
     channel: u16,
     slot: u16,
@@ -417,15 +406,6 @@ pub(super) fn export_perso(
     auxiliary_collision(project, source, perso, &family, &name, 1)?;
     auxiliary_collision(project, source, perso, &family, &name, 3)?;
     movement_collision(project, source, perso, &name, &controller)?;
-    // Installing the generated collision script resets inherited properties.
-    // Attach mutable life only after the actor's final script is installed.
-    if let Some(stock) = export_stock(project, perso)? {
-        writeln!(
-            project.builder,
-            "    {name}.source_stock = native_resource({})",
-            quoted(&stock)
-        )?;
-    }
     let choices = configurations
         .iter()
         .map(|config| {
