@@ -187,9 +187,8 @@ func sound_fade_all(target: int, duration_ms: int) -> void:
 
 ## Proc_SND_KillMusic stops active players on the source music channel.
 func sound_kill_music() -> void:
-	for player_type in ["AudioStreamPlayer", "AudioStreamPlayer3D"]:
-		for player in get_tree().root.find_children("*", player_type, true, false):
-			if player.bus == &"Astrolabe Music": player.stop()
+	var channel := get_tree().root.get_node_or_null("AstrolabeMusic")
+	if channel != null: channel.call("kill_all")
 
 func source_execute_fade(from_alpha: int, to_alpha: int, duration_seconds: float) -> bool:
 	if not is_finite(duration_seconds) or duration_seconds < 0.0:
@@ -225,6 +224,35 @@ func send_sound(event: Resource) -> void:
 	assert(is_instance_valid(sound_emitter))
 	event.execute(sound_emitter)
 	sound_requested.emit(event.identity)
+
+## Proc127 with Ultra uses the selected actor's effects component.
+func send_sound_to_actor(actor: Node3D, event: Resource) -> bool:
+	if not is_instance_valid(actor): return false
+	if event == null: return true
+	var emitter := actor.get_node_or_null("SoundEmitter")
+	if emitter == null or not emitter.has_method("play_voice"): return false
+	event.execute(emitter)
+	sound_requested.emit(event.identity)
+	return true
+
+## Proc129 dispatches immediately on shared nonspatial music, then continues.
+## A null source event returns an ignored error in the original procedure.
+func send_music(event: Resource) -> void:
+	if event == null: return
+	var channel = load("res://addons/astrolabe/audio/emitter.gd").music_channel(self)
+	if not channel.request_music(event):
+		fail_unsupported(channel.music_failure)
+		return
+	sound_requested.emit(event.identity)
+
+## Proc413's operands belong to the caller; only effects playback/fade use actor.
+func sound_fade_in_object(actor: Node3D, target: int, duration_ms: int, event: Resource) -> bool:
+	if not is_instance_valid(actor): return false
+	var emitter := actor.get_node_or_null("SoundEmitter")
+	if emitter == null or not emitter.has_method("fade_in_event"): return false
+	emitter.call("fade_in_event", event, target, duration_ms)
+	if event != null: sound_requested.emit(event.identity)
+	return true
 
 func source_ui() -> Node:
 	var ancestor := get_parent()

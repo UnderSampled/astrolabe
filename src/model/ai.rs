@@ -410,9 +410,22 @@ pub enum Statement {
     Sound {
         event: Option<SoundEventLink>,
     },
+    /// Ultra Proc127 dispatches on the resolved actor while operands use the caller.
+    SoundOnActor {
+        actor: ActorTarget,
+        event: Option<SoundEventLink>,
+    },
     /// Proc_SendMusicRequest asks the shared source music channel to play an
     /// event from the sound library.
     MusicRequest {
+        event: Option<SoundEventLink>,
+    },
+    /// Proc413 sets the receiver's effects volume to zero, sends the event,
+    /// then starts a nonblocking fade. Operands use the original caller.
+    SoundFadeInObject {
+        actor: ActorTarget,
+        target: Expression,
+        duration_ms: Expression,
         event: Option<SoundEventLink>,
     },
     /// Hype Proc_SND_FadeMusic: arg0 is target level 0..127 and arg1 is
@@ -1047,7 +1060,17 @@ impl AiModel {
         let mut out = Vec::new();
         for script in self.scripts() {
             for (node, _) in script.walk() {
-                if let AstNode::Statement(Statement::Sound { event: Some(event) }) = node {
+                if let AstNode::Statement(
+                    Statement::Sound { event: Some(event) }
+                    | Statement::SoundOnActor {
+                        event: Some(event), ..
+                    }
+                    | Statement::MusicRequest { event: Some(event) }
+                    | Statement::SoundFadeInObject {
+                        event: Some(event), ..
+                    },
+                ) = node
+                {
                     out.push(event);
                 }
             }
@@ -1539,6 +1562,27 @@ impl Script {
                     Statement::SoundFadeMusic { arg0, arg1 } => {
                         expression(arg0, variables, depth + 1, count)?;
                         expression(arg1, variables, depth + 1, count)?;
+                    }
+                    Statement::SoundOnActor {
+                        actor: ActorTarget::Reference(actor),
+                        ..
+                    } => {
+                        ensure!(actor.path.member().is_none(), "sound receiver is a member");
+                    }
+                    Statement::SoundFadeInObject {
+                        actor,
+                        target,
+                        duration_ms,
+                        ..
+                    } => {
+                        if let ActorTarget::Reference(actor) = actor {
+                            ensure!(
+                                actor.path.member().is_none(),
+                                "sound fade receiver is a member"
+                            );
+                        }
+                        expression(target, variables, depth + 1, count)?;
+                        expression(duration_ms, variables, depth + 1, count)?;
                     }
                     Statement::SoundFadeVoice {
                         target,

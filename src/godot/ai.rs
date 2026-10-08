@@ -3036,24 +3036,90 @@ fn statements(
                     "{pad}send_sound(sound_{i})\n{pad}if not active_{group}(token): {exit}"
                 )?;
             }
-            Statement::MusicRequest { event: Some(event) } => {
+            Statement::SoundOnActor { actor, event } => {
+                let id = flow.local;
+                flow.local += 1;
+                let receiver = format!("sound_receiver_{id}");
                 writeln!(
                     out,
-                    "{pad}fail_unsupported({})\n{pad}{exit}",
+                    "{pad}var {receiver}: Node3D = {}",
+                    actor_target_code(actor)
+                )?;
+                let event = if let Some(event) = event {
+                    let i = events
+                        .iter()
+                        .position(|(e, _)| e == event)
+                        .context("AI actor sound resource has not been exported")?;
+                    format!("sound_{i}")
+                } else {
+                    "null".into()
+                };
+                writeln!(
+                    out,
+                    "{pad}if not send_sound_to_actor({receiver}, {event}):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}if not active_{group}(token): {exit}",
                     quoted(&format!(
-                        "{} Proc_SendMusicRequest requires the source SND music-channel contract for {} bank {} member {}",
-                        model.path, event.library.path, event.bank, event.member
+                        "{} requires native actor sound emitter",
+                        model.path
                     ))
+                )?;
+            }
+            Statement::MusicRequest { event: Some(event) } => {
+                let i = events
+                    .iter()
+                    .position(|(e, _)| e == event)
+                    .context("AI music resource has not been exported")?;
+                writeln!(
+                    out,
+                    "{pad}send_music(sound_{i})\n{pad}if not active_{group}(token): {exit}"
                 )?;
             }
             Statement::MusicRequest { event: None } => writeln!(
                 out,
-                "{pad}fail_unsupported({})\n{pad}{exit}",
-                quoted(&format!(
-                    "{} Proc_SendMusicRequest has no resolved source event",
-                    model.path
-                ))
+                "{pad}send_music(null)\n{pad}if not active_{group}(token): {exit}"
             )?,
+            Statement::SoundFadeInObject {
+                actor,
+                target,
+                duration_ms,
+                event,
+            } => {
+                let id = flow.local;
+                flow.local += 1;
+                let receiver = format!("sound_receiver_{id}");
+                let level = format!("sound_level_{id}");
+                let duration = format!("sound_duration_{id}");
+                writeln!(
+                    out,
+                    "{pad}var {receiver}: Node3D = {}\n{pad}if not is_instance_valid({receiver}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    actor_target_code(actor),
+                    quoted(&format!(
+                        "{} requires sound fade receiver {}",
+                        model.path,
+                        actor_target_label(actor)
+                    ))
+                )?;
+                let target = guarded_expression(out, target, model, depth, flow)?;
+                writeln!(out, "{pad}var {level}: int = int({target})")?;
+                let duration_ms = guarded_expression(out, duration_ms, model, depth, flow)?;
+                writeln!(out, "{pad}var {duration}: int = int({duration_ms})")?;
+                let event = if let Some(event) = event {
+                    let i = events
+                        .iter()
+                        .position(|(e, _)| e == event)
+                        .context("AI object fade sound resource has not been exported")?;
+                    format!("sound_{i}")
+                } else {
+                    "null".into()
+                };
+                writeln!(
+                    out,
+                    "{pad}if not sound_fade_in_object({receiver}, {level}, {duration}, {event}):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}if not active_{group}(token): {exit}",
+                    quoted(&format!(
+                        "{} requires native object sound emitter",
+                        model.path
+                    ))
+                )?;
+            }
             Statement::SoundFadeMusic { arg0, arg1 } => {
                 let arg0 = guarded_expression(out, arg0, model, depth, flow)?;
                 let arg1 = guarded_expression(out, arg1, model, depth, flow)?;

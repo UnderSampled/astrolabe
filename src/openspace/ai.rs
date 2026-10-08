@@ -557,6 +557,36 @@ impl Parser<'_> {
                     };
                     let child = self.nodes.get(self.at);
                     if let Some(actor_target) = actor_target.clone()
+                        && child.is_some_and(|n| n.indent == indent + 1 && n.kind == 4 && n.parameter == 127)
+                    {
+                        self.take(indent + 1)?;
+                        let (operand, sound) = self.take(indent + 2)?;
+                        if sound.kind == 34 && let Some(event) = self.codec.sounds.get(&operand) {
+                            Statement::SoundOnActor { actor: actor_target, event: event.clone() }
+                        } else {
+                            {
+                                let mut fragment = self.unsupported(at, "actor sound requires a bound sound event operand".into())?;
+                                fragment.receiver = Some(actor_target);
+                                Statement::Unsupported(fragment)
+                            }
+                        }
+                    } else if let Some(actor_target) = actor_target.clone()
+                        && child.is_some_and(|n| n.indent == indent + 1 && n.kind == 4 && n.parameter == 413)
+                    {
+                        self.take(indent + 1)?;
+                        let target = self.expression(indent + 2)?;
+                        let duration_ms = self.expression(indent + 2)?;
+                        let (operand, sound) = self.take(indent + 2)?;
+                        if sound.kind == 34 && let Some(event) = self.codec.sounds.get(&operand) {
+                            Statement::SoundFadeInObject { actor: actor_target, target, duration_ms, event: event.clone() }
+                        } else {
+                            {
+                                let mut fragment = self.unsupported(at, "object sound fade requires a bound sound event operand".into())?;
+                                fragment.receiver = Some(actor_target);
+                                Statement::Unsupported(fragment)
+                            }
+                        }
+                    } else if let Some(actor_target) = actor_target.clone()
                         && child.is_some_and(|n| {
                             n.indent == indent + 1
                                 && n.kind == 4
@@ -878,6 +908,16 @@ impl Parser<'_> {
                     arg0: self.expression(indent + 1)?,
                     arg1: self.expression(indent + 1)?,
                 },
+                (4, 413) => {
+                    let target = self.expression(indent + 1)?;
+                    let duration_ms = self.expression(indent + 1)?;
+                    let (operand, sound) = self.take(indent + 1)?;
+                    if sound.kind == 34 && let Some(event) = self.codec.sounds.get(&operand) {
+                        Statement::SoundFadeInObject { actor: ActorTarget::Keyword(ActorKeyword::SelfActor), target, duration_ms, event: event.clone() }
+                    } else {
+                        Statement::Unsupported(self.unsupported(at, "object sound fade requires a bound sound event operand".into())?)
+                    }
+                }
                 (4, 409) => Statement::SoundFadeVoice {
                     target: self.expression(indent + 1)?,
                     duration_ms: self.expression(indent + 1)?,
@@ -1970,19 +2010,16 @@ impl Writer<'_> {
                     self.node(4, if *active { 3 } else { 4 }, indent);
                     self.node(24, handle, indent + 1);
                 }
-                Statement::MusicRequest { event: Some(event) } => {
+                Statement::MusicRequest { event } => {
                     let handle = self
                         .codec
                         .sound_handles
                         .iter()
-                        .find(|(candidate, _)| candidate.as_ref() == Some(event))
+                        .find(|(candidate, _)| candidate == event)
                         .context("missing music event handle")?
                         .1;
                     self.node(4, 129, indent);
                     self.node(34, handle, indent + 1);
-                }
-                Statement::MusicRequest { event: None } => {
-                    anyhow::bail!("cannot serialize an unbound music request")
                 }
                 Statement::PositionDialog { x, y } => {
                     self.node(4, 328, indent);
@@ -2154,10 +2191,47 @@ impl Writer<'_> {
                         .1;
                     self.node(34, handle, indent + 1);
                 }
+                Statement::SoundOnActor { actor, event } => {
+                    self.node(2, 24, indent);
+                    self.expression(&Expression::Actor(actor.clone()), indent + 1)?;
+                    self.node(4, 127, indent + 1);
+                    let handle = self
+                        .codec
+                        .sound_handles
+                        .iter()
+                        .find(|(e, _)| e == event)
+                        .context("missing assigned AI sound handle")?
+                        .1;
+                    self.node(34, handle, indent + 2);
+                }
                 Statement::SoundFadeMusic { arg0, arg1 } => {
                     self.node(4, 408, indent);
                     self.expression(arg0, indent + 1)?;
                     self.expression(arg1, indent + 1)?;
+                }
+                Statement::SoundFadeInObject {
+                    actor,
+                    target,
+                    duration_ms,
+                    event,
+                } => {
+                    let is_self = *actor == ActorTarget::Keyword(ActorKeyword::SelfActor);
+                    let operation_indent = if is_self { indent } else { indent + 1 };
+                    if !is_self {
+                        self.node(2, 24, indent);
+                        self.expression(&Expression::Actor(actor.clone()), indent + 1)?;
+                    }
+                    self.node(4, 413, operation_indent);
+                    self.expression(target, operation_indent + 1)?;
+                    self.expression(duration_ms, operation_indent + 1)?;
+                    let handle = self
+                        .codec
+                        .sound_handles
+                        .iter()
+                        .find(|(candidate, _)| candidate == event)
+                        .context("missing assigned object fade sound handle")?
+                        .1;
+                    self.node(34, handle, operation_indent + 1);
                 }
                 Statement::SoundFadeVoice {
                     target,
@@ -3530,13 +3604,20 @@ mod partial_tests {
         );
         assert_eq!(channel_codec.write(&channel_script)?, channel_bytes);
 
-        let (mut unresolved_codec, unresolved_bytes) =
-            partial(&[(2, 24, 1), (24, 1234, 2), (4, 413, 2), (8, 0, 0)]);
+        let (mut unresolved_codec, unresolved_bytes) = partial(&[
+            (2, 24, 1),
+            (24, 1234, 2),
+            (4, 413, 2),
+            (12, 90, 3),
+            (12, 80, 3),
+            (34, 999, 3),
+            (8, 0, 0),
+        ]);
         let actor = AssetRef::<Perso>::new("level:/persos/world/0/174")?;
         unresolved_codec.actors.insert(1, actor.clone());
         let unresolved_script = unresolved_codec.read(&unresolved_bytes)?;
         let Statement::Unsupported(fragment) = &unresolved_script.statements[0] else {
-            anyhow::bail!("SND call without its channel contract was not preserved");
+            anyhow::bail!("SND call without a bound event was not preserved");
         };
         assert_eq!(
             fragment.receiver,

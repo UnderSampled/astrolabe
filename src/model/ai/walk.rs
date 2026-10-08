@@ -158,6 +158,11 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::SoundFadeSound {
                     target,
                     duration_ms,
+                }
+                | Statement::SoundFadeInObject {
+                    target,
+                    duration_ms,
+                    ..
                 } => self.expressions(child_depth, &[target, duration_ms]),
                 Statement::ExecuteFade {
                     from,
@@ -205,6 +210,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::WaitEndOfAction
                 | Statement::WaitEndOfAnimation
                 | Statement::Sound { .. }
+                | Statement::SoundOnActor { .. }
                 | Statement::MusicRequest { .. }
                 | Statement::SoundKillMusic
                 | Statement::Noop => {}
