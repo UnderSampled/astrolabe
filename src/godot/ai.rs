@@ -3317,7 +3317,7 @@ fn statements(
                 ));
                 writeln!(
                     out,
-                    "{pad}var flag_actor_{id} := character().source_actor_node({})\n{pad}if not is_instance_valid(flag_actor_{id}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var flag_camera_{id} := flag_actor_{id}.get_node_or_null(\"SourceCamera\")\n{pad}if not is_instance_valid(flag_camera_{id}) or not flag_camera_{id}.has_method(\"source_change_flag\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}",
+                    "{pad}var flag_actor_{id} := character().source_actor_node({})\n{pad}if not is_instance_valid(flag_actor_{id}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var flag_camera_{id} := flag_actor_{id}.get_node_or_null(\"SourceCamera\")",
                     quoted(camera.path.as_str())
                 )?;
                 let group = guarded_expression(out, group, model, depth, flow)?;
@@ -3325,9 +3325,11 @@ fn statements(
                 let operation = guarded_expression(out, operation, model, depth, flow)?;
                 writeln!(out, "{pad}var flag_operation_{id} := int({operation})")?;
                 let selector = guarded_expression(out, selector, model, depth, flow)?;
+                // Deferred groups retain the early component; immediate groups
+                // reread the actor's current binding after all scalar operands.
                 writeln!(
                     out,
-                    "{pad}var flag_selector_{id} := int({selector})\n{pad}if not bool(flag_camera_{id}.call(\"source_change_flag\", flag_group_{id}, flag_operation_{id}, flag_selector_{id})):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
+                    "{pad}var flag_selector_{id} := int({selector})\n{pad}if not is_instance_valid(flag_actor_{id}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if flag_group_{id} in [0, 1]:\n{pad}    flag_camera_{id} = flag_actor_{id}.get_node_or_null(\"SourceCamera\")\n{pad}if not is_instance_valid(flag_camera_{id}) or not flag_camera_{id}.has_method(\"source_change_flag\") or not bool(flag_camera_{id}.call(\"source_change_flag\", flag_group_{id}, flag_operation_{id}, flag_selector_{id})):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
                 )?;
             }
             Statement::SetActorAbsolutePosition { actor, position } => {

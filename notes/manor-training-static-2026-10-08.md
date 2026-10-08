@@ -212,16 +212,24 @@ equivalence remain unverified.
 
 The installed PE callable catalogue maps Procedure166 `Camera_ChangeFlag`
 (`PLLL`) to `00548690..005488f1`, with tables `005488f4/00548918`. It evaluates
-camera, group, operation, selector in that order. Immediate group0 modifies
+camera, group, operation, selector in that order. The early camera component
+capture belongs to deferred groups; after all scalar operands, immediate
+groups0/1 reload the actor's current camera binding and its active/initial
+framing. The compiler preserves that distinction. Immediate group0 modifies
 parameter flags; group1 modifies controller/action flags. Operation0 clears,
 1 sets and-1 copies the selected bit from initial parameters. Selectors map
-through the proved source bit lists; out-of-range masks arezero and other
+through the proved source bit lists; out-of-range masks arezero and still take
+the selected operation path, including the initial-bit read for operation-1. Other
 immediate operations are ignored. Hype Normal24's exact call(camera,1,0,3)
 clears controller bit4 before Proc136 resets framing. Typed model, validator,
 walker, source writer and compiled native component call retain all operands.
-Deferred groups2/3 require their own real consumers and fail explicitly.
-Original-C presentation worker owns full handler reconstruction, including those
-deferred groups. The native target has no source flag scheduler or opcode table.
+Deferred group3 and every group except0/1/3 require their own real consumers
+and fail explicitly. Original-C presentation commit
+`b65bacf4ace346d712091082049151ccee5ee590` supplies the full handler in
+`src/camera/camera_flag_procedure.c`. A read-only comparison with that body and
+independent static PE disassembly corroborated the late immediate binding and
+zero-mask operation paths. The native target has no source flag scheduler or
+opcode table.
 
 The follow-up stamps are provisional Rete60/support79. Kip owns one aggregate
 version and fresh content generation; no persisted package under these stamps
