@@ -1,8 +1,8 @@
 extends Camera3D
 ## Native target and framing addressed by the compiled camera AI API.
 ## Mode 3 aims the authored eye; mode 6 preserves its authored orientation.
-## Primary viewport reselection is supported; controller reset and pose copy
-## remain separate source contracts.
+## Primary viewport selection reuses the framing reset and contact-sector owner.
+## Copying another camera's pose and optimal placement remain separate contracts.
 
 @export var motion_mode: int = 0
 @export var initial_motion_mode: int = 0
@@ -12,9 +12,15 @@ extends Camera3D
 @export var initially_current: bool = false
 @export var initially_registered: bool = false
 @export var initial_viewport_context: int = 0
+@export var initial_secondary_registered: bool = false
+@export var initial_secondary_viewport_context: int = 0
+@export var initial_auxiliary_viewport_context: int = 0
 @export var source_initial_horizontal_fov: float = 0.0
 var source_viewport_registered: bool = false
 var source_viewport_context: int = 0
+var source_secondary_registered: bool = false
+var source_secondary_viewport_context: int = 0
+var source_auxiliary_viewport_context: int = 0
 const SOURCE_PRIMARY_CAMERA_OWNER := &"astrolabe_source_primary_camera"
 @export_node_path("Node3D") var initial_target_path: NodePath
 @export var mode_zero_target_offset: Vector3 = Vector3.ZERO
@@ -91,6 +97,9 @@ func _ready() -> void:
     motion_mode = initial_motion_mode
     source_viewport_registered = initially_registered
     source_viewport_context = initial_viewport_context
+    source_secondary_registered = initial_secondary_registered
+    source_secondary_viewport_context = initial_secondary_viewport_context
+    source_auxiliary_viewport_context = initial_auxiliary_viewport_context
     if not initial_target_path.is_empty():
         targeted_actor = get_node_or_null(initial_target_path) as Node3D
     _source_active_sector = _source_sector_for(get_parent())
@@ -116,12 +125,15 @@ func _source_primary_owner() -> Camera3D:
 func _source_publish_primary() -> void:
     source_viewport_registered = true
     source_viewport_context = 1
+    _source_register_primary_owner()
+
+func _source_register_primary_owner() -> void:
     get_viewport().set_meta(SOURCE_PRIMARY_CAMERA_OWNER, weakref(self))
     make_current()
 
 ## Proc141 always restores the previous source target's opacity, including
 ## a request for the already selected camera. Only the primary viewport is mapped.
-func source_select_primary(context: Variant, _previous_policy: Variant, _placement_policy: Variant) -> bool:
+func source_select_primary(context: Variant, previous_policy: Variant, placement_policy: Variant) -> bool:
     var owner := get_parent() as Node3D
     if owner == null or not owner.has_method("source_scalar_word") or int(owner.call("source_scalar_word", context)) != 1:
         return false
@@ -135,10 +147,78 @@ func source_select_primary(context: Variant, _previous_policy: Variant, _placeme
         # authored presentation camera had temporarily taken Godot's current slot.
         make_current()
         return true
-    # Different-owner selection also refreshes the selected actor's sector,
-    # including placement zero. That contract and the reset/copy branches
-    # remain unsupported here; opacity restoration above still occurs first.
-    return false
+    # The primary source viewport declines a switch when its old active
+    # parameters no longer refer to that viewport. Opacity was still restored.
+    if int(previous.get("source_viewport_context")) != 1:
+        return true
+    var reset_previous: int = int(owner.call("source_scalar_word", previous_policy))
+    var placement: int = int(owner.call("source_scalar_word", placement_policy))
+    var reset_selected := not source_viewport_registered
+    if not reset_selected:
+        placement = 0
+    if placement in [1, 2]:
+        # Pose copy and the optimal-placement solver have wider matrix contracts.
+        return false
+    if reset_selected and not _source_can_reset_for_selection(): return false
+    if reset_previous == 1 and (not previous.has_method("_source_can_reset_for_selection") or not bool(previous.call("_source_can_reset_for_selection"))):
+        return false
+    if not owner.has_method("source_refresh_contact_sector"): return false
+
+    # Source publishes the viewport owner before resetting the destination.
+    # Its reset copies only initial -> active; the secondary state survives.
+    _source_register_primary_owner()
+    if reset_selected and not _source_reset_for_selection(): return false
+    source_viewport_registered = true
+    source_secondary_registered = true
+    source_viewport_context = 1
+    source_secondary_viewport_context = 1
+    source_auxiliary_viewport_context = 1
+    if reset_previous == 1:
+        if not bool(previous.call("_source_reset_for_selection")): return false
+        previous.set("source_viewport_registered", false)
+    elif int(previous.get("source_viewport_context")) == 1:
+        previous.set("source_viewport_context", 0)
+        previous.set("source_secondary_viewport_context", 0)
+        previous.set("source_auxiliary_viewport_context", 0)
+    # Placement zero still performs the sector query at the existing eye.
+    # Other source placement words, except 1/2, also take this same branch.
+    return _source_refresh_selection_sector(owner)
+
+func _source_can_reset_for_selection() -> bool:
+    if not has_method("source_reset_to_initial"): return false
+    var framing := get("initial_framing") as Resource
+    if framing == null: return false
+    var initial_fov: float = framing.get("horizontal_fov")
+    return is_finite(initial_fov) and initial_fov > 0.0 and initial_fov < PI
+
+func _source_reset_for_selection() -> bool:
+    # Reuse the maintained Proc136 framing/progress reset. The viewport fields
+    # are part of the same initial -> active copy, rather than renderer state.
+    if not has_method("source_reset_to_initial") or not bool(call("source_reset_to_initial")):
+        return false
+    source_viewport_registered = initially_registered
+    source_viewport_context = initial_viewport_context
+    return true
+
+func _source_refresh_selection_sector(owner: Node3D) -> bool:
+    var result := source_resolve_mode_zero_sector(owner.global_position)
+    if not bool(result.get("complete", false)): return false
+    var root := _source_level_root()
+    var sector: Node3D
+    var sector_id := str(result.get("sector_id", ""))
+    if not sector_id.is_empty():
+        sector = _find_source_sector(root, sector_id) as Node3D
+    elif is_instance_valid(root):
+        # The original no-hit fallback is the last child of the sector root.
+        # Export binds that ordered sibling as an ordinary scene NodePath.
+        var fallback: Variant = root.get_meta("source_sector_fallback_path", NodePath())
+        if fallback is NodePath and not fallback.is_empty():
+            sector = root.get_node_or_null(fallback) as Node3D
+    if not is_instance_valid(sector) or not bool(owner.call("source_refresh_contact_sector", sector)):
+        return false
+    _source_active_sector = sector
+    _source_previous_history_position = owner.global_position
+    return true
 
 ## Proc158's unregistered branch returns before evaluating selector or value.
 ## Source modes 101/104/105 select another parameter set that is not mapped here.
@@ -1263,8 +1343,6 @@ func source_resolve_mode_zero_sector(position: Vector3) -> Dictionary:
             if visual_distance >= 0.0 and visual_distance < nearest_distance:
                 nearest_distance = visual_distance
                 nearest_sector_id = sector_id
-    if nearest_sector_id.is_empty() and complete:
-        return {}
     return {
         "sector_id": nearest_sector_id,
         "distance": nearest_distance,
@@ -1592,6 +1670,9 @@ func _source_sector_for(node: Node) -> Node:
     while is_instance_valid(current):
         if current.has_meta("source_sector_id"):
             return current
+        if current.has_method("source_contact_sector"):
+            var sector := current.call("source_contact_sector") as Node3D
+            if is_instance_valid(sector): return sector
         current = current.get_parent()
     return null
 

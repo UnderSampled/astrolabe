@@ -1579,6 +1579,14 @@ func _set_zde_shape_active(shape: CollisionShape3D, active: bool) -> void:
 
 ## Native contact sectors are named scene nodes; no retained source JSON or
 ## source character lists are interpreted here. Generated drops inherit theirs.
+func source_refresh_contact_sector(sector: Node3D) -> bool:
+    if not is_instance_valid(sector) or not is_inside_tree() or not sector.is_inside_tree() or not sector.has_meta("source_sector_id") or sector.get_tree() != get_tree():
+        return false
+    _contact_sector = sector
+    source_contact_sector_path = get_path_to(sector)
+    _contact_previous = global_position
+    return true
+
 func source_contact_sector() -> Node3D:
     if not is_instance_valid(_contact_sector) and not source_contact_sector_path.is_empty():
         _contact_sector = get_node_or_null(source_contact_sector_path) as Node3D

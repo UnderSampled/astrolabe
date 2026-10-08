@@ -96,8 +96,9 @@ impl CameraParameters {
         (context != 0).then_some(context)
     }
 
-    /// Registration availability survives switching away from a viewport.
-    /// Camera selection clears the old context separately from this flag.
+    /// Selection sets availability on the destination. Resetting the previous
+    /// camera clears its active availability; switching without that reset
+    /// clears its viewport context separately from this flag.
     pub fn registration_active(&self) -> bool {
         self.unknown.get(88).copied().unwrap_or(0) != 0
     }

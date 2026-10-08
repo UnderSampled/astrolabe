@@ -277,6 +277,31 @@ impl Project {
             }
             names.insert(node.id.clone(), name);
         }
+        // Source sector research falls back to the last sibling in the sector
+        // root, even when that sector is virtual. Bind the useful hierarchy;
+        // native components never reconstruct a source list or address.
+        let sectors = scene
+            .nodes
+            .iter()
+            .filter(|node| node.sector.is_some())
+            .collect::<Vec<_>>();
+        if let Some(last_sector) = sectors.last() {
+            if sectors
+                .iter()
+                .all(|sector| sector.parent == last_sector.parent)
+            {
+                let fallback_name = &names[&last_sector.id];
+                writeln!(
+                    self.builder,
+                    "    {scene_id}.set_meta(\"source_sector_fallback_path\", {scene_id}.get_path_to({fallback_name}))"
+                )?;
+            } else {
+                self.diagnostic(format!(
+                    "{}: sector research fallback needs one ordered sector-root sibling list",
+                    scene.path
+                ));
+            }
+        }
         self.native_environment(&scene_id)?;
         // Fix-owned actors with no rooted SuperObject still carry useful Brain
         // state. Instance them once as native, nonvisual scene nodes so ordinary

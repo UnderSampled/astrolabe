@@ -144,8 +144,9 @@ Proc141 and Proc158 now have paired typed reader/writer/compiler paths. Primary
 viewport reselection restores the old target's opacity, including the same-camera
 early return used by the key's `(1,1,0,camera)` call. The final viewport follow-on
 below connects that owner independently of an authored rendered camera.
-Different-owner selection, controller reset, unregistered activation and
-secondary viewports remain explicit failures pending the full sector/reset path.
+The final camera follow-on below supplies different-owner selection, controller
+reset and unregistered activation for the actual primary-viewport requests.
+Secondary viewports remain unsupported.
 Focal changes skip selector/value evaluation when unregistered. The reached key
 request overwrites source horizontal FOV with 1.3 radians. Source modes101/104/105
 and relative-focal flag0x20 remain unsupported. Initial FOV is exported separately
@@ -217,18 +218,18 @@ rendered camera as an OpenSpace camera actor. All four operands are still
 evaluated and captured before lookup. The old target's opacity is restored
 before the same-camera comparison. Selecting that same source owner makes its
 native Camera3D current and returns before controller reset or placement.
-Thus key703 Normal2's `(1,1,0,world/0/2)` connects to the source camera and can
-continue to the existing DSG56 release after the owned dialogue completes.
-There is no key, Manor or actor-index conditional in the implementation.
+The initial conclusion that key703 Normal2 reached this same-owner branch was
+incomplete: Normal1 first selects camera147. Both actual switches are different
+owners, as corrected in the final follow-on below. The same-owner branch remains
+source-compatible. There is no key, Manor or actor-index conditional.
 
 Registration availability and viewport context are distinct in the exported
 values. The source's different-owner path clears only the old context when no
 reset is requested and forces placement zero for an already registered destination.
 The later complete C corroboration also establishes sector refresh after that
-placement-zero branch. The final correction below therefore makes all
-different-owner selections explicit unsupported branches rather than claim
-partial success without sector refresh. Invalid/unloaded owner references still
-fail. Weak ownership does not retain an unloaded level's camera.
+placement-zero branch. Checkpoint `b2604c7` removed partial switching until the
+complete actual-call path was implemented below. Invalid/unloaded owner references
+still fail. Weak ownership does not retain an unloaded level's camera.
 
 This follow-on leaves Rete60 unchanged and advances the Godot support interface
 79→80. It changes `src/model/camera.rs`, `src/godot/character.rs`,
@@ -280,9 +281,9 @@ operand evaluation, opacity and same-owner ordering used by the key path.
 The native make-current handback binds Godot's renderer to its semantic owner;
 it is not claimed to be an original same-owner renderer call. The complete
 different-owner path includes camera registration, captured-pointer resets and
-sector refresh. This checkpoint removes the earlier partial native switching
-branch. The reached same-owner key path and its subsequent DSG56 release are
-preserved. No geometry or source C translation is authored here.
+sector refresh. This checkpoint removed the earlier partial native switching
+branch; the actual key calls are implemented in the subsequent section. No
+geometry or source C translation is authored here.
 
 This final typed procedure advances Rete60→61 and support80→81. The maintained
 version JSON and existing support assertion are aligned with81. The integration
@@ -298,3 +299,86 @@ one real handoff/admission, selection and lock interaction; both sideways
 segments and timing; no key consumption unless newly proven; native save and
 fresh reload; repeat load without double admission or another gate displacement;
 and source-compatible intro skipping. Kip owns merging and acceptance.
+
+## Complete key pickup camera transitions
+
+The complete retained model703 Normal1 schedule is inside its custom-bit10
+attachment guard. It attaches the key to MainActor channel20, clears the bit,
+sets display/transparency, and computes the source pickup camera position and
+sighting through the existing Ultra position/sighting API. At node57 it calls
+Proc141 `(1,1,0,iCamera_HypePrendObjet)`; this is the camera actor at
+`level:/persos/world/0/147`, initially unregistered. It then performs the remaining
+source position assignments, sets its focal value to1.3 radians with Proc158,
+and selects mode6 with Proc157. The source dialog positioning and player-readiness
+wait precede the action-specific RunDialog branch. The physical Gogoud key's
+imported action4 selects node120's `keysico_gogood`, whose completion is owned by
+model703 Normal2. All six retained dialogue-name operands were read; the other
+action branches select cachots, tournoir, oubliette, monastere or laboratoire
+dialogues. Their conditions/operands remain compiled source content; no generic
+pickup popup was added.
+
+Normal2 waits for Hype DSG35, waits200ms, detaches channel20, raises the key's
+absolute Z by5, makes it transparent, and waits for Hype DSG33. Its action25-only
+camera position branch remains an ordinary source condition. Node37 calls
+Proc141 `(1,1,0,StdCamer2)` at `level:/persos/world/0/2`, then releases Hype DSG56
+and kills the key through the training worker's retained-actor lifecycle. Thus
+Normal1 changes the source primary owner from camera2 to147; Normal2 changes
+147 back to2. Admission alone does not establish completed presentation/removal.
+
+This follow-on reads the complete Proc141/viewport bodies from original-C commit
+`d93d30ffe7a46271338a3a677a72003883b9c245`, the complete initial-parameter copy/reset,
+the sector-refresh and actor-sector migration bodies, and the maintained full
+sector-research translation. The actual calls use viewport1, previous-reset1,
+placement0. Both selected actors have sector-list bindings; both lack light and
+stream bindings. In ordinary play the source refresh executes, even at placement0.
+It researches the sector at the unchanged selected actor position, falls back to
+the last sibling in the source sector root on no hit, updates membership, and
+publishes the current sector. Rebuilding source character lists is unnecessary
+for native Godot contact; the actor-owned contact-sector reference is the useful
+observable state.
+
+The generic exporter now binds that fallback through an ordinary scene NodePath
+when imported sectors share one ordered parent. Static retained Manor inspection
+found29 sibling sectors and37 physical visuals, all kind13 and single-LOD. There
+are no kind1/11/21 nodes in this rooted Manor scene. The maintained native downward
+ray query therefore has no unrepresented child-kind or multiple-LOD prerequisite
+for these camera calls. Its complete no-hit result is now distinguishable from an
+incomplete query, permitting the source fallback. Generated scene/mesh correctness
+and floating-point ray parity remain runtime verification work.
+
+The camera publishes the new native viewport owner, resets an unregistered
+destination using the existing Proc136 framing reset, registers active and secondary
+state/context plus the auxiliary context, resets the previous camera, and clears
+only that previous active registration flag. The initial-to-active reset restores
+the initial active availability/context but does not reset secondary state. Secondary
+and auxiliary initial values are exported from their existing useful parameter
+sets; no source addresses or list layouts enter native state. An already registered
+destination forces placement0, matching the original. Same-owner and old-context
+no-op paths retain their source ordering and opacity effect. Pose-copy placement1,
+optimal placement2 and secondary viewport requests remain unsupported broader
+contracts; neither actual key call reaches them.
+
+The selected actor's contact-sector reference and camera history are refreshed
+together without moving or reparenting the eye, resetting velocity or changing its
+target. Camera collision/target-sector lookup now also consults the maintained
+actor-owned contact-sector component instead of relying on scene ancestry alone.
+There is no Manor, key, actor-number or raised-gate bypass in these methods.
+
+The integration must retain training commit `84a124449b4470194e4080a508ed190dcaa5a5bf`
+and its follow-ons: this delta deliberately calls their real `source_reset_to_initial`
+method and consumes the `initial_framing` Resource they export. That reset is already
+present in Kip's integration worktree; it was not copied into this worker's baseline.
+Merge the camera helper additions with Proc136/166 and preserve the existing reset
+flags, vertical-limit sentinel precision, target ownership and framing Resource.
+The presentation worker's exact style5 import/draw/completion remains the UI
+dependency. Character/contact and camera/export files are shared merge surfaces.
+
+This delta leaves Rete61 unchanged and advances support81→82, including the
+maintained manifest and existing constant assertion. Authored changes touch
+`camera/source_camera.gd`, `character/character.gd`, `version.json`,
+`src/model/camera.rs`, `src/godot/character.rs`, `src/godot/scene.rs`,
+`src/godot/support.rs` and this note. Verification was manual read-only source,
+AST/data and diff inspection. No tests, build, formatter, lint, syntax check,
+asset export or runtime were performed. Acceptance still needs both actual
+camera transitions, style5 completion/control release, pickup admission/removal,
+key selection/use, both gate slides and fresh/repeated save reload.
