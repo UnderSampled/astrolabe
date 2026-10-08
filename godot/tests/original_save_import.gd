@@ -29,8 +29,8 @@ func run() -> void:
         fail("Authentic manor checkpoint must retain Boolean Global DSG[149]")
         return
     var saved_currency: Variant = state["actors"][SAVE_STATE.ACTOR]["inventory"]["quantities"].get("0")
-    if typeof(saved_currency) != TYPE_INT or int(saved_currency) != 20:
-        fail("Authentic SaveGame0 item-0 balance must restore its saved value 20")
+    if not SAVE_STATE._integer(saved_currency, 0, 32767) or int(saved_currency) != 20:
+        fail("Authentic SaveGame0 item-0 balance must restore integer value 20; got %s (type %d)" % [str(saved_currency), typeof(saved_currency)])
         return
     var semantic_items: Variant = report.get("semantic_inventory_items")
     if not semantic_items is Array or semantic_items.size() != 1:
@@ -39,9 +39,12 @@ func run() -> void:
     var semantic_item: Variant = semantic_items[0]
     if (
         not semantic_item is Dictionary
-        or int(semantic_item.get("item_id", -1)) != 0
-        or int(semantic_item.get("quantity", -1)) != 20
-        or int(semantic_item.get("capacity", -1)) != 200
+        or not SAVE_STATE._integer(semantic_item.get("item_id"), 0, 32767)
+        or not SAVE_STATE._integer(semantic_item.get("quantity"), 0, 32767)
+        or not SAVE_STATE._integer(semantic_item.get("capacity"), 1, 32767)
+        or int(semantic_item["item_id"]) != 0
+        or int(semantic_item["quantity"]) != 20
+        or int(semantic_item["capacity"]) != 200
     ):
         fail("Original import item-0 semantic value/capacity differs")
         return
