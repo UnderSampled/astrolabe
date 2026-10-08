@@ -10,6 +10,7 @@ const SOURCE_INVENTORY = preload("res://addons/astrolabe/character/inventory.gd"
 const SOURCE_MAGICK = preload("res://addons/astrolabe/character/magick.gd")
 const SOURCE_LASER_POINTER = preload("res://addons/astrolabe/character/laser_pointer.gd")
 const SOURCE_RENDERING = preload("res://addons/astrolabe/character/rendering.gd")
+const SOURCE_LIFT_MOTION = preload("res://addons/astrolabe/character/lift_motion.gd")
 const CONTACT_MATERIAL = preload("res://addons/astrolabe/character/explosive_barrel.gd")
 const SOURCE_COLLISION_QUERY_MAX_RESULTS := 4096
 const CAMERA_POST_CONTACT_POSITION := &"post_contact_position"
@@ -26,6 +27,7 @@ const CAMERA_RETAINED_POSITION_HISTORY := &"retained_position_history"
 @export var source_inventory: Resource
 @export_node_path("Node3D") var source_state_owner_path: NodePath
 var source_rendering := SOURCE_RENDERING.new()
+var source_lift_motion := SOURCE_LIFT_MOTION.new()
 var source_opacity: int:
     get: return source_rendering.opacity
     set(value): source_rendering.opacity = value
@@ -169,6 +171,14 @@ func _process(delta: float) -> void:
         source_camera_data3d_step(delta)
 
 func _physics_process(delta: float) -> void:
+    if source_lift_motion.active:
+        source_lift_motion.step(delta)
+        global_position = source_lift_motion.position
+        # The original lift callback writes absolute translation directly.
+        # It also runs for stationary actors with no animation root movement.
+        if motion_enabled: advance(delta)
+        source_camera_data3d_step(delta)
+        return
     if not motion_enabled: return
     advance(delta)
     # The animation never changes this body's position. Apply its local motion
@@ -795,6 +805,20 @@ func source_game_time() -> int:
 func source_inventory_weapon() -> int:
     assert(source_inventory != null)
     return int(source_inventory.call("selected_weapon_value"))
+
+func source_begin_lift_motion(from: Vector3, to: Vector3, duration: float) -> int:
+    var ticket: int = source_lift_motion.begin(Vector3(from.x, from.z, -from.y), Vector3(to.x, to.z, -to.y), duration, source_motion_binding_present)
+    if ticket > 0: global_position = source_lift_motion.position
+    return ticket
+
+func source_lift_motion_finished(ticket: int) -> bool:
+    return source_lift_motion.finished(ticket)
+
+func source_lift_motion_failure() -> String:
+    return source_lift_motion.failure
+
+func source_cancel_lift_motion(ticket: int) -> void:
+    source_lift_motion.cancel(ticket)
 
 func source_inventory_quantity(item: int) -> int:
     assert(source_inventory != null)

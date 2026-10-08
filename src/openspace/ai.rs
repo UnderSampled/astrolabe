@@ -391,6 +391,7 @@ impl Parser<'_> {
                     let target = match (target.kind, target.parameter) {
                         (0, 4) => Some(ActorTarget::Keyword(ActorKeyword::SelfActor)),
                         (0, 5) => Some(ActorTarget::Keyword(ActorKeyword::MainActor)),
+                        (11, variable) => Some(ActorTarget::Variable(variable.try_into()?)),
                         (24, _) => self
                             .codec
                             .actors
@@ -430,6 +431,11 @@ impl Parser<'_> {
                 (5, 49) => Statement::CameraGoToWaypoint {
                     camera: self.expression(indent + 1)?,
                     waypoint: self.expression(indent + 1)?,
+                },
+                (5, 36) => Statement::MoveLift {
+                    from: self.expression(indent + 1)?,
+                    to: self.expression(indent + 1)?,
+                    duration_seconds: self.expression(indent + 1)?,
                 },
                 (4, 29) => Statement::SetVectorSpeed(self.expression(indent + 1)?),
                 (4, 30) => Statement::AddWind(self.expression(indent + 1)?),
@@ -1435,6 +1441,9 @@ impl Parser<'_> {
                             point,
                         }
                     }
+                    Expression::ActorRelativeZ { target, .. } => {
+                        Expression::ActorRelativeZ { receiver, target }
+                    }
                     Expression::ActorFacingAngle { target, .. } => {
                         Expression::ActorFacingAngle { receiver, target }
                     }
@@ -1620,6 +1629,10 @@ impl Parser<'_> {
                 receiver: None,
                 point: Box::new(self.expression(indent + 1)?),
             },
+            (3, 192) => Expression::ActorRelativeZ {
+                receiver: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                target: Box::new(self.expression(indent + 1)?),
+            },
             (1, 98) => Expression::IsAbovePerso {
                 receiver: ActorTarget::Keyword(ActorKeyword::SelfActor),
                 point: Box::new(self.expression(indent + 1)?),
@@ -1688,6 +1701,8 @@ impl Parser<'_> {
             }
             (3, 184) => Expression::CurrentAnimationFrame,
             (3, 201) => Expression::InventoryWeapon,
+            (3, 205) => Expression::InventoryObject,
+            (3, 206) => Expression::InventorySelectObject(Box::new(self.expression(indent + 1)?)),
             (3, 196) => Expression::InventoryAddObject(Box::new(self.expression(indent + 1)?)),
             (3, 208) => Expression::InventoryQuantity(Box::new(self.expression(indent + 1)?)),
             (3, 209) => Expression::InventoryRemove {
@@ -1992,6 +2007,16 @@ impl Writer<'_> {
                 Statement::SetVectorSpeed(value) => {
                     self.node(4, 29, indent);
                     self.expression(value, indent + 1)?;
+                }
+                Statement::MoveLift {
+                    from,
+                    to,
+                    duration_seconds,
+                } => {
+                    self.node(5, 36, indent);
+                    self.expression(from, indent + 1)?;
+                    self.expression(to, indent + 1)?;
+                    self.expression(duration_seconds, indent + 1)?;
                 }
                 Statement::AddWind(value) => {
                     self.node(4, 30, indent);
@@ -2689,6 +2714,24 @@ impl Writer<'_> {
                 self.expression(target, indent + 2)?;
             }
             Expression::InventoryGold => self.node(3, 198, indent),
+            Expression::ActorRelativeZ { receiver, target } => {
+                if *receiver != ActorTarget::Keyword(ActorKeyword::SelfActor) {
+                    self.node(2, 24, indent);
+                    match receiver {
+                        ActorTarget::Keyword(ActorKeyword::SelfActor) => unreachable!(),
+                        ActorTarget::Keyword(ActorKeyword::MainActor) => self.node(0, 5, indent + 1),
+                        ActorTarget::Variable(variable) => {
+                            self.node(11, u32::from(*variable), indent + 1)
+                        }
+                        ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
+                    }
+                    self.node(3, 192, indent + 1);
+                    self.expression(target, indent + 2)?;
+                } else {
+                    self.node(3, 192, indent);
+                    self.expression(target, indent + 1)?;
+                }
+            }
             Expression::ActorHitPoints(value)
             | Expression::InventoryMaximum(value)
             | Expression::Sine(value)
@@ -3036,6 +3079,11 @@ impl Writer<'_> {
                 self.node(0, 5, indent + 1);
             }
             Expression::InventoryWeapon => self.node(3, 201, indent),
+            Expression::InventoryObject => self.node(3, 205, indent),
+            Expression::InventorySelectObject(item) => {
+                self.node(3, 206, indent);
+                self.expression(item, indent + 1)?;
+            }
             Expression::InventoryAddObject(actor) => {
                 self.node(3, 196, indent);
                 self.expression(actor, indent + 1)?;

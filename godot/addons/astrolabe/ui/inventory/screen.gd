@@ -17,6 +17,7 @@ var slot_views: Array[SLOT] = []
 var shown: Array[ITEM] = []
 var _quantities: Dictionary = {}
 var _weapon: int = -1
+var _object: int = -1
 var _navigation_action: StringName
 var _navigation_frame: int = -1
 
@@ -44,6 +45,7 @@ func bind_state(value: Resource) -> bool:
     inventory = value
     _quantities.clear()
     _weapon = -2
+    _object = -2
     refresh()
     return true
 
@@ -74,6 +76,7 @@ func refresh() -> void:
     if inventory == null: return
     _quantities = inventory.call("presentation_quantities") as Dictionary
     _weapon = int(inventory.get("selected_weapon"))
+    _object = int(inventory.get("selected_object"))
     shown.clear()
     var category := category_views.get(current_category) as CATEGORY
     if category == null: return
@@ -91,7 +94,8 @@ func refresh() -> void:
     window_start = clampi(window_start, 0, maxi(shown.size() - slot_views.size(), 0))
     for index in slot_views.size():
         var item: ITEM = shown[index + window_start] if index + window_start < shown.size() else null
-        slot_views[index].display(item, int(_quantities[item.item_id]) if item != null else 0, item != null and item.item_id == _weapon)
+        var selected := item != null and ((item.kind == "Weapon" and item.item_id == _weapon) or (item.kind == "Object" and item.item_id == _object))
+        slot_views[index].display(item, int(_quantities[item.item_id]) if item != null else 0, selected)
         var category_path := "../../Categories/" + str(category.category)
         if not category.parent_category.is_empty(): category_path = "../../Categories/" + str(category.parent_category) + "/Artwork/" + str(category.category)
         slot_views[index].focus_neighbor_top = NodePath(category_path)
@@ -104,7 +108,7 @@ func _process(_delta: float) -> void:
         _navigation_action = &""
         _navigation_frame = -1
     if not visible or inventory == null: return
-    if inventory.call("presentation_quantities") != _quantities or int(inventory.get("selected_weapon")) != _weapon: refresh()
+    if inventory.call("presentation_quantities") != _quantities or int(inventory.get("selected_weapon")) != _weapon or int(inventory.get("selected_object")) != _object: refresh()
 
 func _scroll(direction: int) -> void:
     if $AnimationPlayer.is_playing(): return

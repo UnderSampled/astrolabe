@@ -83,6 +83,13 @@ func _item_requested(item_id: int, kind: String) -> void:
             view.inventory.emit_changed()
         view.report("")
         view.refresh()
+    elif kind == "Object":
+        if int(view.inventory.call("select_object", item_id)) != 1:
+            var failure := str(view.inventory.get("last_failure"))
+            view.report(failure if not failure.is_empty() else "This object is not admitted to the inventory.")
+            return
+        view.report("")
+        view.refresh()
     else:
         view.report("Using this item is not implemented yet.")
 

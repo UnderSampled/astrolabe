@@ -1011,6 +1011,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::ActorDistance(_)
         | Expression::ActorDistanceFrom { .. }
         | Expression::DistanceToPosition { .. }
+        | Expression::ActorRelativeZ { .. }
         | Expression::ActorFacingAngle { .. }
         | Expression::ActorLocalSourceXYDistance(_)
         | Expression::ActorLocalDistance { .. }
@@ -1020,6 +1021,8 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::ActorHitPoints(_)
         | Expression::SubtractAndGetHitPoints { .. }
         | Expression::InventoryGold
+        | Expression::InventoryObject
+        | Expression::InventorySelectObject(_)
         | Expression::InventoryMaximum(_)
         | Expression::Sine(_)
         | Expression::Cosine(_)
@@ -1229,11 +1232,12 @@ fn guarded_expression(
             )
         }
         Expression::ActorLocalSourceXYDistance(target)
-        | Expression::ActorLocalDistance { target, .. } => {
-            let receiver = if let Expression::ActorLocalDistance { receiver, .. } = e {
-                actor_target_code(receiver)
-            } else {
-                "character()".into()
+        | Expression::ActorLocalDistance { target, .. }
+        | Expression::ActorRelativeZ { target, .. } => {
+            let receiver = match e {
+                Expression::ActorLocalDistance { receiver, .. }
+                | Expression::ActorRelativeZ { receiver, .. } => actor_target_code(receiver),
+                _ => "character()".into(),
             };
             let id = flow.local;
             flow.local += 1;
@@ -1243,7 +1247,9 @@ fn guarded_expression(
                 out,
                 "{pad}var spatial_target_{id}: Variant = {target}\n{pad}if not is_instance_valid(spatial_receiver_{id}) or not spatial_receiver_{id}.is_inside_tree() or not (spatial_target_{id} is Node3D) or not is_instance_valid(spatial_target_{id}) or not spatial_target_{id}.is_inside_tree():\n{pad}    fail_unsupported(\"Local distance needs positioned actors\")\n{pad}    {exit}"
             )?;
-            let method = if matches!(e, Expression::ActorLocalDistance { vertical: true, .. }) {
+            let method = if matches!(e, Expression::ActorRelativeZ { .. }) {
+                "relative_z"
+            } else if matches!(e, Expression::ActorLocalDistance { vertical: true, .. }) {
                 "distance_z"
             } else {
                 "distance_xy"
@@ -1278,18 +1284,27 @@ fn guarded_expression(
             };
             format!("PackedFloat32Array([{function}(float({value}) * 0.01745329238474369)])[0]")
         }
-        Expression::InventoryGold | Expression::InventoryMaximum(_) => {
+        Expression::InventoryGold
+        | Expression::InventoryObject
+        | Expression::InventorySelectObject(_)
+        | Expression::InventoryMaximum(_) => {
             let id = flow.local;
             flow.local += 1;
             writeln!(
                 out,
                 "{pad}if character().source_inventory == null:\n{pad}    fail_unsupported(\"Inventory query needs shared inventory\")\n{pad}    {exit}"
             )?;
-            let query = if let Expression::InventoryMaximum(item) = e {
-                let item = guarded_expression(out, item, model, depth, flow)?;
-                format!("maximum_capacity(int({item}))")
-            } else {
-                "gold_value()".into()
+            let query = match e {
+                Expression::InventoryMaximum(item) => {
+                    let item = guarded_expression(out, item, model, depth, flow)?;
+                    format!("maximum_capacity(int({item}))")
+                }
+                Expression::InventorySelectObject(item) => {
+                    let item = guarded_expression(out, item, model, depth, flow)?;
+                    format!("select_object_payload({item})")
+                }
+                Expression::InventoryObject => "selected_object_value()".into(),
+                _ => "gold_value()".into(),
             };
             writeln!(
                 out,
@@ -1940,6 +1955,7 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         | Expression::ActorPosition(_)
         | Expression::ActorDistanceFrom { .. }
         | Expression::DistanceToPosition { .. }
+        | Expression::ActorRelativeZ { .. }
         | Expression::ActorFacingAngle { .. }
         | Expression::ActorLocalSourceXYDistance(_)
         | Expression::ActorLocalDistance { .. }
@@ -1949,6 +1965,8 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         | Expression::ActorHitPoints(_)
         | Expression::SubtractAndGetHitPoints { .. }
         | Expression::InventoryGold
+        | Expression::InventoryObject
+        | Expression::InventorySelectObject(_)
         | Expression::InventoryMaximum(_)
         | Expression::Sine(_)
         | Expression::Cosine(_)
@@ -2127,6 +2145,19 @@ fn blocking(
         let waypoint = guarded_expression(out, waypoint, model, depth, flow)?;
         writeln!(out, "{pad}var request_waypoint_{id}: Variant = {waypoint}")?;
     }
+    if let Statement::MoveLift {
+        from,
+        to,
+        duration_seconds,
+    } = statement
+    {
+        let from = guarded_expression(out, from, model, depth, flow)?;
+        writeln!(out, "{pad}var lift_from_{id}: Vector3 = {from}")?;
+        let to = guarded_expression(out, to, model, depth, flow)?;
+        writeln!(out, "{pad}var lift_to_{id}: Vector3 = {to}")?;
+        let duration = guarded_expression(out, duration_seconds, model, depth, flow)?;
+        writeln!(out, "{pad}var lift_duration_{id}: float = float({duration})")?;
+    }
     let operand = match statement {
         Statement::Wait { milliseconds } => {
             Some(guarded_expression(out, milliseconds, model, depth, flow)?)
@@ -2247,6 +2278,13 @@ fn blocking(
             format!("character().source_point_motion_finished(motion_ticket_{id})")
         }
         Statement::CameraGoToWaypoint { .. } => format!("camera_request_result_{id} == 4"),
+        Statement::MoveLift { .. } => {
+            writeln!(
+                out,
+                "{pad}    var lift_ticket_{id}: int = character().source_begin_lift_motion(lift_from_{id}, lift_to_{id}, lift_duration_{id})\n{pad}    if lift_ticket_{id} < 0:\n{pad}        fail_unsupported(character().source_lift_motion_failure())\n{pad}        {exit}"
+            )?;
+            format!("character().source_lift_motion_finished(lift_ticket_{id})")
+        }
         Statement::ExecuteAction(_) => {
             writeln!(
                 out,
@@ -2341,6 +2379,11 @@ fn blocking(
         writeln!(
             out,
             "{pad}    var motion_failure_{id}: String = character().source_point_motion_failure(motion_ticket_{id})\n{pad}    character().source_cancel_point_motion(motion_ticket_{id})\n{pad}    if not active_{group}(token): {exit}\n{pad}    if not motion_failure_{id}.is_empty():\n{pad}        fail_unsupported(motion_failure_{id})\n{pad}        {exit}"
+        )?;
+    } else if matches!(statement, Statement::MoveLift { .. }) {
+        writeln!(
+            out,
+            "{pad}    character().source_cancel_lift_motion(lift_ticket_{id})\n{pad}    if not active_{group}(token): {exit}"
         )?;
     } else {
         writeln!(out, "{pad}    if not active_{group}(token): {exit}")?;
@@ -3521,6 +3564,7 @@ fn statements(
             | Statement::IncrementalTurnPosition { .. }
             | Statement::GoToPosition { .. }
             | Statement::PursueActor { .. }
+            | Statement::MoveLift { .. }
             | Statement::GoToNextWaypoint(_)
             | Statement::CameraGoToWaypoint { .. }
             | Statement::ExecuteAction(_)

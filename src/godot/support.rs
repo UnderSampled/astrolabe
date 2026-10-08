@@ -26,6 +26,7 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/audio/voice.gd.uid",
     "addons/astrolabe/audio/emitter.gd.uid",
     "addons/astrolabe/character/character.gd",
+    "addons/astrolabe/character/lift_motion.gd",
     "addons/astrolabe/character/contact_pickup.gd",
     "addons/astrolabe/character/contact_pickup.gd.uid",
     "addons/astrolabe/character/explosive_barrel.gd",

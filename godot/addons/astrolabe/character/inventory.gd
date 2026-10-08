@@ -154,6 +154,17 @@ func change_maximum_capacity(item: int, capacity: int) -> bool:
 func select_object(item: int) -> int:
     return _select(item, "Object")
 
+## The source Object selector takes the evaluated word without numeric casting.
+func select_object_payload(value: Variant) -> int:
+    if typeof(value) == TYPE_FLOAT:
+        var payload := PackedByteArray()
+        payload.resize(4)
+        payload.encode_float(0, float(value))
+        return select_object(payload.decode_s32(0))
+    if typeof(value) in [TYPE_INT, TYPE_BOOL]: return select_object(int(value))
+    last_failure = ""
+    return _failure("Object selection requires an integer or real item payload.")
+
 func _select(item: int, kind: String) -> int:
     last_failure = ""
     if not source_initialized: return _failure("Inventory admission is unavailable for selection.")

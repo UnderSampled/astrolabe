@@ -137,6 +137,11 @@ impl<'a> Iterator for AstWalk<'a> {
                 Statement::CameraGoToWaypoint { camera, waypoint } => {
                     self.expressions(child_depth, &[camera, waypoint]);
                 }
+                Statement::MoveLift {
+                    from,
+                    to,
+                    duration_seconds,
+                } => self.expressions(child_depth, &[from, to, duration_seconds]),
                 Statement::SetHitPointsMaximum { actor, value }
                 | Statement::SetInventoryMaximum { item: actor, value }
                 | Statement::AddHitPoints { actor, value }
@@ -290,6 +295,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::ActorHitPointsMaximum(value)
                 | Expression::ActorHitPoints(value)
                 | Expression::InventoryMaximum(value)
+                | Expression::InventorySelectObject(value)
                 | Expression::Sine(value)
                 | Expression::Cosine(value)
                 | Expression::ActorLocalSourceXYDistance(value)
@@ -311,6 +317,7 @@ impl<'a> Iterator for AstWalk<'a> {
                     self.expressions(child_depth, &[value]);
                 }
                 Expression::ActorDistanceFrom { target, .. }
+                | Expression::ActorRelativeZ { target, .. }
                 | Expression::ActorFacingAngle { target, .. }
                 | Expression::DistanceToPosition { point: target, .. }
                 | Expression::ActorLocalDistance { target, .. } => {
@@ -399,6 +406,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::ArmorResistance
                 | Expression::ArmorCount
                 | Expression::InventoryWeapon
+                | Expression::InventoryObject
                 | Expression::MagicCurrentSpell
                 | Expression::MagicPoints
                 | Expression::MagicPointsMaximum

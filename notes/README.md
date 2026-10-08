@@ -20,6 +20,10 @@ records the source cliff/bridge and zero-life producers, connected byte damage/
 placement APIs, native terminal policy, unchanged checkpoint admission, and
 remaining camera/presentation/reset dependencies.
 
+The [static Manor key/gate implementation](gogoud-key-gate-static-2026-10-08.md)
+records Object selection, source lift movement, save ownership and the still
+unproven Gogoud award edge. It carries no runtime acceptance claim.
+
 The [integration disposition](integration-disposition-2026-10-08.md) audits all
 preserved worker branches/worktrees, records merged/superseded/active work, and
 reconciles missing evidence. The [save/AI research catalogue](save-ai-gap-catalogue-2026-10-08.md)

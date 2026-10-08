@@ -297,6 +297,13 @@ pub enum Statement {
         camera: Expression,
         waypoint: Expression,
     },
+    /// Capture two absolute points and the source lift's duration parameter.
+    /// Native lift movement owns the trajectory and completion state.
+    MoveLift {
+        from: Expression,
+        to: Expression,
+        duration_seconds: Expression,
+    },
     GoRelative,
     /// Proc_KillPerso(Me): remove the current generated Perso.
     KillSelf,
@@ -730,6 +737,11 @@ pub enum Expression {
         receiver: Option<ActorTarget>,
         point: Box<Expression>,
     },
+    /// Signed source-Z position of the target in the receiver's local frame.
+    ActorRelativeZ {
+        receiver: ActorTarget,
+        target: Box<Expression>,
+    },
     /// Func1 measures the signed shortest horizontal angle to its actor
     /// operand, in source degrees, after resolving an optional Ultra receiver.
     ActorFacingAngle {
@@ -782,6 +794,10 @@ pub enum Expression {
     /// Source inventory functions operate on the game inventory, not on a
     /// projectile's own designer fields.
     InventoryWeapon,
+    /// Selected Object identity; catalogue quantity does not imply ownership.
+    InventoryObject,
+    /// Select an admitted Object using the source evaluator's raw word payload.
+    InventorySelectObject(Box<Expression>),
     InventoryAddObject(Box<Expression>),
     InventoryQuantity(Box<Expression>),
     InventoryRemove {
@@ -1019,6 +1035,10 @@ impl Content for AiModel {
                     ..
                 }
                 | Expression::ActorDistanceFrom {
+                    receiver: ActorTarget::Variable(index),
+                    ..
+                }
+                | Expression::ActorRelativeZ {
                     receiver: ActorTarget::Variable(index),
                     ..
                 }
@@ -1407,6 +1427,7 @@ impl Script {
                     receiver, target, ..
                 }
                 | Expression::ActorDistanceFrom { receiver, target }
+                | Expression::ActorRelativeZ { receiver, target }
                 | Expression::ActorFacingAngle { receiver, target } => {
                     if let ActorTarget::Reference(actor) = receiver {
                         ensure!(
@@ -1562,6 +1583,7 @@ impl Script {
                 | Expression::ActorHitPointsMaximum(value)
                 | Expression::ActorHitPoints(value)
                 | Expression::InventoryMaximum(value)
+                | Expression::InventorySelectObject(value)
                 | Expression::Sine(value)
                 | Expression::Cosine(value)
                 | Expression::ActorLocalSourceXYDistance(value)
@@ -1769,6 +1791,12 @@ impl Script {
                         if let ActorTarget::Reference(actor) = target {
                             ensure!(actor.path.member().is_none(), "turn target is a member");
                         }
+                        if let ActorTarget::Variable(variable) = target {
+                            ensure!(
+                                usize::from(*variable) < variables,
+                                "turn target variable out of range"
+                            );
+                        }
                         expression(frames, variables, depth + 1, count)?;
                     }
                     Statement::IncrementalTurnPosition { point, frames } => {
@@ -1790,6 +1818,15 @@ impl Script {
                     Statement::CameraGoToWaypoint { camera, waypoint } => {
                         expression(camera, variables, depth + 1, count)?;
                         expression(waypoint, variables, depth + 1, count)?;
+                    }
+                    Statement::MoveLift {
+                        from,
+                        to,
+                        duration_seconds,
+                    } => {
+                        for value in [from, to, duration_seconds] {
+                            expression(value, variables, depth + 1, count)?;
+                        }
                     }
                     Statement::ChangeActorBehavior { actor, .. } => {
                         if let ActorTarget::Reference(actor) = actor {

@@ -16,6 +16,11 @@ static func distance_xy(receiver: Node3D, target: Node3D) -> float:
     var distance := Vector2(local.x, local.z).length()
     return -distance if distance <= 0.0 else distance
 
+static func relative_z(receiver: Node3D, target: Node3D) -> float:
+    # This query reverses the distance helpers' local-frame owner and retains
+    # the signed result. Source Z maps to Godot Y.
+    return PackedFloat32Array([_target_local_delta(target, receiver).y])[0]
+
 ## reference_center is the world position of the first indexed sphere center
 ## in the receiver's picking bounds; use its origin only when bounds are absent.
 ## Binding that named center belongs to the exporter, not a runtime mesh parser.
