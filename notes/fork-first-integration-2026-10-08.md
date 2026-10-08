@@ -61,9 +61,12 @@ advanced through `gogood_texte1_manoir` and `gogood_texte1a_manoir` into model
 210, normal 5/action 33, with no unsupported operation reported by Gogoud.
 However, the run observed no SourceCamera position or angle change: the camera
 remained current and targeted at Hype, with zero measured delta. The authored
-widescreen state remained false and no letterbox/aperture cue appeared. The
-camera and later-story acceptance therefore remain open; these observations do
-not establish that model 154 caused the lack of motion.
+widescreen state remained false and no letterbox/aperture cue appeared. Hype's
+position was identical in the startup, two-second, first-dialogue, and
+follow-up snapshots while Gogoud moved, so this route verifies camera
+selection/targeting but does not exercise follow motion with a moving target.
+Camera-motion and later-story acceptance therefore remain open; these
+observations do not establish that model 154 caused the lack of motion.
 
 The runtime log separately identifies an unsupported opening operation on
 `level:/ai/models/154` (`IWorld_Manoir`): source node 3, category 4/op 312,
