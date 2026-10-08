@@ -23,7 +23,7 @@ fn source_camera_parameter_ownership_and_target() -> Result<()> {
         super::container::u32_at(&session.block(root)?.data, root.offset - 4)? * 4 - 4 == 220,
         "camera allocation payload differs"
     );
-    let camera = super::camera::import(&session, root)?;
+    let camera = super::camera::import(&session, root, session.pointer(perso, 8)?.is_some())?;
     ensure!(
         camera.source.allocation == 23339,
         "source camera component identity differs"

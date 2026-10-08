@@ -109,7 +109,11 @@ pub fn write_camera_parameters(value: &CameraParameters) -> Result<Vec<u8>> {
     })
 }
 
-pub(super) fn import(session: &SourceSession, root: Address) -> Result<Camera> {
+pub(super) fn import(
+    session: &SourceSession,
+    root: Address,
+    owner_motion_binding_present: bool,
+) -> Result<Camera> {
     let links: CameraLinksWire = wire(session.bytes(root, 220)?)?;
     for offset in (0..220)
         .step_by(4)
@@ -143,6 +147,7 @@ pub(super) fn import(session: &SourceSession, root: Address) -> Result<Camera> {
     }
     let value = Camera {
         source: session.source_identity(root)?,
+        owner_motion_binding_present,
         unknown: [links.unknown_before_renderer.as_slice(), &links.unknown].concat(),
         clip_planes: {
             ensure!(links.renderer != 0, "camera renderer link is empty");

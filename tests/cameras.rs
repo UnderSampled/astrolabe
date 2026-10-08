@@ -101,6 +101,7 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
         inventory_stock: None,
         camera: Some(Camera {
             source: identity(1),
+            owner_motion_binding_present: true,
             clip_planes: [0.25, 10000.],
             unknown: vec![0; 196],
             parameters: std::array::from_fn(|_| parameters.clone()),

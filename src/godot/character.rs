@@ -512,6 +512,11 @@ pub(super) fn export_perso(
             initial.target_child_index(),
             initially_current
         )?;
+        writeln!(
+            project.builder,
+            "    {name}_camera.owner_motion_binding_present = {}",
+            camera.owner_motion_binding_present
+        )?;
         // Source camera local -Y becomes the converted actor's +Z. Godot's
         // camera looks along local -Z, hence the child half-turn above.
         project.diagnostic(format!(

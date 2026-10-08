@@ -206,7 +206,13 @@ impl<'a> Importer<'a> {
             camera: self
                 .session
                 .pointer(perso, 20)?
-                .map(|a| super::camera::import(self.session, a))
+                .map(|a| {
+                    super::camera::import(
+                        self.session,
+                        a,
+                        self.session.pointer(perso, 8)?.is_some(),
+                    )
+                })
                 .transpose()?,
             hit_points: self
                 .session

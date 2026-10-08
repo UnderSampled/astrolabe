@@ -7,6 +7,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Camera {
     pub source: SourceObjectIdentity,
+    /// Whether the owning Perso has its motion binding. UpdatePosition's
+    /// post-frame cleanup is conditional on this binding (00545d80).
+    pub owner_motion_binding_present: bool,
     pub clip_planes: [f32; 2],
     /// Unpromoted component scalar bytes. Parameter, target and renderer
     /// pointer words are excluded; no source virtual addresses are retained.
