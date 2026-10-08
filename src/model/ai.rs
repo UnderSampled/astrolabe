@@ -425,9 +425,17 @@ pub enum Expression {
     },
     /// Function_Camera_GetShiftAlpha (category 3/id 59, native 0x0053d300)
     /// takes a typed integer selector and a Perso receiver. The observed
-    /// camera-model call passes selector 1 and SelfActor; its float result is
-    /// the receiver's camera-parameter +0x44 value, unchanged.
+    /// camera-model calls pass selectors 1 and 0 with SelfActor; its float
+    /// result is the receiver's camera-parameter +0x44 value, unchanged.
     CameraShiftAlpha {
+        selector: Box<Expression>,
+        receiver: ActorTarget,
+    },
+    /// Function_Camera_GetShiftTeta (category 3/id 61, native 0x0053d300)
+    /// takes a typed integer selector and a Perso receiver. The observed
+    /// camera-model calls pass selectors 1 and 0 with SelfActor; the native
+    /// accessor returns camera-parameter +0x4c unchanged.
+    CameraShiftTeta {
         selector: Box<Expression>,
         receiver: ActorTarget,
     },
@@ -1092,7 +1100,8 @@ impl Script {
                         ensure!(actor.path.member().is_none(), "distance actor is a member");
                     }
                 }
-                Expression::CameraShiftAlpha { selector, receiver } => {
+                Expression::CameraShiftAlpha { selector, receiver }
+                | Expression::CameraShiftTeta { selector, receiver } => {
                     if let ActorTarget::Reference(actor) = receiver {
                         ensure!(actor.path.member().is_none(), "camera receiver is a member");
                     }

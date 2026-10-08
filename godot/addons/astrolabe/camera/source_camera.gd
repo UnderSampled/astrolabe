@@ -51,12 +51,20 @@ var _source_previous_history_position := Vector3.ZERO
 var _source_camera_collision_guard := false
 
 ## 0x0053d300 dispatches Function_Camera_GetShiftAlpha (selector L, Perso P)
-## to 00440bf0, which reads the unmodified float at parameter +0x44. Only the
-## source-observed selector 1 is mapped in the current native component.
+## to 00440bf0, which reads the unmodified float at parameter +0x44. Camera
+## model 437 uses selectors 0 and 1; other selectors remain unsupported here.
 func source_get_shift_alpha(selector: int) -> Variant:
-    if selector != 1:
+    if selector not in [0, 1]:
         return null
     return source_shift_alpha
+
+## 0x0053d300 dispatches Function_Camera_GetShiftTeta (selector L, Perso P)
+## to 00440c30, which reads the unmodified float at parameter +0x4c. The
+## observed camera model uses selectors 0 and 1; other selectors fail closed.
+func source_get_shift_teta(selector: int) -> Variant:
+    if selector not in [0, 1]:
+        return null
+    return mode_zero_pitch_limits.y
 
 func _ready() -> void:
     motion_mode = initial_motion_mode

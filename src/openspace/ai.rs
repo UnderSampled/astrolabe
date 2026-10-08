@@ -1293,6 +1293,18 @@ impl Parser<'_> {
                     )?)
                 }
             }
+            (3, 61) => {
+                let selector = Box::new(self.expression(indent + 1)?);
+                let actor = self.expression(indent + 1)?;
+                if let Expression::Actor(receiver) = actor {
+                    Expression::CameraShiftTeta { selector, receiver }
+                } else {
+                    Expression::Unsupported(self.unsupported(
+                        at,
+                        "Function_Camera_GetShiftTeta requires a Perso receiver".into(),
+                    )?)
+                }
+            }
             (3, 184) => Expression::CurrentAnimationFrame,
             (3, 201) => Expression::InventoryWeapon,
             (3, 208) => Expression::InventoryQuantity(Box::new(self.expression(indent + 1)?)),
@@ -1974,6 +1986,15 @@ impl Writer<'_> {
                     ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
                 }
             }
+            Expression::CameraShiftTeta { selector, receiver } => {
+                self.node(3, 61, indent);
+                self.expression(selector, indent + 1)?;
+                match receiver {
+                    ActorTarget::Keyword(ActorKeyword::SelfActor) => self.node(0, 4, indent + 1),
+                    ActorTarget::Keyword(ActorKeyword::MainActor) => self.node(0, 5, indent + 1),
+                    ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
+                }
+            }
             Expression::Vector(values) => {
                 self.node(16, 0, indent);
                 for value in values.iter() {
@@ -2333,6 +2354,31 @@ mod partial_tests {
                     receiver: ActorTarget::Keyword(ActorKeyword::SelfActor),
                 },
             }] if **selector == Expression::Integer(1)
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn camera_shift_teta_keeps_selector_and_perso_receiver() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (2, 11, 1),
+            (11, 0, 2),
+            (3, 61, 2),
+            (12, 0, 3),
+            (0, 4, 3),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            script.statements.as_slice(),
+            [Statement::Assign {
+                variable: 0,
+                value: Expression::CameraShiftTeta {
+                    selector,
+                    receiver: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                },
+            }] if **selector == Expression::Integer(0)
         ));
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())

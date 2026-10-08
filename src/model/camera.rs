@@ -67,13 +67,19 @@ impl CameraParameters {
         )
     }
 
-    /// `00440c30` reads the camera parameter float at source offset `+0x4c`.
-    pub fn pitch_upper_bound(&self) -> f32 {
+    /// `00440c30` / Function_Camera_GetShiftTeta read the camera parameter
+    /// float at source offset `+0x4c` without changing its value.
+    pub fn shift_teta(&self) -> f32 {
         f32::from_le_bytes(
             self.unknown[24..28]
                 .try_into()
                 .expect("validated camera extent"),
         )
+    }
+
+    /// This same source value is the current mode-zero upper pitch limit.
+    pub fn pitch_upper_bound(&self) -> f32 {
+        self.shift_teta()
     }
 
     /// `0043daf0` reads the registered byte at parameter offset `+0x90` and
@@ -169,11 +175,12 @@ mod tests {
     }
 
     #[test]
-    fn camera_shift_alpha_and_pitch_upper_bound_are_read_from_source_offsets() {
+    fn camera_shift_alpha_and_shift_teta_are_read_from_source_offsets() {
         let mut value = parameters();
         value.unknown[20..24].copy_from_slice(&1.25_f32.to_le_bytes());
         value.unknown[24..28].copy_from_slice(&0.75_f32.to_le_bytes());
         assert_eq!(value.shift_alpha(), 1.25);
+        assert_eq!(value.shift_teta(), 0.75);
         assert_eq!(value.pitch_upper_bound(), 0.75);
     }
 

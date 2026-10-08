@@ -479,7 +479,7 @@ pub(super) fn export_perso(
             initial.shift_alpha(),
             initial.shift_alpha(),
             initial.pitch,
-            initial.pitch_upper_bound(),
+            initial.shift_teta(),
             initial.angle_flags(),
             initial.controller_flags(),
             initial.target_child_index(),

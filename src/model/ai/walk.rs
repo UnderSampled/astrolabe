@@ -202,6 +202,9 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::CameraShiftAlpha {
                     selector: value, ..
                 }
+                | Expression::CameraShiftTeta {
+                    selector: value, ..
+                }
                 | Expression::VectorComponent { vector: value, .. } => {
                     self.expressions(child_depth, &[value]);
                 }

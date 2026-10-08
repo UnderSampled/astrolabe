@@ -79,6 +79,7 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
         unknown: vec![0; 104],
     };
     parameters.unknown[20..24].copy_from_slice(&0.375_f32.to_le_bytes());
+    parameters.unknown[24..28].copy_from_slice(&0.625_f32.to_le_bytes());
     parameters.unknown[88] = 1;
     parameters.unknown[96..100].copy_from_slice(&1_u32.to_le_bytes());
     // The intro manor camera uses -1 to select the bound Perso itself.

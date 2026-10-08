@@ -5,7 +5,7 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, path::Path};
 
-pub const INTERFACE: u32 = 61;
+pub const INTERFACE: u32 = 62;
 const PACKAGE: &str = "addons/astrolabe";
 const RECEIPT: &str = "addons/astrolabe/installed.json";
 
@@ -350,14 +350,14 @@ mod tests {
     }
 
     #[test]
-    fn snapshot_validation_helper_is_in_interface_61_and_staged() -> Result<()> {
+    fn snapshot_validation_helper_is_in_interface_62_and_staged() -> Result<()> {
         let output = tempfile::tempdir()?;
         initialize(output.path())?;
         let version: serde_json::Value = serde_json::from_slice(&fs::read(
             output.path().join("addons/astrolabe/version.json"),
         )?)?;
         assert_eq!(version["interface"].as_u64(), Some(u64::from(INTERFACE)));
-        assert_eq!(INTERFACE, 61);
+        assert_eq!(INTERFACE, 62);
 
         let staged = tempfile::tempdir()?;
         stage(staged.path(), output.path())?;

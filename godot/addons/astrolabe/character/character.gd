@@ -776,6 +776,13 @@ func source_camera_get_shift_alpha(selector: int) -> Variant:
         return null
     return camera.call("source_get_shift_alpha", selector)
 
+## Function_Camera_GetShiftTeta reads the selected Perso camera's raw +0x4c.
+func source_camera_get_shift_teta(selector: int) -> Variant:
+    var camera := get_node_or_null("SourceCamera")
+    if camera == null or not camera.has_method("source_get_shift_teta"):
+        return null
+    return camera.call("source_get_shift_teta", selector)
+
 ## Procedure 157 selects the referenced camera's supported motion state.
 func source_camera_change_state(camera_asset: String, state: int) -> bool:
     var actor := source_actor_node(camera_asset)
