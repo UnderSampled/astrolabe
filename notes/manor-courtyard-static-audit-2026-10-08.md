@@ -161,7 +161,7 @@ No production files or support interfaces changed. The integration lead's
 `demo.gd/.tscn` to `game_session.gd/.tscn` and `demo_camera.gd` to
 `session_camera.gd` renames do not conflict with this documentation contribution.
 
-The inspected clean-C inventory still marks `00464570`, `00464150`,
+At the first inspection, the clean-C inventory marked `00464570`, `00464150`,
 `00463df0` and `004e0020` untouched. Descriptive translations would be useful
 future source work; they do not block this disposition because Ghidra/PE
 evidence is available. For exact actor-versus-gate physical filtering, also
@@ -169,3 +169,33 @@ inspect/translate `00464380`, `00464510`, `00430130`, `00430220`, and
 `00430310`, preserving material/category filters and checking decompiler
 return/global ambiguities against the PE. Do not recreate that machinery
 inside Godot merely to obtain a clean-C counterpart.
+
+## Subsequent sector translation evidence
+
+The separate source translator subsequently supplied authored bodies in
+`/home/stephen/Documents/Codex/2026-10-08/task-18/hype-sol-manor/src/sector/sector_research.c`
+and `sector_traversal.c`. Both files and their private header were read only.
+Their review/commit is pending; no compiled or runtime acceptance is implied.
+
+The `004e0020` body corroborates the ordered downward `(0, 0, -1)` search,
+initial closest-distance bits `0x7f7ffff8`, sector-data `+0x94` exclusion,
+own boundary before child geometry, child search only when `+0x95 == 0`,
+strictly smaller ordered query distance, and activation bit 4. Child kinds
+13/21 select visual LOD 0. Kinds 1/11 retain the source inverse-matrix
+initialization uncertainty. This strengthens the documented sector lookup
+interpretation; it supplies no rule for enlarging bounds or accepting a
+point outside a geometry query's supported domain.
+
+The `004e03f0` body makes the dynamic-activation limitation more precise:
+an inactive crossing advances the local query point and previous crossing,
+but leaves the actor's sector reference unchanged. Its signed16 history
+counter and unchecked stores belong to original-engine reconstruction,
+not Godot gameplay storage. `004e04f0`/`004e0630` additionally retain ordered
+face traversal, the PE-recovered equality/unordered entry gate, and signed16
+face-link indices. These details do not exclude the identified forest wall:
+the inspected forest and bridge activation words have all bits set.
+
+External `004b7ab0`, `00551710`, and `00552b50` remain unreconstructed
+dependencies of those translated bodies. Their exact intersection/return
+contracts remain source-work gaps. The missing actual user-contact
+observation and the no-defect-proven disposition above are unchanged.
