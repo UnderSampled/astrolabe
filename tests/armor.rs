@@ -1,17 +1,22 @@
 //! Fix-owned armor catalog import, Rete persistence, and native export.
-use anyhow::Result;
+use anyhow::{Context, Result, ensure};
 use astrolabe::{
     godot,
     model::{
         AssetPath, AssetRef, Selection,
-        ai::{SourceObjectIdentity, SourceRole},
+        ai::{
+            AiModel, Behavior, BehaviorSet, DesignerValue, DesignerVariable, Expression, Script,
+            SourceObjectIdentity, SourceRole, Statement,
+        },
         armor::{ArmorArtwork, ArmorCatalog, ArmorDefinition, ArmorPiece},
-        io::{Load, Save},
+        io::{Content, ContentRoot, Load, Save},
+        scene::{NodeKind, Scene, SceneNode, SceneNodeProperties},
         texture::{
             OpenSpaceColorKey, Texture, TextureColors, TextureLevel, TexturePixels, TextureUsage,
         },
     },
-    openspace, rete,
+    openspace::{self, ai::AiScriptCodec, codec::FormatCodec},
+    rete,
 };
 use std::{fs, time::Duration};
 
@@ -132,6 +137,143 @@ fn armor_catalog_survives_rete_storage_reload() -> Result<()> {
     let mut store = rete::Store::new(&rete_dir, selection.clone())?;
     let loaded = store.load(&catalog_ref)?;
     assert_eq!(*loaded, catalog);
+    Ok(())
+}
+
+#[test]
+fn compiled_armor_setup_uses_saved_level_selected_definition() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    let project = temp.path().join("godot");
+    godot::support::initialize(&project)?;
+    fs::write(
+        project.join("check_compiled_armor_setup.gd"),
+        include_bytes!("check_compiled_armor_setup.gd"),
+    )?;
+    // World154's first-visit schedule uses Proc430(0) before another actor
+    // selects armor. Exercise that same guard and native shared-state binding.
+    let script = Script {
+        statements: vec![
+            Statement::SetArmorResistance(Expression::Integer(0)),
+            Statement::RepairArmor,
+            Statement::Assign {
+                variable: 0,
+                value: Expression::ArmorResistance,
+            },
+            Statement::Assign {
+                variable: 1,
+                value: Expression::ArmorCount,
+            },
+        ],
+    };
+    let bytes = AiScriptCodec::default().write(&script)?;
+    ensure!(AiScriptCodec::default().read(&bytes)? == script);
+    let model = AiModel {
+        path: AssetPath::new("level:/ai/models/154")?,
+        name: "Armor setup slice".into(),
+        normal: Some(BehaviorSet {
+            behaviors: vec![Behavior {
+                id: 0,
+                rules: vec![],
+                schedule: Some(script),
+                unknown: [0; 3],
+            }],
+            default_behavior: Some(0),
+            action_capacity: 0,
+            unknown: [0; 3],
+        }),
+        reflex: None,
+        variables: (0..2)
+            .map(|_| DesignerVariable {
+                default: DesignerValue::Integer(-1),
+                save: 0,
+                initialize: 0,
+            })
+            .collect(),
+        designer_unknown: [0; 3],
+        unknown: [0; 4],
+    };
+    let code = godot::ai::compile(&rete::decode::<AiModel>(&rete::encode(&model)?)?, &[])?;
+    ensure!(
+        code.contains("has_method(\"selected_definition\")") && !code.contains("call(\"active\")")
+    );
+    fs::write(project.join("compiled_armor_setup.gd"), code)?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    let parser_log = project.join("armor-setup-parser.log");
+    godot::run_godot(
+        &engine,
+        &project,
+        &[
+            "--headless",
+            "--log-file",
+            parser_log.to_str().context("log path")?,
+            "--check-only",
+            "--script",
+            "res://check_compiled_armor_setup.gd",
+        ],
+        Duration::from_secs(10),
+    )?;
+
+    let selection = Selection::hype("manoir", "en")?;
+    let mut store = rete::Store::new(temp.path().join("rete"), selection.clone())?;
+    let mut armor = catalog()?;
+    armor.definitions[0].resistance_rank = 3;
+    armor.definitions[0].pieces[0].broken = 1;
+    armor.definitions[0].pieces[0].strikes = 7;
+    armor.definitions[0].broken_count = 1;
+    let armor_ref = AssetRef::from_path(armor.path.clone());
+    store.save(&armor_ref, &armor)?;
+    store.save(&AssetRef::new("texture:/armor/catalog-test")?, &texture()?)?;
+    let scene = Scene {
+        path: AssetPath::new("level:/scene")?,
+        name: "ArmorSetup".into(),
+        main_actor: None,
+        armor: Some(armor_ref),
+        inventory: None,
+        map_names: None,
+        hud: None,
+        global_actors: vec![],
+        nodes: vec![SceneNode {
+            id: "world".into(),
+            name: "world".into(),
+            parent: None,
+            kind: NodeKind::World,
+            properties: SceneNodeProperties::default(),
+            transform: None,
+            instance: None,
+            perso: None,
+            collision: None,
+            draw_mask: 0,
+            sector: None,
+            light: None,
+        }],
+    };
+    store.save(&AssetRef::from_path(scene.path.clone()), &scene)?;
+    drop(store);
+    let mut store = rete::Store::new(temp.path().join("rete"), selection.clone())?;
+    godot::export(
+        &mut store,
+        &[ContentRoot {
+            kind: Scene::KIND.into(),
+            reference: scene.path,
+        }],
+        selection,
+        &project,
+        &engine,
+    )?;
+    let log = project.join("armor-setup-native.log");
+    let output = godot::run_godot(
+        &engine,
+        &project,
+        &[
+            "--headless",
+            "--log-file",
+            log.to_str().context("log path")?,
+            "--script",
+            "res://check_compiled_armor_setup.gd",
+        ],
+        Duration::from_secs(15),
+    )?;
+    ensure!(output.contains("COMPILED_ARMOR_SETUP_OK"), "{output}");
     Ok(())
 }
 

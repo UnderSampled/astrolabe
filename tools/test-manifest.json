@@ -6184,6 +6184,22 @@
       "timeout_seconds": 10,
       "ignored": false,
       "release": true
+    },
+    {
+      "binary": "astrolabe::armor",
+      "test": "compiled_armor_setup_uses_saved_level_selected_definition",
+      "areas": [
+        "armor",
+        "ai"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "World154 Proc430(0) guard through source/Rete, saved level-owned Fix armor graph, compiled setup and two native instances; no full intro",
+      "timeout_seconds": 45,
+      "ignored": false,
+      "release": true
     }
   ]
 }

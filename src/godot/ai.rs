@@ -852,12 +852,12 @@ fn armor_receiver(
     ));
     writeln!(
         out,
-        "{pad}var {local}: Resource = source_armor_state()\n{pad}if {local} == null or not {local}.has_method(\"active\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
+        "{pad}var {local}: Resource = source_armor_state()\n{pad}if {local} == null or not {local}.has_method(\"selected_definition\") or not is_instance_valid({local}.get(\"catalog\")):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
     )?;
     if selected {
         writeln!(
             out,
-            "{pad}if {local}.call(\"active\") == null:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
+            "{pad}if {local}.call(\"selected_definition\") == null:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
         )?;
     }
     Ok(local)
