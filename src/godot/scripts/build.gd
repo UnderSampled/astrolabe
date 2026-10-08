@@ -43,6 +43,7 @@ func lighting_material(path: String, mode: int) -> StandardMaterial3D:
         var source = load(path)
         var material = source if source.shading_mode == mode else source.duplicate()
         material.shading_mode = mode
+        material.set_meta("source_lighting_mode", mode)
         material_variants[key] = material
     return material_variants[key]
 

@@ -257,6 +257,7 @@ impl Project {
         if let Some(texture) = material.texture() {
             whole_asset(texture)?;
         }
+        let source_material_path = material.path.to_string();
         let path = disk_path(&self.selection, &material.path, "tres");
         let material = material
             .visual
@@ -313,8 +314,18 @@ impl Project {
         )?;
         writeln!(
             resource,
-            "metadata/source_material_flags = {}\nmetadata/source_texture_flags = {}",
-            material.flags, flags
+            "metadata/source_material_flags = {}\nmetadata/source_texture_flags = {}\nmetadata/source_material_path = {}\nmetadata/source_visual_ambient = Color({}, {}, {}, {})\nmetadata/source_visual_diffuse = Color({}, {}, {}, {})",
+            material.flags,
+            flags,
+            quoted(&source_material_path),
+            material.ambient[0],
+            material.ambient[1],
+            material.ambient[2],
+            material.ambient[3],
+            material.diffuse[0],
+            material.diffuse[1],
+            material.diffuse[2],
+            material.diffuse[3],
         )?;
         self.diagnostics.push(format!("{path}: vertex-lighting projection; linear mip filtering and color-key/alpha/additive modes mapped; source LOD selection, full render context, chrome and scrolling remain provisional"));
         self.write(path, resource.as_bytes())

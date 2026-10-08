@@ -1,7 +1,8 @@
 # Shared diffuse-coefficient dependency, 2026-10-04
 
-This is a static source/design survey, not an implemented rendering slice. No
-tests, builds, conversion, Godot or original-engine execution were performed.
+The original 2026-10-04 section was a static source/design survey. Its statement
+that no tests/builds/runtime were performed applies to that survey; the later
+2026-10-08 runtime follow-up below records its own focused Godot validation.
 The executable is the documented patched `MaiDFXvr_bleu.exe`, SHA256
 `ed105a423f6e1bcf0460aa8f7357e2bae3783ca8aadfff8ef8a13b93d967d97d`.
 Raymap's `VisualMaterial.cs` was consulted as the practical reference; the
@@ -105,3 +106,78 @@ vertex transforms need a focused Godot API/source review before coding.
 A single shader-only Proc237 batch is not self-contained with the present model
 and evidence. RGB-only prelighting, ignoring dynamic variants, silently dropping
 the fourth coefficient, or changing only albedo would not complete this API.
+
+## Proc237 target-set and reached Hype instance follow-up, 2026-10-08
+
+The dispatch mapping is confirmed: category 4 operation 237 is table index 3
+after subtracting 234, at case `00543386`; it calls
+`0048f1b0` (`GLI_xSetMaterialDiffuseCoef`) and copies four floats to
+VisualMaterial `+0x14..+0x20`. Category 4 operation 234 is dispatch index 0 at
+`0054329f`; it calls `0048f150` (`GLI_xSetMaterialColor`) and writes `+0x34`.
+The latter is not Proc237.
+
+The source-linked target inventory reports 330 Proc237 calls across 11 scripts
+and 30 distinct GameMaterial targets. Those targets resolve to distinct
+VisualMaterial records within this opcode set, all with flags `0x6ddc07ff`.
+For this target set, the traced flag branches select diffuse-times-radiosity
+and override the fourth diffuse component to full alpha. This narrows the
+fourth-channel uncertainty for these calls; it does not establish every
+lighting-context input or VisualMaterial sharing outside the target set. The
+The live installed English executable at
+`/home/stephen/Games/hype-the-time-quest-win32/drive_c/Games/Hype/MaiDFXvr_bleu.exe`
+has SHA-256 `048ff4f4f0447a1f54a5a73ff588df78b484015c78df99a8f2d7acd3469df7da`.
+Its `.text` slices for the raw237 case, packed-byte helper, diffuse setter,
+material draw, and actor RLI computation are byte-identical to the pinned
+patched reference PE. The separate installed `.ICD` file is encrypted; that
+does not make the live EXE handler unverified.
+
+The reached Hype call is model 28 Normal script 37, node 1078, with live
+`DSG[87]` and material `fix:/materials/06-01/18475`. The local source import
+shows this material on submesh 0 of `fix:/models/geometry/18464`; Hype's default
+configuration 30 includes `fix:/objects/18460`, whose ModelInstance points to
+that geometry. Its serialized `radiosity` array is empty, but this is not
+evidence that the engine renders without RLI. IPO kind 13 in `004c5110`
+allocates per-LOD lighting data when absent, calls `00480080` to compute
+lighting from the live global-light list and actor transform, then stores the
+result. The useful model does not retain this runtime-computed value, so the
+Godot dynamic path must use native scene lights rather than invent a static RLI
+for the reached use.
+
+This source join does not justify substituting an albedo update: Proc237 writes
+the source diffuse coefficient. The following bounded runtime slice preserves
+that coefficient as a separate shader parameter, while its lighting projection
+remains a Godot-native approximation rather than full OpenSpace renderer parity.
+
+## Native runtime slice, 2026-10-08
+
+The isolated runtime implementation exports per-corner signed RLI values into
+Godot custom vertex channel 0, retains each material's semantic asset URI,
+source ambient and initial diffuse in the exported material, and attaches one
+scene-owned `SourceVisualMaterialState` service to each generated level. The
+service decodes the four packed bytes with the verified clamp-and-scale rule,
+validates the target material flags and current uses before mutation, and
+updates shader variants by material URI. It also remembers the latest value
+for matching nodes added later in the same level. The prelit shader recomputes
+`clamp(2*(ambient + diffuse*RLI),0,1)` from retained signed RLI; the reached
+Hype no-radio-instance path uses Godot native lights and a separate diffuse
+uniform. Albedo color, texture, and cutout threshold remain separate inputs.
+
+The focused Godot 4.7.2 runtime regression passed. It covers little-endian
+byte decoding/clamping, repeated updates across two active uses, a later-added
+prelit use, retained signed RLI, and unchanged texture/base-color/alpha-test
+parameters. It also checks actor-local opacity rebinding through a temporary
+blend shader and restoration of its prior shader parameters. It does not
+compare rendered pixels against Hype or test a live gameplay route. Source
+alpha presentation parity remains unverified. The service is scene-scoped, but
+save/reload and map-replacement persistence/reset behavior are unresolved and
+were not tested.
+The Rust material model still inlines `VisualMaterial` and does not retain its
+shared source pointer identity; the service currently keys this bounded target
+set by material URI, whose 30 observed VisualMaterial targets are distinct.
+Aliasing through other GameMaterials is not covered.
+
+This implementation is limited to the observed target flags and supported
+native mesh/material variants. Dynamic Godot lights do not establish exact
+source light-list, transformed-light, or renderer-context parity; source alpha
+rendering, scrolling, chrome, billboards, and other renderer variants remain
+outside the verified runtime slice.

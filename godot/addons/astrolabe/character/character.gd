@@ -496,6 +496,24 @@ func source_set_transparency(opacity: int) -> bool:
 func source_set_transparent_display(enabled: bool) -> bool:
     return source_rendering.set_transparent_display(self, enabled)
 
+## Proc237 mutates the shared source VisualMaterial diffuse values. The active
+## level owns the native variants; actor copies must resolve through that scope.
+func source_set_visual_gmt_diffuse_coef(material_path: String, packed_rgba: int) -> bool:
+    var current: Node = self
+    while current != null:
+        if current.has_node("SourceVisualMaterialState"):
+            var state: Node = current.get_node("SourceVisualMaterialState")
+            if not is_instance_valid(state) or not state.has_method("set_visual_diffuse_coef"):
+                return false
+            return bool(state.call("set_visual_diffuse_coef", material_path, packed_rgba))
+        current = current.get_parent()
+    return false
+
+## Keep opacity's actor-local ShaderMaterial copy connected to the material-state
+## service when Proc237 replaces that active variant.
+func source_rebind_visual_material_variant(previous: Material, replacement: ShaderMaterial) -> void:
+    source_rendering.rebind_visual_material_variant(self, previous, replacement)
+
 func source_laser_pointer_ready() -> bool:
     return source_laser_pointer != null and bool(source_laser_pointer.get("target_valid"))
 

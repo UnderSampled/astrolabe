@@ -5457,6 +5457,22 @@
       "timeout_seconds": 90,
       "ignored": true,
       "release": true
+    },
+    {
+      "binary": "astrolabe::source_visual_material",
+      "test": "native_shader_variants_share_source_diffuse_updates",
+      "areas": [
+        "scene",
+        "runtime"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "synthetic shared material variants, mutable diffuse uniforms, and preserved prelit RLI",
+      "timeout_seconds": 45,
+      "ignored": true,
+      "release": true
     }
   ]
 }
