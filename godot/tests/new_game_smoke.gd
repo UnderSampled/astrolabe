@@ -12,6 +12,7 @@ var gogoud_actions: Array[int] = []
 var gogoud_frames: Array[Dictionary] = []
 var transition_events: Array[Dictionary] = []
 var session_stage_events: Array[Dictionary] = []
+var gui_click_events: Array[Dictionary] = []
 var original_import_backup := ""
 var original_import_changed := false
 var new_game_scene_source_abs := ""
@@ -68,6 +69,26 @@ func write_report() -> void:
         file.store_string(JSON.stringify(report) + "\n")
         file.close()
 
+func _vector2_array(value: Vector2) -> Array:
+    return [value.x, value.y]
+
+func _vector2i_array(value: Vector2i) -> Array:
+    return [value.x, value.y]
+
+func _transform_array(value: Transform2D) -> Dictionary:
+    return {"x":[value.x.x, value.x.y],"y":[value.y.x, value.y.y],"origin":[value.origin.x, value.origin.y]}
+
+func _viewport_metrics() -> Dictionary:
+    var window := root as Window
+    var viewport := root.get_viewport()
+    var visible_rect := viewport.get_visible_rect()
+    return {"root_window_size":_vector2i_array(window.size),
+        "root_viewport_size":_vector2i_array(viewport.size),
+        "display_server_window_size":_vector2i_array(DisplayServer.window_get_size()),
+        "content_scale_size":_vector2i_array(window.content_scale_size),
+        "content_scale_mode":int(window.content_scale_mode),
+        "visible_rect":{"position":_vector2_array(visible_rect.position),"size":_vector2_array(visible_rect.size)}}
+
 func key(code: Key) -> void:
     for pressed in [true,false]:
         var event := InputEventKey.new()
@@ -78,12 +99,27 @@ func key(code: Key) -> void:
 
 func click_gui(control: Control, repeat_immediately: bool = false) -> void:
     await process_frame
-    var position := control.get_global_rect().get_center()
+    var local_center := control.size * 0.5
+    var legacy_position := control.get_global_transform() * local_center
+    var position := control.get_global_transform_with_canvas() * local_center
     var motion := InputEventMouseMotion.new()
     motion.position = position
     motion.global_position = position
     Input.parse_input_event(motion)
     Input.flush_buffered_events()
+    await process_frame
+    var hovered := root.get_viewport().gui_get_hovered_control() as Control
+    var observation := {"target":str(control.get_path()),
+        "legacy_canvas_position":_vector2_array(legacy_position),
+        "event_position":_vector2_array(position),
+        "target_global_transform":_transform_array(control.get_global_transform()),
+        "target_global_transform_with_canvas":_transform_array(control.get_global_transform_with_canvas()),
+        "hovered_control":str(hovered.get_path()) if hovered != null else "",
+        "target_hovered":hovered == control}
+    gui_click_events.append(observation)
+    report["gui_click_events"] = gui_click_events.duplicate(true)
+    write_report()
+    if not require(hovered == control, "GUI event position %s did not hover %s (hovered %s)" % [str(position), str(control.get_path()), str(hovered.get_path()) if hovered != null else "<none>"]): return
     var click_count := 2 if repeat_immediately else 1
     for click_index in range(click_count):
         for pressed in [true, false]:
@@ -395,6 +431,20 @@ func run() -> void:
     var args := OS.get_cmdline_user_args()
     if not require(args.size() == 1,"requires evidence JSON path"): return
     evidence_path = args[0]
+    var window := root as Window
+    var initial_viewport_metrics := _viewport_metrics()
+    var configured_viewport := Vector2i(
+        int(ProjectSettings.get_setting("display/window/size/viewport_width", 1024)),
+        int(ProjectSettings.get_setting("display/window/size/viewport_height", 768)))
+    window.size = configured_viewport
+    window.content_scale_size = configured_viewport
+    await process_frame
+    await process_frame
+    report["viewport_setup"] = {"configured_size":_vector2i_array(configured_viewport),
+        "before":initial_viewport_metrics,"after":_viewport_metrics()}
+    if not require(root.get_viewport().size == configured_viewport,
+        "route smoke could not establish the configured project viewport %s" % str(configured_viewport)): return
+    write_report()
     if not _check_float32_tolerance_contract(): return
     if not require(not FileAccess.file_exists(SAVE_STATE.path()),"isolated slot must begin absent"): return
     original_import_backup = FileAccess.get_file_as_string(ORIGINAL_IMPORT_PATH) if FileAccess.file_exists(ORIGINAL_IMPORT_PATH) else ""

@@ -9,7 +9,6 @@ var original_import_backup := ""
 var original_import_changed := false
 var transition_failure: Dictionary = {}
 var dismiss_pressed := false
-var keyboard_accept_activated := false
 var report: Dictionary = {"scope":"actual Load Game failure, Dismiss input, and return to bootstrap"}
 
 func _initialize() -> void:
@@ -45,6 +44,42 @@ func _on_dismiss_pressed() -> void:
 func _control_path(control: Control) -> String:
 	return str(control.get_path()) if control != null and is_instance_valid(control) else ""
 
+func _vector2_array(value: Vector2) -> Array:
+	return [value.x, value.y]
+
+func _vector2i_array(value: Vector2i) -> Array:
+	return [value.x, value.y]
+
+func _transform_array(value: Transform2D) -> Dictionary:
+	return {
+		"x":[value.x.x, value.x.y],
+		"y":[value.y.x, value.y.y],
+		"origin":[value.origin.x, value.origin.y]
+	}
+
+func _object_property(object: Object, property_name: String) -> Variant:
+	if object == null:
+		return null
+	for property_info in object.get_property_list():
+		if str(property_info.get("name", "")) == property_name:
+			return object.get(property_name)
+	return null
+
+func _viewport_diagnostics() -> Dictionary:
+	var window := root as Window
+	var viewport := root.get_viewport()
+	var visible_rect := viewport.get_visible_rect()
+	return {
+		"root_window_size":_vector2i_array(window.size),
+		"display_server_window_size":_vector2i_array(DisplayServer.window_get_size()),
+		"root_viewport_size":_vector2i_array(viewport.size),
+		"visible_rect":{"position":_vector2_array(visible_rect.position),"size":_vector2_array(visible_rect.size)},
+		"content_scale_size":_vector2i_array(_object_property(window, "content_scale_size")) if _object_property(window, "content_scale_size") is Vector2i else [],
+		"content_scale_mode":_object_property(window, "content_scale_mode"),
+		"gui_disable_input":_object_property(viewport, "gui_disable_input"),
+		"tree_paused":paused
+	}
+
 func _mouse_filter_name(control: Control) -> String:
 	if control == null:
 		return "missing"
@@ -59,12 +94,32 @@ func _input_diagnostics(presenter: Node, dismiss: Button) -> Dictionary:
 	var center := presenter.get_node_or_null("Viewport/Center") as Control if presenter != null else null
 	var content := presenter.get_node_or_null("Viewport/Center/Content") as Control if presenter != null else null
 	var viewport := root.get_viewport()
+	var canvas_layer := presenter as CanvasLayer
 	var focus_owner := viewport.gui_get_focus_owner()
 	var rect := dismiss.get_global_rect()
+	var local_center := dismiss.size * 0.5
+	var canvas_center := dismiss.get_global_transform() * local_center
+	var viewport_center := dismiss.get_global_transform_with_canvas() * local_center
+	var visible_rect := viewport.get_visible_rect()
 	return {
+		"viewport":_viewport_diagnostics(),
+		"canvas_layer":{
+			"layer":canvas_layer.layer,
+			"offset":_vector2_array(canvas_layer.offset),
+			"transform":_transform_array(canvas_layer.transform),
+			"final_transform":_transform_array(canvas_layer.get_final_transform()),
+			"process_mode":int(canvas_layer.process_mode),
+			"visible":canvas_layer.visible,
+			"inside_tree":canvas_layer.is_inside_tree()
+		},
 		"dismiss": {
 			"global_rect":{"position":[rect.position.x,rect.position.y],"size":[rect.size.x,rect.size.y]},
 			"size":[dismiss.size.x,dismiss.size.y],
+			"global_transform":_transform_array(dismiss.get_global_transform()),
+			"global_transform_with_canvas":_transform_array(dismiss.get_global_transform_with_canvas()),
+			"legacy_canvas_center":_vector2_array(canvas_center),
+			"viewport_event_center":_vector2_array(viewport_center),
+			"viewport_center_inside_visible_rect":visible_rect.has_point(viewport_center),
 			"visible":dismiss.visible,
 			"visible_in_tree":dismiss.is_visible_in_tree(),
 			"disabled":dismiss.disabled,
@@ -98,26 +153,6 @@ func _send_mouse_click(position: Vector2) -> void:
 		Input.parse_input_event(event)
 		Input.flush_buffered_events()
 	await process_frame
-
-func _send_ui_accept() -> Dictionary:
-	var press := InputEventKey.new()
-	press.keycode = KEY_ENTER
-	press.physical_keycode = KEY_ENTER
-	press.pressed = true
-	var mapped := InputMap.has_action("ui_accept") and InputMap.action_has_event("ui_accept", press)
-	Input.parse_input_event(press)
-	Input.flush_buffered_events()
-	await process_frame
-	var action_pressed := Input.is_action_pressed("ui_accept") if InputMap.has_action("ui_accept") else false
-	var accepted := dismiss_pressed
-	var release := InputEventKey.new()
-	release.keycode = KEY_ENTER
-	release.physical_keycode = KEY_ENTER
-	release.pressed = false
-	Input.parse_input_event(release)
-	Input.flush_buffered_events()
-	await process_frame
-	return {"attempted":true,"input":"Enter mapped to ui_accept","enter_mapped":mapped,"ui_accept_pressed":action_pressed,"dismiss_pressed_signal":accepted}
 
 func click_gui(control: Control) -> void:
 	await process_frame
@@ -154,6 +189,26 @@ func run() -> void:
 	if not require(args.size() == 1, "requires one evidence JSON path"):
 		return
 	evidence_path = args[0]
+	var initial_viewport := _viewport_diagnostics()
+	var configured_viewport := Vector2i(
+		int(ProjectSettings.get_setting("display/window/size/viewport_width", 1024)),
+		int(ProjectSettings.get_setting("display/window/size/viewport_height", 768))
+	)
+	var root_window := root as Window
+	root_window.size = configured_viewport
+	for property_info in root_window.get_property_list():
+		if str(property_info.get("name", "")) == "content_scale_size":
+			root_window.set("content_scale_size", configured_viewport)
+			break
+	await process_frame
+	await process_frame
+	report["viewport_setup"] = {
+		"configured_size":_vector2i_array(configured_viewport),
+		"before":initial_viewport,
+		"after":_viewport_diagnostics()
+	}
+	if not require(root.get_viewport().size == configured_viewport, "focused input probe could not establish the configured 1024x768 viewport"):
+		return
 	if not require(not FileAccess.file_exists(SAVE_STATE.path()), "isolated native save slot must begin absent"):
 		return
 	if not require(FileAccess.file_exists(ORIGINAL_IMPORT_PATH), "original import fixture is missing"):
@@ -200,10 +255,18 @@ func run() -> void:
 	var failure_session := current_scene
 	report["failure_presented"] = {"transition":failure,"presenter_visible":presenter.visible,"dismiss_visible":dismiss.visible}
 	report["dismiss_input_geometry"] = _input_diagnostics(presenter, dismiss)
-	var dismiss_rect := dismiss.get_global_rect()
-	var hovered_path: String = await _send_mouse_motion(dismiss_rect.get_center())
-	report["parsed_mouse_motion"] = {"position":[dismiss_rect.get_center().x,dismiss_rect.get_center().y],"hovered_control":hovered_path}
-	await _send_mouse_click(dismiss_rect.get_center())
+	var legacy_center := dismiss.get_global_transform() * (dismiss.size * 0.5)
+	var viewport_center := dismiss.get_global_transform_with_canvas() * (dismiss.size * 0.5)
+	var legacy_hovered: String = await _send_mouse_motion(legacy_center)
+	var viewport_hovered: String = await _send_mouse_motion(viewport_center)
+	report["parsed_mouse_motion"] = {
+		"legacy_canvas_position":_vector2_array(legacy_center),
+		"legacy_hovered_control":legacy_hovered,
+		"viewport_event_position":_vector2_array(viewport_center),
+		"viewport_hovered_control":viewport_hovered,
+		"dismiss_is_hovered":viewport_hovered == _control_path(dismiss)
+	}
+	await _send_mouse_click(viewport_center)
 	var mouse_click_activated := dismiss_pressed
 	var immediate_menu := current_scene if current_scene != null and current_scene.scene_file_path == "res://game/bootstrap.tscn" else null
 	var immediate_status := immediate_menu.get_node_or_null("Status/Details") as Label if immediate_menu != null else null
@@ -216,33 +279,13 @@ func run() -> void:
 		"transition_busy":bool(transitions.call("is_transitioning")),
 		"menu_status":immediate_status.text if immediate_status != null else ""
 	}
-	var keyboard_observation := {"attempted":false,"reason":"mouse click already activated Dismiss"}
-	if not mouse_click_activated:
-		dismiss_pressed = false
-		keyboard_observation = await _send_ui_accept()
-		keyboard_accept_activated = bool(keyboard_observation.get("dismiss_pressed_signal", false))
-		keyboard_observation["presenter_visible_after_input"] = presenter.visible
-		keyboard_observation["current_scene_after_input"] = current_scene.scene_file_path if current_scene != null else ""
-		keyboard_observation["session_loading_stage_after_input"] = str(failure_session.get("loading_stage")) if is_instance_valid(failure_session) and failure_session.has_method("get") else ""
-	else:
-		keyboard_observation["attempted"] = false
-		report["keyboard_cycle_required"] = true
-	report["keyboard_ui_accept"] = keyboard_observation
+	report["keyboard_ui_accept"] = {"attempted":false,"reason":"this follow-up isolates the mouse route; Enter was covered by the preserved prior probe"}
 	var recovery_deadline := Time.get_ticks_msec() + 10000
 	while (presenter.visible or current_scene == failure_session or current_scene == null or current_scene.scene_file_path != "res://game/bootstrap.tscn") and Time.get_ticks_msec() < recovery_deadline:
 		await process_frame
 	var recovered_menu := current_scene if current_scene != null and current_scene != failure_session and current_scene.scene_file_path == "res://game/bootstrap.tscn" else null
 	var recovery_status := recovered_menu.get_node_or_null("Status/Details") as Label if recovered_menu != null else null
 	var automatic_recovery_succeeded := recovered_menu != null
-	var diagnostic_scene_change := {"attempted":false,"error_code":null,"error_message":"not available; production recovery currently ignores change_scene_to_file's return value"}
-	if not automatic_recovery_succeeded:
-		var checked_error: Error = change_scene_to_file("res://game/bootstrap.tscn")
-		diagnostic_scene_change = {"attempted":true,"error_code":int(checked_error),"error_message":error_string(checked_error)}
-		if checked_error == OK:
-			var diagnostic_menu: Node = await wait_menu(failure_session, 5000)
-			var diagnostic_status := diagnostic_menu.get_node_or_null("Status/Details") as Label if diagnostic_menu != null else null
-			diagnostic_scene_change["menu_recovered"] = diagnostic_menu != null
-			diagnostic_scene_change["menu_status"] = diagnostic_status.text if diagnostic_status != null else ""
 	report["after_dismiss"] = {
 		"dismiss_pressed":dismiss_pressed,
 		"presenter_visible":presenter.visible,
@@ -252,65 +295,10 @@ func run() -> void:
 		"transition_busy":bool(transitions.call("is_transitioning")),
 		"recovered":automatic_recovery_succeeded,
 		"menu_status":recovery_status.text if recovery_status != null else "",
-		"production_scene_change_error":"not captured: production recovery currently ignores change_scene_to_file's return value",
-		"checked_diagnostic_scene_change":diagnostic_scene_change,
+		"automatic_recovery_after_mouse_click":automatic_recovery_succeeded,
+		"checked_diagnostic_scene_change":{"attempted":false,"reason":"no fallback scene change; this probe measures automatic recovery only"},
 		"elapsed_after_click_ms":10000 - max(0, recovery_deadline - Time.get_ticks_msec())
 	}
-	if mouse_click_activated and automatic_recovery_succeeded:
-		# If the mouse already closed the presenter, start a second actual error
-		# route after restoring and reloading the menu so ui_accept is still tested.
-		var restore_for_key := FileAccess.open(ORIGINAL_IMPORT_PATH, FileAccess.WRITE)
-		if restore_for_key != null:
-			restore_for_key.store_string(original_import_backup)
-			restore_for_key.flush()
-			restore_for_key.close()
-			original_import_changed = false
-		var menu_reload_error: Error = change_scene_to_file("res://game/bootstrap.tscn")
-		var key_menu: Node = await wait_menu(recovered_menu, 5000) if menu_reload_error == OK else null
-		report["keyboard_cycle_menu_reload"] = {"error_code":int(menu_reload_error),"error_message":error_string(menu_reload_error),"menu_recovered":key_menu != null}
-		if key_menu != null:
-			var key_load_button := key_menu.find_child("LoadGame", true, false) as Button
-			if key_load_button != null and not key_load_button.disabled:
-				var corrupt_again := FileAccess.open(ORIGINAL_IMPORT_PATH, FileAccess.WRITE)
-				if corrupt_again != null:
-					original_import_changed = true
-					corrupt_again.store_string("{ invalid original import\n")
-					corrupt_again.close()
-					transition_failure = {}
-					dismiss_pressed = false
-					await click_gui(key_load_button)
-					var key_failure: Dictionary = await wait_failure(30000)
-					var key_presenter := _loading_screen()
-					var key_dismiss := key_presenter.get_node_or_null("Viewport/Center/Content/Dismiss") as Button if key_presenter != null else null
-					var key_visible_deadline := Time.get_ticks_msec() + 5000
-					while (key_presenter == null or not key_presenter.visible or key_dismiss == null or not key_dismiss.visible) and Time.get_ticks_msec() < key_visible_deadline:
-						await process_frame
-						key_presenter = _loading_screen()
-						key_dismiss = key_presenter.get_node_or_null("Viewport/Center/Content/Dismiss") as Button if key_presenter != null else null
-					if key_failure.size() > 0 and key_dismiss != null and key_dismiss.visible:
-						var key_failure_session := current_scene
-						keyboard_observation["second_route_failure"] = key_failure
-						keyboard_observation["second_route_geometry"] = _input_diagnostics(key_presenter, key_dismiss)
-						dismiss_pressed = false
-						var second_keyboard_result := await _send_ui_accept()
-						keyboard_accept_activated = bool(second_keyboard_result.get("dismiss_pressed_signal", false))
-						second_keyboard_result["presenter_visible_after_input"] = key_presenter.visible
-						second_keyboard_result["current_scene_after_input"] = current_scene.scene_file_path if current_scene != null else ""
-						var key_recovery_deadline := Time.get_ticks_msec() + 10000
-						while (key_presenter.visible or current_scene == key_failure_session or current_scene == null or current_scene.scene_file_path != "res://game/bootstrap.tscn") and Time.get_ticks_msec() < key_recovery_deadline:
-							await process_frame
-						second_keyboard_result["automatic_recovery"] = current_scene != null and current_scene != key_failure_session and current_scene.scene_file_path == "res://game/bootstrap.tscn"
-						second_keyboard_result["presenter_visible_after_wait"] = key_presenter.visible
-						second_keyboard_result["current_scene_after_wait"] = current_scene.scene_file_path if current_scene != null else ""
-						keyboard_observation["second_route_ui_accept"] = second_keyboard_result
-		if not original_import_changed:
-			var corrupt_fixture := FileAccess.open(ORIGINAL_IMPORT_PATH, FileAccess.WRITE)
-			if corrupt_fixture != null:
-				original_import_changed = true
-				corrupt_fixture.store_string("{ invalid original import\n")
-				corrupt_fixture.close()
-	report["keyboard_ui_accept"] = keyboard_observation
-	report["after_mouse_click"]["keyboard_route_tested"] = keyboard_accept_activated
 	report["status"] = "diagnostic_complete"
 	await shutdown(0)
 
