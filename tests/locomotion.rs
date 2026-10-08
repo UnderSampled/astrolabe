@@ -231,6 +231,8 @@ fn native_motion_survives_rete_and_drives_character_contact() -> Result<()> {
         object_types: [0; 3],
         hit_points: None,
         inventory_stock: None,
+        motion_binding_present: false,
+        microphone: None,
         camera: None,
         routes: vec![],
         brain: Some(Brain {

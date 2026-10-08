@@ -108,6 +108,13 @@ pub struct Perso {
     pub initial_configuration: Option<AssetRef<ObjectList>>,
     pub object_types: [u32; 3],
     pub camera: Option<super::camera::Camera>,
+    /// Effective source dynamics binding used by motion API calls. This is
+    /// independent of the selected action's mechanics identity card.
+    #[serde(default)]
+    pub motion_binding_present: bool,
+    /// Actor-local microphone matrix; composed with the actor rotation by the
+    /// native listener. Source allocation details stay in the reader.
+    pub microphone: Option<Microphone>,
     /// Source StandardGame bytes read by the life HUD; actor-local mutable state.
     pub hit_points: Option<HitPoints>,
     /// The actor's typed +0x38 StockAction edge, when present in the source.
@@ -119,6 +126,12 @@ pub struct Perso {
     pub brain: Option<super::ai::Brain>,
     pub collisions: Option<CharacterCollisions>,
     pub particles: Option<super::particle::ParticleComponent>,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Microphone {
+    pub local_transform: super::geometry::SourceTransform,
+    pub eligible: u8,
+    pub unknown: [u8; 3],
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HitPoints {
@@ -307,6 +320,18 @@ impl Content for Perso {
     fn validate(&self) -> Result<()> {
         if let Some(camera) = &self.camera {
             camera.validate()?;
+        }
+        if let Some(microphone) = &self.microphone {
+            let transform = &microphone.local_transform;
+            ensure!(
+                transform
+                    .translation
+                    .iter()
+                    .chain(transform.rotation.iter().flatten())
+                    .chain(transform.basis.iter().flatten())
+                    .all(|v| v.is_finite()),
+                "nonfinite microphone transform"
+            );
         }
         ensure!(self.routes.len() <= 256, "too many actor-local route slots");
         ensure!(

@@ -236,6 +236,8 @@ fn compiled_routes_use_native_contact_and_actor_local_progress() -> Result<()> {
         object_types: [0; 3],
         hit_points: None,
         inventory_stock: None,
+        motion_binding_present: false,
+        microphone: None,
         camera: None,
         routes: vec![RouteBinding {
             route: Some(AssetRef::from_path(route.path.clone())),

@@ -131,6 +131,29 @@ impl CameraParameters {
     }
 }
 
+impl Camera {
+    pub fn validate(&self) -> Result<()> {
+        ensure!(
+            self.unknown.len() == 196,
+            "camera component unknown extent differs"
+        );
+        ensure!(
+            self.clip_planes.iter().all(|v| v.is_finite())
+                && self.clip_planes[0] > 0.
+                && self.clip_planes[0] < self.clip_planes[1],
+            "invalid camera clip planes"
+        );
+        for parameters in &self.parameters {
+            parameters.validate()?;
+        }
+        ensure!(
+            self.parameters[1].horizontal_fov > 0.,
+            "initial camera FoV is empty"
+        );
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -199,28 +222,5 @@ mod tests {
         let mut value = parameters();
         value.unknown[90..92].copy_from_slice(&0x8040_u16.to_le_bytes());
         assert_eq!(value.controller_flags(), 0x8040);
-    }
-}
-
-impl Camera {
-    pub fn validate(&self) -> Result<()> {
-        ensure!(
-            self.unknown.len() == 196,
-            "camera component unknown extent differs"
-        );
-        ensure!(
-            self.clip_planes.iter().all(|v| v.is_finite())
-                && self.clip_planes[0] > 0.
-                && self.clip_planes[0] < self.clip_planes[1],
-            "invalid camera clip planes"
-        );
-        for parameters in &self.parameters {
-            parameters.validate()?;
-        }
-        ensure!(
-            self.parameters[1].horizontal_fov > 0.,
-            "initial camera FoV is empty"
-        );
-        Ok(())
     }
 }

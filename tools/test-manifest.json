@@ -5557,6 +5557,168 @@
       "timeout_seconds": 90,
       "ignored": true,
       "release": true
+    },
+    {
+      "binary": "astrolabe::ai_music_request",
+      "test": "music_and_ultra_object_fade_preserve_source_operands_and_dependencies",
+      "areas": [
+        "source",
+        "ai",
+        "rete"
+      ],
+      "kind": "semantic",
+      "prerequisites": [],
+      "fixture": "typed music and receiver sound operands",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_music_request",
+      "test": "named_audio_receivers_and_null_events_reconstruct_source_and_rete",
+      "areas": [
+        "source",
+        "ai",
+        "rete"
+      ],
+      "kind": "semantic",
+      "prerequisites": [],
+      "fixture": "named receivers and null audio requests",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_music_request",
+      "test": "exported_music_and_object_fade_continue_ai_and_mix_native_audio",
+      "areas": [
+        "source",
+        "ai",
+        "rete",
+        "media"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "native music mixer, receiver sound and actor volume fade",
+      "timeout_seconds": 20,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::audio",
+      "test": "theme_parts_and_transitions_survive_rete_and_edits",
+      "areas": [
+        "media",
+        "rete"
+      ],
+      "kind": "semantic",
+      "prerequisites": [],
+      "fixture": "ordered theme parts and transitions",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::audio",
+      "test": "manor_intro_music_theme_has_complete_source_parts",
+      "areas": [
+        "source",
+        "media"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "Manor36/0 Intro2 theme",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::audio::graph::tests::manor_intro_theme_resolves_native_sample_dependencies",
+      "areas": [
+        "source",
+        "media"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "Manor ordered theme waveform dependency closure",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::intro_api_semantics",
+      "test": "first_visit_actor_calls_and_signed_point_turn_reconstruct_source_and_rete",
+      "areas": [
+        "source",
+        "ai",
+        "rete"
+      ],
+      "kind": "semantic",
+      "prerequisites": [],
+      "fixture": "Func38, UltraPosition, Meta19 signed count and keywordMe deactivation",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::travel_native_semantics",
+      "test": "native_point_turn_geometry_uses_source_coordinates",
+      "areas": [
+        "source",
+        "ai",
+        "rete",
+        "movement"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "native point-turn coordinates, world basis, signed antipodal delta",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::travel_native_semantics",
+      "test": "manor_travel_dependencies_are_bound",
+      "areas": [
+        "source",
+        "ai",
+        "rete",
+        "movement"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "Manor selected points, peractor progress and Mass identity through source and Rete",
+      "timeout_seconds": 120,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::sound::tests::native_microphone_basis_selects_position_and_orientation_sources",
+      "areas": [
+        "source",
+        "media",
+        "ai"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "named native microphone refs, authored Micro basis, null pose and tree lifetime",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
     }
   ]
 }

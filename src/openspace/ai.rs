@@ -385,6 +385,10 @@ impl Parser<'_> {
                         )
                     }
                 }
+                (5, 19) => Statement::IncrementalTurnPosition {
+                    point: self.expression(indent + 1)?,
+                    frames: self.expression(indent + 1)?,
+                },
                 (4, 29) => Statement::SetVectorSpeed(self.expression(indent + 1)?),
                 (4, 30) => Statement::AddWind(self.expression(indent + 1)?),
                 (4, 220) | (5, 27) => {
@@ -736,17 +740,22 @@ impl Parser<'_> {
                     }
                 }
                 (4, 323) => Statement::ToggleWideScreen,
+                (4, 402 | 403) => Statement::SwitchMicrophone {
+                    actor: self.expression(indent + 1)?,
+                    evaluated_second: if id == 403 { Some(self.expression(indent + 1)?) } else { None },
+                },
                 (4, 3 | 4) => {
                     let operand = self.at;
                     let (_, object) = self.take(indent + 1)?;
-                    if object.kind == 24 {
-                        if let Some(actor) = self.codec.actors.get(&operand) {
-                            Statement::SetObjectActive { actor: actor.clone(), active: id == 3 }
-                        } else {
-                            Statement::Unsupported(self.unsupported(at, format!("unbound source object at node {operand}"))?)
-                        }
-                    } else {
-                        Statement::Unsupported(self.unsupported(at, "object activation requires a resolved Perso operand".into())?)
+                    let actor = match (object.kind, object.parameter) {
+                        (0, 4) => Some(ActorTarget::Keyword(ActorKeyword::SelfActor)),
+                        (0, 5) => Some(ActorTarget::Keyword(ActorKeyword::MainActor)),
+                        (24, _) => self.codec.actors.get(&operand).cloned().map(ActorTarget::Reference),
+                        _ => None,
+                    };
+                    match actor {
+                        Some(actor) => Statement::SetObjectActive { actor, active: id == 3 },
+                        None => Statement::Unsupported(self.unsupported(at, format!("unbound source object at node {operand}"))?),
                     }
                 }
                 (4, 328) => Statement::PositionDialog {
@@ -1205,6 +1214,7 @@ impl Parser<'_> {
             ),
             (1, 59) => Expression::IsInAction(Box::new(self.expression(indent + 1)?)),
             (1, 121) => Expression::DialogIsOver,
+            (1, 120) => Expression::DialogIsOverAndChangeBehavior,
             (1, 123) => Expression::ActionFinished,
             (1, 31) => Expression::CollideWithGround,
             (1, 33) => Expression::CollideWithNothing,
@@ -1285,8 +1295,12 @@ impl Parser<'_> {
                     }
                 };
                 match self.expression(indent + 1)? {
+                    Expression::SelfPosition => Expression::ActorPosition(receiver),
                     Expression::ActorDistance(target) => {
                         Expression::ActorDistanceFrom { receiver, target }
+                    }
+                    Expression::ActorFacingAngle { target, .. } => {
+                        Expression::ActorFacingAngle { receiver, target }
                     }
                     Expression::MainActorDistance => Expression::ActorDistanceFrom {
                         receiver,
@@ -1478,6 +1492,11 @@ impl Parser<'_> {
                     )?)
                 }
             }
+            (3, 1) => Expression::ActorFacingAngle {
+                receiver: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                target: Box::new(self.expression(indent + 1)?),
+            },
+            (3, 38) => Expression::ActorHitPointsMaximum(Box::new(self.expression(indent + 1)?)),
             (3, 59) => {
                 let selector = Box::new(self.expression(indent + 1)?);
                 let actor = self.expression(indent + 1)?;
@@ -1742,6 +1761,11 @@ impl Writer<'_> {
                     }
                     self.expression(frames, indent + 1)?;
                 }
+                Statement::IncrementalTurnPosition { point, frames } => {
+                    self.node(5, 19, indent);
+                    self.expression(point, indent + 1)?;
+                    self.expression(frames, indent + 1)?;
+                }
                 Statement::SetVectorSpeed(value) => {
                     self.node(4, 29, indent);
                     self.expression(value, indent + 1)?;
@@ -2000,15 +2024,16 @@ impl Writer<'_> {
                 Statement::ActivateFade => self.node(4, 319, indent),
                 Statement::DeactivateFade => self.node(4, 320, indent),
                 Statement::SetObjectActive { actor, active } => {
-                    let handle = self
-                        .codec
-                        .actor_handles
-                        .iter()
-                        .find(|(reference, _)| reference == actor)
-                        .context("missing object activation actor handle")?
-                        .1;
                     self.node(4, if *active { 3 } else { 4 }, indent);
-                    self.node(24, handle, indent + 1);
+                    match actor {
+                        ActorTarget::Keyword(ActorKeyword::SelfActor) => {
+                            self.node(0, 4, indent + 1)
+                        }
+                        ActorTarget::Keyword(ActorKeyword::MainActor) => {
+                            self.node(0, 5, indent + 1)
+                        }
+                        ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
+                    }
                 }
                 Statement::MusicRequest { event } => {
                     let handle = self
@@ -2020,6 +2045,20 @@ impl Writer<'_> {
                         .1;
                     self.node(4, 129, indent);
                     self.node(34, handle, indent + 1);
+                }
+                Statement::SwitchMicrophone {
+                    actor,
+                    evaluated_second,
+                } => {
+                    self.node(
+                        4,
+                        if evaluated_second.is_some() { 403 } else { 402 },
+                        indent,
+                    );
+                    self.expression(actor, indent + 1)?;
+                    if let Some(second) = evaluated_second {
+                        self.expression(second, indent + 1)?;
+                    }
                 }
                 Statement::PositionDialog { x, y } => {
                     self.node(4, 328, indent);
@@ -2372,6 +2411,36 @@ impl Writer<'_> {
                 self.node(3, 35, indent);
                 self.node(0, 4, indent + 1);
             }
+            Expression::ActorHitPointsMaximum(actor) => {
+                self.node(3, 38, indent);
+                self.expression(actor, indent + 1)?;
+            }
+            Expression::ActorPosition(actor) => {
+                self.node(2, 24, indent);
+                match actor {
+                    ActorTarget::Keyword(ActorKeyword::SelfActor) => self.node(0, 4, indent + 1),
+                    ActorTarget::Keyword(ActorKeyword::MainActor) => self.node(0, 5, indent + 1),
+                    ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
+                }
+                self.node(3, 0, indent + 1);
+            }
+            Expression::ActorFacingAngle { receiver, target } => {
+                if *receiver != ActorTarget::Keyword(ActorKeyword::SelfActor) {
+                    self.node(2, 24, indent);
+                    match receiver {
+                        ActorTarget::Keyword(ActorKeyword::MainActor) => {
+                            self.node(0, 5, indent + 1)
+                        }
+                        ActorTarget::Keyword(ActorKeyword::SelfActor) => unreachable!(),
+                        ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
+                    }
+                    self.node(3, 1, indent + 1);
+                    self.expression(target, indent + 2)?;
+                } else {
+                    self.node(3, 1, indent);
+                    self.expression(target, indent + 1)?;
+                }
+            }
             Expression::CameraShiftAlpha { selector, receiver } => {
                 self.node(3, 59, indent);
                 self.expression(selector, indent + 1)?;
@@ -2488,6 +2557,7 @@ impl Writer<'_> {
                 self.expression(action, indent + 1)?;
             }
             Expression::DialogIsOver => self.node(1, 121, indent),
+            Expression::DialogIsOverAndChangeBehavior => self.node(1, 120, indent),
             Expression::ActionFinished => self.node(1, 123, indent),
             Expression::CollideWithGround => self.node(1, 31, indent),
             Expression::CollideWithNothing => self.node(1, 33, indent),

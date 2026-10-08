@@ -40,6 +40,26 @@ pub(super) fn export_route(
                     && l.static_endpoint.as_ref() == Some(&route.points[i + 1])
             })
         });
+    let point_supported = points
+        .iter()
+        .map(|p| if p.relative_actor.is_none() { "1" } else { "0" })
+        .collect::<Vec<_>>();
+    let link_supported = route
+        .links
+        .iter()
+        .enumerate()
+        .map(|(i, link)| {
+            if link.as_ref().is_some_and(|l| {
+                l.connection == 0
+                    && l.dynamic_kind == 0
+                    && l.static_endpoint.as_ref() == Some(&route.points[i + 1])
+            }) {
+                "1"
+            } else {
+                "0"
+            }
+        })
+        .collect::<Vec<_>>();
     let id = format!(
         "route_{}",
         &super::digest(route.path.as_str().as_bytes())[..12]
@@ -49,6 +69,12 @@ pub(super) fn export_route(
         "    var {id} = load(\"res://addons/astrolabe/character/route.gd\").new()\n    {id}.curve = Curve3D.new()\n    {id}.supported = {supported}\n    {id}.closed = {}\n    {id}.source_identity = {}",
         route.points.len() > 1 && route.points.first() == route.points.last(),
         quoted(route.path.as_str())
+    )?;
+    writeln!(
+        project.builder,
+        "    {id}.point_supported = PackedByteArray([{}])\n    {id}.link_supported = PackedByteArray([{}])",
+        point_supported.join(", "),
+        link_supported.join(", ")
     )?;
     for point in &points {
         writeln!(

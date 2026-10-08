@@ -663,6 +663,15 @@ pub(super) struct PersoHeaderWire {
     pub(super) unknown_montreal: [u8; 4],
     pub(super) brain: u32,
 }
+/// Perso+0x2c microphone component: matrix followed by eligibility and retained
+/// bytes (00431cb0/00431d60/00431e60 and orientation getters004321a0..).
+#[derive(BinRead, BinWrite)]
+#[brw(little)]
+pub(super) struct MicrophoneWire {
+    pub(super) matrix: u32,
+    pub(super) eligible: u8,
+    pub(super) unknown: [u8; 3],
+}
 /// The scene actor's sector-character list is at Perso+0x28. 00447bf0
 /// follows SuperObject+4 to Perso, then this link, to update the actor's sector.
 #[derive(BinRead, BinWrite)]

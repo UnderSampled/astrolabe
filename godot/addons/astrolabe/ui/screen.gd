@@ -201,8 +201,21 @@ func source_end_dialog() -> void:
     completion_normal = -1
     dialogue.cancel()
 
-func source_dialog_is_over() -> bool:
-    return adopted_screen.source_dialog_is_over() if is_instance_valid(adopted_screen) else dialogue.is_over()
+func source_dialog_is_over(main_actor: Node3D = null) -> bool:
+    if is_instance_valid(adopted_screen): return adopted_screen.source_dialog_is_over(main_actor)
+    if not dialogue.is_over(): return false
+    # The source gate belongs to MainActor, independently of the current
+    # dialogue owner and unrelated object effects or music.
+    if main_actor == null and is_instance_valid(source_level) and source_level.has_meta("source_main_actor"):
+        main_actor = _actor(str(source_level.get_meta("source_main_actor"))) as Node3D
+    if not is_instance_valid(main_actor): return true
+    var emitter := main_actor.get_node_or_null("SoundEmitter")
+    return emitter != null and emitter.get("source_dialogue_record") == null
+
+func source_dialog_is_over_and_change_behavior(main_actor: Node3D = null) -> bool:
+    if is_instance_valid(adopted_screen): return adopted_screen.source_dialog_is_over_and_change_behavior(main_actor)
+    if not source_dialog_is_over(main_actor): return false
+    return source_change_dialog_behavior()
 
 func source_change_dialog_behavior() -> bool:
     if is_instance_valid(adopted_screen): return adopted_screen.source_change_dialog_behavior()

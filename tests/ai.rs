@@ -1281,7 +1281,7 @@ fn dialogue_bridge_checks_scene_ui_before_query_and_compiles_source_calls() -> R
     let code = godot::ai::compile(&reopened, &[])?;
     assert!(code.contains("source_run_dialog(\"fixture_dialogue\", int(1), self)"));
     let guarded = code.find("Dialogue query requires scene UI").unwrap();
-    let query = code.find("source_dialog_is_over()").unwrap();
+    let query = code.find("source_dialog_is_over(main_actor)").unwrap();
     assert!(guarded < query);
     assert!(
         code.contains("source_change_dialog_behavior()") && code.contains("source_end_dialog()")
@@ -1330,7 +1330,7 @@ fn source_laser_pointer_fly_mode_round_trips_and_updates_native_state() -> Resul
     let mut model = model()?;
     model.normal.as_mut().unwrap().behaviors[0].schedule = Some(script);
     let model = rete::decode::<AiModel>(&rete::encode(&model)?)?;
-    assert_eq!(rete::SCHEMA, 54);
+    assert_eq!(rete::SCHEMA, 55);
     let code = godot::ai::compile(&model, &[])?;
     assert!(
         code.contains("source_set_laser_pointer_fly_mode(bool(0))"),

@@ -1,5 +1,6 @@
 extends Node3D
 const NativeCharacter = preload("res://addons/astrolabe/character/character.gd")
+const NativeAudioEmitter = preload("res://addons/astrolabe/audio/emitter.gd")
 ## Timing and actor/audio bindings for compiled behavior code. No source trees are loaded.
 signal normal_tick
 signal reflex_tick
@@ -244,6 +245,12 @@ func send_music(event: Resource) -> void:
 		fail_unsupported(channel.music_failure)
 		return
 	sound_requested.emit(event.identity)
+
+func source_switch_microphone(selected: Variant) -> bool:
+	if selected != null and (typeof(selected) != TYPE_OBJECT or not is_instance_valid(selected) or not (selected is Node3D)): return false
+	var actor: Node3D = main_actor if selected == null else selected as Node3D
+	var basis: Variant = NativeAudioEmitter.microphone_basis_for(actor)
+	return NativeAudioEmitter.switch_micro_perso(self, selected as Node3D, main_actor, basis)
 
 ## Proc413's operands belong to the caller; only effects playback/fade use actor.
 func sound_fade_in_object(actor: Node3D, target: int, duration_ms: int, event: Resource) -> bool:

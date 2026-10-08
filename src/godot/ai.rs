@@ -224,6 +224,8 @@ mod tests {
                 camera: None,
                 hit_points: None,
                 inventory_stock: None,
+                motion_binding_present: false,
+                microphone: None,
                 routes: Vec::new(),
                 brain: None,
                 collisions: None,
@@ -870,6 +872,7 @@ fn vector_expression(e: &Expression, model: &AiModel) -> bool {
     match e {
         Expression::Vector(_)
         | Expression::SelfPosition
+        | Expression::ActorPosition(_)
         | Expression::SelfPositionField
         | Expression::WaypointPosition(_)
         | Expression::SelfSighting
@@ -987,14 +990,18 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::LaserDirection
         | Expression::MagicCurrentSpell
         | Expression::DialogIsOver
+        | Expression::DialogIsOverAndChangeBehavior
         | Expression::MagicPoints
         | Expression::SelfHitPoints
+        | Expression::ActorHitPointsMaximum(_)
+        | Expression::ActorPosition(_)
         | Expression::CurrentAnimationFrame
         | Expression::MagicRemovePoints(_)
         | Expression::Square(_)
         | Expression::AbsoluteValue(_)
         | Expression::ActorDistance(_)
         | Expression::ActorDistanceFrom { .. }
+        | Expression::ActorFacingAngle { .. }
         | Expression::ActorLocalSourceXYDistance(_)
         | Expression::IsValidActor(_)
         | Expression::ApplyArmoredDamage(_)
@@ -1071,6 +1078,55 @@ fn guarded_expression(
             format!(
                 "character().global_position.distance_to((distance_actor_{id} as Node3D).global_position)"
             )
+        }
+        Expression::ActorPosition(actor) => {
+            let local = format!("position_actor_{}", flow.local);
+            flow.local += 1;
+            writeln!(
+                out,
+                "{pad}var {local}: Node3D = {}\n{pad}if not is_instance_valid({local}) or not {local}.is_inside_tree() or not {local}.has_method(\"source_position\"):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                actor_target_code(actor),
+                quoted(&format!(
+                    "{} requires positioned actor {}",
+                    model.path,
+                    actor_target_label(actor)
+                ))
+            )?;
+            format!("{local}.source_position()")
+        }
+        Expression::ActorFacingAngle { receiver, target } => {
+            let id = flow.local;
+            flow.local += 1;
+            writeln!(
+                out,
+                "{pad}var facing_receiver_{id}: Node3D = {}\n{pad}if not is_instance_valid(facing_receiver_{id}) or not facing_receiver_{id}.has_method(\"source_turn_angles\"):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                actor_target_code(receiver),
+                quoted(&format!("{} requires a native facing receiver", model.path))
+            )?;
+            let target = guarded_expression(out, target, model, depth, flow)?;
+            writeln!(
+                out,
+                "{pad}var facing_target_{id} = {target}\n{pad}if typeof(facing_target_{id}) != TYPE_OBJECT or not is_instance_valid(facing_target_{id}) or not (facing_target_{id} is Node3D):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var facing_angles_{id}: Vector2 = facing_receiver_{id}.source_turn_angles(facing_target_{id})",
+                quoted(&format!(
+                    "{} requires a positioned facing target",
+                    model.path
+                ))
+            )?;
+            format!("(facing_angles_{id}.y * 57.295780181884766)")
+        }
+        Expression::ActorHitPointsMaximum(actor) => {
+            let value = guarded_expression(out, actor, model, depth, flow)?;
+            let local = format!("maximum_life_actor_{}", flow.local);
+            flow.local += 1;
+            writeln!(
+                out,
+                "{pad}var {local} = {value}\n{pad}if typeof({local}) != TYPE_OBJECT or not is_instance_valid({local}) or not {local}.has_method(\"source_hit_points_ready\") or not {local}.source_hit_points_ready():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                quoted(&format!(
+                    "{} requires converted actor maximum hit points",
+                    model.path
+                ))
+            )?;
+            format!("int({local}.source_hit_points.maximum)")
         }
         Expression::ActorDistanceFrom { receiver, target } => {
             let id = flow.local;
@@ -1294,7 +1350,7 @@ fn guarded_expression(
             )?;
             result_local
         }
-        Expression::DialogIsOver => {
+        Expression::DialogIsOver | Expression::DialogIsOverAndChangeBehavior => {
             writeln!(
                 out,
                 "{pad}if source_ui() == null:\n{pad}    fail_unsupported(\"Dialogue query requires scene UI\")\n{pad}    {exit}"
@@ -1693,7 +1749,10 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             "character().is_in_action(int({}))",
             expression(action, model)?
         ),
-        Expression::DialogIsOver => "source_ui().source_dialog_is_over()".into(),
+        Expression::DialogIsOver => "source_ui().source_dialog_is_over(main_actor)".into(),
+        Expression::DialogIsOverAndChangeBehavior => {
+            "source_ui().source_dialog_is_over_and_change_behavior(main_actor)".into()
+        }
         Expression::ActionFinished => "character().action_complete".into(),
         Expression::CurrentAnimationFrame => {
             anyhow::bail!("current animation frame requires guarded lowering")
@@ -1740,7 +1799,10 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         Expression::Square(_)
         | Expression::AbsoluteValue(_)
         | Expression::ActorDistance(_)
+        | Expression::ActorHitPointsMaximum(_)
+        | Expression::ActorPosition(_)
         | Expression::ActorDistanceFrom { .. }
+        | Expression::ActorFacingAngle { .. }
         | Expression::ActorLocalSourceXYDistance(_)
         | Expression::IsValidActor(_)
         | Expression::ApplyArmoredDamage(_)
@@ -1891,6 +1953,13 @@ fn blocking(
     let exit = flow.exit();
     let id = flow.local;
     flow.local += 1;
+    let turn_point = if let Statement::IncrementalTurnPosition { point, .. } = statement {
+        let value = guarded_expression(out, point, model, depth, flow)?;
+        writeln!(out, "{pad}var turn_point_{id}: Vector3 = {value}")?;
+        Some(format!("turn_point_{id}"))
+    } else {
+        None
+    };
     let operand = match statement {
         Statement::Wait { milliseconds } => {
             Some(guarded_expression(out, milliseconds, model, depth, flow)?)
@@ -1898,6 +1967,9 @@ fn blocking(
         Statement::WaitFrames(frames)
         | Statement::ExecuteAction(frames)
         | Statement::IncrementalTurnToward { frames, .. } => {
+            Some(guarded_expression(out, frames, model, depth, flow)?)
+        }
+        Statement::IncrementalTurnPosition { frames, .. } => {
             Some(guarded_expression(out, frames, model, depth, flow)?)
         }
         Statement::ExecuteActionAndGenerateObject { action, .. } => {
@@ -1960,6 +2032,19 @@ fn blocking(
             )?;
             format!("remaining_{id} <= 0")
         }
+        Statement::IncrementalTurnPosition { .. } => {
+            writeln!(
+                out,
+                "{pad}    var remaining_{id} := int({})\n{pad}    var turn_angles_{id}: Vector2 = character().source_turn_angles_to_position({})\n{pad}    if not is_finite(turn_angles_{id}.x) or not is_finite(turn_angles_{id}.y):\n{pad}        fail_unsupported({})\n{pad}        {exit}\n{pad}    var turn_heading_{id} := turn_angles_{id}.x\n{pad}    var turn_step_{id} := turn_angles_{id}.y / (0.000001 if remaining_{id} == 0 else float(abs(remaining_{id})))",
+                operand.as_deref().expect("turn frame operand prepared"),
+                turn_point.as_deref().expect("turn point prepared"),
+                quoted(&format!(
+                    "{} requires finite native point-turn geometry",
+                    model.path
+                ))
+            )?;
+            format!("remaining_{id} <= 0 or not character().source_motion_binding_present")
+        }
         Statement::ExecuteAction(_) => {
             writeln!(
                 out,
@@ -2010,7 +2095,10 @@ fn blocking(
     if matches!(statement, Statement::WaitFrames(_)) {
         writeln!(out, "{pad}        remaining_{id} -= 1")?;
     }
-    if matches!(statement, Statement::IncrementalTurnToward { .. }) {
+    if matches!(
+        statement,
+        Statement::IncrementalTurnToward { .. } | Statement::IncrementalTurnPosition { .. }
+    ) {
         writeln!(
             out,
             "{pad}        turn_heading_{id} += turn_step_{id}\n{pad}        character().source_turn_to_heading(turn_heading_{id})\n{pad}        remaining_{id} -= 1"
@@ -2693,13 +2781,16 @@ fn statements(
                 }
             }
             Statement::SetObjectActive { actor, active } => {
+                let local = format!("active_actor_{}", flow.local);
+                flow.local += 1;
                 writeln!(
                     out,
-                    "{pad}if not character().source_set_object_active({}, {active}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
-                    quoted(actor.path.as_str()),
+                    "{pad}var {local}: Node3D = {}\n{pad}if not is_instance_valid({local}) or not {local}.has_method(\"source_set_object_active_state\") or not {local}.source_set_object_active_state({active}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    actor_target_code(actor),
                     quoted(&format!(
                         "{} requires source object active state for {}",
-                        model.path, actor.path
+                        model.path,
+                        actor_target_label(actor)
                     ))
                 )?;
             }
@@ -2945,6 +3036,7 @@ fn statements(
             Statement::Wait { .. }
             | Statement::WaitFrames(_)
             | Statement::IncrementalTurnToward { .. }
+            | Statement::IncrementalTurnPosition { .. }
             | Statement::ExecuteAction(_)
             | Statement::ExecuteActionAndGenerateObject { .. }
             | Statement::WaitEndOfAction
@@ -3059,6 +3151,27 @@ fn statements(
                     "{pad}if not send_sound_to_actor({receiver}, {event}):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}if not active_{group}(token): {exit}",
                     quoted(&format!(
                         "{} requires native actor sound emitter",
+                        model.path
+                    ))
+                )?;
+            }
+            Statement::SwitchMicrophone {
+                actor,
+                evaluated_second,
+            } => {
+                let id = flow.local;
+                flow.local += 1;
+                let actor = guarded_expression(out, actor, model, depth, flow)?;
+                writeln!(out, "{pad}var microphone_actor_{id} = {actor}")?;
+                if let Some(second) = evaluated_second {
+                    let value = guarded_expression(out, second, model, depth, flow)?;
+                    writeln!(out, "{pad}var _microphone_discarded_actor_{id} = {value}")?;
+                }
+                writeln!(
+                    out,
+                    "{pad}if not source_switch_microphone(microphone_actor_{id}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} requires a bound native microphone actor",
                         model.path
                     ))
                 )?;

@@ -61,6 +61,6 @@ fn camera_shift_expressions_round_trip_through_rete() -> Result<()> {
 
     let reopened = rete::decode::<AiModel>(&rete::encode(&model)?)?;
     assert_eq!(reopened, model);
-    assert_eq!(rete::SCHEMA, 54);
+    assert_eq!(rete::SCHEMA, 55);
     Ok(())
 }

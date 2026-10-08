@@ -96,3 +96,33 @@ worker supplies static engine evidence; no original game has been run here.
 
 All blinded font comparison worktrees remain outside this audit. No assets,
 original saves or reference submodules are modified by source inspection.
+
+## Integrated prerequisite validation
+
+Camera, initial music/receiver sound, native listener selection, point-turn
+geometry and four actor-local waypoint progress properties are integrated.
+The lead adds typed maximum-life/Ultra-position/facing queries, keyword actor
+activation, microphone operand ordering and distinct Cond120 callback behavior.
+Micro matrices and effective motion binding remain meaningful actor components.
+Mass9 is explicitly selected in native mechanics resources; selected route
+points/links carry support flags instead of rejecting an unconsumed later curve.
+
+Source import now returns201 actors,71 AI models and27 dialogues. Travel45 has
+no collision component and its effective motion application selector is0; exact
+reader evidence is retained in ignored integration logs. Global microphone
+selection captures the same Global Perso through StandardGame/SuperObject,
+and its saved Micro is absent. Native selection records that actor successfully;
+its pose remains unverified without inventing a local matrix.
+
+Validation on the lead batch:49 source AI tests,26 affected AI regressions,16
+Godot compiler tests, the new source/Rete call test, native UI MainActor speech
+gate/Cond120 callback test, native point-turn check and all four mandatory
+safeguards pass. The first AI regression attempt had7 environment errors and
+one stale schema assertion; task-owned XDG settings plus narrowly reviewed
+Godot listener access and schema55 corrected the causes, then26/26 passed.
+Strict all-target Clippy passes after small existing lint repairs. Interface72
+and Rete55 remain coordinated for this unpublished batch. Actual root content
+has not been regenerated and full authored intro acceptance has not run.
+
+See [the current prioritized source queue](manor-source-dependency-queue-2026-10-08.md)
+for remaining movement, speech and listener evidence.

@@ -18,6 +18,7 @@ var fade: Tween
 var voice_player: Node
 var voice_emitter: Node
 var active_voice_identity: String = ""
+var active_speech_record: Resource
 var _generation: int = 0
 
 func _ready() -> void:
@@ -46,10 +47,19 @@ func run(value: Resource, run_mode: int, emitter: Node = null) -> bool:
     _render_page()
     if item.voice != null and emitter != null:
         voice_emitter = emitter
+        active_speech_record = item
+        emitter.set("source_dialogue_record", active_speech_record)
         active_voice_identity = str(item.voice.identity)
         emitter.voice_started.connect(_voice_started)
         item.voice.execute(emitter)
         emitter.voice_started.disconnect(_voice_started)
+        if is_instance_valid(voice_player):
+            var selected_record := active_speech_record
+            voice_player.finished.connect(func():
+                if is_instance_valid(emitter) and emitter.get("source_dialogue_record") == selected_record:
+                    emitter.set("source_dialogue_record", null))
+        else:
+            emitter.set("source_dialogue_record", null)
     fade = create_tween()
     fade.tween_property(self, "modulate:a", 1.0, fade_seconds)
     return true
@@ -157,9 +167,12 @@ func _clear_source_text() -> void:
 func _stop_voice() -> void:
     if is_instance_valid(voice_emitter) and active_voice_identity != "":
         voice_emitter.stop_event(active_voice_identity)
+    if is_instance_valid(voice_emitter) and voice_emitter.get("source_dialogue_record") == active_speech_record:
+        voice_emitter.set("source_dialogue_record", null)
     voice_player = null
     voice_emitter = null
     active_voice_identity = ""
+    active_speech_record = null
 
 func _exit_tree() -> void:
     cancel()

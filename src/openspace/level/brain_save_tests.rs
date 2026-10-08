@@ -300,7 +300,7 @@ fn optional_brain_projection_reports_only_a_missing_registered_record() -> Resul
         project_actor_brain_save_fields_optional(&game, &selection, &records, &requested)?;
     ensure!(optional.projection.fields.len() == 1);
     ensure!(optional.projection.fields[&hype].value == DesignerValue::Boolean(false));
-    ensure!(optional.unresolved == [global.clone()]);
+    ensure!(optional.unresolved.as_slice() == std::slice::from_ref(&global));
 
     let strict = project_actor_brain_save_fields(&game, &selection, &records, &requested)
         .expect_err("strict projection must reject an unresolved requested field");

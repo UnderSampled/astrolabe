@@ -51,6 +51,9 @@ func check() -> void:
     var player := AnimationPlayer.new()
     player.name = "AnimationPlayer"
     actor.add_child(player)
+    var emitter := preload("res://addons/astrolabe/audio/emitter.gd").new()
+    emitter.name = "SoundEmitter"
+    actor.add_child(emitter)
     level.add_child(actor)
     actor.set_process(false)
     var brain: Node = Brain.new()
@@ -88,9 +91,13 @@ func check() -> void:
     await process_frame
     await process_frame
     if not require(screen.source_dialog_is_over() and screen.completion_pending and brain.calls == 0, "completion stores pending callback"): return
-    if not require(screen.source_change_dialog_behavior(), "explicit ChangeComport consumes callback"): return
+    emitter.source_dialogue_record = Resource.new()
+    if not require(not screen.source_dialog_is_over(actor) and not screen.source_dialog_is_over_and_change_behavior(actor) and screen.completion_pending, "MainActor active speech record gates both dialogue conditions"): return
+    emitter.source_dialogue_record = null
+    if not require(screen.source_dialog_is_over(actor) and screen.completion_pending and brain.calls == 0, "Cond121 leaves pending callback untouched"): return
+    if not require(screen.source_dialog_is_over_and_change_behavior(actor), "Cond120 consumes callback after MainActor speech clears"): return
     await process_frame
-    if not require(brain.calls == 1 and brain.normal == 3 and screen.source_change_dialog_behavior(), "callback applies once to bound Brain"): return
+    if not require(brain.calls == 1 and brain.normal == 3 and screen.source_dialog_is_over_and_change_behavior(actor), "callback applies once to bound Brain"): return
     screen.source_toggle_widescreen()
     if not require(screen.hud.get_node("Life").visible and screen.fade.size == Vector2(640,480), "wide suppression preserves requested HUD state"): return
     screen.dialogue_items.assign([fixture(3)])

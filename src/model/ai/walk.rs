@@ -120,6 +120,9 @@ impl<'a> Iterator for AstWalk<'a> {
                 Statement::SwapConfiguredParts { first, second } => {
                     self.expressions(child_depth, &[first, second]);
                 }
+                Statement::IncrementalTurnPosition { point, frames } => {
+                    self.expressions(child_depth, &[point, frames]);
+                }
                 Statement::SetHitPointsMaximum { actor, value }
                 | Statement::SetInventoryMaximum { item: actor, value }
                 | Statement::AddHitPoints { actor, value } => {
@@ -150,6 +153,16 @@ impl<'a> Iterator for AstWalk<'a> {
                 ),
                 Statement::SoundFadeMusic { arg0, arg1 } => {
                     self.expressions(child_depth, &[arg0, arg1]);
+                }
+                Statement::SwitchMicrophone {
+                    actor,
+                    evaluated_second,
+                } => {
+                    if let Some(second) = evaluated_second {
+                        self.expressions(child_depth, &[actor, second]);
+                    } else {
+                        self.expressions(child_depth, &[actor]);
+                    }
                 }
                 Statement::SoundFadeVoice {
                     target,
@@ -222,6 +235,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::Square(value)
                 | Expression::AbsoluteValue(value)
                 | Expression::ActorDistance(value)
+                | Expression::ActorHitPointsMaximum(value)
                 | Expression::ActorLocalSourceXYDistance(value)
                 | Expression::IsValidActor(value)
                 | Expression::ApplyArmoredDamage(value)
@@ -240,7 +254,8 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::VectorComponent { vector: value, .. } => {
                     self.expressions(child_depth, &[value]);
                 }
-                Expression::ActorDistanceFrom { target, .. } => {
+                Expression::ActorDistanceFrom { target, .. }
+                | Expression::ActorFacingAngle { target, .. } => {
                     self.expressions(child_depth, &[target]);
                 }
                 Expression::Vector(values) => {
@@ -284,6 +299,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::Integer(_)
                 | Expression::Real(_)
                 | Expression::SelfPosition
+                | Expression::ActorPosition(_)
                 | Expression::SelfPositionField
                 | Expression::WaypointReference(_)
                 | Expression::WaypointPosition(_)
@@ -295,6 +311,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::ActionFinished
                 | Expression::CurrentAnimationFrame
                 | Expression::DialogIsOver
+                | Expression::DialogIsOverAndChangeBehavior
                 | Expression::CollideWithGround
                 | Expression::CollideWithNothing
                 | Expression::CollidePersoZdeNoWithTypeZde { .. }

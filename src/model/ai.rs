@@ -212,6 +212,12 @@ pub enum Statement {
         target: ActorTarget,
         frames: Expression,
     },
+    /// Meta19 captures a point and heading once; nonpositive signed counts
+    /// complete without a turn, unlike Meta23's actor-target variant.
+    IncrementalTurnPosition {
+        point: Expression,
+        frames: Expression,
+    },
     /// Source motion requests retain their order in the AI schedule. The
     /// character component owns their runtime effects.
     SetVectorSpeed(Expression),
@@ -242,7 +248,7 @@ pub enum Statement {
     /// active bit on this referenced Perso. This state is separate from draw
     /// visibility and actor AI activation.
     SetObjectActive {
-        actor: AssetRef<Perso>,
+        actor: ActorTarget,
         active: bool,
     },
     /// Source screen-fade material selection and value remain presentation API
@@ -420,6 +426,12 @@ pub enum Statement {
     MusicRequest {
         event: Option<SoundEventLink>,
     },
+    /// Proc402/403 select the microphone from the first original-caller
+    /// operand. Proc403 evaluates and discards its second actor operand.
+    SwitchMicrophone {
+        actor: Expression,
+        evaluated_second: Option<Expression>,
+    },
     /// Proc413 sets the receiver's effects volume to zero, sends the event,
     /// then starts a nonblocking fade. Operands use the original caller.
     SoundFadeInObject {
@@ -501,6 +513,8 @@ pub enum Expression {
     Vector(Box<[Expression; 3]>),
     /// Current actor's world position in source coordinates.
     SelfPosition,
+    /// Ultra Func0 reads the resolved receiver's current position.
+    ActorPosition(ActorTarget),
     /// Source Field.Position reads the current receiver's world translation.
     /// Keep this distinct from Func_GetPersoAbsolutePosition for source fidelity.
     SelfPositionField,
@@ -566,6 +580,9 @@ pub enum Expression {
     /// frame cursor. Godot lowering requires a bound native animation clip.
     CurrentAnimationFrame,
     DialogIsOver,
+    /// Cond120 has Cond121's MainActor speech gate and consumes the pending
+    /// dialogue behavior callback when the condition succeeds.
+    DialogIsOverAndChangeBehavior,
     /// Current actor's native floor contact.
     CollideWithGround,
     /// Source Cond_CollideWithNothing reads the actor contact result. The
@@ -614,6 +631,12 @@ pub enum Expression {
         receiver: ActorTarget,
         target: Box<Expression>,
     },
+    /// Func1 measures the signed shortest horizontal angle to its actor
+    /// operand, in source degrees, after resolving an optional Ultra receiver.
+    ActorFacingAngle {
+        receiver: ActorTarget,
+        target: Box<Expression>,
+    },
     /// The installed Hype category-3/raw-ID-8 handler returns the source-XY
     /// magnitude between its current actor and the actor operand in that
     /// operand's local frame. The installed table names row 8
@@ -630,6 +653,9 @@ pub enum Expression {
     ArmorCount,
     /// Func_GetHitPoints(Me): read the current actor's mutable life value.
     SelfHitPoints,
+    /// Func38 evaluates its actor operand on the original caller and reads the
+    /// actor-owned maximum life byte.
+    ActorHitPointsMaximum(Box<Expression>),
     /// Source inventory functions operate on the game inventory, not on a
     /// projectile's own designer fields.
     InventoryWeapon,
@@ -1211,7 +1237,8 @@ impl Script {
                         ensure!(actor.path.member().is_none(), "distance actor is a member");
                     }
                 }
-                Expression::ActorDistanceFrom { receiver, target } => {
+                Expression::ActorDistanceFrom { receiver, target }
+                | Expression::ActorFacingAngle { receiver, target } => {
                     if let ActorTarget::Reference(actor) = receiver {
                         ensure!(
                             actor.path.member().is_none(),
@@ -1219,6 +1246,9 @@ impl Script {
                         );
                     }
                     expression(target, variables, depth + 1, count)?;
+                }
+                Expression::ActorPosition(ActorTarget::Reference(actor)) => {
+                    ensure!(actor.path.member().is_none(), "position actor is a member");
                 }
                 Expression::CameraShiftAlpha { selector, receiver }
                 | Expression::CameraShiftTeta { selector, receiver } => {
@@ -1309,6 +1339,7 @@ impl Script {
                 | Expression::Square(value)
                 | Expression::AbsoluteValue(value)
                 | Expression::ActorDistance(value)
+                | Expression::ActorHitPointsMaximum(value)
                 | Expression::ActorLocalSourceXYDistance(value)
                 | Expression::IsValidActor(value)
                 | Expression::ApplyArmoredDamage(value)
@@ -1471,6 +1502,10 @@ impl Script {
                         }
                         expression(frames, variables, depth + 1, count)?;
                     }
+                    Statement::IncrementalTurnPosition { point, frames } => {
+                        expression(point, variables, depth + 1, count)?;
+                        expression(frames, variables, depth + 1, count)?;
+                    }
                     Statement::ChangeActorBehavior { actor, target } => {
                         if let ActorTarget::Reference(actor) = actor {
                             ensure!(actor.path.member().is_none(), "behavior actor is a member");
@@ -1500,21 +1535,23 @@ impl Script {
                         );
                         expression(position, variables, depth + 1, count)?;
                     }
-                    Statement::SetActorDisplayVisible { actor, .. } => {
-                        if let ActorTarget::Reference(actor) = actor {
-                            ensure!(
-                                actor.path.member().is_none(),
-                                "display receiver is a member"
-                            );
-                        }
+                    Statement::SetActorDisplayVisible {
+                        actor: ActorTarget::Reference(actor),
+                        ..
+                    } => {
+                        ensure!(
+                            actor.path.member().is_none(),
+                            "display receiver is a member"
+                        );
                     }
-                    Statement::SetActorChannelActive { actor, .. } => {
-                        if let ActorTarget::Reference(actor) = actor {
-                            ensure!(
-                                actor.path.member().is_none(),
-                                "channel receiver is a member"
-                            );
-                        }
+                    Statement::SetActorChannelActive {
+                        actor: ActorTarget::Reference(actor),
+                        ..
+                    } => {
+                        ensure!(
+                            actor.path.member().is_none(),
+                            "channel receiver is a member"
+                        );
                     }
                     Statement::SetKeywordAbsolutePosition { position, .. }
                     | Statement::SetGameState(position)
@@ -1522,7 +1559,10 @@ impl Script {
                     | Statement::SetFadeValue(position) => {
                         expression(position, variables, depth + 1, count)?;
                     }
-                    Statement::SetObjectActive { actor, .. } => {
+                    Statement::SetObjectActive {
+                        actor: ActorTarget::Reference(actor),
+                        ..
+                    } => {
                         ensure!(actor.path.member().is_none(), "source object is a member");
                     }
                     Statement::SetSelfAbsolutePosition(position) => {
@@ -1583,6 +1623,15 @@ impl Script {
                         }
                         expression(target, variables, depth + 1, count)?;
                         expression(duration_ms, variables, depth + 1, count)?;
+                    }
+                    Statement::SwitchMicrophone {
+                        actor,
+                        evaluated_second,
+                    } => {
+                        expression(actor, variables, depth + 1, count)?;
+                        if let Some(second) = evaluated_second {
+                            expression(second, variables, depth + 1, count)?;
+                        }
                     }
                     Statement::SoundFadeVoice {
                         target,

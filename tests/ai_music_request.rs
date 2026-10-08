@@ -91,7 +91,7 @@ fn music_and_ultra_object_fade_preserve_source_operands_and_dependencies() -> Re
         .as_ref()
         .unwrap();
     let bytes = codec.write(script)?;
-    for (i, node) in bytes.chunks_exact(8).enumerate() {
+    for (i, node) in bytes.as_chunks::<8>().0.iter().enumerate() {
         if node[7] == 34 {
             let handle = u32::from_le_bytes(node[..4].try_into()?);
             let binding = codec
@@ -341,7 +341,7 @@ fn named_audio_receivers_and_null_events_reconstruct_source_and_rete() -> Result
         ..Default::default()
     };
     let bytes = codec.write(&script)?;
-    for (i, node) in bytes.chunks_exact(8).enumerate() {
+    for (i, node) in bytes.as_chunks::<8>().0.iter().enumerate() {
         match node[7] {
             24 => {
                 codec.actors.insert(i, actor.clone());

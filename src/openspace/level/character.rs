@@ -203,6 +203,26 @@ impl<'a> Importer<'a> {
             configuration: config,
             initial_configuration: initial,
             object_types: types,
+            motion_binding_present: self
+                .session
+                .pointer(perso, 8)?
+                .map(|wrapper| self.session.pointer(wrapper, 16))
+                .transpose()?
+                .flatten()
+                .is_some(),
+            microphone: self
+                .session
+                .pointer(perso, 44)?
+                .map(|micro| -> Result<Microphone> {
+                    let record: MicrophoneWire = wire(self.session.bytes(micro, 8)?)?;
+                    let matrix = self.session.required(micro, 0)?;
+                    Ok(Microphone {
+                        local_transform: self.session.transform(matrix)?,
+                        eligible: record.eligible,
+                        unknown: record.unknown,
+                    })
+                })
+                .transpose()?,
             camera: self
                 .session
                 .pointer(perso, 20)?

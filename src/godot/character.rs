@@ -414,6 +414,22 @@ pub(super) fn export_perso(
         perso.object_types[0], perso.object_types[1], perso.object_types[2]
     )?;
     export_stock(project, perso, &name)?;
+    writeln!(
+        project.builder,
+        "    {name}.source_motion_binding_present = {}",
+        perso.motion_binding_present
+    )?;
+    if let Some(microphone) = &perso.microphone {
+        let rotation = crate::model::geometry::SourceTransform {
+            basis: microphone.local_transform.rotation,
+            ..microphone.local_transform.clone()
+        };
+        writeln!(
+            project.builder,
+            "    {name}.get_node(\"SoundEmitter\").microphone_basis = ({}).basis\n    {name}.get_node(\"SoundEmitter\").microphone_basis_known = true",
+            super::scene::transform(&rotation)
+        )?;
+    }
     let controller = format!(
         "res://{}/actions.gd",
         rig_directory(project, &family, &rig_id)
@@ -501,7 +517,7 @@ pub(super) fn export_perso(
             vec3(vector(initial.target_offset)),
             vec3(vector(initial.actor_offset)),
             vec3(vector(initial.look_offset)),
-            format!("Vector2({},{})", initial.distance[0], initial.distance[1]),
+            format_args!("Vector2({},{})", initial.distance[0], initial.distance[1]),
             initial.yaw,
             initial.shift_alpha(),
             initial.shift_alpha(),
@@ -526,6 +542,9 @@ pub(super) fn export_perso(
     }
     let mut routes = Vec::new();
     let mut progress = Vec::new();
+    let mut samples = Vec::new();
+    let mut previous_points = Vec::new();
+    let mut previous_samples = Vec::new();
     for binding in &perso.routes {
         routes.push(if let Some(reference) = &binding.route {
             let route = source.load(reference)?;
@@ -536,13 +555,20 @@ pub(super) fn export_perso(
             "null".into()
         });
         progress.push(binding.progress[0].to_string());
+        samples.push(binding.progress[1].to_string());
+        let previous = |v: u8| if v == 255 { "-1".into() } else { v.to_string() };
+        previous_points.push(previous(binding.progress[2]));
+        previous_samples.push(previous(binding.progress[3]));
     }
     if !routes.is_empty() {
         writeln!(
             project.builder,
-            "    {name}.source_routes.assign([{}])\n    {name}.source_route_points = PackedInt32Array([{}])",
+            "    {name}.source_routes.assign([{}])\n    {name}.source_route_points = PackedInt32Array([{}])\n    {name}.source_route_samples = PackedInt32Array([{}])\n    {name}.source_route_previous_points = PackedInt32Array([{}])\n    {name}.source_route_previous_samples = PackedInt32Array([{}])",
             routes.join(", "),
-            progress.join(", ")
+            progress.join(", "),
+            samples.join(", "),
+            previous_points.join(", "),
+            previous_samples.join(", ")
         )?;
     }
     super::ai::component(project, source, perso, &name, written)?;
@@ -1108,7 +1134,7 @@ fn export_mechanics(
         "[gd_resource type=\"Resource\" load_steps=2 format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/character/mechanics.gd\" id=\"script\"]\n\n[resource]\nscript = ExtResource(\"script\")\n",
     );
     match &value.data {
-        MechanicsData::Mass { mass } => writeln!(text, "mass = {mass}")?,
+        MechanicsData::Mass { mass } => writeln!(text, "mode = 9\nmass = {mass}")?,
         MechanicsData::Character { mode, settings } => {
             writeln!(text, "mode = {mode}")?;
             // Named numeric target properties, not a runtime source-card decoder.
