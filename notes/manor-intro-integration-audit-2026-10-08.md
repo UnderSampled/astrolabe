@@ -157,3 +157,23 @@ pass together in30.50s; the two local source/opening-slice cases in those binari
 were excluded from that regression command. Their focused worker evidence is
 recorded separately. Strict root all-target Clippy and maintained native script
 preflight pass. The fixture inventory names the expanded native motion coverage.
+
+## Shared sound publication prerequisite
+
+The first `prepare-game disc godot` attempt failed before publication in5.96s:
+independent actor traversals both tried to emit `Sound/M_Generique.csb.gd`.
+The root generated manifest remained unchanged (SHA256
+`86dedb1d746160d55b8681fb8ff5b75644e1d8b9e2b6b3ba43cba6df2473c261`).
+The actual-game observer had not started. This is an export failure, not an
+intro behavior result; its log and supervised result are retained in ignored
+`output/integration-resume-20261008/prepare-game{.log,-result.json}`.
+
+Shared sound definition scripts and waveforms now use the native project's
+generated-output ownership across actor-local traversal sets. Each selected
+member still resolves and emits its distinct voice dependencies. A small test
+visits three members in two definition packages with fresh actor traversal sets
+and checks two scripts, one waveform and three voices. It passes; the native
+choice/loop/stop/mixer regression passes in6.44s, strict all-target Clippy and
+the six selection safeguards pass. An initial new-test path assertion failed
+and was corrected to the existing `.voices/` layout; that failed log is retained.
+Root preparation will be retried after rebuilding this coherent sharing fix.

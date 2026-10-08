@@ -5753,6 +5753,20 @@
       "timeout_seconds": 90,
       "ignored": true,
       "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::sound::tests::independent_actor_sound_visits_share_scripts_and_waveforms",
+      "areas": [
+        "media",
+        "ai"
+      ],
+      "kind": "semantic",
+      "prerequisites": [],
+      "fixture": "independent actor visitors share one compiled sound script and waveform while exporting distinct voices",
+      "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
     }
   ]
 }

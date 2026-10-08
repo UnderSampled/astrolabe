@@ -2,6 +2,142 @@ use super::*;
 use crate::model::{Selection, io::Load};
 
 #[test]
+fn independent_actor_sound_visits_share_scripts_and_waveforms() -> Result<()> {
+    let library_ref = AssetRef::<SoundDefinitions>::new("sound:/shared.lcb")?;
+    let package_a = AssetRef::<SoundDefinitions>::new("sound:/a.csb")?;
+    let package_b = AssetRef::<SoundDefinitions>::new("sound:/b.csb")?;
+    let waveform = AssetRef::<Sound>::new("sound:/shared-tone")?;
+    let empty = || SoundDefinitions {
+        name: "shared".into(),
+        kind: SoundDefinitionKind::Events,
+        default_language: None,
+        groups: vec![],
+        banks: vec![],
+        levels: vec![],
+        bindings: vec![],
+        events: vec![],
+        resources: vec![],
+        selectors: vec![],
+        fidelity_notes: vec![],
+        reconstruction_gaps: vec![],
+    };
+    let member = |definitions: &AssetRef<SoundDefinitions>, id| SoundMemberRef {
+        definitions: definitions.clone(),
+        id,
+    };
+    let mut source = crate::model::content::Collection::default();
+    for (package, count) in [(&package_a, 2), (&package_b, 1)] {
+        let mut definitions = empty();
+        for id in 0..count {
+            definitions.resources.push(SoundResourceDefinition {
+                id,
+                name: format!("sample{id}"),
+                data: SoundResourceData::Sample {
+                    sample: Some(SoundSampleRef::Sound(waveform.clone())),
+                    controls: SoundSampleControls {
+                        pitchable: false,
+                        volumeable: true,
+                        pannable: false,
+                        spatial: false,
+                        reverb: false,
+                    },
+                },
+                file: None,
+                volume: Some(127.),
+                looped: false,
+                loop_region: None,
+                sample_rate: None,
+                channels: None,
+            });
+            definitions.events.push(SoundEvent {
+                name: format!("play{id}"),
+                resource_id: Some(id),
+                operation: SoundOperation::Play {
+                    resource: Some(member(package, id)),
+                    pitch_variation: 0.,
+                    stoppable: false,
+                    dynamic: false,
+                },
+                attributes: vec![],
+            });
+        }
+        source.insert(package, definitions)?;
+    }
+    let mut library = empty();
+    library.kind = SoundDefinitionKind::Library;
+    library.bindings = [
+        member(&package_a, 0),
+        member(&package_a, 1),
+        member(&package_b, 0),
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|(i, event)| SoundDefinitionBinding {
+        target: SoundDefinitionTarget::Event(event),
+        bank: 0,
+        member: i as u32,
+    })
+    .collect();
+    source.insert(&library_ref, library)?;
+    source.insert(
+        &waveform,
+        Sound {
+            name: "tone".into(),
+            sample_rate: 8000,
+            channels: 1,
+            samples: AudioSamples::Pcm16(vec![1234; 80]),
+            loop_region: None,
+            resource_id: None,
+            surround: None,
+            fidelity_notes: vec![],
+        },
+    )?;
+    let temp = tempfile::tempdir()?;
+    let mut project = Project::new(
+        temp.path().join("godot"),
+        Selection::hype("shared-audio", "en")?,
+    )?;
+    for member in [0, 1, 2, 0] {
+        // Scene-global and generated actor components each own a traversal set.
+        export_event(
+            &mut project,
+            &mut source,
+            &SoundEventLink {
+                library: library_ref.clone(),
+                bank: 0,
+                member,
+            },
+            &mut BTreeSet::new(),
+        )?;
+    }
+    assert_eq!(
+        project
+            .generated
+            .iter()
+            .filter(|p| p.ends_with(".csb.gd"))
+            .count(),
+        2
+    );
+    assert_eq!(
+        project
+            .generated
+            .iter()
+            .filter(|p| p.ends_with(".wav"))
+            .count(),
+        1
+    );
+    assert_eq!(
+        project
+            .generated
+            .iter()
+            .filter(|p| p.contains(".voices/"))
+            .count(),
+        3
+    );
+    Ok(())
+}
+
+#[test]
 #[ignore = "requires native Godot; included by tools/test.py --local"]
 fn sound_program_rete_edit_native_choice_loop_stop_and_mixer() -> Result<()> {
     let library_ref = AssetRef::<SoundDefinitions>::new("sound:/Sound/library.lcb")?;

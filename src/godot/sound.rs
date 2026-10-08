@@ -131,7 +131,12 @@ fn export_resource(
         definitions: reference.definitions.clone(),
         id: reference.id,
     };
-    if written.insert(reference.definitions.path.clone()) {
+    // Actor components can have independent traversal sets. The native project
+    // owns the shared definition script once, while every selected member still
+    // resolves its waveform and voice dependencies below.
+    let definitions_script = disk_path(&project.selection, &reference.definitions.path, "gd");
+    written.insert(reference.definitions.path.clone());
+    if !project.generated.contains(&definitions_script) {
         let mut script = String::from(
             "extends RefCounted\n## Compiled sound choices; each branch resolves to native waveform resources.\n",
         );
@@ -245,10 +250,7 @@ fn export_resource(
                 }
             }
         }
-        project.write(
-            disk_path(&project.selection, &reference.definitions.path, "gd"),
-            script.as_bytes(),
-        )?;
+        project.write(definitions_script, script.as_bytes())?;
         project.diagnostic(format!("{}: native streams and compiled weighted/selector sound choices; attenuation, random generator, reverb and release envelopes remain approximations; live switch updates/material sensing are unsupported",reference.definitions.path));
     }
     match &selected.data {
@@ -572,7 +574,11 @@ pub(super) fn export_sample(
 ) -> Result<String> {
     let reference = match sample {
         SoundSampleRef::Sound(reference) => {
-            if written.insert(reference.path.clone()) {
+            written.insert(reference.path.clone());
+            if !project
+                .generated
+                .contains(&disk_path(&project.selection, &reference.path, "tres"))
+            {
                 project.save(reference, source.load(reference)?.as_ref())?;
             }
             reference.clone()
@@ -580,7 +586,11 @@ pub(super) fn export_sample(
         SoundSampleRef::Bank { bank, resource_id } => {
             let reference =
                 AssetRef::<Sound>::new(format!("{}/resource_{resource_id}", bank.path))?;
-            if written.insert(reference.path.clone()) {
+            written.insert(reference.path.clone());
+            if !project
+                .generated
+                .contains(&disk_path(&project.selection, &reference.path, "tres"))
+            {
                 let bank = source.load(bank)?;
                 let value = bank
                     .sounds
