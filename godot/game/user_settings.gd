@@ -405,8 +405,8 @@ func _apply_image_setting(name: String) -> void:
 			group = CAMERA_SETTINGS_GROUP
 		"texture_quality":
 			group = MESH_SETTINGS_GROUP
-		for node in get_tree().get_nodes_in_group(group):
-			_apply_image_settings_to_node(node)
+	for node in get_tree().get_nodes_in_group(group):
+		_apply_image_settings_to_node(node)
 
 func _apply_reverse_stereo_to_tree(root_node: Node) -> void:
 	_apply_reverse_stereo_recursive(root_node)
