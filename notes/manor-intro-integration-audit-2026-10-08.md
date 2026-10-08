@@ -211,3 +211,13 @@ gates remain distinct from ordinary actor voices. Driver-clock calibration and
 lip-animation selection remain fidelity limits. Global's null Micro also remains
 an unverified pose-publication limit; native selection succeeds without an
 invented pose or failstop. Neither limit has yet caused the native startup failure.
+
+The final bounded comparison loads the same native resource under rendering in
+24.93s without a cap. A temporary30-FPS actual bootstrap startup then completes
+the resource request in20.42s and reaches readiness in41.31s, restoring the prior
+cap0 before exit. This is observed improvement, not an isolated engine mechanism.
+It exposes critical World154 selected-armor and Camera437 active identity-card
+callback failures after loading. No production cap or new semantic fix is applied.
+Full intro acceptance remains pending. Work is parked at the user's request;
+the [wrap-up inventory and next plan](intro-integration-wrapup-2026-10-08.md)
+account for exact results, preserved UID sidecars and unmerged optional commits.
