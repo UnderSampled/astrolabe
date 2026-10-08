@@ -115,10 +115,23 @@ func run() -> void:
         Input.parse_input_event(event)
         Input.flush_buffered_events()
     var load_deadline := Time.get_ticks_msec() + 70000
+    var next_load_log := Time.get_ticks_msec()
+    report["load_checkpoints"] = []
     while (current_scene == null or current_scene == menu or not bool(current_scene.get("ready_to_play"))) and Time.get_ticks_msec() < load_deadline:
+        if Time.get_ticks_msec() >= next_load_log:
+            var loader := root.get_node_or_null("LevelTransition")
+            var path: String = str(loader.get("_active_path")) if loader != null else ""
+            var fraction: Array = []
+            var status := ResourceLoader.load_threaded_get_status(path, fraction) if not path.is_empty() else ResourceLoader.THREAD_LOAD_INVALID_RESOURCE
+            var state := {"ms": Time.get_ticks_msec() - started_ms, "scene": current_scene.scene_file_path if current_scene != null else "", "resource": path, "status": status, "fraction": fraction}
+            report["load_checkpoints"].append(state)
+            write_report()
+            print("INTRO_LOAD_CHECKPOINT ", JSON.stringify(state))
+            next_load_log = Time.get_ticks_msec() + 5000
         await process_frame
     game = current_scene
     if game == null or game == menu or not bool(game.get("ready_to_play")) or not bool(game.get("new_game")) or game.scene_file_path != "res://game/new_game.tscn":
+        await capture("load_timeout")
         finish(false, "actual menu did not reach ready New Game within 70 seconds")
         return
     var level: Node = game.get("level")
