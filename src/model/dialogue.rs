@@ -115,6 +115,9 @@ impl Content for DialoguePresentation {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DialogueLine {
     pub spans: Vec<DialogueSpan>,
+    /// Loader-computed justification. The shipped FON renderer ignores the
+    /// forwarded scalar; retain it without changing native glyph advances.
+    pub justification: f32,
     /// The installed English dialogue uses 3.4e38 as its untimed sentinel.
     pub end_seconds: f32,
     pub flags: u8,
@@ -149,6 +152,10 @@ impl Content for Dialogue {
             "invalid dialogue line count"
         );
         for line in &self.lines {
+            ensure!(
+                line.justification.is_finite(),
+                "invalid dialogue justification"
+            );
             ensure!(
                 line.end_seconds.is_finite() && line.end_seconds >= 0.0,
                 "invalid dialogue time"

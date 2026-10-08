@@ -67,8 +67,11 @@ The source audit identified these connected gaps before any new full export:
 - Travel meta30 GoToNextWPOfWay and Gogoud final meta19/32/33.
 - Microphone402/403 and keyword-Me object deactivation.
 - Condition120's dialogue completion side effect, distinct from condition121.
-- `gogood_texte1c` import currently rejects a nonzero line layout scalar; its
-  downstream consumer must be established before promoting the field.
+- `gogood_texte1c` was rejected for a nonzero line layout scalar. The source
+  loader computes intended justification, but exact FON disassembly confirms
+  that the shipped renderer never consumes the forwarded eighth argument.
+  Retaining `DialogueLine.justification` therefore permits import without
+  changing glyph advances. The ordinary native FontFile remains the renderer.
 
 Some unsupported calls lie in input/revisit guards that the passive first visit
 does not execute. They remain explicit limitations, and must not be treated as
@@ -82,7 +85,8 @@ Ignored source inspection evidence is under
 `output/integration-resume-20261008/source-audit/`: canonical actor/model/text
 values, diagnostics and readable schedule excerpts. Initial import returned201
 actors,71 AI models and7 supported dialogues. That seven-dialogue count exposes
-the missing1c import and fails the existing nine-example localization contract.
+the missing1c import and cannot satisfy the existing nine-example localization
+contract. The justification fix is checked against that existing contract.
 
 Music and camera edits are isolated in source-only checkouts. The music worker
 is the sole writer of the shared AI files until its audio commit is handed back.

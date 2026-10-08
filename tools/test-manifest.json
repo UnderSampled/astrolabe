@@ -5521,6 +5521,42 @@
       "timeout_seconds": 60,
       "release": true,
       "kind": "semantic"
+    },
+    {
+      "binary": "astrolabe::camera_native_semantics",
+      "test": "native_camera_target_motion_and_cleanup_match_source",
+      "areas": [
+        "source",
+        "ai",
+        "scene",
+        "rete"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "Native camera target/reset history, min/max distance, mode3/6 frame application and conditional motion cleanup",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::camera_native_semantics",
+      "test": "manor_connected_camera_slice_preserves_shots_and_handoff",
+      "areas": [
+        "source",
+        "ai",
+        "scene",
+        "rete"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "Unchanged World154, camera437, travel365, Gogoud210 and statue294 AI through Rete; ordered shots, mode6 and final MainActor/-1 handoff",
+      "timeout_seconds": 90,
+      "ignored": true,
+      "release": true
     }
   ]
 }

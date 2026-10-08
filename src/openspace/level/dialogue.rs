@@ -48,7 +48,7 @@ struct LineWire {
     flags: u8,
     _padding: [u8; 3],
     _effect: u32,
-    _unknown: u32,
+    justification: f32,
     end_seconds: f32,
 }
 #[derive(BinRead)]
@@ -375,9 +375,12 @@ impl ItemDecoder<'_> {
                 h.ordinal as usize == lines.len(),
                 "{name}: dialogue line order differs"
             );
-            if h.flags != 0 || h._effect != 0 || h._unknown != 0 {
+            if h.flags != 0 || h._effect != 0 {
                 return Ok(ItemImport::Unsupported(format!(
-                    "{name}: dialogue line flags/effect/unknown fields require additional behavior"
+                    "{name}: dialogue line {} requires additional behavior (flags {:#04x}, effect present {})",
+                    h.ordinal,
+                    h.flags,
+                    h._effect != 0
                 )));
             }
             let mut spans = Vec::new();
@@ -408,6 +411,7 @@ impl ItemDecoder<'_> {
             }
             lines.push(DialogueLine {
                 spans,
+                justification: h.justification,
                 end_seconds: h.end_seconds,
                 flags: h.flags,
             });

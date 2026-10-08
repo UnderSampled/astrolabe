@@ -23,6 +23,12 @@ fn manor_dialogue_localization_voice_and_callback_survive_rete() -> Result<()> {
     // Preserve the named examples below while allowing other catalogue entries
     // with the same supported structure to be converted as well.
     assert!(imported.dialogues.len() >= 9);
+    let justified = imported
+        .dialogues
+        .iter()
+        .find(|d| d.name == "gogood_texte1c_manoir")
+        .unwrap();
+    assert_eq!(justified.lines[2].justification, f32::from_bits(0x3f1bdbde));
     let style = imported.dialogue_presentation.as_ref().unwrap();
     style.validate()?;
     assert_eq!(style.font_name, "Playmo_Font2_0");
@@ -189,7 +195,7 @@ fn manor_dialogue_localization_voice_and_callback_survive_rete() -> Result<()> {
     let ordinary = imported
         .dialogues
         .iter()
-        .find(|d| d.box_style == 1)
+        .find(|d| d.name == "gogood_master_whatif01")
         .unwrap();
     assert_eq!(ordinary.lines[3].end_seconds, 3.75);
     assert_eq!(ordinary.lines[8].end_seconds, 8.45);

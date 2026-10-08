@@ -66,8 +66,9 @@ pub(super) fn export(
         count += 1;
         writeln!(
             resources,
-            "[sub_resource type=\"Resource\" id=\"{id}\"]\nscript = ExtResource(\"line\")\nspans = Array[Resource]([{}])\nend_seconds = {:?}\nflags = {}\n",
+            "[sub_resource type=\"Resource\" id=\"{id}\"]\nscript = ExtResource(\"line\")\nspans = Array[Resource]([{}])\njustification = {:?}\nend_seconds = {:?}\nflags = {}\n",
             spans.join(", "),
+            line.justification,
             line.end_seconds,
             line.flags
         )?;
