@@ -304,11 +304,33 @@ fn manor_model_334_category24_resolves_through_level_actor_identity_map_and_rete
         .context("model334 Normal0 schedule missing")?;
     let Statement::If {
         condition: Expression::And(_, query),
-        ..
+        then,
+        otherwise,
     } = &schedule.statements[0]
     else {
         anyhow::bail!("model334 source And condition changed")
     };
+    ensure!(otherwise.is_none(), "model334 source branch gained an Else");
+    ensure!(
+        then.len() == 14,
+        "model334 true-branch statement count changed"
+    );
+    ensure!(
+        matches!(
+            (&then[0], &then[1]),
+            (
+                Statement::MainActorFieldAssign {
+                    variable: 56,
+                    value: Expression::Integer(1)
+                },
+                Statement::MainActorFieldAssign {
+                    variable: 51,
+                    value: Expression::Integer(0)
+                }
+            )
+        ),
+        "model334 branch's first MainActor field writes changed"
+    );
     let Expression::IsInBehavior {
         actor: ActorTarget::Reference(actor_ref),
         target,
@@ -339,6 +361,139 @@ fn manor_model_334_category24_resolves_through_level_actor_identity_map_and_rete
         "resolved actor reference is not the rooted scene Perso selected by the source relocation"
     );
     println!("category24 source actor resolved to {}", actor_ref.path);
+
+    // Keep the remaining reached source operations explicit. The PE row for
+    // category5/raw49 is Action_Camera_GoToWP (signature PW); category4/raw207
+    // is Proc_ChangeComport (signature PQ). Neither effect is guessed here.
+    let Statement::Unsupported(camera_waypoint_action) = &then[2] else {
+        anyhow::bail!("model334 camera waypoint action unexpectedly became typed")
+    };
+    ensure!(
+        camera_waypoint_action
+            .reason
+            .contains("category 5 operation 49")
+            && camera_waypoint_action.nodes.len() == 3,
+        "model334 camera waypoint action source extent changed"
+    );
+    let PreservedAiOperand::Source(Some(camera_actor_source)) =
+        &camera_waypoint_action.nodes[1].operand
+    else {
+        anyhow::bail!("Action_Camera_GoToWP Perso operand lost its source identity")
+    };
+    ensure!(
+        camera_actor_source.role == SourceRole::Fix
+            && camera_actor_source.block == [5, 0]
+            && camera_actor_source.allocation == 23322
+    );
+    let PreservedAiOperand::Source(Some(camera_waypoint_source)) =
+        &camera_waypoint_action.nodes[2].operand
+    else {
+        anyhow::bail!("Action_Camera_GoToWP Waypoint operand lost its source identity")
+    };
+    ensure!(
+        camera_waypoint_source.role == SourceRole::Level
+            && camera_waypoint_source.block == [17, 1]
+            && camera_waypoint_source.allocation == 55
+    );
+    ensure!(
+        matches!(
+            &then[3],
+            Statement::CameraChangeState { camera, state: Expression::Integer(3) }
+                if camera.path.as_str() == "level:/persos/world/0/2"
+        ),
+        "model334 camera state target changed"
+    );
+    ensure!(
+        matches!(
+            (&then[4], &then[5]),
+            (
+                Statement::MainActorFieldAssign {
+                    variable: 62,
+                    value: Expression::Integer(0)
+                },
+                Statement::MainActorFieldAssign {
+                    variable: 123,
+                    value: Expression::Integer(3)
+                }
+            )
+        ),
+        "model334 post-camera MainActor field writes changed"
+    );
+    for (index, allocation) in (56..=58).enumerate() {
+        let Statement::ArrayAssign {
+            array: Expression::MainActorFieldRead(157),
+            index: Expression::Integer(actual_index),
+            value: Expression::Unsupported(waypoint_value),
+        } = &then[6 + index]
+        else {
+            anyhow::bail!("model334 MainActor Waypoint array assignment {index} changed")
+        };
+        ensure!(*actual_index == index as i32);
+        ensure!(
+            waypoint_value.reason.contains("category 29 operation")
+                && waypoint_value.nodes.len() == 1
+        );
+        let PreservedAiOperand::Source(Some(waypoint_source)) = &waypoint_value.nodes[0].operand
+        else {
+            anyhow::bail!("model334 DSG157[{index}] Waypoint lost its source identity")
+        };
+        ensure!(
+            waypoint_source.role == SourceRole::Level
+                && waypoint_source.block == [17, 1]
+                && waypoint_source.allocation == allocation
+        );
+    }
+    for index in 0..3 {
+        ensure!(
+            matches!(
+                &then[9 + index],
+                Statement::ArrayAssign {
+                    array: Expression::MainActorFieldRead(166),
+                    index: Expression::Integer(actual_index),
+                    value: Expression::Integer(0),
+                } if *actual_index == index as i32
+            ),
+            "model334 DSG166[{index}] clear changed"
+        );
+    }
+    let Statement::Unsupported(change_other_actor) = &then[12] else {
+        anyhow::bail!("Proc_ChangeComport unexpectedly became typed")
+    };
+    ensure!(
+        change_other_actor
+            .reason
+            .contains("category 4 operation 207")
+            && change_other_actor.nodes.len() == 3
+    );
+    ensure!(
+        change_other_actor.nodes[1].category == 0
+            && matches!(
+                &change_other_actor.nodes[1].operand,
+                PreservedAiOperand::NonRelocated(bytes) if bytes == &[5, 0, 0, 0]
+            ),
+        "Proc_ChangeComport actor operand changed"
+    );
+    let PreservedAiOperand::Behavior(requested_behavior) = &change_other_actor.nodes[2].operand
+    else {
+        anyhow::bail!("Proc_ChangeComport behavior operand lost its binding")
+    };
+    ensure!(
+        requested_behavior.model.path.as_str() == "fix:/ai/models/28"
+            && requested_behavior.group == BehaviorGroup::Normal
+            && requested_behavior.behavior == 50
+    );
+    ensure!(
+        matches!(
+            &then[13],
+            Statement::ChangeBehavior {
+                target,
+                pause_after: false
+            } if target.model.path.as_str() == "level:/ai/models/334"
+                && target.group == BehaviorGroup::Normal
+                && target.behavior == 1
+        ),
+        "model334 self behavior switch changed"
+    );
 
     let output = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("output");
     fs::create_dir_all(&output)?;
