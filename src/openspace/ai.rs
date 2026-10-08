@@ -296,6 +296,25 @@ impl Parser<'_> {
                 (5, 37) => Statement::Wait {
                     milliseconds: self.expression(indent + 1)?,
                 },
+                (5, 40) => Statement::WaitInteger {
+                    left: self.expression(indent + 1)?,
+                    selector: self.expression(indent + 1)?,
+                    right: self.expression(indent + 1)?,
+                },
+                (2, 7) => {
+                    let (_, target) = self.take(indent + 1)?;
+                    ensure!(target.kind == 11, "multiply assignment needs designer field");
+                    Statement::MultiplyAssign { variable: target.parameter.try_into()?, value: self.expression(indent + 1)? }
+                }
+                (5, 38) => Statement::WaitBoolean { field: self.expression(indent + 1)?, expected: self.expression(indent + 1)? },
+                (4, 420) => Statement::SetStockCount { actor: self.expression(indent + 1)?, count: self.expression(indent + 1)? },
+                (4, 421) => Statement::DisplayPickup {
+                    item: Box::new(self.expression(indent + 1)?), milliseconds: Box::new(self.expression(indent + 1)?),
+                    from: Box::new(self.expression(indent + 1)?), to: Box::new(self.expression(indent + 1)?),
+                    x: Box::new(self.expression(indent + 1)?), y: Box::new(self.expression(indent + 1)?),
+                    width: Box::new(self.expression(indent + 1)?), height: Box::new(self.expression(indent + 1)?),
+                },
+                (4, 46) => Statement::Jump,
                 (2, 6) => {
                     let (_, target) = self.take(indent + 1)?;
                     ensure!(
@@ -1171,6 +1190,18 @@ impl Parser<'_> {
             ),
             (2, 12) => {
                 let actor_at = self.at;
+                if self.nodes.get(actor_at + 1).is_some_and(|field| {
+                    field.indent == indent + 1 && field.kind == 9 && field.parameter == 0
+                }) {
+                    let actor = self.expression(indent + 1)?;
+                    self.take(indent + 1)?;
+                    if let Expression::Actor(actor) = actor {
+                        return Ok(Expression::ActorPositionField(actor));
+                    }
+                    return Ok(Expression::Unsupported(
+                        self.unsupported(at, "position field needs actor".into())?,
+                    ));
+                }
                 if !self.nodes.get(actor_at).is_some_and(|actor| {
                     actor.indent == indent + 1
                         && (actor.kind == 24
@@ -1235,7 +1266,7 @@ impl Parser<'_> {
                 match (actor_kind, actor_parameter, zone_kind, limit.kind) {
                     (0, 4, 12, 17) => Expression::CollidePersoZdeNoWithTypeZde {
                         zone: zone_parameter,
-                        maximum: limit.parameter,
+                        material_mask: limit.parameter,
                     },
                     _ => return Ok(Expression::Unsupported(self.unsupported_range(
                         at,
@@ -1285,6 +1316,7 @@ impl Parser<'_> {
                 let receiver = match (actor.kind, actor.parameter) {
                     (0, 4) => ActorTarget::Keyword(ActorKeyword::SelfActor),
                     (0, 5) => ActorTarget::Keyword(ActorKeyword::MainActor),
+                    (11, variable) => ActorTarget::Variable(variable.try_into()?),
                     (24, _) => match self.codec.actors.get(&receiver_at).cloned() {
                         Some(actor) => ActorTarget::Reference(actor),
                         None => {
@@ -1303,6 +1335,27 @@ impl Parser<'_> {
                 };
                 match self.expression(indent + 1)? {
                     Expression::SelfPosition => Expression::ActorPosition(receiver),
+                    Expression::ActorLocalSourceXYDistance(target) => {
+                        Expression::ActorLocalDistance {
+                            receiver,
+                            target,
+                            vertical: false,
+                        }
+                    }
+                    Expression::ActorLocalDistance {
+                        target, vertical, ..
+                    } => Expression::ActorLocalDistance {
+                        receiver,
+                        target,
+                        vertical,
+                    },
+                    Expression::IsAbovePerso {
+                        point, threshold, ..
+                    } => Expression::IsAbovePerso {
+                        receiver,
+                        point,
+                        threshold,
+                    },
                     Expression::ActorDistance(target) => {
                         Expression::ActorDistanceFrom { receiver, target }
                     }
@@ -1323,7 +1376,7 @@ impl Parser<'_> {
                     }
                     Expression::SeePerso { target, .. } => match receiver {
                         ActorTarget::Keyword(receiver) => Expression::SeePerso { receiver, target },
-                        ActorTarget::Reference(_) => {
+                        ActorTarget::Reference(_) | ActorTarget::Variable(_) => {
                             let mut fragment = self.unsupported(
                                 at,
                                 "Ultra SeePerso actor reference is unsupported".into(),
@@ -1482,6 +1535,20 @@ impl Parser<'_> {
                 };
                 Expression::ActorLocalSourceXYDistance(Box::new(Expression::Actor(actor)))
             }
+            (3, 7) => Expression::ActorLocalDistance {
+                receiver: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                target: Box::new(self.expression(indent + 1)?),
+                vertical: true,
+            },
+            (1, 98) => Expression::IsAbovePerso {
+                receiver: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                point: Box::new(self.expression(indent + 1)?),
+                threshold: Box::new(self.expression(indent + 1)?),
+            },
+            (3, 198) => Expression::InventoryGold,
+            (3, 210) => Expression::InventoryMaximum(Box::new(self.expression(indent + 1)?)),
+            (3, 23) => Expression::Sine(Box::new(self.expression(indent + 1)?)),
+            (3, 24) => Expression::Cosine(Box::new(self.expression(indent + 1)?)),
             (3, 25) => Expression::Square(Box::new(self.expression(indent + 1)?)),
             (3, 22) => Expression::IntegerCast(Box::new(self.expression(indent + 1)?)),
             (3, 33) => Expression::AbsoluteValue(Box::new(self.expression(indent + 1)?)),
@@ -1489,14 +1556,21 @@ impl Parser<'_> {
             (3, 226) => Expression::ArmorResistance,
             (3, 227) => Expression::ArmorCount,
             (3, 35) => {
-                let (_, actor) = self.take(indent + 1)?;
-                if actor.kind == 0 && actor.parameter == 4 {
+                let actor = self.expression(indent + 1)?;
+                if matches!(
+                    actor,
+                    Expression::Unsupported(_) | Expression::Nobody | Expression::Nowhere
+                ) {
+                    return Ok(Expression::Unsupported(self.unsupported_range(
+                        at,
+                        end,
+                        "installed category-3 ID35 needs a resolved actor operand".into(),
+                    )?));
+                }
+                if actor == Expression::Actor(ActorTarget::Keyword(ActorKeyword::SelfActor)) {
                     Expression::SelfHitPoints
                 } else {
-                    Expression::Unsupported(self.unsupported(
-                        at,
-                        "hit-point query requires an unsupported actor expression".into(),
-                    )?)
+                    Expression::ActorHitPoints(Box::new(actor))
                 }
             }
             (3, 1) => Expression::ActorFacingAngle {
@@ -1712,6 +1786,37 @@ impl Writer<'_> {
                     self.node(11, u32::from(*variable), indent + 1);
                     self.expression(value, indent + 1)?;
                 }
+                Statement::MultiplyAssign { variable, value } => {
+                    self.node(2, 7, indent);
+                    self.node(11, u32::from(*variable), indent + 1);
+                    self.expression(value, indent + 1)?;
+                }
+                Statement::WaitBoolean { field, expected } => {
+                    self.node(5, 38, indent);
+                    self.expression(field, indent + 1)?;
+                    self.expression(expected, indent + 1)?;
+                }
+                Statement::SetStockCount { actor, count } => {
+                    self.node(4, 420, indent);
+                    self.expression(actor, indent + 1)?;
+                    self.expression(count, indent + 1)?;
+                }
+                Statement::DisplayPickup {
+                    item,
+                    milliseconds,
+                    from,
+                    to,
+                    x,
+                    y,
+                    width,
+                    height,
+                } => {
+                    self.node(4, 421, indent);
+                    for value in [item, milliseconds, from, to, x, y, width, height] {
+                        self.expression(value, indent + 1)?;
+                    }
+                }
+                Statement::Jump => self.node(4, 46, indent),
                 Statement::AddAssign { variable, value } => {
                     self.node(2, 5, indent);
                     self.node(11, u32::from(*variable), indent + 1);
@@ -1765,6 +1870,9 @@ impl Writer<'_> {
                             },
                             indent + 1,
                         ),
+                        ActorTarget::Variable(variable) => {
+                            self.node(11, u32::from(*variable), indent + 1)
+                        }
                         ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
                     }
                     self.expression(frames, indent + 1)?;
@@ -1875,6 +1983,9 @@ impl Writer<'_> {
                             },
                             indent + 1,
                         ),
+                        ActorTarget::Variable(variable) => {
+                            self.node(11, u32::from(*variable), indent + 1)
+                        }
                         ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
                     }
                     self.node(4, if *visible { 267 } else { 266 }, indent + 1);
@@ -1895,6 +2006,9 @@ impl Writer<'_> {
                             },
                             indent + 1,
                         ),
+                        ActorTarget::Variable(variable) => {
+                            self.node(11, u32::from(*variable), indent + 1)
+                        }
                         ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
                     }
                     self.node(4, if *active { 104 } else { 105 }, indent + 1);
@@ -1931,6 +2045,9 @@ impl Writer<'_> {
                             },
                             indent + 1,
                         ),
+                        ActorTarget::Variable(variable) => {
+                            self.node(11, u32::from(*variable), indent + 1)
+                        }
                         ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
                     }
                 }
@@ -2053,6 +2170,9 @@ impl Writer<'_> {
                         ActorTarget::Keyword(ActorKeyword::MainActor) => {
                             self.node(0, 5, indent + 1)
                         }
+                        ActorTarget::Variable(variable) => {
+                            self.node(11, u32::from(*variable), indent + 1)
+                        }
                         ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
                     }
                 }
@@ -2170,6 +2290,16 @@ impl Writer<'_> {
                 Statement::Wait { milliseconds } => {
                     self.node(5, 37, indent);
                     self.expression(milliseconds, indent + 1)?;
+                }
+                Statement::WaitInteger {
+                    left,
+                    selector,
+                    right,
+                } => {
+                    self.node(5, 40, indent);
+                    self.expression(left, indent + 1)?;
+                    self.expression(selector, indent + 1)?;
+                    self.expression(right, indent + 1)?;
                 }
                 Statement::WaitFrames(frames) => {
                     self.node(5, 68, indent);
@@ -2355,6 +2485,9 @@ impl Writer<'_> {
     fn expression(&mut self, e: &Expression, indent: u8) -> Result<()> {
         ensure!(indent <= 64, "AI expression too deep to encode");
         match e {
+            Expression::Actor(ActorTarget::Variable(variable)) => {
+                self.node(11, u32::from(*variable), indent)
+            }
             Expression::Unsupported(_) => bail!("unsupported AI fragment cannot be reconstructed"),
             Expression::Actor(ActorTarget::Keyword(actor)) => self.node(
                 0,
@@ -2412,10 +2545,66 @@ impl Writer<'_> {
                 match receiver {
                     ActorTarget::Keyword(ActorKeyword::SelfActor) => self.node(0, 4, indent + 1),
                     ActorTarget::Keyword(ActorKeyword::MainActor) => self.node(0, 5, indent + 1),
+                    ActorTarget::Variable(variable) => {
+                        self.node(11, u32::from(*variable), indent + 1)
+                    }
                     ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
                 }
                 self.node(3, 4, indent + 1);
                 self.expression(target, indent + 2)?;
+            }
+            Expression::InventoryGold => self.node(3, 198, indent),
+            Expression::ActorHitPoints(value)
+            | Expression::InventoryMaximum(value)
+            | Expression::Sine(value)
+            | Expression::Cosine(value) => {
+                self.node(
+                    3,
+                    match e {
+                        Expression::ActorHitPoints(_) => 35,
+                        Expression::InventoryMaximum(_) => 210,
+                        Expression::Sine(_) => 23,
+                        _ => 24,
+                    },
+                    indent,
+                );
+                self.expression(value, indent + 1)?;
+            }
+            Expression::ActorLocalDistance {
+                receiver,
+                target,
+                vertical,
+            } => {
+                let inner = if *receiver == ActorTarget::Keyword(ActorKeyword::SelfActor) {
+                    indent
+                } else {
+                    self.node(2, 24, indent);
+                    self.expression(&Expression::Actor(receiver.clone()), indent + 1)?;
+                    indent + 1
+                };
+                self.node(3, if *vertical { 7 } else { 8 }, inner);
+                self.expression(target, inner + 1)?;
+            }
+            Expression::IsAbovePerso {
+                receiver,
+                point,
+                threshold,
+            } => {
+                let inner = if *receiver == ActorTarget::Keyword(ActorKeyword::SelfActor) {
+                    indent
+                } else {
+                    self.node(2, 24, indent);
+                    self.expression(&Expression::Actor(receiver.clone()), indent + 1)?;
+                    indent + 1
+                };
+                self.node(1, 98, inner);
+                self.expression(point, inner + 1)?;
+                self.expression(threshold, inner + 1)?;
+            }
+            Expression::ActorPositionField(actor) => {
+                self.node(2, 12, indent);
+                self.expression(&Expression::Actor(actor.clone()), indent + 1)?;
+                self.node(9, 0, indent + 1);
             }
             Expression::ActorLocalSourceXYDistance(value) => {
                 self.node(3, 8, indent);
@@ -2441,6 +2630,9 @@ impl Writer<'_> {
                 match actor {
                     ActorTarget::Keyword(ActorKeyword::SelfActor) => self.node(0, 4, indent + 1),
                     ActorTarget::Keyword(ActorKeyword::MainActor) => self.node(0, 5, indent + 1),
+                    ActorTarget::Variable(variable) => {
+                        self.node(11, u32::from(*variable), indent + 1)
+                    }
                     ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
                 }
                 self.node(3, 0, indent + 1);
@@ -2453,6 +2645,9 @@ impl Writer<'_> {
                             self.node(0, 5, indent + 1)
                         }
                         ActorTarget::Keyword(ActorKeyword::SelfActor) => unreachable!(),
+                        ActorTarget::Variable(variable) => {
+                            self.node(11, u32::from(*variable), indent + 1)
+                        }
                         ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
                     }
                     self.node(3, 1, indent + 1);
@@ -2468,6 +2663,9 @@ impl Writer<'_> {
                 match receiver {
                     ActorTarget::Keyword(ActorKeyword::SelfActor) => self.node(0, 4, indent + 1),
                     ActorTarget::Keyword(ActorKeyword::MainActor) => self.node(0, 5, indent + 1),
+                    ActorTarget::Variable(variable) => {
+                        self.node(11, u32::from(*variable), indent + 1)
+                    }
                     ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
                 }
             }
@@ -2477,6 +2675,9 @@ impl Writer<'_> {
                 match receiver {
                     ActorTarget::Keyword(ActorKeyword::SelfActor) => self.node(0, 4, indent + 1),
                     ActorTarget::Keyword(ActorKeyword::MainActor) => self.node(0, 5, indent + 1),
+                    ActorTarget::Variable(variable) => {
+                        self.node(11, u32::from(*variable), indent + 1)
+                    }
                     ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
                 }
             }
@@ -2582,11 +2783,14 @@ impl Writer<'_> {
             Expression::ActionFinished => self.node(1, 123, indent),
             Expression::CollideWithGround => self.node(1, 31, indent),
             Expression::CollideWithNothing => self.node(1, 33, indent),
-            Expression::CollidePersoZdeNoWithTypeZde { zone, maximum } => {
+            Expression::CollidePersoZdeNoWithTypeZde {
+                zone,
+                material_mask,
+            } => {
                 self.node(1, 28, indent);
                 self.node(0, 4, indent + 1);
                 self.node(12, *zone, indent + 1);
-                self.node(17, *maximum, indent + 1);
+                self.node(17, *material_mask, indent + 1);
             }
             Expression::CollideWithSlope => self.node(1, 34, indent),
             Expression::IsTypeOfGmtCollide(kind) => {
@@ -2612,6 +2816,9 @@ impl Writer<'_> {
                 match actor {
                     ActorTarget::Keyword(ActorKeyword::SelfActor) => self.node(0, 4, indent + 1),
                     ActorTarget::Keyword(ActorKeyword::MainActor) => self.node(0, 5, indent + 1),
+                    ActorTarget::Variable(variable) => {
+                        self.node(11, u32::from(*variable), indent + 1)
+                    }
                     ActorTarget::Reference(actor) if target.group == BehaviorGroup::Normal => {
                         self.actor_node(actor, indent + 1)?
                     }
@@ -2732,6 +2939,11 @@ impl Writer<'_> {
             }
             Expression::DistanceToWaypoint { actor, waypoint } => {
                 let (function_indent, waypoint_indent) = match actor {
+                    ActorTarget::Variable(variable) => {
+                        self.node(2, 24, indent);
+                        self.node(11, u32::from(*variable), indent + 1);
+                        (indent + 1, indent + 2)
+                    }
                     ActorTarget::Keyword(ActorKeyword::SelfActor) => (indent, indent + 1),
                     ActorTarget::Keyword(ActorKeyword::MainActor) => {
                         self.node(2, 24, indent);
@@ -3099,7 +3311,7 @@ mod partial_tests {
             [Statement::If {
                 condition: Expression::CollidePersoZdeNoWithTypeZde {
                     zone: 1,
-                    maximum: 1
+                    material_mask: 1
                 },
                 then,
                 otherwise: None
@@ -4326,7 +4538,7 @@ mod partial_tests {
     }
 
     #[test]
-    fn self_hit_point_query_preserves_bytes_and_rejects_other_receivers() -> Result<()> {
+    fn hit_point_queries_preserve_self_main_and_variable_receivers() -> Result<()> {
         let (codec, bytes) = partial(&[(2, 11, 1), (11, 0, 2), (3, 35, 2), (0, 4, 3), (8, 0, 0)]);
         let script = codec.read(&bytes)?;
         assert!(matches!(
@@ -4337,7 +4549,14 @@ mod partial_tests {
             }]
         ));
         assert_eq!(codec.write(&script)?, bytes);
-        for (kind, operand) in [(0, 5), (0, 7), (11, 0)] {
+        for (kind, operand, receiver) in [
+            (
+                0,
+                5,
+                Expression::Actor(ActorTarget::Keyword(ActorKeyword::MainActor)),
+            ),
+            (11, 0, Expression::Variable(0)),
+        ] {
             let (codec, bytes) = partial(&[
                 (2, 11, 1),
                 (11, 0, 2),
@@ -4345,6 +4564,19 @@ mod partial_tests {
                 (kind, operand, 3),
                 (8, 0, 0),
             ]);
+            let script = codec.read(&bytes)?;
+            assert!(matches!(
+                script.statements.as_slice(),
+                [Statement::Assign {
+                    value: Expression::ActorHitPoints(actual),
+                    ..
+                }] if **actual == receiver
+            ));
+            assert_eq!(codec.write(&script)?, bytes);
+        }
+        {
+            let (codec, bytes) =
+                partial(&[(2, 11, 1), (11, 0, 2), (3, 35, 2), (0, 7, 3), (8, 0, 0)]);
             let script = codec.read(&bytes)?;
             assert!(matches!(
                 script.statements.as_slice(),

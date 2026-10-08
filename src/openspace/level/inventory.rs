@@ -83,6 +83,7 @@ fn string(s: &SourceSession, a: Address) -> Result<String> {
         .context("unbounded inventory string")?;
     dialogue::decode_cp1252(&b[..n])
 }
+
 fn children(s: &SourceSession, a: Address) -> Result<Vec<Address>> {
     let h: SuperObjectWire = wire(s.bytes(a, 64)?)?;
     ensure!(h.child_count <= 256, "inventory child bound");
@@ -363,7 +364,18 @@ pub(crate) fn import(game: &Path, selection: &Selection) -> Result<InventoryPres
     );
     let labels: BTreeMap<_, _> = sites.into_iter().zip(localized).collect();
     let mut items = Vec::new();
+    let mut pickup_artwork = Vec::new();
+    let mut artwork_ids = BTreeSet::new();
     for object in item_objects {
+        let handle = s.required(object, 4)?;
+        let member = s.required(handle, 0)?;
+        let h: ItemWire = wire(s.bytes(member, 32)?)?;
+        if artwork_ids.insert(h.id) {
+            pickup_artwork.push(PickupArtwork {
+                id: h.id.into(),
+                images: images(&s, children(&s, object)?[0], globals.item_size)?,
+            });
+        }
         let Some(category) = membership.get(&object) else {
             continue;
         };
@@ -402,6 +414,7 @@ pub(crate) fn import(game: &Path, selection: &Selection) -> Result<InventoryPres
         categories,
         slots,
         items,
+        pickup_artwork,
         category_scale: [globals.category_scale, globals.category_selected_scale],
         category_color: [globals.colors[2], globals.colors[1]],
         item_scale: globals.item_scales,
@@ -429,4 +442,30 @@ pub(crate) fn import(game: &Path, selection: &Selection) -> Result<InventoryPres
     };
     value.validate()?;
     Ok(value)
+}
+
+#[cfg(test)]
+mod pickup_tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "requires local English Fix source data"]
+    fn pickup_artwork_retains_nonselectable_gold_and_food() -> Result<()> {
+        let game = std::env::var_os("ASTROLABE_GAME_DIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| "disc".into());
+        let value = import(&game, &Selection::hype("manoir", "en")?)?;
+        value.validate()?;
+        let reopened = crate::rete::decode::<InventoryPresentation>(&crate::rete::encode(&value)?)?;
+        assert_eq!(reopened, value);
+        for id in [12, 15, 99] {
+            let artwork = value
+                .pickup_artwork
+                .iter()
+                .find(|artwork| artwork.id == id)
+                .with_context(|| format!("HUD item{id} lacks its catalogue artwork"))?;
+            ensure!(!artwork.images.is_empty(), "HUD item{id} lacks textures");
+        }
+        Ok(())
+    }
 }

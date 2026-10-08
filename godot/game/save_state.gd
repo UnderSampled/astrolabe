@@ -7,6 +7,10 @@ const ORIGINAL_IMPORT := "res://game/original_save_import.json"
 const ACTOR := "world/0/0/Hype"
 const DUMMY := "level:/persos/world/0/27"
 const GLOBAL := "fix:/persos/15"
+const INVENTORY = preload("res://addons/astrolabe/character/inventory.gd")
+const FIRST_PICKUP_FLAGS: Array[String] = ["dsg_220", "dsg_221", "dsg_222", "dsg_223", "dsg_224", "dsg_225", "dsg_226", "dsg_227", "dsg_228"]
+# Placed actor ownership, never the shared barrel model or spawned pickup DSG[0].
+const BARRELS := ["level:/persos/world/0/71", "level:/persos/world/0/72", "level:/persos/world/0/73", "level:/persos/world/0/74"]
 
 
 static func path() -> String:
@@ -78,7 +82,7 @@ static func validate(value: Variant) -> String:
     var inventory: Variant = player.get("inventory")
     if not inventory is Dictionary:
         return "Save has invalid inventory selection."
-    if not _only_keys(inventory, ["selected_weapon", "quantities"]):
+    if not _only_keys(inventory, ["selected_weapon", "quantities", "snapshot"]):
         return "Save has unsupported inventory state."
     if inventory.has("selected_weapon") and not _integer(inventory.get("selected_weapon"), -1, 32767):
         return "Save has invalid inventory selection."
@@ -90,6 +94,9 @@ static func validate(value: Variant) -> String:
         # their absent/unavailable sentinel. Preserve it through native saves.
         if not item is String or not str(item).is_valid_int() or str(int(item)) != item or not _integer(int(item), 0, 32767) or not _integer(quantities[item], -1, 32767):
             return "Save has an invalid inventory quantity."
+    if inventory.has("snapshot"):
+        var snapshot_error := INVENTORY.validate_snapshot_shape(inventory["snapshot"])
+        if not snapshot_error.is_empty(): return snapshot_error
     if player.has("transform"):
         var transform: Variant = player["transform"]
         if not transform is Dictionary or not transform.has("position") or not _only_keys(transform, ["position", "basis"]):
@@ -110,12 +117,17 @@ static func validate(value: Variant) -> String:
         if not global_state is Dictionary or not global_state.has("brain") or not _only_keys(global_state, ["brain"]):
             return "Save has invalid Global actor state."
         var global_brain: Variant = global_state["brain"]
-        if not global_brain is Dictionary or not global_brain.has("dsg_149") or not _only_keys(global_brain, ["dsg_149", "dsg_147"]) or not global_brain["dsg_149"] is bool:
+        var supported_flags: Array[String] = ["dsg_149", "dsg_147"]
+        supported_flags.append_array(FIRST_PICKUP_FLAGS)
+        if not global_brain is Dictionary or not global_brain.has("dsg_149") or not _only_keys(global_brain, supported_flags) or not global_brain["dsg_149"] is bool:
             return "Save has invalid Global Brain state."
         # DSG[147] was added as an optional schema-1 field. Older slots leave
         # the level's authored initial value intact when this key is absent.
         if global_brain.has("dsg_147") and not global_brain["dsg_147"] is bool:
             return "Save has invalid optional Global Brain state."
+        for property_name in FIRST_PICKUP_FLAGS:
+            if global_brain.has(property_name) and not global_brain[property_name] is bool:
+                return "Save has invalid first-pickup Brain state."
     # Older schema-1 slots predate world flags; missing world state starts from
     # the measured manor seed. When present, validate the complete supported
     # native flag before applying any part of the save.
@@ -130,8 +142,12 @@ static func validate(value: Variant) -> String:
             if not _only_keys(dummy, ["dsg_8"]):
                 return "Save has unsupported manor world state."
         for identity in world:
-            if identity != DUMMY:
-                return "Save has unsupported world state."
+            if identity == DUMMY: continue
+            if not BARRELS.has(identity): return "Save has unsupported world state."
+            var barrel: Variant = world[identity]
+            if not barrel is Dictionary or not _only_keys(barrel, ["dsg_8", "removed"]) or not barrel.get("dsg_8") is bool or not barrel.get("removed") is bool:
+                return "Save has invalid barrel state."
+            if barrel["removed"] and not barrel["dsg_8"]: return "Removed barrel has no consumed flag."
     return ""
 
 
@@ -223,12 +239,29 @@ static func capture(actor: CharacterBody3D, level: Node3D) -> Dictionary:
         if not _has_boolean_field(global_brain, "dsg_147"):
             return {}
         global_brain_state["dsg_147"] = global_brain.get("dsg_147")
+    # Source Global[220..228] all have player-save mask0x200. These are
+    # per-item first-pickup flags; HUD bookkeeping19..23 is transient.
+    for property_name in FIRST_PICKUP_FLAGS:
+        if not _has_property(global_brain, property_name): continue
+        var first_pickup: Variant = global_brain.get(property_name)
+        if not first_pickup is bool: return {}
+        global_brain_state[property_name] = first_pickup
     var quantities: Dictionary = {}
     for item in inventory.get("quantities"):
         quantities[str(item)] = int(inventory.get("quantities")[item])
+    var world := {DUMMY: {"dsg_8": dummy_brain.get("dsg_8")}}
+    var bindings: Dictionary = level.get_meta("source_actor_brains", {})
+    for identity in BARRELS:
+        # Missing bindings indicate an older export. A missing bound node means
+        # this particular placed actor was killed, not a shared-template flag.
+        if not bindings.has(identity): continue
+        var barrel_brain := _source_brain(level, identity)
+        var removed := barrel_brain == null
+        if not removed and (str(barrel_brain.get("source_model_path")) != "level:/ai/models/488" or not _has_boolean_field(barrel_brain, "dsg_8")): return {}
+        world[identity] = {"dsg_8": true if removed else bool(barrel_brain.get("dsg_8")), "removed": removed}
     var transform := actor.global_transform
     var basis := transform.basis
-    return {
+    var state := {
         "schema": 1,
         "level": "manoir",
         "actors": {
@@ -255,8 +288,10 @@ static func capture(actor: CharacterBody3D, level: Node3D) -> Dictionary:
                 "brain": global_brain_state,
             },
         },
-        "world": {DUMMY: {"dsg_8": dummy_brain.get("dsg_8")}},
+        "world": world,
     }
+    if inventory.has_method("capture_snapshot"): state["actors"][ACTOR]["inventory"]["snapshot"] = inventory.call("capture_snapshot")
+    return state
 
 
 static func write(actor: CharacterBody3D, level: Node3D) -> String:
@@ -310,13 +345,28 @@ static func apply(actor: CharacterBody3D, level: Node3D, value: Dictionary) -> S
     # Validate on a private copy before changing any live save component.
     var checked_inventory: Resource = inventory.call("clone_for_scene")
     var weapon := int(saved_inventory.get("selected_weapon", inventory.get("selected_weapon")))
-    error = checked_inventory.call("restore_legacy", weapon, quantities)
+    if saved_inventory.has("snapshot"):
+        error = checked_inventory.call("apply_snapshot", saved_inventory["snapshot"])
+    else:
+        error = checked_inventory.call("restore_legacy", weapon, quantities)
     if not error.is_empty():
         return error
+    if value["actors"].has(GLOBAL):
+        for property_name in FIRST_PICKUP_FLAGS:
+            if not value["actors"][GLOBAL]["brain"].has(property_name): continue
+            if not _has_boolean_field(global_brain, property_name):
+                return "Converted manor has no Boolean first-pickup Brain field: " + property_name
+    var saved_world: Dictionary = value.get("world", {})
+    for identity in BARRELS:
+        if not saved_world.has(identity): continue
+        var barrel_brain := _source_brain(level, identity)
+        if barrel_brain == null or str(barrel_brain.get("source_model_path")) != "level:/ai/models/488" or not _has_boolean_field(barrel_brain, "dsg_8"):
+            return "Converted manor has no saved barrel binding: " + identity
     magick.set("current_points", int(saved_magick["current_points"]))
     magick.set("maximum_points", int(saved_magick["maximum_points"]))
     magick.set("selected_spell_code", int(saved_magick["selected_spell_code"]))
-    inventory.call("restore_legacy", weapon, quantities)
+    if saved_inventory.has("snapshot"): inventory.call("apply_snapshot", saved_inventory["snapshot"])
+    else: inventory.call("restore_legacy", weapon, quantities)
     if player.has("transform"):
         var saved_transform: Dictionary = player["transform"]
         var basis := actor.global_transform.basis
@@ -329,7 +379,22 @@ static func apply(actor: CharacterBody3D, level: Node3D, value: Dictionary) -> S
         global_brain.set("dsg_149", saved_global_brain["dsg_149"])
         if saved_global_brain.has("dsg_147"):
             global_brain.set("dsg_147", saved_global_brain["dsg_147"])
+        for property_name in FIRST_PICKUP_FLAGS:
+            if saved_global_brain.has(property_name):
+                global_brain.set(property_name, saved_global_brain[property_name])
     var world: Dictionary = value.get("world", {})
     var dummy_state: Dictionary = world.get(DUMMY, {"dsg_8": false})
     dummy_brain.set("dsg_8", dummy_state["dsg_8"])
+    for identity in BARRELS:
+        if not world.has(identity): continue
+        var barrel_brain := _source_brain(level, identity)
+        var state: Dictionary = world[identity]
+        barrel_brain.set("dsg_8", state["dsg_8"])
+        # Normal0 deactivates a consumed regular barrel (selector below99).
+        # Apply before any scheduled decision; never respawn its transient drop.
+        if state["dsg_8"] and int(barrel_brain.get("dsg_4")) < 99:
+            var barrel_actor := barrel_brain.get_parent()
+            if barrel_actor.has_method("source_set_object_active_state"):
+                barrel_actor.call("source_set_object_active_state", false)
+        if state["removed"]: barrel_brain.get_parent().call("source_kill")
     return ""

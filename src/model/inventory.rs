@@ -17,6 +17,10 @@ pub struct InventoryPresentation {
     pub categories: Vec<InventoryCategory>,
     pub slots: Vec<InventorySlot>,
     pub items: Vec<InventoryItem>,
+    /// First catalogue sprite list for each HUD item identity, including items
+    /// outside selectable categories (Proc421 / 00418f60 / 0041e020).
+    #[serde(default)]
+    pub pickup_artwork: Vec<PickupArtwork>,
     pub category_scale: [f32; 2],
     pub category_color: [[f32; 4]; 2],
     /// Ordinary, equipped, current item scales and ordinary/current colors.
@@ -48,6 +52,11 @@ impl InventoryMotion {
     pub fn duration_seconds(self) -> f32 {
         self.distance / self.speed_per_millisecond / 1000.0
     }
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PickupArtwork {
+    pub id: i32,
+    pub images: Vec<InventoryImage>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InventoryFont {
@@ -103,6 +112,29 @@ impl Content for InventoryPresentation {
                 && (1..=256).contains(&self.items.len()),
             "invalid inventory presentation counts"
         );
+        ensure!(
+            self.pickup_artwork.len() <= 256,
+            "too many pickup artwork entries"
+        );
+        let artwork_ids: std::collections::BTreeSet<_> =
+            self.pickup_artwork.iter().map(|value| value.id).collect();
+        ensure!(
+            artwork_ids.len() == self.pickup_artwork.len(),
+            "duplicate pickup artwork identity"
+        );
+        for artwork in &self.pickup_artwork {
+            ensure!(
+                (0..=32767).contains(&artwork.id) && (1..=16).contains(&artwork.images.len()),
+                "invalid pickup artwork"
+            );
+            for image in &artwork.images {
+                ensure!(
+                    image.texture.path.member().is_none()
+                        && image.size.iter().all(|v| v.is_finite() && *v > 0.),
+                    "invalid pickup image"
+                );
+            }
+        }
         let keys: std::collections::BTreeSet<_> =
             self.categories.iter().map(|c| c.key.as_str()).collect();
         ensure!(

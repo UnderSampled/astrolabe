@@ -74,6 +74,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::MainActorFieldAssign { value, .. }
                 | Statement::SubtractAssign { value, .. }
                 | Statement::AddAssign { value, .. }
+                | Statement::MultiplyAssign { value, .. }
                 | Statement::VectorComponentAssign { value, .. }
                 | Statement::Wait {
                     milliseconds: value,
@@ -131,6 +132,25 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::AddHitPoints { actor, value } => {
                     self.expressions(child_depth, &[actor, value])
                 }
+                Statement::WaitBoolean {
+                    field, expected, ..
+                } => self.expressions(child_depth, &[field, expected]),
+                Statement::SetStockCount { actor, count } => {
+                    self.expressions(child_depth, &[actor, count])
+                }
+                Statement::DisplayPickup {
+                    item,
+                    milliseconds,
+                    from,
+                    to,
+                    x,
+                    y,
+                    width,
+                    height,
+                } => self.expressions(
+                    child_depth,
+                    &[item, milliseconds, from, to, x, y, width, height],
+                ),
                 Statement::PositionDialog { x, y } => self.expressions(child_depth, &[x, y]),
                 Statement::ActivateMapName { name, active } => {
                     self.expressions(child_depth, &[name, active])
@@ -180,6 +200,13 @@ impl<'a> Iterator for AstWalk<'a> {
                     duration_ms,
                     ..
                 } => self.expressions(child_depth, &[target, duration_ms]),
+                Statement::WaitInteger {
+                    left,
+                    selector,
+                    right,
+                } => {
+                    self.expressions(child_depth, &[left, selector, right]);
+                }
                 Statement::ExecuteFade {
                     from,
                     to,
@@ -201,6 +228,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::KillSelf
                 | Statement::KillPerso { .. }
                 | Statement::JumpAbsolute
+                | Statement::Jump
                 | Statement::JumpWithoutAddingSpeed
                 | Statement::SetParticleGeneratorEnabled(_)
                 | Statement::SetParticleGenerator(_)
@@ -240,6 +268,10 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::AbsoluteValue(value)
                 | Expression::ActorDistance(value)
                 | Expression::ActorHitPointsMaximum(value)
+                | Expression::ActorHitPoints(value)
+                | Expression::InventoryMaximum(value)
+                | Expression::Sine(value)
+                | Expression::Cosine(value)
                 | Expression::ActorLocalSourceXYDistance(value)
                 | Expression::IsValidActor(value)
                 | Expression::ApplyArmoredDamage(value)
@@ -259,9 +291,13 @@ impl<'a> Iterator for AstWalk<'a> {
                     self.expressions(child_depth, &[value]);
                 }
                 Expression::ActorDistanceFrom { target, .. }
-                | Expression::ActorFacingAngle { target, .. } => {
+                | Expression::ActorFacingAngle { target, .. }
+                | Expression::ActorLocalDistance { target, .. } => {
                     self.expressions(child_depth, &[target]);
                 }
+                Expression::IsAbovePerso {
+                    point, threshold, ..
+                } => self.expressions(child_depth, &[point, threshold]),
                 Expression::Vector(values) => {
                     self.expressions(child_depth, &[&values[0], &values[1], &values[2]]);
                 }
@@ -304,6 +340,8 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::Real(_)
                 | Expression::SelfPosition
                 | Expression::ActorPosition(_)
+                | Expression::ActorPositionField(_)
+                | Expression::InventoryGold
                 | Expression::SelfPositionField
                 | Expression::WaypointReference(_)
                 | Expression::WaypointPosition(_)

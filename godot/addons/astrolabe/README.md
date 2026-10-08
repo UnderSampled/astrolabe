@@ -1,4 +1,4 @@
-# Astrolabe support, interface 75
+# Astrolabe support, interface 76
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -18,8 +18,10 @@ Static contact conversion uses the physical sectors and their explicit collision
 neighbors. Shapes under unreferenced virtual display sectors remain in the saved
 scene with collision layer/mask zero; their visible meshes remain present. Virtual
 sectors explicitly listed as collision neighbors still provide native contact.
-This excludes geometry that no source physical-sector query visits; native
-per-actor sector filtering and dynamic sector activation remain pending.
+This excludes geometry that no source physical-sector query visits. Actor
+contact queries use saved native sector references, collision neighbors and
+activation flags. Movement across a saved portal updates the actor's sector;
+broader activation scheduling remains partial.
 
 Source checkout support is maintained through version control. Adopted projects
 update it explicitly with `astrolabe update-godot-support PROJECT`. Content
@@ -59,6 +61,9 @@ references to native Brain paths. Object generation binds each compiled
 external actor reference to a live Brain before the generated actor starts; a
 missing binding fails the call with its source identity. These references are
 scene instances and expire when the level is freed.
+Generation finds the containing level even when an authored session owns the
+current scene. It retains that level's MainActor and external Brain bindings,
+and duplicates mutable stock for each spawned actor.
 `gravity` is an explicit world-space acceleration; `external_velocity` retains
 force/impulse motion independently of the current clip. Ground contact clears
 downward speed without retaining a sideways projection of gravity. Neither native seeking
@@ -107,6 +112,16 @@ implements AI-requested inventory operations only; attack selection, arrow
 creation, motion and lifetime must come from compiled source AI. The current
 manor behavior fixture restores inventory values observed in the supplied
 English save; exported content does not hardcode those values.
+`character/contact_pickup.gd` evaluates picking-center distances in an explicit
+native inverse frame. This is a deterministic adaptation of the original's
+undefined scratch flag, with no claim of numeric parity. `Cond28` reads the
+selected native ZDE, prioritizes target ZDE over physical model shapes, and
+requires every specified low-16 material bit on the actual contact. Native
+intersection queries are capped at 4096; their ordering remains an adaptation.
+`ui/pickup_artwork.gd` contains converted Texture resources for the full item
+catalogue, including nonselectable food/gold artwork. Compiled pickup feedback
+calls the authored `game/inventory_host.gd`, which creates a native pausable
+Control and alpha tween through `ui/pickup_feedback.gd`.
 Compiled magick reads use `character/magick.gd`, another Resource shared with
 generated Persos. It holds current/maximum points and the raw AI selected-spell
 code. Its function-230 deduction follows the verified source dispatch: it

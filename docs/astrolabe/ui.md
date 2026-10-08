@@ -306,7 +306,7 @@ to normal 1; wait 3000 ms; EndDialog; deactivate SelfActor. Other selectors stil
 execute the unconditional transition, End and deactivation. There is no
 authored every-level trigger. Func 195 compiles to the actual shared game-session
 getter; combined masks fail with an explicit stale-result diagnostic rather
-than receive a fabricated selector. Rete schema 57 retains the typed query alongside inventory motion.
+than receive a fabricated selector. Rete schema 58 retains the typed query alongside inventory motion and pickup semantics.
 
 End animates the active presentation's close without invoking completion. Level
 adoption/release and teardown cancel both presentations immediately. Ordinary

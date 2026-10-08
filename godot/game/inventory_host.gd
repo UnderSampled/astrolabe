@@ -1,9 +1,12 @@
 extends CanvasLayer
 ## Authored session composition; generated presentation remains independently owned.
 const VIEW = preload("res://addons/astrolabe/ui/inventory/screen.gd")
+const PICKUP_FEEDBACK = preload("res://addons/astrolabe/ui/pickup_feedback.gd")
 const DEFAULT_SCENE := "res://generated/hype/shared/inventory/en/inventory.tscn"
+const DEFAULT_PICKUP_ARTWORK := "res://generated/hype/shared/inventory/en/pickup_artwork.tres"
 signal unavailable(message: String)
 @export var inventory_scene: PackedScene
+@export var pickup_artwork: Resource
 @export var inventory_key: Key = KEY_TAB
 var view: VIEW
 var owns_pause: bool = false
@@ -11,6 +14,11 @@ var owns_pause: bool = false
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
     layer = 20
+
+func source_display_pickup(item: int, milliseconds: int, from: float, to: float, x: int, y: int, width: int, height: int) -> bool:
+    if pickup_artwork == null and ResourceLoader.exists(DEFAULT_PICKUP_ARTWORK):
+        pickup_artwork = load(DEFAULT_PICKUP_ARTWORK) as Resource
+    return PICKUP_FEEDBACK.display(self, pickup_artwork, item, milliseconds, from, to, x, y, width, height)
 
 func open_inventory() -> bool:
     if is_instance_valid(view) and view.visible: return true

@@ -46,6 +46,8 @@ fn fixture() -> Result<(Scene, Perso, Family, ActorObservation)> {
         object_types: [7, 3, 9],
         camera: None,
         motion_binding_present: false,
+        picking_bounds: None,
+        contact_eligible: true,
         microphone: None,
         hit_points: None,
         inventory_stock: None,

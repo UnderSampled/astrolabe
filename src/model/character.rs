@@ -28,6 +28,9 @@ pub struct StateRef {
     pub family: AssetRef<Family>,
     pub state: u32,
 }
+fn contact_eligible_default() -> bool {
+    true
+}
 impl StateRef {
     pub fn validate_family(&self, family: &Family) -> Result<()> {
         ensure!(
@@ -112,6 +115,13 @@ pub struct Perso {
     /// independent of the selected action's mechanics identity card.
     #[serde(default)]
     pub motion_binding_present: bool,
+    /// SuperObject picking geometry: first indexed sphere center, or actor
+    /// origin when absent. Template bounds must survive generation as well.
+    #[serde(default)]
+    pub picking_bounds: Option<AssetRef<super::collision::Collision>>,
+    /// StandardGame activation admits contact only for latch 0 and active 1.
+    #[serde(default = "contact_eligible_default")]
+    pub contact_eligible: bool,
     /// Actor-local microphone matrix; composed with the actor rotation by the
     /// native listener. Source allocation details stay in the reader.
     pub microphone: Option<Microphone>,
@@ -318,6 +328,12 @@ impl Content for Perso {
         Some(&self.path)
     }
     fn validate(&self) -> Result<()> {
+        ensure!(
+            self.picking_bounds
+                .as_ref()
+                .is_none_or(|r| r.path.member().is_none()),
+            "picking bounds must identify an asset"
+        );
         if let Some(camera) = &self.camera {
             camera.validate()?;
         }
