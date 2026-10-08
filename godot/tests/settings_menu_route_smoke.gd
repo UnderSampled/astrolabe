@@ -88,6 +88,14 @@ func run() -> void:
 	if preferences == null:
 		fail("Settings route did not resolve UserSettings")
 		return
+	var transient_node := Node3D.new()
+	var transient_node_id := transient_node.get_instance_id()
+	root.add_child(transient_node)
+	transient_node.free()
+	await process_frame
+	if bool(preferences.call("_apply_settings_to_node_by_id", transient_node_id)):
+		fail("Deferred image-settings callback resolved a node after it was freed")
+		return
 	var old_shadow := float(preferences.call("get_image_setting", "shadow_quality"))
 	var old_framing := float(preferences.call("get_image_setting", "screen_framing"))
 	var old_reverse := bool(preferences.call("get_reverse_stereo"))

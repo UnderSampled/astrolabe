@@ -305,8 +305,21 @@ func _apply_group(group: String) -> void:
 	AudioServer.set_bus_volume_db(index, linear_to_db(maxf(linear_gain, 0.000001)))
 
 func _on_node_added(node: Node) -> void:
+	# A scene can remove/free an added node before the deferred call is drained.
+	# Keep an ObjectID in MessageQueue instead of a Node reference that can decay
+	# to Nil and fail conversion to the typed callback argument.
+	call_deferred("_apply_settings_to_node_by_id", node.get_instance_id())
+
+func _apply_settings_to_node_by_id(instance_id: int) -> bool:
+	var candidate: Object = instance_from_id(instance_id)
+	if not candidate is Node:
+		return false
+	var node := candidate as Node
+	if not node.is_inside_tree():
+		return false
 	# Wait until the instanced scene has finished assigning exported properties.
-	call_deferred("_apply_settings_to_node", node)
+	_apply_settings_to_node(node)
+	return true
 
 func _apply_settings_to_node(node: Node) -> void:
 	if not is_instance_valid(node) or not node.is_inside_tree():
