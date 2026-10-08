@@ -217,6 +217,14 @@ func character() -> NativeCharacter:
 func active_normal(token: int) -> bool:
 	return running and token == normal_revision
 
+## Source behavior-query conditions compare the actor's current slot value with
+## the referenced behavior ID. The reference's model is not part of that test.
+func source_is_in_behavior(group: StringName, target: int) -> bool:
+	if target < 0: return false
+	if group == &"normal": return current_normal >= 0 and current_normal == target
+	if group == &"reflex": return current_reflex >= 0 and current_reflex == target
+	return false
+
 func change_normal(target: int, defer_entry: bool = false) -> bool:
 	if current_normal == target: return false
 	current_normal = target

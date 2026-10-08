@@ -717,6 +717,15 @@ func source_actor_node(actor_asset: String) -> Node3D:
         level = level.get_parent()
     return null
 
+## Query the current behavior slot on a resolved actor. A missing Brain or an
+## empty current slot is false, matching the source query's null-slot result.
+func source_actor_is_in_behavior(actor: Node3D, group: StringName, target: int) -> bool:
+    if not is_instance_valid(actor): return false
+    var brain := actor.get_node_or_null("Brain")
+    if not is_instance_valid(brain) or not brain.has_method("source_is_in_behavior"):
+        return false
+    return bool(brain.call("source_is_in_behavior", group, target))
+
 ## Source type-11 Perso lists append without deduplication and cannot grow
 ## beyond their declared capacity. The compiled AI owns the decision to add.
 func source_list_add(list: Array[Node3D], capacity: int, actor: Node3D) -> bool:

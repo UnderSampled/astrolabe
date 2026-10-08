@@ -763,10 +763,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::ApplyArmoredDamage(_)
         | Expression::ArmorResistance
         | Expression::ArmorCount => true,
-        Expression::IsInBehavior {
-            actor: ActorKeyword::MainActor,
-            ..
-        } => true,
+        Expression::IsInBehavior { .. } => true,
         Expression::Variable(index) => unresolved_variable(model, *index),
         Expression::ActorListContains { actor, .. } => needs_guard(actor, model),
         Expression::ActorFieldRead { .. } | Expression::MainActorFieldRead(_) => true,
@@ -1132,24 +1129,38 @@ fn guarded_expression(
             )?;
             format!("character().source_magic_remove_points(int({amount}))")
         }
-        Expression::IsInBehavior {
-            actor: ActorKeyword::MainActor,
-            target,
-        } => {
+        Expression::IsInBehavior { actor, target } => {
             let id = flow.local;
             flow.local += 1;
-            let brain = format!("behavior_brain_{id}");
-            let failure = quoted(&format!(
-                "{} requires MainActor Brain model {} for behavior query",
-                model.path, target.model.path
-            ));
-            writeln!(
-                out,
-                "{pad}if not is_instance_valid(main_actor):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {brain} := main_actor.get_node_or_null(\"Brain\")\n{pad}if not is_instance_valid({brain}) or str({brain}.get(\"source_model_path\")) != {}:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}",
-                quoted(target.model.path.as_str())
-            )?;
+            let actor_node = match actor {
+                ActorTarget::Keyword(ActorKeyword::SelfActor) => "character()".to_owned(),
+                ActorTarget::Keyword(ActorKeyword::MainActor) => "main_actor".to_owned(),
+                ActorTarget::Reference(reference) => format!(
+                    "character().source_actor_node({})",
+                    quoted(reference.path.as_str())
+                ),
+            };
+            let query_actor = if matches!(actor, ActorTarget::Keyword(ActorKeyword::SelfActor)) {
+                actor_node
+            } else {
+                let local = format!("behavior_actor_{id}");
+                let description = match actor {
+                    ActorTarget::Keyword(ActorKeyword::MainActor) => "MainActor".to_owned(),
+                    ActorTarget::Reference(reference) => reference.path.to_string(),
+                    ActorTarget::Keyword(ActorKeyword::SelfActor) => unreachable!(),
+                };
+                let failure = quoted(&format!(
+                    "{} requires resolved actor {} for behavior query",
+                    model.path, description
+                ));
+                writeln!(
+                    out,
+                    "{pad}var {local} = {actor_node}\n{pad}if not is_instance_valid({local}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
+                )?;
+                local
+            };
             format!(
-                "(int({brain}.get(\"current_{}\")) == {})",
+                "character().source_actor_is_in_behavior({query_actor}, &\"{}\", {})",
                 group_name(target.group),
                 target.behavior
             )
@@ -1291,12 +1302,9 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         }
         Expression::InTopOfJump => "character().source_in_top_of_jump()".into(),
         Expression::IsInBehavior { actor, target } => {
-            ensure!(
-                *actor == ActorKeyword::SelfActor && target.model.path == model.path,
-                "external behavior query requires a guarded actor binding"
-            );
             format!(
-                "(current_{} == {})",
+                "character().source_actor_is_in_behavior({}, &\"{}\", {})",
+                actor_target_code(actor),
                 group_name(target.group),
                 target.behavior
             )

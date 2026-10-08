@@ -1011,10 +1011,25 @@ impl Parser<'_> {
                 }
             }
             (1, 56 | 57) => {
-                let (_, actor) = self.take(indent + 1)?;
+                let (actor_at, actor) = self.take(indent + 1)?;
                 let actor = match (actor.kind, actor.parameter) {
-                    (0, 4) => ActorKeyword::SelfActor,
-                    (0, 5) => ActorKeyword::MainActor,
+                    (0, 4) => ActorTarget::Keyword(ActorKeyword::SelfActor),
+                    (0, 5) => ActorTarget::Keyword(ActorKeyword::MainActor),
+                    (24, _) if id == 56 => match self.codec.actors.get(&actor_at) {
+                        Some(actor) => ActorTarget::Reference(actor.clone()),
+                        None => {
+                            return Ok(Expression::Unsupported(self.unsupported(
+                                at,
+                                format!("unbound behavior-query actor at node {actor_at}"),
+                            )?));
+                        }
+                    },
+                    (24, _) => {
+                        return Ok(Expression::Unsupported(self.unsupported(
+                            at,
+                            "reflex behavior query actor reference is unsupported".into(),
+                        )?));
+                    }
                     _ => {
                         return Ok(Expression::Unsupported(self.unsupported(
                             at,
@@ -1889,14 +1904,16 @@ impl Writer<'_> {
                     },
                     indent,
                 );
-                self.node(
-                    0,
-                    match actor {
-                        ActorKeyword::SelfActor => 4,
-                        ActorKeyword::MainActor => 5,
-                    },
-                    indent + 1,
-                );
+                match actor {
+                    ActorTarget::Keyword(ActorKeyword::SelfActor) => self.node(0, 4, indent + 1),
+                    ActorTarget::Keyword(ActorKeyword::MainActor) => self.node(0, 5, indent + 1),
+                    ActorTarget::Reference(actor) if target.group == BehaviorGroup::Normal => {
+                        self.actor_node(actor, indent + 1)?
+                    }
+                    ActorTarget::Reference(_) => {
+                        bail!("referenced actor in Reflex behavior query is unsupported")
+                    }
+                }
                 self.behavior(target, indent + 1)?;
             }
             Expression::AbsentButton(query) => {
@@ -2790,7 +2807,7 @@ mod partial_tests {
             &script.statements[0],
             Statement::If {
                 condition: Expression::IsInBehavior {
-                    actor: ActorKeyword::MainActor,
+                    actor: ActorTarget::Keyword(ActorKeyword::MainActor),
                     target: bound,
                 },
                 ..

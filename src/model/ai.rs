@@ -425,7 +425,7 @@ pub enum Expression {
     SelfFieldRead(u16),
     MainActorFieldRead(u16),
     IsInBehavior {
-        actor: ActorKeyword,
+        actor: ActorTarget,
         target: BehaviorRef,
     },
     Button {
@@ -975,6 +975,19 @@ impl Script {
                     if let ActorTarget::Reference(actor) = actor {
                         ensure!(actor.path.member().is_none(), "distance actor is a member");
                     }
+                }
+                Expression::IsInBehavior {
+                    actor: ActorTarget::Reference(actor),
+                    target,
+                } => {
+                    ensure!(
+                        actor.path.member().is_none(),
+                        "behavior query actor is a member"
+                    );
+                    ensure!(
+                        target.group == BehaviorGroup::Normal,
+                        "referenced actors in Reflex behavior queries are unsupported"
+                    );
                 }
                 Expression::Actor(ActorTarget::Reference(actor)) => {
                     ensure!(
