@@ -632,5 +632,63 @@ fn collected_manor_music_themes_pass_native_shape_validation() -> Result<()> {
             );
         }
     }
+    // Verify the actual waveform closure before attempting a complete scene
+    // conversion: native long-theme PCM requires uniform decoded formats.
+    let links: Vec<_> = requests
+        .into_iter()
+        .map(|(bank, member)| SoundEventLink {
+            library: library_ref.clone(),
+            bank,
+            member,
+        })
+        .collect();
+    let graph = crate::openspace::audio::graph::SoundGraph::import(
+        &game,
+        &Selection::hype("manoir", "en")?,
+        &[(library_ref.path.clone(), library.clone())],
+        &links,
+    )?;
+    let mut source = crate::model::content::Collection::default();
+    for (path, value) in graph.definitions {
+        source.insert(&AssetRef::from_path(path), value)?;
+    }
+    for (path, value) in graph.banks {
+        source.insert(&AssetRef::from_path(path), value)?;
+    }
+    for (path, value) in graph.sounds {
+        source.insert(&AssetRef::from_path(path), value)?;
+    }
+    for link in &links {
+        let SoundDefinitionTarget::Event(event_ref) = &link.binding(&library)?.target else {
+            unreachable!()
+        };
+        let definitions = source.load(&event_ref.definitions)?;
+        let SoundOperation::Play {
+            resource: Some(resource),
+            ..
+        } = &definitions.event(event_ref.id)?.operation
+        else {
+            continue;
+        };
+        let theme = definitions.resource(resource.id)?;
+        if let SoundResourceData::Theme { parts, .. } = &theme.data {
+            if parts.len() > 63 {
+                let flat = flatten_theme_samples(&mut source, theme, &identity(resource))?;
+                ensure!(
+                    flat.frame_count() > 0 && flat.loop_region.is_some(),
+                    "long source theme has no native PCM/loop"
+                );
+                println!(
+                    "MUSIC_WAVE {}/{} {} frames{} rate{} channels{}",
+                    link.bank,
+                    link.member,
+                    theme.name,
+                    flat.frame_count(),
+                    flat.sample_rate,
+                    flat.channels
+                );
+            }
+        }
+    }
     Ok(())
 }

@@ -227,6 +227,16 @@ pub enum Statement {
     /// Hype category-23 operands are actor-local route slot indices.
     ResetRoute(u8),
     GoOverRoute(u8),
+    /// Meta30 visits the next selected waypoint in one actor-local route slot.
+    /// Unlike GoOverRoute, it completes after that point's progress update.
+    GoToNextWaypoint(u8),
+    /// Meta32/33 capture a point and radius once. The horizontal variant
+    /// refreshes the point's height from the actor before each native update.
+    GoToPosition {
+        point: Expression,
+        radius: Expression,
+        horizontal: bool,
+    },
     GoRelative,
     /// Proc_KillPerso(Me): remove the current generated Perso.
     KillSelf,
@@ -1505,6 +1515,10 @@ impl Script {
                     Statement::IncrementalTurnPosition { point, frames } => {
                         expression(point, variables, depth + 1, count)?;
                         expression(frames, variables, depth + 1, count)?;
+                    }
+                    Statement::GoToPosition { point, radius, .. } => {
+                        expression(point, variables, depth + 1, count)?;
+                        expression(radius, variables, depth + 1, count)?;
                     }
                     Statement::ChangeActorBehavior { actor, target } => {
                         if let ActorTarget::Reference(actor) = actor {

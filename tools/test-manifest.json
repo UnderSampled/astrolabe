@@ -5662,7 +5662,7 @@
       ],
       "kind": "semantic",
       "prerequisites": [],
-      "fixture": "Func38, UltraPosition, Meta19 signed count and keywordMe deactivation",
+      "fixture": "Func38, UltraPosition, signed Meta19, Meta30/32/33, microphone and keywordMe calls",
       "timeout_seconds": 5,
       "ignored": false,
       "release": true
@@ -5717,6 +5717,40 @@
       ],
       "fixture": "named native microphone refs, authored Micro basis, null pose and tree lifetime",
       "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::sound::tests::long_music_theme_preserves_native_pcm_gain_and_loop_entry",
+      "areas": [
+        "source",
+        "media",
+        "ai"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "75-part ordered stereo native PCM with part gains and authored loop frame",
+      "timeout_seconds": 45,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::sound::tests::collected_manor_music_themes_pass_native_shape_validation",
+      "areas": [
+        "source",
+        "media",
+        "ai"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "13 collected Manor theme shapes, actual decoded waveform closure and long native PCM",
+      "timeout_seconds": 90,
       "ignored": true,
       "release": true
     }

@@ -80,21 +80,23 @@ imported originals as supported-fields-only. See the [save importer evidence](..
 The current session still uses the historical `game/demo.*` and `demo_camera.gd`
 filenames. They are game code; the names do not define a separate demo product.
 
-## Preview New Game
+## New Game
 
 After generating the manor and importing its assets, run the project and select
 **New Game**. This opens the complete generated manor at its original starting
 state, with its compiled AI running. It does not restore a save, lift the bridge
 gate or substitute the camera-test excerpt. Existing saves are preserved; saving
-is disabled in this unfinished opening preview. **R** restarts New Game and
+is disabled for New Game. **R** restarts New Game and
 **Esc** pauses. **Load Game** keeps its existing save route.
 
-The opening is incomplete and can stop at unsupported behavior. The status
-display reports stopped actors, and the console retains their exact AI failures.
-An existing authored follow camera provides a preview view while source camera
-initialization is blocked; it switches to the generated camera if that camera's
-AI runs and obtains a target. This is a usable view of the current rough state,
-not acceptance of the original cinematic, dialogue, fade or letterbox.
+The imported viewport registration selects the source camera at startup. Its
+compiled AI and native camera component own the subsequent shots. The source
+dialogue and letterbox calls share the application's presentation owner. The
+session reports completion when Global147, Hype's gameplay behaviors, restored
+camera preset/target and letterbox state reach the authored handoff together.
+Unsupported actor behaviors retain exact console diagnostics. Full opening
+acceptance is tracked in the dated Manor integration audit; a first dialogue or
+successful conversion alone does not establish it.
 
 The project needs the locally generated assets to play. They are ignored by
 Git and must be regenerated on another machine. Open

@@ -389,9 +389,14 @@ impl Parser<'_> {
                     point: self.expression(indent + 1)?,
                     frames: self.expression(indent + 1)?,
                 },
+                (5, 32 | 33) => Statement::GoToPosition {
+                    point: self.expression(indent + 1)?,
+                    radius: self.expression(indent + 1)?,
+                    horizontal: id == 33,
+                },
                 (4, 29) => Statement::SetVectorSpeed(self.expression(indent + 1)?),
                 (4, 30) => Statement::AddWind(self.expression(indent + 1)?),
-                (4, 220) | (5, 27) => {
+                (4, 220) | (5, 27 | 30) => {
                     let (_, slot) = self.take(indent + 1)?;
                     ensure!(
                         slot.kind == 23,
@@ -400,6 +405,8 @@ impl Parser<'_> {
                     let slot: u8 = slot.parameter.try_into()?;
                     if kind == 4 {
                         Statement::ResetRoute(slot)
+                    } else if id == 30 {
+                        Statement::GoToNextWaypoint(slot)
                     } else {
                         Statement::GoOverRoute(slot)
                     }
@@ -1766,6 +1773,15 @@ impl Writer<'_> {
                     self.expression(point, indent + 1)?;
                     self.expression(frames, indent + 1)?;
                 }
+                Statement::GoToPosition {
+                    point,
+                    radius,
+                    horizontal,
+                } => {
+                    self.node(5, if *horizontal { 33 } else { 32 }, indent);
+                    self.expression(point, indent + 1)?;
+                    self.expression(radius, indent + 1)?;
+                }
                 Statement::SetVectorSpeed(value) => {
                     self.node(4, 29, indent);
                     self.expression(value, indent + 1)?;
@@ -1774,9 +1790,13 @@ impl Writer<'_> {
                     self.node(4, 30, indent);
                     self.expression(value, indent + 1)?;
                 }
-                Statement::ResetRoute(slot) | Statement::GoOverRoute(slot) => {
+                Statement::ResetRoute(slot)
+                | Statement::GoOverRoute(slot)
+                | Statement::GoToNextWaypoint(slot) => {
                     if matches!(s, Statement::ResetRoute(_)) {
                         self.node(4, 220, indent);
+                    } else if matches!(s, Statement::GoToNextWaypoint(_)) {
+                        self.node(5, 30, indent);
                     } else {
                         self.node(5, 27, indent);
                     }

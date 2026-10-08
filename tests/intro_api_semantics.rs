@@ -51,6 +51,17 @@ fn first_visit_actor_calls_and_signed_point_turn_reconstruct_source_and_rete() -
                 ])),
                 frames: Expression::Integer(-3),
             },
+            Statement::GoToNextWaypoint(1),
+            Statement::GoToPosition {
+                point: Expression::ActorPosition(ActorTarget::Reference(actor.clone())),
+                radius: Expression::Real(1.),
+                horizontal: true,
+            },
+            Statement::GoToPosition {
+                point: Expression::Variable(0),
+                radius: Expression::Real(0.),
+                horizontal: false,
+            },
             Statement::SetObjectActive {
                 actor: ActorTarget::Keyword(ActorKeyword::SelfActor),
                 active: false,
@@ -105,7 +116,15 @@ fn first_visit_actor_calls_and_signed_point_turn_reconstruct_source_and_rete() -
     assert!(code.contains(".source_hit_points.maximum)"));
     assert!(code.contains("source_actor_node(\"level:/persos/world/0/45\")"));
     assert!(code.contains(".source_position()"));
-    assert!(code.contains("source_turn_angles_to_position(turn_point_"));
+    assert!(code.contains("source_turn_angles_to_position(request_point_"));
+    assert!(code.contains("source_begin_next_waypoint(1)"));
+    assert!(code.contains("source_begin_point_motion(request_point_"));
+    assert!(code.contains("source_point_motion_finished(motion_ticket_"));
+    assert!(code.contains("source_point_motion_failure(motion_ticket_"));
+    assert!(
+        code.find("var motion_failure_").unwrap()
+            < code.find("source_cancel_point_motion(").unwrap()
+    );
     assert!(code.contains("source_motion_binding_present"));
     assert!(!code.contains("remaining_2 < 0: remaining_2 = 1"));
     assert!(code.contains("source_set_object_active_state(false)"));

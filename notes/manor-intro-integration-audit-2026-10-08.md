@@ -126,3 +126,26 @@ has not been regenerated and full authored intro acceptance has not run.
 
 See [the current prioritized source queue](manor-source-dependency-queue-2026-10-08.md)
 for remaining movement, speech and listener evidence.
+
+## Coherent finite motion and audio batch
+
+The typed source adapter and compiled AI now distinguish Meta30's selected
+waypoint from Meta27's whole-route operation. Meta32/33 capture point before
+radius and call the native point-motion component. Compiled ordinary coroutine
+locals own cancellation; a completed native failure is read before cancellation
+and reported to the caller. Source/Rete reconstruction,49 source AI checks,
+16 compiler checks and3 support-ownership checks pass. The authored session and
+new passive full-intro observer both pass Godot syntax checks.
+
+Long ordered zero-fade themes are integrated as native embedded PCM streams.
+All13 collected Manor music bindings pass source shape and actual waveform
+closure checks (40.60s). The73/115/68-part themes flatten to stereo44100Hz native
+samples with authored loop frames. Initial Intro2's five-part native Interactive
+stream is unchanged. Mandatory safeguards pass7/6/14/2; an initial nextest
+invocation used a missing tool path, then passed with the existing pinned tool.
+
+Actual root publication and full-intro acceptance remain unrun at this commit.
+The observer uses the real bootstrap/New Game route, sends no intro input and
+checks the full dialogue chain, mode6, letterbox release and source player
+handoff before sending physical ArrowUp. Camera selector-1 restores the imported
+preset; it does not leave motion_mode=-1.

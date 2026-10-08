@@ -374,7 +374,7 @@ mod tests {
             output.path().join("addons/astrolabe/version.json"),
         )?)?;
         assert_eq!(version["interface"].as_u64(), Some(u64::from(INTERFACE)));
-        assert_eq!(INTERFACE, 71);
+        assert_eq!(INTERFACE, 72);
 
         let staged = tempfile::tempdir()?;
         stage(staged.path(), output.path())?;

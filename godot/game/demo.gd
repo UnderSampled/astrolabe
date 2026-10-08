@@ -36,6 +36,7 @@ var crossbow_aim_pitch := 0.0
 var opening_brains: Array[Node] = []
 var opening_failures: Dictionary = {}
 var opening_camera: Camera3D
+var opening_finished := false
 var _transition_snapshot: Dictionary = {}
 var _transition_brain_states: Array[Dictionary] = []
 var _transition_physics_states: Array[Dictionary] = []
@@ -255,16 +256,19 @@ func open_new_game() -> void:
     var camera_actor: Node = level.get_node_or_null(paths["level:/persos/world/0/2"]) if paths.has("level:/persos/world/0/2") else null
     opening_camera = camera_actor.get_node_or_null("SourceCamera") as Camera3D if camera_actor != null else null
     add_child(level)
-    # Existing authored view keeps the unfinished scene visible until source
-    # camera AI can run and selects an actual target. It supplies no source pose.
-    demo_camera.set("target",actor)
-    demo_camera.call("follow")
-    demo_camera.make_current()
+    # The imported viewport registration owns the opening camera. Its native
+    # component and compiled AI own every subsequent pose and target change.
+    if is_instance_valid(opening_camera) and bool(opening_camera.get("initially_current")):
+        opening_camera.make_current()
+    else:
+        demo_camera.set("target",actor)
+        demo_camera.call("follow")
+        demo_camera.make_current()
     await get_tree().process_frame
     if not is_inside_tree(): return
     ready_to_play = true
     loading = false
-    stage("opening","New Game — opening incomplete. R restarts; Esc pauses.")
+    stage("opening","New Game — opening. R restarts; Esc pauses.")
     update_opening_status()
     _finish_initial_transition(true, "")
 
@@ -519,10 +523,18 @@ func update_opening_status() -> void:
         if not failure.is_empty(): opening_failures[str(source_brain.get_path())] = failure
     if not opening_failures.is_empty():
         status_label.text = "Opening incomplete: %d actor behaviors stopped. R restarts; Esc pauses." % opening_failures.size()
-    if is_instance_valid(opening_camera):
-        var camera_brain := opening_camera.get_parent().get_node_or_null("Brain")
-        if camera_brain != null and camera_brain.get("running") and is_instance_valid(opening_camera.get("targeted_actor")):
-            opening_camera.make_current()
+    if opening_finished or not is_instance_valid(opening_camera): return
+    var paths: Dictionary = level.get_meta("source_actor_nodes", {})
+    var global_actor := level.get_node_or_null(paths.get("fix:/persos/15", NodePath()))
+    var global_brain := global_actor.get_node_or_null("Brain") if global_actor != null else null
+    var ui := level.get_node_or_null("AstrolabeUI")
+    if global_brain == null or ui == null: return
+    var adopted: Node = ui.get("adopted_screen")
+    if is_instance_valid(adopted): ui = adopted
+    # Source camera selector -1 restores the imported preset, normally mode0.
+    if bool(global_brain.get("dsg_147")) and bool(brain.get("running")) and int(brain.get("current_normal")) == 4 and int(brain.get("current_reflex")) == 3 and not bool(ui.get("widescreen")) and int(opening_camera.get("motion_mode")) == int(opening_camera.get("initial_motion_mode")) and opening_camera.get("targeted_actor") == actor:
+        opening_finished = true
+        stage("playable", "Opening complete — explore the manor" if opening_failures.is_empty() else "Opening complete; %d actor behaviors stopped." % opening_failures.size())
 
 func save_game() -> void:
     if new_game or not ready_to_play or not is_instance_valid(actor):

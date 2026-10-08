@@ -1953,10 +1953,12 @@ fn blocking(
     let exit = flow.exit();
     let id = flow.local;
     flow.local += 1;
-    let turn_point = if let Statement::IncrementalTurnPosition { point, .. } = statement {
+    let captured_point = if let Statement::IncrementalTurnPosition { point, .. }
+    | Statement::GoToPosition { point, .. } = statement
+    {
         let value = guarded_expression(out, point, model, depth, flow)?;
-        writeln!(out, "{pad}var turn_point_{id}: Vector3 = {value}")?;
-        Some(format!("turn_point_{id}"))
+        writeln!(out, "{pad}var request_point_{id}: Vector3 = {value}")?;
+        Some(format!("request_point_{id}"))
     } else {
         None
     };
@@ -1971,6 +1973,11 @@ fn blocking(
         }
         Statement::IncrementalTurnPosition { frames, .. } => {
             Some(guarded_expression(out, frames, model, depth, flow)?)
+        }
+        Statement::GoToPosition { radius, .. } => {
+            let value = guarded_expression(out, radius, model, depth, flow)?;
+            writeln!(out, "{pad}var request_radius_{id}: float = float({value})")?;
+            Some(format!("request_radius_{id}"))
         }
         Statement::ExecuteActionAndGenerateObject { action, .. } => {
             Some(guarded_expression(out, action, model, depth, flow)?)
@@ -2037,13 +2044,31 @@ fn blocking(
                 out,
                 "{pad}    var remaining_{id} := int({})\n{pad}    var turn_angles_{id}: Vector2 = character().source_turn_angles_to_position({})\n{pad}    if not is_finite(turn_angles_{id}.x) or not is_finite(turn_angles_{id}.y):\n{pad}        fail_unsupported({})\n{pad}        {exit}\n{pad}    var turn_heading_{id} := turn_angles_{id}.x\n{pad}    var turn_step_{id} := turn_angles_{id}.y / (0.000001 if remaining_{id} == 0 else float(abs(remaining_{id})))",
                 operand.as_deref().expect("turn frame operand prepared"),
-                turn_point.as_deref().expect("turn point prepared"),
+                captured_point.as_deref().expect("turn point prepared"),
                 quoted(&format!(
                     "{} requires finite native point-turn geometry",
                     model.path
                 ))
             )?;
             format!("remaining_{id} <= 0 or not character().source_motion_binding_present")
+        }
+        Statement::GoToPosition { horizontal, .. } => {
+            writeln!(
+                out,
+                "{pad}    var motion_ticket_{id}: int = character().source_begin_point_motion({}, {}, {horizontal})",
+                captured_point.as_deref().expect("motion point prepared"),
+                operand.as_deref().expect("motion radius prepared"),
+            )?;
+            point_motion_guard(out, model, &pad, id, exit)?;
+            format!("character().source_point_motion_finished(motion_ticket_{id})")
+        }
+        Statement::GoToNextWaypoint(slot) => {
+            writeln!(
+                out,
+                "{pad}    var motion_ticket_{id}: int = character().source_begin_next_waypoint({slot})",
+            )?;
+            point_motion_guard(out, model, &pad, id, exit)?;
+            format!("character().source_point_motion_finished(motion_ticket_{id})")
         }
         Statement::ExecuteAction(_) => {
             writeln!(
@@ -2104,11 +2129,20 @@ fn blocking(
             "{pad}        turn_heading_{id} += turn_step_{id}\n{pad}        character().source_turn_to_heading(turn_heading_{id})\n{pad}        remaining_{id} -= 1"
         )?;
     }
-    writeln!(
-        out,
-        "{pad}        await {}\n{pad}    if not active_{group}(token): {exit}",
-        flow.tick()
-    )?;
+    writeln!(out, "{pad}        await {}", flow.tick())?;
+    if matches!(
+        statement,
+        Statement::GoToPosition { .. } | Statement::GoToNextWaypoint(_)
+    ) {
+        // Query the completed request before cancellation clears its state.
+        // A later reached unsupported link must stop the compiled caller.
+        writeln!(
+            out,
+            "{pad}    var motion_failure_{id}: String = character().source_point_motion_failure(motion_ticket_{id})\n{pad}    character().source_cancel_point_motion(motion_ticket_{id})\n{pad}    if not active_{group}(token): {exit}\n{pad}    if not motion_failure_{id}.is_empty():\n{pad}        fail_unsupported(motion_failure_{id})\n{pad}        {exit}"
+        )?;
+    } else {
+        writeln!(out, "{pad}    if not active_{group}(token): {exit}")?;
+    }
     if !flow.rule {
         writeln!(
             out,
@@ -2118,6 +2152,23 @@ fn blocking(
         writeln!(out, "{pad}    break")?;
     }
     writeln!(out, "{pad}if not active_{group}(token): {exit}")?;
+    Ok(())
+}
+fn point_motion_guard(
+    out: &mut String,
+    model: &AiModel,
+    pad: &str,
+    id: usize,
+    exit: &str,
+) -> Result<()> {
+    writeln!(
+        out,
+        "{pad}    if motion_ticket_{id} < 0:\n{pad}        fail_unsupported({})\n{pad}        {exit}",
+        quoted(&format!(
+            "{} requires supported native point motion",
+            model.path
+        ))
+    )?;
     Ok(())
 }
 impl Flow {
@@ -3037,6 +3088,8 @@ fn statements(
             | Statement::WaitFrames(_)
             | Statement::IncrementalTurnToward { .. }
             | Statement::IncrementalTurnPosition { .. }
+            | Statement::GoToPosition { .. }
+            | Statement::GoToNextWaypoint(_)
             | Statement::ExecuteAction(_)
             | Statement::ExecuteActionAndGenerateObject { .. }
             | Statement::WaitEndOfAction

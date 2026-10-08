@@ -123,6 +123,9 @@ impl<'a> Iterator for AstWalk<'a> {
                 Statement::IncrementalTurnPosition { point, frames } => {
                     self.expressions(child_depth, &[point, frames]);
                 }
+                Statement::GoToPosition { point, radius, .. } => {
+                    self.expressions(child_depth, &[point, radius]);
+                }
                 Statement::SetHitPointsMaximum { actor, value }
                 | Statement::SetInventoryMaximum { item: actor, value }
                 | Statement::AddHitPoints { actor, value } => {
@@ -193,6 +196,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::ChangeActorBehavior { .. }
                 | Statement::ResetRoute(_)
                 | Statement::GoOverRoute(_)
+                | Statement::GoToNextWaypoint(_)
                 | Statement::GoRelative
                 | Statement::KillSelf
                 | Statement::KillPerso { .. }
