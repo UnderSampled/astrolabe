@@ -57,7 +57,12 @@ var _source_camera_data3d_active_callback_address := 0
 var _source_camera_data3d_sample_count := 0
 var source_particle_generator_enabled: bool = false
 @export var source_routes: Array[Resource] = []
+## Progress belongs to each actor binding, even when the route is shared.
+## Previous vertex/sample -1 preserves the source's unselected sentinel.
 @export var source_route_points: PackedInt32Array = PackedInt32Array()
+@export var source_route_samples: PackedInt32Array = PackedInt32Array()
+@export var source_route_previous_points: PackedInt32Array = PackedInt32Array()
+@export var source_route_previous_samples: PackedInt32Array = PackedInt32Array()
 var source_route_slot: int = -1
 var source_route_revision: int = 0
 var source_route_active: bool = false

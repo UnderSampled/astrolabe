@@ -117,6 +117,10 @@ fn manor_travel_dependencies_are_bound() -> Result<()> {
                 perso.routes.len() == 2,
                 "traveling camera lost its two ways"
             );
+            ensure!(
+                perso.collisions.is_none(),
+                "traveling Mass actor no longer takes the source no-contact-query branch"
+            );
             ensure!(perso.routes[0].route.is_some() && perso.routes[1].route.is_some());
             ensure!(perso.current_state == Some(1) && perso.initial_state == Some(1));
             let current = family

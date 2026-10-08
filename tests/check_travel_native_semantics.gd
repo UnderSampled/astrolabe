@@ -62,6 +62,20 @@ func check() -> void:
     if not require(actor.global_transform.is_equal_approx(start), "scaled point-turn query changed the actor pose"): return
     angles = actor.source_turn_angles_to_position(Vector3(INF,0,0))
     if not require(not is_finite(angles.x) and not is_finite(angles.y), "invalid point turn did not fail before changing native state"): return
+    # An actor's four progress fields must survive native scene storage. The
+    # shared route resource does not own current/previous selections.
+    actor.source_route_points = PackedInt32Array([0,2])
+    actor.source_route_samples = PackedInt32Array([0,7])
+    actor.source_route_previous_points = PackedInt32Array([-1,1])
+    actor.source_route_previous_samples = PackedInt32Array([-1,6])
+    var saved := PackedScene.new()
+    if not require(saved.pack(actor) == OK, "actor progress scene could not be packed"): return
+    if not require(ResourceSaver.save(saved,"res://travel_progress.tscn") == OK, "actor progress scene could not be saved"): return
+    var reopened := (load("res://travel_progress.tscn") as PackedScene).instantiate()
+    if not require(reopened.source_route_points == actor.source_route_points and reopened.source_route_samples == actor.source_route_samples and reopened.source_route_previous_points == actor.source_route_previous_points and reopened.source_route_previous_samples == actor.source_route_previous_samples, "native actor scene lost its current/previous waypoint progress"): return
+    reopened.source_route_previous_points[1] = 0
+    if not require(actor.source_route_previous_points[1] == 1, "actor instances shared mutable previous waypoint progress"): return
+    reopened.free()
     level.free()
     print("TRAVEL_POINT_TURN_GEOMETRY_OK")
     quit(0)
