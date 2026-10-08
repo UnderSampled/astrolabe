@@ -168,6 +168,13 @@ pub enum Statement {
         /// behavior group consequently enters its new behavior next tick.
         pause_after: bool,
     },
+    /// Proc_ChangeComport (category 4, operation 207) switches a resolved
+    /// actor to a referenced Normal behavior. Cross-actor requests are handled
+    /// by that actor's native Brain; the target reference may be cross-model.
+    ChangeActorBehavior {
+        actor: ActorTarget,
+        target: BehaviorRef,
+    },
     ChangeAction(Expression),
     Turn {
         degrees_per_second: Expression,
@@ -904,6 +911,9 @@ impl AiModel {
                     AstNode::Statement(Statement::ChangeBehavior { target, .. }) => {
                         out.push((target, true));
                     }
+                    AstNode::Statement(Statement::ChangeActorBehavior { target, .. }) => {
+                        out.push((target, false));
+                    }
                     AstNode::Expression(Expression::IsInBehavior { target, .. }) => {
                         queries.push((target, false));
                     }
@@ -1287,6 +1297,15 @@ impl Script {
                             ensure!(actor.path.member().is_none(), "turn target is a member");
                         }
                         expression(frames, variables, depth + 1, count)?;
+                    }
+                    Statement::ChangeActorBehavior { actor, target } => {
+                        if let ActorTarget::Reference(actor) = actor {
+                            ensure!(actor.path.member().is_none(), "behavior actor is a member");
+                        }
+                        ensure!(
+                            target.group == BehaviorGroup::Normal,
+                            "Proc_ChangeComport requires a Normal behavior"
+                        );
                     }
                     Statement::CameraChangeState { camera, state } => {
                         ensure!(camera.path.member().is_none(), "camera is a member");

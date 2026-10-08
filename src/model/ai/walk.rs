@@ -146,6 +146,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::Increment { .. }
                 | Statement::Decrement { .. }
                 | Statement::ChangeBehavior { .. }
+                | Statement::ChangeActorBehavior { .. }
                 | Statement::ResetRoute(_)
                 | Statement::GoOverRoute(_)
                 | Statement::GoRelative

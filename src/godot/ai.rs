@@ -2498,6 +2498,29 @@ fn statements(
                     )?;
                 }
             }
+            Statement::ChangeActorBehavior { actor, target } => {
+                ensure!(
+                    target.group == BehaviorGroup::Normal,
+                    "Proc_ChangeComport requires a Normal behavior"
+                );
+                let id = flow.local;
+                flow.local += 1;
+                let actor_expression = actor_target_code(actor);
+                let failure = quoted(&format!(
+                    "{} Proc_ChangeComport requires a different target actor with a Brain using {}",
+                    model.path, target.model.path
+                ));
+                let target_model_path = quoted(target.model.path.as_str());
+                writeln!(
+                    out,
+                    "{pad}var change_actor_{id}: Node3D = {actor_expression}\n{pad}if not is_instance_valid(change_actor_{id}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if change_actor_{id} == character():\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var change_brain_{id}: Node = change_actor_{id}.get_node_or_null(\"Brain\")\n{pad}if not is_instance_valid(change_brain_{id}) or str(change_brain_{id}.get(\"source_model_path\")) != {target_model_path} or not change_brain_{id}.has_method(\"change_normal\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}change_brain_{id}.call(\"change_normal\", {}, false)",
+                    quoted(&format!(
+                        "{} Proc_ChangeComport cannot switch the currently executing actor because the source callback's same-actor status semantics are unresolved",
+                        model.path
+                    )),
+                    target.behavior
+                )?;
+            }
             Statement::ChangeAction(action) => {
                 let value = guarded_expression(out, action, model, depth, flow)?;
                 if flow.rule {

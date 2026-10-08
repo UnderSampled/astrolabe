@@ -352,6 +352,18 @@ fn manor_model_334_category24_resolves_through_level_actor_identity_map_and_rete
     ensure!(actor_brain.model.path.as_str() == "level:/ai/models/154");
     let scene_ref = AssetRef::<Scene>::new("level:/scene")?;
     let scene: Arc<Scene> = imported.load(&scene_ref)?;
+    let main_actor_ref = scene
+        .main_actor
+        .as_ref()
+        .context("Manoir scene has no source MainActor")?;
+    let main_actor: Arc<Perso> = imported.load(main_actor_ref)?;
+    ensure!(
+        main_actor
+            .brain
+            .as_ref()
+            .is_some_and(|brain| brain.model.path.as_str() == "fix:/ai/models/28"),
+        "Manoir MainActor Brain is not the referenced Fix model 28"
+    );
     ensure!(
         scene
             .nodes
@@ -362,9 +374,9 @@ fn manor_model_334_category24_resolves_through_level_actor_identity_map_and_rete
     );
     println!("category24 source actor resolved to {}", actor_ref.path);
 
-    // Keep the remaining reached source operations explicit. The PE row for
-    // category5/raw49 is Action_Camera_GoToWP (signature PW); category4/raw207
-    // is Proc_ChangeComport (signature PQ). Neither effect is guessed here.
+    // Keep the camera operation in its owner's scope. The installed PE row for
+    // category5/raw49 is Action_Camera_GoToWP (signature PW); raw207 is the
+    // source-traced cross-actor Normal behavior switch.
     let Statement::Unsupported(camera_waypoint_action) = &then[2] else {
         anyhow::bail!("model334 camera waypoint action unexpectedly became typed")
     };
@@ -456,26 +468,12 @@ fn manor_model_334_category24_resolves_through_level_actor_identity_map_and_rete
             "model334 DSG166[{index}] clear changed"
         );
     }
-    let Statement::Unsupported(change_other_actor) = &then[12] else {
-        anyhow::bail!("Proc_ChangeComport unexpectedly became typed")
-    };
-    ensure!(
-        change_other_actor
-            .reason
-            .contains("category 4 operation 207")
-            && change_other_actor.nodes.len() == 3
-    );
-    ensure!(
-        change_other_actor.nodes[1].category == 0
-            && matches!(
-                &change_other_actor.nodes[1].operand,
-                PreservedAiOperand::NonRelocated(bytes) if bytes == &[5, 0, 0, 0]
-            ),
-        "Proc_ChangeComport actor operand changed"
-    );
-    let PreservedAiOperand::Behavior(requested_behavior) = &change_other_actor.nodes[2].operand
+    let Statement::ChangeActorBehavior {
+        actor: ActorTarget::Keyword(ActorKeyword::MainActor),
+        target: requested_behavior,
+    } = &then[12]
     else {
-        anyhow::bail!("Proc_ChangeComport behavior operand lost its binding")
+        anyhow::bail!("Proc_ChangeComport did not resolve MainActor and its behavior")
     };
     ensure!(
         requested_behavior.model.path.as_str() == "fix:/ai/models/28"

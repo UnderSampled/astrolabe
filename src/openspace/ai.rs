@@ -667,6 +667,7 @@ impl Parser<'_> {
                     }
                 }
                 (5, 68) => Statement::WaitFrames(self.expression(indent + 1)?),
+                (4, 207) => self.change_actor_behavior(indent, at)?,
                 (4, 209 | 210) => self.change_behavior(id, indent, false, at)?,
                 (4, 6) => {
                     // The observed return-zero/camera-update pair proceeds to
@@ -833,6 +834,48 @@ impl Parser<'_> {
             target,
             pause_after,
         })
+    }
+    fn change_actor_behavior(&mut self, indent: u8, start: usize) -> Result<Statement> {
+        let actor = match self.expression(indent + 1)? {
+            Expression::Actor(actor) => actor,
+            _ => {
+                return Ok(Statement::Unsupported(self.unsupported_range(
+                    start,
+                    self.end(start),
+                    format!(
+                        "Proc_ChangeComport actor operand is not a resolved actor at node {start}"
+                    ),
+                )?));
+            }
+        };
+        let operand = self.at;
+        if !self
+            .nodes
+            .get(operand)
+            .is_some_and(|node| node.kind == 32 && node.indent == indent + 1)
+        {
+            return Ok(Statement::Unsupported(self.unsupported_range(
+                start,
+                self.end(start),
+                format!("Proc_ChangeComport lacks a behavior operand at node {operand}"),
+            )?));
+        }
+        if !self.codec.behaviors.contains_key(&operand) {
+            return Ok(Statement::Unsupported(self.unsupported_range(
+                start,
+                self.end(start),
+                format!("Proc_ChangeComport behavior operand is unbound at node {operand}"),
+            )?));
+        }
+        let target = self.behavior(indent + 1)?;
+        if target.group != BehaviorGroup::Normal {
+            return Ok(Statement::Unsupported(self.unsupported_range(
+                start,
+                self.end(start),
+                format!("Proc_ChangeComport target is not a Normal behavior at node {operand}"),
+            )?));
+        }
+        Ok(Statement::ChangeActorBehavior { actor, target })
     }
     fn expression(&mut self, indent: u8) -> Result<Expression> {
         ensure!(indent <= 64, "AI expression too deep");
@@ -1725,6 +1768,11 @@ impl Writer<'_> {
                         },
                         indent,
                     );
+                    self.behavior(target, indent + 1)?;
+                }
+                Statement::ChangeActorBehavior { actor, target } => {
+                    self.node(4, 207, indent);
+                    self.expression(&Expression::Actor(actor.clone()), indent + 1)?;
                     self.behavior(target, indent + 1)?;
                 }
                 Statement::ChangeAction(action) | Statement::ExecuteAction(action) => {
