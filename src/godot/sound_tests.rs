@@ -320,3 +320,317 @@ func check():
     println!("{evidence}");
     Ok(())
 }
+
+#[test]
+#[ignore = "requires native Godot; long theme native PCM loop"]
+fn long_music_theme_preserves_native_pcm_gain_and_loop_entry() -> Result<()> {
+    let definitions_ref = AssetRef::<SoundDefinitions>::new("sound:/Sound/long.csb")?;
+    let library_ref = AssetRef::<SoundDefinitions>::new("sound:/Sound/long.lcb")?;
+    let wave_ref = AssetRef::<Sound>::new("sound:/synthetic/long-tone")?;
+    let member = |id| SoundMemberRef {
+        definitions: definitions_ref.clone(),
+        id,
+    };
+    let empty = || SoundDefinitions {
+        name: "long music".into(),
+        kind: SoundDefinitionKind::Events,
+        default_language: None,
+        groups: vec![],
+        banks: vec![],
+        levels: vec![],
+        bindings: vec![],
+        events: vec![],
+        resources: vec![],
+        selectors: vec![],
+        fidelity_notes: vec![],
+        reconstruction_gaps: vec![],
+    };
+    let resource = |id, volume, data| SoundResourceDefinition {
+        id,
+        name: format!("part{id}"),
+        data,
+        file: None,
+        volume: Some(volume),
+        looped: id == 75,
+        loop_region: None,
+        sample_rate: None,
+        channels: None,
+    };
+    let mut definitions = empty();
+    definitions.resources = (0..75)
+        .map(|id| {
+            resource(
+                id,
+                (40 + id) as f32,
+                SoundResourceData::Sample {
+                    sample: Some(SoundSampleRef::Sound(wave_ref.clone())),
+                    controls: SoundSampleControls {
+                        pitchable: false,
+                        volumeable: true,
+                        pannable: true,
+                        spatial: false,
+                        reverb: false,
+                    },
+                },
+            )
+        })
+        .collect();
+    definitions.resources.push(resource(
+        75,
+        75.0,
+        SoundResourceData::Theme {
+            start_loop: 7,
+            main_loops: 0,
+            parts: (0..75)
+                .map(|id| ThemeSoundPart {
+                    resource: member(id),
+                    transition: ThemeTransition::Crossfade,
+                    start_loop: false,
+                    end_loop: false,
+                    loops: 0,
+                    transition_duration: 0.0,
+                })
+                .collect(),
+        },
+    ));
+    definitions.events.push(SoundEvent {
+        name: "Play_Long".into(),
+        resource_id: Some(0),
+        operation: SoundOperation::Play {
+            resource: Some(member(75)),
+            pitch_variation: 0.0,
+            stoppable: true,
+            dynamic: false,
+        },
+        attributes: vec![],
+    });
+    let mut library = empty();
+    library.kind = SoundDefinitionKind::Library;
+    library.bindings.push(SoundDefinitionBinding {
+        target: SoundDefinitionTarget::Event(member(0)),
+        bank: 0,
+        member: 0,
+    });
+    let sound = Sound {
+        name: "short tone".into(),
+        sample_rate: 8000,
+        channels: 2,
+        samples: AudioSamples::Pcm16(
+            (0..256)
+                .flat_map(|i| {
+                    let value = if i % 40 < 20 { 7000 } else { -7000 };
+                    [value, -value / 2]
+                })
+                .collect(),
+        ),
+        loop_region: None,
+        resource_id: None,
+        surround: None,
+        fidelity_notes: vec![],
+    };
+    let temp = tempfile::tempdir()?;
+    let selection = Selection::hype("long-music-test", "en")?;
+    let mut store = crate::rete::Store::new(temp.path().join("rete"), selection.clone())?;
+    store.save(&definitions_ref, &definitions)?;
+    store.save(&library_ref, &library)?;
+    store.save(&wave_ref, &sound)?;
+    drop(store);
+    let mut store = crate::rete::Store::new(temp.path().join("rete"), selection.clone())?;
+    let output = temp.path().join("godot");
+    let mut project = Project::new(&output, selection)?;
+    let started = std::time::Instant::now();
+    println!("LONG_THEME_SETUP {}", output.display());
+    let event = export_event(
+        &mut project,
+        &mut store,
+        &SoundEventLink {
+            library: library_ref,
+            bank: 0,
+            member: 0,
+        },
+        &mut BTreeSet::new(),
+    )?;
+    println!("LONG_THEME_EXPORTED {:?}", started.elapsed());
+    assert_eq!(
+        project
+            .generated
+            .iter()
+            .filter(|p| p.ends_with(".wav"))
+            .count(),
+        1,
+        "shared original waveform; derived theme PCM is embedded in its native resource"
+    );
+    project.write(
+        project.level_path("event.json"),
+        &serde_json::to_vec(&event)?,
+    )?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    let script = r#"extends SceneTree
+const Audio = preload("res://addons/astrolabe/audio/emitter.gd")
+func _initialize(): call_deferred("check")
+func check():
+    var event = load(JSON.parse_string(FileAccess.get_file_as_string("res://generated/hype/levels/long-music-test/event.json")))
+    var requester = Node.new()
+    root.add_child(requester)
+    var music = Audio.music_channel(requester)
+    var voice = event.select(music)
+    var stream = voice.stream
+    print("LONG_THEME_NATIVE " + JSON.stringify({"class": stream.get_class(), "format": stream.format, "stereo": stream.stereo, "rate": stream.mix_rate, "loop": stream.loop_mode, "begin": stream.loop_begin, "end": stream.loop_end, "bytes": stream.data.size()}))
+    assert(stream is AudioStreamWAV and stream.format == AudioStreamWAV.FORMAT_16_BITS)
+    assert(stream.stereo and stream.mix_rate == 8000)
+    assert(stream.loop_mode == AudioStreamWAV.LOOP_FORWARD)
+    assert(stream.loop_begin == 7 * 256 and stream.loop_end == 75 * 256)
+    assert(is_equal_approx(voice.gain, 75.0 / 127.0))
+    assert(stream.data.size() == 75 * 256 * 2 * 2)
+    for part in 75:
+        var expected = roundi(7000.0 * float(40 + part) / 127.0)
+        assert(abs(stream.data.decode_s16(part * 256 * 4) - expected) <= 1, "part gain/order")
+        assert(abs(stream.data.decode_s16((part * 256 + 20) * 4) + expected) <= 1, "signed PCM gain")
+        var right = roundi(-3500.0 * float(40 + part) / 127.0)
+        assert(abs(stream.data.decode_s16(part * 256 * 4 + 2) - right) <= 1, "stereo interleaving")
+    var capture = AudioEffectCapture.new()
+    capture.buffer_length = 8.0
+    AudioServer.add_bus_effect(AudioServer.get_bus_index(&"Astrolabe Music"), capture)
+    assert(music.request_music(event))
+    var player = music.voices[0].player
+    var previous = 0.0
+    var wrapped = false
+    var loop_position = -1.0
+    var deadline = Time.get_ticks_msec() + 5000
+    while Time.get_ticks_msec() < deadline and not wrapped:
+        await create_timer(0.01).timeout
+        var position = player.get_playback_position()
+        if position + 0.05 < previous:
+            wrapped = true
+            loop_position = position
+        previous = position
+    assert(wrapped and player.playing, "native waveform did not loop")
+    assert(loop_position >= 7.0 * 256.0 / 8000.0 - 0.03 and loop_position < 0.5, "native loop entry " + str(loop_position))
+    var frames = capture.get_buffer(capture.get_frames_available())
+    var peak = 0.0
+    for frame in frames: peak = maxf(peak, maxf(absf(frame.x), absf(frame.y)))
+    assert(frames.size() > 0 and peak > 0.01)
+    music.kill_all()
+    music.queue_free()
+    requester.queue_free()
+    await create_timer(0.15).timeout
+    AudioServer.remove_bus(AudioServer.get_bus_index(&"Astrolabe Music"))
+    print("LONG_THEME_OK " + JSON.stringify({"parts": 75, "loop_frame": stream.loop_begin, "loop_position": loop_position, "frames": frames.size(), "peak": peak}))
+    quit(0)
+"#;
+    std::fs::write(project.stage.path().join("check_long_theme.gd"), script)?;
+    let parser_log = project.stage.path().join("long-parser.log");
+    crate::godot::run_godot(
+        &engine,
+        project.stage.path(),
+        &[
+            "--headless",
+            "--log-file",
+            parser_log
+                .to_str()
+                .context("non-UTF-8 long theme parser log")?,
+            "--check-only",
+            "--script",
+            "res://check_long_theme.gd",
+        ],
+        std::time::Duration::from_secs(10),
+    )?;
+    project.finish(&engine)?;
+    println!("LONG_THEME_BUILT {:?}", started.elapsed());
+    std::fs::write(output.join("check_long_theme.gd"), script)?;
+    let evidence = crate::godot::run_godot(
+        &engine,
+        &output,
+        &["--headless", "--script", "res://check_long_theme.gd"],
+        std::time::Duration::from_secs(10),
+    )?;
+    ensure!(evidence.contains("LONG_THEME_OK"), "{evidence}");
+    println!("{evidence}");
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires local sound definitions; all collected Manor music branches"]
+fn collected_manor_music_themes_pass_native_shape_validation() -> Result<()> {
+    let game = std::env::var_os("ASTROLABE_GAME_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("disc"));
+    // Unique MusicRequest bindings in the lead's complete 71-model Manor audit,
+    // including alternate/revisit/credits branches, not only the finite intro.
+    let requests = [
+        (0, 75),
+        (32, 0),
+        (32, 1),
+        (34, 0),
+        (34, 1),
+        (35, 0),
+        (35, 1),
+        (36, 0),
+        (36, 1),
+        (36, 2),
+        (36, 3),
+        (37, 0),
+        (104, 0),
+    ];
+    let library_ref = AssetRef::<SoundDefinitions>::new("sound:/Sound/playmo_b.lcb")?;
+    let library = crate::openspace::audio::read_sound_definitions(
+        &std::fs::read_to_string(game.join(library_ref.path.file()))?,
+        library_ref.path.file(),
+    )?;
+    for (bank, member) in requests {
+        let link = SoundEventLink {
+            library: library_ref.clone(),
+            bank,
+            member,
+        };
+        let SoundDefinitionTarget::Event(event_ref) = &link.binding(&library)?.target else {
+            unreachable!()
+        };
+        let definitions = crate::openspace::audio::read_sound_definitions(
+            &std::fs::read_to_string(game.join(event_ref.definitions.path.file()))?,
+            event_ref.definitions.path.file(),
+        )?;
+        let event = definitions.event(event_ref.id)?;
+        if let SoundOperation::Play {
+            resource: Some(resource),
+            ..
+        } = &event.operation
+        {
+            let theme = definitions.resource(resource.id)?;
+            if let SoundResourceData::Theme { parts, .. } = &theme.data {
+                validate_native_theme_shape(theme, &identity(resource))?;
+                for part in parts {
+                    let part_definitions = crate::openspace::audio::read_sound_definitions(
+                        &std::fs::read_to_string(game.join(part.resource.definitions.path.file()))?,
+                        part.resource.definitions.path.file(),
+                    )?;
+                    let sample = part_definitions.resource(part.resource.id)?;
+                    ensure!(
+                        matches!(sample.data, SoundResourceData::Sample { .. }),
+                        "{bank}/{member}: non-sample theme part"
+                    );
+                    if parts.len() > 63 {
+                        ensure!(!sample.looped, "{bank}/{member}: looping long theme sample");
+                    }
+                }
+                println!(
+                    "MUSIC_BRANCH {bank}/{member} {} theme{} parts{} accepted",
+                    event.name,
+                    resource.id,
+                    parts.len()
+                );
+            } else {
+                println!(
+                    "MUSIC_BRANCH {bank}/{member} {} non-theme {:?}",
+                    event.name, theme.data
+                );
+            }
+        } else {
+            println!(
+                "MUSIC_BRANCH {bank}/{member} {} {:?}",
+                event.name, event.operation
+            );
+        }
+    }
+    Ok(())
+}

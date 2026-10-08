@@ -276,32 +276,19 @@ fn export_resource(
     Ok(())
 }
 
-fn export_theme_voice(
-    project: &mut Project,
-    source: &mut impl ContentSource,
-    reference: &SoundMemberRef,
-    theme: &SoundResourceDefinition,
-    _written: &mut BTreeSet<AssetPath>,
-) -> Result<()> {
+fn validate_native_theme_shape(theme: &SoundResourceDefinition, label: &str) -> Result<()> {
     let SoundResourceData::Theme {
         start_loop,
         main_loops,
         parts,
     } = &theme.data
     else {
-        unreachable!()
+        anyhow::bail!("{label}: expected theme")
     };
-    let voice = resource_path(project, reference, "voices");
-    if project.generated.contains(&voice[6..]) {
-        return Ok(());
-    }
     ensure!(
-        !parts.is_empty() && parts.len() <= 63,
-        "{}: native theme clip limit exceeded",
-        identity(reference)
-    );
-    ensure!(
-        (*start_loop as usize) < parts.len()
+        !parts.is_empty()
+            && *start_loop >= 0
+            && (*start_loop as usize) < parts.len()
             && *main_loops == 0
             && theme.looped
             && parts.iter().all(|part| !part.start_loop
@@ -313,8 +300,34 @@ fn export_theme_voice(
                     ThemeTransition::Crossfade | ThemeTransition::EndOfPart
                 )),
         "{}: theme loop groups or transition semantics require additional source coverage",
-        identity(reference)
+        label
     );
+    Ok(())
+}
+
+fn export_theme_voice(
+    project: &mut Project,
+    source: &mut impl ContentSource,
+    reference: &SoundMemberRef,
+    theme: &SoundResourceDefinition,
+    _written: &mut BTreeSet<AssetPath>,
+) -> Result<()> {
+    let SoundResourceData::Theme {
+        start_loop,
+        main_loops: _,
+        parts,
+    } = &theme.data
+    else {
+        unreachable!()
+    };
+    let voice = resource_path(project, reference, "voices");
+    if project.generated.contains(&voice[6..]) {
+        return Ok(());
+    }
+    validate_native_theme_shape(theme, &identity(reference))?;
+    if parts.len() > 63 {
+        return export_flat_theme_voice(project, source, reference, theme);
+    }
     let stream = resource_path(project, reference, "streams");
     project.reserve(&stream[6..])?;
     let n = project.sound_count;
@@ -338,8 +351,6 @@ fn export_theme_voice(
         } else {
             *start_loop as usize
         };
-        // 004fa770 always queues the next part via SetNextTransition. The
-        // authored crossfade flag only governs a request for a different theme.
         writeln!(
             project.builder,
             "    var theme_part_{n}_{i} = load({})\n    var theme_gain_{n}_{i} = AudioStreamSynchronized.new()\n    theme_gain_{n}_{i}.stream_count = 1\n    theme_gain_{n}_{i}.set_sync_stream(0, theme_part_{n}_{i}.stream)\n    theme_gain_{n}_{i}.set_sync_stream_volume(0, linear_to_db(maxf({gain}, 0.000001)))\n    theme_stream_{n}.set_clip_name({i}, {})\n    theme_stream_{n}.set_clip_stream({i}, theme_gain_{n}_{i})\n    theme_stream_{n}.set_clip_auto_advance({i}, AudioStreamInteractive.AUTO_ADVANCE_ENABLED)\n    theme_stream_{n}.set_clip_auto_advance_next_clip({i}, {next})\n    theme_stream_{n}.add_transition({i}, {next}, AudioStreamInteractive.TRANSITION_FROM_TIME_END, AudioStreamInteractive.TRANSITION_TO_TIME_START, AudioStreamInteractive.FADE_DISABLED, 0.0)",
@@ -356,6 +367,144 @@ fn export_theme_voice(
         "[gd_resource type=\"Resource\" load_steps=3 format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/audio/voice.gd\" id=\"script\"]\n[ext_resource type=\"AudioStreamInteractive\" path={} id=\"stream\"]\n\n[resource]\nscript = ExtResource(\"script\")\nstream = ExtResource(\"stream\")\nspatial = false\npitchable = false\nsource_sample = {}\ntheme_identity = {}\n", quoted(&stream), quoted(&stream), quoted(&identity(reference))).as_bytes())?;
     project.diagnostic(format!("{}: native ordered theme parts and loop entry; natural boundaries queue the next part without invented crossfade. Switching an active theme remains unsupported pending audio-driver timing; driver buffering and volume quantization are not matched", identity(reference)));
     Ok(())
+}
+
+/// Long, unconditional zero-fade themes become a native sample loop. This is
+/// target conversion of meaningful PCM; source parts remain shared Model data.
+fn export_flat_theme_voice(
+    project: &mut Project,
+    source: &mut impl ContentSource,
+    reference: &SoundMemberRef,
+    theme: &SoundResourceDefinition,
+) -> Result<()> {
+    let sound = flatten_theme_samples(source, theme, &identity(reference))?;
+    let stream = resource_path(project, reference, "streams");
+    project.reserve(&stream[6..])?;
+    let n = project.sound_count;
+    project.sound_count += 1;
+    let input = format!("build_inputs/theme_{n}.pcm");
+    let AudioSamples::Pcm16(samples) = &sound.samples else {
+        unreachable!()
+    };
+    let bytes: Vec<_> = samples
+        .iter()
+        .flat_map(|sample| sample.to_le_bytes())
+        .collect();
+    project.write_build_input(&input, &bytes)?;
+    let region = sound
+        .loop_region
+        .as_ref()
+        .context("missing native theme loop")?;
+    writeln!(
+        project.builder,
+        "    var flat_theme_{n} = AudioStreamWAV.new()\n    flat_theme_{n}.format = AudioStreamWAV.FORMAT_16_BITS\n    flat_theme_{n}.mix_rate = {}\n    flat_theme_{n}.stereo = {}\n    flat_theme_{n}.data = FileAccess.get_file_as_bytes({})\n    flat_theme_{n}.loop_mode = AudioStreamWAV.LOOP_FORWARD\n    flat_theme_{n}.loop_begin = {}\n    flat_theme_{n}.loop_end = {}\n    if ResourceSaver.save(flat_theme_{n}, {}) != OK:\n        push_error(\"Cannot save native flattened theme\")\n        quit(1)\n        return",
+        sound.sample_rate,
+        sound.channels == 2,
+        quoted(&format!("res://{input}")),
+        region.start_frame,
+        region.end_frame,
+        quoted(&stream)
+    )?;
+    let voice = resource_path(project, reference, "voices");
+    project.write(voice[6..].into(), format!(
+        "[gd_resource type=\"Resource\" load_steps=3 format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/audio/voice.gd\" id=\"script\"]\n[ext_resource type=\"AudioStreamWAV\" path={} id=\"stream\"]\n\n[resource]\nscript = ExtResource(\"script\")\nstream = ExtResource(\"stream\")\nspatial = false\npitchable = false\nsource_sample = {}\ntheme_identity = {}\n", quoted(&stream), quoted(&stream), quoted(&identity(reference))).as_bytes())?;
+    project.diagnostic(format!(
+        "{}: long zero-fade ordered theme converted to native PCM sample loop; resource gain baked per part, authored loop entry retained; PCM quantization and driver buffering are not source matched",
+        identity(reference)
+    ));
+    Ok(())
+}
+
+fn flatten_theme_samples(
+    source: &mut impl ContentSource,
+    theme: &SoundResourceDefinition,
+    label: &str,
+) -> Result<Sound> {
+    validate_native_theme_shape(theme, label)?;
+    let SoundResourceData::Theme {
+        start_loop, parts, ..
+    } = &theme.data
+    else {
+        unreachable!()
+    };
+    let mut samples = Vec::new();
+    let mut format = None;
+    let mut loop_begin = 0;
+    for (index, part) in parts.iter().enumerate() {
+        let definitions = source.load(&part.resource.definitions)?;
+        let resource = definitions.resource(part.resource.id)?;
+        let SoundResourceData::Sample {
+            sample: Some(sample),
+            ..
+        } = &resource.data
+        else {
+            anyhow::bail!("{label}: flattened theme part is not a bound sample")
+        };
+        ensure!(
+            !resource.looped,
+            "{label}: flattened theme part must finish naturally"
+        );
+        let gain = f64::from(resource.volume.map_or(1.0, |v| (v / 127.0).clamp(0.0, 1.0)));
+        let mut append = |sound: &Sound| -> Result<()> {
+            sound.validate()?;
+            ensure!(
+                sound.channels <= 2,
+                "{label}: native theme supports mono/stereo"
+            );
+            let current = (sound.sample_rate, sound.channels);
+            let format = *format.get_or_insert(current);
+            ensure!(
+                current == format,
+                "{label}: mixed sample rates/channels require resampling"
+            );
+            ensure!(!sound.samples.is_empty(), "{label}: empty theme part");
+            if index == *start_loop as usize {
+                loop_begin = (samples.len() / usize::from(sound.channels)) as u64;
+            }
+            match &sound.samples {
+                AudioSamples::Pcm16(values) => samples.extend(values.iter().map(|&value| {
+                    (f64::from(value) * gain).round().clamp(-32768.0, 32767.0) as i16
+                })),
+                AudioSamples::Float32(values) => samples.extend(values.iter().map(|&value| {
+                    (f64::from(value) * gain * 32768.0)
+                        .round()
+                        .clamp(-32768.0, 32767.0) as i16
+                })),
+            }
+            Ok(())
+        };
+        match sample {
+            SoundSampleRef::Sound(reference) => append(source.load(reference)?.as_ref())?,
+            SoundSampleRef::Bank { bank, resource_id } => {
+                let bank = source.load(bank)?;
+                append(
+                    bank.sounds
+                        .iter()
+                        .find(|sound| sound.resource_id == Some(*resource_id))
+                        .context("missing bank-owned theme sample")?,
+                )?;
+            }
+        }
+    }
+    let (sample_rate, channels) = format.context("empty theme")?;
+    let end_frame = (samples.len() / usize::from(channels)) as u64;
+    ensure!(
+        end_frame <= i32::MAX as u64,
+        "{label}: native WAV loop frame limit exceeded"
+    );
+    Ok(Sound {
+        name: theme.name.clone(),
+        sample_rate,
+        channels,
+        samples: AudioSamples::Pcm16(samples),
+        loop_region: Some(SampleLoop {
+            start_frame: loop_begin,
+            end_frame,
+        }),
+        resource_id: None,
+        surround: None,
+        fidelity_notes: vec![],
+    })
 }
 
 fn export_sample_voice(
