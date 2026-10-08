@@ -220,6 +220,62 @@ its addition changes no executable logic or packaged fixture references.
 The actual root preparation and New Game/Load Game acceptance are authorized
 next. They have separate evidence and cannot be inferred from these passes.
 
+## Aggregate preparation: earliest blocker
+
+The one approved actual-root preparation ran against feature/evidence commit
+`d5c8a6725e6acece2b4bdcddc448a29a823be20e`. The authentic English archive hash
+is `877576b5867b5ad44b41dc4b72f6b70bc89dbe5e202c86817f2858948a1d634c`;
+all four extracted save members match it and remain unchanged. The canonical
+`import-save` command completes in3.586s and refreshes only ignored runtime data,
+including measured Global147/149=true. The previous import is preserved in
+ignored evidence. No source record/address enters runtime payloads.
+
+`prepare-game disc godot` fails before the first scene publication in82.804s.
+The existing staging `--headless --import` reaches its60-second inner deadline;
+there are no completed scopes. The outer supervisor reports exit1, no timeout,
+no leaked/remaining children, unchanged source and unchanged save fixture. The
+current generated manifest still identifies support72, so it is unsuitable for
+acceptance of the support77 union. No current gameplay run or screenshot was
+attempted against it. No full conversion retry or timeout increase followed.
+
+The earliest diagnostic is an editor TCP socket creation failure. This worker
+ran preparation in the restricted sandbox, whereas the passing aggregate native
+checks used required local privileges. A minimal AF_INET loopback socket check
+returns EPERM there and succeeds with local privileges. A corrected independently
+authored one-pixel editor import completes in2.478s restricted, with explicit
+socket errors, and2.615s privileged without errors. The first tiny probe used an
+invalid PNG CRC and is retained as failed probe evidence; the corrected paired
+fixture passes every PNG chunk CRC. This proves a local execution-environment
+fault that must be corrected before full preparation. It does **not** prove the
+full import's60-second delay is caused by that fault. The printed9% PNG scan is
+the leading64KiB truncated diagnostic, not the last observed file or evidence of
+a stall at9%. Static tracing finds no reason to change production cap or inner
+import deadlines on this evidence.
+
+Ignored evidence is `output/integration-resume-20261008/aggregate-actual/`:
+`prepare-result.json`, `prepare-game.log`, `original_save_import.json` and its
+private source diagnostic sibling, `restricted-editor-result.json`,
+`privileged-editor-result.json` and their logs. The bounded actual-menu observer
+`observer.gd` passes syntax preflight and is retained for the lead-directed retry.
+It captures only milestones and observes New Game camera/letterbox/dialogues,
+physical movement, Load Game saved gate/first-visit state and physical inventory
+opening. These remain **not run**, as does the subsequently requested actual
+barrel→drop→collect sequence. Native focused interaction/slot checks remain passing
+and are not substituted for that actual sequence.
+
+The exact source title limit also matters: animated `astrolabe_txt2` belongs to
+Astrolabe actor91/model659. Manor's similarly named title actor uses Fix688; the
+name alone does not prove a Manor title cue. No title popup is forced into the
+Manor observer or game. The unchanged Astrolabe title cue/catalogue/native check
+passes in the aggregate selection; an actual Manor title is not claimed.
+
+No useful completed audited contribution is awaiting integration. Actual project
+rehydration and New/Load/drop acceptance are blocked. The smallest next action
+is a lead-directed bounded preparation retry with required local privileges,
+followed by the one prepared actual-game acceptance if conversion succeeds.
+Do not replay worker stashes, raise import budgets speculatively, change source
+state or run the original game to mask this blocker.
+
 ## Complete ref snapshot
 
 These are the preserved refs inspected before any main-checkout implementation.

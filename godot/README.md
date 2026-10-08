@@ -103,7 +103,10 @@ records the current Rete58/support77 feature union. A service-owned temporary
 30-FPS cap now covers resource loading and awaited scene installation, preserves
 lower user caps, and restores the previous limit on completion/cancellation/exit.
 The selected armor and camera callback blockers have source-informed native fixes.
-Focused checks pass; actual complete opening acceptance is reported separately.
+Focused checks pass. Current actual-root regeneration failed before publication
+on a staging editor-import deadline, with restricted local socket errors; the
+local generated manifest remains support72. Current complete New Game/Load Game
+and real barrel→drop→collect acceptance are blocked until regeneration succeeds.
 The [earlier checkpoint](../notes/intro-integration-wrapup-2026-10-08.md) preserves
 the failed uncapped observations and their diagnostics.
 
