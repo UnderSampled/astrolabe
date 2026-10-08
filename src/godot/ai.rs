@@ -2163,9 +2163,9 @@ fn point_motion_guard(
 ) -> Result<()> {
     writeln!(
         out,
-        "{pad}    if motion_ticket_{id} < 0:\n{pad}        fail_unsupported({})\n{pad}        {exit}",
+        "{pad}    if motion_ticket_{id} < 0:\n{pad}        fail_unsupported({} + character().source_point_motion_failure(motion_ticket_{id}))\n{pad}        {exit}",
         quoted(&format!(
-            "{} requires supported native point motion",
+            "{} requires supported native point motion: ",
             model.path
         ))
     )?;

@@ -522,7 +522,7 @@ func update_opening_status() -> void:
         var failure := str(source_brain.get("unsupported_failure"))
         if not failure.is_empty(): opening_failures[str(source_brain.get_path())] = failure
     if not opening_failures.is_empty():
-        status_label.text = "Opening incomplete: %d actor behaviors stopped. R restarts; Esc pauses." % opening_failures.size()
+        status_label.text = ("Opening complete; %d actor behaviors stopped." if opening_finished else "Opening incomplete: %d actor behaviors stopped. R restarts; Esc pauses.") % opening_failures.size()
     if opening_finished or not is_instance_valid(opening_camera): return
     var paths: Dictionary = level.get_meta("source_actor_nodes", {})
     var global_actor := level.get_node_or_null(paths.get("fix:/persos/15", NodePath()))
