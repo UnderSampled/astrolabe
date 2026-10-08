@@ -81,6 +81,8 @@ var source_point_revision: int = 0
 var source_point_active: bool = false
 var source_point_holds_motion: bool = false
 var _source_point_target: Vector3 = Vector3.ZERO
+var _source_point_actor: Node3D
+var _source_point_pursuit: bool = false
 var _source_point_radius: float = 0.0
 var _source_point_horizontal: bool = false
 var _source_point_route_slot: int = -1
@@ -319,6 +321,16 @@ func source_turn_to_heading(heading: float) -> void:
     assert(is_finite(heading))
     global_rotation.y = heading
 
+## Proc217 writes an absolute heading about source +Z to its mechanics request.
+## Reuse the native facing transform; no engine event queue is reconstructed.
+func source_turn_toward(target: Node3D) -> bool:
+    if not source_motion_binding_present or not is_instance_valid(target) or not target.is_inside_tree():
+        return false
+    var angles := source_turn_angles(target)
+    if not angles.is_finite(): return false
+    source_turn_to_heading(PackedFloat32Array([angles.x + angles.y])[0])
+    return true
+
 ## GoRelative and jump impulses use the actor's orientation when their motion
 ## is committed. Airborne steering through a jump procedure uses it too.
 func _source_relative_vector(value: Vector3) -> Vector3:
@@ -397,6 +409,19 @@ func source_begin_point_motion(point: Vector3, radius: float, horizontal: bool =
     _source_point_horizontal = horizontal
     return _source_start_point_request()
 
+## Meta2 captures the actor and radius once. The target origin is sampled anew
+## by each native contact step, sharing the source-backed point arrival API.
+func source_begin_actor_pursuit(actor: Node3D, radius: float) -> int:
+    _source_new_point_request()
+    if not is_instance_valid(actor) or not actor.is_inside_tree() or not is_finite(radius):
+        return _source_fail_point_request("pursuit requires a native actor and finite radius")
+    _source_point_actor = actor
+    _source_point_pursuit = true
+    _source_point_radius = PackedFloat32Array([radius])[0]
+    if not is_finite(_source_point_radius):
+        return _source_fail_point_request("pursuit radius exceeds source real range")
+    return _source_start_point_request()
+
 ## Meta30 selects a single next waypoint. A failed slot lookup retains the
 ## preceding captured route, matching its initializer's failed replacement.
 func source_begin_next_waypoint(slot: int) -> int:
@@ -419,6 +444,8 @@ func _source_new_point_request() -> void:
     source_point_holds_motion = false
     _source_point_route_slot = -1
     _source_point_horizontal = false
+    _source_point_actor = null
+    _source_point_pursuit = false
     _source_point_failure = ""
 
 func _source_start_point_request() -> int:
@@ -533,6 +560,14 @@ func _source_advance_next_waypoint() -> bool:
 
 func _source_point_control() -> bool:
     if _source_point_route_slot >= 0 and not _source_select_waypoint_target(): return false
+    if _source_point_pursuit:
+        if not is_instance_valid(_source_point_actor) or not _source_point_actor.is_inside_tree():
+            _source_fail_point_request("captured pursuit actor no longer belongs to the scene")
+            return false
+        _source_point_target = _source_point_actor.global_position
+        if not _source_point_target.is_finite():
+            _source_fail_point_request("pursuit actor origin must be finite")
+            return false
     if _source_point_horizontal: _source_point_target.y = global_position.y+0.05
     # The source returns completion before arrival/snap if dynamics is absent.
     var moving := source_motion_binding_present
@@ -1163,6 +1198,12 @@ func source_camera_reset_targeted_perso(camera_asset: String, target: Node3D) ->
     var camera := camera_actor.get_node_or_null("SourceCamera") if camera_actor != null else null
     return camera != null and camera.has_method("source_reset_targeted_perso") and bool(camera.call("source_reset_targeted_perso", target))
 
+## Proc136 restores framing/progress without assigning a new camera target.
+func source_camera_reset(camera_asset: String) -> bool:
+    var camera_actor := source_actor_node(camera_asset)
+    var camera := camera_actor.get_node_or_null("SourceCamera") if camera_actor != null else null
+    return camera != null and camera.has_method("source_reset_to_initial") and bool(camera.call("source_reset_to_initial"))
+
 ## Called by the compiled camera Brain. The native camera supports the mapped
 ## mode-0 controller/collision branches and mode-3 aiming. Missing source
 ## inputs and unported mode-0 branches still fail explicitly.
@@ -1235,6 +1276,35 @@ func source_set_object_active_state(active: bool) -> bool:
     visible = active
     process_mode = Node.PROCESS_MODE_INHERIT if active else Node.PROCESS_MODE_DISABLED
     return true
+
+## Proc12 raises the requested source Z by half a unit, snapshots that pose,
+## then lowers the rounded vector by half a unit through contact and activates.
+## Character0 uses native contact. Other mechanics and moving parent bindings
+## need their own supported placement contract before this call can mutate them.
+func source_activate_at_position(point: Vector3) -> bool:
+    if not is_inside_tree() or not point.is_finite(): return false
+    if source_motion_binding_present:
+        if current_mechanics == null or int(current_mechanics.mode) != 0: return false
+        var ancestor := get_parent()
+        while ancestor != null:
+            if ancestor is CharacterBody3D: return false
+            ancestor = ancestor.get_parent()
+        var raised_z: float = PackedFloat32Array([float(point.z) + 0.5])[0]
+        var lowered_z: float = PackedFloat32Array([raised_z - 0.5])[0]
+        if not is_finite(raised_z) or not is_finite(lowered_z): return false
+        var raised := Vector3(point.x, raised_z, -point.y)
+        var lowered := Vector3(point.x, lowered_z, -point.y)
+        global_position = raised
+        var collision := move_and_collide(lowered - raised, false, safe_margin, true)
+        if collision != null:
+            # The source's contact-success branch clears its velocity packet.
+            velocity = Vector3.ZERO
+            external_velocity = Vector3.ZERO
+        source_relative_motion = false
+        source_contact_sector()
+    # Both original placement helpers return zero without dynamics; activation
+    # still happens in that branch, with the existing actor origin preserved.
+    return source_set_object_active_state(true)
 
 ## Hype Proc_SetPersoAbsolutePosition moves the executing Perso.
 func source_set_absolute_position(point: Vector3) -> bool:

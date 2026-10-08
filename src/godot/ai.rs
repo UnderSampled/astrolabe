@@ -1008,6 +1008,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::AbsoluteValue(_)
         | Expression::ActorDistance(_)
         | Expression::ActorDistanceFrom { .. }
+        | Expression::DistanceToPosition { .. }
         | Expression::ActorFacingAngle { .. }
         | Expression::ActorLocalSourceXYDistance(_)
         | Expression::ActorLocalDistance { .. }
@@ -1128,6 +1129,22 @@ fn guarded_expression(
                 ))
             )?;
             format!("(facing_angles_{id}.y * 57.295780181884766)")
+        }
+        Expression::DistanceToPosition { receiver, point } => {
+            let actor = receiver
+                .as_ref()
+                .map(actor_target_code)
+                .unwrap_or_else(|| "character()".into());
+            let id = flow.local;
+            flow.local += 1;
+            writeln!(out, "{pad}var distance_actor_{id}: Variant = {actor}")?;
+            let point = guarded_expression(out, point, model, depth, flow)?;
+            writeln!(
+                out,
+                "{pad}var distance_point_{id}: Vector3 = {point}\n{pad}if not (distance_actor_{id} is Node3D) or not is_instance_valid(distance_actor_{id}) or not distance_actor_{id}.is_inside_tree() or not distance_actor_{id}.has_method(\"source_position\") or not distance_point_{id}.is_finite():\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var distance_origin_{id}: Vector3 = distance_actor_{id}.source_position()\n{pad}var distance_value_{id}: float = (distance_point_{id} - distance_origin_{id}).length()\n{pad}if not distance_value_{id} > 0.0: distance_value_{id} = -distance_value_{id}\n{pad}distance_value_{id} = PackedFloat32Array([distance_value_{id}])[0]",
+                quoted(&format!("{} requires a finite actor-origin distance to position", model.path))
+            )?;
+            format!("distance_value_{id}")
         }
         Expression::ActorHitPointsMaximum(actor) | Expression::ActorHitPoints(actor) => {
             let value = guarded_expression(out, actor, model, depth, flow)?;
@@ -1900,6 +1917,7 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         | Expression::ActorHitPointsMaximum(_)
         | Expression::ActorPosition(_)
         | Expression::ActorDistanceFrom { .. }
+        | Expression::DistanceToPosition { .. }
         | Expression::ActorFacingAngle { .. }
         | Expression::ActorLocalSourceXYDistance(_)
         | Expression::ActorLocalDistance { .. }
@@ -2068,6 +2086,17 @@ fn blocking(
     } else {
         None
     };
+    let captured_actor = if let Statement::PursueActor { actor, .. } = statement {
+        let value = guarded_expression(out, actor, model, depth, flow)?;
+        writeln!(
+            out,
+            "{pad}var pursuit_actor_{id}: Variant = {value}\n{pad}if not (pursuit_actor_{id} is Node3D) or not is_instance_valid(pursuit_actor_{id}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+            quoted(&format!("{} requires a captured native actor for Pursuit", model.path))
+        )?;
+        Some(format!("pursuit_actor_{id}"))
+    } else {
+        None
+    };
     let operand = match statement {
         Statement::Wait { milliseconds } => {
             Some(guarded_expression(out, milliseconds, model, depth, flow)?)
@@ -2080,7 +2109,7 @@ fn blocking(
         Statement::IncrementalTurnPosition { frames, .. } => {
             Some(guarded_expression(out, frames, model, depth, flow)?)
         }
-        Statement::GoToPosition { radius, .. } => {
+        Statement::GoToPosition { radius, .. } | Statement::PursueActor { radius, .. } => {
             let value = guarded_expression(out, radius, model, depth, flow)?;
             writeln!(out, "{pad}var request_radius_{id}: float = float({value})")?;
             Some(format!("request_radius_{id}"))
@@ -2177,6 +2206,16 @@ fn blocking(
             point_motion_guard(out, model, &pad, id, exit)?;
             format!("character().source_point_motion_finished(motion_ticket_{id})")
         }
+        Statement::PursueActor { .. } => {
+            writeln!(
+                out,
+                "{pad}    var motion_ticket_{id}: int = character().source_begin_actor_pursuit({}, {})",
+                captured_actor.as_deref().expect("pursuit actor prepared"),
+                operand.as_deref().expect("pursuit radius prepared"),
+            )?;
+            point_motion_guard(out, model, &pad, id, exit)?;
+            format!("character().source_point_motion_finished(motion_ticket_{id})")
+        }
         Statement::ExecuteAction(_) => {
             writeln!(
                 out,
@@ -2239,7 +2278,7 @@ fn blocking(
     writeln!(out, "{pad}        await {}", flow.tick())?;
     if matches!(
         statement,
-        Statement::GoToPosition { .. } | Statement::GoToNextWaypoint(_)
+        Statement::GoToPosition { .. } | Statement::GoToNextWaypoint(_) | Statement::PursueActor { .. }
     ) {
         // Query the completed request before cancellation clears its state.
         // A later reached unsupported link must stop the compiled caller.
@@ -2669,6 +2708,28 @@ fn statements(
                     value
                 )?;
             }
+            Statement::TurnToward(target) => {
+                let value = guarded_expression(out, target, model, depth, flow)?;
+                let id = flow.local;
+                flow.local += 1;
+                writeln!(
+                    out,
+                    "{pad}var turn_actor_{id}: Variant = {value}\n{pad}if not (turn_actor_{id} is Node3D) or not is_instance_valid(turn_actor_{id}) or not character().source_turn_toward(turn_actor_{id}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!("{} requires a native actor and mechanics for TurnPerso", model.path))
+                )?;
+            }
+            Statement::ActivateActorAtPosition { actor, point } => {
+                let value = guarded_expression(out, actor, model, depth, flow)?;
+                let id = flow.local;
+                flow.local += 1;
+                writeln!(out, "{pad}var activate_actor_{id}: Variant = {value}")?;
+                let point = guarded_expression(out, point, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}var activate_point_{id}: Vector3 = {point}\n{pad}if not (activate_actor_{id} is Node3D) or not is_instance_valid(activate_actor_{id}) or not activate_actor_{id}.has_method(\"source_activate_at_position\") or not bool(activate_actor_{id}.call(\"source_activate_at_position\", activate_point_{id})):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!("{} requires a supported native contact reset and activation", model.path))
+                )?;
+            }
             Statement::SetVectorSpeed(value)
             | Statement::SetImpulse(value)
             | Statement::AddWind(value) => {
@@ -3012,6 +3073,14 @@ fn statements(
                     quoted(camera.path.as_str())
                 )?;
             }
+            Statement::CameraReset { camera } => {
+                writeln!(
+                    out,
+                    "{pad}if not character().source_camera_reset({}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(camera.path.as_str()),
+                    quoted(&format!("{} requires a native camera initial framing reset", model.path))
+                )?;
+            }
             Statement::CameraChangeState { camera, state } => {
                 let value = guarded_expression(out, state, model, depth, flow)?;
                 writeln!(
@@ -3313,6 +3382,7 @@ fn statements(
             | Statement::IncrementalTurnToward { .. }
             | Statement::IncrementalTurnPosition { .. }
             | Statement::GoToPosition { .. }
+            | Statement::PursueActor { .. }
             | Statement::GoToNextWaypoint(_)
             | Statement::ExecuteAction(_)
             | Statement::ExecuteActionAndGenerateObject { .. }
@@ -3356,23 +3426,23 @@ fn statements(
                 }
             }
             Statement::ChangeActorBehavior { actor, target } => {
-                ensure!(
-                    target.group == BehaviorGroup::Normal,
-                    "Proc_ChangeComport requires a Normal behavior"
-                );
+                let target_group = match target.group {
+                    BehaviorGroup::Normal => "normal",
+                    BehaviorGroup::Reflex => "reflex",
+                };
                 let id = flow.local;
                 flow.local += 1;
                 let actor_expression = actor_target_code(actor);
                 let failure = quoted(&format!(
-                    "{} Proc_ChangeComport requires a different target actor with a Brain using {}",
+                    "{} actor {target_group} behavior request requires a different target actor with a Brain using {}",
                     model.path, target.model.path
                 ));
                 let target_model_path = quoted(target.model.path.as_str());
                 writeln!(
                     out,
-                    "{pad}var change_actor_{id}: Node3D = {actor_expression}\n{pad}if not is_instance_valid(change_actor_{id}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if change_actor_{id} == character():\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var change_brain_{id}: Node = change_actor_{id}.get_node_or_null(\"Brain\")\n{pad}if not is_instance_valid(change_brain_{id}) or str(change_brain_{id}.get(\"source_model_path\")) != {target_model_path} or not change_brain_{id}.has_method(\"change_normal\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}change_brain_{id}.call(\"change_normal\", {}, false)",
+                    "{pad}var change_actor_{id}: Node3D = {actor_expression}\n{pad}if not is_instance_valid(change_actor_{id}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if change_actor_{id} == character():\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var change_brain_{id}: Node = change_actor_{id}.get_node_or_null(\"Brain\")\n{pad}if not is_instance_valid(change_brain_{id}) or str(change_brain_{id}.get(\"source_model_path\")) != {target_model_path} or not change_brain_{id}.has_method(\"change_{target_group}\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}change_brain_{id}.call(\"change_{target_group}\", {}, false)",
                     quoted(&format!(
-                        "{} Proc_ChangeComport cannot switch the currently executing actor because the source callback's same-actor status semantics are unresolved",
+                        "{} external {target_group} request cannot switch the currently executing actor because its source control-status semantics are unresolved",
                         model.path
                     )),
                     target.behavior

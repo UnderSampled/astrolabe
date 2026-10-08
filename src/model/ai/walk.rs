@@ -85,6 +85,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::Turn {
                     degrees_per_second: value,
                 }
+                | Statement::TurnToward(value)
                 | Statement::IncrementalTurnToward { frames: value, .. }
                 | Statement::SetVectorSpeed(value)
                 | Statement::AddWind(value)
@@ -123,6 +124,12 @@ impl<'a> Iterator for AstWalk<'a> {
                 }
                 Statement::IncrementalTurnPosition { point, frames } => {
                     self.expressions(child_depth, &[point, frames]);
+                }
+                Statement::PursueActor { actor, radius } => {
+                    self.expressions(child_depth, &[actor, radius]);
+                }
+                Statement::ActivateActorAtPosition { actor, point } => {
+                    self.expressions(child_depth, &[actor, point]);
                 }
                 Statement::GoToPosition { point, radius, .. } => {
                     self.expressions(child_depth, &[point, radius]);
@@ -243,6 +250,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::RepairArmor
                 | Statement::CameraChangeTargetedPerso { .. }
                 | Statement::CameraResetTargetedPerso { .. }
+                | Statement::CameraReset { .. }
                 | Statement::CameraUpdatePosition { .. }
                 | Statement::ActorListAdd { .. }
                 | Statement::SetChannelActive { .. }
@@ -292,6 +300,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 }
                 Expression::ActorDistanceFrom { target, .. }
                 | Expression::ActorFacingAngle { target, .. }
+                | Expression::DistanceToPosition { point: target, .. }
                 | Expression::ActorLocalDistance { target, .. } => {
                     self.expressions(child_depth, &[target]);
                 }

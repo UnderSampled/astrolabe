@@ -227,8 +227,8 @@ pub enum Statement {
         /// behavior group consequently enters its new behavior next tick.
         pause_after: bool,
     },
-    /// Proc_ChangeComport (category 4, operation 207) switches a resolved
-    /// actor to a referenced Normal behavior. Cross-actor requests are handled
+    /// Proc_ChangeComport / Proc_ChangeComportReflex (207/208) switch a resolved
+    /// actor to a referenced Normal/Reflex behavior. Cross-actor requests are handled
     /// by that actor's native Brain; the target reference may be cross-model.
     ChangeActorBehavior {
         actor: ActorTarget,
@@ -238,6 +238,9 @@ pub enum Statement {
     Turn {
         degrees_per_second: Expression,
     },
+    /// Proc_TurnPerso (217) requests the absolute horizontal heading toward
+    /// an actor's origin. This is an immediate mechanics request, not Meta23.
+    TurnToward(Expression),
     /// Action_IncrementalTurnPerso snapshots the shortest horizontal turn and
     /// applies equal steps over a source frame count; negative counts mean one.
     IncrementalTurnToward {
@@ -268,6 +271,18 @@ pub enum Statement {
         point: Expression,
         radius: Expression,
         horizontal: bool,
+    },
+    /// Meta2 captures an actor and radius once, then follows that actor's
+    /// current origin through the same contact movement as GoToPosition.
+    PursueActor {
+        actor: Expression,
+        radius: Expression,
+    },
+    /// Proc12 places an actor through its contact reset, then activates it.
+    /// This is distinct from an absolute-position assignment.
+    ActivateActorAtPosition {
+        actor: Expression,
+        point: Expression,
     },
     GoRelative,
     /// Proc_KillPerso(Me): remove the current generated Perso.
@@ -378,6 +393,11 @@ pub enum Statement {
     },
     /// Source camera procedure 163 restores the component target to MainActor.
     CameraResetTargetedPerso {
+        camera: AssetRef<Perso>,
+    },
+    /// Proc136 restores the camera's initial framing and local progress,
+    /// preserving its selected target and session-owned controller state.
+    CameraReset {
         camera: AssetRef<Perso>,
     },
     /// Source camera procedure 157 selects a motion mode; -1 restores the
@@ -678,6 +698,12 @@ pub enum Expression {
         receiver: ActorTarget,
         target: Box<Expression>,
     },
+    /// Func13 measures origin-to-position distance in source world axes.
+    /// None uses the executing actor; Some retains an explicit Ultra receiver.
+    DistanceToPosition {
+        receiver: Option<ActorTarget>,
+        point: Box<Expression>,
+    },
     /// Func1 measures the signed shortest horizontal angle to its actor
     /// operand, in source degrees, after resolving an optional Ultra receiver.
     ActorFacingAngle {
@@ -963,6 +989,10 @@ impl Content for AiModel {
                 }
                 | Expression::ActorFacingAngle {
                     receiver: ActorTarget::Variable(index),
+                    ..
+                }
+                | Expression::DistanceToPosition {
+                    receiver: Some(ActorTarget::Variable(index)),
                     ..
                 }
                 | Expression::IsAbovePerso {
@@ -1354,6 +1384,18 @@ impl Script {
                     }
                     expression(target, variables, depth + 1, count)?;
                 }
+                Expression::DistanceToPosition { receiver, point } => {
+                    if let Some(ActorTarget::Reference(actor)) = receiver {
+                        ensure!(actor.path.member().is_none(), "distance receiver is a member");
+                    }
+                    if let Some(ActorTarget::Variable(variable)) = receiver {
+                        ensure!(
+                            usize::from(*variable) < variables,
+                            "AI receiver variable out of range"
+                        );
+                    }
+                    expression(point, variables, depth + 1, count)?;
+                }
                 Expression::IsAbovePerso {
                     receiver,
                     point,
@@ -1666,7 +1708,8 @@ impl Script {
                         expression(selector, variables, depth + 1, count)?;
                         expression(right, variables, depth + 1, count)?;
                     }
-                    Statement::Turn { degrees_per_second } => {
+                    Statement::Turn { degrees_per_second }
+                    | Statement::TurnToward(degrees_per_second) => {
                         expression(degrees_per_second, variables, depth + 1, count)?
                     }
                     Statement::IncrementalTurnToward { target, frames } => {
@@ -1683,14 +1726,18 @@ impl Script {
                         expression(point, variables, depth + 1, count)?;
                         expression(radius, variables, depth + 1, count)?;
                     }
-                    Statement::ChangeActorBehavior { actor, target } => {
+                    Statement::PursueActor { actor, radius } => {
+                        expression(actor, variables, depth + 1, count)?;
+                        expression(radius, variables, depth + 1, count)?;
+                    }
+                    Statement::ActivateActorAtPosition { actor, point } => {
+                        expression(actor, variables, depth + 1, count)?;
+                        expression(point, variables, depth + 1, count)?;
+                    }
+                    Statement::ChangeActorBehavior { actor, .. } => {
                         if let ActorTarget::Reference(actor) = actor {
                             ensure!(actor.path.member().is_none(), "behavior actor is a member");
                         }
-                        ensure!(
-                            target.group == BehaviorGroup::Normal,
-                            "Proc_ChangeComport requires a Normal behavior"
-                        );
                     }
                     Statement::CameraChangeState { camera, state } => {
                         ensure!(camera.path.member().is_none(), "camera is a member");
@@ -1702,7 +1749,8 @@ impl Script {
                             ensure!(actor.path.member().is_none(), "camera target is a member");
                         }
                     }
-                    Statement::CameraResetTargetedPerso { camera } => {
+                    Statement::CameraResetTargetedPerso { camera }
+                    | Statement::CameraReset { camera } => {
                         ensure!(camera.path.member().is_none(), "camera is a member");
                     }
                     Statement::SetActorAbsolutePosition { actor, position } => {

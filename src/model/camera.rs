@@ -15,8 +15,8 @@ pub struct Camera {
     /// pointer words are excluded; no source virtual addresses are retained.
     #[serde(with = "serde_bytes")]
     pub unknown: Vec<u8>,
-    /// Source order is retained. Parameter set 1 supplies the camera's initial
-    /// framing; the other sets are preserved without inventing preset roles.
+    /// Source order is retained. Set 0 is the initial preset copied by reset;
+    /// set 1 is active framing. The other sets retain their separate identities.
     pub parameters: [CameraParameters; 4],
 }
 

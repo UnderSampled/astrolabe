@@ -1,4 +1,4 @@
-# Astrolabe support, interface 76
+# Astrolabe support, interface 78
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -91,6 +91,21 @@ Animation supplies speed and action mechanics limits; `CharacterBody3D` resolves
 contact. Fixed StaticLine routes with dynamic kind zero are supported. Curved,
 dynamic and actor-relative routes are retained and fail explicitly if called.
 No source samples, dynamics records or route interpreter run in the port.
+
+`source_begin_actor_pursuit(actor, radius)` captures a native actor and rounded
+radius, then samples its current origin through the same point-motion component.
+`source_turn_toward(actor)` applies an immediate horizontal heading request.
+Training mannequin hit reactions use their compiled Normal/Reflex behaviors and
+native family action clips; the support package adds no separate spin animation.
+`source_activate_at_position(point)` supports the Character0 elevated placement
+and downward native contact step, then activation. Other mechanics and actors
+under moving character parents fail before placement. Exact original contact
+response and training timing still require runtime comparison.
+
+`camera/framing.gd` stores the converted initial camera preset as native
+properties. `Camera_Reset` restores those mapped parameters, the first-update
+snap flag, camera-local progress and finite vertical limits. It preserves the
+selected target and the separate session-owned controller history.
 
 `request_action(id, restart)` selects compiled family transitions, prohibited
 destinations, repeat counts and next states. A repeated request preserves the

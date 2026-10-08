@@ -559,6 +559,25 @@ pub(super) fn export_perso(
             "    {name}_camera.owner_motion_binding_present = {}",
             camera.owner_motion_binding_present
         )?;
+        writeln!(
+            project.builder,
+            "    var {name}_camera_initial = load(\"res://addons/astrolabe/camera/framing.gd\").new()\n    {name}_camera_initial.motion_mode = {}\n    {name}_camera_initial.target_offset = {}\n    {name}_camera_initial.actor_offset = {}\n    {name}_camera_initial.look_offset = {}\n    {name}_camera_initial.distance = Vector2({}, {})\n    {name}_camera_initial.yaw_limits = Vector2({}, {})\n    {name}_camera_initial.pitch_limits = Vector2({}, {})\n    {name}_camera_initial.shift_alpha = {}\n    {name}_camera_initial.parameter_flags = {}\n    {name}_camera_initial.action_flags = {}\n    {name}_camera_initial.target_child_index = {}\n    {name}_camera_initial.horizontal_fov = {}\n    {name}_camera.initial_framing = {name}_camera_initial",
+            initial.mode,
+            vec3(vector(initial.target_offset)),
+            vec3(vector(initial.actor_offset)),
+            vec3(vector(initial.look_offset)),
+            initial.distance[0],
+            initial.distance[1],
+            initial.yaw,
+            initial.shift_alpha(),
+            initial.pitch,
+            initial.shift_teta(),
+            initial.shift_alpha(),
+            initial.angle_flags(),
+            initial.controller_flags(),
+            initial.target_child_index(),
+            initial.horizontal_fov,
+        )?;
         // Source camera local -Y becomes the converted actor's +Z. Godot's
         // camera looks along local -Z, hence the child half-turn above.
         project.diagnostic(format!(

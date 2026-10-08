@@ -186,7 +186,7 @@ impl Parser<'_> {
                 continue;
             }
             out.push(match (kind, id) {
-                (3, 196 | 229) => {
+                (3, 13 | 196 | 229) => {
                     self.at -= 1;
                     Statement::Evaluate(self.expression(indent)?)
                 }
@@ -376,6 +376,7 @@ impl Parser<'_> {
                 (4, 214) => Statement::Turn {
                     degrees_per_second: self.expression(indent + 1)?,
                 },
+                (4, 217) => Statement::TurnToward(self.expression(indent + 1)?),
                 // Hype Proc_SetPersoAbsolutePosition (253) acts on the
                 // executing Perso. The vector is source-space absolute
                 // translation, converted at the Godot actor API boundary.
@@ -412,6 +413,14 @@ impl Parser<'_> {
                     point: self.expression(indent + 1)?,
                     radius: self.expression(indent + 1)?,
                     horizontal: id == 33,
+                },
+                (5, 2) => Statement::PursueActor {
+                    actor: self.expression(indent + 1)?,
+                    radius: self.expression(indent + 1)?,
+                },
+                (4, 12) => Statement::ActivateActorAtPosition {
+                    actor: self.expression(indent + 1)?,
+                    point: self.expression(indent + 1)?,
                 },
                 (4, 29) => Statement::SetVectorSpeed(self.expression(indent + 1)?),
                 (4, 30) => Statement::AddWind(self.expression(indent + 1)?),
@@ -524,7 +533,7 @@ impl Parser<'_> {
                 (4, 185) => Statement::SetTransparentDisplay(true),
                 (4, 186) => Statement::SetTransparentDisplay(false),
                 (4, 445) => Statement::ChangeSighting(self.expression(indent + 1)?),
-                (4, 157 | 160 | 163) => {
+                (4, 136 | 157 | 160 | 163) => {
                     let operand = self.at;
                     if !self
                         .nodes
@@ -540,7 +549,9 @@ impl Parser<'_> {
                     }
                     self.take(indent + 1)?;
                     let camera = self.codec.actors[&operand].clone();
-                    if id == 157 {
+                    if id == 136 {
+                        Statement::CameraReset { camera }
+                    } else if id == 157 {
                         Statement::CameraChangeState {
                             camera,
                             state: self.expression(indent + 1)?,
@@ -586,7 +597,16 @@ impl Parser<'_> {
                         _ => None,
                     };
                     let child = self.nodes.get(self.at);
-                    if let Some(actor_target) = actor_target.clone()
+                    if actor_target.is_some()
+                        && child.is_some_and(|n| {
+                            n.indent == indent + 1 && n.kind == 3 && n.parameter == 13
+                        })
+                    {
+                        // Func13 is a pure distance query even when its result
+                        // is discarded by this source Ultra statement.
+                        self.at = at;
+                        Statement::Evaluate(self.expression(indent)?)
+                    } else if let Some(actor_target) = actor_target.clone()
                         && child.is_some_and(|n| n.indent == indent + 1 && n.kind == 4 && n.parameter == 127)
                     {
                         self.take(indent + 1)?;
@@ -845,7 +865,7 @@ impl Parser<'_> {
                     }
                 }
                 (5, 68) => Statement::WaitFrames(self.expression(indent + 1)?),
-                (4, 207) => self.change_actor_behavior(indent, at)?,
+                (4, 207 | 208) => self.change_actor_behavior(id, indent, at)?,
                 (4, 209 | 210) => self.change_behavior(id, indent, false, at)?,
                 (4, 6) => {
                     // The observed return-zero/camera-update pair proceeds to
@@ -1058,7 +1078,7 @@ impl Parser<'_> {
             pause_after,
         })
     }
-    fn change_actor_behavior(&mut self, indent: u8, start: usize) -> Result<Statement> {
+    fn change_actor_behavior(&mut self, id: u32, indent: u8, start: usize) -> Result<Statement> {
         let actor = match self.expression(indent + 1)? {
             Expression::Actor(actor) => actor,
             _ => {
@@ -1091,11 +1111,16 @@ impl Parser<'_> {
             )?));
         }
         let target = self.behavior(indent + 1)?;
-        if target.group != BehaviorGroup::Normal {
+        let group = if id == 207 {
+            BehaviorGroup::Normal
+        } else {
+            BehaviorGroup::Reflex
+        };
+        if target.group != group {
             return Ok(Statement::Unsupported(self.unsupported_range(
                 start,
                 self.end(start),
-                format!("Proc_ChangeComport target is not a Normal behavior at node {operand}"),
+                format!("actor behavior request/owning group differs at node {operand}"),
             )?));
         }
         Ok(Statement::ChangeActorBehavior { actor, target })
@@ -1359,6 +1384,15 @@ impl Parser<'_> {
                     Expression::ActorDistance(target) => {
                         Expression::ActorDistanceFrom { receiver, target }
                     }
+                    Expression::DistanceToPosition {
+                        receiver: None,
+                        point,
+                    } => {
+                        Expression::DistanceToPosition {
+                            receiver: Some(receiver),
+                            point,
+                        }
+                    }
                     Expression::ActorFacingAngle { target, .. } => {
                         Expression::ActorFacingAngle { receiver, target }
                     }
@@ -1540,6 +1574,10 @@ impl Parser<'_> {
                 target: Box::new(self.expression(indent + 1)?),
                 vertical: true,
             },
+            (3, 13) => Expression::DistanceToPosition {
+                receiver: None,
+                point: Box::new(self.expression(indent + 1)?),
+            },
             (1, 98) => Expression::IsAbovePerso {
                 receiver: ActorTarget::Keyword(ActorKeyword::SelfActor),
                 point: Box::new(self.expression(indent + 1)?),
@@ -1700,7 +1738,9 @@ impl Writer<'_> {
                     ensure!(
                         matches!(
                             value,
-                            Expression::InventoryAddObject(_) | Expression::MagicAddPoints(_)
+                            Expression::InventoryAddObject(_)
+                                | Expression::MagicAddPoints(_)
+                                | Expression::DistanceToPosition { .. }
                         ),
                         "unsupported standalone function"
                     );
@@ -1859,6 +1899,10 @@ impl Writer<'_> {
                     self.node(4, 214, indent);
                     self.expression(degrees_per_second, indent + 1)?;
                 }
+                Statement::TurnToward(target) => {
+                    self.node(4, 217, indent);
+                    self.expression(target, indent + 1)?;
+                }
                 Statement::IncrementalTurnToward { target, frames } => {
                     self.node(5, 23, indent);
                     match target {
@@ -1890,6 +1934,16 @@ impl Writer<'_> {
                     self.node(5, if *horizontal { 33 } else { 32 }, indent);
                     self.expression(point, indent + 1)?;
                     self.expression(radius, indent + 1)?;
+                }
+                Statement::PursueActor { actor, radius } => {
+                    self.node(5, 2, indent);
+                    self.expression(actor, indent + 1)?;
+                    self.expression(radius, indent + 1)?;
+                }
+                Statement::ActivateActorAtPosition { actor, point } => {
+                    self.node(4, 12, indent);
+                    self.expression(actor, indent + 1)?;
+                    self.expression(point, indent + 1)?;
                 }
                 Statement::SetVectorSpeed(value) => {
                     self.node(4, 29, indent);
@@ -2051,7 +2105,8 @@ impl Writer<'_> {
                         ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
                     }
                 }
-                Statement::CameraResetTargetedPerso { camera } => {
+                Statement::CameraResetTargetedPerso { camera }
+                | Statement::CameraReset { camera } => {
                     let handle = self
                         .codec
                         .actor_handles
@@ -2059,7 +2114,15 @@ impl Writer<'_> {
                         .find(|(reference, _)| reference == camera)
                         .context("missing camera actor handle")?
                         .1;
-                    self.node(4, 163, indent);
+                    self.node(
+                        4,
+                        if matches!(s, Statement::CameraReset { .. }) {
+                            136
+                        } else {
+                            163
+                        },
+                        indent,
+                    );
                     self.node(24, handle, indent + 1);
                 }
                 Statement::CameraChangeState { camera, state } => {
@@ -2324,7 +2387,15 @@ impl Writer<'_> {
                     self.behavior(target, indent + 1)?;
                 }
                 Statement::ChangeActorBehavior { actor, target } => {
-                    self.node(4, 207, indent);
+                    self.node(
+                        4,
+                        if target.group == BehaviorGroup::Normal {
+                            207
+                        } else {
+                            208
+                        },
+                        indent,
+                    );
                     self.expression(&Expression::Actor(actor.clone()), indent + 1)?;
                     self.behavior(target, indent + 1)?;
                 }
@@ -2605,6 +2676,15 @@ impl Writer<'_> {
                 self.node(2, 12, indent);
                 self.expression(&Expression::Actor(actor.clone()), indent + 1)?;
                 self.node(9, 0, indent + 1);
+            }
+            Expression::DistanceToPosition { receiver, point } => {
+                let inner = if receiver.is_some() { indent + 1 } else { indent };
+                if let Some(receiver) = receiver {
+                    self.node(2, 24, indent);
+                    self.expression(&Expression::Actor(receiver.clone()), inner)?;
+                }
+                self.node(3, 13, inner);
+                self.expression(point, inner + 1)?;
             }
             Expression::ActorLocalSourceXYDistance(value) => {
                 self.node(3, 8, indent);

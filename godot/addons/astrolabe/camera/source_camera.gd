@@ -5,6 +5,7 @@ extends Camera3D
 
 @export var motion_mode: int = 0
 @export var initial_motion_mode: int = 0
+@export var initial_framing: Resource
 @export var actor_offset: Vector3 = Vector3.ZERO
 @export var look_offset: Vector3 = Vector3.ZERO
 @export var initially_current: bool = false
@@ -50,8 +51,8 @@ const SOURCE_MODE_ZERO_FALLBACK_RANGE_EPSILON := 0.001 # _DAT_0060b224
 const SOURCE_MODE_ZERO_CAMERA_BLOCK_STREAK_LIMIT := 50 # DAT_00721990 initialized by 005200a0
 const SOURCE_MODE_ZERO_FALLBACK_PITCHES := [0.3, 0.6, 0.0] # DAT_005fccb8..c0
 const SOURCE_MODE_ZERO_FALLBACK_YAWS := [0.7853982, 5.497787, 1.5707964, 4.712389, 2.3561945, 3.926991, 3.1415927, 0.3] # 005fcc9c..b8, 8 float reads
-const SOURCE_POSITION_DEFAULT_MIN := -3.402822e38 # 004406d0 writes 0xff7ffff8 at Position+0xa4
-const SOURCE_POSITION_DEFAULT_MAX := 3.402822e38 # 004406d0 writes 0x7f7ffff8 at Position+0xa8
+const SOURCE_POSITION_DEFAULT_MIN := -3.4028220466166163e38 # source finite lower sentinel
+const SOURCE_POSITION_DEFAULT_MAX := 3.4028220466166163e38 # source finite upper sentinel
 const CAMERA_POST_CONTACT_POSITION := &"post_contact_position"
 const CAMERA_RETAINED_POSITION_HISTORY := &"retained_position_history"
 
@@ -131,6 +132,37 @@ func source_reset_targeted_perso(actor: Node3D) -> bool:
     if not is_instance_valid(actor):
         return false
     targeted_actor = actor
+    return true
+
+## Proc136 copies initial framing to active framing and requests the first
+## snapped update. Reset only component-owned progress; controller_state owns
+## the distinct process-wide history. The selected target is preserved.
+func source_reset_to_initial() -> bool:
+    if initial_framing == null: return false
+    var initial_fov: float = initial_framing.horizontal_fov
+    if not is_finite(initial_fov) or initial_fov <= 0.0 or initial_fov >= PI: return false
+    motion_mode = int(initial_framing.motion_mode)
+    actor_offset = initial_framing.actor_offset
+    look_offset = initial_framing.look_offset
+    mode_zero_target_offset = initial_framing.target_offset
+    mode_zero_actor_offset = initial_framing.actor_offset
+    mode_zero_look_offset = initial_framing.look_offset
+    mode_zero_distance = initial_framing.distance
+    mode_zero_yaw_limits = initial_framing.yaw_limits
+    source_shift_alpha = float(initial_framing.shift_alpha)
+    mode_zero_pitch_limits = initial_framing.pitch_limits
+    mode_zero_parameter_flags = int(initial_framing.parameter_flags) | 8
+    source_mode_zero_action_flags = int(initial_framing.action_flags)
+    mode_zero_target_child_index = int(initial_framing.target_child_index)
+    fov = rad_to_deg(initial_fov)
+    _reset_target_progress()
+    static_obstruction_frames = 0
+    _eye_displacement = Vector3.ZERO
+    source_clear_eye_displacement()
+    _reported_mode_zero_gap = false
+    var owner := get_parent() as Node3D
+    if owner != null:
+        owner.set_meta("source_mode_zero_vertical_limits", Vector2(SOURCE_POSITION_DEFAULT_MIN, SOURCE_POSITION_DEFAULT_MAX))
     return true
 
 ## 00547be0 restores the original preset for -1 and leaves equal modes alone.
