@@ -270,6 +270,44 @@ fn source_brain_fields_join_to_named_owner_and_typed_value() -> Result<()> {
         );
     }
     let identities_from_projection = projection.fields.keys().cloned().collect::<BTreeSet<_>>();
-    ensure!(identities_from_projection == identities.into_iter().collect());
+    ensure!(identities_from_projection == identities.iter().cloned().collect());
+
+    let invalid_record = source_bool_record(0, 17, 4_562, 2)?;
+    let invalid = project_actor_brain_save_fields_optional(
+        &game,
+        &selection,
+        &[invalid_record],
+        &[identities[2].clone()],
+    )
+    .expect_err("invalid Boolean bytes must not be treated as an absent optional field");
+    ensure!(invalid.to_string().contains("invalid Boolean value"));
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires supplied Hype source corpus; selected by --local"]
+fn optional_brain_projection_reports_only_a_missing_registered_record() -> Result<()> {
+    let game = std::env::var_os("ASTROLABE_GAME_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("disc"));
+    let selection = Selection::hype("manoir", "en")?;
+    let records = [source_bool_record(0, 17, 15_586, 0)?];
+    let hype = ActorBrainFieldIdentity::new("level:/persos/world/0/0", ActorBrainFieldId::dsg(11))?;
+    let global = ActorBrainFieldIdentity::new("fix:/persos/15", ActorBrainFieldId::dsg(147))?;
+    let requested = [hype.clone(), global.clone()];
+
+    let optional =
+        project_actor_brain_save_fields_optional(&game, &selection, &records, &requested)?;
+    ensure!(optional.projection.fields.len() == 1);
+    ensure!(optional.projection.fields[&hype].value == DesignerValue::Boolean(false));
+    ensure!(optional.unresolved == [global.clone()]);
+
+    let strict = project_actor_brain_save_fields(&game, &selection, &records, &requested)
+        .expect_err("strict projection must reject an unresolved requested field");
+    ensure!(
+        strict
+            .to_string()
+            .contains("no unique supported saved source field")
+    );
     Ok(())
 }

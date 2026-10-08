@@ -14,13 +14,14 @@
 //! decoded table.
 
 use super::save_join::{
-    SaveAllocationCandidate, SaveAllocationJoin, SaveRecordLocation, join_save_allocations,
+    DesignerFieldEvidence, SaveAllocationCandidate, SaveAllocationJoin, SaveRecordLocation,
+    join_save_allocations,
 };
 use crate::{
     model::{AssetPath, PackageRole, Selection, ai::DesignerValue},
     openspace::save_game::SaiRecord,
 };
-use anyhow::{Result, bail, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use serde::{Serialize, Serializer};
 use std::{collections::BTreeMap, path::Path};
 
@@ -94,6 +95,14 @@ pub(crate) struct ActorBrainSaveProjection {
     pub(crate) fields: BTreeMap<ActorBrainFieldIdentity, ActorBrainFieldValue>,
 }
 
+/// Optional projection result for registered fields that may lack an SAI row.
+/// Unresolved identities are absent save records; source and value errors fail.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub(crate) struct OptionalActorBrainSaveProjection {
+    pub(crate) projection: ActorBrainSaveProjection,
+    pub(crate) unresolved: Vec<ActorBrainFieldIdentity>,
+}
+
 /// Resolve requested Brain fields from the active source package and SAI records.
 ///
 /// Only one-byte Boolean designer values are currently promoted. Every other
@@ -105,6 +114,25 @@ pub(crate) fn project_actor_brain_save_fields(
     records: &[SaiRecord],
     requested: &[ActorBrainFieldIdentity],
 ) -> Result<ActorBrainSaveProjection> {
+    let result = project_actor_brain_save_fields_optional(game, selection, records, requested)?;
+    if let Some(identity) = result.unresolved.first() {
+        bail!(
+            "no unique supported saved source field resolves to {}.brain.{}",
+            identity.owner,
+            identity.field.property_name()
+        );
+    }
+    Ok(result.projection)
+}
+
+/// Resolve requested source Brain fields, returning genuinely absent SAI rows
+/// separately from all malformed, ambiguous, or incomplete source joins.
+pub(crate) fn project_actor_brain_save_fields_optional(
+    game: &Path,
+    selection: &Selection,
+    records: &[SaiRecord],
+    requested: &[ActorBrainFieldIdentity],
+) -> Result<OptionalActorBrainSaveProjection> {
     ensure!(
         requested
             .iter()
@@ -114,7 +142,7 @@ pub(crate) fn project_actor_brain_save_fields(
         "duplicate requested actor Brain field identity"
     );
     if requested.is_empty() {
-        return Ok(ActorBrainSaveProjection::default());
+        return Ok(OptionalActorBrainSaveProjection::default());
     }
 
     let locations = records
@@ -171,16 +199,76 @@ pub(crate) fn project_actor_brain_save_fields(
         }
     }
 
+    let mut unresolved = Vec::new();
     for identity in requested {
+        let source_field = identity.field.source_label();
+        let evidence = joined
+            .designer_discovery
+            .saved_fields
+            .iter()
+            .filter(|field| {
+                field.source_object == identity.owner.as_str() && field.field == source_field
+            })
+            .collect::<Vec<_>>();
         ensure!(
-            projection.contains_key(identity),
-            "no unique supported saved source field resolves to {}.brain.{}",
+            evidence.len() == 1,
+            "expected one registered source descriptor for {}.brain.{}, found {}",
+            identity.owner,
+            identity.field.property_name(),
+            evidence.len()
+        );
+        let evidence = evidence[0];
+        ensure!(
+            evidence.designer_type == 0 && evidence.extent == 1,
+            "registered source descriptor for {}.brain.{} is not a one-byte Boolean",
             identity.owner,
             identity.field.property_name()
         );
+        let record_identity = descriptor_record_identity(evidence)?;
+        let saved_record_exists = records
+            .iter()
+            .any(|record| record.identity() == record_identity);
+        if saved_record_exists {
+            ensure!(
+                projection.contains_key(identity),
+                "saved source record {record_identity} did not resolve uniquely to {}.brain.{}",
+                identity.owner,
+                identity.field.property_name()
+            );
+        } else {
+            ensure!(
+                !projection.contains_key(identity),
+                "projected {}.brain.{} without its registered source record",
+                identity.owner,
+                identity.field.property_name()
+            );
+            unresolved.push(identity.clone());
+        }
     }
 
-    Ok(ActorBrainSaveProjection { fields: projection })
+    Ok(OptionalActorBrainSaveProjection {
+        projection: ActorBrainSaveProjection { fields: projection },
+        unresolved,
+    })
+}
+
+/// Convert an internal descriptor location to its SAI record identity. The
+/// allocation owner and address remain private to this OpenSpace reader.
+fn descriptor_record_identity(evidence: &DesignerFieldEvidence) -> Result<String> {
+    let (allocation_owner, record_identity) = evidence
+        .source_location
+        .split_once(':')
+        .context("saved Brain descriptor has an invalid source location")?;
+    ensure!(
+        matches!(allocation_owner, "Fix" | "Level"),
+        "saved Brain descriptor has an unknown allocation owner"
+    );
+    let parts = record_identity.split(':').collect::<Vec<_>>();
+    ensure!(
+        parts.len() == 3 && parts.iter().all(|part| part.parse::<u32>().is_ok()),
+        "saved Brain descriptor has an invalid SAI record location"
+    );
+    Ok(record_identity.to_owned())
 }
 
 fn candidate_matches(
