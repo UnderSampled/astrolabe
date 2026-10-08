@@ -189,6 +189,15 @@ pub enum Statement {
         milliseconds: Expression,
     },
     WaitFrames(Expression),
+    /// Hype's `0054ddb0` Action_WaitInteger callback polls three live signed
+    /// 32-bit integer operands each source tick.
+    /// The selector is truncated to a byte; 0..=5 select !=, ==, >=, <=, >,
+    /// and < respectively. Other byte selectors remain pending.
+    WaitInteger {
+        left: Expression,
+        selector: Expression,
+        right: Expression,
+    },
     ChangeBehavior {
         target: BehaviorRef,
         /// Yield the calling flow after the request; a change to that same
@@ -1502,6 +1511,15 @@ impl Script {
                     }
                     Statement::WaitFrames(frames) => {
                         expression(frames, variables, depth + 1, count)?
+                    }
+                    Statement::WaitInteger {
+                        left,
+                        selector,
+                        right,
+                    } => {
+                        expression(left, variables, depth + 1, count)?;
+                        expression(selector, variables, depth + 1, count)?;
+                        expression(right, variables, depth + 1, count)?;
                     }
                     Statement::Turn { degrees_per_second } => {
                         expression(degrees_per_second, variables, depth + 1, count)?

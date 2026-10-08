@@ -296,6 +296,11 @@ impl Parser<'_> {
                 (5, 37) => Statement::Wait {
                     milliseconds: self.expression(indent + 1)?,
                 },
+                (5, 40) => Statement::WaitInteger {
+                    left: self.expression(indent + 1)?,
+                    selector: self.expression(indent + 1)?,
+                    right: self.expression(indent + 1)?,
+                },
                 (2, 6) => {
                     let (_, target) = self.take(indent + 1)?;
                     ensure!(
@@ -2169,6 +2174,16 @@ impl Writer<'_> {
                 Statement::Wait { milliseconds } => {
                     self.node(5, 37, indent);
                     self.expression(milliseconds, indent + 1)?;
+                }
+                Statement::WaitInteger {
+                    left,
+                    selector,
+                    right,
+                } => {
+                    self.node(5, 40, indent);
+                    self.expression(left, indent + 1)?;
+                    self.expression(selector, indent + 1)?;
+                    self.expression(right, indent + 1)?;
                 }
                 Statement::WaitFrames(frames) => {
                     self.node(5, 68, indent);

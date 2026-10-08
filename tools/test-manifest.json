@@ -4445,6 +4445,39 @@
       "release": true
     },
     {
+      "binary": "astrolabe::ai_wait_integer",
+      "test": "raw40_roundtrips_live_fix_and_main_actor_operands_through_rete_and_codegen",
+      "areas": ["ai", "rete"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "source-derived category5/op40 with live Fix and MainActor Brain operands through Rete",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_wait_integer",
+      "test": "unresolved_raw40_actor_operand_is_preserved_and_compiles_fail_closed",
+      "areas": ["ai", "rete"],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "category5/op40 with explicitly unresolved source actor operand",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai_wait_integer",
+      "test": "native_raw40_polls_signed_byte_selected_values_and_cancels_pending_waits",
+      "areas": ["ai", "runtime"],
+      "kind": "native",
+      "prerequisites": ["godot"],
+      "fixture": "compiled category5/op40 poll with signed bounds, byte selector wrap, live operand mutation and cancellation",
+      "timeout_seconds": 40,
+      "ignored": false,
+      "release": true
+    },
+    {
       "binary": "astrolabe::armor",
       "test": "armor_catalog_survives_rete_storage_reload",
       "areas": [

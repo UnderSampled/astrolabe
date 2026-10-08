@@ -1938,7 +1938,9 @@ fn group_name(group: BehaviorGroup) -> &'static str {
         BehaviorGroup::Reflex => "reflex",
     }
 }
-/// A blocking request is an ordinary coroutine with captured native values.
+/// A blocking request is an ordinary coroutine over native values. Most
+/// requests capture their operands at entry; WaitInteger rereads all three
+/// operands on each poll because the source callback reevaluates them per tick.
 /// Its enclosing behavior owns cancellation; a rule can invalidate only the
 /// schedule's current request without re-running earlier branches or effects.
 fn blocking(
@@ -2002,6 +2004,7 @@ fn blocking(
             "{pad}    var action_revision_{id} := {group}_action_revision"
         )?;
     }
+    let mut poll_prelude = String::new();
     let complete = match statement {
         Statement::Wait { .. } => {
             writeln!(
@@ -2018,6 +2021,29 @@ fn blocking(
                 operand.as_deref().expect("frame operand prepared")
             )?;
             format!("remaining_{id} <= 0")
+        }
+        Statement::WaitInteger {
+            left,
+            selector,
+            right,
+        } => {
+            let left_value = guarded_expression(&mut poll_prelude, left, model, depth + 2, flow)?;
+            let selector_value =
+                guarded_expression(&mut poll_prelude, selector, model, depth + 2, flow)?;
+            let right_value = guarded_expression(&mut poll_prelude, right, model, depth + 2, flow)?;
+            let failure_prefix = format!("{} Action_WaitInteger", model.path);
+            writeln!(
+                &mut poll_prelude,
+                "{pad}        var wait_integer_left_value_{id}: Variant = {left_value}\n{pad}        if typeof(wait_integer_left_value_{id}) != TYPE_INT:\n{pad}            fail_unsupported({})\n{pad}            {exit}\n{pad}        var wait_integer_selector_value_{id}: Variant = {selector_value}\n{pad}        if typeof(wait_integer_selector_value_{id}) != TYPE_INT:\n{pad}            fail_unsupported({})\n{pad}            {exit}\n{pad}        var wait_integer_right_value_{id}: Variant = {right_value}\n{pad}        if typeof(wait_integer_right_value_{id}) != TYPE_INT:\n{pad}            fail_unsupported({})\n{pad}            {exit}",
+                quoted(&format!("{failure_prefix} left operand is not an integer")),
+                quoted(&format!("{failure_prefix} selector is not an integer")),
+                quoted(&format!("{failure_prefix} right operand is not an integer")),
+            )?;
+            writeln!(
+                &mut poll_prelude,
+                "{pad}        var wait_integer_left_{id}: int = int(wait_integer_left_value_{id}) & 0xffffffff\n{pad}        if wait_integer_left_{id} >= 0x80000000: wait_integer_left_{id} -= 0x100000000\n{pad}        var wait_integer_selector_{id}: int = int(wait_integer_selector_value_{id}) & 0xff\n{pad}        var wait_integer_right_{id}: int = int(wait_integer_right_value_{id}) & 0xffffffff\n{pad}        if wait_integer_right_{id} >= 0x80000000: wait_integer_right_{id} -= 0x100000000\n{pad}        var wait_integer_complete_{id} := false\n{pad}        match wait_integer_selector_{id}:\n{pad}            0: wait_integer_complete_{id} = wait_integer_left_{id} != wait_integer_right_{id}\n{pad}            1: wait_integer_complete_{id} = wait_integer_left_{id} == wait_integer_right_{id}\n{pad}            2: wait_integer_complete_{id} = wait_integer_left_{id} >= wait_integer_right_{id}\n{pad}            3: wait_integer_complete_{id} = wait_integer_left_{id} <= wait_integer_right_{id}\n{pad}            4: wait_integer_complete_{id} = wait_integer_left_{id} > wait_integer_right_{id}\n{pad}            5: wait_integer_complete_{id} = wait_integer_left_{id} < wait_integer_right_{id}\n{pad}            _: pass"
+            )?;
+            format!("wait_integer_complete_{id}")
         }
         Statement::IncrementalTurnToward { target, .. } => {
             let target = match target {
@@ -2116,6 +2142,7 @@ fn blocking(
     if group == "reflex" {
         writeln!(out, "{pad}        reflex_controls_tick = true")?;
     }
+    out.push_str(&poll_prelude);
     writeln!(out, "{pad}        if {complete}: break")?;
     if matches!(statement, Statement::WaitFrames(_)) {
         writeln!(out, "{pad}        remaining_{id} -= 1")?;
@@ -3086,6 +3113,7 @@ fn statements(
             }
             Statement::Wait { .. }
             | Statement::WaitFrames(_)
+            | Statement::WaitInteger { .. }
             | Statement::IncrementalTurnToward { .. }
             | Statement::IncrementalTurnPosition { .. }
             | Statement::GoToPosition { .. }

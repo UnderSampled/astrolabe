@@ -180,6 +180,13 @@ impl<'a> Iterator for AstWalk<'a> {
                     duration_ms,
                     ..
                 } => self.expressions(child_depth, &[target, duration_ms]),
+                Statement::WaitInteger {
+                    left,
+                    selector,
+                    right,
+                } => {
+                    self.expressions(child_depth, &[left, selector, right]);
+                }
                 Statement::ExecuteFade {
                     from,
                     to,
