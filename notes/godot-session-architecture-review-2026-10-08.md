@@ -1,0 +1,78 @@
+# Godot production session boundaries — review note
+
+This is a source review, not a component refactor. The Load Game recovery fix is
+being handled separately in the production game. No scene or script was renamed
+for this note.
+
+## Current ownership
+
+| Production component | Current responsibility |
+| --- | --- |
+| `game/bootstrap.gd` and `bootstrap.tscn` | Main menu destinations, menu overlays, route button locking, and opening the New Game or Load Game session scene. |
+| `game/demo.gd` and `demo.tscn` | Production session root despite the legacy `Demo` name. It starts initial loading, restores the imported/native state, installs and tears down levels, transfers supported actor/Brain state between levels, gates input/readiness, hosts pause/inventory UI, saves, and handles route failure. |
+| `game/level_transition.gd` and the `LevelTransition` autoload | Threaded `PackedScene` loading, transition lifecycle signals, cancellation, named-entry requests, and the persistent loading/error presenter. It delegates session restoration and level installation back to the current session root. |
+| `game/save_state.gd` | Native save envelope validation/capture/restore and compatibility-import reading. The owner/component contribution contract is still a separate architecture decision. |
+| `addons/astrolabe/ui/loading/screen.gd` | Presents resource-loading progress and dismissible terminal errors; it does not own the current game scene or save restoration. |
+
+The names `demo.gd`, `demo.tscn`, and the inherited `new_game.tscn` therefore
+understate their production role. The responsibility overlap is more important
+than the names: initial load is initiated by the session, asynchronous resource
+loading is owned by the autoload, restoration returns to the session, and the
+session currently schedules its own failed-route return to the bootstrap menu.
+
+## Review boundary for a future split
+
+Keep a small production `GameSession` facade as the scene root and move cohesive
+responsibilities behind explicit child/component contracts in measured steps:
+
+1. Keep route readiness, input locking, current-session teardown, and the active
+   level reference at the session boundary. New Game and Load Game should enter
+   the same session lifecycle with distinct restore policies.
+2. Give a session-owned level controller the load/instantiate/restore/install
+   transaction and named-entry placement. It should return a typed result to
+   the session and keep the actor/Brain/physics ordering that makes restoration
+   safe.
+3. Keep `LevelTransition` limited to asynchronous resource loading, transition
+   presentation, and terminal transition/cancel outcomes. It should not own
+   save format decisions or duplicate level installation.
+4. Keep `SaveState` responsible for envelope/version validation and restore
+   ordering. Actor/component-owned values can be added only after the versioned
+   owner contract is agreed; do not expose OpenSpace addresses or registration
+   internals to Godot.
+5. Leave pause, inventory, HUD, and authored menu screens as independently
+   owned UI components that consume session availability/state through narrow
+   signals or methods.
+
+The first refactor should preserve the existing New Game, native-slot, original
+import, cross-level entry, cancellation, and failure behavior. Each responsibility
+move should have a focused Godot regression before the next move. This review does
+not authorize a bulk rename or a production architecture migration.
+
+## Recovery-specific observation
+
+`Demo.fail()` schedules `_return_to_menu_after_initial_failure()` for an initial
+route error. The focused Godot 4.7.2 Load Game failure probe confirmed the
+Dismiss button is visible, in-tree, enabled, and focused. A parsed mouse move to
+the button's reported global-rect center did not hover a control, and the click
+did not activate it. The same probe sent Enter mapped to `ui_accept`; that
+closed the presenter and production recovery automatically opened
+`bootstrap.tscn`, showing the route error status. No test-only scene-change
+fallback was needed, and this run produced no outside-tree lookup error.
+
+The mouse evidence does not identify the cause. The button rect was
+`position=(-178,53), size=(420,34)`, while the input point was `(32,70)` and
+`gui_get_hovered_control()` returned empty. The probe did not record the live
+root viewport size, content scale, or canvas transform. Project settings specify
+1024x768; the authored presenter uses full-rect anchors and has no explicit
+CanvasLayer transform, while its content has a 420px minimum width. The
+negative X coordinate is consistent with a smaller centered parent viewport
+if the canvas transform is identity, but that condition was not measured. Do
+not infer a production layout defect from this report alone.
+
+The production recovery coroutine captures the autoload-owned presenter before
+it yields, exits if the session is canceled or no longer current, and checks
+the scene-change result. Keep keyboard recovery intact. The focused probe is
+preserved at
+`output/frozen-manor-newgame-camera-20261008/failure-only-hit-test-20261008/`;
+its fixture was restored with the expected hash. No further run was authorized
+after this one, so no full-route acceptance rerun has been made.

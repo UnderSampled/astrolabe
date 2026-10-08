@@ -41,6 +41,7 @@ var _transition_brain_states: Array[Dictionary] = []
 var _transition_physics_states: Array[Dictionary] = []
 var _initial_transition_pending := false
 var _initial_failure_recovery_started := false
+var _initial_failure_recovery_cancelled := false
 var source_camera_controller_state: Resource
 
 func _ready() -> void:
@@ -630,6 +631,7 @@ func leave_session(destination: String) -> void:
     if transitions != null and bool(transitions.call("is_transitioning")):
         if not bool(transitions.call("cancel_current_transition")):
             return
+    _initial_failure_recovery_cancelled = true
     pause_host.call("close_pause")
     inventory_host.call("close_inventory")
     ready_to_play = false
@@ -652,6 +654,7 @@ func inventory_available() -> bool:
     return ui == null or not ui.get("widescreen")
 
 func _exit_tree() -> void:
+    _initial_failure_recovery_cancelled = true
     restore_frame_limit()
     if is_instance_valid(brain):
         brain.call("stop")
@@ -676,6 +679,7 @@ func fail(message: String) -> void:
     stage("failed", message)
     _finish_initial_transition(false, message)
     if initial_failure:
+        _initial_failure_recovery_cancelled = false
         get_tree().root.set_meta(INITIAL_ROUTE_ERROR_META, message)
         if not _initial_failure_recovery_started:
             _initial_failure_recovery_started = true
@@ -696,11 +700,36 @@ func _show_initial_restore_phase(message: String) -> void:
         progress.hide()
 
 func _return_to_menu_after_initial_failure() -> void:
-    # Give LevelTransition the current frame to present its dismissible error.
-    await get_tree().process_frame
-    var presenter := get_node_or_null(LOADING_SCREEN_PATH)
-    while is_inside_tree() and is_instance_valid(presenter) and bool(presenter.get("visible")):
-        await get_tree().process_frame
-        presenter = get_node_or_null(LOADING_SCREEN_PATH)
-    if is_inside_tree():
-        get_tree().change_scene_to_file("res://game/bootstrap.tscn")
+    # Capture the persistent service/presenter before yielding. This coroutine
+    # belongs to the session, which can leave the tree while it waits for the
+    # user to dismiss an initial-load error.
+    if not is_inside_tree():
+        return
+    var scene_tree := get_tree()
+    if scene_tree.current_scene != self:
+        return
+    var transitions := scene_tree.root.get_node_or_null("LevelTransition")
+    var presenter := transitions.get_node_or_null("LoadingScreen") if transitions != null else null
+
+    # Let LevelTransition publish the terminal failure before checking the
+    # persistent presenter. The captured reference remains safe if this
+    # session leaves the active scene tree during the wait.
+    await scene_tree.process_frame
+    if not _initial_failure_recovery_is_current(scene_tree):
+        return
+    while is_instance_valid(presenter) and bool(presenter.get("visible")):
+        await scene_tree.process_frame
+        if not _initial_failure_recovery_is_current(scene_tree):
+            return
+
+    var error := scene_tree.change_scene_to_file("res://game/bootstrap.tscn")
+    if error != OK and _initial_failure_recovery_is_current(scene_tree):
+        _initial_failure_recovery_started = false
+        var message := "The game could not be opened. Press Esc to return to the menu."
+        stage("failed", message)
+        status_label.text = message
+        status_label.show()
+        push_error("Could not return to the menu after initial load failed: %s" % error_string(error))
+
+func _initial_failure_recovery_is_current(scene_tree: SceneTree) -> bool:
+    return is_inside_tree() and not _initial_failure_recovery_cancelled and scene_tree.current_scene == self
