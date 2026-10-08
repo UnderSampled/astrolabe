@@ -19,11 +19,12 @@ func _run() -> void:
 	var host = NativeCharacter.new()
 	host.name = "QueryHost"
 	host.autoplay = false
-	host.set_process(false)
 	var animation_player := AnimationPlayer.new()
 	animation_player.name = "AnimationPlayer"
 	host.add_child(animation_player)
 	root.add_child(host)
+	host.set_process(false)
+	host.set_physics_process(false)
 	host.set_meta("source_actor_nodes", {
 		"level:/persos/world/cross": NodePath("CrossActor"),
 		"level:/persos/world/null": NodePath("NullActor"),

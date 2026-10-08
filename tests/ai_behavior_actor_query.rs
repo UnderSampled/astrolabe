@@ -277,6 +277,10 @@ fn generated_behavior_query_reads_self_main_cross_model_and_null_slots() -> Resu
     )?;
     let log = fs::read_to_string(log)?;
     assert!(
+        !evidence.contains("SCRIPT ERROR") && !log.contains("SCRIPT ERROR"),
+        "Godot reported a script error despite the success marker:\nstdout: {evidence}\nlog: {log}"
+    );
+    assert!(
         evidence.contains("AI_BEHAVIOR_QUERY_OK") || log.contains("AI_BEHAVIOR_QUERY_OK"),
         "stdout: {evidence}\nlog: {log}"
     );
