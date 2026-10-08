@@ -34,13 +34,26 @@ decompiled routine's timer multiplier initializer is absent from the available
 decompilation, so the authored credits controller exposes an editable default
 scroll rate; pixel-timed parity remains unverified. Internet explicitly reports
 that the old route is obsolete and does not launch the external URL. Menu music
-and spoken idle prompts remain outside this increment.
+and spoken idle prompts remain outside this increment. The source Sound page
+also names Stereo Test and Reverse Stereo; those entries are not exposed because
+the current Godot mixer has no verified equivalent.
 
 Generate the independent menu closure with the same converter used for gameplay:
 
 ```sh
 target/release/astrolabe port disc godot --level manoir --locale en --content menu
 ```
+
+After exporting menu content, check the authored Options route against the real
+generated scene with:
+
+```sh
+godot --headless --path godot --script res://tests/settings_menu_route_smoke.gd
+```
+
+The smoke check verifies the forwarded route API, source pages, three audio
+sliders on the original 0–127 scale, five implemented action bindings, the
+explicitly unsupported image settings, and Back-to-menu signaling.
 
 The `menu` publication owner is separate from `manoir`, so menu regeneration
 preserves generated gameplay. It also exports
