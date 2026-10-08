@@ -4,5 +4,7 @@ extends Resource
 
 @export var active: bool = false
 @export var sniper_mode: bool = false
+@export var fly_mode: bool = false
+@export var source_mode_scale: float = 1.0
 @export var target_valid: bool = false
 @export var target_position: Vector3 = Vector3.ZERO

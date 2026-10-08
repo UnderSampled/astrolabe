@@ -47,10 +47,13 @@ impl Project {
                 let mut normals = Vec::new();
                 let mut uvs = Vec::new();
                 let mut colors = Vec::new();
+                let mut source_rli = Vec::new();
                 for (face, triangle) in part.triangles.iter().enumerate() {
                     for corner in [0, 2, 1] {
                         let index = usize::from(triangle[corner]);
                         vertices.push(vec3(vector(model.positions[index])));
+                        let rli = instance.radiosity_rgba(index).unwrap_or([0.; 4]);
+                        source_rli.push(format!("{},{},{},{}", rli[0], rli[1], rli[2], rli[3]));
                         let color = if let Some(rli) = instance.radiosity_rgba(index) {
                             std::array::from_fn::<_, 3, _>(|c| {
                                 (2.0 * (material.ambient[c] + material.diffuse[c] * rli[c]))
@@ -83,13 +86,15 @@ impl Project {
     arrays_{n}_{i}[Mesh.ARRAY_NORMAL] = PackedVector3Array([{}])
     arrays_{n}_{i}[Mesh.ARRAY_TEX_UV] = PackedVector2Array([{}])
     arrays_{n}_{i}[Mesh.ARRAY_COLOR] = PackedColorArray([{}])
-    mesh_{n}.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays_{n}_{i})
+    arrays_{n}_{i}[Mesh.ARRAY_CUSTOM0] = PackedFloat32Array([{}])
+    mesh_{n}.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays_{n}_{i}, [], {{}}, Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT)
     mesh_{n}.surface_set_name({i}, "surface_{i}")
     mesh_{n}.surface_set_material({i}, lighting_material({}, {}))"#,
                     vertices.join(","),
                     normals.join(","),
                     uvs.join(","),
                     colors.join(","),
+                    source_rli.join(","),
                     quoted(&format!("res://{material_path}")),
                     if instance.radiosity.is_empty() { 2 } else { 0 }
                 )?;

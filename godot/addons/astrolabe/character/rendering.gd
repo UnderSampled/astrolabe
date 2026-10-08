@@ -29,6 +29,39 @@ func set_transparent_display(actor: Node3D, enabled: bool) -> bool:
     transparent_display = enabled
     return _apply_opacity(actor)
 
+func rebind_visual_material_variant(actor: Node3D, previous: Material, replacement: ShaderMaterial) -> void:
+    for entry in opacity_materials:
+        if entry.get("owned") != previous:
+            continue
+        var source_shader: Shader = entry.get("source_shader") as Shader
+        if previous != replacement or source_shader == null:
+            source_shader = replacement.shader
+            entry["source_shader"] = source_shader
+        replacement.shader = _alpha_blended_shader(source_shader) if transparent_display and opacity < 254 else source_shader
+        var original := entry.get("original") as StandardMaterial3D
+        if original != null:
+            var base_color: Color = replacement.get_shader_parameter("source_albedo_color")
+            base_color.a = original.albedo_color.a
+            replacement.set_shader_parameter("source_albedo_color", base_color)
+            replacement.set_shader_parameter("source_opacity", float(opacity) / 255.0 if transparent_display and opacity < 254 else 1.0)
+            if transparent_display and opacity < 254:
+                replacement.set_shader_parameter("source_alpha_scissor_threshold", 0.0)
+            else:
+                replacement.set_shader_parameter("source_alpha_scissor_threshold", original.alpha_scissor_threshold if original.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR else 0.0)
+        entry["owned"] = replacement
+
+func _alpha_blended_shader(source_shader: Shader) -> Shader:
+    if source_shader == null:
+        return null
+    var code := source_shader.code
+    if code.contains("blend_add") or code.contains("blend_mix"):
+        return source_shader
+    if not code.contains("depth_draw_opaque"):
+        return null
+    var result := Shader.new()
+    result.code = code.replace("depth_draw_opaque", "blend_mix, depth_draw_opaque")
+    return result
+
 func _apply_opacity(actor: Node3D) -> bool:
     # 00499ed0 leaves the ordinary material pipeline at opacity >=254.
     var faded := transparent_display and opacity < 254
@@ -40,24 +73,56 @@ func _apply_opacity(actor: Node3D) -> bool:
             for surface in mesh_instance.mesh.get_surface_count():
                 var material := mesh_instance.get_active_material(surface)
                 if material == null: continue
-                if not material is StandardMaterial3D: return false
-                var original := material as StandardMaterial3D
+                var original: Material = material
+                if material is ShaderMaterial and material.has_meta("source_visual_material_runtime"):
+                    pass
+                elif material is StandardMaterial3D:
+                    original = material as StandardMaterial3D
+                else:
+                    return false
                 # Source shaded blending must be enabled on this material.
                 if original.has_meta("source_material_flags") and (int(original.get_meta("source_material_flags")) & 0x20000000) == 0: continue
-                var owned := original.duplicate() as StandardMaterial3D
-                pending.append({"mesh":mesh_instance,"surface":surface,"original":original,"owned":owned})
+                var owned := original.duplicate() as Material
+                pending.append({"mesh":mesh_instance,"surface":surface,"original":original,"owned":owned,"source_shader":original.shader if original is ShaderMaterial else null})
         opacity_materials = pending
         for entry in opacity_materials:
             var mesh_instance := entry["mesh"] as MeshInstance3D
             if mesh_instance.material_override != null: mesh_instance.material_override = entry["owned"]
             else: mesh_instance.set_surface_override_material(entry["surface"],entry["owned"])
     for entry in opacity_materials:
-        var original := entry["original"] as StandardMaterial3D
-        var owned := entry["owned"] as StandardMaterial3D
-        var color := original.albedo_color
-        color.a *= float(opacity) / 255.0 if faded else 1.0
-        owned.albedo_color = color
-        owned.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA if faded else original.transparency
+        var original: Material = entry["original"]
+        var owned: Material = entry["owned"]
+        if owned is ShaderMaterial and original is ShaderMaterial:
+            var shader_owned := owned as ShaderMaterial
+            var shader_original := original as ShaderMaterial
+            var source_shader := entry.get("source_shader", shader_original.shader) as Shader
+            shader_owned.shader = _alpha_blended_shader(source_shader) if faded else source_shader
+            if shader_owned.shader == null: return false
+            var factor := float(opacity) / 255.0 if faded else 1.0
+            shader_owned.set_shader_parameter("source_opacity", float(shader_original.get_shader_parameter("source_opacity")) * factor)
+            var original_threshold: float = float(shader_original.get_shader_parameter("source_alpha_scissor_threshold"))
+            shader_owned.set_shader_parameter("source_alpha_scissor_threshold", 0.0 if faded else original_threshold)
+        elif owned is ShaderMaterial and original is StandardMaterial3D:
+            var shader_owned := owned as ShaderMaterial
+            var standard_original := original as StandardMaterial3D
+            var source_shader := entry.get("source_shader") as Shader
+            shader_owned.shader = _alpha_blended_shader(source_shader) if faded else source_shader
+            if shader_owned.shader == null: return false
+            var base_color: Color = shader_owned.get_shader_parameter("source_albedo_color")
+            base_color.a = standard_original.albedo_color.a
+            shader_owned.set_shader_parameter("source_albedo_color", base_color)
+            shader_owned.set_shader_parameter("source_opacity", float(opacity) / 255.0 if faded else 1.0)
+            var original_threshold := standard_original.alpha_scissor_threshold if standard_original.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR else 0.0
+            shader_owned.set_shader_parameter("source_alpha_scissor_threshold", 0.0 if faded else original_threshold)
+        elif owned is StandardMaterial3D and original is StandardMaterial3D:
+            var standard_original := original as StandardMaterial3D
+            var standard_owned := owned as StandardMaterial3D
+            var color := standard_original.albedo_color
+            color.a *= float(opacity) / 255.0 if faded else 1.0
+            standard_owned.albedo_color = color
+            standard_owned.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA if faded else standard_original.transparency
+        else:
+            return false
     return true
 
 func _is_generated_child(actor: Node3D, candidate: Node) -> bool:

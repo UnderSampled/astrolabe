@@ -479,6 +479,16 @@ func source_set_laser_pointer_sniper_mode(enabled: bool) -> bool:
     source_laser_pointer.set("sniper_mode", enabled)
     return true
 
+## Proc_SetLaserPointerFlyMode stores the mode and source scale. Enabling it
+## clears sniper mode; disabling it leaves the sniper-mode bit unchanged.
+func source_set_laser_pointer_fly_mode(enabled: bool) -> bool:
+    if source_laser_pointer == null: return false
+    source_laser_pointer.set("fly_mode", enabled)
+    source_laser_pointer.set("source_mode_scale", 3.0 if enabled else 1.0)
+    if enabled:
+        source_laser_pointer.set("sniper_mode", false)
+    return true
+
 func source_set_laser_pointer_target(target: Vector3) -> void:
     assert(source_laser_pointer != null and target.is_finite())
     source_laser_pointer.set("target_position", target)
@@ -495,6 +505,37 @@ func source_set_transparency(opacity: int) -> bool:
 
 func source_set_transparent_display(enabled: bool) -> bool:
     return source_rendering.set_transparent_display(self, enabled)
+
+## Proc237 mutates the shared source VisualMaterial diffuse values. The active
+## level owns the native variants; actor copies must resolve through that scope.
+## Keep this resolution check separate so the generated AI reads its packed
+## designer operand only after a valid source material target is available.
+func source_visual_material_target_ready(material_path: String) -> bool:
+    var current: Node = self
+    while current != null:
+        if current.has_node("SourceVisualMaterialState"):
+            var state: Node = current.get_node("SourceVisualMaterialState")
+            if not is_instance_valid(state) or not state.has_method("can_set_visual_diffuse_coef"):
+                return false
+            return bool(state.call("can_set_visual_diffuse_coef", material_path))
+        current = current.get_parent()
+    return false
+
+func source_set_visual_gmt_diffuse_coef(material_path: String, packed_rgba: int) -> bool:
+    var current: Node = self
+    while current != null:
+        if current.has_node("SourceVisualMaterialState"):
+            var state: Node = current.get_node("SourceVisualMaterialState")
+            if not is_instance_valid(state) or not state.has_method("set_visual_diffuse_coef"):
+                return false
+            return bool(state.call("set_visual_diffuse_coef", material_path, packed_rgba))
+        current = current.get_parent()
+    return false
+
+## Keep opacity's actor-local ShaderMaterial copy connected to the material-state
+## service when Proc237 replaces that active variant.
+func source_rebind_visual_material_variant(previous: Material, replacement: ShaderMaterial) -> void:
+    source_rendering.rebind_visual_material_variant(self, previous, replacement)
 
 func source_laser_pointer_ready() -> bool:
     return source_laser_pointer != null and bool(source_laser_pointer.get("target_valid"))
@@ -571,7 +612,7 @@ func source_set_channel_active(channel: int, active: bool) -> bool:
 ## The authored HUD can bind this signal to its native Control nodes. Keep the
 ## requested state when the current test scene has no HUD composition yet.
 func source_set_hud_indicator_visible(indicator: String, visible: bool) -> void:
-    assert(indicator in ["life", "armor", "magic", "selected_object", "weapon"])
+    assert(indicator in ["life", "armor", "magic", "selected_object", "weapon", "cash"])
     source_hud_display[indicator] = visible
     hud_visibility_requested.emit(indicator, visible)
 
@@ -767,6 +808,21 @@ func source_camera_update_position() -> bool:
     if camera == null or not camera.has_method("source_update_position"):
         return false
     return bool(camera.call("source_update_position"))
+
+## Function_Camera_GetShiftAlpha reads the selected Perso camera's raw +0x44.
+## Null signals an unsupported selector or missing native camera component.
+func source_camera_get_shift_alpha(selector: int) -> Variant:
+    var camera := get_node_or_null("SourceCamera")
+    if camera == null or not camera.has_method("source_get_shift_alpha"):
+        return null
+    return camera.call("source_get_shift_alpha", selector)
+
+## Function_Camera_GetShiftTeta reads the selected Perso camera's raw +0x4c.
+func source_camera_get_shift_teta(selector: int) -> Variant:
+    var camera := get_node_or_null("SourceCamera")
+    if camera == null or not camera.has_method("source_get_shift_teta"):
+        return null
+    return camera.call("source_get_shift_teta", selector)
 
 ## Procedure 157 selects the referenced camera's supported motion state.
 func source_camera_change_state(camera_asset: String, state: int) -> bool:

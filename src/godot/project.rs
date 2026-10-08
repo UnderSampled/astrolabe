@@ -372,14 +372,23 @@ environment = SubResource("environment")
         // The first import needs the placeholder; the builder can inspect the
         // real preview once it has saved all referenced native scenes.
         self.write(self.level_path("preview.tscn"), preview.as_bytes())?;
-        run_godot(
+        let build_result = run_godot(
             godot,
             self.stage.path(),
             &["--headless", "--script", "res://build.gd"],
             // Whole levels build native meshes, animations and scenes here.
             // Dense animations are also converted to binary resources.
             Duration::from_secs(360),
-        )?;
+        );
+        if build_result.is_err()
+            && let Some(diagnostic_path) = std::env::var_os("ASTROLABE_FAILED_BUILD_SCRIPT")
+        {
+            let _ = fs::copy(
+                self.stage.path().join("build.gd"),
+                Path::new(&diagnostic_path),
+            );
+        }
+        build_result?;
         self.reserve(&self.level_path("validation.json"))?;
         // Preserve path-derived resource/node identities across edits and cache rebuilds.
         for path in &self.generated {

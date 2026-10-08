@@ -6,6 +6,7 @@ use crate::model::{
     ai::*,
     audio::SoundEventLink,
     character::{ObjectList, Perso},
+    geometry::Material,
     io::FormatSupport,
     route::Waypoint,
 };
@@ -39,6 +40,9 @@ pub struct AiScriptCodec {
     pub behavior_handles: Vec<(BehaviorRef, u32)>,
     pub actors: BTreeMap<usize, AssetRef<Perso>>,
     pub actor_handles: Vec<(AssetRef<Perso>, u32)>,
+    /// Source category-36 GameMaterialRef operands and write-time handles.
+    pub materials: BTreeMap<usize, AssetRef<Material>>,
+    pub material_handles: Vec<(AssetRef<Material>, u32)>,
     pub waypoints: BTreeMap<usize, AssetRef<Waypoint>>,
     pub waypoint_handles: Vec<(AssetRef<Waypoint>, u32)>,
     pub configurations: BTreeMap<usize, Option<AssetRef<ObjectList>>>,
@@ -53,7 +57,7 @@ impl FormatCodec for AiScriptCodec {
             format: "Hype AI script",
             reads: true,
             writes: true,
-            notes: "Typed expressions include category-29 Waypoint values and inclusive 3D Cond_CollisionWP; actor/math calls, armor, branches, assignment, waits, and sound requests remain typed; unsupported operands fail explicitly",
+            notes: "Typed expressions include category-29 Waypoint values and inclusive 3D Cond_CollisionWP; actor/math calls, armor, branches, assignment, waits, sound requests, and source visual diffuse-material calls remain typed; unsupported operands fail explicitly",
         }
     }
     fn read(&self, bytes: &[u8]) -> Result<Script> {
@@ -447,6 +451,7 @@ impl Parser<'_> {
                 (4, 337) => Statement::SetLaserPointerActive(true),
                 (4, 338) => Statement::SetLaserPointerActive(false),
                 (4, 342) => Statement::SetLaserPointerSniperMode(self.expression(indent + 1)?),
+                (4, 343) => Statement::SetLaserPointerFlyMode(self.expression(indent + 1)?),
                 (4, 266) => Statement::SetDisplayVisible(false),
                 (4, 267) => Statement::SetDisplayVisible(true),
                 (4, 187) => Statement::SetTransparency(self.expression(indent + 1)?),
@@ -630,13 +635,14 @@ impl Parser<'_> {
                 (4, 327) => Statement::SelectDialog,
                 (4, 324) => Statement::EndDialog,
                 (4, 330) => Statement::ChangeDialogBehavior,
-                (4, 422..=426) => Statement::SetHudVisible {
+                (4, 422..=426 | 428) => Statement::SetHudVisible {
                     indicator: match id {
                         422 => HudIndicator::Life,
                         423 => HudIndicator::Armor,
                         424 => HudIndicator::Magic,
                         425 => HudIndicator::SelectedObject,
-                        _ => HudIndicator::Weapon,
+                        426 => HudIndicator::Weapon,
+                        _ => HudIndicator::Cash,
                     },
                     visible: self.expression(indent + 1)?,
                 },
@@ -773,6 +779,33 @@ impl Parser<'_> {
                     target: self.expression(indent + 1)?,
                     duration_ms: self.expression(indent + 1)?,
                 },
+                (4, 237) => {
+                    let material_at = self.at;
+                    let is_material = self
+                        .nodes
+                        .get(material_at)
+                        .is_some_and(|node| node.indent == indent + 1 && node.kind == 36);
+                    let is_bound = self.codec.materials.contains_key(&material_at);
+                    let is_designer_variable = self
+                        .nodes
+                        .get(material_at + 1)
+                        .is_some_and(|node| node.indent == indent + 1 && node.kind == 11);
+                    if !is_material || !is_bound || !is_designer_variable {
+                        out.push(Statement::Unsupported(self.unsupported(
+                            at,
+                            format!(
+                                "Proc_SetVisualGMTDiffuseCoef requires a bound category-36 material and category-11 designer field at node {material_at}"
+                            ),
+                        )?));
+                        continue;
+                    }
+                    self.take(indent + 1)?;
+                    let value = self.expression(indent + 1)?;
+                    Statement::SetVisualGMTDiffuseCoef {
+                        material: self.codec.materials[&material_at].clone(),
+                        value,
+                    }
+                }
                 (4, 206) => Statement::Noop,
                 _ => Statement::Unsupported(self.unsupported(
                     at,
@@ -1281,6 +1314,30 @@ impl Parser<'_> {
                     )?)
                 }
             }
+            (3, 59) => {
+                let selector = Box::new(self.expression(indent + 1)?);
+                let actor = self.expression(indent + 1)?;
+                if let Expression::Actor(receiver) = actor {
+                    Expression::CameraShiftAlpha { selector, receiver }
+                } else {
+                    Expression::Unsupported(self.unsupported(
+                        at,
+                        "Function_Camera_GetShiftAlpha requires a Perso receiver".into(),
+                    )?)
+                }
+            }
+            (3, 61) => {
+                let selector = Box::new(self.expression(indent + 1)?);
+                let actor = self.expression(indent + 1)?;
+                if let Expression::Actor(receiver) = actor {
+                    Expression::CameraShiftTeta { selector, receiver }
+                } else {
+                    Expression::Unsupported(self.unsupported(
+                        at,
+                        "Function_Camera_GetShiftTeta requires a Perso receiver".into(),
+                    )?)
+                }
+            }
             (3, 184) => Expression::CurrentAnimationFrame,
             (3, 201) => Expression::InventoryWeapon,
             (3, 208) => Expression::InventoryQuantity(Box::new(self.expression(indent + 1)?)),
@@ -1549,6 +1606,10 @@ impl Writer<'_> {
                     self.node(4, 342, indent);
                     self.expression(enabled, indent + 1)?;
                 }
+                Statement::SetLaserPointerFlyMode(enabled) => {
+                    self.node(4, 343, indent);
+                    self.expression(enabled, indent + 1)?;
+                }
                 Statement::SetDisplayVisible(visible) => {
                     self.node(4, if *visible { 267 } else { 266 }, indent)
                 }
@@ -1701,6 +1762,7 @@ impl Writer<'_> {
                             HudIndicator::Magic => 424,
                             HudIndicator::SelectedObject => 425,
                             HudIndicator::Weapon => 426,
+                            HudIndicator::Cash => 428,
                         },
                         indent,
                     );
@@ -1866,6 +1928,24 @@ impl Writer<'_> {
                     self.expression(target, indent + 1)?;
                     self.expression(duration_ms, indent + 1)?;
                 }
+                Statement::SetVisualGMTDiffuseCoef { material, value } => {
+                    ensure!(
+                        matches!(value, Expression::Variable(_)),
+                        "Proc_SetVisualGMTDiffuseCoef writer requires a direct designer variable"
+                    );
+                    let handle = self
+                        .codec
+                        .material_handles
+                        .iter()
+                        .find(|(reference, _)| reference == material)
+                        .with_context(|| {
+                            format!("missing AI visual material handle for {}", material.path)
+                        })?
+                        .1;
+                    self.node(4, 237, indent);
+                    self.node(36, handle, indent + 1);
+                    self.expression(value, indent + 1)?;
+                }
                 Statement::SoundKillMusic => self.node(4, 382, indent),
                 Statement::Noop => self.node(4, 206, indent),
             }
@@ -1952,6 +2032,24 @@ impl Writer<'_> {
             Expression::SelfHitPoints => {
                 self.node(3, 35, indent);
                 self.node(0, 4, indent + 1);
+            }
+            Expression::CameraShiftAlpha { selector, receiver } => {
+                self.node(3, 59, indent);
+                self.expression(selector, indent + 1)?;
+                match receiver {
+                    ActorTarget::Keyword(ActorKeyword::SelfActor) => self.node(0, 4, indent + 1),
+                    ActorTarget::Keyword(ActorKeyword::MainActor) => self.node(0, 5, indent + 1),
+                    ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
+                }
+            }
+            Expression::CameraShiftTeta { selector, receiver } => {
+                self.node(3, 61, indent);
+                self.expression(selector, indent + 1)?;
+                match receiver {
+                    ActorTarget::Keyword(ActorKeyword::SelfActor) => self.node(0, 4, indent + 1),
+                    ActorTarget::Keyword(ActorKeyword::MainActor) => self.node(0, 5, indent + 1),
+                    ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
+                }
             }
             Expression::Vector(values) => {
                 self.node(16, 0, indent);
@@ -2293,6 +2391,56 @@ mod partial_tests {
     }
 
     #[test]
+    fn camera_shift_alpha_keeps_selector_and_perso_receiver() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (2, 11, 1),
+            (11, 0, 2),
+            (3, 59, 2),
+            (12, 1, 3),
+            (0, 4, 3),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            script.statements.as_slice(),
+            [Statement::Assign {
+                variable: 0,
+                value: Expression::CameraShiftAlpha {
+                    selector,
+                    receiver: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                },
+            }] if **selector == Expression::Integer(1)
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn camera_shift_teta_keeps_selector_and_perso_receiver() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (2, 11, 1),
+            (11, 0, 2),
+            (3, 61, 2),
+            (12, 0, 3),
+            (0, 4, 3),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            script.statements.as_slice(),
+            [Statement::Assign {
+                variable: 0,
+                value: Expression::CameraShiftTeta {
+                    selector,
+                    receiver: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                },
+            }] if **selector == Expression::Integer(0)
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
     fn source_actor_list_calls_decode_and_reconstruct() -> Result<()> {
         let actor = AssetRef::new("level:/persos/world/0/2")?;
         let (mut codec, bytes) = partial(&[
@@ -2500,6 +2648,8 @@ mod partial_tests {
             (18, 28, 2),
             (4, 426, 1),
             (12, 1, 2),
+            (4, 428, 1),
+            (12, 1, 2),
             (8, 0, 0),
         ]);
         let script = codec.read(&bytes)?;
@@ -2521,6 +2671,13 @@ mod partial_tests {
             script.statements[2],
             Statement::SetHudVisible {
                 indicator: HudIndicator::Weapon,
+                visible: Expression::Integer(1)
+            }
+        ));
+        assert!(matches!(
+            script.statements[3],
+            Statement::SetHudVisible {
+                indicator: HudIndicator::Cash,
                 visible: Expression::Integer(1)
             }
         ));

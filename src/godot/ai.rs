@@ -338,6 +338,32 @@ fn compile_with_bindings(
             reference.path
         );
     }
+    let mut waypoint_resource_references = Vec::new();
+    for expression in model.expressions() {
+        if let Expression::WaypointReference(reference) = expression {
+            waypoint_resource_references.push(reference);
+        }
+    }
+    for variable in &model.variables {
+        match &variable.default {
+            DesignerValue::Waypoint(Some(reference)) => {
+                waypoint_resource_references.push(reference)
+            }
+            DesignerValue::WaypointArray(array) => {
+                waypoint_resource_references.extend(array.values.iter().flatten());
+            }
+            _ => {}
+        }
+    }
+    for reference in waypoint_resource_references {
+        ensure!(
+            waypoints
+                .iter()
+                .any(|(candidate, _, resource)| candidate == reference && resource.is_some()),
+            "AI waypoint requires native resource binding: {}",
+            reference.path
+        );
+    }
     for reference in model.configuration_references() {
         ensure!(
             configurations.iter().any(|(target, _)| target == reference),
@@ -357,6 +383,7 @@ fn compile_with_bindings(
             quoted(resource)
         )?;
     }
+    let mut waypoint_accessors = String::new();
     for (reference, position, resource) in waypoints {
         let value = position.map(super::vec3).unwrap_or_else(|| "null".into());
         writeln!(out, "const {} = {value}", waypoint_constant(reference))?;
@@ -366,8 +393,8 @@ fn compile_with_bindings(
                 "AI waypoint resource must be project-local"
             );
             writeln!(
-                out,
-                "const {} = preload({})",
+                waypoint_accessors,
+                "func {}() -> Resource:\n    return load({}) as Resource",
                 waypoint_resource_constant(reference),
                 quoted(resource)
             )?;
@@ -422,13 +449,55 @@ fn compile_with_bindings(
         );
         writeln!(out, "const sound_{i} = preload({})", quoted(path))?;
     }
+    let mut waypoint_default_initializers = Vec::new();
     for (i, v) in model.variables.iter().enumerate() {
+        let default = match &v.default {
+            DesignerValue::Waypoint(Some(_)) => {
+                waypoint_default_initializers.push((
+                    i,
+                    literal(&v.default, waypoints, false)?,
+                    false,
+                ));
+                "null".to_owned()
+            }
+            DesignerValue::WaypointArray(_) => {
+                waypoint_default_initializers.push((
+                    i,
+                    literal(&v.default, waypoints, false)?,
+                    true,
+                ));
+                "[]".to_owned()
+            }
+            DesignerValue::SourceWaypointArray(_) => {
+                waypoint_default_initializers.push((
+                    i,
+                    literal(&v.default, waypoints, true)?,
+                    true,
+                ));
+                "[]".to_owned()
+            }
+            _ => literal(&v.default, waypoints, true)?,
+        };
         writeln!(
             out,
             "@export var dsg_{i}: {} = {}",
             value_type(&v.default),
-            literal(&v.default, waypoints, true)?
+            default
         )?;
+    }
+    if !waypoint_default_initializers.is_empty() {
+        out.push_str("\nfunc _init() -> void:\n    super()\n");
+        for (i, value, is_array) in waypoint_default_initializers {
+            if is_array {
+                writeln!(out, "    dsg_{i}.assign({value})")?;
+            } else {
+                writeln!(out, "    dsg_{i} = {value}")?;
+            }
+        }
+    }
+    if !waypoint_accessors.is_empty() {
+        out.push('\n');
+        out.push_str(&waypoint_accessors);
     }
     let inputs: BTreeSet<_> = model
         .expressions()
@@ -579,7 +648,7 @@ fn literal(
             .and_then(|(_, _, resource)| resource.as_ref())
             .map(|resource| {
                 if use_preloaded_constants {
-                    waypoint_resource_constant(reference)
+                    format!("{}()", waypoint_resource_constant(reference))
                 } else {
                     format!("load({})", quoted(resource))
                 }
@@ -836,6 +905,8 @@ fn comparison_code(
     if matches!(operation, Comparison::Equal | Comparison::Different)
         && (actor_expression(left, model)
             || actor_expression(right, model)
+            || reference_expression(left, model)
+            || reference_expression(right, model)
             || matches!(left, Expression::Nobody | Expression::Nowhere)
             || matches!(right, Expression::Nobody | Expression::Nowhere))
     {
@@ -856,6 +927,42 @@ fn comparison_code(
         format!("({left_code} {op} {right_code})")
     } else {
         format!("(float({left_code}) {op} float({right_code}))")
+    }
+}
+
+fn reference_expression(expression: &Expression, model: &AiModel) -> bool {
+    match expression {
+        Expression::WaypointReference(_) | Expression::Actor(_) => true,
+        Expression::Variable(index) | Expression::SelfFieldRead(index) => matches!(
+            model
+                .variables
+                .get(usize::from(*index))
+                .map(|variable| &variable.default),
+            Some(
+                DesignerValue::Actor(_)
+                    | DesignerValue::SourceActor(_)
+                    | DesignerValue::Waypoint(_)
+                    | DesignerValue::SourceWaypoint(_)
+                    | DesignerValue::ActorList(_)
+                    | DesignerValue::WaypointArray(_)
+                    | DesignerValue::SourceWaypointArray(_)
+            )
+        ),
+        Expression::ArrayElement { array, .. } => match array.as_ref() {
+            Expression::Variable(index) | Expression::SelfFieldRead(index) => matches!(
+                model
+                    .variables
+                    .get(usize::from(*index))
+                    .map(|variable| &variable.default),
+                Some(
+                    DesignerValue::ActorList(_)
+                        | DesignerValue::WaypointArray(_)
+                        | DesignerValue::SourceWaypointArray(_)
+                )
+            ),
+            _ => false,
+        },
+        _ => false,
     }
 }
 fn needs_guard(e: &Expression, model: &AiModel) -> bool {
@@ -879,7 +986,9 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::IsValidActor(_)
         | Expression::ApplyArmoredDamage(_)
         | Expression::ArmorResistance
-        | Expression::ArmorCount => true,
+        | Expression::ArmorCount
+        | Expression::CameraShiftAlpha { .. }
+        | Expression::CameraShiftTeta { .. } => true,
         Expression::IsInBehavior { .. } => true,
         Expression::Variable(index) => unresolved_variable(model, *index),
         Expression::ActorListContains { actor, .. } => needs_guard(actor, model),
@@ -1055,6 +1164,54 @@ fn guarded_expression(
                     "{} requires resolved absolute waypoint {}",
                     model.path, waypoint.path
                 ))
+            )?;
+            value_local
+        }
+        Expression::CameraShiftAlpha { selector, receiver } => {
+            let selector = guarded_expression(out, selector, model, depth, flow)?;
+            let receiver = match receiver {
+                ActorTarget::Keyword(ActorKeyword::SelfActor) => "character()".to_owned(),
+                ActorTarget::Keyword(ActorKeyword::MainActor) => "main_actor".to_owned(),
+                ActorTarget::Reference(actor) => format!(
+                    "character().source_actor_node({})",
+                    quoted(actor.path.as_str())
+                ),
+            };
+            let id = flow.local;
+            flow.local += 1;
+            let actor_local = format!("camera_shift_actor_{id}");
+            let value_local = format!("camera_shift_alpha_{id}");
+            let failure = quoted(&format!(
+                "{} Function_Camera_GetShiftAlpha requires a mapped selector on a bound Perso with SourceCamera",
+                model.path
+            ));
+            writeln!(
+                out,
+                "{pad}var {actor_local} = {receiver}\n{pad}if typeof({actor_local}) != TYPE_OBJECT or not is_instance_valid({actor_local}) or not ({actor_local} is Node3D) or not {actor_local}.has_method(\"source_camera_get_shift_alpha\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {value_local} = {actor_local}.call(\"source_camera_get_shift_alpha\", int({selector}))\n{pad}if typeof({value_local}) != TYPE_FLOAT:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
+            )?;
+            value_local
+        }
+        Expression::CameraShiftTeta { selector, receiver } => {
+            let selector = guarded_expression(out, selector, model, depth, flow)?;
+            let receiver = match receiver {
+                ActorTarget::Keyword(ActorKeyword::SelfActor) => "character()".to_owned(),
+                ActorTarget::Keyword(ActorKeyword::MainActor) => "main_actor".to_owned(),
+                ActorTarget::Reference(actor) => format!(
+                    "character().source_actor_node({})",
+                    quoted(actor.path.as_str())
+                ),
+            };
+            let id = flow.local;
+            flow.local += 1;
+            let actor_local = format!("camera_shift_teta_actor_{id}");
+            let value_local = format!("camera_shift_teta_{id}");
+            let failure = quoted(&format!(
+                "{} Function_Camera_GetShiftTeta requires a mapped selector on a bound Perso with SourceCamera",
+                model.path
+            ));
+            writeln!(
+                out,
+                "{pad}var {actor_local} = {receiver}\n{pad}if typeof({actor_local}) != TYPE_OBJECT or not is_instance_valid({actor_local}) or not ({actor_local} is Node3D) or not {actor_local}.has_method(\"source_camera_get_shift_teta\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {value_local} = {actor_local}.call(\"source_camera_get_shift_teta\", int({selector}))\n{pad}if typeof({value_local}) != TYPE_FLOAT:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
             )?;
             value_local
         }
@@ -1420,7 +1577,9 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         Expression::IntegerCast(value) => format!("int({})", expression(value, model)?),
         Expression::SelfPosition => "character().source_position()".into(),
         Expression::SelfPositionField => "character().source_position()".into(),
-        Expression::WaypointReference(reference) => waypoint_resource_constant(reference),
+        Expression::WaypointReference(reference) => {
+            format!("{}()", waypoint_resource_constant(reference))
+        }
         Expression::WaypointPosition(reference) => waypoint_constant(reference),
         Expression::GameTime => "character().source_game_time()".into(),
         Expression::TimeElapsed { start, duration } => format!(
@@ -1512,6 +1671,8 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         | Expression::IsValidActor(_)
         | Expression::ApplyArmoredDamage(_)
         | Expression::DistanceToWaypoint { .. }
+        | Expression::CameraShiftAlpha { .. }
+        | Expression::CameraShiftTeta { .. }
         | Expression::WaypointSphereContains { .. } => {
             anyhow::bail!("actor or numeric expression requires guarded compilation")
         }
@@ -1867,7 +2028,14 @@ fn statements(
                     (DesignerValue::Vector(_), Expression::SelfPositionField)
                 );
                 let value = guarded_expression(out, value, model, depth, flow)?;
-                let value = if matches!(kind, DesignerValue::Actor(_)) || value_is_native_vector {
+                let value = if matches!(
+                    kind,
+                    DesignerValue::Actor(_)
+                        | DesignerValue::Waypoint(_)
+                        | DesignerValue::WaypointArray(_)
+                        | DesignerValue::ActorList(_)
+                ) || value_is_native_vector
+                {
                     value
                 } else {
                     format!("{}({value})", value_type(kind))
@@ -2131,7 +2299,15 @@ fn statements(
                 let value = guarded_expression(out, enabled, model, depth, flow)?;
                 writeln!(
                     out,
-                    "{pad}if not character().source_set_laser_pointer_sniper_mode({value}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    "{pad}if not character().source_set_laser_pointer_sniper_mode(bool({value})):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!("{} has no native laser-pointer state", model.path))
+                )?;
+            }
+            Statement::SetLaserPointerFlyMode(enabled) => {
+                let value = guarded_expression(out, enabled, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if not character().source_set_laser_pointer_fly_mode(bool({value})):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
                     quoted(&format!("{} has no native laser-pointer state", model.path))
                 )?;
             }
@@ -2365,6 +2541,7 @@ fn statements(
                     crate::model::ai::HudIndicator::Magic => "magic",
                     crate::model::ai::HudIndicator::SelectedObject => "selected_object",
                     crate::model::ai::HudIndicator::Weapon => "weapon",
+                    crate::model::ai::HudIndicator::Cash => "cash",
                 };
                 writeln!(
                     out,
@@ -2612,6 +2789,43 @@ fn statements(
                     "{pad}sound_kill_music()\n{pad}if not active_{group}(token): {exit}"
                 )?;
             }
+            Statement::SetVisualGMTDiffuseCoef { material, value } => {
+                let Expression::Variable(variable) = value else {
+                    anyhow::bail!(
+                        "Proc_SetVisualGMTDiffuseCoef requires a direct designer-variable operand"
+                    );
+                };
+                let designer_variable = model
+                    .variables
+                    .get(usize::from(*variable))
+                    .context("Proc_SetVisualGMTDiffuseCoef designer field is missing")?;
+                ensure!(
+                    matches!(
+                        &designer_variable.default,
+                        DesignerValue::Integer(_) | DesignerValue::UnsignedInteger(_)
+                    ),
+                    "Proc_SetVisualGMTDiffuseCoef requires a 32-bit integer designer field"
+                );
+                let failure = quoted(&format!(
+                    "{} Proc_SetVisualGMTDiffuseCoef requires native shared visual-material state for {}",
+                    model.path, material.path
+                ));
+                writeln!(
+                    out,
+                    "{pad}if not character().has_method(\"source_visual_material_target_ready\") or not character().has_method(\"source_set_visual_gmt_diffuse_coef\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if not bool(character().call(\"source_visual_material_target_ready\", {})):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}",
+                    quoted(material.path.as_str())
+                )?;
+                // OpenSpace resolves the GameMaterial and VisualMaterial before
+                // evaluating this operand. Keep the live designer read after
+                // the native target preflight so a missing target cannot consume
+                // an unsupported or side-effecting source expression.
+                let value = guarded_expression(out, value, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if not bool(character().call(\"source_set_visual_gmt_diffuse_coef\", {}, int({value}))):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if not active_{group}(token): {exit}",
+                    quoted(material.path.as_str())
+                )?;
+            }
             Statement::AdjustPersoOnObject { .. } => {
                 writeln!(
                     out,
@@ -2637,6 +2851,32 @@ fn statements(
     }
     Ok(())
 }
+fn brain_variable_initialization(
+    parent: &str,
+    index: usize,
+    value: &DesignerValue,
+    waypoints: &[WaypointBinding],
+) -> Result<String> {
+    if matches!(value, DesignerValue::ActorList(_)) {
+        return Ok(format!(
+            "var {parent}_brain_list_{index}: Array[Node3D] = []\n    {parent}_brain.dsg_{index} = {parent}_brain_list_{index}"
+        ));
+    }
+    if matches!(
+        value,
+        DesignerValue::WaypointArray(_) | DesignerValue::SourceWaypointArray(_)
+    ) {
+        return Ok(format!(
+            "{parent}_brain.dsg_{index}.assign({})",
+            literal(value, waypoints, false)?
+        ));
+    }
+    Ok(format!(
+        "{parent}_brain.dsg_{index} = {}",
+        literal(value, waypoints, false)?
+    ))
+}
+
 pub(super) fn component(
     project: &mut Project,
     source: &mut impl ContentSource,
@@ -2669,7 +2909,25 @@ pub(super) fn component(
         action.validate_family(&family)?;
     }
     let mut waypoints = Vec::new();
-    for reference in model.waypoint_references() {
+    let mut waypoint_references = model.waypoint_references();
+    // A Brain's current and initial memory can hold semantic waypoint assets
+    // that are not the model's descriptor defaults. Export those instance
+    // references at the actor-component seam as well, so the native Resource
+    // constants used to initialize DSG fields always have a project-local file.
+    for value in brain
+        .variables
+        .iter()
+        .chain(brain.initial_variables.iter().flatten())
+    {
+        match value {
+            DesignerValue::Waypoint(Some(reference)) => waypoint_references.push(reference),
+            DesignerValue::WaypointArray(array) => {
+                waypoint_references.extend(array.values.iter().flatten());
+            }
+            _ => {}
+        }
+    }
+    for reference in waypoint_references {
         if waypoints
             .iter()
             .any(|(candidate, _, _)| candidate == reference)
@@ -2696,19 +2954,9 @@ pub(super) fn component(
         quoted(&format!("res://{script}"))
     )?;
     for (i, v) in brain.variables.iter().enumerate() {
-        if matches!(v, DesignerValue::ActorList(_)) {
-            writeln!(
-                project.builder,
-                "    var {parent}_brain_list_{i}: Array[Node3D] = []\n    {parent}_brain.dsg_{i} = {parent}_brain_list_{i}"
-            )?;
-            continue;
-        }
-        writeln!(
-            project.builder,
-            "    {parent}_brain.dsg_{i} = {}",
-            literal(v, &waypoints, false)
-                .with_context(|| format!("{} Brain designer field {i}", brain.model.path))?
-        )?;
+        let initialization = brain_variable_initialization(parent, i, v, &waypoints)
+            .with_context(|| format!("{} Brain designer field {i}", brain.model.path))?;
+        writeln!(project.builder, "    {initialization}")?;
     }
     for (name, selection) in [("normal", &brain.normal), ("reflex", &brain.reflex)] {
         writeln!(
@@ -2729,9 +2977,9 @@ mod source_position_tests {
     use crate::model::{
         AssetPath, AssetRef,
         ai::{
-            ActorTarget, AiModel, Behavior, BehaviorGroup, BehaviorRef, BehaviorSet, Comparison,
-            DesignerArray, DesignerValue, DesignerVariable, Expression, KillPersoTarget, Script,
-            Statement,
+            ActorKeyword, ActorTarget, AiModel, Behavior, BehaviorGroup, BehaviorRef, BehaviorSet,
+            Comparison, DesignerArray, DesignerValue, DesignerVariable, Expression,
+            KillPersoTarget, Script, Statement,
         },
         character::Perso,
     };
@@ -3152,7 +3400,7 @@ mod source_position_tests {
             }),
             reflex: None,
             variables: vec![crate::model::ai::DesignerVariable {
-                default: crate::model::ai::DesignerValue::Waypoint(None),
+                default: crate::model::ai::DesignerValue::Waypoint(Some(waypoint.clone())),
                 save: 0,
                 initialize: 0,
             }],
@@ -3173,8 +3421,143 @@ mod source_position_tests {
             &[],
         )?;
         let constant = super::waypoint_resource_constant(&waypoint);
-        assert!(generated.contains(&format!("const {constant} = preload(\"{resource}\")")));
-        assert!(generated.contains(&format!(".set(\"dsg_0\", {constant})")));
+        assert!(generated.contains(&format!(
+            "func {constant}() -> Resource:\n    return load(\"{resource}\") as Resource"
+        )));
+        assert!(generated.contains(&format!(".set(\"dsg_0\", {constant}())")));
+        assert!(
+            generated.contains(
+                "@export var dsg_0: Resource = null\n\nfunc _init() -> void:\n    super()"
+            )
+        );
+        assert!(
+            generated.contains(&format!("    dsg_0 = load(\"{resource}\")")),
+            "{generated}"
+        );
+        assert!(!generated.contains("dsg_0.assign("));
+        assert!(!generated.contains(&format!("preload(\"{resource}\")")));
+        let array = crate::model::ai::DesignerValue::WaypointArray(DesignerArray::new(vec![
+            Some(waypoint.clone()),
+            None,
+        ]));
+        assert_eq!(
+            super::literal(
+                &array,
+                &[(waypoint.clone(), None, Some(resource.into()))],
+                true
+            )?,
+            format!("[{constant}(), null]")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn generated_waypoint_array_instance_assignments_parse_in_godot() -> anyhow::Result<()> {
+        let waypoints = [(
+            crate::model::AssetRef::<crate::model::route::Waypoint>::new(
+                "level:/waypoints/17-1/56",
+            )?,
+            None,
+            Some("res://generated/hype/levels/manoir/waypoints/17-1/56.tres".into()),
+        )];
+        let resolved = DesignerValue::WaypointArray(DesignerArray::new(vec![None; 20]));
+        let unresolved = DesignerValue::SourceWaypointArray(DesignerArray::new(vec![None]));
+        let resolved_assignment =
+            super::brain_variable_initialization("actor", 157, &resolved, &waypoints)?;
+        let unresolved_assignment =
+            super::brain_variable_initialization("actor", 158, &unresolved, &waypoints)?;
+        assert!(resolved_assignment.starts_with("actor_brain.dsg_157.assign([null"));
+        assert!(unresolved_assignment == "actor_brain.dsg_158.assign([null])");
+        assert!(!resolved_assignment.contains("Array[Resource]("));
+
+        let script = format!(
+            "extends RefCounted\nvar actor_brain: Variant\nvar dsg_157: Array[Resource] = []\nvar dsg_158: Variant = []\nfunc _init() -> void:\n    actor_brain = self\n    {resolved_assignment}\n    {unresolved_assignment}\n"
+        );
+        let project = tempfile::tempdir()?;
+        crate::godot::support::initialize(project.path())?;
+        std::fs::write(project.path().join("waypoint_array_builder.gd"), script)?;
+        let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+        crate::godot::run_godot(
+            &engine,
+            project.path(),
+            &[
+                "--headless",
+                "--check-only",
+                "--script",
+                "res://waypoint_array_builder.gd",
+                "--log-file",
+                "waypoint-array-builder.log",
+            ],
+            std::time::Duration::from_secs(15),
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn compares_and_assigns_waypoint_resources_without_numeric_casts() -> anyhow::Result<()> {
+        let path = AssetPath::new("level:/ai/models/waypoint-resource-comparison")?;
+        let waypoint = crate::model::AssetRef::<crate::model::route::Waypoint>::new(
+            "level:/waypoints/17-1/58",
+        )?;
+        let model = AiModel {
+            path,
+            name: "waypoint-resource-comparison".into(),
+            normal: Some(BehaviorSet {
+                behaviors: vec![Behavior {
+                    id: 0,
+                    rules: Vec::new(),
+                    schedule: Some(Script {
+                        statements: vec![Statement::If {
+                            condition: Expression::Compare {
+                                operation: Comparison::Equal,
+                                left: Box::new(Expression::Variable(0)),
+                                right: Box::new(Expression::Variable(1)),
+                            },
+                            then: vec![Statement::Assign {
+                                variable: 0,
+                                value: Expression::WaypointReference(waypoint.clone()),
+                            }],
+                            otherwise: None,
+                        }],
+                    }),
+                    unknown: [0; 3],
+                }],
+                default_behavior: Some(0),
+                action_capacity: 0,
+                unknown: [0; 3],
+            }),
+            reflex: None,
+            variables: vec![0, 1]
+                .into_iter()
+                .map(|_| crate::model::ai::DesignerVariable {
+                    default: crate::model::ai::DesignerValue::Waypoint(Some(waypoint.clone())),
+                    save: 0,
+                    initialize: 0,
+                })
+                .collect(),
+            designer_unknown: [0; 3],
+            unknown: [0; 4],
+        };
+        let resource_path = "res://generated/hype/levels/manoir/waypoints/17-1/58.tres";
+        let generated = compile_with_templates(
+            &model,
+            &[],
+            None,
+            &[],
+            &[(waypoint.clone(), None, Some(resource_path.into()))],
+            &[],
+        )?;
+
+        assert!(
+            generated.contains("if bool((dsg_0 == dsg_1))"),
+            "{generated}"
+        );
+        assert!(generated.contains("dsg_0 = waypoint_asset_"), "{generated}");
+        assert!(!generated.contains("float(dsg_0)"), "{generated}");
+        assert!(
+            !generated.contains("Resource(waypoint_asset_"),
+            "{generated}"
+        );
         Ok(())
     }
 
@@ -3228,6 +3611,87 @@ mod source_position_tests {
         assert!(generated.contains("character().source_actor_node(\"level:/persos/world/0/34\")"));
         assert!(generated.contains("source_distance_to_waypoint(distance_receiver_"));
         assert!(generated.contains("requires resolved absolute waypoint level:/waypoints/17-1/58"));
+        Ok(())
+    }
+
+    #[test]
+    fn compiles_camera_shift_getters_with_selectors_and_guarded_perso_receivers()
+    -> anyhow::Result<()> {
+        let model = AiModel {
+            path: AssetPath::new("fix:/ai/models/camera-shift-alpha")?,
+            name: "Camera Shift Alpha".into(),
+            normal: Some(BehaviorSet {
+                behaviors: vec![Behavior {
+                    id: 0,
+                    rules: vec![Some(Script {
+                        statements: vec![
+                            Statement::If {
+                                condition: Expression::Compare {
+                                    operation: Comparison::Greater,
+                                    left: Box::new(Expression::CameraShiftAlpha {
+                                        selector: Box::new(Expression::Integer(1)),
+                                        receiver: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                                    }),
+                                    right: Box::new(Expression::Real(0.0)),
+                                },
+                                then: vec![Statement::Noop],
+                                otherwise: None,
+                            },
+                            Statement::If {
+                                condition: Expression::Compare {
+                                    operation: Comparison::Greater,
+                                    left: Box::new(Expression::CameraShiftTeta {
+                                        selector: Box::new(Expression::Integer(0)),
+                                        receiver: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                                    }),
+                                    right: Box::new(Expression::Real(0.0)),
+                                },
+                                then: vec![Statement::Noop],
+                                otherwise: None,
+                            },
+                        ],
+                    })],
+                    schedule: None,
+                    unknown: [0; 3],
+                }],
+                default_behavior: Some(0),
+                action_capacity: 0,
+                unknown: [0; 3],
+            }),
+            reflex: None,
+            variables: Vec::new(),
+            designer_unknown: [0; 3],
+            unknown: [0; 4],
+        };
+        let generated = compile(&model, &[])?;
+        assert!(
+            generated.contains("source_camera_get_shift_alpha\", int(1)"),
+            "{generated}"
+        );
+        assert!(
+            generated.contains("source_camera_get_shift_teta\", int(0)"),
+            "{generated}"
+        );
+        assert!(
+            generated.contains("camera_shift_teta_actor_1 = character()"),
+            "{generated}"
+        );
+        assert!(
+            generated.contains("camera_shift_actor_0 = character()"),
+            "{generated}"
+        );
+        assert!(
+            generated.contains(
+                "Function_Camera_GetShiftAlpha requires a mapped selector on a bound Perso"
+            ),
+            "{generated}"
+        );
+        assert!(
+            generated.contains(
+                "Function_Camera_GetShiftTeta requires a mapped selector on a bound Perso"
+            ),
+            "{generated}"
+        );
         Ok(())
     }
 }

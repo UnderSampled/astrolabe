@@ -141,6 +141,11 @@ with a diagnostic. There is no runtime source opcode interpreter.
 | Proc_DLG_ChangeComport, 330 | Explicitly apply a pending owner/behavior callback |
 | Cond_DLG_IsDialogOver, 121 | Query completion after closing presentation |
 
+The native screen routes the configured `Button_Hit` action to
+`Proc_SelectDialog` only while a dialogue item is active. This lets the starter
+project's Space binding advance source dialogue pages and complete their
+pending callbacks through the same presentation API.
+
 The dialogue node owns page index, elapsed time, voice-player reference and
 native Tween fade. The voice event runs through the existing actor SoundEmitter
 and compiled native waveform resources. Page deadlines are cumulative: scan

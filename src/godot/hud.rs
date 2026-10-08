@@ -250,7 +250,7 @@ const CURRENCY_ITEM_ID: int = @@CURRENCY_ITEM_ID@@
 
 var suppressed: bool = false
 var _actor: Node
-var _requested: Dictionary = {"life": false, "armor": false, "magic": false, "selected_object": false, "weapon": false}
+var _requested: Dictionary = {"life": false, "armor": false, "magic": false, "selected_object": false, "weapon": false, "cash": false}
 var _enemy_active: Array[bool] = [false, false, false]
 var _enemy_fill_active: Array[bool] = [false, false, false]
 var _life_fill_active: bool = false
@@ -304,8 +304,9 @@ func refresh() -> void:
     for slot in _enemy_fills.size():
         _enemy_backgrounds[slot].visible = _enemy_active[slot] and not suppressed
         _enemy_fills[slot].visible = _enemy_active[slot] and _enemy_fill_active[slot] and not suppressed
-    _currency_icon.visible = not suppressed
-    _currency_label.visible = _last_currency_count >= 0 and not suppressed
+    var show_cash := bool(_requested.get("cash", false)) and not suppressed
+    _currency_icon.visible = show_cash
+    _currency_label.visible = _last_currency_count >= 0 and show_cash
 
 func _process(_delta: float) -> void:
     if not is_instance_valid(_actor): return
@@ -330,7 +331,7 @@ func set_currency_count(value: int) -> void:
     if value == _last_currency_count: return
     _last_currency_count = value
     _currency_label.text = str(value) if value >= 0 else ""
-    _currency_label.visible = value >= 0 and not suppressed
+    _currency_label.visible = value >= 0 and bool(_requested.get("cash", false)) and not suppressed
 
 func set_life_fraction(value: float) -> void:
     var fraction := clampf(value, 0.0, 1.0)

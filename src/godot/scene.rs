@@ -65,8 +65,13 @@ impl Project {
         let ui_scene_path = self.ui_scene_path(scene)?;
         writeln!(
             self.builder,
-            "    var {scene_id} = Node3D.new()\n    {scene_id}.name = {}\n    {scene_id}.set_meta(\"source_level_scene\", true)",
-            quoted(&scene.name)
+            "    var {scene_id} = Node3D.new()\n    {scene_id}.name = {}\n    {scene_id}.set_meta(\"source_level_scene\", true)\n    {scene_id}.set_meta(\"source_level_name\", {})",
+            quoted(&scene.name),
+            quoted(&self.selection.level)
+        )?;
+        writeln!(
+            self.builder,
+            "    var {scene_id}_visual_material_state = Node.new()\n    {scene_id}_visual_material_state.name = \"SourceVisualMaterialState\"\n    {scene_id}_visual_material_state.set_script(load(\"res://addons/astrolabe/rendering/visual_material_state.gd\"))\n    {scene_id}.add_child({scene_id}_visual_material_state)\n    {scene_id}_visual_material_state.owner = {scene_id}"
         )?;
         writeln!(
             self.builder,

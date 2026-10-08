@@ -18,7 +18,31 @@ use astrolabe::{
     },
     rete,
 };
-use std::{collections::BTreeSet, fs, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeSet,
+    fs,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
+
+fn check_generated_ai_script(project: &Path, script: &str, log: &str) -> Result<()> {
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    godot::run_godot(
+        &engine,
+        project,
+        &[
+            "--headless",
+            "--check-only",
+            "--script",
+            script,
+            "--log-file",
+            log,
+        ],
+        Duration::from_secs(15),
+    )?;
+    Ok(())
+}
 
 fn node(bytes: &mut Vec<u8>, category: u8, parameter: u32, indent: u8) {
     bytes.extend_from_slice(&parameter.to_le_bytes());
@@ -214,8 +238,8 @@ fn designer_waypoint_array_preserves_null_unknown_bytes_and_unresolved_identitie
 
 #[test]
 fn compiler_bounds_checks_array_and_keeps_unresolved_operands_explicit() -> Result<()> {
-    let model = model(DesignerValue::WaypointArray(DesignerArray::new(vec![None])))?;
-    let generated = godot::ai::compile(&model, &[])?;
+    let typed_model = model(DesignerValue::WaypointArray(DesignerArray::new(vec![None])))?;
+    let generated = godot::ai::compile(&typed_model, &[])?;
     assert!(generated.contains("waypoint_index_0 < 0"), "{generated}");
     assert!(generated.contains("waypoint_index_0 >= waypoint_array_0.size()"));
     assert!(generated.contains("has_method(\"source_world_position\")"));
@@ -226,20 +250,24 @@ fn compiler_bounds_checks_array_and_keeps_unresolved_operands_explicit() -> Resu
     fs::create_dir_all(&output)?;
     let project = tempfile::tempdir_in(output)?;
     godot::support::initialize(project.path())?;
-    fs::write(project.path().join("compiled_collision_wp.gd"), generated)?;
-    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
-    godot::run_godot(
-        &engine,
+    fs::write(project.path().join("compiled_collision_wp.gd"), &generated)?;
+    check_generated_ai_script(
         project.path(),
-        &[
-            "--headless",
-            "--check-only",
-            "--script",
-            "res://compiled_collision_wp.gd",
-            "--log-file",
-            "collision-wp-compile.log",
-        ],
-        Duration::from_secs(15),
+        "res://compiled_collision_wp.gd",
+        "collision-wp-compile.log",
+    )?;
+
+    let unresolved = model(DesignerValue::SourceWaypointArray(DesignerArray::new(
+        vec![Some(source_identity(56))],
+    )))?;
+    let unresolved = godot::ai::compile(&unresolved, &[])?;
+    assert!(unresolved.contains("dsg_157.assign([null])"));
+    assert!(!unresolved.contains("Array[Resource](["));
+    fs::write(project.path().join("compiled_collision_wp.gd"), unresolved)?;
+    check_generated_ai_script(
+        project.path(),
+        "res://compiled_collision_wp.gd",
+        "collision-wp-source-array-compile.log",
     )?;
     Ok(())
 }

@@ -13,7 +13,7 @@ const INITIAL_ROUTE_ERROR_META := "astrolabe_initial_route_error"
 @export var menu_scene: PackedScene
 @onready var details: Label = $Status/Details
 @onready var status: PanelContainer = $Status
-@onready var error_quit: Button = $ErrorQuit
+@onready var error_quit: Button = get_node_or_null("ErrorQuit") as Button
 var menu: MENU_VIEW
 var load_game: Button
 var new_game: Button
@@ -44,8 +44,9 @@ func _ready() -> void:
     if new_game == null or load_game == null or quit_game == null:
         details.text = "Required menu actions are missing from the selected scene."
         status.show()
-        error_quit.show()
-        error_quit.grab_focus()
+        if is_instance_valid(error_quit):
+            error_quit.show()
+            error_quit.grab_focus()
         push_error(details.text)
         return
     var slot: Dictionary = SAVE_STATE.read()
@@ -76,8 +77,9 @@ func _ready() -> void:
 func _show_menu_error() -> void:
     status.show()
     details.text = "Required menu assets are missing.\nRestore the installed menu assets."
-    error_quit.show()
-    error_quit.grab_focus()
+    if is_instance_valid(error_quit):
+        error_quit.show()
+        error_quit.grab_focus()
     push_error("Required menu assets are missing: " + MENU_SCENE + ". Restore the installed menu assets.")
 
 func _on_menu_action(action: StringName) -> void:

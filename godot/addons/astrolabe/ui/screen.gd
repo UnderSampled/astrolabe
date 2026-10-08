@@ -147,6 +147,17 @@ func source_select_dialog() -> void:
     if is_instance_valid(adopted_screen): adopted_screen.source_select_dialog()
     else: dialogue.request_select()
 
+func _unhandled_input(event: InputEvent) -> void:
+    # The source Button_Hit action advances an active dialogue. Menus and
+    # gameplay retain their existing input ownership outside this component.
+    if is_instance_valid(adopted_screen) or dialogue.item == null:
+        return
+    var key := event as InputEventKey
+    if not event.is_action_pressed(&"Button_Hit") or (key != null and (key.echo or not key.pressed)):
+        return
+    source_select_dialog()
+    get_viewport().set_input_as_handled()
+
 func source_end_dialog() -> void:
     if is_instance_valid(adopted_screen):
         adopted_screen.source_end_dialog()

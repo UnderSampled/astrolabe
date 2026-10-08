@@ -1,4 +1,4 @@
-# Astrolabe support, interface 60
+# Astrolabe support, interface 66
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -134,8 +134,8 @@ store the requested target reference. A source camera component adds that native
 `Camera3D` to the saved actor scene, with the initial parameter set's horizontal
 FoV, source renderer clip planes and a half-turn matching the source viewing
 axis. Four framing parameter sets and their unknown scalar fields persist in
-Rete schema 37. The active mode and rotated actor/look offsets export as native
-properties. Mode 3 aims the camera actor from its current eye position at the
+Rete (currently schema 54). The active mode and rotated actor/look offsets
+export as native properties. Mode 3 aims the camera actor from its current eye position at the
 selected actor plus those offsets, using `Node3D.look_at`. A zero look offset
 uses the source default of [0,-0.05,0]. The compiled camera rule requests each
 update; an authored native AnimationPlayer can move the eye independently.
@@ -160,6 +160,10 @@ The observed return-zero/camera-update pair compiles to the native camera
 update API. It accepts mode-3 aiming with a valid target, rejects unsupported
 modes and degenerate eye/target geometry, and does not select a viewport.
 Attaching this Brain does not yet reproduce the intro or follow camera.
+The compiled `Function_Camera_GetShiftAlpha` and `Function_Camera_GetShiftTeta`
+expressions preserve their integer selector and Perso receiver. The mapped
+selectors used by camera model 437 read raw parameter floats `+0x44` and `+0x4c`
+from its `SourceCamera`; unobserved selector values fail explicitly.
 The compiled `Stats_DisplayMainActor*` calls retain their requested Boolean
 visibility in `source_hud_display` and emit `hud_visibility_requested`. An
 authored HUD can bind that signal to its native `Control` nodes. The English
@@ -250,7 +254,9 @@ The maintained `ui/screen.tscn` composes letterboxes, dialogue and HUD on one
 CanvasLayer. Generated levels instance it and provide converted native dialogue
 resources and the main-actor binding. Authored scene compositions may adopt the
 level through an already-ready `AstrolabeUI` parent; content regeneration does
-not replace customized support scenes. See `docs/astrolabe/ui.md` in the source
+not replace customized support scenes. While dialogue is active, the maintained
+screen routes the configured `Button_Hit` action to `Proc_SelectDialog`. See
+`docs/astrolabe/ui.md` in the source
 repository for source API coverage, locale handling and remaining fidelity work.
 
 `ui/menu/menu.gd` and `ui/menu/button.gd` provide native focus, texture states and

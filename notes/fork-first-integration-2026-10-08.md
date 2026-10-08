@@ -48,3 +48,31 @@ Inventory, animation, and save/title/courtyard owner work remains in isolated la
 - Focused camera regression: 1 passed, 4 filtered. The first attempt hit `/tmp` quota during fixture setup; the successful rerun used a worktree-owned `TMPDIR`.
 - New Game-only authored route: failed closed at camera/model support and did not observe the aperture toggle. It reached Gogoud actions `0 → 26 → 24 → 23` and first dialogue. Godot logged that X11 was unavailable and fell back to Wayland despite `xvfb-run`; the three viewport screenshots, JSON report and engine log are preserved under the evidence directory above. The command was interrupted during cleanup after the failed report had been written (shell exit 130); no rerun was performed.
 - No original-game run, debugger harness, installation, or copyrighted asset commit was performed.
+
+## Oct 8 authored New Game follow-up
+
+The interface-65 Manor export was exercised through its real `bootstrap.tscn`
+menu and New Game route (headless Godot 4.7.2; evidence under
+`output/worktrees/fork-first-integration-20261008/output/fork-first-newgame-camera-20261008/final-interface65-raw343-20261008/evidence/intro-attempt-7/`).
+It reached Gogoud actions `0 → 26 → 24 → 23` and the exact first item
+`gogood_texte1_manoir`. A configured Space/`Button_Hit` press advanced into
+`gogood_texte1a_manoir`, confirming the maintained screen receives the active
+dialogue action. The standalone input smoke passed. This run did **not** observe
+SourceCamera movement or the authored widescreen/letterbox toggle. The follow-up
+harness injected only one press before its five-minute bound; its alpha-gated
+poll did not yield reliably and was corrected afterward, without a second full
+route run. The result therefore leaves later story/camera acceptance open.
+
+The runtime log identifies the first explicit unsupported opening operation on
+`level:/ai/models/154` (`IWorld_Manoir`): source node 3, category 4/op 312,
+`Proc_SetGameState`. This operation remains fail-closed because this checkout
+has no verified source implementation contract for it. Other unrelated Manor
+brains also report unsupported operations. Do not attribute the missing camera
+move solely to model 154 until the input-follow-up path is rerun.
+
+The maintained dialogue screen now routes `Button_Hit` to `Proc_SelectDialog`
+only while an item is active. `godot/tests/dialogue_input_smoke.gd` passed. The
+focused Rust AI, diffuse, camera-getter and HUD tests passed (30 tests, one
+local-data HUD test ignored); `cargo fmt --all -- --check` and `git diff --check`
+passed. Support interface is 66 and Rete schema 54. No original-game runtime,
+save, source asset, or generated asset in Git was touched.

@@ -87,6 +87,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::AddWind(value)
                 | Statement::SetImpulse(value)
                 | Statement::SetLaserPointerSniperMode(value)
+                | Statement::SetLaserPointerFlyMode(value)
                 | Statement::SetTransparency(value)
                 | Statement::SelectArmor(value)
                 | Statement::SetArmorResistance(value)
@@ -99,7 +100,8 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::SetSelfAbsolutePosition(value)
                 | Statement::RunDialog { mode: value, .. }
                 | Statement::ScrollDialog(value)
-                | Statement::SetHudVisible { visible: value, .. } => {
+                | Statement::SetHudVisible { visible: value, .. }
+                | Statement::SetVisualGMTDiffuseCoef { value, .. } => {
                     self.expressions(child_depth, &[value]);
                 }
                 Statement::ArrayAssign {
@@ -199,6 +201,12 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::InventoryQuantity(value)
                 | Expression::MagicRemovePoints(value)
                 | Expression::ActorListContains { actor: value, .. }
+                | Expression::CameraShiftAlpha {
+                    selector: value, ..
+                }
+                | Expression::CameraShiftTeta {
+                    selector: value, ..
+                }
                 | Expression::VectorComponent { vector: value, .. } => {
                     self.expressions(child_depth, &[value]);
                 }

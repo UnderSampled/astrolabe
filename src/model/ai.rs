@@ -3,6 +3,7 @@ use super::{
     AssetPath, AssetRef,
     audio::SoundEventLink,
     character::{ObjectList, Perso, StateRef},
+    geometry::Material,
     io::Content,
     route::Waypoint,
 };
@@ -208,6 +209,15 @@ pub enum Statement {
         to: Expression,
         duration_seconds: Expression,
     },
+    /// Proc_SetVisualGMTDiffuseCoef (category 4, operation 237) overwrites
+    /// the four source diffuse coefficients on a referenced GMT visual
+    /// material from the packed bytes of one live designer variable. The
+    /// target keeps the shared source Material identity; the renderer owns
+    /// the material-wide state and its lifetime.
+    SetVisualGMTDiffuseCoef {
+        material: AssetRef<Material>,
+        value: Expression,
+    },
     /// Meta-action 17 selects an action from the receiver's distance to a
     /// runtime Perso operand, then repeatedly adjusts its position toward that
     /// Perso. Source init checks strict `distance < arg1` first and selects
@@ -232,6 +242,9 @@ pub enum Statement {
     SetLaserPointerActive(bool),
     /// Proc_SetLaserPointerSniperMode changes the native pointer's aiming mode.
     SetLaserPointerSniperMode(Expression),
+    /// Proc_SetLaserPointerFlyMode stores its normalized mode bit, clears sniper
+    /// mode when enabled, and selects the source pointer scale (3.0 or 1.0).
+    SetLaserPointerFlyMode(Expression),
     /// Proc_InvisibleDisplay / Proc_VisibleDisplay toggle rendered visibility
     /// while leaving the actor's native physics and AI active.
     SetDisplayVisible(bool),
@@ -373,6 +386,8 @@ pub enum HudIndicator {
     Magic,
     SelectedObject,
     Weapon,
+    /// Source Stats_DisplayCash toggles the coin icon/count in the shared HUD.
+    Cash,
 }
 /// Writable designer field selected by a source AI arithmetic operator.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -422,6 +437,22 @@ pub enum Expression {
     DistanceToWaypoint {
         actor: ActorTarget,
         waypoint: AssetRef<Waypoint>,
+    },
+    /// Function_Camera_GetShiftAlpha (category 3/id 59, native 0x0053d300)
+    /// takes a typed integer selector and a Perso receiver. The observed
+    /// camera-model calls pass selectors 1 and 0 with SelfActor; its float
+    /// result is the receiver's camera-parameter +0x44 value, unchanged.
+    CameraShiftAlpha {
+        selector: Box<Expression>,
+        receiver: ActorTarget,
+    },
+    /// Function_Camera_GetShiftTeta (category 3/id 61, native 0x0053d300)
+    /// takes a typed integer selector and a Perso receiver. The observed
+    /// camera-model calls pass selectors 1 and 0 with SelfActor; the native
+    /// accessor returns camera-parameter +0x4c unchanged.
+    CameraShiftTeta {
+        selector: Box<Expression>,
+        receiver: ActorTarget,
     },
     /// Cond_CollisionWP (category 1/op 108, 005356c0) tests 0052e810's full
     /// 3D distance minus 005169e0's radius <= 0. 005173f0 resolves an
@@ -1084,6 +1115,13 @@ impl Script {
                         ensure!(actor.path.member().is_none(), "distance actor is a member");
                     }
                 }
+                Expression::CameraShiftAlpha { selector, receiver }
+                | Expression::CameraShiftTeta { selector, receiver } => {
+                    if let ActorTarget::Reference(actor) = receiver {
+                        ensure!(actor.path.member().is_none(), "camera receiver is a member");
+                    }
+                    expression(selector, variables, depth + 1, count)?;
+                }
                 Expression::IsInBehavior {
                     actor: ActorTarget::Reference(actor),
                     target,
@@ -1399,6 +1437,17 @@ impl Script {
                         expression(from, variables, depth + 1, count)?;
                         expression(to, variables, depth + 1, count)?;
                         expression(duration_seconds, variables, depth + 1, count)?;
+                    }
+                    Statement::SetVisualGMTDiffuseCoef { material, value } => {
+                        ensure!(
+                            material.path.member().is_none(),
+                            "visual material target is a member"
+                        );
+                        ensure!(
+                            matches!(value, Expression::Variable(_)),
+                            "visual diffuse coefficient requires a direct designer variable"
+                        );
+                        expression(value, variables, depth + 1, count)?;
                     }
                     Statement::SoundFadeAll {
                         target,
