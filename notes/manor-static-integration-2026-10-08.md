@@ -13,10 +13,15 @@ probe, export or runtime command was run during this integration. Statements
 below describe source review, not executed verification. The tunnel worker's
 earlier build/check report belongs to its isolated original revision only.
 
-Current source union: **Rete60/support80**, including settled training,
+Current source union: **Rete61/support81**, including settled training,
 actor-owned suppression, the primary source-camera owner, and the Proc166
 evaluation-order correction. Earlier findings below are dated integration
 checkpoints; the final follow-on section records which they resolve.
+The final presentation section additionally connects exact key box5, next-frame
+forced voice completion and the localized Global GameOver vignette. No sibling
+dependency already included in the provenance table remains awaiting a merge.
+The complete trace exposes a distinct reached Proc141 camera-switch contract
+before key box5; its exact caller and bounds are recorded below.
 
 ## Exact provenance and order
 
@@ -39,6 +44,9 @@ worker checkouts are preserved.
 | Settled training and actor lifecycle | `60a2aec4263ae41129fa706e97254be216047260` | `ef08193142e21a804a1b4bca4c45841625dbc96b` |
 | Primary source-camera viewport owner | `ee9c6f0872b6987b06b8e120a601126d2b2c5732` | `9981f113beb0c7493771023ef2bbe98fcce1da10` |
 | Proc166 binding and operand order | `579e68e05785b9c0ed8cd90d7e3ec2ccaf385085` | `ff228c4921674be3a385b6271552eb2d8b18539d` |
+| GameOver vignette and next-frame voice completion | `9f28edc9bbd9b76bbf4dc68d096ee182da7f7588` | `60c62bac7c85b170a67b04f1b3ea828bbf4503ac` |
+| Exact style5 key dialogue and completion | `b12752b3bcacdf3382e1323c8fb1ae08457eb538` | `3f4ab7c33c7260f0329638c604cd70b1e2fc6757` |
+| Camera Proc171 and explicit different-owner bounds | `b2604c751f80bdc8b34c33f3b3c4968152839c21` | `01ab4a92f7b7b490c7e4e75feccfa6780b59ba83` |
 
 Training comes from `/tmp/astrolabe-manor-training-static-oct08`; tunnel from
 `/tmp/astrolabe-manor-tunnel-static-20261008`; presentation from
@@ -46,8 +54,9 @@ Training comes from `/tmp/astrolabe-manor-training-static-oct08`; tunnel from
 `/tmp/astrolabe-courtyard-static-20261008`. Their source files are not edited.
 Death comes from `output/worktrees/death-fall-static-sol-20261008`.
 Key/gate comes from `/tmp/astrolabe-gogoud-key-gate-static-20261008`.
-No new worker is launched. The lead approved the three follow-ons above;
-later presentation/GameOver/recovery commits remain outside this exact set.
+No new worker is launched. All later contributions listed above have the
+lead's exact approval. The presentation worker is clean at `b12752b` before
+integration. No additional unapproved worker files are incorporated.
 
 ## Conflict reconciliation and contracts
 
@@ -395,12 +404,128 @@ the support constant and existing assertion to80; this review also updates the
 maintained `version.json` and support README to80. No evolving schema60 package
 has been written. No support or generated-content update occurs on main.
 
+## Final presentation union and connected Manor trace
+
+`9f28edc` and `b12752b` are integrated after `75cafe3`, in that order. Git
+maps historical `demo.gd`/`demo.tscn` hunks to `game_session.gd` and its scene;
+their accepted script paths, `session_camera` and UIDs remain. The session
+insertion conflict retains independent terminal Proc0 and vignette handlers.
+Vignette-pending input gating precedes terminal reload handling. Death still
+calls `kill_all` without immediate speech-holder clearing. The two contributions
+remain inside the unpublished **Rete60/support80** union; the older worker's
+79 stamp does not downgrade the current support constant, JSON or assertion.
+All three maintained vignette assets are registered in support and the authored
+session instances that same native CanvasLayer scene.
+
+The complete Proc141 source was subsequently read at original-engine commit
+`d93d30ffe7a46271338a3a677a72003883b9c245` in the read-only
+`/home/stephen/Documents/Codex/2026-10-08/task-19/hype-presentation` checkout:
+`src/camera/camera_change_procedure.c`, `camera_viewport_records.c`, their
+`include/hype/camera/viewport_selection.h` and the camera-change handoff. Its
+full dispatcher and three viewport helpers corroborate operand order, initial
+semantic viewport registration, opacity restoration and the same-owner return
+before reset/placement. Native `make_current` on that return is the Godot
+handback policy after an authored rendered camera; it is not an additional
+original-engine effect. No new native camera feature is inferred merely from
+that broader source coverage.
+
+The trace uses retained source-data snapshots plus the final useful model,
+paired reader/writer, compiled calls and maintained native support. The old
+snapshot's Unsupported fragments identify source calls; they do not describe
+the newly composed parser. No new import/export or runtime was performed.
+
+| Connected chain | Source route and final native connection |
+| --- | --- |
+| Training progression and physical key | Gogoud991 stage3/World154 mode4 enters Normal18, writes Global152/stage5 and runs `gogood_master_finimannequin`. The calling actor's dialogue continuation selects Gogoud Normal19. Its native actions/pursuit/turn place key142 via the single Proc12 at MainActor position plus sighting×0.1; the converted null-card binding is admitted. It restores camera targeting/mode through Proc160/157/136 and ends in settled Normal23. This placement grants no inventory item. |
+| Key acquisition and box5 | Key703 Reflex0 applies proximity/facing/relative-Z guards, freezes the player's source fields, admits Object21 from its own StockAction, records key identity and selects Hype33. The custom-bit handshake through Hype61 starts key Normal1. It attaches channel20 and computes actor sighting/vector Func171, but its Proc141(1,1,0,iCamera_HypePrendObjet) reaches an unsupported different-owner branch before later Proc158 and `keysico_gogood`. The exact renderer/Resource are integrated: five flags3 rows, two null-text padding rows, one center-only panel, no voice or extra answer effects, and selection after opening/draw. They are not yet reachable through this full chain. |
+| Key completion and settled stage5 | Screen's implemented accepted-selection path sets pending completion; Proc330 waits for close and applies model703 Normal2 with generation/owner guards. Its source continuation waits, detaches channel20, calls Proc141(1,1,0,StdCamer), clears MainActor DSG56 and KillSelf. A real preceding switch to camera147 would make the return a different-owner/reset request too; same-owner reselection does not connect that complete sequence. Stage5 checkpoint capture correctly rejects progress until the key is inactive/suppressed AND Object21 admitted, not quantity-1 alone. |
+| Selected key and gate | The actual inventory UI selects an admitted Object. World154's lock guard requires selected21, distance/facing/control fields, binds lock150 into Hype DSG133, selects Hype34 and waits on DSG49. Runtime actor-valued Meta23 turns toward the lock. Source writes Global149, waits1000ms and starts gate272 Normal1. Its two captured native MoveLift requests retain +2.3X/factor4.5 then +0.3X/factor0.3, completion and Normal3. Normal0's saved Global149 branch restores +2.6X. No item consumption or authored gate displacement replaces these AST operands. |
+| Cliff/bridge recovery | Watcher759 samples after300ms and enters Global Normal2 with DSG201=1; its later Proc445 and two Proc12 calls place Hype/camera before resuming its watch. Bound camera-mode3 placement is admitted. Watcher855 uses the distinct economic Proc415 branch after750ms. Global recovery has its native fade/Meta61, microphone, Proc136, guarded armor damage and Hype94/95/96 control/presentation paths. The two placement contracts and recover-versus-dead branches remain distinct. |
+| Death and GameOver | Source damage callers select Hype24/95, including immediate Proc166 group1 clear and Proc136 reset; death actions activate Statue688 Normal3, then its Normal0 selects Global Normal2 with DSG201=0. Global's safety threshold below-1000 reaches the same GameOver branch. It fades channels/black, waits Meta61, stops/requests music, and calls Proc307 at physical Normal2 schedule node166 with `multilanguage\\gameover.bmp` and9000ms. Import resolves English Vignette.cnt artwork into a useful texture reference; compiled AI preloads its native PNG. The authored native vignette waits after its first drawn frame, tears down, then leaves for bootstrap. Explicit Proc0's terminal reset request remains a separate bounded route. |
+| Tunnel | Trigger334 Normal0 requires local source-XY distance<6 and World154 Normal0, captures StdCamer/waypoint55 for native CameraGoToWaypoint, publishes waypoint56..58/flags into Hype arrays, and selects Hype50. Normal1 requires distance to waypoint58<5, then source fade, named grille159 removal with consumed Boolean result, sound fade/wait/music ordering, and Proc13(`brigand`, Hype-entry, camera-entry). LevelTransition preserves that operand order, named native marker poses/sector references, preflight and commit ownership. No destination loader interprets source tables. |
+| Ordinary dialogue, title and voice | Screen retains one adopted owner, validates resource/caller before replacement, and routes style1/3/4/5 to maintained native presentation. Speech begins on the calling actor through Voice gain; MainActor speech gating remains separate. Natural and bulk-forced player endings share guarded emitter completion; `kill_all` schedules the latter for the next SceneTree process frame, so a disabled actor/level does not require synchronous holder clearing. Explicit owner cancellation still clears immediately. Nullable text, ordered deadlines, callback generation and full close-before-continuation remain. |
+
+The former pending training, viewport, box5, Proc307 and forced-voice sibling
+dependencies are now included. This is static connectivity, not evidence that
+the complete gameplay chains have executed successfully or are byte/pixel/timing
+equivalent. Contact solver/sector transitions, camera driver smoothing/history,
+native asynchronous ordering, renderer/font precision, fades, audio timing and
+original RNG/x87 remain acceptance limits. Original phase8/Proc8/14,
+reset-on-kill placed actors and deferred camera flag groups remain bounded
+unsupported APIs, rather than incomplete merges of these contributions.
+
+### Reached key camera-switch contract
+
+Key703 **Normal1 schedule node57** is category4 Proc141 with integer operands
+**1,1,0** and the Level-owned camera actor **`level:/persos/world/0/147`,
+`iCamera_HypePrendObjet`**. It differs from **Normal2 node37**, whose fourth
+operand is **`level:/persos/world/0/2`, `StdCamer`**. The retained actor/camera
+snapshot and the key worker's source note agree: camera2 has initial/active
+registration1 and context1, while camera147 has registration0 and context0
+and initial/active motion mode3. These are useful identity/parameter observations;
+original allocation joins remain in the source reader.
+
+`source_select_primary` restores old target opacity, then returns early only
+for the same native source owner. The final `b2604c7` explicitly rejects every
+different-owner request because sector refresh also occurs with placement0.
+Thus Normal1's actual request returns false **before RunDialog**. After a
+genuine switch to147, Normal2's return to camera2 would also be different-owner
+with previous-policy1. The earlier claim that same-owner restoration alone
+admits the complete key path was too broad; `ee9c6f0` establishes that subcase.
+
+The full `d93d30f` source establishes the missing reached contract:
+register the destination; reset an unregistered destination to its initial
+parameters; publish destination registration/context to the selected parameter
+blocks; with previous-policy1 reset the previous camera and clear its active
+registration; preserve placement0's translation/sector refresh. Same-owner
+requests return before those effects. The native target must express the
+needed supported cases through its camera/actor components, not source
+viewport records, matrices or a scheduler. This executor records the blocker
+without expanding the approved native patch set. No ownership grant,
+checkpoint relaxation or bypass masks the failure.
+
+### Numeric171 namespaces and actual callsite
+
+The earlier handoff listed camera Proc171 as an incoming dependency without
+identifying a reachable source caller. That claim is corrected. Source category3
+**Func171 `Func_VecteurAngle` has signature VVL**; category4 **Proc171
+`Procedure_Camera_ResetCameraZMax` has signature P**. The shared number does
+not identify the same API. Raymap and the source API catalogue agree on both.
+
+A category-aware inspection of every retained Unsupported fragment in the
+71-model Manor/Fix AI snapshot finds exactly two category3/171 occurrences:
+key703 Normal1 schedule node48 and icons868 Normal1 schedule node36. The key
+call evaluates source vector(0,-1,0), then Ultra MainActor Func164 sighting,
+then integer sign selector0 (source Z); its result contributes to key DSG2.
+It is already typed as `VectorAngle`, written as category3/171, evaluated
+first-vector/second-vector/selector by the compiler and implemented by
+`source_vector_angle`, preserving degree output and low-byte selector semantics.
+The sibling icons call has the same operands. There are **zero category4/171
+occurrences in those retained fragments**. This is a bounded existing snapshot,
+not a new complete raw allocation scan or proof about other levels.
+
+The lead then approved `b2604c7`. The key worker's stronger static traversal
+covers47 rooted models,416 Normal/Reflex behaviors and678 unique scripts with
+zero Proc171 calls; an independent792-script Fix/Manor allocation scan finds
+zero procedures170..173. Its newly paired typed/native Proc171 resets only
+the existing camera actor's maximum vertical bound to the finite source
+sentinel, preserving the lower bound. The compiler evaluates its sole actor
+before component lookup. Model validation/walker, reader/writer and native
+setter coexist with Func171 and training Proc136/166. Proc171 is consequently
+neither missing from the final union nor a reachable Manor blocker. No full
+source-C translation is claimed for its shared handler; the worker records
+direct static PE evidence. The final union advances to **Rete61/support81**,
+with maintained version JSON/README and existing affected assertion literals
+aligned by source inspection. No package under either evolving schema was
+written; no support update occurs on main.
+
 ## Acceptance boundary
 
 There is no unresolved Git conflict in this slice. Compilation, GDScript
 parsing, reconstructed bytes, fresh Rete/native resources and runtime behavior
 are unverified. No assets are published or main merged. Later lead-directed
-work must compose the exact remaining presentation/GameOver/recovery follow-ons, preserve
-the model/component boundaries, resolve lifecycle findings, then separately
-authorize any executable validation or content preparation. The user may open
+work must preserve the model/component boundaries and separately authorize
+aggregate executable validation or content preparation. All exact contributions
+approved in this wave are included; the reached key camera-switch contract
+above remains an implementation blocker. The user may open
 the accepted main Godot project throughout this source-only integration.

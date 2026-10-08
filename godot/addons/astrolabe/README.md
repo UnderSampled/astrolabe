@@ -1,12 +1,15 @@
-# Astrolabe support, interface 80
+# Astrolabe support, interface 81
 
-Interface80 retains actor-owned activation/suppression and placed/generated
+Interface81 retains actor-owned activation/suppression and placed/generated
 removal, preserves paused compiled Brains, permits direct Proc12 placement of
 the bound camera and null-card key, and implements immediate Proc166 camera
 flags. Source reset-on-kill and deferred camera flag groups remain unsupported.
 Source primary-camera ownership remains independent of an authored presentation
-camera, with registration preserved when selection switches away. Proc166
+camera. Initial registration and viewport context remain distinct. Proc166
 evaluates its scalar operands before reloading the immediate camera binding.
+Proc171 resets the camera actor's upper vertical limit while retaining its
+lower limit. Different-owner Proc141 selection fails explicitly until native
+reset/sector-refresh semantics are supported; same-owner handback is retained.
 The authored game's optional training checkpoint retains settled logical state;
 no source execution cursor is serialized. See
 [`Manor training static handoff`](../../../notes/manor-training-static-2026-10-08.md).
@@ -108,9 +111,11 @@ radius, then samples its current origin through the same point-motion component.
 `source_turn_toward(actor)` applies an immediate horizontal heading request.
 Training mannequin hit reactions use their compiled Normal/Reflex behaviors and
 native family action clips; the support package adds no separate spin animation.
-`source_activate_at_position(point)` supports the Character0 elevated placement
-and downward native contact step, then activation. Other mechanics and actors
-under moving character parents fail before placement. Exact original contact
+`source_activate_at_position(point)` supports Character0, the bound mode3 camera
+and a converted null identity card: elevated placement, downward native contact,
+then activation. Other mechanics and actors under moving character parents
+fail before placement. Suppressed actors retain their activation policy while
+receiving the supported placement. Exact original contact
 response and training timing still require runtime comparison.
 
 `camera/framing.gd` stores the converted initial camera preset as native
@@ -125,9 +130,12 @@ inclusive radius arrival, or supplies displacement to `SourceCamera` and returns
 1. Invalid bindings return -1 and fail the compiled caller. The camera's ordinary
 position update owns motion; the request does not install a tween. MainActor and
 external actor designer-array writes mutate their bound Brain arrays directly.
-`source_kill_perso()` stops a placed actor's Brain and voices and disables the
-retained native instance; `source_kill()` additionally removes generated drops.
-These additions have static source/type verification only; see the dated Manor
+`source_kill_perso()` and `source_kill()` share Boolean removal: supported placed
+actors retain identity, selected Brain and suppression; generated owners release
+their nodes. Ordinary deactivation pauses Brain progression and bulk-stops voice
+requests, whose guarded completion runs on the next native process frame.
+Unknown/reset-on-kill policies return false to the compiled caller.
+These additions have source review only; see the dated Manor
 tunnel note for required runtime acceptance and pool-lifecycle limits.
 
 `request_action(id, restart)` selects compiled family transitions, prohibited
