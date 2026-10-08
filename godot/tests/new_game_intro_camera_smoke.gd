@@ -94,6 +94,9 @@ func snapshot(game: Node, label: String) -> Dictionary:
 	var letterbox := screen.get_node_or_null("Canvas/Letterbox") as Control if screen != null else null
 	var hud := screen.get_node_or_null("Canvas/Hud") as Control if screen != null else null
 	var player_brain := actor.get_node_or_null("Brain") if actor != null else null
+	var brain_paths: Dictionary = level.get_meta("source_actor_brains", {}) if level != null else {}
+	var first_visit_brain_path := str(brain_paths.get("fix:/persos/15", ""))
+	var first_visit_brain := level.get_node_or_null(first_visit_brain_path) if level != null and not first_visit_brain_path.is_empty() else null
 	var gogoud: Node = null
 	var gogoud_brain: Node = null
 	if level != null:
@@ -118,6 +121,7 @@ func snapshot(game: Node, label: String) -> Dictionary:
 		"observed_at_ms": Time.get_ticks_msec(),
 		"game_scene": game.scene_file_path,
 		"new_game": bool(game.get("new_game")),
+		"source_game_state_mask": int(game.get("source_game_state_mask")) if game.get("source_game_state_mask") != null else -1,
 		"loading_stage": str(game.get("loading_stage")),
 		"camera_437_brain": {
 			"running": bool(camera_brain.get("running")) if camera_brain != null else false,
@@ -138,6 +142,11 @@ func snapshot(game: Node, label: String) -> Dictionary:
 			"widescreen": bool(screen.get("widescreen")) if screen != null else false,
 			"letterbox_visible": letterbox.visible if letterbox != null else false,
 			"hud_suppressed": bool(hud.get("suppressed")) if hud != null else false,
+		},
+		"global_first_visit_brain": {
+			"path": first_visit_brain_path,
+			"dsg_147": first_visit_brain.get("dsg_147") if first_visit_brain != null else null,
+			"dsg_219": first_visit_brain.get("dsg_219") if first_visit_brain != null else null,
 		},
 		"player_action": int(actor.get("current_state")) if actor != null else -1,
 		"player_position": vector3_json(actor.global_position) if actor != null else [],
@@ -243,6 +252,7 @@ func run() -> void:
 	await process_frame
 	var initial := snapshot(game, "startup_after_6_physics_ticks")
 	report["startup"] = initial
+	write_report()
 	observe_unsupported(initial, "startup after 6 physics ticks")
 	if not require(initial.get("screen", {}).get("present", false), "generated manor has no maintained source screen"):
 		return
@@ -252,6 +262,7 @@ func run() -> void:
 	await create_timer(2.0).timeout
 	var after_two_seconds := snapshot(game, "after_2_seconds")
 	report["after_two_seconds"] = after_two_seconds
+	write_report()
 	observe_unsupported(after_two_seconds, "after 2 seconds")
 	var two_second_screenshot := await capture("after-2-seconds")
 	if not two_second_screenshot.is_empty():
@@ -273,7 +284,7 @@ func run() -> void:
 			actions.append(gogoud.current_state)
 		if not str(gogoud.get_node("Brain").get("unsupported_failure")).is_empty():
 			break
-	var dialogue_deadline := Time.get_ticks_msec() + 120000
+	var dialogue_deadline := Time.get_ticks_msec() + 30000
 	var source_ui := level.get_node_or_null("AstrolabeUI")
 	while source_ui != null and bool(source_ui.call("source_dialog_is_over")) and Time.get_ticks_msec() < dialogue_deadline:
 		await physics_frame
@@ -293,6 +304,7 @@ func run() -> void:
 		"active": not bool(source_ui.call("source_dialog_is_over")) if source_ui != null else false,
 		"identity": str(active_dialog.get("identity")) if active_dialog != null else "",
 	}
+	write_report()
 	observe_unsupported(first_dialogue_snapshot, "post-walk/first-dialogue")
 	var initial_camera: Dictionary = initial.get("source_camera", {})
 	var start_position_values: Array = initial_camera.get("global_position", [])
@@ -300,7 +312,7 @@ func run() -> void:
 	var followup_dialogues: Array[String] = []
 	var input_count := 0
 	var next_input_ms := Time.get_ticks_msec() + 700
-	var followup_deadline := Time.get_ticks_msec() + 300000
+	var followup_deadline := Time.get_ticks_msec() + 15000
 	while Time.get_ticks_msec() < followup_deadline:
 		var dialogue_view: Node = dialog_owner.get("dialogue") if dialog_owner != null else null
 		var live_dialog: Resource = dialogue_view.get("item") if dialogue_view != null else null
@@ -329,7 +341,7 @@ func run() -> void:
 			await physics_frame
 			await process_frame
 	report["dialogue_input_followup"] = {"method": "configured Button_Hit keyboard input (Space)", "select_count": input_count,
-			"dialogue_identities": followup_dialogues, "deadline_ms": 300000}
+			"dialogue_identities": followup_dialogues, "deadline_ms": 15000}
 	var final := snapshot(game, "post-walk-authored-camera-and-aperture-check")
 	report["post_followup"] = final
 	report["post_walk_first_dialogue"] = first_dialogue_snapshot
@@ -340,10 +352,10 @@ func run() -> void:
 			report["first_unsupported_branch"] = {
 				"phase": "New Game opening world behavior",
 				"owner": "level:/ai/models/154 IWorld_Manoir",
-				"source_node": 3,
+			"source_node": 5,
 				"source_category": 4,
-				"operation": 312,
-				"operation_name": "Proc_SetGameState",
+			"operation": 318,
+			"operation_name": "Proc_setFadeTexture",
 				"failure": str(stopped.get("failure", "")),
 			}
 			break

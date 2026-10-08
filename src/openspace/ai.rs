@@ -426,6 +426,24 @@ impl Parser<'_> {
                     to: self.expression(indent + 1)?,
                     duration_seconds: self.expression(indent + 1)?,
                 },
+                (4, 312) => Statement::SetGameState(self.expression(indent + 1)?),
+                (4, 317) => Statement::SetFadeValue(self.expression(indent + 1)?),
+                (4, 318) => Statement::SetFadeTexture(self.expression(indent + 1)?),
+                (4, 319) => Statement::ActivateFade,
+                (4, 320) => Statement::DeactivateFade,
+                (4, 129) => {
+                    let operand = self.at;
+                    let (_, sound) = self.take(indent + 1)?;
+                    if sound.kind == 34 {
+                        if let Some(event) = self.codec.sounds.get(&operand) {
+                            Statement::MusicRequest { event: event.clone() }
+                        } else {
+                            Statement::Unsupported(self.unsupported(at, "unbound source music event".into())?)
+                        }
+                    } else {
+                        Statement::Unsupported(self.unsupported(at, "music request requires a sound event operand".into())?)
+                    }
+                }
                 (4, 382) => Statement::SoundKillMusic,
                 (4, 411) => Statement::SoundFadeAll {
                     target: self.expression(indent + 1)?,
@@ -506,8 +524,23 @@ impl Parser<'_> {
                 (2, 24) => {
                     let (receiver_at, receiver) = self.take(indent + 1)?;
                     let receiver_kind = receiver.kind;
+                    let keyword = match (receiver_kind, receiver.parameter) {
+                        (0, 4) => Some(ActorKeyword::SelfActor),
+                        (0, 5) => Some(ActorKeyword::MainActor),
+                        _ => None,
+                    };
                     let actor = self.codec.actors.get(&receiver_at).cloned();
-                    if receiver_kind == 24
+                    if let Some(actor) = keyword
+                        && self.nodes.get(self.at).is_some_and(|n| {
+                            n.kind == 4 && n.parameter == 253 && n.indent == indent + 1
+                        })
+                    {
+                        self.take(indent + 1)?;
+                        Statement::SetKeywordAbsolutePosition {
+                            actor,
+                            position: self.expression(indent + 2)?,
+                        }
+                    } else if receiver_kind == 24
                         && let Some(actor) = actor
                         && self.nodes.get(self.at).is_some_and(|n| {
                             n.kind == 4 && n.parameter == 253 && n.indent == indent + 1
@@ -612,6 +645,19 @@ impl Parser<'_> {
                     }
                 }
                 (4, 323) => Statement::ToggleWideScreen,
+                (4, 3 | 4) => {
+                    let operand = self.at;
+                    let (_, object) = self.take(indent + 1)?;
+                    if object.kind == 24 {
+                        if let Some(actor) = self.codec.actors.get(&operand) {
+                            Statement::SetObjectActive { actor: actor.clone(), active: id == 3 }
+                        } else {
+                            Statement::Unsupported(self.unsupported(at, format!("unbound source object at node {operand}"))?)
+                        }
+                    } else {
+                        Statement::Unsupported(self.unsupported(at, "object activation requires a resolved Perso operand".into())?)
+                    }
+                }
                 (4, 328) => Statement::PositionDialog {
                     x: self.expression(indent + 1)?,
                     y: self.expression(indent + 1)?,
@@ -1669,6 +1715,20 @@ impl Writer<'_> {
                     self.node(4, 253, indent + 1);
                     self.expression(position, indent + 2)?;
                 }
+                Statement::SetKeywordAbsolutePosition { actor, position } => {
+                    self.node(2, 24, indent);
+                    self.node(
+                        0,
+                        if *actor == ActorKeyword::MainActor {
+                            5
+                        } else {
+                            4
+                        },
+                        indent + 1,
+                    );
+                    self.node(4, 253, indent + 1);
+                    self.expression(position, indent + 2)?;
+                }
                 Statement::SetSelfAbsolutePosition(position) => {
                     self.node(4, 253, indent);
                     self.expression(position, indent + 1)?;
@@ -1729,6 +1789,45 @@ impl Writer<'_> {
                     }
                 }
                 Statement::ToggleWideScreen => self.node(4, 323, indent),
+                Statement::SetGameState(state) => {
+                    self.node(4, 312, indent);
+                    self.expression(state, indent + 1)?;
+                }
+                Statement::SetFadeTexture(texture) => {
+                    self.node(4, 318, indent);
+                    self.expression(texture, indent + 1)?;
+                }
+                Statement::SetFadeValue(value) => {
+                    self.node(4, 317, indent);
+                    self.expression(value, indent + 1)?;
+                }
+                Statement::ActivateFade => self.node(4, 319, indent),
+                Statement::DeactivateFade => self.node(4, 320, indent),
+                Statement::SetObjectActive { actor, active } => {
+                    let handle = self
+                        .codec
+                        .actor_handles
+                        .iter()
+                        .find(|(reference, _)| reference == actor)
+                        .context("missing object activation actor handle")?
+                        .1;
+                    self.node(4, if *active { 3 } else { 4 }, indent);
+                    self.node(24, handle, indent + 1);
+                }
+                Statement::MusicRequest { event: Some(event) } => {
+                    let handle = self
+                        .codec
+                        .sound_handles
+                        .iter()
+                        .find(|(candidate, _)| candidate.as_ref() == Some(event))
+                        .context("missing music event handle")?
+                        .1;
+                    self.node(4, 129, indent);
+                    self.node(34, handle, indent + 1);
+                }
+                Statement::MusicRequest { event: None } => {
+                    anyhow::bail!("cannot serialize an unbound music request")
+                }
                 Statement::PositionDialog { x, y } => {
                     self.node(4, 328, indent);
                     self.expression(x, indent + 1)?;
@@ -2546,6 +2645,79 @@ mod partial_tests {
                 && entry == "i_brigand_dummy_gogood_hype"
                 && camera_entry == "i_brigand_dummy_gogood_camera"
         ));
+        Ok(())
+    }
+
+    #[test]
+    fn proc_set_game_state_preserves_its_long_operand() -> Result<()> {
+        let (codec, bytes) = partial(&[(4, 312, 1), (12, 1, 2), (8, 0, 0)]);
+        let script = codec.read(&bytes)?;
+        assert!(matches!(
+            script.statements.as_slice(),
+            [Statement::SetGameState(Expression::Integer(1))]
+        ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn opening_fade_and_music_calls_round_trip_as_ordered_native_semantics() -> Result<()> {
+        let (mut codec, bytes) = partial(&[
+            (4, 312, 1),
+            (12, 1, 2),
+            (4, 318, 1),
+            (12, 0, 2),
+            (4, 317, 1),
+            (12, 255, 2),
+            (4, 319, 1),
+            (4, 129, 1),
+            (34, 5678, 2),
+            (8, 0, 0),
+        ]);
+        let event = SoundEventLink {
+            library: AssetRef::new("sound:/Sound")?,
+            bank: 36,
+            member: 0,
+        };
+        codec.sounds.insert(8, Some(event.clone()));
+        codec.sound_handles.push((Some(event.clone()), 5678));
+        let script = codec.read(&bytes)?;
+        assert_eq!(
+            script.statements,
+            vec![
+                Statement::SetGameState(Expression::Integer(1)),
+                Statement::SetFadeTexture(Expression::Integer(0)),
+                Statement::SetFadeValue(Expression::Integer(255)),
+                Statement::ActivateFade,
+                Statement::MusicRequest { event: Some(event) },
+            ]
+        );
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn ultra_main_actor_absolute_waypoint_receiver_round_trips() -> Result<()> {
+        let (mut codec, bytes) = partial(&[
+            (2, 24, 1),
+            (0, 5, 2),
+            (4, 253, 2),
+            (3, 3, 3),
+            (29, 9012, 4),
+            (8, 0, 0),
+        ]);
+        let point = AssetRef::<Waypoint>::new("level:/waypoints/17-1/83")?;
+        codec.waypoints.insert(4, point.clone());
+        codec.waypoint_handles.push((point.clone(), 9012));
+        let script = codec.read(&bytes)?;
+        assert_eq!(
+            script.statements,
+            vec![Statement::SetKeywordAbsolutePosition {
+                actor: ActorKeyword::MainActor,
+                position: Expression::WaypointPosition(point),
+            }]
+        );
+        assert_eq!(codec.write(&script)?, bytes);
         Ok(())
     }
 

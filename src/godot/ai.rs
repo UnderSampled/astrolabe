@@ -2262,6 +2262,56 @@ fn statements(
                     ))
                 )?;
             }
+            Statement::SetGameState(state) => {
+                let state = guarded_expression(out, state, model, depth, flow)?;
+                let id = flow.local;
+                flow.local += 1;
+                writeln!(
+                    out,
+                    "{pad}var source_session_{id} := source_game_session()\n{pad}if not is_instance_valid(source_session_{id}) or not source_session_{id}.has_method(\"source_set_game_state\"):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}source_session_{id}.call(\"source_set_game_state\", int({state}))",
+                    quoted(&format!(
+                        "{} requires the active game session state API",
+                        model.path
+                    ))
+                )?;
+            }
+            Statement::SetFadeTexture(texture) => {
+                let value = guarded_expression(out, texture, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if source_ui() == null or not source_ui().has_method(\"source_set_fade_texture\") or not source_ui().call(\"source_set_fade_texture\", int({value})):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} requires a source-bound STE_FADE texture",
+                        model.path
+                    ))
+                )?;
+            }
+            Statement::SetFadeValue(value) => {
+                let value = guarded_expression(out, value, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if source_ui() == null or not source_ui().has_method(\"source_set_fade_value\") or not source_ui().call(\"source_set_fade_value\", int({value})):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!(
+                        "{} requires native source fade-value state",
+                        model.path
+                    ))
+                )?;
+            }
+            Statement::ActivateFade | Statement::DeactivateFade => {
+                let method = if matches!(statement, Statement::ActivateFade) {
+                    "source_activate_fade"
+                } else {
+                    "source_deactivate_fade"
+                };
+                writeln!(
+                    out,
+                    "{pad}if source_ui() == null or not source_ui().has_method(\"{method}\"):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}source_ui().call(\"{method}\")",
+                    quoted(&format!(
+                        "{} requires native source fade drawing",
+                        model.path
+                    ))
+                )?;
+            }
             Statement::JumpAbsolute => {
                 writeln!(out, "{pad}character().source_jump_absolute()")?;
             }
@@ -2405,6 +2455,36 @@ fn statements(
                     quoted(actor.path.as_str()),
                     quoted(&format!(
                         "{} requires absolute position receiver {}",
+                        model.path, actor.path
+                    ))
+                )?;
+            }
+            Statement::SetKeywordAbsolutePosition { actor, position } => {
+                let value = guarded_expression(out, position, model, depth, flow)?;
+                if *actor == ActorKeyword::MainActor {
+                    writeln!(
+                        out,
+                        "{pad}if not is_instance_valid(main_actor) or not character().source_actor_set_absolute_position_from_receiver(main_actor, {value}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                        quoted(&format!(
+                            "{} requires MainActor absolute position",
+                            model.path
+                        ))
+                    )?;
+                } else {
+                    writeln!(
+                        out,
+                        "{pad}if not character().source_set_absolute_position({value}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                        quoted(&format!("{} requires self absolute position", model.path))
+                    )?;
+                }
+            }
+            Statement::SetObjectActive { actor, active } => {
+                writeln!(
+                    out,
+                    "{pad}if not character().source_set_object_active({}, {active}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(actor.path.as_str()),
+                    quoted(&format!(
+                        "{} requires source object active state for {}",
                         model.path, actor.path
                     ))
                 )?;
@@ -2742,6 +2822,24 @@ fn statements(
                     "{pad}send_sound(sound_{i})\n{pad}if not active_{group}(token): {exit}"
                 )?;
             }
+            Statement::MusicRequest { event: Some(event) } => {
+                writeln!(
+                    out,
+                    "{pad}fail_unsupported({})\n{pad}{exit}",
+                    quoted(&format!(
+                        "{} Proc_SendMusicRequest requires the source SND music-channel contract for {} bank {} member {}",
+                        model.path, event.library.path, event.bank, event.member
+                    ))
+                )?;
+            }
+            Statement::MusicRequest { event: None } => writeln!(
+                out,
+                "{pad}fail_unsupported({})\n{pad}{exit}",
+                quoted(&format!(
+                    "{} Proc_SendMusicRequest has no resolved source event",
+                    model.path
+                ))
+            )?,
             Statement::SoundFadeMusic { arg0, arg1 } => {
                 let arg0 = guarded_expression(out, arg0, model, depth, flow)?;
                 let arg1 = guarded_expression(out, arg1, model, depth, flow)?;
@@ -3249,6 +3347,7 @@ mod source_position_tests {
                 right: Box::new(Expression::Real(5.0)),
             },
             then: vec![
+                Statement::SetGameState(Expression::Integer(1)),
                 Statement::ExecuteFade {
                     from: Expression::Integer(0),
                     to: Expression::Integer(255),
@@ -3307,10 +3406,12 @@ mod source_position_tests {
             &[],
         )?;
         let sequence = [
+            "source_game_session()",
+            "call(\"source_set_game_state\", int(1))",
             "if not source_execute_fade(int(0), int(255), float(2.0)):",
             "pass # source Proc_KillPerso target: source Level block 05:01 allocation 9217",
             "sound_fade_all(int(0), int(2000))",
-            "var duration_1 := float(2000)",
+            "var duration_2 := float(2000)",
             "sound_kill_music()",
             "sound_fade_all(int(127), int(1))",
             "LevelTransition.request_level_change(\"brigand\", \"i_brigand_dummy_gogood_hype\", \"i_brigand_dummy_gogood_camera\")",

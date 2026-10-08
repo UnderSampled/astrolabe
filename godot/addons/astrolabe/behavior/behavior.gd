@@ -234,6 +234,15 @@ func source_ui() -> Node:
 		ancestor = ancestor.get_parent()
 	return null
 
+## Proc_SetGameState is session-wide, so resolve the authored game root rather
+## than storing its state on this actor's Brain or on a level component.
+func source_game_session() -> Node:
+	var ancestor := get_parent()
+	while ancestor != null:
+		if ancestor.has_method("source_set_game_state"): return ancestor
+		ancestor = ancestor.get_parent()
+	return null
+
 func character() -> NativeCharacter:
 	var body := get_parent() as NativeCharacter
 	assert(body != null, "Action calls require the native character component")

@@ -64,6 +64,8 @@ var generated_object: Node3D
 var source_hud_display: Dictionary = {}
 ## Last evaluated local displacement, including every native substep and loop.
 var root_motion_displacement: Vector3 = Vector3.ZERO
+## Preserved OpenSpace object-active bit; independent of visibility, physics and AI.
+var source_object_active: bool = true
 var restored_configuration: bool = false
 var suppress_cues: bool = false
 var playback_revision: int = 0
@@ -843,6 +845,22 @@ func source_actor_set_absolute_position(actor_asset: String, point: Vector3) -> 
     if actor == null or not actor.is_inside_tree():
         return false
     actor.global_position = Vector3(point.x, point.z, -point.y)
+    return true
+
+func source_actor_set_absolute_position_from_receiver(actor: Node3D, point: Vector3) -> bool:
+    if not is_instance_valid(actor) or not actor.is_inside_tree() or not point.is_finite():
+        return false
+    actor.global_position = Vector3(point.x, point.z, -point.y)
+    return true
+
+func source_set_object_active(actor_asset: String, active: bool) -> bool:
+    var actor := source_actor_node(actor_asset)
+    if actor == null or not actor.has_method("source_set_object_active_state"):
+        return false
+    return bool(actor.call("source_set_object_active_state", active))
+
+func source_set_object_active_state(active: bool) -> bool:
+    source_object_active = active
     return true
 
 ## Hype Proc_SetPersoAbsolutePosition moves the executing Perso.

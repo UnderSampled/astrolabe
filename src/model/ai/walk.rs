@@ -89,12 +89,18 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::SetLaserPointerSniperMode(value)
                 | Statement::SetLaserPointerFlyMode(value)
                 | Statement::SetTransparency(value)
+                | Statement::SetGameState(value)
+                | Statement::SetFadeTexture(value)
+                | Statement::SetFadeValue(value)
                 | Statement::SelectArmor(value)
                 | Statement::SetArmorResistance(value)
                 | Statement::ChangeSighting(value)
                 | Statement::ChangeConfiguration(value)
                 | Statement::CameraChangeState { state: value, .. }
                 | Statement::SetActorAbsolutePosition {
+                    position: value, ..
+                }
+                | Statement::SetKeywordAbsolutePosition {
                     position: value, ..
                 }
                 | Statement::SetSelfAbsolutePosition(value)
@@ -167,6 +173,9 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::SetParticleGeneratorEnabled(_)
                 | Statement::SetParticleGenerator(_)
                 | Statement::SetLaserPointerActive(_)
+                | Statement::SetObjectActive { .. }
+                | Statement::ActivateFade
+                | Statement::DeactivateFade
                 | Statement::SetDisplayVisible(_)
                 | Statement::SetTransparentDisplay(_)
                 | Statement::RepairArmor
@@ -184,6 +193,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::WaitEndOfAction
                 | Statement::WaitEndOfAnimation
                 | Statement::Sound { .. }
+                | Statement::MusicRequest { .. }
                 | Statement::SoundKillMusic
                 | Statement::Noop => {}
             },

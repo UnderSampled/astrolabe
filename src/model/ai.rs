@@ -209,6 +209,22 @@ pub enum Statement {
         to: Expression,
         duration_seconds: Expression,
     },
+    /// Proc_SetGameState writes one selector into the game-wide source byte.
+    /// The native session owns the resulting mask across level changes.
+    SetGameState(Expression),
+    /// Proc_ActivateObject and Proc_DeactivateObject mutate the source object
+    /// active bit on this referenced Perso. This state is separate from draw
+    /// visibility and actor AI activation.
+    SetObjectActive {
+        actor: AssetRef<Perso>,
+        active: bool,
+    },
+    /// Source screen-fade material selection and value remain presentation API
+    /// calls owned by the active screen.
+    SetFadeTexture(Expression),
+    SetFadeValue(Expression),
+    ActivateFade,
+    DeactivateFade,
     /// Proc_SetVisualGMTDiffuseCoef (category 4, operation 237) overwrites
     /// the four source diffuse coefficients on a referenced GMT visual
     /// material from the packed bytes of one live designer variable. The
@@ -288,6 +304,11 @@ pub enum Statement {
         actor: AssetRef<Perso>,
         position: Expression,
     },
+    /// Source Ultra receiver keyword for an embedded absolute-position call.
+    SetKeywordAbsolutePosition {
+        actor: ActorKeyword,
+        position: Expression,
+    },
     /// Source procedure 253 sets the executing Perso's absolute world position.
     SetSelfAbsolutePosition(Expression),
     /// Source camera procedure 135 requests a position update. The preceding
@@ -349,6 +370,11 @@ pub enum Statement {
     WaitEndOfAction,
     WaitEndOfAnimation,
     Sound {
+        event: Option<SoundEventLink>,
+    },
+    /// Proc_SendMusicRequest asks the shared source music channel to play an
+    /// event from the sound library.
+    MusicRequest {
         event: Option<SoundEventLink>,
     },
     /// Hype Proc_SND_FadeMusic: arg0 is target level 0..127 and arg1 is
@@ -1379,6 +1405,15 @@ impl Script {
                             "position receiver is a member"
                         );
                         expression(position, variables, depth + 1, count)?;
+                    }
+                    Statement::SetKeywordAbsolutePosition { position, .. }
+                    | Statement::SetGameState(position)
+                    | Statement::SetFadeTexture(position)
+                    | Statement::SetFadeValue(position) => {
+                        expression(position, variables, depth + 1, count)?;
+                    }
+                    Statement::SetObjectActive { actor, .. } => {
+                        ensure!(actor.path.member().is_none(), "source object is a member");
                     }
                     Statement::SetSelfAbsolutePosition(position) => {
                         expression(position, variables, depth + 1, count)?;

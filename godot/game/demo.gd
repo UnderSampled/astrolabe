@@ -43,6 +43,16 @@ var _initial_transition_pending := false
 var _initial_failure_recovery_started := false
 var _initial_failure_recovery_cancelled := false
 var source_camera_controller_state: Resource
+## Hype's source game-state selector is one shared byte, not actor Brain state.
+var source_game_state_mask: int = 0
+
+func source_set_game_state(state_id: int) -> void:
+    var state_byte := state_id & 0xff
+    if state_byte == 0:
+        source_game_state_mask = 0
+        return
+    var shift := (state_byte - 1) & 0x1f
+    source_game_state_mask = (1 << shift) & 0xff
 
 func _ready() -> void:
     # Lock the incoming session before its deferred initial request starts.
