@@ -6,6 +6,10 @@
 
 ## Common records
 
+The [Manor courtyard static audit](manor-courtyard-static-audit-2026-10-08.md)
+records the finite source wall, adjacent passage, material/sector eligibility,
+saved gate branch and missing user-contact observation without runtime acceptance.
+
 The [integration disposition](integration-disposition-2026-10-08.md) audits all
 preserved worker branches/worktrees, records merged/superseded/active work, and
 reconciles missing evidence. The [save/AI research catalogue](save-ai-gap-catalogue-2026-10-08.md)
