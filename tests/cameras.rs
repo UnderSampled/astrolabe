@@ -102,6 +102,7 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
         motion_binding_present: false,
         picking_bounds: None,
         contact_eligible: true,
+        custom_bits: 0,
         microphone: None,
         camera: Some(Camera {
             source: identity(1),

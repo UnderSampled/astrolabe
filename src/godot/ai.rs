@@ -228,6 +228,7 @@ mod tests {
                 motion_binding_present: false,
                 picking_bounds: None,
                 contact_eligible: true,
+                custom_bits: 0,
                 microphone: None,
                 routes: Vec::new(),
                 brain: None,
@@ -881,6 +882,7 @@ fn vector_expression(e: &Expression, model: &AiModel) -> bool {
         | Expression::ActorPosition(_)
         | Expression::ActorPositionField(_)
         | Expression::ActorSightingField(_)
+        | Expression::ActorSighting(_)
         | Expression::SelfPositionField
         | Expression::WaypointPosition(_)
         | Expression::SelfSighting
@@ -1004,6 +1006,9 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::SelfHitPoints
         | Expression::ActorHitPointsMaximum(_)
         | Expression::ActorPosition(_)
+        | Expression::ActorSighting(_)
+        | Expression::HasCustomBit { .. }
+        | Expression::VectorAngle { .. }
         | Expression::CurrentAnimationFrame
         | Expression::MagicRemovePoints(_)
         | Expression::Square(_)
@@ -1117,7 +1122,7 @@ fn guarded_expression(
             )?;
             format!("{local}.source_position()")
         }
-        Expression::ActorSightingField(actor) => {
+        Expression::ActorSightingField(actor) | Expression::ActorSighting(actor) => {
             let local = format!("sighting_actor_{}", flow.local);
             flow.local += 1;
             writeln!(
@@ -1131,6 +1136,23 @@ fn guarded_expression(
                 ))
             )?;
             format!("{local}.source_sighting()")
+        }
+        Expression::HasCustomBit { actor, bit } => {
+            let id = flow.local;
+            flow.local += 1;
+            writeln!(
+                out,
+                "{pad}var bits_actor_{id}: Node3D = {}\n{pad}if not is_instance_valid(bits_actor_{id}) or not bits_actor_{id}.has_method(\"source_has_custom_bit\"):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                actor_target_code(actor),
+                quoted(&format!("{} requires actor-owned custom flags", model.path))
+            )?;
+            let bit = guarded_expression(out, bit, model, depth, flow)?;
+            writeln!(
+                out,
+                "{pad}var bit_payload_{id} = {bit}\n{pad}if typeof(bit_payload_{id}) not in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL]:\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                quoted(&format!("{} requires a scalar custom-bit payload", model.path))
+            )?;
+            format!("bits_actor_{id}.source_has_custom_bit(bit_payload_{id})")
         }
         Expression::ActorFacingAngle { receiver, target } => {
             let id = flow.local;
@@ -1793,6 +1815,25 @@ fn guarded_expression(
             guarded_expression(out, a, model, depth, flow)?,
             guarded_expression(out, b, model, depth, flow)?
         ),
+        Expression::VectorAngle {
+            first,
+            second,
+            sign_axis,
+        } => {
+            let id = flow.local;
+            flow.local += 1;
+            let first = guarded_expression(out, first, model, depth, flow)?;
+            writeln!(out, "{pad}var angle_first_{id} = {first}")?;
+            let second = guarded_expression(out, second, model, depth, flow)?;
+            writeln!(out, "{pad}var angle_second_{id} = {second}")?;
+            let axis = guarded_expression(out, sign_axis, model, depth, flow)?;
+            writeln!(
+                out,
+                "{pad}var angle_axis_{id} = {axis}\n{pad}if typeof(angle_first_{id}) != TYPE_VECTOR3 or typeof(angle_second_{id}) != TYPE_VECTOR3 or typeof(angle_axis_{id}) not in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL]:\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                quoted(&format!("{} requires two vectors and a scalar sign selector", model.path))
+            )?;
+            format!("character().source_vector_angle(angle_first_{id}, angle_second_{id}, angle_axis_{id})")
+        }
         Expression::Negate(value) => format!(
             "(-float({}))",
             guarded_expression(out, value, model, depth, flow)?
@@ -1953,6 +1994,9 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         | Expression::ActorDistance(_)
         | Expression::ActorHitPointsMaximum(_)
         | Expression::ActorPosition(_)
+        | Expression::ActorSighting(_)
+        | Expression::HasCustomBit { .. }
+        | Expression::VectorAngle { .. }
         | Expression::ActorDistanceFrom { .. }
         | Expression::DistanceToPosition { .. }
         | Expression::ActorRelativeZ { .. }
@@ -3294,6 +3338,80 @@ fn statements(
                         model.path,
                         actor_target_label(actor)
                     ))
+                )?;
+            }
+            Statement::SetCustomBit { actor, bit, value } => {
+                let id = flow.local;
+                flow.local += 1;
+                writeln!(
+                    out,
+                    "{pad}var bits_actor_{id}: Node3D = {}\n{pad}if not is_instance_valid(bits_actor_{id}) or not bits_actor_{id}.has_method(\"source_change_custom_bit\"):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var bits_before_{id}: int = bits_actor_{id}.source_custom_bits",
+                    actor_target_code(actor),
+                    quoted(&format!("{} requires actor-owned custom flags", model.path))
+                )?;
+                let bit = guarded_expression(out, bit, model, depth, flow)?;
+                writeln!(out, "{pad}var bit_payload_{id} = {bit}")?;
+                let value = guarded_expression(out, value, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}var bit_value_{id} = {value}\n{pad}if typeof(bit_payload_{id}) not in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL] or typeof(bit_value_{id}) not in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL]:\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}bits_actor_{id}.source_change_custom_bit(bits_before_{id}, bit_payload_{id}, bit_value_{id})",
+                    quoted(&format!("{} requires scalar custom-bit operands", model.path))
+                )?;
+            }
+            Statement::SetChannelParent {
+                parent,
+                channel,
+                child,
+                attached,
+            } => {
+                let id = flow.local;
+                flow.local += 1;
+                let parent = guarded_expression(out, parent, model, depth, flow)?;
+                writeln!(out, "{pad}var channel_parent_{id} = {parent}")?;
+                let child = guarded_expression(out, child, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}var channel_child_{id} = {child}\n{pad}if typeof(channel_parent_{id}) != TYPE_OBJECT or not is_instance_valid(channel_parent_{id}) or not (channel_parent_{id} is Node3D) or typeof(channel_child_{id}) != TYPE_OBJECT or not is_instance_valid(channel_child_{id}) or not channel_child_{id}.has_method(\"source_set_channel_parent\") or not channel_child_{id}.source_set_channel_parent(channel_parent_{id}, {channel}, {attached}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!("{} requires native child-channel attachment", model.path))
+                )?;
+            }
+            Statement::SelectViewportCamera {
+                viewport,
+                previous_policy,
+                placement_policy,
+                actor,
+            } => {
+                let id = flow.local;
+                flow.local += 1;
+                for (name, value) in [("viewport", viewport), ("previous", previous_policy), ("placement", placement_policy), ("actor", actor)] {
+                    let value = guarded_expression(out, value, model, depth, flow)?;
+                    writeln!(out, "{pad}var camera_{name}_{id} = {value}")?;
+                }
+                writeln!(
+                    out,
+                    "{pad}if typeof(camera_actor_{id}) != TYPE_OBJECT or not is_instance_valid(camera_actor_{id}) or not (camera_actor_{id} is Node3D):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var selected_camera_{id} = camera_actor_{id}.get_node_or_null(\"SourceCamera\")\n{pad}if selected_camera_{id} == null or not selected_camera_{id}.has_method(\"source_select_primary\") or typeof(camera_viewport_{id}) not in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL] or typeof(camera_previous_{id}) not in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL] or typeof(camera_placement_{id}) not in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL] or not selected_camera_{id}.source_select_primary(camera_viewport_{id}, camera_previous_{id}, camera_placement_{id}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!("{} requires a native camera actor", model.path)),
+                    quoted(&format!("{} requires supported primary-camera selection", model.path))
+                )?;
+            }
+            Statement::ChangeCameraFocal { actor, selector, value } => {
+                let id = flow.local;
+                flow.local += 1;
+                let actor = guarded_expression(out, actor, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}var focal_actor_{id} = {actor}\n{pad}if typeof(focal_actor_{id}) != TYPE_OBJECT or not is_instance_valid(focal_actor_{id}) or not (focal_actor_{id} is Node3D):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var focal_camera_{id} = focal_actor_{id}.get_node_or_null(\"SourceCamera\")\n{pad}if focal_camera_{id} == null or not focal_camera_{id}.has_method(\"source_focal_registered\"):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var focal_registered_{id} = focal_camera_{id}.source_focal_registered()\n{pad}if focal_registered_{id} == null:\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}if focal_registered_{id}:",
+                    quoted(&format!("{} requires a native focal actor", model.path)),
+                    quoted(&format!("{} requires a native focal camera", model.path)),
+                    quoted(&format!("{} requires a supported camera focal preset", model.path))
+                )?;
+                let selector = guarded_expression(out, selector, model, depth + 1, flow)?;
+                writeln!(out, "{pad}    var focal_selector_{id} = {selector}")?;
+                let value = guarded_expression(out, value, model, depth + 1, flow)?;
+                writeln!(
+                    out,
+                    "{pad}    var focal_value_{id} = {value}\n{pad}    if typeof(focal_selector_{id}) not in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL] or typeof(focal_value_{id}) not in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL] or not focal_camera_{id}.source_change_focal(focal_selector_{id}, focal_value_{id}):\n{pad}        fail_unsupported({})\n{pad}        {exit}",
+                    quoted(&format!("{} requires supported source focal values", model.path))
                 )?;
             }
             Statement::SetSelfAbsolutePosition(position) => {

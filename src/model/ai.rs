@@ -328,6 +328,33 @@ pub enum Statement {
         actor: ActorTarget,
         active: bool,
     },
+    /// Proc273 snapshots the receiver's custom flags before either operand.
+    /// Bit index and truth use the evaluated raw words, without numeric casts.
+    SetCustomBit {
+        actor: ActorTarget,
+        bit: Expression,
+        value: Expression,
+    },
+    /// Proc268/269 resolves parent, channel, then child on the original caller.
+    SetChannelParent {
+        parent: Expression,
+        channel: u32,
+        child: Expression,
+        attached: bool,
+    },
+    /// Proc141 selects a viewport camera after evaluating all four operands.
+    SelectViewportCamera {
+        viewport: Expression,
+        previous_policy: Expression,
+        placement_policy: Expression,
+        actor: Expression,
+    },
+    /// Proc158 skips selector/value evaluation when the camera is unregistered.
+    ChangeCameraFocal {
+        actor: Expression,
+        selector: Expression,
+        value: Expression,
+    },
     /// Source screen-fade material selection and value remain presentation API
     /// calls owned by the active screen.
     SetFadeTexture(Expression),
@@ -611,6 +638,13 @@ pub enum Expression {
     SelfPosition,
     /// Ultra Func0 reads the resolved receiver's current position.
     ActorPosition(ActorTarget),
+    /// Func164 returns the executing/Ultra actor's world sight direction.
+    ActorSighting(ActorTarget),
+    /// Cond107 tests the receiver's one-based, wrapping custom bit index.
+    HasCustomBit {
+        actor: ActorTarget,
+        bit: Box<Expression>,
+    },
     /// Source Field.Position reads the current receiver's world translation.
     /// Keep this distinct from Func_GetPersoAbsolutePosition for source fidelity.
     SelfPositionField,
@@ -812,6 +846,12 @@ pub enum Expression {
     MagicRemovePoints(Box<Expression>),
     LaserDirection,
     VectorCos(Box<Expression>, Box<Expression>),
+    /// Func171 returns source degrees, signed by the selected cross component.
+    VectorAngle {
+        first: Box<Expression>,
+        second: Box<Expression>,
+        sign_axis: Box<Expression>,
+    },
     /// Func_GetPersoSighting: current actor's source-coordinate sighting
     /// direction, confirmed from Hype's own perso context.
     SelfSighting,
@@ -1028,6 +1068,11 @@ impl Content for AiModel {
             let receiver = match expression {
                 Expression::Actor(ActorTarget::Variable(index))
                 | Expression::ActorPosition(ActorTarget::Variable(index))
+                | Expression::ActorSighting(ActorTarget::Variable(index))
+                | Expression::HasCustomBit {
+                    actor: ActorTarget::Variable(index),
+                    ..
+                }
                 | Expression::ActorPositionField(ActorTarget::Variable(index))
                 | Expression::ActorSightingField(ActorTarget::Variable(index))
                 | Expression::DistanceToWaypoint {
@@ -1476,6 +1521,7 @@ impl Script {
                     expression(threshold, variables, depth + 1, count)?;
                 }
                 Expression::ActorPosition(ActorTarget::Variable(variable))
+                | Expression::ActorSighting(ActorTarget::Variable(variable))
                 | Expression::ActorPositionField(ActorTarget::Variable(variable))
                 | Expression::ActorSightingField(ActorTarget::Variable(variable))
                 | Expression::Actor(ActorTarget::Variable(variable)) => ensure!(
@@ -1486,6 +1532,18 @@ impl Script {
                 | Expression::ActorSightingField(ActorTarget::Reference(actor))
                 | Expression::ActorPosition(ActorTarget::Reference(actor)) => {
                     ensure!(actor.path.member().is_none(), "position actor is a member");
+                }
+                Expression::ActorSighting(ActorTarget::Reference(actor)) => {
+                    ensure!(actor.path.member().is_none(), "sighting actor is a member");
+                }
+                Expression::HasCustomBit { actor, bit } => {
+                    if let ActorTarget::Variable(variable) = actor {
+                        ensure!(usize::from(*variable) < variables, "custom-bit actor variable out of range");
+                    }
+                    if let ActorTarget::Reference(actor) = actor {
+                        ensure!(actor.path.member().is_none(), "custom-bit actor is a member");
+                    }
+                    expression(bit, variables, depth + 1, count)?;
                 }
                 Expression::CameraShiftAlpha { selector, receiver }
                 | Expression::CameraShiftTeta { selector, receiver } => {
@@ -1573,6 +1631,15 @@ impl Script {
                 } => {
                     expression(left, variables, depth + 1, count)?;
                     expression(right, variables, depth + 1, count)?;
+                }
+                Expression::VectorAngle {
+                    first,
+                    second,
+                    sign_axis,
+                } => {
+                    expression(first, variables, depth + 1, count)?;
+                    expression(second, variables, depth + 1, count)?;
+                    expression(sign_axis, variables, depth + 1, count)?;
                 }
                 Expression::Not(value)
                 | Expression::Negate(value)
@@ -1883,6 +1950,41 @@ impl Script {
                         ..
                     } => {
                         ensure!(actor.path.member().is_none(), "source object is a member");
+                    }
+                    Statement::SetCustomBit { actor, bit, value } => {
+                        if let ActorTarget::Variable(variable) = actor {
+                            ensure!(usize::from(*variable) < variables, "custom-bit actor variable out of range");
+                        }
+                        if let ActorTarget::Reference(actor) = actor {
+                            ensure!(actor.path.member().is_none(), "custom-bit actor is a member");
+                        }
+                        expression(bit, variables, depth + 1, count)?;
+                        expression(value, variables, depth + 1, count)?;
+                    }
+                    Statement::SetChannelParent {
+                        parent,
+                        channel,
+                        child,
+                        ..
+                    } => {
+                        ensure!(*channel <= u32::from(u16::MAX), "attachment channel exceeds source width");
+                        expression(parent, variables, depth + 1, count)?;
+                        expression(child, variables, depth + 1, count)?;
+                    }
+                    Statement::SelectViewportCamera {
+                        viewport,
+                        previous_policy,
+                        placement_policy,
+                        actor,
+                    } => {
+                        for value in [viewport, previous_policy, placement_policy, actor] {
+                            expression(value, variables, depth + 1, count)?;
+                        }
+                    }
+                    Statement::ChangeCameraFocal { actor, selector, value } => {
+                        for value in [actor, selector, value] {
+                            expression(value, variables, depth + 1, count)?;
+                        }
                     }
                     Statement::SetSelfAbsolutePosition(position) => {
                         expression(position, variables, depth + 1, count)?;

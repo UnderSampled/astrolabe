@@ -1,7 +1,8 @@
 extends Camera3D
 ## Native target and framing addressed by the compiled camera AI API.
 ## Mode 3 aims the authored eye; mode 6 preserves its authored orientation.
-## Follow modes and viewport selection remain separate.
+## Primary viewport reselection is supported; controller reset and pose copy
+## remain separate source contracts.
 
 @export var motion_mode: int = 0
 @export var initial_motion_mode: int = 0
@@ -9,6 +10,8 @@ extends Camera3D
 @export var actor_offset: Vector3 = Vector3.ZERO
 @export var look_offset: Vector3 = Vector3.ZERO
 @export var initially_current: bool = false
+@export var source_initial_horizontal_fov: float = 0.0
+var source_viewport_registered: bool = false
 @export_node_path("Node3D") var initial_target_path: NodePath
 @export var mode_zero_target_offset: Vector3 = Vector3.ZERO
 @export var mode_zero_actor_offset: Vector3 = Vector3.ZERO
@@ -89,9 +92,58 @@ func _ready() -> void:
     if owner != null:
         _source_previous_history_position = owner.global_position
     if initially_current:
+        source_viewport_registered = true
         make_current()
     else:
         clear_current(false)
+
+## Proc141 always restores the previous source target's opacity, including
+## a request for the already selected camera. Only the primary viewport is mapped.
+func source_select_primary(context: Variant, previous_policy: Variant, placement_policy: Variant) -> bool:
+    var owner := get_parent() as Node3D
+    if owner == null or not owner.has_method("source_scalar_word") or int(owner.call("source_scalar_word", context)) != 1:
+        return false
+    var previous := get_viewport().get_camera_3d()
+    if previous == null or not previous.has_method("source_prepare_target_change"):
+        return false
+    if not bool(previous.call("source_prepare_target_change")): return false
+    if previous == self: return true
+    # Switching through an unregistered/reset controller or copying its pose
+    # needs the remaining source camera reset/placement contracts. Preserve a
+    # reached failure for those requests rather than substitute an authored eye.
+    if not source_viewport_registered or int(owner.call("source_scalar_word", previous_policy)) != 0 or int(owner.call("source_scalar_word", placement_policy)) != 0:
+        return false
+    previous.set("source_viewport_registered", false)
+    make_current()
+    return true
+
+## Proc158's unregistered branch returns before evaluating selector or value.
+## Source modes 101/104/105 select another parameter set that is not mapped here.
+func source_focal_registered() -> Variant:
+    if motion_mode in [101, 104, 105]: return null
+    return source_viewport_registered
+
+func source_change_focal(selector: Variant, value: Variant) -> bool:
+    var owner := get_parent() as Node3D
+    if owner == null or not owner.has_method("source_scalar_word"): return false
+    var operation: int = int(owner.call("source_scalar_word", selector))
+    var radians := float(value)
+    if typeof(value) != TYPE_FLOAT:
+        var word: int = int(owner.call("source_scalar_word", value))
+        radians = float(word - 0x100000000 if word >= 0x80000000 else word)
+    radians = PackedFloat32Array([radians])[0]
+    if operation == 0xffffffff:
+        radians = source_initial_horizontal_fov
+    elif operation == 1:
+        if (mode_zero_parameter_flags & 0x20) != 0: return false
+        radians += deg_to_rad(fov)
+    elif operation != 0:
+        # Other selectors retain the previous focal value in the source.
+        return true
+    radians = PackedFloat32Array([radians])[0]
+    if not is_finite(radians) or radians <= 0.0 or radians >= PI: return false
+    fov = rad_to_deg(radians)
+    return true
 
 ## 005796ea clears camera payload +0x32c at callback entry, then sets it when
 ## its 00463df0 obstruction query blocks. Feed the callback's computed result.

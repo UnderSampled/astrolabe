@@ -5,7 +5,7 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, path::Path};
 
-pub const INTERFACE: u32 = 78;
+pub const INTERFACE: u32 = 79;
 const PACKAGE: &str = "addons/astrolabe";
 const RECEIPT: &str = "addons/astrolabe/installed.json";
 
@@ -27,6 +27,7 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/audio/emitter.gd.uid",
     "addons/astrolabe/character/character.gd",
     "addons/astrolabe/character/lift_motion.gd",
+    "addons/astrolabe/character/channel_attachment.gd",
     "addons/astrolabe/character/contact_pickup.gd",
     "addons/astrolabe/character/contact_pickup.gd.uid",
     "addons/astrolabe/character/explosive_barrel.gd",
@@ -396,7 +397,7 @@ mod tests {
             output.path().join("addons/astrolabe/version.json"),
         )?)?;
         assert_eq!(version["interface"].as_u64(), Some(u64::from(INTERFACE)));
-        assert_eq!(INTERFACE, 78);
+        assert_eq!(INTERFACE, 79);
 
         let staged = tempfile::tempdir()?;
         stage(staged.path(), output.path())?;

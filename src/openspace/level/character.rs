@@ -262,6 +262,11 @@ impl<'a> Importer<'a> {
                 let state: StandardSaveWire = wire(self.session.bytes(standard, 56)?)?;
                 state.never_back_latch == 0 && state.active == 1
             },
+            custom_bits: {
+                let standard = self.session.required(perso, 4)?;
+                let state: StandardSaveWire = wire(self.session.bytes(standard, 56)?)?;
+                state.custom_bits_init
+            },
             inventory_stock,
             routes: super::way::import_bindings(self.session, perso, &path, types, self.result)?,
             brain: None,

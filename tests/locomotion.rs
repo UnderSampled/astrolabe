@@ -234,6 +234,7 @@ fn native_motion_survives_rete_and_drives_character_contact() -> Result<()> {
         motion_binding_present: false,
         picking_bounds: None,
         contact_eligible: true,
+        custom_bits: 0,
         microphone: None,
         camera: None,
         routes: vec![],

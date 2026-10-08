@@ -1,8 +1,10 @@
 # Manor key and gate: static implementation
 
 This isolated change starts at `d493ef2`. It implements source-supported
-selection, spatial queries and the gate's blocking movement. It does **not**
-establish the complete Gogoud award chain or runtime acceptance. No tests,
+the source key producer, ownership handoff, selection, spatial queries,
+attachment APIs and the gate's blocking movement. Runtime acceptance remains
+unverified; the original key popup is an explicit dependency on the separate
+presentation worker. No tests,
 compiler/lint checks, original-engine runs, Godot runs or conversion exports
 were performed. Inspection was limited to source files, PE disassembly,
 existing imported AST/data and previously generated native resources.
@@ -75,12 +77,14 @@ the incoming step. Reaching/passing the length snaps exactly to the endpoint
 and clears completion. Separate float32 scalar stores and native vector
 placement retain the source's important rounding boundaries.
 
-The native adaptation supplies Godot physics seconds as the incoming step.
-The source dispatcher step's units have **not** been established in this
-static pass; timing/step scaling and x87 versus Godot numerical differences
-still need verification. Nonpositive/nonfinite duration parameters are explicit
-unsupported requests; the two traced gate factors are positive. The component
-does not reproduce unrelated dynamics fields or execution machinery.
+The source clock is now established statically: a millisecond timer feeds an
+integer frame interval clamped to 16..80 ms; the event dispatcher multiplies
+that interval by 0.001 and stores float32 seconds before calling the lift.
+Godot physics seconds therefore have the correct units, and the native API
+rounds the step to float32. Physics cadence versus source interval quantization
+and x87 versus Godot numerical differences still need runtime verification.
+Nonpositive/nonfinite factors remain unsupported requests; the two source gate
+factors are positive. The component does not rebuild a timer or source scheduler.
 
 Existing native inventory snapshots already save admission, per-member
 selection and selected Object. Existing Global saves already own DSG149 and
@@ -91,38 +95,103 @@ in `scene_actors`, so it does not also restore an opened gate transform. The
 fixture is the **post-key, gate-open** state and cannot validate acquisition.
 The intro skip/optional DSG147 path and authored session are untouched.
 
-## Remaining award evidence
+## Established producer and pickup continuation
 
-Model 210 (Gogoud) has no AddObject call. Its Normal1 sets DSG4, executes
-action38, sets DSG2, executes action29, selects action30 and enters Normal3;
-the latter uses frame40 to turn/leave. The inspected Gogoud animation library's
-referenced actions are all sound cues. Neither those cues nor frame40 prove
-an award. Gogoud's native stock binding is null. Its direct active-state calls
-deactivate itself, while the only inspected direct reference to physical key
-`/world/0/142` is IWorld's startup deactivation.
+The key is awarded by **training Gogoud model 991**, not intro Gogoud model210.
+Normal4 at training stage3 and IWorld154 mode4 selects Normal18. Normal18 writes
+Global152 and local stage5, runs `gogood_master_finimannequin`, then enters empty
+Normal5. The original dialogue's owner is training Gogoud `/world/0/155` and its
+completion points to model991 Normal19. Normal19 executes its actions and pursuit,
+sets local DSG5, then activates the physical key `/world/0/142` at
+`MainActor.position + MainActor.sighting * 0.1`. A raw AST scan establishes this
+reference; generated-script grep had missed the operands of the unsupported call.
 
-The other observer of Gogoud DSG2 is statue model294: it requests Hype
-Normal69, which hides channels and enters Normal16, without granting stock.
-The inspected dialogue completion binding enters Gogoud Normal1 and contains
-no award payload. No direct references to the three item21 proxies establish
-a transfer. A source-proven key activation, dialogue command or equivalent
-handoff edge is still required. This change deliberately adds no grant at a
-guessed frame, dialogue completion, DSG147 change or scene startup.
+The training worker owns typed Proc12 and its native placement/activation path
+in `84a124449b4470194e4080a508ed190dcaa5a5bf`, including its null identity-card
+follow-up. The actual key has a dynamics binding but state4 has no mechanics
+identity card, so a blanket `current_mechanics == null` rejection is invalid.
+This branch supplies the missing Ultra Func164 actor sighting query. The original
+helper raises then lowers the placement point by half a source unit and activates
+the target even if contact placement fails; it does not admit stock. Key703's own
+Reflex0 performs admission through its StockAction after the existing Hype handoff.
+The training worker separately owns checkpoint continuity and rejects a stage5
+snapshot before item21 admission; this branch does not edit its save code.
 
-Evidence: imported Manor/Fix AI models and StockAction joins; the original
-PE callable catalogue and disassembly; original selected-Object getter and
-selector; lift initialization/update, registered lift motion callback and
-scalar helper in `hype-decomp`. The clean-C peer owns those translations in
-`/tmp/hype-sol-key-training-20261008`; this branch does not edit that tree.
+The key's initial **custom mask is 7** (bits1/2/3). These StandardGame flags are
+separate from activation/display. New HasCustomBit and SetCustomBit typed paths
+support self, referenced actors and runtime actor DSGs, including Hype DSG133.
+The bit index wraps one-based with the low five bits. SetCustomBit captures old
+flags before either operand, and truth uses only the second raw word's low byte;
+real operands retain float32 bit payloads. Hype33 reaches Hype61 through key bit3,
+then bit10 starts the key's presentation continuation. Ownership is already
+established before this bit10 handshake.
+
+Key703 Normal1 attaches self to MainActor channel20; Normal2 removes that exact
+child, preserving world pose. New native child-owned attachment uses real Godot
+hierarchy and refreshes level actor/Brain/entry NodePaths. A synchronous hierarchy
+move preserves active Brain coroutines through their tree notifications. The
+original world-parent join was checked against the source GPT; Manor's dynamic
+world is `/world/0`, the nearest source World ancestor retained on attachment.
+Existing contact-sector ownership is retained. Broader source sector migration
+on detach remains unverified; the source helper has more general cases.
+
+Ultra actor sighting changes and Func171 vector angle now compile to native
+geometry. Func171 retains source degrees, the raw low-byte sign selector
+(0=Z,1=X,2=Y), the zero-vector denominator1 and only the upper cosine clamp.
+Its float32 stores are represented; x87 equivalence is not claimed.
+
+Proc141 and Proc158 now have paired typed reader/writer/compiler paths. Primary
+viewport reselection restores the old target's opacity, including the same-camera
+early return used by the key's `(1,1,0,camera)` call. Switching to another already
+registered camera without reset/pose-copy is supported. Controller reset,
+unregistered activation, pose-copy policies and secondary viewports remain explicit
+failures; the authored free camera cannot substitute for the source active camera.
+The key therefore requires the real source camera to own the primary viewport.
+Focal changes skip selector/value evaluation when unregistered. The reached key
+request overwrites source horizontal FOV with 1.3 radians. Source modes101/104/105
+and relative-focal flag0x20 remain unsupported. Initial FOV is exported separately
+for the -1 reset selector.
+
+The physical key's `keysico_gogood` dialogue is box5, one answer, flagged blank
+lines, no stock/gold payload, and a completion binding to key703 Normal2. It cannot
+be replaced by a generic text popup. The presentation worker owns this exact
+renderer/UI dependency by Kip's assignment. Unsupported style5 remains a reached
+failure until that implementation is merged; acquisition and control release must
+not be declared complete from admission alone.
+
+Independent negative evidence excludes an invented intro award: all58 intro
+Gogoud family states were traversed, yielding40 animation descriptors and eight
+referenced action resources, all sound kind. State30's full five-entry cue array
+is sound-only. The intro dialogue answers have zero stock/gold/action/module grant
+fields. No source key grant at frame40, intro completion, DSG147 or scene startup
+was added. Global219 is not written by training model991; its typed write belongs
+to IWorld154's training setup.
+
+Evidence includes retained original AI/StockAction/StandardGame/English dialogue
+records, PE disassembly and the peer's complete C. The interaction translator's
+`f474a3a`, `b32d68f`, `b0d5248` own inventory, Meta36/lift, custom-bit handlers and
+activation bodies in `/tmp/hype-sol-key-training-20261008`. The presentation C
+translator owns child-channel handler translation and dialogue callbacks. This
+branch does not edit either decompilation tree or any peer worktree.
 
 ## Integration and verification
 
-Rete schema advances 58 to 59 and support interface 77 to 78. Integration
+The first checkpoint advances Rete58→59/support77→78; this follow-up advances
+Rete59→60/support78→79 for new expressions, statements and actor custom flags. Integration
 must reconcile version changes from other workers and explicitly update
 installed support before regenerating assets. Shared merge surfaces are the
 AI model/walker/reader/compiler, Character and support manifest. No generated
-asset is committed. No authored `demo.gd`/scene or camera file is changed,
-so the parent session-file rename has no overlapping hunk here.
+asset is committed. No authored game session, scene or free-camera file is
+changed, so the parent session-file rename has no overlapping hunk here.
+The converter-owned source-camera support file is changed.
+
+The training worker owns Proc12's null-card correction and actor activation
+lifecycle. Its ActorActivation model/import/export changes overlap the adjacent
+Perso custom-bit hunks here. Merge both actor-owned fields and initializer
+updates. Its Brain pause/resume changes must also retain the synchronous
+hierarchy-move guard added here; otherwise attaching the key cancels the
+ongoing pickup behavior. Its settled stage5 save policy owns the removed key's
+inactive, return-suppressed placed node and excludes an unfinished box5 pickup.
 
 Static review covered operand capture, visitor/validation coverage, reader
 and writer pairing, guarded query side effects, native support registration,
@@ -131,7 +200,8 @@ support-version assertion was updated only to match the version constant;
 no test was added or executed. Compilation and generated GDScript parsing
 remain unverified.
 
-After the missing award edge is resolved, runtime verification still needs:
+After the owned training/UI dependencies are integrated, runtime verification
+still needs:
 one real handoff/admission, selection and lock interaction; both sideways
 segments and timing; no key consumption unless newly proven; native save and
 fresh reload; repeat load without double admission or another gate displacement;

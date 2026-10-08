@@ -122,6 +122,9 @@ pub struct Perso {
     /// StandardGame activation admits contact only for latch 0 and active 1.
     #[serde(default = "contact_eligible_default")]
     pub contact_eligible: bool,
+    /// Actor-owned StandardGame custom flags, independent of display/activation.
+    #[serde(default)]
+    pub custom_bits: u32,
     /// Actor-local microphone matrix; composed with the actor rotation by the
     /// native listener. Source allocation details stay in the reader.
     pub microphone: Option<Microphone>,

@@ -199,6 +199,23 @@ impl<'a> Iterator for AstWalk<'a> {
                 Statement::SoundFadeMusic { arg0, arg1 } => {
                     self.expressions(child_depth, &[arg0, arg1]);
                 }
+                Statement::SetCustomBit { bit, value, .. } => {
+                    self.expressions(child_depth, &[bit, value]);
+                }
+                Statement::SetChannelParent { parent, child, .. } => {
+                    self.expressions(child_depth, &[parent, child]);
+                }
+                Statement::SelectViewportCamera {
+                    viewport,
+                    previous_policy,
+                    placement_policy,
+                    actor,
+                } => {
+                    self.expressions(child_depth, &[viewport, previous_policy, placement_policy, actor]);
+                }
+                Statement::ChangeCameraFocal { actor, selector, value } => {
+                    self.expressions(child_depth, &[actor, selector, value]);
+                }
                 Statement::SwitchMicrophone {
                     actor,
                     evaluated_second,
@@ -317,6 +334,7 @@ impl<'a> Iterator for AstWalk<'a> {
                     self.expressions(child_depth, &[value]);
                 }
                 Expression::ActorDistanceFrom { target, .. }
+                | Expression::HasCustomBit { bit: target, .. }
                 | Expression::ActorRelativeZ { target, .. }
                 | Expression::ActorFacingAngle { target, .. }
                 | Expression::DistanceToPosition { point: target, .. }
@@ -331,6 +349,13 @@ impl<'a> Iterator for AstWalk<'a> {
                 } => self.expressions(child_depth, &[point, threshold]),
                 Expression::Vector(values) => {
                     self.expressions(child_depth, &[&values[0], &values[1], &values[2]]);
+                }
+                Expression::VectorAngle {
+                    first,
+                    second,
+                    sign_axis,
+                } => {
+                    self.expressions(child_depth, &[first, second, sign_axis]);
                 }
                 Expression::TimeElapsed {
                     start: left,
@@ -375,6 +400,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::Real(_)
                 | Expression::SelfPosition
                 | Expression::ActorPosition(_)
+                | Expression::ActorSighting(_)
                 | Expression::ActorPositionField(_)
                 | Expression::ActorSightingField(_)
                 | Expression::InventoryGold

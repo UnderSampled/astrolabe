@@ -47,15 +47,17 @@ func begin(from: Vector3, to: Vector3, duration: float, bound: bool) -> int:
 
 func step(delta: float) -> void:
     if not active: return
+    # The source dispatcher supplies a float32 seconds value to its callback.
+    delta = _real(delta)
     # Event 15 updates the exponential scalar even in the later linear phase.
     var rate := _real((_length - _eased_distance) / _half_duration)
     var increment := _real(rate * delta)
     _eased_distance = _real(increment + _eased_distance)
-    if absf(_distance) < absf(_length * 0.6321):
+    if absf(_distance) < absf(_real(_length * _real(0.6321))):
         _phase_time = _half_duration
         _distance = _eased_distance
     else:
-        _distance = _real(((_phase_time - _half_duration) / (_half_duration * 2.718) + 0.6321) * _length)
+        _distance = _real(((_phase_time - _half_duration) / (_half_duration * _real(2.718)) + _real(0.6321)) * _length)
         _phase_time = _real(_phase_time + delta)
     position = _from + _direction * _distance
     # Unordered magnitudes follow the source completion branch as well.

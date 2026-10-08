@@ -11,6 +11,7 @@ const SOURCE_MAGICK = preload("res://addons/astrolabe/character/magick.gd")
 const SOURCE_LASER_POINTER = preload("res://addons/astrolabe/character/laser_pointer.gd")
 const SOURCE_RENDERING = preload("res://addons/astrolabe/character/rendering.gd")
 const SOURCE_LIFT_MOTION = preload("res://addons/astrolabe/character/lift_motion.gd")
+const SOURCE_CHANNEL_ATTACHMENT = preload("res://addons/astrolabe/character/channel_attachment.gd")
 const CONTACT_MATERIAL = preload("res://addons/astrolabe/character/explosive_barrel.gd")
 const SOURCE_COLLISION_QUERY_MAX_RESULTS := 4096
 const CAMERA_POST_CONTACT_POSITION := &"post_contact_position"
@@ -28,6 +29,7 @@ const CAMERA_RETAINED_POSITION_HISTORY := &"retained_position_history"
 @export_node_path("Node3D") var source_state_owner_path: NodePath
 var source_rendering := SOURCE_RENDERING.new()
 var source_lift_motion := SOURCE_LIFT_MOTION.new()
+var source_channel_attachment := SOURCE_CHANNEL_ATTACHMENT.new()
 var source_opacity: int:
     get: return source_rendering.opacity
     set(value): source_rendering.opacity = value
@@ -50,6 +52,8 @@ var source_transparent_display: bool:
 @export_node_path("Marker3D") var source_picking_center_path: NodePath
 @export_node_path("Node3D") var source_contact_sector_path: NodePath
 @export var source_contact_eligible: bool = true
+## StandardGame custom flags belong to this actor; draw/activation flags are separate.
+@export var source_custom_bits: int = 0
 var _contact_sector: Node3D
 var _contact_previous: Variant = null
 ## World-space acceleration supplied by the level/game's environment.
@@ -963,6 +967,22 @@ func source_vector_cos(a: Vector3, b: Vector3) -> float:
     if product <= 0.0: return 0.0
     return clampf(a.dot(b) / sqrt(product), -1.0, 1.0)
 
+## Func171 uses source vectors and a raw low-byte selector: 0=Z, 1=X, 2=Y.
+func source_vector_angle(a: Vector3, b: Vector3, axis: Variant) -> float:
+    var first_squared := PackedFloat32Array([float(a.x) * a.x + float(a.y) * a.y + float(a.z) * a.z])[0]
+    var second_squared := PackedFloat32Array([float(b.x) * b.x + float(b.y) * b.y + float(b.z) * b.z])[0]
+    var product := float(first_squared) * second_squared
+    var denominator := PackedFloat32Array([sqrt(product) if product != 0.0 else 1.0])[0]
+    var dot := PackedFloat32Array([float(a.x) * b.x + float(a.y) * b.y + float(a.z) * b.z])[0]
+    var ratio := PackedFloat32Array([dot / denominator])[0]
+    # Source clamps only above +1. Zero vectors therefore return 90 degrees.
+    if ratio > 1.0: ratio = 1.0
+    var degrees := PackedFloat32Array([acos(ratio) * PackedFloat32Array([57.29578])[0]])[0]
+    var cross := a.cross(b)
+    var selector := source_scalar_word(axis) & 0xff
+    var sign := cross.z if selector == 0 else (cross.x if selector == 1 else (cross.y if selector == 2 else 0.0))
+    return -degrees if sign < 0.0 else degrees
+
 ## Proc_ChangePersoSighting rotates the actor so source forward faces the
 ## requested world direction. The source proc negates the vector while building
 ## its negative-Y forward column; the exported Godot basis uses positive Z.
@@ -1017,6 +1037,9 @@ func source_set_channel_active(channel: int, active: bool) -> bool:
             (candidate as Node3D).visible = active
             found = true
     return found
+
+func source_set_channel_parent(parent: Node3D, channel: int, attached: bool) -> bool:
+    return source_channel_attachment.change(self, parent, channel, attached)
 
 ## The authored HUD can bind this signal to its native Control nodes. Keep the
 ## requested state when the current test scene has no HUD composition yet.
@@ -1145,6 +1168,23 @@ func source_execute_action_and_generate_object(template_path: String, action: in
 func source_sighting() -> Vector3:
     var direction := global_basis.z
     return Vector3(direction.x, -direction.z, direction.y)
+
+static func source_scalar_word(value: Variant) -> int:
+    if typeof(value) == TYPE_FLOAT:
+        var bytes := PackedByteArray()
+        bytes.resize(4)
+        bytes.encode_float(0, float(value))
+        return bytes.decode_u32(0)
+    return int(value) & 0xffffffff
+
+func source_has_custom_bit(bit: Variant) -> bool:
+    var mask := 1 << ((source_scalar_word(bit) - 1) & 31)
+    return (source_custom_bits & mask) != 0
+
+## Compiled callers capture old flags before evaluating either operand.
+func source_change_custom_bit(previous: int, bit: Variant, value: Variant) -> void:
+    var mask := 1 << ((source_scalar_word(bit) - 1) & 31)
+    source_custom_bits = ((previous | mask) if (source_scalar_word(value) & 0xff) != 0 else (previous & ~mask)) & 0xffffffff
 
 func _source_sight_point(actor: Node3D) -> Vector3:
     var bounds := actor.get_node_or_null("FamilyBounds")

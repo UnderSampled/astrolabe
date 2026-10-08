@@ -552,6 +552,17 @@ impl Parser<'_> {
                     actor: Expression::Actor(ActorTarget::Keyword(ActorKeyword::SelfActor)),
                     position: self.expression(indent + 1)?,
                 },
+                (4, 141) => Statement::SelectViewportCamera {
+                    viewport: self.expression(indent + 1)?,
+                    previous_policy: self.expression(indent + 1)?,
+                    placement_policy: self.expression(indent + 1)?,
+                    actor: self.expression(indent + 1)?,
+                },
+                (4, 158) => Statement::ChangeCameraFocal {
+                    actor: self.expression(indent + 1)?,
+                    selector: self.expression(indent + 1)?,
+                    value: self.expression(indent + 1)?,
+                },
                 (4, 136 | 157 | 160 | 163) => {
                     let operand = self.at;
                     if !self
@@ -612,9 +623,7 @@ impl Parser<'_> {
                     let actor_target = match (receiver_kind, receiver_parameter) {
                         (0, 4) => Some(ActorTarget::Keyword(ActorKeyword::SelfActor)),
                         (0, 5) => Some(ActorTarget::Keyword(ActorKeyword::MainActor)),
-                        (11, variable) if self.nodes.get(self.at).is_some_and(|n| {
-                            n.indent == indent + 1 && n.kind == 4 && matches!(n.parameter, 415 | 445)
-                        }) => Some(ActorTarget::Variable(variable.try_into()?)),
+                        (11, variable) => Some(ActorTarget::Variable(variable.try_into()?)),
                         (24, _) => actor.clone().map(ActorTarget::Reference),
                         _ => None,
                     };
@@ -628,6 +637,15 @@ impl Parser<'_> {
                         // is discarded by this source Ultra statement.
                         self.at = at;
                         Statement::Evaluate(self.expression(indent)?)
+                    } else if let Some(actor_target) = actor_target.clone()
+                        && child.is_some_and(|n| n.indent == indent + 1 && n.kind == 4 && n.parameter == 273)
+                    {
+                        self.take(indent + 1)?;
+                        Statement::SetCustomBit {
+                            actor: actor_target,
+                            bit: self.expression(indent + 2)?,
+                            value: self.expression(indent + 2)?,
+                        }
                     } else if let Some(actor_target) = actor_target.clone()
                         && child.is_some_and(|n| n.indent == indent + 1 && n.kind == 4 && n.parameter == 127)
                     {
@@ -831,6 +849,24 @@ impl Parser<'_> {
                     actor: self.expression(indent + 1)?,
                     evaluated_second: if id == 403 { Some(self.expression(indent + 1)?) } else { None },
                 },
+                (4, 273) => Statement::SetCustomBit {
+                    actor: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                    bit: self.expression(indent + 1)?,
+                    value: self.expression(indent + 1)?,
+                },
+                (4, 268 | 269) => {
+                    let parent = self.expression(indent + 1)?;
+                    let (_, channel) = self.take(indent + 1)?;
+                    ensure!(channel.kind == 18, "attachment requires a channel operand");
+                    let channel = channel.parameter;
+                    let child = self.expression(indent + 1)?;
+                    Statement::SetChannelParent {
+                        parent,
+                        channel,
+                        child,
+                        attached: id == 268,
+                    }
+                }
                 (4, 3 | 4) => {
                     let operand = self.at;
                     let (_, object) = self.take(indent + 1)?;
@@ -1380,6 +1416,10 @@ impl Parser<'_> {
                     target,
                 }
             }
+            (1, 107) => Expression::HasCustomBit {
+                actor: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                bit: Box::new(self.expression(indent + 1)?),
+            },
             (1, 108) => Expression::WaypointSphereContains {
                 actor: Box::new(self.expression(indent + 1)?),
                 waypoint: Box::new(self.expression(indent + 1)?),
@@ -1408,6 +1448,11 @@ impl Parser<'_> {
                 };
                 match self.expression(indent + 1)? {
                     Expression::SelfPosition => Expression::ActorPosition(receiver),
+                    Expression::SelfSighting => Expression::ActorSighting(receiver),
+                    Expression::HasCustomBit { bit, .. } => Expression::HasCustomBit {
+                        actor: receiver,
+                        bit,
+                    },
                     Expression::ActorLocalSourceXYDistance(target) => {
                         Expression::ActorLocalDistance {
                             receiver,
@@ -1719,6 +1764,11 @@ impl Parser<'_> {
                 Box::new(self.expression(indent + 1)?),
                 Box::new(self.expression(indent + 1)?),
             ),
+            (3, 171) => Expression::VectorAngle {
+                first: Box::new(self.expression(indent + 1)?),
+                second: Box::new(self.expression(indent + 1)?),
+                sign_axis: Box::new(self.expression(indent + 1)?),
+            },
             (3, 164) => Expression::SelfSighting,
             (3, 0) => Expression::SelfPosition,
             (3, 3) => {
@@ -2312,6 +2362,47 @@ impl Writer<'_> {
                 }
                 Statement::ActivateFade => self.node(4, 319, indent),
                 Statement::DeactivateFade => self.node(4, 320, indent),
+                Statement::SetCustomBit { actor, bit, value } => {
+                    if *actor == ActorTarget::Keyword(ActorKeyword::SelfActor) {
+                        self.node(4, 273, indent);
+                        self.expression(bit, indent + 1)?;
+                        self.expression(value, indent + 1)?;
+                    } else {
+                        self.node(2, 24, indent);
+                        self.expression(&Expression::Actor(actor.clone()), indent + 1)?;
+                        self.node(4, 273, indent + 1);
+                        self.expression(bit, indent + 2)?;
+                        self.expression(value, indent + 2)?;
+                    }
+                }
+                Statement::SetChannelParent {
+                    parent,
+                    channel,
+                    child,
+                    attached,
+                } => {
+                    self.node(4, if *attached { 268 } else { 269 }, indent);
+                    self.expression(parent, indent + 1)?;
+                    self.node(18, *channel, indent + 1);
+                    self.expression(child, indent + 1)?;
+                }
+                Statement::SelectViewportCamera {
+                    viewport,
+                    previous_policy,
+                    placement_policy,
+                    actor,
+                } => {
+                    self.node(4, 141, indent);
+                    for value in [viewport, previous_policy, placement_policy, actor] {
+                        self.expression(value, indent + 1)?;
+                    }
+                }
+                Statement::ChangeCameraFocal { actor, selector, value } => {
+                    self.node(4, 158, indent);
+                    for value in [actor, selector, value] {
+                        self.expression(value, indent + 1)?;
+                    }
+                }
                 Statement::SetObjectActive { actor, active } => {
                     self.node(4, if *active { 3 } else { 4 }, indent);
                     match actor {
@@ -2977,6 +3068,17 @@ impl Writer<'_> {
             Expression::DialogIsOver => self.node(1, 121, indent),
             Expression::DialogIsOverAndChangeBehavior => self.node(1, 120, indent),
             Expression::ActionFinished => self.node(1, 123, indent),
+            Expression::HasCustomBit { actor, bit } => {
+                if *actor == ActorTarget::Keyword(ActorKeyword::SelfActor) {
+                    self.node(1, 107, indent);
+                    self.expression(bit, indent + 1)?;
+                } else {
+                    self.node(2, 24, indent);
+                    self.expression(&Expression::Actor(actor.clone()), indent + 1)?;
+                    self.node(1, 107, indent + 1);
+                    self.expression(bit, indent + 2)?;
+                }
+            }
             Expression::CollideWithGround => self.node(1, 31, indent),
             Expression::CollideWithNothing => self.node(1, 33, indent),
             Expression::CollidePersoZdeNoWithTypeZde {
@@ -3114,7 +3216,22 @@ impl Writer<'_> {
                 self.expression(a, indent + 1)?;
                 self.expression(b, indent + 1)?;
             }
+            Expression::VectorAngle {
+                first,
+                second,
+                sign_axis,
+            } => {
+                self.node(3, 171, indent);
+                self.expression(first, indent + 1)?;
+                self.expression(second, indent + 1)?;
+                self.expression(sign_axis, indent + 1)?;
+            }
             Expression::SelfSighting => self.node(3, 164, indent),
+            Expression::ActorSighting(receiver) => {
+                self.node(2, 24, indent);
+                self.expression(&Expression::Actor(receiver.clone()), indent + 1)?;
+                self.node(3, 164, indent + 1);
+            }
             Expression::SelfPosition => self.node(3, 0, indent),
             Expression::SelfPositionField => self.node(9, 0, indent),
             Expression::WaypointReference(reference) => {

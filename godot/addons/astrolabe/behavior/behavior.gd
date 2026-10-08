@@ -32,6 +32,7 @@ var _normal_pending: bool = false
 var _reflex_pending: bool = false
 var _normal_deferred: bool = false
 var _reflex_deferred: bool = false
+var _source_hierarchy_move: bool = false
 
 func _init() -> void:
 	# Native physics ordering: decisions select the action/facing consumed by
@@ -93,7 +94,14 @@ func _physics_process(delta: float) -> void:
 	if automatic and running: advance(delta)
 
 func _exit_tree() -> void:
-	stop()
+	if not _source_hierarchy_move: stop()
+
+## A synchronous native reparent preserves the actor's decision continuation.
+func source_begin_hierarchy_move() -> void:
+	_source_hierarchy_move = true
+
+func source_end_hierarchy_move() -> void:
+	_source_hierarchy_move = false
 
 func start() -> bool:
 	if not is_instance_valid(main_actor) or not is_instance_valid(sound_emitter):
