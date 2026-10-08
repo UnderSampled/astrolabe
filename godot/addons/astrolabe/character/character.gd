@@ -499,6 +499,30 @@ func source_set_laser_pointer_target(target: Vector3) -> void:
 func source_set_display_visible(display_visible: bool) -> void:
     source_rendering.set_display_visible(self, display_visible)
 
+func source_actor_set_channel_active(actor_asset: String, channel: int, active: bool) -> bool:
+    var actor := source_actor_node(actor_asset)
+    if actor == null or not actor.has_method("source_set_channel_active"):
+        return false
+    return bool(actor.call("source_set_channel_active", channel, active))
+
+func source_actor_set_channel_active_from_receiver(actor: Node3D, channel: int, active: bool) -> bool:
+    if not is_instance_valid(actor) or not actor.has_method("source_set_channel_active"):
+        return false
+    return bool(actor.call("source_set_channel_active", channel, active))
+
+func source_actor_set_display_visible(actor_asset: String, display_visible: bool) -> bool:
+    var actor := source_actor_node(actor_asset)
+    if actor == null or not actor.has_method("source_set_display_visible"):
+        return false
+    actor.call("source_set_display_visible", display_visible)
+    return true
+
+func source_actor_set_display_visible_from_receiver(actor: Node3D, display_visible: bool) -> bool:
+    if not is_instance_valid(actor) or not actor.has_method("source_set_display_visible"):
+        return false
+    actor.call("source_set_display_visible", display_visible)
+    return true
+
 ## 00543130 clamps opacity separately from transparent/default display mode.
 ## Material alpha works on the project's Compatibility renderer; the native
 ## GeometryInstance3D transparency property is Forward+-only.

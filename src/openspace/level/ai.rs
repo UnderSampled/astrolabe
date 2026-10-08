@@ -585,6 +585,7 @@ fn decode_script(
                     reason: format!("source AI script could not be typed: {error:#}"),
                     start: 0,
                     nodes,
+                    receiver: None,
                 })],
             })
         }

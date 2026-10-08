@@ -206,6 +206,79 @@ fn source_hype_opening_particle_component_and_presentation() -> Result<()> {
     // Useful content, not a pointer-shaped stand-in: same generator through
     // import, MessagePack and edited source settings reconstruction.
     let imported = super::super::scene::import_scene(&game, &Selection::hype("manoir", "en")?)?;
+    fn has_world_174_display_call(statements: &[crate::model::ai::Statement]) -> bool {
+        statements.iter().any(|statement| match statement {
+            crate::model::ai::Statement::SetActorDisplayVisible {
+                actor: crate::model::ai::ActorTarget::Reference(actor),
+                visible: false,
+            } => actor.path.as_str() == "level:/persos/world/0/174",
+            crate::model::ai::Statement::If {
+                then, otherwise, ..
+            } => {
+                has_world_174_display_call(then)
+                    || otherwise.as_deref().is_some_and(has_world_174_display_call)
+            }
+            _ => false,
+        })
+    }
+    let world_opening = imported
+        .ai_models
+        .iter()
+        .find(|model| model.path.as_str() == "level:/ai/models/154")
+        .context("IWorld opening model missing")?;
+    let world_normal2 = world_opening
+        .normal
+        .as_ref()
+        .and_then(|set| set.behaviors.iter().find(|behavior| behavior.id == 2))
+        .and_then(|behavior| behavior.schedule.as_ref())
+        .context("IWorld Normal2 schedule missing")?;
+    assert!(world_normal2.walk().any(|(node, _)| matches!(
+        node,
+        crate::model::ai::walk::AstNode::Statement(
+            crate::model::ai::Statement::SetActorChannelActive {
+                actor: crate::model::ai::ActorTarget::Reference(_),
+                active: false,
+                ..
+            }
+        )
+    )));
+    let sound_receiver_fragments: Vec<_> = world_normal2
+        .unsupported_fragments()
+        .into_iter()
+        .filter(|fragment| fragment.reason.contains("category 4 operation 413"))
+        .collect();
+    assert!(!sound_receiver_fragments.is_empty());
+    assert!(sound_receiver_fragments.iter().all(|fragment| matches!(
+        fragment.receiver.as_ref(),
+        Some(crate::model::ai::ActorTarget::Reference(_))
+    )));
+    assert!(
+        world_normal2
+            .unsupported_fragments()
+            .iter()
+            .filter(|fragment| fragment.reason.contains("Ultra operation is unsupported"))
+            .all(|fragment| fragment.receiver.is_some())
+    );
+    assert!(
+        has_world_174_display_call(&world_normal2.statements),
+        "source allocation 9374 must retain its joined level:/persos/world/0/174 identity"
+    );
+    assert!(
+        world_normal2.walk().any(|(node, _)| matches!(
+            node,
+            crate::model::ai::walk::AstNode::Expression(
+                crate::model::ai::Expression::ActorDistanceFrom {
+                    receiver: crate::model::ai::ActorTarget::Keyword(
+                        crate::model::ai::ActorKeyword::MainActor
+                    ),
+                    target,
+                }
+            ) if matches!(target.as_ref(), crate::model::ai::Expression::Actor(
+                crate::model::ai::ActorTarget::Reference(_)
+            ))
+        )),
+        "model-154 Ultra Func_DistanceToPerso must retain MainActor and its resolved target"
+    );
     assert_eq!(imported.particle_generators.len(), 1);
     let particle = &imported.particle_generators[0];
     assert_eq!(particle.capacity, 200);

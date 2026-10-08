@@ -177,6 +177,8 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::ActivateFade
                 | Statement::DeactivateFade
                 | Statement::SetDisplayVisible(_)
+                | Statement::SetActorDisplayVisible { .. }
+                | Statement::SetActorChannelActive { .. }
                 | Statement::SetTransparentDisplay(_)
                 | Statement::RepairArmor
                 | Statement::CameraChangeTargetedPerso { .. }
@@ -219,6 +221,9 @@ impl<'a> Iterator for AstWalk<'a> {
                 }
                 | Expression::VectorComponent { vector: value, .. } => {
                     self.expressions(child_depth, &[value]);
+                }
+                Expression::ActorDistanceFrom { target, .. } => {
+                    self.expressions(child_depth, &[target]);
                 }
                 Expression::Vector(values) => {
                     self.expressions(child_depth, &[&values[0], &values[1], &values[2]]);

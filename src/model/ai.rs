@@ -47,6 +47,10 @@ pub struct UnsupportedFragment {
     /// Ordinal within the source script, never a virtual address.
     pub start: u32,
     pub nodes: Vec<PreservedAiNode>,
+    /// Semantic Ultra receiver, when the preserved fragment was a call on a
+    /// resolved Perso. The raw nodes remain authoritative for the call body.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub receiver: Option<ActorTarget>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PreservedAiNode {
@@ -264,6 +268,18 @@ pub enum Statement {
     /// Proc_InvisibleDisplay / Proc_VisibleDisplay toggle rendered visibility
     /// while leaving the actor's native physics and AI active.
     SetDisplayVisible(bool),
+    /// Proc_InvisibleDisplay / Proc_VisibleDisplay executed on a source Ultra
+    /// receiver. Keep the receiver as a keyword or semantic Perso reference.
+    SetActorDisplayVisible {
+        actor: ActorTarget,
+        visible: bool,
+    },
+    /// Proc_ActivateChannel / Proc_DeactivateChannel on an Ultra receiver.
+    SetActorChannelActive {
+        actor: ActorTarget,
+        channel: u32,
+        active: bool,
+    },
     /// Source opacity in 0..255, clamped by the actor API independently of mode.
     SetTransparency(Expression),
     /// TransparentDisplay enables actor opacity; DefaultDisplay disables it.
@@ -557,6 +573,12 @@ pub enum Expression {
     MainActorDistance,
     /// Func_DistanceToPerso resolves a typed actor operand from the active scene.
     ActorDistance(Box<Expression>),
+    /// Func_DistanceToPerso evaluated by an Ultra receiver other than the
+    /// executing actor. Both receiver and target retain source actor identity.
+    ActorDistanceFrom {
+        receiver: ActorTarget,
+        target: Box<Expression>,
+    },
     /// The installed Hype category-3/raw-ID-8 handler returns the source-XY
     /// magnitude between its current actor and the actor operand in that
     /// operand's local frame. The installed table names row 8
@@ -1141,6 +1163,15 @@ impl Script {
                         ensure!(actor.path.member().is_none(), "distance actor is a member");
                     }
                 }
+                Expression::ActorDistanceFrom { receiver, target } => {
+                    if let ActorTarget::Reference(actor) = receiver {
+                        ensure!(
+                            actor.path.member().is_none(),
+                            "distance receiver is a member"
+                        );
+                    }
+                    expression(target, variables, depth + 1, count)?;
+                }
                 Expression::CameraShiftAlpha { selector, receiver }
                 | Expression::CameraShiftTeta { selector, receiver } => {
                     if let ActorTarget::Reference(actor) = receiver {
@@ -1406,6 +1437,22 @@ impl Script {
                         );
                         expression(position, variables, depth + 1, count)?;
                     }
+                    Statement::SetActorDisplayVisible { actor, .. } => {
+                        if let ActorTarget::Reference(actor) = actor {
+                            ensure!(
+                                actor.path.member().is_none(),
+                                "display receiver is a member"
+                            );
+                        }
+                    }
+                    Statement::SetActorChannelActive { actor, .. } => {
+                        if let ActorTarget::Reference(actor) = actor {
+                            ensure!(
+                                actor.path.member().is_none(),
+                                "channel receiver is a member"
+                            );
+                        }
+                    }
                     Statement::SetKeywordAbsolutePosition { position, .. }
                     | Statement::SetGameState(position)
                     | Statement::SetFadeTexture(position)
@@ -1562,6 +1609,12 @@ impl UnsupportedFragment {
             self.start as usize + self.nodes.len() <= 65535,
             "unsupported AI fragment source range differs"
         );
+        if let Some(ActorTarget::Reference(actor)) = &self.receiver {
+            ensure!(
+                actor.path.member().is_none(),
+                "unsupported receiver is a member"
+            );
+        }
         Ok(())
     }
 }

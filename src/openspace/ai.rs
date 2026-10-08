@@ -159,6 +159,7 @@ impl Parser<'_> {
             reason,
             start: at as u32,
             nodes: self.codec.preserved_nodes[at..end].to_vec(),
+            receiver: None,
         })
     }
 
@@ -524,13 +525,54 @@ impl Parser<'_> {
                 (2, 24) => {
                     let (receiver_at, receiver) = self.take(indent + 1)?;
                     let receiver_kind = receiver.kind;
-                    let keyword = match (receiver_kind, receiver.parameter) {
+                    let receiver_parameter = receiver.parameter;
+                    let keyword = match (receiver_kind, receiver_parameter) {
                         (0, 4) => Some(ActorKeyword::SelfActor),
                         (0, 5) => Some(ActorKeyword::MainActor),
                         _ => None,
                     };
                     let actor = self.codec.actors.get(&receiver_at).cloned();
-                    if let Some(actor) = keyword
+                    let actor_target = match (receiver_kind, receiver_parameter) {
+                        (0, 4) => Some(ActorTarget::Keyword(ActorKeyword::SelfActor)),
+                        (0, 5) => Some(ActorTarget::Keyword(ActorKeyword::MainActor)),
+                        (24, _) => actor.clone().map(ActorTarget::Reference),
+                        _ => None,
+                    };
+                    let child = self.nodes.get(self.at);
+                    if let Some(actor_target) = actor_target.clone()
+                        && child.is_some_and(|n| {
+                            n.indent == indent + 1
+                                && n.kind == 4
+                                && matches!(n.parameter, 266 | 267)
+                        })
+                    {
+                        let (_, operation) = self.take(indent + 1)?;
+                        Statement::SetActorDisplayVisible {
+                            actor: actor_target,
+                            visible: operation.parameter == 267,
+                        }
+                    } else if let Some(actor_target) = actor_target.clone()
+                        && child.is_some_and(|n| {
+                            n.indent == indent + 1
+                                && n.kind == 4
+                                && matches!(n.parameter, 104 | 105)
+                        })
+                    {
+                        let (_, operation) = self.take(indent + 1)?;
+                        let active = operation.parameter == 104;
+                        let (_, channel) = self.take(indent + 2)?;
+                        let channel_kind = channel.kind;
+                        let channel = channel.parameter;
+                        ensure!(
+                            channel_kind == 18,
+                            "Ultra channel request lacks channel operand at node {at}"
+                        );
+                        Statement::SetActorChannelActive {
+                            actor: actor_target,
+                            channel,
+                            active,
+                        }
+                    } else if let Some(actor) = keyword
                         && self.nodes.get(self.at).is_some_and(|n| {
                             n.kind == 4 && n.parameter == 253 && n.indent == indent + 1
                         })
@@ -556,13 +598,15 @@ impl Parser<'_> {
                             .nodes
                             .get(self.at)
                             .map(|n| format!("category {} operation {}", n.kind, n.parameter));
-                        Statement::Unsupported(self.unsupported(
+                        let mut fragment = self.unsupported(
                             at,
                             format!(
                                 "Ultra receiver/category {receiver_kind} does not support {}",
                                 operation.as_deref().unwrap_or("a missing child operation")
                             ),
-                        )?)
+                        )?;
+                        fragment.receiver = actor_target;
+                        Statement::Unsupported(fragment)
                     }
                 }
                 (4, 69) => {
@@ -1184,6 +1228,15 @@ impl Parser<'_> {
                     }
                 };
                 match self.expression(indent + 1)? {
+                    Expression::ActorDistance(target) => {
+                        Expression::ActorDistanceFrom { receiver, target }
+                    }
+                    Expression::MainActorDistance => Expression::ActorDistanceFrom {
+                        receiver,
+                        target: Box::new(Expression::Actor(ActorTarget::Keyword(
+                            ActorKeyword::MainActor,
+                        ))),
+                    },
                     Expression::DistanceToWaypoint { waypoint, .. } => {
                         Expression::DistanceToWaypoint {
                             actor: receiver,
@@ -1192,15 +1245,23 @@ impl Parser<'_> {
                     }
                     Expression::SeePerso { target, .. } => match receiver {
                         ActorTarget::Keyword(receiver) => Expression::SeePerso { receiver, target },
-                        ActorTarget::Reference(_) => Expression::Unsupported(self.unsupported(
-                            at,
-                            "Ultra SeePerso actor reference is unsupported".into(),
-                        )?),
+                        ActorTarget::Reference(_) => {
+                            let mut fragment = self.unsupported(
+                                at,
+                                "Ultra SeePerso actor reference is unsupported".into(),
+                            )?;
+                            fragment.receiver = Some(receiver);
+                            Expression::Unsupported(fragment)
+                        }
                     },
-                    _ => Expression::Unsupported(self.unsupported(
-                        at,
-                        "Ultra operation is unsupported for this receiver".into(),
-                    )?),
+                    _ => {
+                        let mut fragment = self.unsupported(
+                            at,
+                            "Ultra operation is unsupported for this receiver".into(),
+                        )?;
+                        fragment.receiver = Some(receiver);
+                        Expression::Unsupported(fragment)
+                    }
                 }
             }
             (1, 56 | 57) => {
@@ -1659,6 +1720,43 @@ impl Writer<'_> {
                 Statement::SetDisplayVisible(visible) => {
                     self.node(4, if *visible { 267 } else { 266 }, indent)
                 }
+                Statement::SetActorDisplayVisible { actor, visible } => {
+                    self.node(2, 24, indent);
+                    match actor {
+                        ActorTarget::Keyword(keyword) => self.node(
+                            0,
+                            if *keyword == ActorKeyword::MainActor {
+                                5
+                            } else {
+                                4
+                            },
+                            indent + 1,
+                        ),
+                        ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
+                    }
+                    self.node(4, if *visible { 267 } else { 266 }, indent + 1);
+                }
+                Statement::SetActorChannelActive {
+                    actor,
+                    channel,
+                    active,
+                } => {
+                    self.node(2, 24, indent);
+                    match actor {
+                        ActorTarget::Keyword(keyword) => self.node(
+                            0,
+                            if *keyword == ActorKeyword::MainActor {
+                                5
+                            } else {
+                                4
+                            },
+                            indent + 1,
+                        ),
+                        ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
+                    }
+                    self.node(4, if *active { 104 } else { 105 }, indent + 1);
+                    self.node(18, *channel, indent + 2);
+                }
                 Statement::SetTransparency(value) => {
                     self.node(4, 187, indent);
                     self.expression(value, indent + 1)?;
@@ -2116,6 +2214,16 @@ impl Writer<'_> {
             Expression::ActorDistance(value) => {
                 self.node(3, 4, indent);
                 self.expression(value, indent + 1)?;
+            }
+            Expression::ActorDistanceFrom { receiver, target } => {
+                self.node(2, 24, indent);
+                match receiver {
+                    ActorTarget::Keyword(ActorKeyword::SelfActor) => self.node(0, 4, indent + 1),
+                    ActorTarget::Keyword(ActorKeyword::MainActor) => self.node(0, 5, indent + 1),
+                    ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
+                }
+                self.node(3, 4, indent + 1);
+                self.expression(target, indent + 2)?;
             }
             Expression::ActorLocalSourceXYDistance(value) => {
                 self.node(3, 8, indent);
@@ -3288,20 +3396,89 @@ mod partial_tests {
         // An unresolved reference remains preserved; no invented point or actor.
         codec.waypoints.clear();
         assert!(!codec.read(&bytes)?.unsupported_fragments().is_empty());
-        // World startup also uses Ultra for NoDisplay. Unsupported diagnostics
-        // must identify that actual call instead of inventing a position call.
-        let (mut unsupported, hidden) =
-            partial(&[(2, 24, 1), (24, 1234, 2), (4, 266, 2), (8, 0, 0)]);
-        unsupported
-            .actors
-            .insert(1, AssetRef::new("level:/persos/world/0/0")?);
-        let hidden_script = unsupported.read(&hidden)?;
-        let Statement::Unsupported(fragment) = &hidden_script.statements[0] else {
-            anyhow::bail!("unimplemented actor display call was silently accepted");
+        // World startup also uses Ultra for NoDisplay. Its exact Perso target
+        // must survive as a semantic actor reference, not a guessed position.
+        let (mut visible, hidden) = partial(&[(2, 24, 1), (24, 1234, 2), (4, 266, 2), (8, 0, 0)]);
+        let hidden_actor = AssetRef::new("level:/persos/world/0/0")?;
+        visible.actors.insert(1, hidden_actor.clone());
+        visible.actor_handles.push((hidden_actor.clone(), 1234));
+        let hidden_script = visible.read(&hidden)?;
+        assert_eq!(
+            hidden_script.statements,
+            vec![Statement::SetActorDisplayVisible {
+                actor: ActorTarget::Reference(hidden_actor),
+                visible: false,
+            }]
+        );
+        assert_eq!(visible.write(&hidden_script)?, hidden);
+        Ok(())
+    }
+
+    #[test]
+    fn ultra_display_calls_keep_the_resolved_actor_identity() -> Result<()> {
+        let (mut codec, bytes) = partial(&[(2, 24, 1), (24, 1234, 2), (4, 266, 2), (8, 0, 0)]);
+        let actor = AssetRef::<Perso>::new("level:/persos/world/0/174")?;
+        codec.actors.insert(1, actor.clone());
+        codec.actor_handles.push((actor.clone(), 1234));
+
+        let script = codec.read(&bytes)?;
+        assert_eq!(
+            script.statements,
+            vec![Statement::SetActorDisplayVisible {
+                actor: ActorTarget::Reference(actor),
+                visible: false,
+            }]
+        );
+        assert_eq!(codec.write(&script)?, bytes);
+        assert_eq!(
+            rmp_serde::from_slice::<Script>(&rmp_serde::to_vec_named(&script)?)?,
+            script
+        );
+
+        let (unbound, unresolved) = partial(&[(2, 24, 1), (24, 1234, 2), (4, 266, 2), (8, 0, 0)]);
+        let rejected = unbound.read(&unresolved)?;
+        assert!(matches!(
+            rejected.statements.as_slice(),
+            [Statement::Unsupported(_)]
+        ));
+
+        let (mut channel_codec, channel_bytes) = partial(&[
+            (2, 24, 1),
+            (24, 1234, 2),
+            (4, 105, 2),
+            (18, 7, 3),
+            (8, 0, 0),
+        ]);
+        let actor = AssetRef::<Perso>::new("level:/persos/world/0/173")?;
+        channel_codec.actors.insert(1, actor.clone());
+        channel_codec.actor_handles.push((actor.clone(), 1234));
+        let channel_script = channel_codec.read(&channel_bytes)?;
+        assert_eq!(
+            channel_script.statements,
+            vec![Statement::SetActorChannelActive {
+                actor: ActorTarget::Reference(actor),
+                channel: 7,
+                active: false,
+            }]
+        );
+        assert_eq!(channel_codec.write(&channel_script)?, channel_bytes);
+
+        let (mut unresolved_codec, unresolved_bytes) =
+            partial(&[(2, 24, 1), (24, 1234, 2), (4, 413, 2), (8, 0, 0)]);
+        let actor = AssetRef::<Perso>::new("level:/persos/world/0/174")?;
+        unresolved_codec.actors.insert(1, actor.clone());
+        let unresolved_script = unresolved_codec.read(&unresolved_bytes)?;
+        let Statement::Unsupported(fragment) = &unresolved_script.statements[0] else {
+            anyhow::bail!("SND call without its channel contract was not preserved");
         };
-        assert!(fragment.reason.contains("category 4 operation 266"));
-        assert!(!fragment.reason.contains("SetPersoAbsolutePosition"));
-        assert_eq!(fragment.nodes, unsupported.preserved_nodes[..3]);
+        assert_eq!(
+            fragment.receiver,
+            Some(ActorTarget::Reference(actor.clone()))
+        );
+        assert_eq!(
+            rmp_serde::from_slice::<Script>(&rmp_serde::to_vec_named(&unresolved_script)?)?,
+            unresolved_script
+        );
         Ok(())
     }
 
@@ -3749,6 +3926,49 @@ mod partial_tests {
         let script = codec.read(&bytes)?;
         assert!(matches!(script.statements[0], Statement::KillSelf));
         assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn ultra_distance_to_perso_preserves_receiver_and_target() -> Result<()> {
+        let (mut codec, bytes) = partial(&[
+            (0, 0, 1),
+            (1, 5, 2),
+            (2, 24, 3),
+            (0, 5, 4),
+            (3, 4, 4),
+            (24, 5678, 5),
+            (12, 5, 3),
+            (0, 1, 1),
+            (8, 0, 0),
+        ]);
+        let target = AssetRef::<Perso>::new("level:/persos/world/0/174")?;
+        codec.actors.insert(5, target.clone());
+        codec.actor_handles.push((target.clone(), 5678));
+
+        let script = codec.read(&bytes)?;
+        assert_eq!(
+            script.statements,
+            vec![Statement::If {
+                condition: Expression::Compare {
+                    operation: Comparison::Less,
+                    left: Box::new(Expression::ActorDistanceFrom {
+                        receiver: ActorTarget::Keyword(ActorKeyword::MainActor),
+                        target: Box::new(Expression::Actor(
+                            ActorTarget::Reference(target.clone(),)
+                        )),
+                    }),
+                    right: Box::new(Expression::Integer(5)),
+                },
+                then: Vec::new(),
+                otherwise: None,
+            }]
+        );
+        assert_eq!(codec.write(&script)?, bytes);
+        assert_eq!(
+            rmp_serde::from_slice::<Script>(&rmp_serde::to_vec_named(&script)?)?,
+            script
+        );
         Ok(())
     }
 

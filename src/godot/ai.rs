@@ -48,6 +48,14 @@ fn model_script_file(path: &AssetPath) -> String {
     }
 }
 
+fn actor_target_label(target: &ActorTarget) -> String {
+    match target {
+        ActorTarget::Keyword(ActorKeyword::SelfActor) => "Me".into(),
+        ActorTarget::Keyword(ActorKeyword::MainActor) => "MainActor".into(),
+        ActorTarget::Reference(actor) => actor.path.as_str().into(),
+    }
+}
+
 pub(super) fn export_program(
     project: &mut Project,
     source: &mut impl ContentSource,
@@ -982,6 +990,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::Square(_)
         | Expression::AbsoluteValue(_)
         | Expression::ActorDistance(_)
+        | Expression::ActorDistanceFrom { .. }
         | Expression::ActorLocalSourceXYDistance(_)
         | Expression::IsValidActor(_)
         | Expression::ApplyArmoredDamage(_)
@@ -1057,6 +1066,34 @@ fn guarded_expression(
             )?;
             format!(
                 "character().global_position.distance_to((distance_actor_{id} as Node3D).global_position)"
+            )
+        }
+        Expression::ActorDistanceFrom { receiver, target } => {
+            let id = flow.local;
+            flow.local += 1;
+            let receiver_local = format!("distance_receiver_{id}");
+            let target_local = format!("distance_target_{id}");
+            let receiver_expr = actor_target_code(receiver);
+            writeln!(
+                out,
+                "{pad}var {receiver_local}: Node3D = {receiver_expr}\n{pad}if not is_instance_valid({receiver_local}) or not {receiver_local}.is_inside_tree():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                quoted(&format!(
+                    "{} distance requires receiver {}",
+                    model.path,
+                    actor_target_label(receiver)
+                ))
+            )?;
+            let target_expr = guarded_expression(out, target, model, depth, flow)?;
+            writeln!(
+                out,
+                "{pad}var {target_local} = {target_expr}\n{pad}if typeof({target_local}) != TYPE_OBJECT or not is_instance_valid({target_local}) or not ({target_local} is Node3D) or not {target_local}.is_inside_tree():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                quoted(&format!(
+                    "{} distance requires a positioned target actor",
+                    model.path
+                ))
+            )?;
+            format!(
+                "{receiver_local}.global_position.distance_to(({target_local} as Node3D).global_position)"
             )
         }
         Expression::ActorLocalSourceXYDistance(actor) => {
@@ -1278,12 +1315,17 @@ fn guarded_expression(
             let id = flow.local;
             flow.local += 1;
             let local = format!("partial_expr_{id}");
+            let receiver = fragment
+                .receiver
+                .as_ref()
+                .map(|target| format!(" (receiver {})", actor_target_label(target)))
+                .unwrap_or_default();
             writeln!(
                 out,
                 "{pad}var {local}\n{pad}fail_unsupported({})\n{pad}{exit}",
                 quoted(&format!(
-                    "{} source AI node {}: {}",
-                    model.path, fragment.start, fragment.reason
+                    "{} source AI node {}{}: {}",
+                    model.path, fragment.start, receiver, fragment.reason
                 ))
             )?;
             local
@@ -1667,6 +1709,7 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         Expression::Square(_)
         | Expression::AbsoluteValue(_)
         | Expression::ActorDistance(_)
+        | Expression::ActorDistanceFrom { .. }
         | Expression::ActorLocalSourceXYDistance(_)
         | Expression::IsValidActor(_)
         | Expression::ApplyArmoredDamage(_)
@@ -2367,6 +2410,72 @@ fn statements(
                     "{pad}character().source_set_display_visible({visible})"
                 )?;
             }
+            Statement::SetActorDisplayVisible { actor, visible } => match actor {
+                ActorTarget::Keyword(ActorKeyword::SelfActor) => {
+                    writeln!(
+                        out,
+                        "{pad}character().source_set_display_visible({visible})"
+                    )?;
+                }
+                ActorTarget::Keyword(ActorKeyword::MainActor) => {
+                    writeln!(
+                        out,
+                        "{pad}if not is_instance_valid(main_actor) or not character().source_actor_set_display_visible_from_receiver(main_actor, {visible}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                        quoted(&format!(
+                            "{} requires MainActor display visibility",
+                            model.path
+                        ))
+                    )?;
+                }
+                ActorTarget::Reference(actor) => {
+                    writeln!(
+                        out,
+                        "{pad}if not character().source_actor_set_display_visible({}, {visible}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                        quoted(actor.path.as_str()),
+                        quoted(&format!(
+                            "{} requires display receiver {}",
+                            model.path, actor.path
+                        ))
+                    )?;
+                }
+            },
+            Statement::SetActorChannelActive {
+                actor,
+                channel,
+                active,
+            } => match actor {
+                ActorTarget::Keyword(ActorKeyword::SelfActor) => {
+                    writeln!(
+                        out,
+                        "{pad}if not character().source_set_channel_active({channel}, {active}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                        quoted(&format!(
+                            "{} requires character channel {channel}",
+                            model.path
+                        ))
+                    )?;
+                }
+                ActorTarget::Keyword(ActorKeyword::MainActor) => {
+                    writeln!(
+                        out,
+                        "{pad}if not is_instance_valid(main_actor) or not character().source_actor_set_channel_active_from_receiver(main_actor, {channel}, {active}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                        quoted(&format!(
+                            "{} requires MainActor channel {channel}",
+                            model.path
+                        ))
+                    )?;
+                }
+                ActorTarget::Reference(actor) => {
+                    writeln!(
+                        out,
+                        "{pad}if not character().source_actor_set_channel_active({}, {channel}, {active}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                        quoted(actor.path.as_str()),
+                        quoted(&format!(
+                            "{} requires channel receiver {} channel {channel}",
+                            model.path, actor.path
+                        ))
+                    )?;
+                }
+            },
             Statement::SetTransparency(value) => {
                 let value = guarded_expression(out, value, model, depth, flow)?;
                 writeln!(
@@ -2936,12 +3045,17 @@ fn statements(
             }
             Statement::Sound { event: None } | Statement::Noop => writeln!(out, "{pad}pass")?,
             Statement::Unsupported(fragment) => {
+                let receiver = fragment
+                    .receiver
+                    .as_ref()
+                    .map(|target| format!(" (receiver {})", actor_target_label(target)))
+                    .unwrap_or_default();
                 writeln!(
                     out,
                     "{pad}fail_unsupported({})\n{pad}{exit}",
                     quoted(&format!(
-                        "{} source AI node {}: {}",
-                        model.path, fragment.start, fragment.reason
+                        "{} source AI node {}{}: {}",
+                        model.path, fragment.start, receiver, fragment.reason
                     ))
                 )?;
             }
@@ -3077,7 +3191,8 @@ mod source_position_tests {
         ai::{
             ActorKeyword, ActorTarget, AiModel, Behavior, BehaviorGroup, BehaviorRef, BehaviorSet,
             Comparison, DesignerArray, DesignerValue, DesignerVariable, Expression,
-            KillPersoTarget, Script, Statement,
+            KillPersoTarget, PreservedAiNode, PreservedAiOperand, Script, Statement,
+            UnsupportedFragment,
         },
         character::Perso,
     };
@@ -3153,6 +3268,140 @@ mod source_position_tests {
         ));
         assert!(generated.contains("if change_normal(3, false):"));
         assert!(!generated.contains("unsupported AI statement category 4 operation 253"));
+        Ok(())
+    }
+
+    #[test]
+    fn compiles_ultra_display_receiver_to_its_named_perso() -> anyhow::Result<()> {
+        let actor = crate::model::AssetRef::<Perso>::new("level:/persos/world/0/174")?;
+        let model = AiModel {
+            path: AssetPath::new("level:/ai/models/ultra_display_fixture")?,
+            name: "Ultra display receiver fixture".into(),
+            normal: Some(BehaviorSet {
+                behaviors: vec![Behavior {
+                    id: 0,
+                    rules: Vec::new(),
+                    schedule: Some(Script {
+                        statements: vec![
+                            Statement::SetActorDisplayVisible {
+                                actor: ActorTarget::Reference(actor.clone()),
+                                visible: false,
+                            },
+                            Statement::SetActorChannelActive {
+                                actor: ActorTarget::Reference(actor.clone()),
+                                channel: 7,
+                                active: false,
+                            },
+                        ],
+                    }),
+                    unknown: [0; 3],
+                }],
+                default_behavior: Some(0),
+                action_capacity: 0,
+                unknown: [0; 3],
+            }),
+            reflex: None,
+            variables: Vec::new(),
+            designer_unknown: [0; 3],
+            unknown: [0; 4],
+        };
+
+        let generated = compile(&model, &[])?;
+        assert!(generated.contains(
+            "character().source_actor_set_display_visible(\"level:/persos/world/0/174\", false)"
+        ));
+        assert!(generated.contains(
+            "character().source_actor_set_channel_active(\"level:/persos/world/0/174\", 7, false)"
+        ));
+        assert!(!generated.contains("Ultra receiver/category"));
+        Ok(())
+    }
+
+    #[test]
+    fn compiles_ultra_distance_receiver_and_target_as_named_persos() -> anyhow::Result<()> {
+        let target = crate::model::AssetRef::<Perso>::new("level:/persos/world/0/174")?;
+        let model = AiModel {
+            path: AssetPath::new("level:/ai/models/ultra_distance_fixture")?,
+            name: "Ultra distance receiver fixture".into(),
+            normal: Some(BehaviorSet {
+                behaviors: vec![Behavior {
+                    id: 0,
+                    rules: Vec::new(),
+                    schedule: Some(Script {
+                        statements: vec![Statement::If {
+                            condition: Expression::Compare {
+                                operation: Comparison::Less,
+                                left: Box::new(Expression::ActorDistanceFrom {
+                                    receiver: ActorTarget::Keyword(ActorKeyword::MainActor),
+                                    target: Box::new(Expression::Actor(ActorTarget::Reference(
+                                        target,
+                                    ))),
+                                }),
+                                right: Box::new(Expression::Integer(5)),
+                            },
+                            then: Vec::new(),
+                            otherwise: None,
+                        }],
+                    }),
+                    unknown: [0; 3],
+                }],
+                default_behavior: Some(0),
+                action_capacity: 0,
+                unknown: [0; 3],
+            }),
+            reflex: None,
+            variables: Vec::new(),
+            designer_unknown: [0; 3],
+            unknown: [0; 4],
+        };
+
+        let generated = compile(&model, &[])?;
+        assert!(generated.contains("var distance_receiver_0: Node3D = main_actor"));
+        assert!(generated.contains("character().source_actor_node(\"level:/persos/world/0/174\")"));
+        assert!(generated.contains("distance_receiver_0.global_position.distance_to("));
+        assert!(generated.contains("distance requires receiver MainActor"));
+        Ok(())
+    }
+
+    #[test]
+    fn unsupported_ultra_calls_keep_the_resolved_receiver_in_failure_output() -> anyhow::Result<()>
+    {
+        let actor = crate::model::AssetRef::<Perso>::new("level:/persos/world/0/174")?;
+        let model = AiModel {
+            path: AssetPath::new("level:/ai/models/ultra_unsupported_fixture")?,
+            name: "Ultra unsupported receiver fixture".into(),
+            normal: Some(BehaviorSet {
+                behaviors: vec![Behavior {
+                    id: 0,
+                    rules: Vec::new(),
+                    schedule: Some(Script {
+                        statements: vec![Statement::Unsupported(UnsupportedFragment {
+                            reason: "Ultra receiver/category 24 does not support category 4 operation 413".into(),
+                            start: 0,
+                            nodes: vec![PreservedAiNode {
+                                category: 2,
+                                indent: 1,
+                                reserved: [0; 2],
+                                operand: PreservedAiOperand::NonRelocated([0; 4]),
+                            }],
+                            receiver: Some(ActorTarget::Reference(actor)),
+                        })],
+                    }),
+                    unknown: [0; 3],
+                }],
+                default_behavior: Some(0),
+                action_capacity: 0,
+                unknown: [0; 3],
+            }),
+            reflex: None,
+            variables: Vec::new(),
+            designer_unknown: [0; 3],
+            unknown: [0; 4],
+        };
+
+        let generated = compile(&model, &[])?;
+        assert!(generated.contains("(receiver level:/persos/world/0/174)"));
+        assert!(generated.contains("category 4 operation 413"));
         Ok(())
     }
 
