@@ -149,15 +149,18 @@ and the long PCM path are retained. Different active themes still fail closed.
 neither wrapper supplies a duration. The next layer dispatches through imported
 driver callbacks. A zero CSB fade field does not prove an immediate theme cut.
 No guessed crossfade or replacement policy was added.
+The completed SXD/MIDI transition thunks confirm that both with-fade exports
+receive only the handle and next resource. They forward the driver's complete
+EAX result; neither a guessed Boolean result nor a native fade duration follows.
 
 ## Exact source follow-up for Kip's translator
 
 | Priority | Bodies / dependency | Needed evidence before further native changes |
 | --- | --- | --- |
-| Dialogue reveal/draw | `0056c2d0`, `0056cb10`; reconstructed selection bodies `0056c690`, `0056e510`, `0056e3b0`, `0056e840`; inner `0056cc70`, `0056db30` | Outer draw branches and deadline replacement were corroborated separately against instructions and now supply the represented native subset above. Complete drawing/renderer and unvoiced ordinary reveal remain unfinished. Do not infer choice/module support, successor handling or a portable x87/driver clock from this patch. |
+| Dialogue reveal/draw | Completed `0056c2d0`, `0056cb10`; reconstructed selection bodies `0056c690`, `0056e510`, `0056e3b0`, `0056e840`; inner `0056cc70`, `0056db30` | The complete outer draw bodies agree with the represented native subset above. Inner renderer/reveal helpers and unvoiced ordinary reveal remain unfinished. Do not infer choice/module support, successor handling or a portable x87/driver clock from this patch. |
 | Speech clock | `004ecb60` → `004f47d0` → selected driver callback; `0041e4c0` | Native playback seconds currently stand in for the driver's integer position scaled by65536. Exact driver units, missing-request handling, lip-animation selection and frame association remain unresolved. |
 | Camera inputs | `00547620` (Proc153, missing raw export), `0051e620`, `0051c8d0`; failed-candidate path `0051ec70`, `0052c7f0`, `0051e350`, `0051e600` | Exact input angle writes and interpolation exits/consumers. The supported passive Manor modes must not be replaced by a guessed smoothing path. |
-| Music replacement | `004f6620`/`004f6660` and `004f72b0`/`004f7380`, their imported driver targets | Recover SetNextTransition/SetTransitionWithFade behavior, buffering, boundary selection and time units. Main executable wrappers alone cannot establish a native fade duration. |
+| Music replacement | Completed `004f6590`/`004f6620`/`004f6660` and `004f7220`/`004f72b0`/`004f7380`; imported SXD/MIDI driver targets | Recover PlayTransition, SetNextTransition and DoTransitionWithFade behavior, buffering, boundary selection and time units inside the external drivers. Complete main-executable thunks alone cannot establish a native fade duration. |
 
 The parent messaging tool returned `thread not found` for Kip's delegated
 source thread. Direct messaging to the source translator succeeded; that
@@ -167,7 +170,31 @@ The translator's twelve selection/timer/module/predicate bodies are committed
 as `29f3aaa`, with the evidence and branch-specific limits in
 `research/worker-deltas/sol-manor-presentation-dialogue-handoff.md`. They were
 read as source evidence; this branch does not import or rewrite those C bodies.
-Broader drawing/renderer and driver timing remain external.
+Inner drawing/renderer and driver timing remain external.
+
+Completed source follow-up was then read from the same reconstruction checkout:
+
+- `78a33fc9ee2d8b23285f00fbd1aad749a55f2805`,
+  `src/dialogue/dialogue_draw.c`, `include/hype/dialogue/draw.h` and
+  `research/worker-deltas/sol-manor-presentation-draw-handoff.md`, with exact
+  PE and copied-disc presence evidence. Static comparison confirms the native
+  represented subset's first-span-presence deadline replacement, MainActor
+  gate, first active draw, strict playback comparison and ordered non-sentinel
+  final-holder-clear closure. No additional production edit was required.
+- `cbbcf6f696f6c5a1db7edc4860340ad03eff2ff4`,
+  `src/sound/transition_driver_thunks.c`,
+  `include/hype/sound/transition_drivers.h` and
+  `research/worker-deltas/sol-manor-presentation-driver-handoff.md`. Six SXD/MIDI
+  forwarding bodies preserve arguments and full EAX results. The external
+  transition policy, callback scheduling, resource layouts, null-resource
+  handling, fade duration and clock units remain unresolved. Existing
+  different-theme failure remains appropriate pending those contracts.
+
+The source worker also reports child/channel attachment commit
+`f389490c70f71fe8bb345e660a1be5b34adf082f` for the key worker's separate
+dependency. That body is outside this presentation patch; MainActor/channel20
+attachment is not evidence of key acquisition. Kip owns all source caller,
+shared-declaration and coverage integration.
 
 The source translator subsequently delivered camera reset commit `d9b1c9d` on
 `reconstruction/sol-manor-presentation-task19`, checkout
