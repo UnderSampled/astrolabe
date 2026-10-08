@@ -13,6 +13,11 @@ probe, export or runtime command was run during this integration. Statements
 below describe source review, not executed verification. The tunnel worker's
 earlier build/check report belongs to its isolated original revision only.
 
+Current source union: **Rete60/support80**, including settled training,
+actor-owned suppression, the primary source-camera owner, and the Proc166
+evaluation-order correction. Earlier findings below are dated integration
+checkpoints; the final follow-on section records which they resolve.
+
 ## Exact provenance and order
 
 All contributions are cherry-picked with `-x`; their original commits and
@@ -31,6 +36,9 @@ worker checkouts are preserved.
 | Final courtyard query evidence | `458871fcb4ef2f0f9d38093f5efc2c4a27abbe00` | `20e894c2309a18958cf8a0cef975837b6bc413b5` |
 | Object selection and native gate lift | `d9890dc12d0b2c3c7547b178826ed96c8923b2e1` | `135653e262b53342a03a20f6c604572894c726ad` |
 | Key producer, custom bits, attachment and bounded camera | `d77f70b8ec072468029f086e121f126fe9226c1a` | `652048f353c4bbfe99db3d03475beda2fb168d9a` |
+| Settled training and actor lifecycle | `60a2aec4263ae41129fa706e97254be216047260` | `ef08193142e21a804a1b4bca4c45841625dbc96b` |
+| Primary source-camera viewport owner | `ee9c6f0872b6987b06b8e120a601126d2b2c5732` | `9981f113beb0c7493771023ef2bbe98fcce1da10` |
+| Proc166 binding and operand order | `579e68e05785b9c0ed8cd90d7e3ec2ccaf385085` | `ff228c4921674be3a385b6271552eb2d8b18539d` |
 
 Training comes from `/tmp/astrolabe-manor-training-static-oct08`; tunnel from
 `/tmp/astrolabe-manor-tunnel-static-20261008`; presentation from
@@ -38,8 +46,8 @@ Training comes from `/tmp/astrolabe-manor-training-static-oct08`; tunnel from
 `/tmp/astrolabe-courtyard-static-20261008`. Their source files are not edited.
 Death comes from `output/worktrees/death-fall-static-sol-20261008`.
 Key/gate comes from `/tmp/astrolabe-gogoud-key-gate-static-20261008`.
-No new worker is launched. Later training/presentation/GameOver/recovery
-follow-ons are excluded pending the lead's exact final set.
+No new worker is launched. The lead approved the three follow-ons above;
+later presentation/GameOver/recovery commits remain outside this exact set.
 
 ## Conflict reconciliation and contracts
 
@@ -99,7 +107,11 @@ The accepted mip-input/import/publication fixes and all20 sector-neighbor
 No source scheduler, pool, AST/opcode interpreter, address lookup or relocation
 reconstruction is added to the native target.
 
-## Static lifecycle findings for the follow-on owners
+## Initial static lifecycle findings for the follow-on owners
+
+These findings describe the first integrated slices. The approved settled
+training follow-on below replaces both removal paths and their stopped-Brain
+behavior; presentation completion remains independently owned.
 
 The source KillPerso and current KillSelf paths are not equivalent. Proc226's
 Me keyword still parses to `Statement::KillSelf`, compiling to
@@ -168,12 +180,11 @@ payload low byte. Zero life does not initiate death implicitly. The shared
 screen owns fade direction and Tween; the existing coroutine token/revision
 guards own cancellation. These remain source/code review conclusions only.
 
-The native death session stops non-music emitters, then explicitly calls their
-dialogue stop API to clear speech records after forced stops, before disabling
-level Brains/body processing and gameplay inputs. This closes terminal death's
-speech-holder leak without editing the presentation worker's emitter. The
-separate general KillPerso/speech and retained-Brain findings above remain with
-their follow-on owners. The transient terminal flag and explicit R/Escape routes
+At the death integration checkpoint, the native session additionally called
+the dialogue stop API after stopping non-music emitters. Final training review
+below removes that integration-owned synchronous clear: forced-stop completion
+belongs to the presentation owner's later polling frame. The transient terminal
+flag and explicit R/Escape routes
 do not implement original phase8 or restore a disk checkpoint. The native save
 schema4 envelope and admission policy are unchanged.
 
@@ -182,7 +193,8 @@ persisted under this evolving source schema. The new recursive waypoint shape
 belongs to the same unpublished increment, rather than claiming compatibility
 with any worker's standalone59 assets. Accepted main remains Rete58/support77.
 
-Connected gaps for the integration lead:
+Connected gaps at the death integration checkpoint (the final follow-on
+section resolves the Proc12 and immediate Proc166 gaps):
 
 - **Cliff camera Proc12:** the imported `level:/persos/world/0/2` StdCamer has
   a motion binding and mechanics mode3. The preserved source audit records the
@@ -290,7 +302,7 @@ Fix model paths selected; it is not a new complete raw allocation scan and does
 not prove absence. A requested camera171 contract must not be claimed complete
 from Func171 or replaced by Proc136. This discrepancy is surfaced to the lead.
 
-The union now uses **Rete60/support79**. The key follow-on increments its useful
+At the key checkpoint the union uses **Rete60/support79**. The key follow-on increments its useful
 AI/Perso shape and native interfaces; this integration retains the new values
 and fixes `godot/addons/astrolabe/version.json`, which the worker left at78.
 All model, support constants, manifest and existing version assertion literals
@@ -298,7 +310,7 @@ now agree by source inspection. No schema60 package has been written and no
 support update performed on main. Standalone worker packages remain provisional;
 future conversion must import using the full accepted union.
 
-The actual key remains a linked slice, not completed gameplay: training's
+At that checkpoint the actual key remains a linked slice: training's
 Proc12 null-card correction/reactivation/Gogoud checkpoint follow-on and exact
 box5 presentation are explicitly incoming. Key's stage4 dynamics binding has
 no mechanics identity card, which the current single training Proc12 owner
@@ -308,12 +320,87 @@ death Proc166 and cliff camera mode3 gaps remain, as do Proc307 presentation
 and the original phase8 distinction. No camera reset shortcut, checkpoint
 exception or invented key consumption resolves those dependencies.
 
+## Settled training and source-camera follow-ons
+
+The lead approved `60a2aec`, verified at the clean training worker checkout,
+then `ee9c6f0` at the clean key worker checkout, and `579e68e` at the clean
+training checkout. Their exact integration commits are in the table above.
+Only the isolated integration worktree is edited.
+
+Training replaces the lossy contact Boolean with optional `ActorActivation`:
+active state, return suppression and reset-on-kill policy. The useful
+`Perso.custom_bits` and native `source_custom_bits` fields remain, including
+the reader mapping, exporter emission and every affected Perso constructor.
+Initial native contact eligibility is derived from active/suppressed state.
+Ordinary deactivation pauses the existing Brain rather than stopping its
+selection or suspended native awaits; inactive startup defers first entry.
+The key's synchronous `source_begin_hierarchy_move`/`source_end_hierarchy_move`
+guard remains in `_exit_tree`, independently of the activity guard in `advance`.
+
+Self and named removal share a Boolean actor-owned contract. Placed actors
+retain their identity and suppression; generated owners release their nodes.
+Unknown and reset-on-kill placed policies fail before mutation. Both compiled
+KillSelf and tunnel's named KillPerso consume the result and fail visibly for
+unsupported removal. Ordinary activation never clears the suppression latch;
+native checkpoint admission is a separate preflight contract. Generation
+clears suppression before registration and held objects activate on release.
+
+Native schema4 has an optional independently versioned training section for
+settled stages1..5, retaining Gogoud's stage/lever latch/pose, each mannequin's
+three fields, Hype's three permissions and Global152/219. Restore preflights
+semantic actor/model/field/action references and a private inventory snapshot
+before live mutation, and selects native idle actions/behaviors before automatic
+Brain startup. Stage5 requires admitted Object21 and a retained inactive,
+suppressed key owner, so pending box5 presentation and a loose ground key are
+not bypassed. Source schema1 overlays cannot contain native training state.
+Neither a source execution cursor nor a suspended coroutine is serialized.
+Barrel capture accepts the retained suppression tombstone as well as a freed
+owner. No checkpoint exception permits ordinary NeverBack reactivation.
+
+The single training Proc12 owner now supports a converted absent identity
+card and direct contact placement of the bound mode3 SourceCamera. It retains
+the intermediate float32 stores, contact-only velocity clearing, placement
+before activation and the suppressed-actor placement branch. Broader moving
+parents and mechanics remain explicit unsupported contracts. The earlier
+null-card key and cliff-camera source connection gaps are resolved in code;
+their actual contact behavior remains unexecuted.
+
+Proc166 is typed through model validation/traversal, reader/writer and native
+compilation for immediate groups0/1. `579e68e` captures the early camera,
+evaluates group/operation/selector in caller order, and reloads the immediate
+component only afterward. Invalid selectors retain mask0, including the
+operation-1 read of initial flags. Deferred groups remain unsupported.
+Hype24's group1 clear and Proc136 reset remain distinct operations.
+
+Proc141 uses a weak semantic primary-camera owner on the native viewport,
+independent of an authored camera temporarily rendering there. Reselection
+restores the previous target's opacity, makes the source Camera3D current and
+returns before reset/placement. Switching away clears context while retaining
+registration. Export carries registration and viewport context separately,
+without a Manor-specific branch or original address. Proc158's unregistered
+operand-skipping branch and initial FOV remain. Broader reset/unregistered
+camera selection contracts continue to fail visibly.
+
+Generic actor deactivation calls `kill_all` only. This review also removes the
+integration-added terminal death `stop_dialogue_speech` call, preserving the
+same no-synchronous-clear rule. Presentation's next-process-frame forced-stop
+completion remains an incoming implementation; this review does not claim it
+already exists. Exact box5 completion and Proc307/GameOver presentation remain
+with that owner. Requested camera Proc171 remains absent from these approved
+patches, distinct from implemented vector Func171. Original death phase8 and
+Proc8/14 remain separate from native checkpoints.
+
+The final source stamps are **Rete60/support80**. The viewport worker changes
+the support constant and existing assertion to80; this review also updates the
+maintained `version.json` and support README to80. No evolving schema60 package
+has been written. No support or generated-content update occurs on main.
+
 ## Acceptance boundary
 
 There is no unresolved Git conflict in this slice. Compilation, GDScript
 parsing, reconstructed bytes, fresh Rete/native resources and runtime behavior
 are unverified. No assets are published or main merged. Later lead-directed
-work must compose the exact training/presentation/GameOver/recovery follow-ons, preserve
+work must compose the exact remaining presentation/GameOver/recovery follow-ons, preserve
 the model/component boundaries, resolve lifecycle findings, then separately
 authorize any executable validation or content preparation. The user may open
 the accepted main Godot project throughout this source-only integration.

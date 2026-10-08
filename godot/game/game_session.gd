@@ -69,9 +69,8 @@ func source_player_is_dead() -> bool:
     for emitter in level.find_children("*", "Node3D", true, false):
         if emitter is NATIVE_AUDIO_EMITTER and not emitter.is_music:
             emitter.kill_all()
-            # Forced voice stops do not invoke the natural-finish callback.
-            # Clear the speech holder after the ordered channel cleanup.
-            emitter.stop_dialogue_speech()
+            # Forced-stop speech completion belongs to the emitter's later
+            # polling frame; do not synchronously clear the speech holder.
     for source_brain in level.find_children("Brain", "Node", true, false):
         source_brain.set("automatic", false)
         source_brain.call("stop")

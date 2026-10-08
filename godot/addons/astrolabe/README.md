@@ -1,9 +1,12 @@
-# Astrolabe support, interface 79
+# Astrolabe support, interface 80
 
-Interface79 carries actor-owned activation/suppression and placed/generated
+Interface80 retains actor-owned activation/suppression and placed/generated
 removal, preserves paused compiled Brains, permits direct Proc12 placement of
 the bound camera and null-card key, and implements immediate Proc166 camera
 flags. Source reset-on-kill and deferred camera flag groups remain unsupported.
+Source primary-camera ownership remains independent of an authored presentation
+camera, with registration preserved when selection switches away. Proc166
+evaluates its scalar operands before reloading the immediate camera binding.
 The authored game's optional training checkpoint retains settled logical state;
 no source execution cursor is serialized. See
 [`Manor training static handoff`](../../../notes/manor-training-static-2026-10-08.md).
