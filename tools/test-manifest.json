@@ -121,7 +121,7 @@
       "prerequisites": [
         "godot"
       ],
-      "fixture": "Rete-edited camera framing in saved native scene with rotated source actor",
+      "fixture": "Rete-edited camera framing in saved native scene; source mechanics kinds 0/4/18 and explicit no-card state, semantic position bindings in saved native animations and mode-0 pivot",
       "timeout_seconds": 45,
       "ignored": false,
       "release": true
@@ -5562,7 +5562,7 @@
       "prerequisites": [
         "disc"
       ],
-      "fixture": "Unchanged World154, camera437, travel365, Gogoud210 and statue294 AI through Rete; ordered shots, mode6 and final MainActor/-1 handoff",
+      "fixture": "Unchanged World154, camera437, travel365, Gogoud210 and statue294 AI through Rete; ordered shots, mode6 and final MainActor/-1 handoff; World Proc430(0), initially selected Fix armor and MainActor state mechanics through Rete",
       "timeout_seconds": 90,
       "ignored": true,
       "release": true

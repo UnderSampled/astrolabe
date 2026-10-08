@@ -1,5 +1,12 @@
 # Intro camera source-first pass — 2026-10-07
 
+Correction, 2026-10-08: the callback-table mapping below used four-byte word
+indices as eight-byte rows. Walk position publication belongs to mechanics
+kinds 0/4; kind 8 dispatches elsewhere. The earlier rejection of kind 4 is
+superseded by the [source/PE-backed binding repair](intro-armor-camera-bindings-2026-10-08.md).
+That repair also distinguishes an explicitly absent state card from an
+unmapped callback and preserves its existing position history.
+
 This pass starts from committed `main` and keeps camera work isolated in the
 project-backed branch `codex/intro-camera-source-pass-storage-20261007-1`.
 

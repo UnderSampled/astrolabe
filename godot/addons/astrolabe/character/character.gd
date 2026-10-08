@@ -11,10 +11,13 @@ const SOURCE_MAGICK = preload("res://addons/astrolabe/character/magick.gd")
 const SOURCE_LASER_POINTER = preload("res://addons/astrolabe/character/laser_pointer.gd")
 const SOURCE_RENDERING = preload("res://addons/astrolabe/character/rendering.gd")
 const SOURCE_COLLISION_QUERY_MAX_RESULTS := 4096
-const SOURCE_CAMERA_DATA3D_WALK_CALLBACK := 0x00585d51 # DAT_00757320[0/8]
+const CAMERA_POST_CONTACT_POSITION := &"post_contact_position"
+const CAMERA_RETAINED_POSITION_HISTORY := &"retained_position_history"
 @export var initial_state: int = -1
 @export var current_state: int = -1
 @export var current_mechanics: Resource
+## Converted state explicitly has no identity card: retain history without sampling.
+@export var source_camera_retains_position_history: bool = false
 ## Effective source dynamics binding, retained by import/export independently
 ## of the selected mechanics card. Compiled point-motion APIs check it.
 @export var source_motion_binding_present: bool = false
@@ -53,7 +56,7 @@ var source_relative_motion: bool = false
 var source_airborne: bool = false
 var _source_camera_data3d_positions := PackedVector3Array()
 var _source_camera_data3d_weights := PackedFloat32Array()
-var _source_camera_data3d_active_callback_address := 0
+var _source_camera_data3d_active_position_source: StringName
 var _source_camera_data3d_sample_count := 0
 var source_particle_generator_enabled: bool = false
 @export var source_routes: Array[Resource] = []
@@ -211,16 +214,18 @@ func _physics_process(delta: float) -> void:
 func source_camera_data3d_step(delta: float) -> bool:
     if not is_finite(delta) or delta < 0.0:
         return false
-    var callback_address := _source_camera_data3d_callback_address()
-    if callback_address == 0:
+    if source_camera_retains_position_history and current_mechanics == null:
+        return true
+    var position_source := _source_camera_data3d_position_source()
+    if position_source.is_empty():
         _source_reset_camera_data3d_history()
         return false
-    if callback_address != _source_camera_data3d_active_callback_address:
+    if position_source != _source_camera_data3d_active_position_source:
         _source_reset_camera_data3d_history()
-        _source_camera_data3d_active_callback_address = callback_address
+        _source_camera_data3d_active_position_source = position_source
     if _source_camera_data3d_positions.size() != 8 or _source_camera_data3d_weights.size() != 8:
         _source_reset_camera_data3d_history()
-        _source_camera_data3d_active_callback_address = callback_address
+        _source_camera_data3d_active_position_source = position_source
     for index in range(7, 0, -1):
         _source_camera_data3d_positions[index] = _source_camera_data3d_positions[index - 1]
         _source_camera_data3d_weights[index] = _source_camera_data3d_weights[index - 1]
@@ -229,38 +234,43 @@ func source_camera_data3d_step(delta: float) -> bool:
     _source_camera_data3d_sample_count = mini(_source_camera_data3d_sample_count + 1, 8)
     return true
 
-## State animation selects the source mechanics identity card; the imported
-## card's mode is its DNM type. Types 0 and 8 share the decompiled Walk callback
-## at 00585d51. Other identity callbacks remain unsupported and fail closed.
+## Native state animation selects a converted mechanics Resource. Its named
+## position publisher is resolved during export; unknown bindings fail closed.
 func source_camera_data3d_inputs() -> Dictionary:
-    var callback_address := _source_camera_data3d_callback_address()
-    if callback_address == 0:
-        return {"supported": false, "callback_address": 0, "reason": "active mechanics identity-card callback is not mapped"}
-    if callback_address != _source_camera_data3d_active_callback_address:
+    if source_camera_retains_position_history and current_mechanics == null:
+        return {
+            "supported": true,
+            "position_source": CAMERA_RETAINED_POSITION_HISTORY,
+            "sample_count": _source_camera_data3d_sample_count,
+            "points": _source_camera_data3d_positions.duplicate(),
+            "weights": _source_camera_data3d_weights.duplicate(),
+        }
+    var position_source := _source_camera_data3d_position_source()
+    if position_source.is_empty():
+        return {"supported": false, "position_source": &"", "reason": "active mechanics identity-card callback is not mapped"}
+    if position_source != _source_camera_data3d_active_position_source:
         _source_reset_camera_data3d_history()
-        _source_camera_data3d_active_callback_address = callback_address
+        _source_camera_data3d_active_position_source = position_source
     return {
         "supported": true,
-        "callback_address": callback_address,
+        "position_source": position_source,
         "sample_count": _source_camera_data3d_sample_count,
         "points": _source_camera_data3d_positions.duplicate(),
         "weights": _source_camera_data3d_weights.duplicate(),
     }
 
-func _source_camera_data3d_callback_address() -> int:
+func _source_camera_data3d_position_source() -> StringName:
     if current_mechanics == null:
-        return 0
-    var mode: Variant = current_mechanics.get("mode")
-    if typeof(mode) != TYPE_INT:
-        return 0
-    return SOURCE_CAMERA_DATA3D_WALK_CALLBACK if int(mode) in [0, 8] else 0
+        return &""
+    var position_source: Variant = current_mechanics.get("camera_position_source")
+    return CAMERA_POST_CONTACT_POSITION if position_source == CAMERA_POST_CONTACT_POSITION else &""
 
 func _source_reset_camera_data3d_history() -> void:
     _source_camera_data3d_positions.resize(8)
     _source_camera_data3d_positions.fill(Vector3.ZERO)
     _source_camera_data3d_weights.resize(8)
     _source_camera_data3d_weights.fill(0.0)
-    _source_camera_data3d_active_callback_address = 0
+    _source_camera_data3d_active_position_source = &""
     _source_camera_data3d_sample_count = 0
 
 func turn(degrees_per_second: float, seconds: float) -> void:

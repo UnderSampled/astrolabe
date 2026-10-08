@@ -2,6 +2,9 @@ extends Resource
 ## Source-informed motion parameters, not an implementation of OpenSpace dynamics.
 ## Distances remain source world units; linear/angular rates retain source units.
 @export var mode: int = -1
+## Conversion binds a supported position publisher independently of the raw
+## source card kind. Empty means the callback has not been mapped.
+@export var camera_position_source: StringName
 @export var mass: float
 @export var stairs_step_height: float
 @export var min_linear_speed: float

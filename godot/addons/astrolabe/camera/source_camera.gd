@@ -52,7 +52,8 @@ const SOURCE_MODE_ZERO_FALLBACK_PITCHES := [0.3, 0.6, 0.0] # DAT_005fccb8..c0
 const SOURCE_MODE_ZERO_FALLBACK_YAWS := [0.7853982, 5.497787, 1.5707964, 4.712389, 2.3561945, 3.926991, 3.1415927, 0.3] # 005fcc9c..b8, 8 float reads
 const SOURCE_POSITION_DEFAULT_MIN := -3.402822e38 # 004406d0 writes 0xff7ffff8 at Position+0xa4
 const SOURCE_POSITION_DEFAULT_MAX := 3.402822e38 # 004406d0 writes 0x7f7ffff8 at Position+0xa8
-const SOURCE_WALK_DATA3D_CALLBACK := 0x00585d51 # DAT_00757320[0/8]
+const CAMERA_POST_CONTACT_POSITION := &"post_contact_position"
+const CAMERA_RETAINED_POSITION_HISTORY := &"retained_position_history"
 
 var targeted_actor: Node3D
 var _reported_mode_zero_gap := false
@@ -278,7 +279,7 @@ func _source_smooth_mode_zero_pivot(target_position: Vector3, center: Vector3) -
 ## 00443f00 dispatches through the target's active mechanics identity card,
 ## copies physical-object output +0x310 into the Data3D history ring, and
 ## 00444620 consumes its weighted center. The current native actor adapter
-## supports the source Walk callback shared by identity-card kinds 0 and 8.
+## supports the converted Walk position publisher shared by kinds 0 and 4.
 func source_mode_zero_live_pivot() -> Dictionary:
     var geometry := source_mode_zero_target_geometry()
     if geometry.is_empty():
@@ -290,8 +291,9 @@ func source_mode_zero_live_pivot() -> Dictionary:
     if not bool(data3d.get("supported", false)):
         push_error("Source mode-0 target identity-card callback is unsupported: " + str(data3d.get("reason", "no source callback")))
         return {}
-    if int(data3d.get("callback_address", 0)) != SOURCE_WALK_DATA3D_CALLBACK:
-        push_error("Source mode-0 target Data3D callback does not match the mapped Walk handler")
+    var position_source: StringName = data3d.get("position_source", &"")
+    if position_source not in [CAMERA_POST_CONTACT_POSITION, CAMERA_RETAINED_POSITION_HISTORY]:
+        push_error("Source mode-0 target position history has no converted binding")
         return {}
     var target_position: Vector3 = geometry["target_position"]
     var points: PackedVector3Array = data3d.get("points", PackedVector3Array())
@@ -310,7 +312,7 @@ func source_mode_zero_live_pivot() -> Dictionary:
     var look := mode_zero_look_offset if mode_zero_look_offset != Vector3.ZERO else Vector3(0, 0, 0.05)
     pivot["candidate"] = pivot["anchor"] + target_offset
     pivot["focus"] = pivot["anchor"] + actor_basis * look
-    pivot["callback_address"] = SOURCE_WALK_DATA3D_CALLBACK
+    pivot["position_source"] = position_source
     pivot["sample_count"] = int(data3d.get("sample_count", 0))
     return pivot
 

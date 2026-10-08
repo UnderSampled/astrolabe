@@ -6,7 +6,7 @@ use astrolabe::{
         AssetPath, AssetRef, Selection,
         ai::{SourceObjectIdentity, SourceRole},
         camera::{Camera, CameraParameters},
-        character::{Family, Perso},
+        character::{CharacterState, Family, Perso},
         content::Collection,
         geometry::SourceTransform,
         inventory_gameplay::{
@@ -118,6 +118,50 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
     main_actor.path = main_actor_ref.path.clone();
     main_actor.name = "MainActor".into();
     main_actor.camera = None;
+    let mut main_family = family.clone();
+    main_family.path = AssetPath::new("fix:/families/main")?;
+    let mut mechanics = Vec::new();
+    for kind in [0_u32, 4, 18] {
+        let mut wire = vec![0; 92];
+        wire[..4].copy_from_slice(&kind.to_le_bytes());
+        wire[4..8].copy_from_slice(&120_f32.to_le_bytes());
+        let value = astrolabe::openspace::level::read_mechanics(
+            &wire,
+            AssetPath::new(format!("fix:/mechanics/{kind}"))?,
+        )?;
+        assert_eq!(astrolabe::openspace::level::write_mechanics(&value)?, wire);
+        let reopened =
+            rete::decode::<astrolabe::model::mechanics::Mechanics>(&rete::encode(&value)?)?;
+        assert_eq!(reopened, value);
+        main_family.states.push(CharacterState {
+            id: kind,
+            animation: None,
+            mechanics: Some(AssetRef::from_path(value.path.clone())),
+            speed: 0,
+            repeats: 0,
+            transition_lock: 0,
+            next: None,
+            transitions: vec![],
+            prohibited: vec![],
+            unknown: [0; 5],
+        });
+        mechanics.push(reopened);
+    }
+    main_family.states.push(CharacterState {
+        id: 343,
+        animation: None,
+        mechanics: None,
+        speed: 0,
+        repeats: 0,
+        transition_lock: 0,
+        next: None,
+        transitions: vec![],
+        prohibited: vec![],
+        unknown: [0; 5],
+    });
+    main_actor.family = AssetRef::from_path(main_family.path.clone());
+    main_actor.initial_state = Some(4);
+    main_actor.current_state = main_actor.initial_state;
     main_actor.inventory_stock = Some(InventoryStock {
         source: identity(200),
         category: Some(identity(202)),
@@ -235,6 +279,10 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
         ],
     };
     let mut content = Collection::default();
+    for value in mechanics {
+        content.insert(&AssetRef::from_path(value.path.clone()), value)?;
+    }
+    content.insert(&AssetRef::from_path(main_family.path.clone()), main_family)?;
     content.insert(&AssetRef::from_path(catalog.path.clone()), catalog)?;
     content.insert(&AssetRef::from_path(family.path.clone()), family)?;
     content.insert(&reference, (*actor).clone())?;

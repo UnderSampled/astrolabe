@@ -21,6 +21,26 @@ func run() -> void:
     root.add_child(scene)
     if not require(camera.owner_motion_binding_present, "owning Perso motion-binding presence was not exported to the saved camera"): return
     var main_actor := scene.get_node("world/main/MainActor")
+    camera.controller_state = load("res://addons/astrolabe/camera/source_controller_state.gd").new()
+    if not require(main_actor.current_mechanics.mode == 4 and main_actor.current_mechanics.camera_position_source == &"post_contact_position", "saved active mechanics kind 4 lost the converted position publisher"): return
+    if not require(main_actor.source_camera_data3d_step(0.1) and not camera.source_mode_zero_live_pivot().is_empty(), "saved mode-0 target did not consume the kind-4 position publisher"): return
+    if not require(main_actor.select_state(0) and main_actor.current_mechanics.mode == 0 and main_actor.source_camera_data3d_inputs().supported, "native state animation lost the kind-0 named publisher"): return
+    if not require(main_actor.select_state(18) and main_actor.current_mechanics.mode == 18 and not main_actor.source_camera_data3d_inputs().supported, "native state animation guessed a callback for kind 18"): return
+    if not require(main_actor.select_state(4) and main_actor.current_mechanics.mode == 4 and main_actor.source_camera_data3d_step(0.1), "native state animation did not restore the supported kind-4 publisher"): return
+    var before_no_card: Dictionary = main_actor.source_camera_data3d_inputs()
+    if not require(main_actor.select_state(343) and main_actor.current_mechanics == null and main_actor.source_camera_retains_position_history, "saved no-card state lost its explicit retained-history binding"): return
+    if not require(main_actor.source_camera_data3d_step(0.2), "source no-card state rejected a supported skipped update"): return
+    var no_card: Dictionary = main_actor.source_camera_data3d_inputs()
+    if not require(no_card.position_source == &"retained_position_history" and no_card.points == before_no_card.points and no_card.weights == before_no_card.weights and no_card.sample_count == before_no_card.sample_count and not camera.source_mode_zero_live_pivot().is_empty(), "source no-card state changed or rejected existing camera history"): return
+    var fresh_no_card := load("res://generated/hype/levels/manoir/level.tscn").instantiate() as Node3D
+    fresh_no_card.process_mode = Node.PROCESS_MODE_DISABLED
+    root.add_child(fresh_no_card)
+    var fresh_main := fresh_no_card.get_node("world/main/MainActor")
+    var fresh_camera := fresh_no_card.get_node("world/camera/SourceCameraActor/SourceCamera")
+    fresh_camera.controller_state = load("res://addons/astrolabe/camera/source_controller_state.gd").new()
+    if not require(fresh_main.select_state(343) and fresh_main.source_camera_data3d_inputs().sample_count == 0 and not fresh_camera.source_mode_zero_live_pivot().is_empty(), "source no-card startup did not use the zero-history translation fallback"): return
+    fresh_no_card.free()
+    if not require(main_actor.select_state(4) and not main_actor.source_camera_retains_position_history and main_actor.source_camera_data3d_step(0.1), "state animation did not resume the publisher after a no-card state"): return
     var inventory: Resource = scene.get_meta("source_inventory")
     if not require(actor.source_inventory == inventory and main_actor.source_inventory == inventory and inventory.source_initialized, "saved actors do not share the native inventory catalogue"): return
     if not require(actor.source_magick == main_actor.source_magick, "saved actors do not share magic points"): return
@@ -107,8 +127,7 @@ func run() -> void:
     data3d_actor.set_script(load("res://addons/astrolabe/character/character.gd"))
     data3d_actor.set("motion_enabled", false)
     data3d_actor.process_mode = Node.PROCESS_MODE_DISABLED
-    var walk_mechanics: Resource = load("res://addons/astrolabe/character/mechanics.gd").new()
-    walk_mechanics.set("mode", 0)
+    var walk_mechanics: Resource = load("res://generated/hype/shared/mechanics/0.tres")
     data3d_actor.set("current_mechanics", walk_mechanics)
     root.add_child(data3d_actor)
     var data3d: Dictionary = data3d_actor.call("source_camera_data3d_inputs")
@@ -125,7 +144,7 @@ func run() -> void:
     data3d = data3d_actor.call("source_camera_data3d_inputs")
     var data3d_points: PackedVector3Array = data3d.get("points", PackedVector3Array())
     var data3d_weights: PackedFloat32Array = data3d.get("weights", PackedFloat32Array())
-    if not require(data3d.get("supported", false) and data3d.get("callback_address", 0) == 0x00585d51, "source mechanics type 0 did not select the mapped Walk callback"): return
+    if not require(data3d.get("supported", false) and data3d.get("position_source", &"") == &"post_contact_position" and not data3d.has("callback_address"), "source mechanics type 0 did not expose the named Walk publisher"): return
     if not require(data3d.get("sample_count", 0) == 2 and data3d_points.size() == 8 and data3d_weights.size() == 8, "source Data3D producer did not expose an eight-slot history and its live count"): return
     if not require(data3d_points[0].is_equal_approx(Vector3(2,0,0)) and data3d_points[1].is_equal_approx(Vector3(1,0,0)), "source Data3D samples are not newest-first post-movement world positions"): return
     if not require(absf(data3d_weights[0] - 0.2) < 0.000001 and absf(data3d_weights[1] - 0.1) < 0.000001, "source Data3D weights do not track the callback frame deltas"): return
@@ -143,11 +162,22 @@ func run() -> void:
     var live_focus: Vector3 = live_pivot.get("focus", Vector3.ZERO)
     if not require(live_pivot.get("sample_count", 0) == 2 and live_anchor.distance_to(Vector3(1.6666667,1,0)) < 0.00001, "live mode-0 pivot did not consume Data3D history and the target-rotated actor offset"): return
     if not require(live_focus.distance_to(Vector3(1.6666667,1,0.05)) < 0.00001, "live mode-0 focus did not follow the smoothed Data3D pivot"): return
-    walk_mechanics.set("mode", 4)
-    if not require(not data3d_actor.call("source_camera_data3d_step", 0.1), "unsupported identity-card type 4 entered the Walk Data3D producer"): return
+    data3d_actor.current_mechanics = load("res://generated/hype/shared/mechanics/4.tres")
+    data3d_actor.global_position = Vector3(3,0,0)
+    if not require(data3d_actor.call("source_camera_data3d_step", 0.1), "source mechanics kind 4 did not use the shared Walk publisher"): return
     data3d = data3d_actor.call("source_camera_data3d_inputs")
-    if not require(not data3d.get("supported", true), "unsupported identity-card type 4 did not fail closed"): return
-    walk_mechanics.set("mode", 0)
+    if not require(data3d.get("sample_count", 0) == 3 and data3d.get("position_source", &"") == &"post_contact_position", "changing between shared publishers lost Data3D history"): return
+    var unbound: Resource = load("res://addons/astrolabe/character/mechanics.gd").new()
+    unbound.mode = 8
+    data3d_actor.current_mechanics = unbound
+    if not require(not data3d_actor.call("source_camera_data3d_step", 0.1), "mechanics kind 8 was misidentified as the Walk publisher"): return
+    data3d = data3d_actor.call("source_camera_data3d_inputs")
+    if not require(not data3d.get("supported", true), "unmapped mechanics callback did not fail closed"): return
+    data3d_actor.current_mechanics = null
+    if not require(not data3d_actor.source_camera_data3d_inputs().supported, "an absent binding was treated as an explicitly converted no-card state"): return
+    data3d_actor.current_mechanics = load("res://generated/hype/shared/mechanics/18.tres")
+    if not require(not data3d_actor.call("source_camera_data3d_step", 0.1), "typed mechanics kind 18 was guessed from its character layout"): return
+    data3d_actor.current_mechanics = walk_mechanics
     data3d_actor.global_position = Vector3(3,0,0)
     if not require(data3d_actor.call("source_camera_data3d_step", 0.05), "source Walk Data3D producer did not resume after restoring mechanics type 0"): return
     data3d = data3d_actor.call("source_camera_data3d_inputs")
@@ -230,8 +260,7 @@ func run() -> void:
     var clear_target := CharacterBody3D.new()
     clear_target.set_script(load("res://addons/astrolabe/character/character.gd"))
     clear_target.process_mode = Node.PROCESS_MODE_DISABLED
-    var clear_mechanics: Resource = load("res://addons/astrolabe/character/mechanics.gd").new()
-    clear_mechanics.set("mode", 0)
+    var clear_mechanics: Resource = walk_mechanics
     clear_target.set("current_mechanics", clear_mechanics)
     probe_sector.add_child(clear_target)
     clear_target.global_position = Vector3(0,0.5,0)

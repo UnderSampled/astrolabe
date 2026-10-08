@@ -954,6 +954,13 @@ fn export_animation(
         "null"
     };
     anim.values(".:current_mechanics", [mechanics.into()], fps)?;
+    // An explicitly absent state identity card schedules no position update.
+    // The source camera still consumes the actor's existing position history.
+    anim.values(
+        ".:source_camera_retains_position_history",
+        [state.state.mechanics.is_none().to_string()],
+        fps,
+    )?;
     for channel in channels {
         anim.values(
             &format!("Channels/channel_{channel}:transform"),
@@ -1133,6 +1140,18 @@ fn export_mechanics(
     let mut text = String::from(
         "[gd_resource type=\"Resource\" load_steps=2 format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/character/mechanics.gd\" id=\"script\"]\n\n[resource]\nscript = ExtResource(\"script\")\n",
     );
+    // The source table has an update/control pair per identity-card kind.
+    // Kinds 0 and 4 share the Walk position publisher; kind 8 has a different
+    // update. Bind the converted native consumer by meaning, never by address.
+    let camera_position_source = match &value.data {
+        MechanicsData::Character { mode: 0 | 4, .. } => "post_contact_position",
+        _ => "",
+    };
+    writeln!(
+        text,
+        "camera_position_source = &{}",
+        quoted(camera_position_source)
+    )?;
     match &value.data {
         MechanicsData::Mass { mass } => writeln!(text, "mode = 9\nmass = {mass}")?,
         MechanicsData::Character { mode, settings } => {

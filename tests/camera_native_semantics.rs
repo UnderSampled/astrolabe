@@ -5,8 +5,10 @@ use astrolabe::{
     model::{
         AssetRef, Selection,
         ai::{ActorKeyword, ActorTarget, AiModel, Expression, Statement, walk::AstNode},
+        armor::ArmorCatalog,
         character::Perso,
         io::Load,
+        mechanics::{Mechanics, MechanicsData},
         route::Waypoint,
     },
     rete,
@@ -55,6 +57,66 @@ fn manor_connected_camera_slice_preserves_shots_and_handoff() -> Result<()> {
     let travel = imported.load(&AssetRef::<AiModel>::new("level:/ai/models/365")?)?;
     let gogoud = imported.load(&AssetRef::<AiModel>::new("level:/ai/models/210")?)?;
     let statue = imported.load(&AssetRef::<AiModel>::new("level:/ai/models/294")?)?;
+    let armor = imported.load(&AssetRef::<ArmorCatalog>::new("fix:/gameplay/armor")?)?;
+    ensure!(armor.selected == Some(0) && !armor.definitions.is_empty());
+    ensure!(rete::decode::<ArmorCatalog>(&rete::encode(armor.as_ref())?)? == *armor);
+    let world_setup = normal_statements(&world, 2, None)?;
+    ensure!(
+        world_setup.iter().any(|statement| matches!(
+            statement,
+            Statement::SetArmorResistance(Expression::Integer(0))
+        )),
+        "World154 first-visit schedule lost Proc430(0)"
+    );
+    let main_actor = imported.load(&AssetRef::<Perso>::new("level:/persos/world/0/0")?)?;
+    let family = imported.load(&main_actor.family)?;
+    ensure!(main_actor.initial_state == Some(47));
+    let no_card = family
+        .states
+        .iter()
+        .find(|state| state.id == 343)
+        .context("MainActor first-visit state343")?;
+    ensure!(no_card.mechanics.is_none());
+    let main_brain = imported.load(&main_actor.brain.as_ref().context("MainActor Brain")?.model)?;
+    ensure!(rete::decode::<AiModel>(&rete::encode(main_brain.as_ref())?)? == *main_brain);
+    ensure!(
+        normal_statements(&main_brain, 0, None)?
+            .iter()
+            .any(|statement| matches!(
+                statement,
+                Statement::ChangeAction(Expression::Action(Some(action))) if action.state == 343
+            )),
+        "MainActor initialization lost its conditional first-visit no-card action"
+    );
+    let mut main_mechanics = Vec::new();
+    for state in &family.states {
+        let Some(reference) = &state.mechanics else {
+            continue;
+        };
+        let card = imported.load(reference)?;
+        ensure!(rete::decode::<Mechanics>(&rete::encode(card.as_ref())?)? == *card);
+        let kind = match &card.data {
+            MechanicsData::Character { mode, .. } => *mode,
+            MechanicsData::Mass { .. } => 9,
+            MechanicsData::Unresolved { kind, .. } => *kind,
+        };
+        main_mechanics.push((state.id, kind, reference.path.clone()));
+    }
+    for state_index in [10, 24, 20, 70] {
+        ensure!(
+            main_mechanics
+                .iter()
+                .any(|(state, kind, _)| *state == state_index && *kind == 4),
+            "MainActor state {state_index} lacks the shared Walk publisher's kind-4 binding"
+        );
+    }
+    println!(
+        "MAIN_ACTOR_CAMERA_MECHANICS: {:?}",
+        main_mechanics
+            .iter()
+            .filter(|(state, _, _)| [0, 10, 20, 24, 47, 48, 70].contains(state))
+            .collect::<Vec<_>>()
+    );
     let mut rows = Vec::new();
     for model in [&world, &camera, &travel, &gogoud, &statue] {
         let reopened = rete::decode::<AiModel>(&rete::encode(model.as_ref())?)?;
@@ -181,7 +243,7 @@ fn manor_connected_camera_slice_preserves_shots_and_handoff() -> Result<()> {
     for point in travel.waypoint_references() {
         imported.load(point)?;
     }
-    let evidence = serde_json::json!({"scope":"static import and Rete equality; no Godot or original intro acceptance", "camera_calls": rows, "owner_motion_binding_present": camera_component.owner_motion_binding_present});
+    let evidence = serde_json::json!({"scope":"static import and Rete equality; no Godot or original intro acceptance", "camera_calls": rows, "owner_motion_binding_present": camera_component.owner_motion_binding_present, "selected_armor": armor.selected, "main_actor_mechanics": main_mechanics, "main_actor_no_card_state": no_card.id, "main_actor_initialization_model": main_brain.path});
     if let Some(path) = std::env::var_os("ASTROLABE_CAMERA_AUDIT_REPORT") {
         fs::write(path, serde_json::to_vec_pretty(&evidence)?)?;
     }
