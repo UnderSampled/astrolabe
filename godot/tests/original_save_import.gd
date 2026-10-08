@@ -24,9 +24,13 @@ func run() -> void:
         fail(error)
         return
     var state: Dictionary = report["godot_state"]
-    var global_flag: Variant = state["actors"][SAVE_STATE.GLOBAL]["brain"]["dsg_149"]
+    var global_brain: Dictionary = state["actors"][SAVE_STATE.GLOBAL]["brain"]
+    var global_flag: Variant = global_brain["dsg_149"]
     if typeof(global_flag) != TYPE_BOOL or not global_flag:
         fail("Authentic manor checkpoint must retain Boolean Global DSG[149]")
+        return
+    if not global_brain.has("dsg_147") or typeof(global_brain["dsg_147"]) != TYPE_BOOL or not global_brain["dsg_147"]:
+        fail("Authentic manor checkpoint must retain optional Boolean Global DSG[147]")
         return
     var saved_currency: Variant = state["actors"][SAVE_STATE.ACTOR]["inventory"]["quantities"].get("0")
     if not SAVE_STATE._integer(saved_currency, 0, 32767) or int(saved_currency) != 20:
@@ -68,6 +72,11 @@ func run() -> void:
     if SAVE_STATE.validate_original_import(stale).is_empty():
         fail("Original import without the gate sequence flag was accepted")
         return
+    var schema_one_without_optional: Dictionary = report.duplicate(true)
+    schema_one_without_optional["godot_state"]["actors"][SAVE_STATE.GLOBAL]["brain"].erase("dsg_147")
+    if not SAVE_STATE.validate_original_import(schema_one_without_optional).is_empty():
+        fail("Schema-1 original import without optional DSG[147] was rejected")
+        return
     var actor := CharacterBody3D.new()
     actor.set_script(load("res://addons/astrolabe/character/character.gd"))
     actor.set_process(false)
@@ -78,7 +87,7 @@ func run() -> void:
     if not bool(actor.source_set_absolute_position(target_source_position)) or absf(actor.global_position.x - 3.6) > 0.0001 or absf(actor.global_position.y - 2.0) > 0.0001 or absf(actor.global_position.z - 3.0) > 0.0001:
         fail("Native self-position API did not apply the source-space gate displacement")
         return
-    print("ORIGINAL_SAVE_IMPORT_PROOF SaveGame0 restores item-0 balance=20, Hype transform and Global DSG[149]=true; stale import rejected; source position API moved +2.6 X")
+    print("ORIGINAL_SAVE_IMPORT_PROOF SaveGame0 restores item-0 balance=20, Hype transform and Global DSG[147/149]=true; optional omission accepted; stale import rejected; source position API moved +2.6 X")
     actor.free()
     quit(0)
 

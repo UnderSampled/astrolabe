@@ -3,8 +3,16 @@
 //! Source records and unmapped bytes stay in a diagnostic sibling artifact.
 //! Runtime Godot scripts see only supported gameplay properties, never SAI addresses.
 
+use crate::model::{Selection, ai::DesignerValue};
 use crate::openspace::{
-    level::{SavedInventoryItem, read_saved_inventory_item_zero},
+    level::{
+        SavedInventoryItem,
+        brain_save::{
+            ActorBrainFieldId, ActorBrainFieldIdentity, OptionalActorBrainSaveProjection,
+            project_actor_brain_save_fields_optional,
+        },
+        read_saved_inventory_item_zero,
+    },
     save_game::{SaiRecord, SaveSlot},
 };
 use anyhow::{Context, Result, ensure};
@@ -215,7 +223,58 @@ fn saved_bool(save: &SaveSlot, identity: &str, kind: u8) -> Result<bool> {
     }
 }
 
+fn global_intro_latch_from_projection(
+    projection: &OptionalActorBrainSaveProjection,
+    identity: &ActorBrainFieldIdentity,
+) -> Result<Option<bool>> {
+    let value = projection.projection.fields.get(identity);
+    let unresolved = projection
+        .unresolved
+        .iter()
+        .filter(|candidate| *candidate == identity)
+        .count();
+    ensure!(
+        unresolved <= 1 && (value.is_some() ^ (unresolved == 1)),
+        "optional Global Brain projection is inconsistent for {}",
+        identity.owner
+    );
+    if unresolved == 1 {
+        return Ok(None);
+    }
+    match &value.expect("projection consistency checked").value {
+        DesignerValue::Boolean(value) => Ok(Some(*value)),
+        _ => anyhow::bail!("Global Brain dsg_147 projection is not Boolean"),
+    }
+}
+
+fn global_intro_latch(game: &Path, save: &SaveSlot) -> Result<Option<bool>> {
+    let records = save
+        .members
+        .get("Level000.sav")
+        .context("save is missing its player record file")?
+        .records
+        .as_ref()
+        .context("Level000.sav has no decoded SAI records")?;
+    let identity = ActorBrainFieldIdentity::new("fix:/persos/15", ActorBrainFieldId::dsg(147))?;
+    let projection = project_actor_brain_save_fields_optional(
+        game,
+        &Selection::hype("manoir", "en")?,
+        &records.records,
+        std::slice::from_ref(&identity),
+    )?;
+    global_intro_latch_from_projection(&projection, &identity)
+}
+
+fn global_brain_state(gate_sequence: bool, intro_latch: Option<bool>) -> Value {
+    let mut brain = json!({"dsg_149": gate_sequence});
+    if let Some(value) = intro_latch {
+        brain["dsg_147"] = json!(value);
+    }
+    brain
+}
+
 fn godot_state(
+    game: &Path,
     save: &SaveSlot,
     item_zero: Option<SavedInventoryItem>,
 ) -> Result<Option<(Value, Vec<String>)>> {
@@ -247,6 +306,7 @@ fn godot_state(
     let translation = source_translation(source_position)?;
     let rotation = source_rotation(source_position);
     let global_gate_sequence = saved_bool(save, "0:17:4560", 0x10)?;
+    let global_intro_latch = global_intro_latch(game, save)?;
 
     let quantities = supported_inventory_quantities(save, item_zero)?;
 
@@ -259,6 +319,11 @@ fn godot_state(
 
     let lever = saved_bool(save, "0:17:297732", 0x10)?;
     let mut warnings = Vec::new();
+    if global_intro_latch.is_none() {
+        warnings.push(
+            "No saved semantic value resolved for optional Global Brain dsg_147; the field was omitted so native restore preserves the scene-defined initial value.".to_owned(),
+        );
+    }
     if quantities.len() != 6 {
         warnings.push(
             "One or more supported source item numbers use special negative values; their raw records remain preserved.".to_owned(),
@@ -275,7 +340,7 @@ fn godot_state(
                 "transform": {"position": position},
             },
             "fix:/persos/15": {
-                "brain": {"dsg_149": global_gate_sequence},
+                "brain": global_brain_state(global_gate_sequence, global_intro_latch),
             }
         },
         "world": {
@@ -313,11 +378,26 @@ pub fn import_original_slot(
     } else {
         None
     };
-    let state = godot_state(&save, item_zero)?;
+    let state = godot_state(game, &save, item_zero)?;
     let has_godot_state = state.is_some();
     let (state, warnings) = state
         .map(|(state, warnings)| (Some(state), warnings))
         .unwrap_or((None, Vec::new()));
+    let mut restored_fields = vec![
+        "Hype saved position and uniquely recoverable orientation",
+        "Hype current and maximum mana",
+        "Hype selected magic slot",
+        "reserved item-0 resource balance and supported manor inventory item numbers",
+        "iDummy_PourCercles.DSG[8] manor lever state",
+        "fix:/persos/15 Global.DSG[149], read by manor gate AI model 272",
+    ];
+    if state.as_ref().is_some_and(|state| {
+        state["actors"]["fix:/persos/15"]["brain"]
+            .get("dsg_147")
+            .is_some()
+    }) {
+        restored_fields.push("fix:/persos/15 Brain.dsg_147 source transition latch");
+    }
     let mut report = json!({
         "schema": 1,
         "format": "astrolabe-godot-original-save-import",
@@ -337,14 +417,7 @@ pub fn import_original_slot(
             })]
         }),
         "warnings": warnings,
-        "restored_fields": [
-            "Hype saved position and uniquely recoverable orientation",
-            "Hype current and maximum mana",
-            "Hype selected magic slot",
-            "reserved item-0 resource balance and supported manor inventory item numbers",
-            "iDummy_PourCercles.DSG[8] manor lever state",
-            "fix:/persos/15 Global.DSG[149], read by manor gate AI model 272",
-        ],
+        "restored_fields": restored_fields,
         "not_restored": [
             "Hype current AI behavior state",
             "Hype default magic-point amount; the native magick API has no separate default-points field",
@@ -370,8 +443,16 @@ pub fn import_original_slot(
 
 #[cfg(test)]
 mod tests {
-    use super::{godot_basis, source_rotation, supported_inventory_quantities};
+    use super::{
+        global_brain_state, global_intro_latch_from_projection, godot_basis, source_rotation,
+        supported_inventory_quantities,
+    };
+    use crate::model::ai::DesignerValue;
     use crate::openspace::level::SavedInventoryItem;
+    use crate::openspace::level::brain_save::{
+        ActorBrainFieldId, ActorBrainFieldIdentity, ActorBrainFieldValue, ActorBrainSaveProjection,
+        OptionalActorBrainSaveProjection,
+    };
     use crate::openspace::save_game::{SaveMember, SaveSlot, parse_records};
     use std::collections::BTreeMap;
 
@@ -477,5 +558,85 @@ mod tests {
         for forbidden in ["offset", "block", "module", "relocation", "5790", "5828"] {
             assert!(!serialized.contains(forbidden));
         }
+    }
+
+    fn test_brain_identity() -> ActorBrainFieldIdentity {
+        ActorBrainFieldIdentity::new("fix:/persos/15", ActorBrainFieldId::dsg(147)).unwrap()
+    }
+
+    fn test_projection(
+        identity: &ActorBrainFieldIdentity,
+        value: Option<DesignerValue>,
+    ) -> OptionalActorBrainSaveProjection {
+        let mut fields = BTreeMap::new();
+        let mut unresolved = Vec::new();
+        if let Some(value) = value {
+            fields.insert(
+                identity.clone(),
+                ActorBrainFieldValue {
+                    value,
+                    appearance_aliases: Vec::new(),
+                },
+            );
+        } else {
+            unresolved.push(identity.clone());
+        }
+        OptionalActorBrainSaveProjection {
+            projection: ActorBrainSaveProjection { fields },
+            unresolved,
+        }
+    }
+
+    #[test]
+    fn optional_global_brain_field_preserves_boolean_and_absence_semantics() {
+        let identity = test_brain_identity();
+        for value in [false, true] {
+            let projection = test_projection(&identity, Some(DesignerValue::Boolean(value)));
+            let intro_latch = global_intro_latch_from_projection(&projection, &identity).unwrap();
+            assert_eq!(intro_latch, Some(value));
+            let brain = global_brain_state(true, intro_latch);
+            assert_eq!(brain["dsg_149"], true);
+            assert_eq!(brain["dsg_147"], value);
+        }
+
+        let absent = test_projection(&identity, None);
+        assert_eq!(
+            global_intro_latch_from_projection(&absent, &identity).unwrap(),
+            None
+        );
+        let brain = global_brain_state(true, None);
+        assert_eq!(brain["dsg_149"], true);
+        assert!(brain.get("dsg_147").is_none());
+        let payload = serde_json::to_string(&serde_json::json!({
+            "actors": {"fix:/persos/15": {"brain": brain}},
+        }))
+        .unwrap();
+        for private_source_detail in [
+            "4562",
+            "offset",
+            "block",
+            "module",
+            "allocation",
+            "registration",
+        ] {
+            assert!(!payload.contains(private_source_detail));
+        }
+    }
+
+    #[test]
+    fn optional_global_brain_field_adapter_rejects_wrong_semantics_and_inconsistent_absence() {
+        let identity = test_brain_identity();
+        let wrong_type = test_projection(&identity, Some(DesignerValue::Integer(1)));
+        assert!(global_intro_latch_from_projection(&wrong_type, &identity).is_err());
+
+        let mut inconsistent = test_projection(&identity, None);
+        inconsistent.projection.fields.insert(
+            identity.clone(),
+            ActorBrainFieldValue {
+                value: DesignerValue::Boolean(false),
+                appearance_aliases: Vec::new(),
+            },
+        );
+        assert!(global_intro_latch_from_projection(&inconsistent, &identity).is_err());
     }
 }

@@ -27,15 +27,15 @@ fn native_manor_save_survives_fresh_process_and_rejects_bad_slots() -> Result<()
     for (stage, expected) in [
         (
             "write",
-            "SAVE_PROOF wrote mana=23, inventory=2, sentinel=-1 and dummy dsg_8=true; invalid write preserved slot",
+            "SAVE_PROOF wrote mana=23, inventory=2, item-0 balance=0, sentinel=-1 and optional Global DSG[147]; invalid write preserved slot",
         ),
         (
             "reload",
-            "SAVE_PROOF fresh process restored mana=23, inventory=2, and dummy dsg_8=true",
+            "SAVE_PROOF fresh process restored mana=23, inventory=2, optional Global DSG[147] and explicit item-0 zero",
         ),
         (
             "corrupt",
-            "SAVE_PROOF corrupt, unsupported version, extra state, noncanonical inventory keys and quantity=-2 rejected",
+            "SAVE_PROOF corrupt, unsupported version, extra state, noncanonical inventory keys, quantity=-2 and malformed optional DSG[147] rejected; legacy optional omission accepted",
         ),
     ] {
         let output = Command::new(&xvfb_run)
@@ -86,6 +86,64 @@ fn native_manor_save_survives_fresh_process_and_rejects_bad_slots() -> Result<()
             fs::copy(&slot, evidence.join("saved-slot.json"))
                 .with_context(|| format!("preserving native slot {}", slot.display()))?;
         }
+    }
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires Godot; selected by --local"]
+fn optional_global_brain_state_survives_fresh_processes() -> Result<()> {
+    let project = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../godot");
+    let scratch_root = project
+        .parent()
+        .context("Godot project has no repository root")?
+        .join("output/tmp");
+    fs::create_dir_all(&scratch_root)?;
+    let temporary = tempfile::Builder::new()
+        .prefix("save-global-dsg147-")
+        .tempdir_in(&scratch_root)?;
+    let data = temporary.path().join("data");
+    let config = temporary.path().join("config");
+    let cache = temporary.path().join("cache");
+    for path in [&data, &config, &cache] {
+        fs::create_dir_all(path)?;
+    }
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    for (stage, marker) in [
+        (
+            "optional-write",
+            "SAVE_OPTIONAL_FRESH_WRITE schema-1 native slot persisted explicit Global DSG[147]=false",
+        ),
+        (
+            "optional-reload",
+            "SAVE_OPTIONAL_FRESH_RELOAD fresh process restored explicit Global DSG[147]=false",
+        ),
+    ] {
+        let output = Command::new(&engine)
+            .args([
+                "--headless",
+                "--path",
+                project.to_str().context("non-UTF-8 Godot project path")?,
+                "--script",
+                "res://tests/save_persistence.gd",
+                "--",
+                stage,
+            ])
+            .env("XDG_DATA_HOME", &data)
+            .env("XDG_CONFIG_HOME", &config)
+            .env("XDG_CACHE_HOME", &cache)
+            .output()
+            .with_context(|| format!("starting isolated Godot {stage} save-state stage"))?;
+        let log = format!(
+            "exit_status: {}\nstdout:\n{}\nstderr:\n{}",
+            output.status,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        ensure!(
+            output.status.success() && log.contains(marker) && !log.contains("SCRIPT ERROR:"),
+            "Godot {stage} optional Global DSG[147] round-trip failed: {log}"
+        );
     }
     Ok(())
 }

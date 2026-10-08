@@ -106,8 +106,12 @@ static func validate(value: Variant) -> String:
         if not global_state is Dictionary or not global_state.has("brain") or not _only_keys(global_state, ["brain"]):
             return "Save has invalid Global actor state."
         var global_brain: Variant = global_state["brain"]
-        if not global_brain is Dictionary or not global_brain.has("dsg_149") or not _only_keys(global_brain, ["dsg_149"]) or not global_brain["dsg_149"] is bool:
+        if not global_brain is Dictionary or not global_brain.has("dsg_149") or not _only_keys(global_brain, ["dsg_149", "dsg_147"]) or not global_brain["dsg_149"] is bool:
             return "Save has invalid Global Brain state."
+        # DSG[147] was added as an optional schema-1 field. Older slots leave
+        # the level's authored initial value intact when this key is absent.
+        if global_brain.has("dsg_147") and not global_brain["dsg_147"] is bool:
+            return "Save has invalid optional Global Brain state."
     # Older schema-1 slots predate world flags; missing world state starts from
     # the measured manor seed. When present, validate the complete supported
     # native flag before applying any part of the save.
@@ -210,6 +214,9 @@ static func capture(actor: CharacterBody3D, level: Node3D) -> Dictionary:
     var global_brain := _source_brain(level, GLOBAL)
     if magick == null or inventory == null or dummy_brain == null or not _has_property(global_brain, "dsg_149"):
         return {}
+    var global_brain_state := {"dsg_149": global_brain.get("dsg_149")}
+    if _has_property(global_brain, "dsg_147"):
+        global_brain_state["dsg_147"] = global_brain.get("dsg_147")
     var quantities: Dictionary = {}
     for item in inventory.get("quantities"):
         quantities[str(item)] = int(inventory.get("quantities")[item])
@@ -239,7 +246,7 @@ static func capture(actor: CharacterBody3D, level: Node3D) -> Dictionary:
                 },
             },
             GLOBAL: {
-                "brain": {"dsg_149": global_brain.get("dsg_149")},
+                "brain": global_brain_state,
             },
         },
         "world": {DUMMY: {"dsg_8": dummy_brain.get("dsg_8")}},
@@ -280,6 +287,12 @@ static func apply(actor: CharacterBody3D, level: Node3D, value: Dictionary) -> S
         return "Converted manor has no saved dummy world flag."
     if value["actors"].has(GLOBAL) and not _has_property(global_brain, "dsg_149"):
         return "Converted manor has no saved Global Brain field."
+    if (
+        value["actors"].has(GLOBAL)
+        and value["actors"][GLOBAL]["brain"].has("dsg_147")
+        and not _has_property(global_brain, "dsg_147")
+    ):
+        return "Converted manor has no saved optional Global Brain field."
     var player: Dictionary = value["actors"][ACTOR]
     var saved_magick: Dictionary = player["magick"]
     var saved_inventory: Dictionary = player["inventory"]
@@ -300,7 +313,10 @@ static func apply(actor: CharacterBody3D, level: Node3D, value: Dictionary) -> S
             basis = Basis(_as_vector(axes[0]), _as_vector(axes[1]), _as_vector(axes[2]))
         actor.global_transform = Transform3D(basis, _as_vector(saved_transform["position"]))
     if value["actors"].has(GLOBAL):
-        global_brain.set("dsg_149", value["actors"][GLOBAL]["brain"]["dsg_149"])
+        var saved_global_brain: Dictionary = value["actors"][GLOBAL]["brain"]
+        global_brain.set("dsg_149", saved_global_brain["dsg_149"])
+        if saved_global_brain.has("dsg_147"):
+            global_brain.set("dsg_147", saved_global_brain["dsg_147"])
     var world: Dictionary = value.get("world", {})
     var dummy_state: Dictionary = world.get(DUMMY, {"dsg_8": false})
     dummy_brain.set("dsg_8", dummy_state["dsg_8"])

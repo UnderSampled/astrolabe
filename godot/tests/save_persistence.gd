@@ -3,15 +3,74 @@ extends SceneTree
 const SAVE_STATE = preload("res://game/save_state.gd")
 const LEVEL_SCENE_PATH := "res://generated/hype/levels/manoir/level.tscn"
 
+class MockMagick extends Resource:
+    var current_points: int = 12
+    var maximum_points: int = 50
+    var selected_spell_code: int = 61
+
+class MockInventory extends Resource:
+    var selected_weapon: int = -1
+    var quantities: Dictionary = {"0": 20}
+
+class MockActor extends CharacterBody3D:
+    var source_magick: Resource = MockMagick.new()
+    var source_inventory: Resource = MockInventory.new()
+
+class MockGlobalBrain extends Node:
+    var dsg_149: bool = false
+    var dsg_147: bool = true
+
+class MockGlobalBrainWithoutDsg147 extends Node:
+    var dsg_149: bool = false
+
+class MockDummyBrain extends Node:
+    var dsg_8: bool = false
+
 func _initialize() -> void:
     call_deferred("run")
 
 func run() -> void:
+    var optional_field_error := await test_optional_global_brain_field()
+    if not optional_field_error.is_empty():
+        fail(optional_field_error)
+        return
     var args := OS.get_cmdline_user_args()
-    if args.size() != 1 or not ["write", "reload", "corrupt"].has(args[0]):
-        fail("Expected write, reload, or corrupt stage")
+    if args.size() != 1 or not ["write", "reload", "corrupt", "optional", "optional-write", "optional-reload"].has(args[0]):
+        fail("Expected write, reload, corrupt, optional, optional-write, or optional-reload stage")
         return
     var stage: String = args[0]
+    if stage == "optional":
+        print("SAVE_OPTIONAL_PROOF schema-1 omission preserved scene DSG[147], exposed false captured/restored, unavailable and malformed fields rejected")
+        await shutdown(0)
+        return
+    if stage == "optional-write" or stage == "optional-reload":
+        var context := make_optional_test_context(true)
+        var optional_actor: CharacterBody3D = context[0]
+        var optional_level: Node3D = context[1]
+        var optional_global: Node = context[2]
+        if stage == "optional-write":
+            optional_global.set("dsg_147", false)
+            var error := SAVE_STATE.write(optional_actor, optional_level)
+            if not error.is_empty():
+                fail("Could not write optional Global DSG[147] test slot: " + error)
+                return
+            var saved := SAVE_STATE.read()
+            if saved["status"] != "loaded" or saved["state"]["schema"] != 1 or saved["state"]["actors"][SAVE_STATE.GLOBAL]["brain"].get("dsg_147") != false:
+                fail("Native schema-1 slot did not persist explicit false Global DSG[147]")
+                return
+            print("SAVE_OPTIONAL_FRESH_WRITE schema-1 native slot persisted explicit Global DSG[147]=false")
+        else:
+            var saved := SAVE_STATE.read()
+            if saved["status"] != "loaded" or saved["state"]["schema"] != 1 or saved["state"]["actors"][SAVE_STATE.GLOBAL]["brain"].get("dsg_147") != false:
+                fail("Fresh process did not read explicit false Global DSG[147]")
+                return
+            var error := SAVE_STATE.apply(optional_actor, optional_level, saved["state"])
+            if not error.is_empty() or optional_global.get("dsg_147") != false:
+                fail("Fresh process did not apply explicit false Global DSG[147]")
+                return
+            print("SAVE_OPTIONAL_FRESH_RELOAD fresh process restored explicit Global DSG[147]=false")
+        await shutdown(0)
+        return
     var valid_state: Dictionary = {}
     if stage == "corrupt":
         var prior := SAVE_STATE.read()
@@ -19,6 +78,17 @@ func run() -> void:
             fail("Valid slot missing before rejection checks")
             return
         valid_state = prior["state"]
+        var legacy_global: Dictionary = valid_state.duplicate(true)
+        if legacy_global["actors"][SAVE_STATE.GLOBAL]["brain"].has("dsg_147"):
+            legacy_global["actors"][SAVE_STATE.GLOBAL]["brain"].erase("dsg_147")
+        if not SAVE_STATE.validate(legacy_global).is_empty():
+            fail("Schema-1 slot without optional Global DSG[147] was rejected")
+            return
+        var malformed_optional_global: Dictionary = valid_state.duplicate(true)
+        malformed_optional_global["actors"][SAVE_STATE.GLOBAL]["brain"]["dsg_147"] = 1
+        if SAVE_STATE.validate(malformed_optional_global).is_empty():
+            fail("Non-Boolean optional Global DSG[147] was accepted")
+            return
         var corrupt := FileAccess.open(SAVE_STATE.path(), FileAccess.WRITE)
         if corrupt == null:
             fail("Could not stage corrupt save")
@@ -102,7 +172,7 @@ func run() -> void:
         if SAVE_STATE.validate(legacy_quantity).is_empty():
             fail("Legacy inventory quantity below its -1 sentinel was accepted")
             return
-        print("SAVE_PROOF corrupt, unsupported version, extra state, noncanonical inventory keys, schema-3 out-of-range quantity and legacy quantity=-2 rejected")
+        print("SAVE_PROOF corrupt, unsupported version, extra state, noncanonical inventory keys, schema-3 out-of-range quantity, legacy quantity=-2 and malformed optional DSG[147] rejected; legacy optional omission accepted")
         await shutdown(0)
         return
     if load_button.disabled:
@@ -138,6 +208,10 @@ func run() -> void:
         var expected_gate_sequence: bool = restored["actors"][SAVE_STATE.GLOBAL]["brain"]["dsg_149"]
         if global_brain.get("dsg_149") != expected_gate_sequence:
             fail("Load Game did not restore Global DSG[149]")
+            return
+        var restored_global_brain: Dictionary = restored["actors"][SAVE_STATE.GLOBAL]["brain"]
+        if restored_global_brain.has("dsg_147") and global_brain.get("dsg_147") != restored_global_brain["dsg_147"]:
+            fail("Load Game did not restore optional Global DSG[147]")
             return
         if expected_gate_sequence and (int(gate_brain.get("current_normal")) != 3 or not str(gate_brain.get("unsupported_failure")).is_empty()):
             fail("Saved Global DSG[149] did not run the gate's source AI sequence")
@@ -177,6 +251,14 @@ func run() -> void:
         if not saved["state"]["actors"].has(SAVE_STATE.GLOBAL) or saved["state"]["actors"][SAVE_STATE.GLOBAL]["brain"]["dsg_149"] != true:
             fail("F5 did not write the saved manor gate sequence flag")
             return
+        var saved_global_brain: Dictionary = saved["state"]["actors"][SAVE_STATE.GLOBAL]["brain"]
+        var source_has_dsg_147 := SAVE_STATE._has_property(global_brain, "dsg_147")
+        if saved_global_brain.has("dsg_147") != source_has_dsg_147:
+            fail("F5 did not conditionally capture Global DSG[147] from the native Brain")
+            return
+        if source_has_dsg_147 and saved_global_brain["dsg_147"] != global_brain.get("dsg_147"):
+            fail("F5 captured a different Global DSG[147] value")
+            return
         if int(saved["state"]["actors"][SAVE_STATE.ACTOR]["inventory"]["quantities"]["61"]) != -1:
             fail("F5 did not preserve the measured unavailable-item sentinel")
             return
@@ -191,7 +273,7 @@ func run() -> void:
         if FileAccess.get_file_as_string(SAVE_STATE.path()) != original:
             fail("Invalid state overwrote a valid slot")
             return
-        print("SAVE_PROOF wrote mana=23, inventory=2, item-0 balance=0, sentinel=-1 and dummy dsg_8=true; invalid write preserved slot")
+        print("SAVE_PROOF wrote mana=23, inventory=2, item-0 balance=0, sentinel=-1 and optional Global DSG[147]; invalid write preserved slot")
     else:
         if int(magick.get("current_points")) != 23 or int(inventory.call("quantity", 21)) != 2:
             fail("Fresh process did not restore mana and inventory")
@@ -201,6 +283,10 @@ func run() -> void:
             return
         if global_brain.get("dsg_149") != true or int(gate_brain.get("current_normal")) != 3:
             fail("Fresh process did not restore and run the saved manor gate sequence")
+            return
+        var restored_global_brain: Dictionary = restored["actors"][SAVE_STATE.GLOBAL]["brain"]
+        if restored_global_brain.has("dsg_147") and global_brain.get("dsg_147") != restored_global_brain["dsg_147"]:
+            fail("Fresh process did not restore optional Global DSG[147]")
             return
         if int(inventory.call("quantity", 61)) != -1:
             fail("Fresh process did not restore the unavailable-item sentinel")
@@ -212,8 +298,97 @@ func run() -> void:
         if int(magick.call("remove_points", 5)) != 1 or int(magick.get("current_points")) != 18:
             fail("Restored mana was not usable by the native component")
             return
-        print("SAVE_PROOF fresh process restored mana=23, inventory=2, explicit item-0 zero and dummy dsg_8=true; native mana remained usable")
+        print("SAVE_PROOF fresh process restored mana=23, inventory=2, optional Global DSG[147] and explicit item-0 zero; native mana remained usable")
     await shutdown(0)
+
+func test_optional_global_brain_field() -> String:
+    var actor := MockActor.new()
+    var level := Node3D.new()
+    var global_brain := MockGlobalBrain.new()
+    var dummy_brain := MockDummyBrain.new()
+    global_brain.name = "MockGlobalBrain"
+    dummy_brain.name = "MockDummyBrain"
+    level.add_child(global_brain)
+    level.add_child(dummy_brain)
+    level.set_meta("source_actor_brains", {
+        SAVE_STATE.GLOBAL: NodePath("MockGlobalBrain"),
+        SAVE_STATE.DUMMY: NodePath("MockDummyBrain"),
+    })
+    root.add_child(level)
+    root.add_child(actor)
+
+    global_brain.dsg_147 = false
+    var captured := SAVE_STATE.capture(actor, level)
+    if captured.is_empty():
+        return "Mock capture did not resolve native components: magick=%s inventory=%s dummy=%s global=%s dsg_149=%s" % [str(actor.get("source_magick") != null), str(actor.get("source_inventory") != null), str(SAVE_STATE._dummy_brain(level) != null), str(SAVE_STATE._source_brain(level, SAVE_STATE.GLOBAL) != null), str(SAVE_STATE._has_property(global_brain, "dsg_149"))]
+    if not captured["actors"][SAVE_STATE.GLOBAL]["brain"].has("dsg_147") or captured["actors"][SAVE_STATE.GLOBAL]["brain"]["dsg_147"] != false:
+        return "Capture did not preserve an exposed false Global DSG[147] value."
+    if not SAVE_STATE.validate(captured).is_empty():
+        return "Capture with optional Global DSG[147] did not validate."
+
+    global_brain.dsg_147 = true
+    var legacy := captured.duplicate(true)
+    legacy["actors"][SAVE_STATE.GLOBAL]["brain"].erase("dsg_147")
+    if not SAVE_STATE.validate(legacy).is_empty():
+        return "Schema-1 Global Brain state without optional DSG[147] was rejected."
+    var error := SAVE_STATE.apply(actor, level, captured)
+    if not error.is_empty() or global_brain.dsg_147 != false:
+        return "Apply did not restore the optional Global DSG[147] Boolean."
+    global_brain.dsg_147 = true
+    error = SAVE_STATE.apply(actor, level, legacy)
+    if not error.is_empty() or global_brain.dsg_147 != true:
+        return "Legacy schema-1 apply changed the scene-defined Global DSG[147] value."
+
+    var invalid := captured.duplicate(true)
+    invalid["actors"][SAVE_STATE.GLOBAL]["brain"]["dsg_147"] = 1
+    if SAVE_STATE.validate(invalid).is_empty():
+        return "Non-Boolean optional Global DSG[147] was accepted."
+
+    var actor_without_optional := MockActor.new()
+    var level_without_optional := Node3D.new()
+    var global_without_optional := MockGlobalBrainWithoutDsg147.new()
+    var dummy_without_optional := MockDummyBrain.new()
+    global_without_optional.name = "MockGlobalBrainWithoutDsg147"
+    dummy_without_optional.name = "MockDummyBrain"
+    level_without_optional.add_child(global_without_optional)
+    level_without_optional.add_child(dummy_without_optional)
+    level_without_optional.set_meta("source_actor_brains", {
+        SAVE_STATE.GLOBAL: NodePath("MockGlobalBrainWithoutDsg147"),
+        SAVE_STATE.DUMMY: NodePath("MockDummyBrain"),
+    })
+    root.add_child(level_without_optional)
+    root.add_child(actor_without_optional)
+    var captured_without_optional := SAVE_STATE.capture(actor_without_optional, level_without_optional)
+    if captured_without_optional["actors"][SAVE_STATE.GLOBAL]["brain"].has("dsg_147"):
+        return "Capture invented optional Global DSG[147] when the Brain has no such property."
+    var rejected := SAVE_STATE.apply(actor_without_optional, level_without_optional, captured)
+    if rejected.is_empty() or actor_without_optional.source_magick.current_points != 12 or global_without_optional.dsg_149 != false:
+        return "Apply with an unavailable saved DSG[147] did not fail before mutation."
+
+    level.queue_free()
+    actor.queue_free()
+    level_without_optional.queue_free()
+    actor_without_optional.queue_free()
+    await process_frame
+    return ""
+
+func make_optional_test_context(initial_dsg_147: bool) -> Array:
+    var actor := MockActor.new()
+    var level := Node3D.new()
+    var global_brain := MockGlobalBrain.new()
+    var dummy_brain := MockDummyBrain.new()
+    global_brain.name = "MockGlobalBrain"
+    dummy_brain.name = "MockDummyBrain"
+    global_brain.dsg_147 = initial_dsg_147
+    level.add_child(global_brain)
+    level.add_child(dummy_brain)
+    level.set_meta("source_actor_brains", {
+        SAVE_STATE.GLOBAL: NodePath("MockGlobalBrain"),
+        SAVE_STATE.DUMMY: NodePath("MockDummyBrain"),
+    })
+    root.add_child(level)
+    root.add_child(actor)
+    return [actor, level, global_brain, dummy_brain]
 
 func shutdown(exit_code: int) -> void:
     # Headless DummyRenderer can abort during exit while the generated manor's

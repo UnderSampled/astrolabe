@@ -3092,6 +3092,17 @@
       "release": true
     },
     {
+      "binary": "godot-harness::save_persistence",
+      "test": "optional_global_brain_state_survives_fresh_processes",
+      "areas": ["runtime", "save"],
+      "kind": "process",
+      "prerequisites": ["godot"],
+      "fixture": "synthetic schema-1 Global Brain state with explicit DSG[147]=false",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
+    },
+    {
       "binary": "godot-harness::new_game",
       "test": "menu_new_game_preserves_slot_and_restarts_original_opening",
       "areas": [
