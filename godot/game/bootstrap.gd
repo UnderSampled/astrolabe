@@ -2,10 +2,12 @@ extends Control
 ## Application/session routes around a generated, editable native menu scene.
 const MANOR := "res://generated/hype/levels/manoir/level.tscn"
 const MENU_SCENE := "res://generated/hype/shared/menu/main/en/menu.tscn"
+const SETTINGS_SCENE := "res://game/settings_menu.tscn"
 const CONFIGURATION_SCENE := "res://generated/hype/shared/menu/configuration/en/menu.tscn"
 const CREDITS_SCENE := "res://game/credits_menu.tscn"
 const MENU_VIEW = preload("res://addons/astrolabe/ui/menu/menu.gd")
 const SAVE_STATE = preload("res://game/save_state.gd")
+const INITIAL_ROUTE_ERROR_META := "astrolabe_initial_route_error"
 
 ## Assign an inherited scene saved under game/ to preserve designer improvements.
 @export var menu_scene: PackedScene
@@ -17,6 +19,7 @@ var load_game: Button
 var new_game: Button
 var quit_game: Button
 var opening_game := false
+var _menu_button_disabled: Dictionary = {}
 var configuration: Control
 var credits: Control
 
@@ -64,6 +67,11 @@ func _ready() -> void:
         new_game.grab_focus()
     else:
         quit_game.grab_focus()
+    var root := get_tree().root
+    if root.has_meta(INITIAL_ROUTE_ERROR_META):
+        details.text = "The game could not be opened: " + str(root.get_meta(INITIAL_ROUTE_ERROR_META))
+        root.remove_meta(INITIAL_ROUTE_ERROR_META)
+        status.show()
 
 func _show_menu_error() -> void:
     status.show()
@@ -113,14 +121,15 @@ func _show_obsolete_internet_route() -> void:
 
 func _open_configuration() -> void:
     status.hide()
-    if not ResourceLoader.exists(CONFIGURATION_SCENE):
+    var settings_path := SETTINGS_SCENE if ResourceLoader.exists(SETTINGS_SCENE, "PackedScene") else CONFIGURATION_SCENE
+    if not ResourceLoader.exists(settings_path, "PackedScene"):
         details.text = "Configuration assets have not been generated. Regenerate the menu content."
         status.show()
         return
-    var packed := load(CONFIGURATION_SCENE) as PackedScene
+    var packed := load(settings_path) as PackedScene
     configuration = packed.instantiate() as Control if packed != null else null
     if configuration == null:
-        details.text = "The generated configuration scene is invalid."
+        details.text = "The Options screen is invalid."
         status.show()
         return
     menu.hide()
@@ -157,8 +166,37 @@ func _on_quit_pressed() -> void:
 
 func open_game(destination: String, button: Button) -> void:
     if opening_game: return
+    if button == null or not is_instance_valid(button):
+        details.text = "The selected game route is unavailable."
+        status.show()
+        return
     opening_game = true
-    button.disabled = true
-    if get_tree().change_scene_to_file(destination) != OK:
+    _lock_menu_buttons()
+    details.text = "Starting a new game..." if destination == "res://game/new_game.tscn" else "Loading saved game..."
+    status.show()
+    var error := get_tree().change_scene_to_file(destination)
+    if error != OK:
         opening_game = false
-        button.disabled = false
+        _restore_menu_buttons()
+        details.text = "The game session could not be opened."
+        status.show()
+        button.grab_focus()
+        push_error("Could not open game session %s: %s" % [destination, error_string(error)])
+
+func _lock_menu_buttons() -> void:
+    _menu_button_disabled.clear()
+    if not is_instance_valid(menu):
+        return
+    for item in menu.find_children("*", "BaseButton", true, false):
+        var button := item as BaseButton
+        if button == null:
+            continue
+        _menu_button_disabled[button] = button.disabled
+        button.disabled = true
+
+func _restore_menu_buttons() -> void:
+    for item in _menu_button_disabled:
+        var button := item as BaseButton
+        if is_instance_valid(button):
+            button.disabled = bool(_menu_button_disabled[item])
+    _menu_button_disabled.clear()

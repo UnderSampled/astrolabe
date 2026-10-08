@@ -7,6 +7,8 @@ const LEVEL := "res://generated/hype/levels/manoir/level.tscn"
 const GATE_ACTOR := "world/0/15/iMGrille_Manoir_Pont"
 const MANOIR_START = preload("res://game/manoir_start.gd")
 const SAVE_STATE = preload("res://game/save_state.gd")
+const LOADING_SCREEN_PATH := NodePath("/root/LevelTransition/LoadingScreen")
+const INITIAL_ROUTE_ERROR_META := "astrolabe_initial_route_error"
 @export var new_game: bool = false
 
 signal loading_stage_changed(stage: String, elapsed_ms: float)
@@ -38,9 +40,13 @@ var _transition_snapshot: Dictionary = {}
 var _transition_brain_states: Array[Dictionary] = []
 var _transition_physics_states: Array[Dictionary] = []
 var _initial_transition_pending := false
+var _initial_failure_recovery_started := false
 var source_camera_controller_state: Resource
 
 func _ready() -> void:
+    # Lock the incoming session before its deferred initial request starts.
+    # The resource loader is active before open_level begins restoration.
+    _initial_transition_pending = true
     var camera_state_script := "res://addons/astrolabe/camera/source_controller_state.gd"
     if ResourceLoader.exists(camera_state_script):
         source_camera_controller_state = load(camera_state_script).new()
@@ -54,13 +60,31 @@ func _ready() -> void:
     if new_game:
         $Hud/Panel/Margin/Rows/Save.disabled = true
         $Hud/Panel/Margin/Rows/Controls.text = "Tab  inventory     R  restart opening     Esc  pause"
+    var transitions := get_node_or_null("/root/LevelTransition")
+    if transitions != null:
+        if transitions.has_signal("transition_failed"):
+            transitions.connect("transition_failed", _on_initial_transition_failed)
+        if transitions.has_signal("transition_cancelled"):
+            transitions.connect("transition_cancelled", _on_initial_transition_cancelled)
     call_deferred("request_initial_level")
 
 func request_initial_level() -> void:
+    _initial_transition_pending = true
     var transitions := get_node_or_null("/root/LevelTransition")
-    if transitions != null and bool(transitions.call("request_initial_level", "manoir")):
+    if transitions != null:
+        if bool(transitions.call("request_initial_level", "manoir")):
+            return
+        fail("The manor loading service could not start the initial load.")
         return
     open_level()
+
+func _on_initial_transition_failed(level_name: String, message: String) -> void:
+    if _initial_transition_pending and level_name == "manoir":
+        fail(message)
+
+func _on_initial_transition_cancelled(level_name: String) -> void:
+    if _initial_transition_pending and level_name == "manoir":
+        _initial_transition_pending = false
 
 func open_level_from_transition(packed: PackedScene, path: String) -> Dictionary:
     if path != LEVEL or packed == null or level != null or loading:
@@ -93,6 +117,9 @@ func open_level() -> void:
     if loading or level != null:
         return
     loading = true
+    var restore_message := "Initializing new game..." if new_game else "Restoring saved game..."
+    _show_initial_restore_phase(restore_message)
+    stage("state_restoration", restore_message)
     if not ResourceLoader.exists(LEVEL):
         fail("The manor has not been generated. See godot/README.md.")
         return
@@ -569,6 +596,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
     var key := event as InputEventKey
     if key == null or not key.pressed or key.echo:
         return
+    if not ready_to_play:
+        get_viewport().set_input_as_handled()
+        if key.physical_keycode == KEY_ESCAPE:
+            leave_session("res://game/bootstrap.tscn")
+        return
     if key.physical_keycode == KEY_F5:
         get_viewport().set_input_as_handled()
         save_game()
@@ -580,10 +612,22 @@ func _unhandled_key_input(event: InputEvent) -> void:
         get_viewport().set_input_as_handled()
         leave_session("res://game/bootstrap.tscn")
 
+func _input(event: InputEvent) -> void:
+    if ready_to_play or not (_initial_transition_pending or loading):
+        return
+    var key := event as InputEventKey
+    if key != null and key.pressed and not key.echo and key.physical_keycode == KEY_ESCAPE:
+        get_viewport().set_input_as_handled()
+        leave_session("res://game/bootstrap.tscn")
+        return
+    if event is InputEventKey or event is InputEventMouseButton or event is InputEventMouseMotion or event is InputEventJoypadButton or event is InputEventJoypadMotion:
+        get_viewport().set_input_as_handled()
+
 func leave_session(destination: String) -> void:
     var transitions := get_node_or_null("/root/LevelTransition")
     if transitions != null and bool(transitions.call("is_transitioning")):
-        transitions.call("cancel_current_transition")
+        if not bool(transitions.call("cancel_current_transition")):
+            return
     pause_host.call("close_pause")
     inventory_host.call("close_inventory")
     ready_to_play = false
@@ -611,6 +655,7 @@ func _exit_tree() -> void:
         brain.call("stop")
 
 func fail(message: String) -> void:
+    var initial_failure := _initial_transition_pending
     push_error(message)
     restore_frame_limit()
     if is_instance_valid(brain):
@@ -628,3 +673,32 @@ func fail(message: String) -> void:
     loading = false
     stage("failed", message)
     _finish_initial_transition(false, message)
+    if initial_failure:
+        get_tree().root.set_meta(INITIAL_ROUTE_ERROR_META, message)
+        if not _initial_failure_recovery_started:
+            _initial_failure_recovery_started = true
+            call_deferred("_return_to_menu_after_initial_failure")
+
+func _show_initial_restore_phase(message: String) -> void:
+    var presenter := get_node_or_null(LOADING_SCREEN_PATH)
+    if presenter == null or not bool(presenter.get("visible")):
+        return
+    var phase := presenter.get_node_or_null("Viewport/Center/Content/Phase") as Label
+    var progress := presenter.get_node_or_null("Viewport/Center/Content/Progress") as ProgressBar
+    if phase != null:
+        phase.text = message
+    # ResourceLoader's fraction describes scene dependencies only. Once state
+    # restoration begins, leave an indeterminate phase label instead of
+    # presenting that fraction as total route progress.
+    if progress != null:
+        progress.hide()
+
+func _return_to_menu_after_initial_failure() -> void:
+    # Give LevelTransition the current frame to present its dismissible error.
+    await get_tree().process_frame
+    var presenter := get_node_or_null(LOADING_SCREEN_PATH)
+    while is_inside_tree() and is_instance_valid(presenter) and bool(presenter.get("visible")):
+        await get_tree().process_frame
+        presenter = get_node_or_null(LOADING_SCREEN_PATH)
+    if is_inside_tree():
+        get_tree().change_scene_to_file("res://game/bootstrap.tscn")
