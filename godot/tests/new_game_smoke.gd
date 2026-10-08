@@ -200,7 +200,12 @@ func _check_route_lifecycle(route_name: String, start_index: int, expected_mana:
     if not require(not started.is_empty() and started.get("presenter_visible", false) and started.get("progress_visible", false), route_name + " did not show the loading presenter at route start"): return false
     if not require(not completed.is_empty(), route_name + " did not emit transition_completed"): return false
     if not require(started_count == 1 and completed_count == 1, route_name + " dispatched more than one transition for a repeated menu activation"): return false
-    if not require(completed.get("ready_to_play", false) and not completed.get("loading", true) and completed.get("loading_stage") == "playable", route_name + " completed before the session became playable"): return false
+    var expected_ready_stage := "opening" if route_name == "new_game" else "playable"
+    var completion_ready: bool = bool(completed.get("ready_to_play", false)) and not bool(completed.get("loading", true)) and str(completed.get("loading_stage", "")) == expected_ready_stage
+    report[route_name + "_completion_boundary"] = {"ready_to_play":completed.get("ready_to_play", false),
+        "loading":completed.get("loading", true),"loading_stage":completed.get("loading_stage", ""),
+        "expected_stage":expected_ready_stage,"mana":completed.get("mana", -1)}
+    if not require(completion_ready, "%s completion boundary is not initialized: expected stage %s, observed %s" % [route_name, expected_ready_stage, completed.get("loading_stage", "<missing>")]): return false
     if not require(int(completed.get("mana", -1)) == expected_mana, route_name + " completed before the expected state was restored"): return false
     var restoration: Dictionary = {}
     for event in session_stage_events:
