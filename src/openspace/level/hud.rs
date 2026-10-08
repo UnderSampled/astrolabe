@@ -107,7 +107,7 @@ impl FixTextureTable {
     }
 }
 
-fn gpt_hud_offsets(sda: &[u8]) -> Result<(usize, usize)> {
+pub(super) fn gpt_hud_offsets(sda: &[u8]) -> Result<(usize, usize)> {
     // 00401e00's sequential GPT reads before 0040bcc0. Counts come from the
     // simultaneously-open Fix.sda stream: FON text-handle count at +8, and 004e5150's
     // inclusive shadow index at +0x198. FUN_004e94c0 uses the SDA FILE* while
@@ -175,12 +175,12 @@ fn fix_pointer(
     Ok(Some(session.resolve_local(Owner::Fix, key, value)?))
 }
 
-fn currency_item(
+pub(super) fn currency_item(
     session: &SourceSession,
     refs: &BTreeMap<u32, BlockKey>,
     gpt: &[u8],
     gpt_offset: usize,
-) -> Result<(Address, i32)> {
+) -> Result<(Address, Address, Address, i32)> {
     let root_value = u32_at(gpt, gpt_offset)?;
     let root = fix_pointer(session, refs, root_value)?
         .context("Fix HUD currency inventory root is null")?;
@@ -204,7 +204,7 @@ fn currency_item(
     let item_definition = session.required(item_handle, 0)?;
     let item: CurrencyItemWire = wire(session.bytes(item_definition, 32)?)?;
     ensure!(item.id >= 0, "Fix HUD currency item id is negative");
-    Ok((child, i32::from(item.id)))
+    Ok((child, item_handle, item_definition, i32::from(item.id)))
 }
 
 fn f32_at(bytes: &[u8], offset: usize) -> Result<f32> {
@@ -447,7 +447,7 @@ pub(crate) fn import(
         .map_err(|_| anyhow::anyhow!("Fix HUD slot count differs"))?;
 
     let (currency_root_offset, _) = gpt_hud_offsets(&sda)?;
-    let (currency_source, currency_item_id) =
+    let (currency_source, _, _, currency_item_id) =
         currency_item(&session, &refs, &gpt, currency_root_offset)?;
     let (font_address, font) = dialogue_presentation::named_font(&session, "InventoryFont")?;
     let currency_font = HudCounterFont {

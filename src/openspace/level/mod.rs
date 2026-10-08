@@ -17,6 +17,7 @@ pub use way::{
     ActorWayInspection, WayInspection, WayLinkInspection, WaypointInspection, inspect_actor_ways,
 };
 mod save_join;
+mod saved_inventory;
 mod scene;
 mod session;
 mod source_view;
@@ -31,6 +32,7 @@ pub use import::{LevelSummary, ModelImport, import_first_model, inspect_level};
 pub use save_join::{
     SaveAllocationJoin, SaveJoinResult, SaveRecordLocation, join_save_allocations,
 };
+pub(crate) use saved_inventory::{SavedInventoryItem, read_saved_inventory_item_zero};
 pub use scene::{SceneImport, import_scene};
 
 #[cfg(test)]

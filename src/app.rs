@@ -108,6 +108,9 @@ enum Command {
     /// Import an extracted original Hype SaveGameN slot for the Godot Load Game route.
     ImportSave {
         input: PathBuf,
+        /// Installed/extracted Hype source root used to resolve saved fields by source composition.
+        #[arg(long)]
+        game: PathBuf,
         #[arg(long, value_enum)]
         profile: SaveProfile,
         #[arg(long, default_value = "godot/game/original_save_import.json")]
@@ -237,11 +240,12 @@ pub fn run() -> Result<()> {
         }
         Command::ImportSave {
             input,
+            game,
             output,
             profile,
         } => {
             let report =
-                godot::save_import::import_original_slot(&input, &output, profile.as_str())?;
+                godot::save_import::import_original_slot(&input, &game, &output, profile.as_str())?;
             println!(
                 "{}",
                 serde_json::json!({

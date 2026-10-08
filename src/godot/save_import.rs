@@ -1,12 +1,15 @@
 //! Convert source-backed Hype save values into the small native Godot save API.
 //!
-//! The source table and its unmapped bytes stay in the import report. Runtime
-//! Godot scripts see only supported gameplay properties, never SAI addresses.
+//! Source records and unmapped bytes stay in a diagnostic sibling artifact.
+//! Runtime Godot scripts see only supported gameplay properties, never SAI addresses.
 
-use crate::openspace::save_game::{SaiRecord, SaveSlot};
+use crate::openspace::{
+    level::{SavedInventoryItem, read_saved_inventory_item_zero},
+    save_game::{SaiRecord, SaveSlot},
+};
 use anyhow::{Context, Result, ensure};
 use serde_json::{Value, json};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub const HYPE_PC_ENGLISH_PROFILE: &str = "hype-pc-english-supplied-save";
 
@@ -60,33 +63,26 @@ fn signed_i16(save: &SaveSlot, identity: &str) -> Result<i16> {
     ))
 }
 
-fn source_resource_balance(save: &SaveSlot) -> Result<i16> {
-    // FUN_00417fe0 registers the separate inventory handle's +0x0a word and
-    // its linked item's +0x14 maximum. The source accessor reads/writes the
-    // balance as a signed 16-bit value (0041d400, 004a19d0/004a19e0); keep the
-    // balance label deliberately generic because its authored resource name
-    // is not established by the source join.
-    let balance = signed_i16(save, "0:10:5790")?;
-    let maximum = signed_i16(save, "0:10:5828")?;
+fn supported_inventory_quantities(
+    save: &SaveSlot,
+    item_zero: SavedInventoryItem,
+) -> Result<serde_json::Map<String, Value>> {
     ensure!(
-        balance >= 0 && maximum >= 0 && balance <= maximum,
-        "English PC save has an invalid item-0 resource balance"
+        item_zero.item_id == 0
+            && item_zero.quantity >= 0
+            && item_zero.capacity >= 0
+            && item_zero.quantity <= item_zero.capacity,
+        "OpenSpace reader returned invalid item-0 inventory semantics"
     );
-    Ok(balance)
-}
-
-fn supported_inventory_quantities(save: &SaveSlot) -> Result<serde_json::Map<String, Value>> {
     let mut quantities = serde_json::Map::new();
 
-    // The native HUD calls Fix ItemWire id 0 currency. Its source record is a
-    // separately rooted resource balance, not an ordinary inventory handle.
-    // Require the record and preserve an explicit zero instead of falling
-    // back to Inventory.quantity(0)'s default.
-    quantities.insert("0".to_owned(), json!(source_resource_balance(save)?));
+    // The OpenSpace reader resolves item 0 from the Fix inventory composition;
+    // keep the native quantity key stable and preserve a saved zero verbatim.
+    quantities.insert(item_zero.item_id.to_string(), json!(item_zero.quantity));
 
     // Inventory main-list +10 stores signed instantiated item numbers. Map
     // only the item handles used by the current Godot manor slice; every
-    // unselected/unmapped record remains in the attached source table.
+    // unselected/unmapped record remains in the diagnostic sibling artifact.
     for (item, identity) in [
         ("21", "0:10:4242"),
         ("54", "0:10:1562"),
@@ -100,6 +96,14 @@ fn supported_inventory_quantities(save: &SaveSlot) -> Result<serde_json::Map<Str
         }
     }
     Ok(quantities)
+}
+
+fn source_diagnostics_path(output: &Path) -> PathBuf {
+    let stem = output
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("original_save_import");
+    output.with_file_name(format!("{stem}.source-diagnostics.json"))
 }
 
 fn source_position_prefix(save: &SaveSlot) -> Result<&[u8]> {
@@ -211,10 +215,14 @@ fn saved_bool(save: &SaveSlot, identity: &str, kind: u8) -> Result<bool> {
     }
 }
 
-fn godot_state(save: &SaveSlot) -> Result<Option<(Value, Vec<String>)>> {
+fn godot_state(
+    save: &SaveSlot,
+    item_zero: Option<SavedInventoryItem>,
+) -> Result<Option<(Value, Vec<String>)>> {
     if save.current_level != "manoir" {
         return Ok(None);
     }
+    let item_zero = item_zero.context("manoir save has no source-composed item-0 value")?;
 
     // These Hype PC English-build identities have source ownership and reload
     // evidence recorded in docs/openspace/save-games.md. Keep the profile
@@ -240,7 +248,7 @@ fn godot_state(save: &SaveSlot) -> Result<Option<(Value, Vec<String>)>> {
     let rotation = source_rotation(source_position);
     let global_gate_sequence = saved_bool(save, "0:17:4560", 0x10)?;
 
-    let quantities = supported_inventory_quantities(save)?;
+    let quantities = supported_inventory_quantities(save, item_zero)?;
 
     let magick = json!({
         "current_points": current_mana,
@@ -289,13 +297,23 @@ fn godot_state(save: &SaveSlot) -> Result<Option<(Value, Vec<String>)>> {
 
 /// Read and convert one extracted original save slot into an import JSON file
 /// consumed by the Godot Load Game path.
-pub fn import_original_slot(input: &Path, output: &Path, profile: &str) -> Result<Value> {
+pub fn import_original_slot(
+    input: &Path,
+    game: &Path,
+    output: &Path,
+    profile: &str,
+) -> Result<Value> {
     ensure!(
         profile == HYPE_PC_ENGLISH_PROFILE,
         "unsupported save import profile; select {HYPE_PC_ENGLISH_PROFILE} explicitly"
     );
     let save = crate::openspace::save_game::read_slot(input)?;
-    let state = godot_state(&save)?;
+    let item_zero = if save.current_level == "manoir" {
+        Some(read_saved_inventory_item_zero(game, &save)?)
+    } else {
+        None
+    };
+    let state = godot_state(&save, item_zero)?;
     let has_godot_state = state.is_some();
     let (state, warnings) = state
         .map(|(state, warnings)| (Some(state), warnings))
@@ -310,6 +328,14 @@ pub fn import_original_slot(input: &Path, output: &Path, profile: &str) -> Resul
         "display_name": save.display_name,
         "game_timer_ms": save.game_timer_ms,
         "godot_state": state,
+        "semantic_inventory_items": item_zero.map_or_else(Vec::new, |item| {
+            vec![json!({
+                "component": "inventory_item",
+                "item_id": item.item_id,
+                "quantity": item.quantity,
+                "capacity": item.capacity,
+            })]
+        }),
         "warnings": warnings,
         "restored_fields": [
             "Hype saved position and uniquely recoverable orientation",
@@ -321,26 +347,31 @@ pub fn import_original_slot(input: &Path, output: &Path, profile: &str) -> Resul
         ],
         "not_restored": [
             "Hype current AI behavior state",
-            "Hype default magic points at 0:5:4986210; the native magick API has no separate default-points field",
+            "Hype default magic-point amount; the native magick API has no separate default-points field",
             "Hype health and armor; no Hype-owned save identity is mapped to the native hit-point resource",
             "active weapon selection; the fixture's selected-item flags do not identify one active weapon",
             "other source records without a supported Godot field mapping",
         ],
-        "source_save": save,
     });
     if !has_godot_state {
         report["godot_state"] = Value::Null;
     }
     let bytes = serde_json::to_vec_pretty(&report)?;
     crate::files::write_atomic(output, &bytes)?;
+    let diagnostics = serde_json::to_vec_pretty(&json!({
+        "schema": 1,
+        "format": "astrolabe-openspace-save-source-diagnostics",
+        "profile": profile,
+        "source_save": save,
+    }))?;
+    crate::files::write_atomic(&source_diagnostics_path(output), &diagnostics)?;
     Ok(report)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        godot_basis, source_resource_balance, source_rotation, supported_inventory_quantities,
-    };
+    use super::{godot_basis, source_rotation, supported_inventory_quantities};
+    use crate::openspace::level::SavedInventoryItem;
     use crate::openspace::save_game::{SaveMember, SaveSlot, parse_records};
     use std::collections::BTreeMap;
 
@@ -412,30 +443,39 @@ mod tests {
 
     #[test]
     fn item_zero_balance_preserves_an_explicit_zero() {
-        let save = synthetic_save(&[
-            (5790, 0),
-            (5828, 200),
-            (4242, -1),
-            (1562, -1),
-            (1738, -1),
-            (2802, -1),
-            (214, 8),
-        ]);
-        let quantities = supported_inventory_quantities(&save).expect("supported quantities");
+        let save = synthetic_save(&[(4242, -1), (1562, -1), (1738, -1), (2802, -1), (214, 8)]);
+        let item_zero = SavedInventoryItem {
+            item_id: 0,
+            quantity: 0,
+            capacity: 200,
+        };
+        let quantities =
+            supported_inventory_quantities(&save, item_zero).expect("supported quantities");
         assert_eq!(quantities["0"], 0);
         assert_eq!(quantities["80"], 8);
         assert_eq!(quantities.len(), 6);
     }
 
     #[test]
-    fn item_zero_balance_requires_a_valid_saved_record_and_capacity() {
-        let missing_balance = synthetic_save(&[(5828, 200)]);
-        assert!(source_resource_balance(&missing_balance).is_err());
-
-        let over_capacity = synthetic_save(&[(5790, 201), (5828, 200)]);
-        assert!(source_resource_balance(&over_capacity).is_err());
-
-        let negative_balance = synthetic_save(&[(5790, -1), (5828, 200)]);
-        assert!(source_resource_balance(&negative_balance).is_err());
+    fn item_zero_gameplay_payload_is_address_free_and_stable() {
+        let save = synthetic_save(&[(4242, -1), (1562, -1), (1738, -1), (2802, -1), (214, 8)]);
+        let original = SavedInventoryItem {
+            item_id: 0,
+            quantity: 20,
+            capacity: 200,
+        };
+        let relocated = SavedInventoryItem {
+            item_id: 0,
+            quantity: 20,
+            capacity: 200,
+        };
+        let original_state = supported_inventory_quantities(&save, original).unwrap();
+        let relocated_state = supported_inventory_quantities(&save, relocated).unwrap();
+        assert_eq!(original_state, relocated_state);
+        let payload = serde_json::json!({"inventory":{"quantities":relocated_state}});
+        let serialized = serde_json::to_string(&payload).unwrap();
+        for forbidden in ["offset", "block", "module", "relocation", "5790", "5828"] {
+            assert!(!serialized.contains(forbidden));
+        }
     }
 }

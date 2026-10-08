@@ -32,15 +32,29 @@ func run() -> void:
     if typeof(saved_currency) != TYPE_INT or int(saved_currency) != 20:
         fail("Authentic SaveGame0 item-0 balance must restore its saved value 20")
         return
-    var player_records: Array = report["source_save"]["members"]["Level000.sav"]["records"]["records"]
-    var currency_record: Dictionary = {}
-    for record in player_records:
-        var header: Dictionary = record["header"]
-        if int(header["block"]) == 0 and int(header["module"]) == 10 and int(header["offset"]) == 5790:
-            currency_record = record
-            break
-    if currency_record.is_empty() or int(currency_record["header"]["data_type"]) != 2 or currency_record["value_hex"] != "1400":
-        fail("Authentic SaveGame0 item-0 balance is not backed by SAI record 0:10:5790")
+    var semantic_items: Variant = report.get("semantic_inventory_items")
+    if not semantic_items is Array or semantic_items.size() != 1:
+        fail("Original import is missing its semantic inventory item projection")
+        return
+    var semantic_item: Variant = semantic_items[0]
+    if (
+        not semantic_item is Dictionary
+        or int(semantic_item.get("item_id", -1)) != 0
+        or int(semantic_item.get("quantity", -1)) != 20
+        or int(semantic_item.get("capacity", -1)) != 200
+    ):
+        fail("Original import item-0 semantic value/capacity differs")
+        return
+    if report.has("source_save"):
+        fail("Gameplay import must not embed raw source-save records")
+        return
+    var gameplay_json := JSON.stringify(report)
+    for forbidden in ["offset", "block", "module", "relocation", "5790", "5828"]:
+        if gameplay_json.contains(forbidden):
+            fail("Gameplay import leaked source diagnostic data: " + forbidden)
+            return
+    if report["restored_fields"].is_empty():
+        fail("Gameplay import did not retain its named restored field summary")
         return
     var transform: Dictionary = state["actors"][SAVE_STATE.ACTOR]["transform"]
     if not transform.has("position") or transform["position"].size() != 3:
