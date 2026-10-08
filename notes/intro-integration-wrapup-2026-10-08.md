@@ -13,12 +13,15 @@ runtime/export fix is `bac48e1`. Rete55 and support interface72 are coordinated.
 All shared audio, Character, AI, model, parser and exporter ownership has returned
 to the lead. Source-only worker checkouts are preserved and parked.
 
-Tracked changes are committed with this note. Destination Godot import created
-21 untracked `.uid` sidecars for maintained support, authored game and observer
-scripts. They remain intact, with the exact inventory in ignored
-`output/integration-resume-20261008/native-uid-sidecars.json`. There are no pending
-tracked code edits. No game assets, saves, reference submodules or user files
-were discarded. Generated root content and all evidence remain local.
+Subsequent Git housekeeping preserves and tracks the 21 `.uid` sidecars created
+by destination Godot import: five maintained support assets, three authored game
+scripts and thirteen test/observer scripts. Every owner is tracked, and the UIDs
+are valid and unique across maintained sidecars. The eight packaged owners also
+include their sidecars in the support/starter inventories; no interface changes
+are needed. The original inventory remains in ignored
+`output/integration-resume-20261008/native-uid-sidecars.json`. No game assets,
+saves, reference submodules or user files were discarded. Generated root content
+and all evidence remain local; no gameplay work resumed for this housekeeping.
 
 ## Completed and unmerged pieces
 
