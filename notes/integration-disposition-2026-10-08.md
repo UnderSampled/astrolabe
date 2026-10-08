@@ -1,5 +1,12 @@
 # Preserved work integration disposition — 2026-10-08
 
+Latest outcome: all approved preserved contributions are integrated, production
+session filenames are cleaned up, and the actual Godot project is rehydrated on
+support77/Rete58. The successful preparation and source-freeze accounting are
+recorded at the end of this note. Earlier failures remain historical evidence.
+Tests and gameplay are prohibited by the latest user direction; no full intro,
+New/Load flow or actual barrel/drop interaction acceptance is claimed.
+
 Main-checkout audit started from clean `main` at
 `edb7704b2597c26c78086acad2f58eaba1db7a78`. It inspected all 53 local refs,
 47 registered worktrees (five paths already missing/prunable) and four independent
@@ -222,6 +229,9 @@ next. They have separate evidence and cannot be inferred from these passes.
 
 ## Aggregate preparation: earliest blocker
 
+This section records the first failed preparation checkpoint, superseded by the
+successful corrected preparation below. Its failure evidence is retained.
+
 The one approved actual-root preparation ran against feature/evidence commit
 `d5c8a6725e6acece2b4bdcddc448a29a823be20e`. The authentic English archive hash
 is `877576b5867b5ad44b41dc4b72f6b70bc89dbe5e202c86817f2858948a1d634c`;
@@ -234,7 +244,7 @@ ignored evidence. No source record/address enters runtime payloads.
 The existing staging `--headless --import` reaches its60-second inner deadline;
 there are no completed scopes. The outer supervisor reports exit1, no timeout,
 no leaked/remaining children, unchanged source and unchanged save fixture. The
-current generated manifest still identifies support72, so it is unsuitable for
+generated manifest at this attempt still identifies support72, so it is unsuitable for
 acceptance of the support77 union. No current gameplay run or screenshot was
 attempted against it. No full conversion retry or timeout increase followed.
 
@@ -269,12 +279,11 @@ name alone does not prove a Manor title cue. No title popup is forced into the
 Manor observer or game. The unchanged Astrolabe title cue/catalogue/native check
 passes in the aggregate selection; an actual Manor title is not claimed.
 
-No useful completed audited contribution is awaiting integration. Actual project
-rehydration and New/Load/drop acceptance are blocked. The smallest next action
-is a lead-directed bounded preparation retry with required local privileges,
-followed by the one prepared actual-game acceptance if conversion succeeds.
-Do not replay worker stashes, raise import budgets speculatively, change source
-state or run the original game to mask this blocker.
+At this checkpoint no useful completed audited contribution awaited integration;
+actual rehydration and New/Load/drop acceptance were blocked. The proposed bounded
+preparation retry subsequently received explicit approval. Rehydration is now
+complete; the later no-tests direction supersedes the proposed gameplay run.
+No worker stash or original-game run is used to mask a reconstruction issue.
 
 ## Complete ref snapshot
 
@@ -417,3 +426,46 @@ deleted and no resumable staging/cache path is supported. Explicit failed-build
 diagnostic capture now keeps any newly failed native-build staging project and
 records its path alongside the copied builder, preserving inputs and import
 cache for inspection. No imported cache is copied into the consumer project.
+
+## Actual project preparation and publication completed
+
+Against production commit `4edab8d4a39571d158691a5448dcb87cf3efebb1`, the normal
+release CLI build completes in68.786s and `prepare-game disc godot` completes
+with exit0 in464.923s. Each stage stays inside its declared deadline and leaves
+no remaining/leaked child processes. All four native scopes succeed before
+grouped ownership-guarded publication and destination import. The actual local
+manifest now records schema2, support77 and Godot
+`4.7.2.stable.arch_linux.ed1daf0bf`: Manor8,793 files, menu88, inventory213,
+pause-menu27, with9,119 unique files after shared ownership. Rete remains58.
+No preparation scope remains awaiting execution or publication.
+
+The freshly captured builder contains20 `neighbor_paths.assign(...)` statements
+and no GDScript typed-array constructor calls. Its only differences from the
+prior failed builder are those20 systemic replacements. Native building reaches
+resource construction and completes; this is conversion evidence, not gameplay.
+The generated content, native validation data and imported save stay ignored.
+
+The outer evidence wrapper exits1 despite the CLI's successful exit0 because
+the destination editor creates five `.gd.uid` files for already tracked
+development scripts: `actor_world_save_state`, `ai_wait_integer`,
+`ai_wait_integer_fields`, `check_level_loading_cap`, and
+`inventory_scene_runtime`. The original failed wrapper result is preserved.
+Recomputing its exact source digest while excluding only these five new files
+matches the pre-generation digest
+`bcddb739984fe035cdf8fb597434888fa30e2efaf321f7693ce40381fad5be0c`.
+Their owners are tracked and each new UID has one owner in maintained source.
+The sidecars are preserved in Git; no other implementation source changed
+during generation. The outcome report distinguishes successful preparation from
+this source-freeze metadata flag rather than relabeling the raw wrapper pass.
+
+Ignored evidence is
+`output/integration-resume-20261008/artifact-sector-array-corrected/`:
+`result.json` (raw wrapper), `outcome.json` (operation and UID accounting),
+`prepare-summary.json`, `prepare-game.log`, `release-build.log`,
+`generated-build.gd` and `static-emission-review.json`. The complete logs from
+both earlier failures remain preserved. No further test, harness, observer,
+original-game or actual-game execution accompanies this publication. Historical
+118/118 Rust and29 Python safeguard results apply to the earlier feature
+snapshot, not these later filename/emitter/import/publication changes. Full
+opening and actual New/Load/drop behavior remain unaccepted under the current
+no-tests direction; all initially audited integration candidates are disposed.

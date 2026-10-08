@@ -1,5 +1,34 @@
 # Rust implementation evidence
 
+2026-10-08 main integration and actual-project rehydration: the preserved
+inventory motion, WaitInteger, title, pickup/barrel, first-visit armor/camera,
+Brain-slot and native checkpoint contributions are integrated on Rete58 and
+support77. Production files are `game_session.gd`/`.tscn` and
+`session_camera.gd`, preserving script UIDs and existing node/observer APIs.
+The release CLI build against `4edab8d4a39571d158691a5448dcb87cf3efebb1`
+completes in68.786s; corrected `prepare-game disc godot` exits0 in464.923s,
+publishing all four scopes after isolated preparation and destination import.
+The local schema2 manifest records9,119 unique files: Manor8,793, menu88,
+inventory213 and pause-menu27 on Godot4.7.2. No child process remains.
+
+The first restricted import and the later invalid generated typed-array
+expression are retained failures, resolved by explicitly approved local import
+privileges, private mip-input exclusion/workload-bound import budgets, and one
+systemic sector-neighbor emitter correction. Destination import creates five
+UID sidecars for tracked development scripts; the raw evidence wrapper flags
+that source-digest change while the preparation command succeeds. Excluding
+only those new sidecars reproduces the original source digest; their identities
+are preserved in Git. The [integration disposition](integration-disposition-2026-10-08.md)
+links the exact failures, publication and source-freeze accounting.
+
+The earlier focused feature snapshot passed118/118 Rust cases and29 Python
+safeguards with all21 mandatory safeguards. Those are historical results for
+`d493ef24859d9b2a0b18ed68f5ebb845e7feeebb`. The subsequent user direction
+prohibits further tests, harnesses and gameplay. No full opening, actual
+New/Load flow or actual barrel/drop/collect acceptance is claimed for the newly
+rehydrated project. No audited preserved contribution remains awaiting a merge;
+six new isolated feature workers are a separate continuation.
+
 2026-10-07 isolated armor/AI feature port: the source-backed Fix armor catalog
 is modeled and imported through Fix relocations and explicit MMG allocation
 boundaries, persisted in Rete 43, and exported as native Godot resources and

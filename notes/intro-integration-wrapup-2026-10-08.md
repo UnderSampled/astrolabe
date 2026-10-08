@@ -5,8 +5,10 @@ records the resumed main-checkout audit, inventory/loading work, reconciled
 evidence and separately assigned title/pickup/armor/camera/save contributions.
 The parked state and “no production cap patch” below describe this checkpoint.
 The resumed integration disposition records completed title/pickup/checkpoint
-merges and the current aggregate regeneration blocker; those original candidates
-are no longer awaiting integration.
+merges, production filename cleanup and successful support77 actual-project
+preparation/publication; those original candidates are no longer awaiting
+integration. The latest user direction prohibits further tests and gameplay;
+full opening acceptance is not inferred from rehydration.
 
 Root content is rebuilt, but the complete opening is not accepted. Work is
 parked at the user's request; no next implementation batch is started here.
