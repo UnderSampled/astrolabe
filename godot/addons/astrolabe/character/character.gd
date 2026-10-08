@@ -10,6 +10,7 @@ const SOURCE_INVENTORY = preload("res://addons/astrolabe/character/inventory.gd"
 const SOURCE_MAGICK = preload("res://addons/astrolabe/character/magick.gd")
 const SOURCE_LASER_POINTER = preload("res://addons/astrolabe/character/laser_pointer.gd")
 const SOURCE_RENDERING = preload("res://addons/astrolabe/character/rendering.gd")
+const CONTACT_MATERIAL = preload("res://addons/astrolabe/character/explosive_barrel.gd")
 const SOURCE_COLLISION_QUERY_MAX_RESULTS := 4096
 const SOURCE_CAMERA_DATA3D_WALK_CALLBACK := 0x00585d51 # DAT_00757320[0/8]
 @export var initial_state: int = -1
@@ -41,6 +42,11 @@ var source_transparent_display: bool:
 @export var autoplay: bool = true
 ## Gameplay uses physics ticks; ordinary editor/pose inspection stays stationary.
 @export var motion_enabled: bool = false
+@export_node_path("Marker3D") var source_picking_center_path: NodePath
+@export_node_path("Node3D") var source_contact_sector_path: NodePath
+@export var source_contact_eligible: bool = true
+var _contact_sector: Node3D
+var _contact_previous: Variant = null
 ## World-space acceleration supplied by the level/game's environment.
 @export var gravity: Vector3 = Vector3.ZERO
 ## Velocity from forces/impulses, separate from the next animation displacement.
@@ -85,7 +91,7 @@ var generated_object: Node3D
 var source_hud_display: Dictionary = {}
 ## Last evaluated local displacement, including every native substep and loop.
 var root_motion_displacement: Vector3 = Vector3.ZERO
-## Preserved OpenSpace object-active bit; independent of visibility, physics and AI.
+## Native activation gates rendering, decision ticks and actor contact eligibility.
 var source_object_active: bool = true
 var restored_configuration: bool = false
 var suppress_cues: bool = false
@@ -115,6 +121,8 @@ var playing: bool:
 ## Resolve ordinary scene-owned state before child Brains enter _ready. Nested
 ## PackedScene instances otherwise duplicate local-to-scene resource overrides.
 func _enter_tree() -> void:
+    var stock: Resource = (get_meta("source_stock") if has_meta("source_stock") else null) as Resource
+    if stock != null: set_meta("source_stock", stock.duplicate(true))
     if source_state_owner_path.is_empty():
         return
     var state_owner := get_node(source_state_owner_path)
@@ -122,6 +130,7 @@ func _enter_tree() -> void:
     source_magick = state_owner.get_meta("source_magick") as Resource
 
 func _ready() -> void:
+    _contact_previous = global_position
     _source_reset_camera_data3d_history()
     if source_inventory == null:
         source_inventory = SOURCE_INVENTORY.new()
@@ -654,12 +663,49 @@ func source_set_impulse(value: Vector3) -> void:
     source_impulse = value
 
 func source_jump_absolute() -> void:
+    motion_enabled = true
+    _configure_motion()
     external_velocity = _source_relative_vector(source_vector_speed + source_impulse)
     source_impulse = Vector3.ZERO
     source_relative_motion = false
     source_airborne = true
 
+## Proc46/event9 rotates VectorSpeed and retains accumulated motion (0058cc2d).
+func source_jump() -> void:
+    motion_enabled = true
+    _configure_motion()
+    external_velocity += _source_relative_vector(source_vector_speed)
+    source_relative_motion = false
+    source_airborne = true
+
+func source_picking_center() -> Vector3:
+    if source_picking_center_path.is_empty(): return global_position
+    var center := get_node(source_picking_center_path) as Marker3D
+    assert(center != null, "Converted picking center is missing")
+    return center.global_position
+
+func source_set_stock_count(actor: Variant, amount: int) -> bool:
+    if not (actor is Node) or not is_instance_valid(actor): return false
+    if not actor.get_meta("source_stock_bound", false): return false
+    var stock := (actor.get_meta("source_stock") if actor.has_meta("source_stock") else null) as Resource
+    # The original setter does nothing on a valid actor with absent stock.
+    if stock == null: return true
+    var count := amount & 0xffff
+    stock.set("count", count - 0x10000 if count >= 0x8000 else count)
+    return true
+
+func source_display_pickup(item: int, milliseconds: int, from: float, to: float, x: int, y: int, width: int, height: int) -> bool:
+    var ancestor: Node = self
+    while ancestor != null:
+        var screen := ancestor.get_node_or_null("InventoryHost")
+        if screen != null and screen.has_method("source_display_pickup"):
+            return bool(screen.call("source_display_pickup", item, milliseconds, from, to, x, y, width, height))
+        ancestor = ancestor.get_parent()
+    return false
+
 func source_jump_without_adding_speed() -> void:
+    motion_enabled = true
+    _configure_motion()
     external_velocity += _source_relative_vector(source_impulse)
     source_impulse = Vector3.ZERO
     source_relative_motion = false
@@ -937,7 +983,11 @@ func source_execute_action_and_generate_object(template_path: String, action: in
     if not vector.is_finite():
         push_error("Action/object request has an invalid motion vector")
         return -1
-    var destination := get_tree().current_scene as Node3D
+    # Generated actors share the active level's state and external references.
+    # The authored game session is above that level and owns a different API.
+    var destination: Node3D = self
+    while destination != null and not destination.has_meta("source_actor_brains"):
+        destination = destination.get_parent() as Node3D
     if destination == null:
         # Embedded and test-run scenes may be added directly under the root.
         var ancestor: Node = self
@@ -988,11 +1038,19 @@ func source_execute_action_and_generate_object(template_path: String, action: in
     if generated_brain != null:
         # A generated Perso's compiled Brain reads the source main actor. Bind
         # that ordinary scene reference before _ready schedules its first tick.
-        generated_brain.set("main_actor", self)
+        var caller_brain := get_node_or_null("Brain")
+        var main: Node3D = caller_brain.get("main_actor") if caller_brain != null else self
+        if not is_instance_valid(main):
+            generated.free()
+            push_error("Generated actor requires the active MainActor binding")
+            return -1
+        generated_brain.set("main_actor", main)
         if waits_for_release: generated_brain.set("automatic", false)
+    if generated.has_method("source_contact_sector"):
+        generated.set("_contact_sector", source_contact_sector())
     destination.add_child(generated)
     if generated_brain != null:
-        generated_brain.set("main_actor_path", generated_brain.get_path_to(self))
+        generated_brain.set("main_actor_path", generated_brain.get_path_to(generated_brain.get("main_actor")))
     generated.set_meta("astrolabe_generated_template", template_path)
     if waits_for_release:
         generated.visible = false
@@ -1164,6 +1222,8 @@ func source_set_object_active(actor_asset: String, active: bool) -> bool:
 
 func source_set_object_active_state(active: bool) -> bool:
     source_object_active = active
+    visible = active
+    process_mode = Node.PROCESS_MODE_INHERIT if active else Node.PROCESS_MODE_DISABLED
     return true
 
 ## Hype Proc_SetPersoAbsolutePosition moves the executing Perso.
@@ -1316,49 +1376,87 @@ func _state_movement_collision(_state: int) -> void:
 func _set_zde_shape_active(shape: CollisionShape3D, active: bool) -> void:
     shape.disabled = not active or (int(shape.get_meta("source_collision_identifier", 0)) & 0x8000) != 0
 
-## Condition 28 intersects one of this Perso's active ZDE zones with candidate
-## character ZDM collision shapes. Hype filters candidate collision materials
-## by identifier mask 1 before counting a result.
-func source_collide_perso_zde_no_with_type_zde(zone_number: int, maximum: int) -> bool:
-    if zone_number <= 0 or maximum <= 0:
+## Native contact sectors are named scene nodes; no retained source JSON or
+## source character lists are interpreted here. Generated drops inherit theirs.
+func source_contact_sector() -> Node3D:
+    if not is_instance_valid(_contact_sector) and not source_contact_sector_path.is_empty():
+        _contact_sector = get_node_or_null(source_contact_sector_path) as Node3D
+    if _contact_previous == null: _contact_previous = global_position
+    if is_instance_valid(_contact_sector) and _contact_previous != global_position:
+        var start: Vector3 = _contact_previous
+        for crossing in 64:
+            var boundary := _contact_sector.get_node_or_null("SectorBoundary")
+            if boundary == null or not boundary.has_method("first_source_sector_crossing"): break
+            var hit: Dictionary = boundary.call("first_source_sector_crossing", start, global_position)
+            var target: Node3D = hit.get("target") as Node3D
+            if not is_instance_valid(target) or target == _contact_sector: break
+            _contact_sector = target
+            start = hit["position"] + start.direction_to(global_position) * 0.00001
+    _contact_previous = global_position
+    return _contact_sector
+
+func _source_contact_actor(collider: CollisionObject3D) -> Node3D:
+    var actor: Node = collider
+    while actor != null:
+        if actor.has_method("source_contact_sector"): return actor as Node3D
+        actor = actor.get_parent()
+    return null
+
+func _source_contact_candidate(actor: Node3D, physical: bool) -> bool:
+    if actor == null or actor == self or not actor.source_contact_eligible or not actor.source_object_active:
         return false
+    if physical and not actor.is_visible_in_tree(): return false
+    var own_sector := source_contact_sector()
+    var target_sector: Node3D = actor.source_contact_sector()
+    # Standalone synthetic/authored actors may have no source-sector binding.
+    if own_sector == null: return target_sector == null
+    if not bool(own_sector.get_meta("contact_sector_active", false)): return false
+    if target_sector == null or not bool(target_sector.get_meta("contact_sector_active", false)): return false
+    if target_sector == own_sector: return true
+    for neighbor in own_sector.get_meta("contact_sector_neighbors", []):
+        if own_sector.get_node_or_null(neighbor) == target_sector: return true
+    return false
+
+## Cond28's third argument is a low16 all-bit material mask. Independent
+## source result capacity is one. Native shape/physics ordering is an explicit
+## adaptation; this does not claim the original selects the same contact pair.
+func source_collide_perso_zde_no_with_type_zde(zone_number: int, material_mask: int) -> bool:
     var query_area := get_node_or_null("ZDE") as Area3D
-    if query_area == null:
-        return false
+    if query_area == null or not source_object_active: return false
+    var sector := source_contact_sector()
+    if sector != null and not bool(sector.get_meta("contact_sector_active", false)): return false
     var space := get_world_3d().direct_space_state
-    var matches: Dictionary = {}
+    var selected_zone := (zone_number - 1) & 0xff
+    var selected_actors: Dictionary = {}
     for value in query_area.find_children("*", "CollisionShape3D", true, false):
         var query_shape := value as CollisionShape3D
-        if int(query_shape.get_meta("source_zone", -1)) != zone_number - 1:
-            continue
-        if query_shape.disabled or query_shape.shape == null:
-            continue
+        if int(query_shape.get_meta("source_zone", -1)) != selected_zone: continue
+        if query_shape.disabled or query_shape.shape == null: continue
         var parameters := PhysicsShapeQueryParameters3D.new()
         parameters.shape = query_shape.shape
         parameters.transform = query_shape.global_transform
-        parameters.collision_mask = 2
-        parameters.collide_with_areas = false
-        parameters.collide_with_bodies = true
+        parameters.collision_mask = 4 | 16
+        parameters.collide_with_areas = true
+        parameters.collide_with_bodies = false
         parameters.margin = 0.0
-        parameters.exclude = [get_rid()]
-        for hit in space.intersect_shape(parameters, SOURCE_COLLISION_QUERY_MAX_RESULTS):
-            var other_actor := hit.get("collider") as CharacterBody3D
-            if other_actor == null or other_actor == self:
-                continue
-            var shape_index := int(hit.get("shape", -1))
-            if shape_index < 0:
-                continue
-            var owner_id := other_actor.shape_find_owner(shape_index)
-            if owner_id < 0:
-                continue
-            var other_shape := other_actor.shape_owner_get_owner(owner_id) as CollisionShape3D
-            if other_shape == null or not other_shape.has_meta("source_collision_identifier"):
-                continue
-            var identifier := int(other_shape.get_meta("source_collision_identifier"))
-            if (identifier & 1) == 0:
-                continue
-            matches[other_actor.get_instance_id()] = true
-            if matches.size() >= maximum:
+        parameters.exclude = [query_area.get_rid()]
+        var hits := space.intersect_shape(parameters, SOURCE_COLLISION_QUERY_MAX_RESULTS)
+        # ZDE contacts precede physical fallback. Once the native intersection
+        # chooses a target pair, its failed material cannot be replaced by a
+        # different shape of that same actor. Within each kind native ordering
+        # remains an explicit adaptation of source list/element order.
+        hits.sort_custom(func(a, b): return not bool(a.collider.get_meta("physical_object_contact", false)) and bool(b.collider.get_meta("physical_object_contact", false)))
+        for hit in hits:
+            var collider := hit.get("collider") as CollisionObject3D
+            if collider == null: continue
+            var physical := bool(collider.get_meta("physical_object_contact", false))
+            var actor := _source_contact_actor(collider)
+            if not _source_contact_candidate(actor, physical): continue
+            if physical and not collider.is_visible_in_tree(): continue
+            var identity := actor.get_instance_id()
+            if selected_actors.has(identity): continue
+            selected_actors[identity] = true
+            if CONTACT_MATERIAL.contact_material_matches(collider, int(hit.get("shape", -1)), material_mask):
                 return true
     return false
 

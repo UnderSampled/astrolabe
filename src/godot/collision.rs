@@ -139,6 +139,11 @@ impl Project {
                 value.collision.identifier(),
                 value.sound_material
             )?;
+            writeln!(
+                self.builder,
+                "    {name}.set_meta(\"source_contact_material_present\", {})",
+                matches!(value.collision, CollisionProperties::Surface { .. })
+            )?;
             if value.collision.identifier() & 0x8000 != 0 {
                 writeln!(self.builder, "    {name}.disabled = true")?;
             }

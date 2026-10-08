@@ -41,59 +41,42 @@ func _run() -> void:
 	await process_frame
 
 	var cases := [
-		[4, 0, 5, true], [5, 0, 5, false],
-		[5, 1, 5, true], [4, 1, 5, false],
-		[5, 2, 5, true], [4, 2, 5, false],
-		[5, 3, 5, true], [6, 3, 5, false],
-		[6, 4, 5, true], [5, 4, 5, false],
-		[4, 5, 5, true], [5, 5, 5, false],
-		[-1, 4, 1, false], [-1, 5, 0, true],
-		[2147483647, 4, -2147483648, true],
-		[2147483648, 5, -2147483648, false],
-		[4294967295, 5, 0, true],
-		[4, 6, 5, false], [4, 255, 5, false],
-		[4, 256, 5, true],
+		[5, 0, 5, true], [4, 0, 5, false],
+		[4, 1, 5, true], [5, 1, 5, false],
+		[4, 2, 5, true], [5, 2, 5, false],
+		[6, 3, 5, true], [5, 3, 5, false],
+		[5, 4, 5, true], [6, 4, 5, false],
+		[5, 5, 5, true], [4, 5, 5, false],
+		[4294967295, 2, 0, true], [2147483648, 0, -2147483648, true],
+		[4, 6, 5, true], [4, 255, 5, true], [4, 256, 5, true],
 	]
 	for index in cases.size():
 		var item: Array = cases[index]
 		if not await _run_case(brain, global_brain, main_brain, item[0], item[1], item[2], item[3], "case %d" % index):
 			return
 
-	# The source callback reads actor Brain values again after every schedule tick.
-	if not await _run_case(brain, global_brain, main_brain, 5, 5, 5, false, "fresh operand setup"):
+	# Only the observed property is live; selector and expected are captured.
+	if not await _run_case(brain, global_brain, main_brain, 4, 5, 5, false, "captured wait"):
 		return
-	global_brain.dsg_5 = 4
+	main_brain.dsg_7 = 3
+	brain.dsg_0 = 2
 	brain.advance(0.016)
 	await process_frame
-	if not _check(brain.dsg_1 == 1, "changed Global.DSG[5] did not release the live wait"):
+	if not _check(brain.dsg_1 == 0, "wait reevaluated captured arguments"):
 		return
-
-	# The right operand and selector are read on each poll as well.
-	if not await _run_case(brain, global_brain, main_brain, 5, 5, 4, false, "right operand mutation setup"):
-		return
-	main_brain.dsg_7 = 6
+	global_brain.dsg_5 = 5
 	brain.advance(0.016)
 	await process_frame
-	if not _check(brain.dsg_1 == 1, "changed MainActor.DSG[7] did not release the live wait"):
+	if not _check(brain.dsg_1 == 1, "changed observed field did not release wait"):
 		return
-
-	if not await _run_case(brain, global_brain, main_brain, 4, 6, 5, false, "selector mutation setup"):
-		return
-	brain.dsg_0 = 5
-	brain.advance(0.016)
-	await process_frame
-	if not _check(brain.dsg_1 == 1, "changed selector did not release the live wait"):
-		return
-
-	# A pending wait must not execute the following statement after cancellation.
-	if not await _run_case(brain, global_brain, main_brain, 5, 5, 5, false, "pending cancellation setup"):
+	if not await _run_case(brain, global_brain, main_brain, 4, 5, 5, false, "cancellation"):
 		return
 	brain.stop()
 	await process_frame
-	global_brain.dsg_5 = 4
+	global_brain.dsg_5 = 5
 	brain.advance(0.016)
 	await process_frame
-	if not _check(brain.dsg_1 == 0, "canceled wait resumed its following statement"):
+	if not _check(brain.dsg_1 == 0, "canceled wait resumed"):
 		return
 
 	print("AI_WAIT_INTEGER_OK")

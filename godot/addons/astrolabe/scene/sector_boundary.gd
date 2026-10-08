@@ -2,6 +2,8 @@
 extends MeshInstance3D
 @export var vertices: PackedVector3Array
 @export var neighbors: PackedStringArray
+## Exporter-resolved native neighbors, parallel to triangle faces.
+@export var neighbor_paths: Array[NodePath] = []
 @export var surfaces: PackedInt32Array
 @export var face_normals: PackedVector3Array
 
@@ -77,6 +79,8 @@ func first_source_sector_crossing(start: Vector3, end: Vector3) -> Dictionary:
             continue
         nearest = fraction
         best = {"sector": neighbors[face], "position": to_global(point), "fraction": fraction}
+        if face < neighbor_paths.size() and not neighbor_paths[face].is_empty():
+            best["target"] = get_node_or_null(neighbor_paths[face])
     return best
 
 func _point_in_triangle(point: Vector3, a: Vector3, b: Vector3, c: Vector3) -> bool:

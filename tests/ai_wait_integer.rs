@@ -127,13 +127,10 @@ fn raw40_roundtrips_live_fix_and_main_actor_operands_through_rete_and_codegen() 
     let reopened = rete::decode::<AiModel>(&rete::encode(&typed)?)?;
     assert_eq!(reopened, typed);
     let generated = godot::ai::compile(&reopened, &[])?;
-    assert!(
-        generated.contains("match wait_integer_selector_0:"),
-        "{generated}"
-    );
-    assert!(generated.contains("int(wait_integer_selector_value_0) & 0xff"));
-    assert!(generated.contains("wait_integer_left_0 >= 0x80000000"));
-    assert!(generated.contains("actor_brain_0_read_"));
+    assert!(generated.contains("match wait_selector_0:"), "{generated}");
+    assert!(generated.contains("& 0xffffffff"));
+    assert!(generated.contains("wait_observed_0 >= 0x80000000"));
+    assert!(generated.contains("var wait_brain_0: Node = (actor_brain_0"));
     assert!(generated.contains("main_actor_brain_"));
     Ok(())
 }
@@ -142,7 +139,7 @@ fn raw40_roundtrips_live_fix_and_main_actor_operands_through_rete_and_codegen() 
 fn unresolved_raw40_actor_operand_is_preserved_and_compiles_fail_closed() -> Result<()> {
     let source = wait_integer_source(0x1234, 5);
     let mut preserved_nodes = Vec::new();
-    for (index, node_bytes) in source.chunks_exact(8).enumerate() {
+    for (index, node_bytes) in source.as_chunks::<8>().0.iter().enumerate() {
         let parameter = u32::from_le_bytes(node_bytes[..4].try_into()?);
         let category = node_bytes[7];
         let indent = node_bytes[6];
@@ -197,7 +194,7 @@ fn unresolved_raw40_actor_operand_is_preserved_and_compiles_fail_closed() -> Res
 }
 
 #[test]
-fn native_raw40_polls_signed_byte_selected_values_and_cancels_pending_waits() -> Result<()> {
+fn native_raw40_captures_arguments_polls_signed_fields_and_cancels_pending_waits() -> Result<()> {
     let output = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("output");
     fs::create_dir_all(&output)?;
     let project = tempfile::tempdir_in(output)?;

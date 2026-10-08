@@ -50,6 +50,7 @@ pub(super) fn export(
         .iter()
         .flat_map(|c| &c.images)
         .chain(value.items.iter().flat_map(|i| &i.images))
+        .chain(value.pickup_artwork.iter().flat_map(|i| &i.images))
     {
         if !images.contains_key(&layer.texture.path) {
             images.insert(
@@ -58,6 +59,45 @@ pub(super) fn export(
             );
         }
     }
+    let mut feedback = format!(
+        "[gd_resource type=\"Resource\" load_steps={} format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/ui/pickup_artwork.gd\" id=\"script\"]\n",
+        images.len() + 2
+    );
+    for (index, path) in images.values().enumerate() {
+        writeln!(
+            feedback,
+            "[ext_resource type=\"Texture2D\" path={} id=\"image{index}\"]",
+            quoted(path)
+        )?;
+    }
+    let entries = value
+        .pickup_artwork
+        .iter()
+        .map(|artwork| {
+            let layers = artwork
+                .images
+                .iter()
+                .map(|layer| {
+                    let index = images
+                        .keys()
+                        .position(|path| path == &layer.texture.path)
+                        .expect("converted pickup texture");
+                    format!("ExtResource(\"image{index}\")")
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("{}: [{}]", artwork.id, layers)
+        })
+        .collect::<Vec<_>>()
+        .join(",\n");
+    writeln!(
+        feedback,
+        "\n[resource]\nscript = ExtResource(\"script\")\nimages = {{{entries}}}"
+    )?;
+    project.write(
+        format!("{directory}/pickup_artwork.tres"),
+        feedback.as_bytes(),
+    )?;
     let atlas = image(
         project,
         source,

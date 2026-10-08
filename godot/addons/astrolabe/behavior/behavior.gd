@@ -77,6 +77,15 @@ func source_select_armor(index: int) -> bool:
 		return false
 	return bool(state.call("select_source_index", index))
 
+## Damage/capacity queries consume the catalogue behind the selection facade.
+## Both are ordinary references to the same level-owned mutable graph.
+func source_armor_catalog() -> Resource:
+	var state := source_armor_state()
+	if state == null: return null
+	if state.has_method("active"): return state
+	if state.has_method("selected_definition"): return state.get("catalog") as Resource
+	return null
+
 func adopt_input(action: StringName, physical_key: Key = KEY_NONE) -> void:
 	# Existing InputMap entries belong to the project, including empty entries
 	# deliberately used to disable a control. Defaults are adopted only once.

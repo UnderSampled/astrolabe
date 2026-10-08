@@ -19,22 +19,6 @@ fn native_pickup_spatial_contacts_barrel_masks_and_grant_lifecycle() -> Result<(
     let temp = tempfile::tempdir()?;
     let project = temp.path().join("project");
     godot::support::initialize(&project)?;
-    // Unregistered candidate support is staged only in this owned harness.
-    for (name, contents) in [
-        (
-            "contact_pickup.gd",
-            include_bytes!("../godot/addons/astrolabe/character/contact_pickup.gd").as_slice(),
-        ),
-        (
-            "explosive_barrel.gd",
-            include_bytes!("../godot/addons/astrolabe/character/explosive_barrel.gd").as_slice(),
-        ),
-    ] {
-        fs::write(
-            project.join("addons/astrolabe/character").join(name),
-            contents,
-        )?;
-    }
     fs::write(
         project.join("check_manor_pickup_barrel.gd"),
         include_bytes!("check_manor_pickup_barrel.gd"),
@@ -126,7 +110,110 @@ fn manor_barrel_templates_keep_actor_stock_and_distinct_source_ownership() -> Re
     let game = std::env::var_os("ASTROLABE_GAME_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| "disc".into());
+    let native_project = tempfile::tempdir()?;
+    godot::support::initialize(native_project.path())?;
+    fs::create_dir_all(native_project.path().join("game"))?;
+    for name in ["inventory_host.gd", "save_state.gd"] {
+        fs::copy(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("godot/game")
+                .join(name),
+            native_project.path().join("game").join(name),
+        )?;
+    }
+    fs::write(
+        native_project.path().join("generated-binding.gd"),
+        "extends \"res://addons/astrolabe/behavior/behavior.gd\"\n@export var source_model_path := \"test:/drop\"\n@export var actor_brain_0_path: NodePath\nvar actor_brain_0: Node\nfunc source_external_actor_brains() -> PackedStringArray:\n    return PackedStringArray([\"fix:/persos/15\"])\n",
+    )?;
+    fs::write(
+        native_project.path().join("fixture-sound.gd"),
+        "extends Resource\nvar identity := \"synthetic pickup dispatch cue\"\nfunc execute(_emitter: Node3D): pass\n",
+    )?;
+    fs::write(
+        native_project.path().join("fixture-sound.tres"),
+        "[gd_resource type=\"Resource\" load_steps=2 format=3]\n[ext_resource type=\"Script\" path=\"res://fixture-sound.gd\" id=\"script\"]\n[resource]\nscript = ExtResource(\"script\")\n",
+    )?;
+    fs::write(
+        native_project.path().join("check_manor_dispatch.gd"),
+        include_bytes!("check_manor_dispatch.gd"),
+    )?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    let parser_log = native_project.path().join("dispatch-parser.log");
+    godot::run_godot(
+        &engine,
+        native_project.path(),
+        &[
+            "--headless",
+            "--log-file",
+            parser_log.to_str().context("parser log")?,
+            "--check-only",
+            "--script",
+            "res://check_manor_dispatch.gd",
+        ],
+        Duration::from_secs(10),
+    )?;
     let imported = import_scene(&game, &Selection::hype("manoir", "en")?)?;
+    let tutorial = imported
+        .ai_models
+        .iter()
+        .find(|model| model.path.as_str() == "fix:/ai/models/535")
+        .context("pickup tutorial dependency missing")?;
+    let behavior = tutorial
+        .normal
+        .as_ref()
+        .context("tutorial Normal set missing")?
+        .behaviors
+        .iter()
+        .find(|behavior| behavior.id == 6)
+        .context("pickup tutorial Normal6 missing")?;
+    for script in behavior
+        .rules
+        .iter()
+        .flatten()
+        .chain(behavior.schedule.iter())
+    {
+        ensure!(
+            script.unsupported_fragments().is_empty(),
+            "first-pickup tutorial unresolved: {:?}",
+            script.unsupported_fragments()
+        );
+    }
+    if let Some(path) = std::env::var_os("ASTROLABE_PICKUP_EVIDENCE_DIR") {
+        let path = PathBuf::from(path);
+        fs::create_dir_all(&path)?;
+        fs::write(
+            path.join("tutorial-source.json"),
+            serde_json::to_vec_pretty(tutorial)?,
+        )?;
+    }
+    let global = imported
+        .persos
+        .iter()
+        .find(|actor| actor.path.as_str() == "fix:/persos/15")
+        .context("Global dependency missing")?;
+    let global_model = imported
+        .ai_models
+        .iter()
+        .find(|model| model.path == global.brain.as_ref().unwrap().model.path)
+        .context("Global AI dependency missing")?;
+    println!(
+        "MANOR_GLOBAL220_SAVE {:x}",
+        global_model.variables[220].save
+    );
+    for index in 220..=228 {
+        ensure!(
+            global_model.variables[index].save == 0x200
+                && matches!(
+                    global_model.variables[index].default,
+                    DesignerValue::Boolean(_)
+                ),
+            "first-pickup save ownership changed for Global[{index}]"
+        );
+        println!(
+            "MANOR_FIRST_PICKUP_FIELD {index} save={:x} default={:?}",
+            global_model.variables[index].save, global_model.variables[index].default
+        );
+    }
     let barrel = imported
         .ai_models
         .iter()
@@ -241,9 +328,100 @@ fn manor_barrel_templates_keep_actor_stock_and_distinct_source_ownership() -> Re
                 })
         })
         .collect();
+    for model in &models {
+        let family = actors
+            .iter()
+            .copied()
+            .chain(imported.persos.iter())
+            .find(|actor| {
+                actor
+                    .brain
+                    .as_ref()
+                    .is_some_and(|brain| brain.model.path == model.path)
+            })
+            .and_then(|actor| {
+                imported
+                    .families
+                    .iter()
+                    .find(|family| family.path == actor.family.path)
+            });
+        for set in [&model.normal, &model.reflex].into_iter().flatten() {
+            for behavior in &set.behaviors {
+                for script in behavior
+                    .rules
+                    .iter()
+                    .flatten()
+                    .chain(behavior.schedule.iter())
+                {
+                    ensure!(
+                        script.unsupported_fragments().is_empty(),
+                        "{} behavior{} unresolved: {:?}",
+                        model.path,
+                        behavior.id,
+                        script.unsupported_fragments()
+                    );
+                }
+            }
+        }
+        let events = model
+            .sound_events()
+            .into_iter()
+            .map(|event| (event.clone(), "res://fixture-sound.tres".to_string()))
+            .collect::<Vec<_>>();
+        let generated = godot::ai::compile_for_family(model, &events, family)?;
+        println!("MANOR_COMPILED {} {} bytes", model.path, generated.len());
+        let name = format!("{}.gd", model.path.as_str().replace([':', '/'], "_"));
+        fs::write(native_project.path().join(&name), &generated)?;
+        let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+        let log = native_project.path().join("source-parser.log");
+        godot::run_godot(
+            &engine,
+            native_project.path(),
+            &[
+                "--headless",
+                "--log-file",
+                log.to_str().context("parser log")?,
+                "--check-only",
+                "--script",
+                &format!("res://{name}"),
+            ],
+            Duration::from_secs(10),
+        )?;
+        if let Some(path) = std::env::var_os("ASTROLABE_PICKUP_EVIDENCE_DIR") {
+            let path = PathBuf::from(path);
+            fs::create_dir_all(&path)?;
+            fs::write(
+                path.join(format!(
+                    "{}.gd",
+                    model.path.as_str().replace([':', '/'], "_")
+                )),
+                generated,
+            )?;
+        }
+    }
+    fs::write(
+        native_project.path().join("check_manor_dispatch.gd"),
+        include_bytes!("check_manor_dispatch.gd"),
+    )?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    let log = native_project.path().join("actual-dispatch.log");
+    let output = godot::run_godot(
+        &engine,
+        native_project.path(),
+        &[
+            "--headless",
+            "--log-file",
+            log.to_str().context("dispatch log")?,
+            "--script",
+            "res://check_manor_dispatch.gd",
+        ],
+        Duration::from_secs(15),
+    )?;
+    ensure!(output.contains("MANOR_ACTUAL_DISPATCH_OK"), "{output}");
     if let Some(path) = std::env::var_os("ASTROLABE_PICKUP_EVIDENCE_DIR") {
         let path = PathBuf::from(path);
         fs::create_dir_all(&path)?;
+        fs::copy(&log, path.join("actual-dispatch.log"))?;
         fs::write(
             path.join("manor-source.json"),
             serde_json::to_vec_pretty(

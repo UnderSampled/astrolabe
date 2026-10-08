@@ -53,6 +53,7 @@ fn actor_target_label(target: &ActorTarget) -> String {
         ActorTarget::Keyword(ActorKeyword::SelfActor) => "Me".into(),
         ActorTarget::Keyword(ActorKeyword::MainActor) => "MainActor".into(),
         ActorTarget::Reference(actor) => actor.path.as_str().into(),
+        ActorTarget::Variable(index) => format!("dsg_{index}"),
     }
 }
 
@@ -225,6 +226,8 @@ mod tests {
                 hit_points: None,
                 inventory_stock: None,
                 motion_binding_present: false,
+                picking_bounds: None,
+                contact_eligible: true,
                 microphone: None,
                 routes: Vec::new(),
                 brain: None,
@@ -428,6 +431,7 @@ fn compile_with_bindings(
             quoted(resource)
         )?;
     }
+    out.push_str("const NativeContactPickup = preload(\"res://addons/astrolabe/character/contact_pickup.gd\")\n");
     let actor_targets = model.actor_field_targets();
     for (i, _) in actor_targets.iter().enumerate() {
         writeln!(out, "@export var actor_brain_{i}_path: NodePath")?;
@@ -761,7 +765,8 @@ fn opaque_accessed_variable(statement: &Statement, model: &AiModel) -> Option<u1
                 Statement::Assign { variable, .. }
                 | Statement::MainActorFieldAssign { variable, .. }
                 | Statement::SubtractAssign { variable, .. }
-                | Statement::AddAssign { variable, .. },
+                | Statement::AddAssign { variable, .. }
+                | Statement::MultiplyAssign { variable, .. },
             ) => Some(*variable),
             AstNode::Statement(Statement::VectorComponentAssign { vector, .. }) => Some(*vector),
             AstNode::Statement(Statement::ArrayAssign {
@@ -824,6 +829,7 @@ fn actor_target_code(actor: &ActorTarget) -> String {
     match actor {
         ActorTarget::Keyword(ActorKeyword::SelfActor) => "character()".into(),
         ActorTarget::Keyword(ActorKeyword::MainActor) => "main_actor".into(),
+        ActorTarget::Variable(index) => format!("dsg_{index}"),
         ActorTarget::Reference(reference) => format!(
             "character().source_actor_node({})",
             quoted(reference.path.as_str())
@@ -852,7 +858,7 @@ fn armor_receiver(
     ));
     writeln!(
         out,
-        "{pad}var {local}: Resource = source_armor_state()\n{pad}if {local} == null or not {local}.has_method(\"active\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
+        "{pad}var {local}: Resource = source_armor_catalog()\n{pad}if {local} == null or not {local}.has_method(\"active\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
     )?;
     if selected {
         writeln!(
@@ -1003,6 +1009,15 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::ActorDistanceFrom { .. }
         | Expression::ActorFacingAngle { .. }
         | Expression::ActorLocalSourceXYDistance(_)
+        | Expression::ActorLocalDistance { .. }
+        | Expression::IsAbovePerso { .. }
+        | Expression::ActorPositionField(_)
+        | Expression::ActorHitPoints(_)
+        | Expression::GameState
+        | Expression::InventoryGold
+        | Expression::InventoryMaximum(_)
+        | Expression::Sine(_)
+        | Expression::Cosine(_)
         | Expression::IsValidActor(_)
         | Expression::ApplyArmoredDamage(_)
         | Expression::ArmorResistance
@@ -1079,7 +1094,7 @@ fn guarded_expression(
                 "character().global_position.distance_to((distance_actor_{id} as Node3D).global_position)"
             )
         }
-        Expression::ActorPosition(actor) => {
+        Expression::ActorPosition(actor) | Expression::ActorPositionField(actor) => {
             let local = format!("position_actor_{}", flow.local);
             flow.local += 1;
             writeln!(
@@ -1114,7 +1129,7 @@ fn guarded_expression(
             )?;
             format!("(facing_angles_{id}.y * 57.295780181884766)")
         }
-        Expression::ActorHitPointsMaximum(actor) => {
+        Expression::ActorHitPointsMaximum(actor) | Expression::ActorHitPoints(actor) => {
             let value = guarded_expression(out, actor, model, depth, flow)?;
             let local = format!("maximum_life_actor_{}", flow.local);
             flow.local += 1;
@@ -1126,7 +1141,14 @@ fn guarded_expression(
                     model.path
                 ))
             )?;
-            format!("int({local}.source_hit_points.maximum)")
+            format!(
+                "int({local}.source_hit_points.{})",
+                if matches!(e, Expression::ActorHitPoints(_)) {
+                    "current"
+                } else {
+                    "maximum"
+                }
+            )
         }
         Expression::ActorDistanceFrom { receiver, target } => {
             let id = flow.local;
@@ -1156,25 +1178,83 @@ fn guarded_expression(
                 "{receiver_local}.global_position.distance_to(({target_local} as Node3D).global_position)"
             )
         }
-        Expression::ActorLocalSourceXYDistance(actor) => {
-            let value = guarded_expression(out, actor, model, depth, flow)?;
+        Expression::ActorLocalSourceXYDistance(target)
+        | Expression::ActorLocalDistance { target, .. } => {
+            let receiver = if let Expression::ActorLocalDistance { receiver, .. } = e {
+                actor_target_code(receiver)
+            } else {
+                "character()".into()
+            };
+            let id = flow.local;
+            flow.local += 1;
+            writeln!(out, "{pad}var spatial_receiver_{id}: Node3D = {receiver}")?;
+            let target = guarded_expression(out, target, model, depth, flow)?;
+            writeln!(
+                out,
+                "{pad}var spatial_target_{id}: Variant = {target}\n{pad}if not is_instance_valid(spatial_receiver_{id}) or not spatial_receiver_{id}.is_inside_tree() or not (spatial_target_{id} is Node3D) or not is_instance_valid(spatial_target_{id}) or not spatial_target_{id}.is_inside_tree():\n{pad}    fail_unsupported(\"Local distance needs positioned actors\")\n{pad}    {exit}"
+            )?;
+            let method = if matches!(e, Expression::ActorLocalDistance { vertical: true, .. }) {
+                "distance_z"
+            } else {
+                "distance_xy"
+            };
+            format!("NativeContactPickup.{method}(spatial_receiver_{id}, spatial_target_{id})")
+        }
+        Expression::IsAbovePerso {
+            receiver,
+            point,
+            threshold,
+        } => {
             let id = flow.local;
             flow.local += 1;
             writeln!(
                 out,
-                "{pad}var local_xy_distance_actor_{id} = {value}\n{pad}if typeof(local_xy_distance_actor_{id}) != TYPE_OBJECT or not is_instance_valid(local_xy_distance_actor_{id}) or not (local_xy_distance_actor_{id} is Node3D) or not local_xy_distance_actor_{id}.is_inside_tree() or not character().is_inside_tree():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
-                quoted(&format!(
-                    "{} local source-XY distance requires positioned actors",
-                    model.path
-                ))
+                "{pad}var above_receiver_{id}: Node3D = {}\n{pad}if not is_instance_valid(above_receiver_{id}) or not above_receiver_{id}.has_method(\"source_picking_center\") or not above_receiver_{id}.is_inside_tree():\n{pad}    fail_unsupported(\"IsAbove needs a bound picking center\")\n{pad}    {exit}",
+                actor_target_code(receiver)
             )?;
+            let point = guarded_expression(out, point, model, depth, flow)?;
+            writeln!(out, "{pad}var above_point_{id}: Vector3 = {point}")?;
+            let threshold = guarded_expression(out, threshold, model, depth, flow)?;
+            format!(
+                "NativeContactPickup.is_above(above_receiver_{id}, Vector3(above_point_{id}.x, above_point_{id}.z, -above_point_{id}.y), float({threshold}), above_receiver_{id}.source_picking_center())"
+            )
+        }
+        Expression::Sine(value) | Expression::Cosine(value) => {
+            let value = guarded_expression(out, value, model, depth, flow)?;
+            let function = if matches!(e, Expression::Sine(_)) {
+                "sin"
+            } else {
+                "cos"
+            };
+            format!("PackedFloat32Array([{function}(float({value}) * 0.01745329238474369)])[0]")
+        }
+        Expression::GameState => {
+            let id = flow.local;
+            flow.local += 1;
             writeln!(
                 out,
-                "{pad}var local_xy_distance_delta_{id}: Vector3 = (local_xy_distance_actor_{id} as Node3D).global_transform.affine_inverse() * character().global_position"
+                "{pad}var state_session_{id} := source_game_session()\n{pad}if not is_instance_valid(state_session_{id}) or not state_session_{id}.has_method(\"source_get_game_state\"):\n{pad}    fail_unsupported(\"GameState needs the game session\")\n{pad}    {exit}\n{pad}var game_state_{id}: Variant = state_session_{id}.source_get_game_state()\n{pad}if not game_state_{id} is int:\n{pad}    fail_unsupported(\"Unrecognized GameState mask\")\n{pad}    {exit}"
             )?;
-            format!(
-                "Vector2(local_xy_distance_delta_{id}.x, local_xy_distance_delta_{id}.z).length()"
-            )
+            format!("game_state_{id}")
+        }
+        Expression::InventoryGold | Expression::InventoryMaximum(_) => {
+            let id = flow.local;
+            flow.local += 1;
+            writeln!(
+                out,
+                "{pad}if character().source_inventory == null:\n{pad}    fail_unsupported(\"Inventory query needs shared inventory\")\n{pad}    {exit}"
+            )?;
+            let query = if let Expression::InventoryMaximum(item) = e {
+                let item = guarded_expression(out, item, model, depth, flow)?;
+                format!("maximum_capacity(int({item}))")
+            } else {
+                "gold_value()".into()
+            };
+            writeln!(
+                out,
+                "{pad}var inventory_query_{id}: int = character().source_inventory.{query}\n{pad}if not character().source_inventory.last_failure.is_empty():\n{pad}    fail_unsupported(character().source_inventory.last_failure)\n{pad}    {exit}"
+            )?;
+            format!("inventory_query_{id}")
         }
         Expression::Square(value) | Expression::AbsoluteValue(value) => {
             let value = guarded_expression(out, value, model, depth, flow)?;
@@ -1234,6 +1314,7 @@ fn guarded_expression(
             let receiver = match actor {
                 ActorTarget::Keyword(ActorKeyword::SelfActor) => "character()".to_owned(),
                 ActorTarget::Keyword(ActorKeyword::MainActor) => "main_actor".to_owned(),
+                ActorTarget::Variable(index) => format!("dsg_{index}"),
                 ActorTarget::Reference(actor) => format!(
                     "character().source_actor_node({})",
                     quoted(actor.path.as_str())
@@ -1254,6 +1335,7 @@ fn guarded_expression(
                         ActorTarget::Keyword(ActorKeyword::SelfActor) => "self",
                         ActorTarget::Keyword(ActorKeyword::MainActor) => "main actor",
                         ActorTarget::Reference(actor) => actor.path.as_str(),
+                        ActorTarget::Variable(_) => "actor designer field",
                     }
                 )),
                 waypoint_constant(waypoint),
@@ -1269,6 +1351,7 @@ fn guarded_expression(
             let receiver = match receiver {
                 ActorTarget::Keyword(ActorKeyword::SelfActor) => "character()".to_owned(),
                 ActorTarget::Keyword(ActorKeyword::MainActor) => "main_actor".to_owned(),
+                ActorTarget::Variable(index) => format!("dsg_{index}"),
                 ActorTarget::Reference(actor) => format!(
                     "character().source_actor_node({})",
                     quoted(actor.path.as_str())
@@ -1293,6 +1376,7 @@ fn guarded_expression(
             let receiver = match receiver {
                 ActorTarget::Keyword(ActorKeyword::SelfActor) => "character()".to_owned(),
                 ActorTarget::Keyword(ActorKeyword::MainActor) => "main_actor".to_owned(),
+                ActorTarget::Variable(index) => format!("dsg_{index}"),
                 ActorTarget::Reference(actor) => format!(
                     "character().source_actor_node({})",
                     quoted(actor.path.as_str())
@@ -1590,6 +1674,7 @@ fn guarded_expression(
             let actor_node = match actor {
                 ActorTarget::Keyword(ActorKeyword::SelfActor) => "character()".to_owned(),
                 ActorTarget::Keyword(ActorKeyword::MainActor) => "main_actor".to_owned(),
+                ActorTarget::Variable(index) => format!("dsg_{index}"),
                 ActorTarget::Reference(reference) => format!(
                     "character().source_actor_node({})",
                     quoted(reference.path.as_str())
@@ -1602,6 +1687,7 @@ fn guarded_expression(
                 let description = match actor {
                     ActorTarget::Keyword(ActorKeyword::MainActor) => "MainActor".to_owned(),
                     ActorTarget::Reference(reference) => reference.path.to_string(),
+                    ActorTarget::Variable(index) => format!("dsg_{index}"),
                     ActorTarget::Keyword(ActorKeyword::SelfActor) => unreachable!(),
                 };
                 let failure = quoted(&format!(
@@ -1759,8 +1845,13 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         }
         Expression::CollideWithGround => "character().source_collide_with_ground()".into(),
         Expression::CollideWithNothing => "character().source_collide_with_nothing()".into(),
-        Expression::CollidePersoZdeNoWithTypeZde { zone, maximum } => {
-            format!("character().source_collide_perso_zde_no_with_type_zde({zone}, {maximum})")
+        Expression::CollidePersoZdeNoWithTypeZde {
+            zone,
+            material_mask,
+        } => {
+            format!(
+                "character().source_collide_perso_zde_no_with_type_zde({zone}, {material_mask})"
+            )
         }
         Expression::CollideWithSlope => "character().source_collide_with_slope()".into(),
         Expression::IsTypeOfGmtCollide(kind) => {
@@ -1804,6 +1895,15 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         | Expression::ActorDistanceFrom { .. }
         | Expression::ActorFacingAngle { .. }
         | Expression::ActorLocalSourceXYDistance(_)
+        | Expression::ActorLocalDistance { .. }
+        | Expression::IsAbovePerso { .. }
+        | Expression::ActorPositionField(_)
+        | Expression::ActorHitPoints(_)
+        | Expression::GameState
+        | Expression::InventoryGold
+        | Expression::InventoryMaximum(_)
+        | Expression::Sine(_)
+        | Expression::Cosine(_)
         | Expression::IsValidActor(_)
         | Expression::ApplyArmoredDamage(_)
         | Expression::DistanceToWaypoint { .. }
@@ -1938,9 +2038,7 @@ fn group_name(group: BehaviorGroup) -> &'static str {
         BehaviorGroup::Reflex => "reflex",
     }
 }
-/// A blocking request is an ordinary coroutine over native values. Most
-/// requests capture their operands at entry; WaitInteger rereads all three
-/// operands on each poll because the source callback reevaluates them per tick.
+/// A blocking request is an ordinary coroutine over captured native values.
 /// Its enclosing behavior owns cancellation; a rule can invalidate only the
 /// schedule's current request without re-running earlier branches or effects.
 fn blocking(
@@ -2004,7 +2102,6 @@ fn blocking(
             "{pad}    var action_revision_{id} := {group}_action_revision"
         )?;
     }
-    let mut poll_prelude = String::new();
     let complete = match statement {
         Statement::Wait { .. } => {
             writeln!(
@@ -2022,33 +2119,11 @@ fn blocking(
             )?;
             format!("remaining_{id} <= 0")
         }
-        Statement::WaitInteger {
-            left,
-            selector,
-            right,
-        } => {
-            let left_value = guarded_expression(&mut poll_prelude, left, model, depth + 2, flow)?;
-            let selector_value =
-                guarded_expression(&mut poll_prelude, selector, model, depth + 2, flow)?;
-            let right_value = guarded_expression(&mut poll_prelude, right, model, depth + 2, flow)?;
-            let failure_prefix = format!("{} Action_WaitInteger", model.path);
-            writeln!(
-                &mut poll_prelude,
-                "{pad}        var wait_integer_left_value_{id}: Variant = {left_value}\n{pad}        if typeof(wait_integer_left_value_{id}) != TYPE_INT:\n{pad}            fail_unsupported({})\n{pad}            {exit}\n{pad}        var wait_integer_selector_value_{id}: Variant = {selector_value}\n{pad}        if typeof(wait_integer_selector_value_{id}) != TYPE_INT:\n{pad}            fail_unsupported({})\n{pad}            {exit}\n{pad}        var wait_integer_right_value_{id}: Variant = {right_value}\n{pad}        if typeof(wait_integer_right_value_{id}) != TYPE_INT:\n{pad}            fail_unsupported({})\n{pad}            {exit}",
-                quoted(&format!("{failure_prefix} left operand is not an integer")),
-                quoted(&format!("{failure_prefix} selector is not an integer")),
-                quoted(&format!("{failure_prefix} right operand is not an integer")),
-            )?;
-            writeln!(
-                &mut poll_prelude,
-                "{pad}        var wait_integer_left_{id}: int = int(wait_integer_left_value_{id}) & 0xffffffff\n{pad}        if wait_integer_left_{id} >= 0x80000000: wait_integer_left_{id} -= 0x100000000\n{pad}        var wait_integer_selector_{id}: int = int(wait_integer_selector_value_{id}) & 0xff\n{pad}        var wait_integer_right_{id}: int = int(wait_integer_right_value_{id}) & 0xffffffff\n{pad}        if wait_integer_right_{id} >= 0x80000000: wait_integer_right_{id} -= 0x100000000\n{pad}        var wait_integer_complete_{id} := false\n{pad}        match wait_integer_selector_{id}:\n{pad}            0: wait_integer_complete_{id} = wait_integer_left_{id} != wait_integer_right_{id}\n{pad}            1: wait_integer_complete_{id} = wait_integer_left_{id} == wait_integer_right_{id}\n{pad}            2: wait_integer_complete_{id} = wait_integer_left_{id} >= wait_integer_right_{id}\n{pad}            3: wait_integer_complete_{id} = wait_integer_left_{id} <= wait_integer_right_{id}\n{pad}            4: wait_integer_complete_{id} = wait_integer_left_{id} > wait_integer_right_{id}\n{pad}            5: wait_integer_complete_{id} = wait_integer_left_{id} < wait_integer_right_{id}\n{pad}            _: pass"
-            )?;
-            format!("wait_integer_complete_{id}")
-        }
         Statement::IncrementalTurnToward { target, .. } => {
             let target = match target {
                 ActorTarget::Keyword(ActorKeyword::SelfActor) => "character()".to_owned(),
                 ActorTarget::Keyword(ActorKeyword::MainActor) => "main_actor".to_owned(),
+                ActorTarget::Variable(index) => format!("dsg_{index}"),
                 ActorTarget::Reference(actor) => format!(
                     "character().source_actor_node({})",
                     quoted(actor.path.as_str())
@@ -2142,7 +2217,6 @@ fn blocking(
     if group == "reflex" {
         writeln!(out, "{pad}        reflex_controls_tick = true")?;
     }
-    out.push_str(&poll_prelude);
     writeln!(out, "{pad}        if {complete}: break")?;
     if matches!(statement, Statement::WaitFrames(_)) {
         writeln!(out, "{pad}        remaining_{id} -= 1")?;
@@ -2409,6 +2483,116 @@ fn statements(
                     value
                 )?;
             }
+            Statement::MultiplyAssign { variable, value } => {
+                let value = guarded_expression(out, value, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}dsg_{variable} = {}(dsg_{variable} * float({value}))",
+                    value_type(&model.variables[usize::from(*variable)].default)
+                )?;
+            }
+            Statement::SetStockCount { actor, count } => {
+                let id = flow.local;
+                flow.local += 1;
+                let actor = guarded_expression(out, actor, model, depth, flow)?;
+                writeln!(out, "{pad}var stock_actor_{id}: Variant = {actor}")?;
+                let count = guarded_expression(out, count, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if not character().source_set_stock_count(stock_actor_{id}, int({count})):\n{pad}    fail_unsupported(\"Stock count needs a converted stock binding\")\n{pad}    {exit}"
+                )?;
+            }
+            Statement::DisplayPickup {
+                item,
+                milliseconds,
+                from,
+                to,
+                x,
+                y,
+                width,
+                height,
+            } => {
+                let mut values = Vec::new();
+                for value in [item, milliseconds, from, to, x, y, width, height] {
+                    let id = flow.local;
+                    flow.local += 1;
+                    let value = guarded_expression(out, value, model, depth, flow)?;
+                    writeln!(out, "{pad}var pickup_display_{id} = {value}")?;
+                    values.push(format!("pickup_display_{id}"));
+                }
+                writeln!(
+                    out,
+                    "{pad}if not character().source_display_pickup({}):\n{pad}    fail_unsupported(\"Pickup HUD requires scene presentation\")\n{pad}    {exit}",
+                    values.join(", ")
+                )?;
+            }
+            Statement::WaitBoolean {
+                field, expected, ..
+            }
+            | Statement::WaitInteger {
+                left: field,
+                right: expected,
+                ..
+            } => {
+                let id = flow.local;
+                flow.local += 1;
+                let (node, variable) = match field {
+                    Expression::Variable(variable) | Expression::SelfFieldRead(variable) => ("self".into(), *variable),
+                    Expression::MainActorFieldRead(variable) => ("(main_actor.get_node_or_null(\"Brain\") if is_instance_valid(main_actor) else null)".into(), *variable),
+                    Expression::ActorFieldRead { actor, variable } => {
+                        let index = model.actor_field_targets().iter().position(|target| target == actor).context("wait field actor missing")?;
+                        (format!("(actor_brain_{index} if is_instance_valid(actor_brain_{index}) else get_node_or_null(actor_brain_{index}_path))"), *variable)
+                    }
+                    _ => {
+                        let _ = guarded_expression(out, field, model, depth, flow)?;
+                        let _ = guarded_expression(out, expected, model, depth, flow)?;
+                        writeln!(out, "{pad}fail_unsupported(\"Wait requires an ordinary Brain property\")\n{pad}{exit}")?;
+                        continue;
+                    },
+                };
+                writeln!(
+                    out,
+                    "{pad}var wait_brain_{id}: Node = {node}\n{pad}if not is_instance_valid(wait_brain_{id}) or not wait_brain_{id}.get_property_list().any(func(property): return str(property.name) == \"dsg_{variable}\"):\n{pad}    fail_unsupported(\"Wait needs an existing Brain field\")\n{pad}    {exit}"
+                )?;
+                let selector = if let Statement::WaitInteger { selector, .. } = statement {
+                    guarded_expression(out, selector, model, depth, flow)?
+                } else {
+                    "0".into()
+                };
+                writeln!(
+                    out,
+                    "{pad}var wait_selector_{id}: int = int({selector}) & 0xffffffff"
+                )?;
+                let value = guarded_expression(out, expected, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}var wait_expected_{id}: int = int({value}) & 0xffffffff\n{pad}if wait_expected_{id} >= 0x80000000: wait_expected_{id} -= 0x100000000"
+                )?;
+                if flow.rule {
+                    writeln!(
+                        out,
+                        "{pad}{group}_rule_claimed = true\n{pad}{group}_action_revision += 1"
+                    )?;
+                }
+                writeln!(
+                    out,
+                    "{pad}while active_{group}(token):\n{pad}    if not is_instance_valid(wait_brain_{id}):\n{pad}        fail_unsupported(\"Wait owner was removed\")\n{pad}        {exit}\n{pad}    var wait_observed_{id}: int = int(wait_brain_{id}.get(\"dsg_{variable}\")) & 0xffffffff\n{pad}    if wait_observed_{id} >= 0x80000000: wait_observed_{id} -= 0x100000000\n{pad}    var wait_complete_{id} := true\n{pad}    match wait_selector_{id}:\n{pad}        0: wait_complete_{id} = wait_observed_{id} == wait_expected_{id}\n{pad}        1: wait_complete_{id} = wait_observed_{id} != wait_expected_{id}\n{pad}        2: wait_complete_{id} = wait_observed_{id} < wait_expected_{id}\n{pad}        3: wait_complete_{id} = wait_observed_{id} > wait_expected_{id}\n{pad}        4: wait_complete_{id} = wait_observed_{id} <= wait_expected_{id}\n{pad}        5: wait_complete_{id} = wait_observed_{id} >= wait_expected_{id}\n{pad}    if wait_complete_{id}: break"
+                )?;
+                if flow.rule {
+                    writeln!(out, "{pad}    {group}_rule_claimed = true")?;
+                }
+                if group == "reflex" {
+                    writeln!(out, "{pad}    reflex_controls_tick = true")?;
+                }
+                writeln!(
+                    out,
+                    "{pad}    await {}\n{pad}if not active_{group}(token): {exit}",
+                    flow.tick()
+                )?;
+            }
+            Statement::Jump => {
+                writeln!(out, "{pad}character().source_jump()")?;
+            }
             Statement::AddAssign { variable, value } => {
                 let value = guarded_expression(out, value, model, depth, flow)?;
                 writeln!(out, "{pad}dsg_{variable} = dsg_{variable} + ({value})")?;
@@ -2673,6 +2857,9 @@ fn statements(
                 )?;
             }
             Statement::SetActorDisplayVisible { actor, visible } => match actor {
+                ActorTarget::Variable(_) => {
+                    anyhow::bail!("dynamic display receiver is outside the supported slice")
+                }
                 ActorTarget::Keyword(ActorKeyword::SelfActor) => {
                     writeln!(
                         out,
@@ -2706,6 +2893,9 @@ fn statements(
                 channel,
                 active,
             } => match actor {
+                ActorTarget::Variable(_) => {
+                    anyhow::bail!("dynamic channel receiver is outside the supported slice")
+                }
                 ActorTarget::Keyword(ActorKeyword::SelfActor) => {
                     writeln!(
                         out,
@@ -2781,6 +2971,7 @@ fn statements(
                     quoted(camera.path.as_str())
                 )?;
                 let target = match target {
+                    ActorTarget::Variable(index) => format!("dsg_{index}"),
                     ActorTarget::Keyword(ActorKeyword::MainActor) => "main_actor".to_string(),
                     ActorTarget::Keyword(ActorKeyword::SelfActor) => "character()".to_string(),
                     ActorTarget::Reference(reference) => {
@@ -3113,7 +3304,6 @@ fn statements(
             }
             Statement::Wait { .. }
             | Statement::WaitFrames(_)
-            | Statement::WaitInteger { .. }
             | Statement::IncrementalTurnToward { .. }
             | Statement::IncrementalTurnPosition { .. }
             | Statement::GoToPosition { .. }

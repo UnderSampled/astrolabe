@@ -359,7 +359,7 @@ fn source_ai_math_actor_and_armor_operations_round_trip_and_compile() -> Result<
             .any(|e| matches!(e, Expression::Square(_)))
     );
     let code = godot::ai::compile(&model, &[])?;
-    assert!(code.contains("source_armor_state()"), "{code}");
+    assert!(code.contains("source_armor_catalog()"), "{code}");
     assert!(code.contains("set_resistance"), "{code}");
     assert!(code.contains(".call(\"repair\")"), "{code}");
     assert!(code.contains(".call(\"damage\""), "{code}");
@@ -633,7 +633,7 @@ fn source_zde_collision_condition_compiles_to_native_query() -> Result<()> {
         statements: vec![Statement::If {
             condition: Expression::CollidePersoZdeNoWithTypeZde {
                 zone: 1,
-                maximum: 1,
+                material_mask: 1,
             },
             then: vec![Statement::KillSelf],
             otherwise: None,
@@ -1330,7 +1330,7 @@ fn source_laser_pointer_fly_mode_round_trips_and_updates_native_state() -> Resul
     let mut model = model()?;
     model.normal.as_mut().unwrap().behaviors[0].schedule = Some(script);
     let model = rete::decode::<AiModel>(&rete::encode(&model)?)?;
-    assert_eq!(rete::SCHEMA, 55);
+    assert_eq!(rete::SCHEMA, 56);
     let code = godot::ai::compile(&model, &[])?;
     assert!(
         code.contains("source_set_laser_pointer_fly_mode(bool(0))"),

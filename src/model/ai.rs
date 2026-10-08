@@ -169,6 +169,30 @@ pub enum Statement {
         variable: u16,
         value: Expression,
     },
+    MultiplyAssign {
+        variable: u16,
+        value: Expression,
+    },
+    /// Capture the observed Brain and expected value once, then await its
+    /// ordinary Boolean designer property to equal that captured value.
+    WaitBoolean {
+        field: Expression,
+        expected: Expression,
+    },
+    SetStockCount {
+        actor: Expression,
+        count: Expression,
+    },
+    DisplayPickup {
+        item: Box<Expression>,
+        milliseconds: Box<Expression>,
+        from: Box<Expression>,
+        to: Box<Expression>,
+        x: Box<Expression>,
+        y: Box<Expression>,
+        width: Box<Expression>,
+        height: Box<Expression>,
+    },
     Increment {
         target: FieldTarget,
     },
@@ -189,10 +213,9 @@ pub enum Statement {
         milliseconds: Expression,
     },
     WaitFrames(Expression),
-    /// Hype's `0054ddb0` Action_WaitInteger callback polls three live signed
-    /// 32-bit integer operands each source tick.
-    /// The selector is truncated to a byte; 0..=5 select !=, ==, >=, <=, >,
-    /// and < respectively. Other byte selectors remain pending.
+    /// Capture the observed Brain/field, comparison DWORD and expected signed
+    /// value at entry. Poll only the ordinary observed property. Modes 0..5
+    /// resume on ==, !=, <, >, <=, >=; other DWORD modes complete immediately.
     WaitInteger {
         left: Expression,
         selector: Expression,
@@ -301,6 +324,7 @@ pub enum Statement {
     },
     SetImpulse(Expression),
     JumpAbsolute,
+    Jump,
     JumpWithoutAddingSpeed,
     SetParticleGeneratorEnabled(bool),
     SetParticleGenerator(AssetRef<super::particle::ParticleGenerator>),
@@ -607,11 +631,11 @@ pub enum Expression {
     /// Source Cond_CollideWithNothing reads the actor contact result. The
     /// native contact-category mapping remains under investigation.
     CollideWithNothing,
-    /// Source Cond_CollidePersoZDENoWithTypeZDE queries intersections for a
-    /// selected actor ZDE zone, bounded by its source hit-count operand.
+    /// Cond28 tests actual contact against all specified low16 material bits.
+    /// The source output limit is independently one, not the third operand.
     CollidePersoZdeNoWithTypeZde {
         zone: u32,
-        maximum: u32,
+        material_mask: u32,
     },
     /// Source collision-category bit 0x4; Godot currently maps it to native
     /// inclined floor contact while the full source classification is studied.
@@ -663,6 +687,23 @@ pub enum Expression {
     /// helper, whose selector 3 computes XY. Keep this behavior named from the
     /// handler and preserve the API-name mismatch in source evidence.
     ActorLocalSourceXYDistance(Box<Expression>),
+    ActorLocalDistance {
+        receiver: ActorTarget,
+        target: Box<Expression>,
+        vertical: bool,
+    },
+    IsAbovePerso {
+        receiver: ActorTarget,
+        point: Box<Expression>,
+        threshold: Box<Expression>,
+    },
+    ActorPositionField(ActorTarget),
+    ActorHitPoints(Box<Expression>),
+    GameState,
+    InventoryGold,
+    InventoryMaximum(Box<Expression>),
+    Sine(Box<Expression>),
+    Cosine(Box<Expression>),
     /// Cond_IsValidObject observes whether its actor handle is non-null/valid.
     IsValidActor(Box<Expression>),
     /// Func_ApplyArmoredDamage mutates shared armor and returns remaining main life.
@@ -726,6 +767,8 @@ pub enum ActorKeyword {
 pub enum ActorTarget {
     Keyword(ActorKeyword),
     Reference(AssetRef<Perso>),
+    /// Actor-valued designer property on the original script owner.
+    Variable(u16),
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum KillPersoTarget {
@@ -900,6 +943,39 @@ impl Content for AiModel {
                 {
                     script.validate(self.variables.len())?;
                 }
+            }
+        }
+        for expression in self.expressions() {
+            let receiver = match expression {
+                Expression::Actor(ActorTarget::Variable(index))
+                | Expression::ActorPosition(ActorTarget::Variable(index))
+                | Expression::ActorPositionField(ActorTarget::Variable(index))
+                | Expression::ActorDistanceFrom {
+                    receiver: ActorTarget::Variable(index),
+                    ..
+                }
+                | Expression::ActorLocalDistance {
+                    receiver: ActorTarget::Variable(index),
+                    ..
+                }
+                | Expression::ActorFacingAngle {
+                    receiver: ActorTarget::Variable(index),
+                    ..
+                }
+                | Expression::IsAbovePerso {
+                    receiver: ActorTarget::Variable(index),
+                    ..
+                } => Some(*index),
+                _ => None,
+            };
+            if let Some(index) = receiver {
+                ensure!(
+                    matches!(
+                        self.variables[usize::from(index)].default,
+                        DesignerValue::Actor(_) | DesignerValue::SourceActor(_)
+                    ),
+                    "actor receiver requires an actor-valued designer field"
+                );
             }
         }
         for (reference, requires_own_model) in self.behavior_references_with_owner() {
@@ -1256,7 +1332,10 @@ impl Script {
                         ensure!(actor.path.member().is_none(), "distance actor is a member");
                     }
                 }
-                Expression::ActorDistanceFrom { receiver, target }
+                Expression::ActorLocalDistance {
+                    receiver, target, ..
+                }
+                | Expression::ActorDistanceFrom { receiver, target }
                 | Expression::ActorFacingAngle { receiver, target } => {
                     if let ActorTarget::Reference(actor) = receiver {
                         ensure!(
@@ -1264,9 +1343,42 @@ impl Script {
                             "distance receiver is a member"
                         );
                     }
+                    if let ActorTarget::Variable(variable) = receiver {
+                        ensure!(
+                            usize::from(*variable) < variables,
+                            "AI receiver variable out of range"
+                        );
+                    }
                     expression(target, variables, depth + 1, count)?;
                 }
-                Expression::ActorPosition(ActorTarget::Reference(actor)) => {
+                Expression::IsAbovePerso {
+                    receiver,
+                    point,
+                    threshold,
+                } => {
+                    if let ActorTarget::Variable(variable) = receiver {
+                        ensure!(
+                            usize::from(*variable) < variables,
+                            "AI receiver variable out of range"
+                        );
+                    }
+                    if let ActorTarget::Reference(actor) = receiver {
+                        ensure!(
+                            actor.path.member().is_none(),
+                            "spatial receiver is a member"
+                        );
+                    }
+                    expression(point, variables, depth + 1, count)?;
+                    expression(threshold, variables, depth + 1, count)?;
+                }
+                Expression::ActorPosition(ActorTarget::Variable(variable))
+                | Expression::ActorPositionField(ActorTarget::Variable(variable))
+                | Expression::Actor(ActorTarget::Variable(variable)) => ensure!(
+                    usize::from(*variable) < variables,
+                    "AI actor variable out of range"
+                ),
+                Expression::ActorPositionField(ActorTarget::Reference(actor))
+                | Expression::ActorPosition(ActorTarget::Reference(actor)) => {
                     ensure!(actor.path.member().is_none(), "position actor is a member");
                 }
                 Expression::CameraShiftAlpha { selector, receiver }
@@ -1359,6 +1471,10 @@ impl Script {
                 | Expression::AbsoluteValue(value)
                 | Expression::ActorDistance(value)
                 | Expression::ActorHitPointsMaximum(value)
+                | Expression::ActorHitPoints(value)
+                | Expression::InventoryMaximum(value)
+                | Expression::Sine(value)
+                | Expression::Cosine(value)
                 | Expression::ActorLocalSourceXYDistance(value)
                 | Expression::IsValidActor(value)
                 | Expression::ApplyArmoredDamage(value)
@@ -1413,7 +1529,8 @@ impl Script {
                     }
                     Statement::Assign { variable, value }
                     | Statement::SubtractAssign { variable, value }
-                    | Statement::AddAssign { variable, value } => {
+                    | Statement::AddAssign { variable, value }
+                    | Statement::MultiplyAssign { variable, value } => {
                         ensure!(
                             usize::from(*variable) < variables,
                             "AI assignment out of range"
@@ -1511,6 +1628,31 @@ impl Script {
                     }
                     Statement::WaitFrames(frames) => {
                         expression(frames, variables, depth + 1, count)?
+                    }
+                    Statement::WaitBoolean { field, expected } => {
+                        expression(field, variables, depth + 1, count)?;
+                        expression(expected, variables, depth + 1, count)?;
+                    }
+                    Statement::SetStockCount {
+                        actor,
+                        count: value,
+                    } => {
+                        expression(actor, variables, depth + 1, count)?;
+                        expression(value, variables, depth + 1, count)?;
+                    }
+                    Statement::DisplayPickup {
+                        item,
+                        milliseconds,
+                        from,
+                        to,
+                        x,
+                        y,
+                        width,
+                        height,
+                    } => {
+                        for value in [item, milliseconds, from, to, x, y, width, height] {
+                            expression(value, variables, depth + 1, count)?;
+                        }
                     }
                     Statement::WaitInteger {
                         left,

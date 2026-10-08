@@ -5,10 +5,10 @@ use super::{
     disk_path, quoted, vec3, vector,
 };
 use crate::model::{
-    AssetPath, AssetRef, animation::*, character::*, content::ContentSource, io::Content,
-    mechanics::*,
+    AssetPath, AssetRef, animation::*, character::*, content::ContentSource,
+    geometry::SourceTransform, io::Content, mechanics::*,
 };
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Write as _,
@@ -44,6 +44,7 @@ struct Part {
     slot: u16,
     restored: bool,
     instance: Option<String>,
+    physical_contact: Option<(crate::model::collision::CollisionMesh, Vec<SourceTransform>)>,
     action: Option<String>,
     scale: Option<[f32; 3]>,
     configuration: String,
@@ -416,6 +417,31 @@ pub(super) fn export_perso(
     export_stock(project, perso, &name)?;
     writeln!(
         project.builder,
+        "    {name}.source_contact_eligible = {}",
+        perso.contact_eligible
+    )?;
+    if let Some(reference) = &perso.picking_bounds {
+        let bounds = source.load(reference)?;
+        bounds.validate_reference(&reference.path)?;
+        let mesh = bounds.resolve(source)?;
+        let Some(crate::model::collision::CollisionElement::Spheres(spheres)) =
+            mesh.elements.first()
+        else {
+            anyhow::bail!("{} picking bounds need first sphere element", perso.path);
+        };
+        let center = spheres
+            .first()
+            .context("picking bounds have no first sphere")?
+            .center;
+        let position = mesh.positions[usize::from(center)];
+        writeln!(
+            project.builder,
+            "    var {name}_picking = Marker3D.new()\n    {name}_picking.name = \"PickingCenter\"\n    {name}_picking.position = {}\n    {name}.add_child({name}_picking)\n    {name}_picking.owner = {name}\n    {name}.source_picking_center_path = ^\"PickingCenter\"",
+            vec3(super::vector(position))
+        )?;
+    }
+    writeln!(
+        project.builder,
         "    {name}.source_motion_binding_present = {}",
         perso.motion_binding_present
     )?;
@@ -694,6 +720,18 @@ fn export_rig(
                     if part.kind == ObjectPartKind::Absent {
                         continue;
                     }
+                    let physical_contact = if let Some(reference) = &part.instance {
+                        let instance = source.load(reference)?;
+                        let collision = crate::model::collision::Collision {
+                            path: instance.model.path.clone(),
+                            geometry: crate::model::collision::CollisionGeometry::Model(
+                                instance.model.clone(),
+                            ),
+                        };
+                        Some((collision.resolve(source)?, instance.transforms.clone()))
+                    } else {
+                        None
+                    };
                     let instance = if let Some(reference) = &part.instance {
                         let instance = source.load(reference)?;
                         instance.validate_reference(&reference.path)?;
@@ -724,6 +762,7 @@ fn export_rig(
                         slot: slot.try_into()?,
                         restored,
                         instance,
+                        physical_contact,
                         action,
                         scale: part.scale,
                         configuration: config.path.to_string(),
@@ -889,6 +928,23 @@ fn export_rig(
                 "    var visual_{i} = native_resource({}).instantiate()\n    visual_{i}.name = \"Visual\"\n    payload_{i}.add_child(visual_{i})\n    visual_{i}.owner = actor",
                 quoted(instance)
             )?;
+        }
+        if let Some((mesh, transforms)) = &part.physical_contact {
+            let transform = transforms
+                .iter()
+                .fold(String::from("Transform3D.IDENTITY"), |outer, value| {
+                    format!("({outer} * {})", super::scene::transform(value))
+                });
+            let area = format!("physical_contact_{i}");
+            writeln!(
+                function,
+                "    var {area} = Area3D.new()\n    {area}.name = \"PhysicalContact\"\n    {area}.collision_layer = 16\n    {area}.collision_mask = 0\n    {area}.monitoring = false\n    {area}.monitorable = true\n    {area}.set_meta(\"physical_object_contact\", true)\n    {area}.transform = {}\n    payload_{i}.add_child({area})\n    {area}.owner = actor",
+                transform
+            )?;
+            let outer = std::mem::take(&mut project.builder);
+            project.collision_shapes(mesh, source, &area, "actor", &area, false)?;
+            function.push_str(&project.builder);
+            project.builder = outer;
         }
         if let Some([x, y, z]) = part.scale {
             writeln!(function, "    payload_{i}.scale = {}", vec3([x, z, y]))?;

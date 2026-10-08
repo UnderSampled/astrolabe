@@ -22,5 +22,7 @@ static func contact_material_matches(collider: CollisionObject3D, shape_index: i
             var shape := collider.shape_owner_get_owner(owner_id) as CollisionShape3D
             if shape == null or not shape.has_meta("source_collision_identifier"):
                 return false
+            if not bool(shape.get_meta("source_contact_material_present", true)):
+                return false
             return material_matches(int(shape.get_meta("source_collision_identifier")), required)
     return false

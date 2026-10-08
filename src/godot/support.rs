@@ -5,7 +5,7 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, path::Path};
 
-pub const INTERFACE: u32 = 72;
+pub const INTERFACE: u32 = 73;
 const PACKAGE: &str = "addons/astrolabe";
 const RECEIPT: &str = "addons/astrolabe/installed.json";
 
@@ -26,6 +26,10 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/audio/voice.gd.uid",
     "addons/astrolabe/audio/emitter.gd.uid",
     "addons/astrolabe/character/character.gd",
+    "addons/astrolabe/character/contact_pickup.gd",
+    "addons/astrolabe/character/contact_pickup.gd.uid",
+    "addons/astrolabe/character/explosive_barrel.gd",
+    "addons/astrolabe/character/explosive_barrel.gd.uid",
     "addons/astrolabe/character/configured_slot.gd",
     "addons/astrolabe/character/configured_slot.gd.uid",
     "addons/astrolabe/character/configured_payload.gd",
@@ -100,6 +104,10 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/ui/dialogue_line.gd.uid",
     "addons/astrolabe/ui/dialogue_span.gd",
     "addons/astrolabe/ui/dialogue_span.gd.uid",
+    "addons/astrolabe/ui/pickup_artwork.gd",
+    "addons/astrolabe/ui/pickup_artwork.gd.uid",
+    "addons/astrolabe/ui/pickup_feedback.gd",
+    "addons/astrolabe/ui/pickup_feedback.gd.uid",
     "addons/astrolabe/ui/hud.gd",
     "addons/astrolabe/ui/hud.gd.uid",
     "addons/astrolabe/ui/hud.tscn",

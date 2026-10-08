@@ -471,7 +471,7 @@
     },
     {
       "binary": "astrolabe",
-      "test": "openspace::ai::partial_tests::self_hit_point_query_preserves_bytes_and_rejects_other_receivers",
+      "test": "openspace::ai::partial_tests::hit_point_queries_preserve_self_main_and_variable_receivers",
       "areas": [
         "ai",
         "source"
@@ -4468,11 +4468,11 @@
     },
     {
       "binary": "astrolabe::ai_wait_integer",
-      "test": "native_raw40_polls_signed_byte_selected_values_and_cancels_pending_waits",
+      "test": "native_raw40_captures_arguments_polls_signed_fields_and_cancels_pending_waits",
       "areas": ["ai", "runtime"],
       "kind": "native",
       "prerequisites": ["godot"],
-      "fixture": "compiled category5/op40 poll with signed bounds, byte selector wrap, live operand mutation and cancellation",
+      "fixture": "compiled category5/op40 with signed observed fields, captured DWORD selector/right operand, live field mutation and cancellation",
       "timeout_seconds": 40,
       "ignored": false,
       "release": true
@@ -5799,6 +5799,60 @@
       "fixture": "independent actor visitors share one compiled sound script and waveform while exporting distinct voices",
       "timeout_seconds": 5,
       "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::manor_pickup_barrel",
+      "test": "native_pickup_spatial_contacts_barrel_masks_and_grant_lifecycle",
+      "areas": [
+        "ai",
+        "runtime",
+        "save"
+      ],
+      "kind": "native",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "registered native pickup/contact helpers and compiled single-grant suspension/kill lifecycle",
+      "timeout_seconds": 40,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::manor_pickup_barrel",
+      "test": "manor_barrel_templates_keep_actor_stock_and_distinct_source_ownership",
+      "areas": [
+        "ai",
+        "source",
+        "rete",
+        "save",
+        "runtime"
+      ],
+      "kind": "native",
+      "prerequisites": [
+        "disc",
+        "godot"
+      ],
+      "fixture": "in-memory Manor import, eleven unmodified source programs, actual contact/HUD/save/dummy dispatch with synthetic media and rigs; no level export",
+      "timeout_seconds": 60,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::inventory::pickup_tests::pickup_artwork_retains_nonselectable_gold_and_food",
+      "areas": [
+        "source",
+        "rete",
+        "media"
+      ],
+      "kind": "unit",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "English Fix catalogue artwork including nonselectable pickup15 and99 through Rete",
+      "timeout_seconds": 20,
+      "ignored": true,
       "release": true
     }
   ]

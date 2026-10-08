@@ -237,6 +237,8 @@ fn compiled_routes_use_native_contact_and_actor_local_progress() -> Result<()> {
         hit_points: None,
         inventory_stock: None,
         motion_binding_present: false,
+        picking_bounds: None,
+        contact_eligible: true,
         microphone: None,
         camera: None,
         routes: vec![RouteBinding {

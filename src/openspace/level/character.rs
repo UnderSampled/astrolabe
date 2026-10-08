@@ -246,6 +246,22 @@ impl<'a> Importer<'a> {
                     })
                 })
                 .transpose()?,
+            picking_bounds: self
+                .session
+                .pointer(perso, 4)?
+                .map(|standard| self.session.pointer(standard, 12))
+                .transpose()?
+                .flatten()
+                .map(|object| self.session.pointer(object, 52))
+                .transpose()?
+                .flatten()
+                .map(|bounds| self.bounding_geometry(bounds, "perso-picking-bounds"))
+                .transpose()?,
+            contact_eligible: {
+                let standard = self.session.required(perso, 4)?;
+                let state: StandardSaveWire = wire(self.session.bytes(standard, 56)?)?;
+                state.never_back_latch == 0 && state.active == 1
+            },
             inventory_stock,
             routes: super::way::import_bindings(self.session, perso, &path, types, self.result)?,
             brain: None,

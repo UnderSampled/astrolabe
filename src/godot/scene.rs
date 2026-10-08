@@ -244,6 +244,11 @@ impl Project {
                 self.diagnostic(format!("{} {}: source node opacity {} retained for inspection; whole-node fading is not projected by the compatibility renderer",scene.path,node.id,node.properties.opacity));
             }
             if let Some(sector) = &node.sector {
+                writeln!(
+                    self.builder,
+                    "    {name}.set_meta(\"contact_sector_active\", {})",
+                    sector.activation & 2 != 0
+                )?;
                 if let Some(boundary) = &sector.boundary {
                     self.sector_boundary(boundary, &name, &scene_id)?;
                 }
@@ -310,6 +315,51 @@ impl Project {
         // external actor slots are compiled before the level is selected.
         // Values are NodePaths relative to the
         // level root, so this remains valid for both rooted and global actors.
+        for node in &scene.nodes {
+            if let Some(sector) = &node.sector {
+                let sector_name = &names[&node.id];
+                let neighbors = sector
+                    .collision
+                    .iter()
+                    .map(|id| format!("{sector_name}.get_path_to({})", names[id]))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                writeln!(
+                    self.builder,
+                    "    {sector_name}.set_meta(\"contact_sector_neighbors\", [{neighbors}])"
+                )?;
+                if let Some(boundary) = &sector.boundary {
+                    let mut targets = Vec::new();
+                    for surface in &boundary.surfaces {
+                        let target = surface.sector.as_ref().map_or_else(
+                            || "NodePath()".to_string(),
+                            |target| {
+                                format!("{sector_name}_boundary.get_path_to({})", names[target])
+                            },
+                        );
+                        targets.extend(std::iter::repeat_n(target, surface.triangles.len()));
+                    }
+                    let targets = targets.join(", ");
+                    writeln!(
+                        self.builder,
+                        "    {sector_name}_boundary.neighbor_paths = Array[NodePath]([{targets}])"
+                    )?;
+                }
+                for actor_id in &sector.persos {
+                    if scene
+                        .nodes
+                        .iter()
+                        .any(|candidate| candidate.id == *actor_id && candidate.perso.is_some())
+                    {
+                        let actor_name = &names[actor_id];
+                        writeln!(
+                            self.builder,
+                            "    {actor_name}_character.source_contact_sector_path = {actor_name}_character.get_path_to({sector_name})"
+                        )?;
+                    }
+                }
+            }
+        }
         writeln!(
             self.builder,
             "    var {scene_id}_source_actor_brains = {{}}\n    var {scene_id}_source_actor_nodes = {{}}\n    var {scene_id}_source_actor_entries = {{}}\n    {scene_id}.set_meta(\"source_level\", {})",
@@ -385,7 +435,7 @@ impl Project {
             };
             let perso = source.load(reference)?;
             let Some(brain) = &perso.brain else { continue };
-            if !perso.routes.is_empty()
+            if (!perso.routes.is_empty() || perso.motion_binding_present)
                 && let Some(physical) = &physical_environment
             {
                 let character = format!("{}_character", names[&node.id]);
