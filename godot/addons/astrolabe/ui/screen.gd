@@ -22,6 +22,7 @@ var completion_normal: int = -1
 var completion_pending: bool = false
 var _callback_generation: int = 0
 var _source_fade_tween: Tween
+var _source_fade_direction: int = 0
 var _authored_items: Array[Resource] = []
 var _catalogues: Array[Translation] = []
 
@@ -95,19 +96,36 @@ func source_execute_fade(from_alpha: int, to_alpha: int, duration_seconds: float
         if not adopted_screen.has_method("source_execute_fade"):
             return false
         return bool(adopted_screen.call("source_execute_fade", from_alpha, to_alpha, duration_seconds))
-    if not is_finite(duration_seconds) or duration_seconds < 0.0:
+    if not is_finite(duration_seconds) or duration_seconds < 0.0 or from_alpha < 0 or from_alpha > 255 or to_alpha < 0 or to_alpha > 255:
         return false
     var start_alpha := clampf(float(from_alpha) / 255.0, 0.0, 1.0)
     var target_alpha := clampf(float(to_alpha) / 255.0, 0.0, 1.0)
     fade.color = Color(0.0, 0.0, 0.0, start_alpha)
-    if _source_fade_tween != null and _source_fade_tween.is_running():
+    # Equal endpoints leave an already active source direction unchanged.
+    if start_alpha == target_alpha: return true
+    if _source_fade_tween != null and _source_fade_tween.is_valid():
         _source_fade_tween.kill()
     if duration_seconds == 0.0:
         fade.color = Color(0.0, 0.0, 0.0, target_alpha)
+        _source_fade_direction = 0
         return true
+    _source_fade_direction = 1 if target_alpha > start_alpha else -1
     _source_fade_tween = create_tween()
     _source_fade_tween.tween_property(fade, "color:a", target_alpha, duration_seconds)
+    _source_fade_tween.finished.connect(_source_fade_finished.bind(_source_fade_tween))
     return true
+
+func _source_fade_finished(completed: Tween) -> void:
+    if completed == _source_fade_tween:
+        _source_fade_direction = 0
+
+## Meta61 observes the shared fade's direction. Visibility and current alpha
+## do not decide completion; cancelling a fade makes its direction idle.
+func source_fade_in_progress() -> Variant:
+    if is_instance_valid(adopted_screen):
+        if not adopted_screen.has_method("source_fade_in_progress"): return null
+        return adopted_screen.call("source_fade_in_progress")
+    return _source_fade_direction != 0
 
 ## Empty STE_FADE slots are accepted by the source engine as no-ops. Never
 ## substitute an unrelated texture or the authored black fade rectangle.

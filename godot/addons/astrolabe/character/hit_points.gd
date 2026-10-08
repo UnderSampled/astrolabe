@@ -27,6 +27,11 @@ func subtract_damage(value: int) -> int:
 	emit_changed()
 	return current
 
+## Proc_SubHitPoints / Func_SubAndGetHitPoints consume only the amount's low
+## byte. Reaching zero does not call PlayerIsDead: the source caller decides.
+func subtract_points(value: int) -> int:
+	return subtract_damage(value & 255)
+
 ## Checkpoints preserve the three independent byte values. Source setters may
 ## lower maximum below current or raise it above limit; do not invent clamping.
 func capture_snapshot() -> Dictionary:

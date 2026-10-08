@@ -139,8 +139,15 @@ impl<'a> Iterator for AstWalk<'a> {
                 }
                 Statement::SetHitPointsMaximum { actor, value }
                 | Statement::SetInventoryMaximum { item: actor, value }
-                | Statement::AddHitPoints { actor, value } => {
+                | Statement::AddHitPoints { actor, value }
+                | Statement::SubtractHitPoints { actor, value } => {
                     self.expressions(child_depth, &[actor, value])
+                }
+                Statement::ChangeActorSighting { actor, direction } => {
+                    self.expressions(child_depth, &[actor, direction]);
+                }
+                Statement::SetEconomicActorAbsolutePosition { actor, position } => {
+                    self.expressions(child_depth, &[actor, position]);
                 }
                 Statement::WaitBoolean {
                     field, expected, ..
@@ -236,6 +243,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::GoToNextWaypoint(_)
                 | Statement::GoRelative
                 | Statement::KillSelf
+                | Statement::PlayerIsDead
                 | Statement::KillPerso { .. }
                 | Statement::JumpAbsolute
                 | Statement::Jump
@@ -264,6 +272,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::EndDialog
                 | Statement::ChangeDialogBehavior
                 | Statement::WaitEndOfAction
+                | Statement::WaitEndOfFade
                 | Statement::WaitEndOfAnimation
                 | Statement::Sound { .. }
                 | Statement::SoundOnActor { .. }
@@ -307,6 +316,9 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::ActorLocalDistance { target, .. } => {
                     self.expressions(child_depth, &[target]);
                 }
+                Expression::DistanceToWaypoint { waypoint, .. } => {
+                    self.expressions(child_depth, &[waypoint]);
+                }
                 Expression::IsAbovePerso {
                     point, threshold, ..
                 } => self.expressions(child_depth, &[point, threshold]),
@@ -324,6 +336,10 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::InventoryRemove {
                     item: left,
                     count: right,
+                }
+                | Expression::SubtractAndGetHitPoints {
+                    actor: left,
+                    value: right,
                 }
                 | Expression::RandomInt {
                     lower: left,
@@ -353,11 +369,11 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::SelfPosition
                 | Expression::ActorPosition(_)
                 | Expression::ActorPositionField(_)
+                | Expression::ActorSightingField(_)
                 | Expression::InventoryGold
                 | Expression::SelfPositionField
                 | Expression::WaypointReference(_)
                 | Expression::WaypointPosition(_)
-                | Expression::DistanceToWaypoint { .. }
                 | Expression::GameTime
                 | Expression::GameState
                 | Expression::SeePerso { .. }

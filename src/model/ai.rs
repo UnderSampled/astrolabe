@@ -129,6 +129,12 @@ pub enum Statement {
         actor: Expression,
         value: Expression,
     },
+    SubtractHitPoints {
+        actor: Expression,
+        value: Expression,
+    },
+    /// Session-wide death request, independent of an actor's life byte.
+    PlayerIsDead,
     /// Shared magick maximum; changing it does not refill/clamp current points.
     SetMagicPointsMaximum(Expression),
     /// Changes the first matching inventory definition, without changing quantity.
@@ -393,6 +399,17 @@ pub enum Statement {
     /// Proc83 replaces the actor's configuration selection without resetting it.
     ChangeConfiguration(Expression),
     ChangeSighting(Expression),
+    /// Proc445 with an explicit Ultra receiver; direction evaluates on caller.
+    ChangeActorSighting {
+        actor: Expression,
+        direction: Expression,
+    },
+    /// Proc415 updates translation and the native pose without activation or
+    /// clearing velocity. The source economic placement API is distinct from 253.
+    SetEconomicActorAbsolutePosition {
+        actor: Expression,
+        position: Expression,
+    },
     /// Camera procedure 160 stores a keyword or referenced target actor.
     CameraChangeTargetedPerso {
         camera: AssetRef<Perso>,
@@ -482,6 +499,8 @@ pub enum Statement {
         vector: Expression,
     },
     WaitEndOfAction,
+    /// Meta61 waits for the shared fade direction to become idle.
+    WaitEndOfFade,
     WaitEndOfAnimation,
     Sound {
         event: Option<SoundEventLink>,
@@ -597,7 +616,7 @@ pub enum Expression {
     /// receiver (self unless an enclosing Operator_Ultra selects another actor).
     DistanceToWaypoint {
         actor: ActorTarget,
-        waypoint: AssetRef<Waypoint>,
+        waypoint: Box<Expression>,
     },
     /// Function_Camera_GetShiftAlpha (category 3/id 59, native 0x0053d300)
     /// takes a typed integer selector and a Perso receiver. The observed
@@ -735,7 +754,15 @@ pub enum Expression {
         threshold: Box<Expression>,
     },
     ActorPositionField(ActorTarget),
+    /// Operator_Dot selecting the source Perso sighting field.
+    ActorSightingField(ActorTarget),
     ActorHitPoints(Box<Expression>),
+    /// Func37 evaluates/captures its actor before its damage operand, then
+    /// subtracts low-byte damage with a zero floor and returns remaining life.
+    SubtractAndGetHitPoints {
+        actor: Box<Expression>,
+        value: Box<Expression>,
+    },
     InventoryGold,
     InventoryMaximum(Box<Expression>),
     Sine(Box<Expression>),
@@ -986,6 +1013,11 @@ impl Content for AiModel {
                 Expression::Actor(ActorTarget::Variable(index))
                 | Expression::ActorPosition(ActorTarget::Variable(index))
                 | Expression::ActorPositionField(ActorTarget::Variable(index))
+                | Expression::ActorSightingField(ActorTarget::Variable(index))
+                | Expression::DistanceToWaypoint {
+                    actor: ActorTarget::Variable(index),
+                    ..
+                }
                 | Expression::ActorDistanceFrom {
                     receiver: ActorTarget::Variable(index),
                     ..
@@ -1159,11 +1191,7 @@ impl AiModel {
             .into_iter()
             .filter_map(|e| match e {
                 Expression::WaypointPosition(reference)
-                | Expression::WaypointReference(reference)
-                | Expression::DistanceToWaypoint {
-                    waypoint: reference,
-                    ..
-                } => Some(reference),
+                | Expression::WaypointReference(reference) => Some(reference),
                 _ => None,
             })
             .collect();
@@ -1364,13 +1392,16 @@ impl Script {
                     ensure!(r.path.member().is_none(), "waypoint is a member")
                 }
                 Expression::DistanceToWaypoint { actor, waypoint } => {
-                    ensure!(
-                        waypoint.path.member().is_none(),
-                        "distance waypoint is a member"
-                    );
                     if let ActorTarget::Reference(actor) = actor {
                         ensure!(actor.path.member().is_none(), "distance actor is a member");
                     }
+                    if let ActorTarget::Variable(index) = actor {
+                        ensure!(
+                            usize::from(*index) < variables,
+                            "distance actor variable out of range"
+                        );
+                    }
+                    expression(waypoint, variables, depth + 1, count)?;
                 }
                 Expression::ActorLocalDistance {
                     receiver, target, ..
@@ -1425,11 +1456,13 @@ impl Script {
                 }
                 Expression::ActorPosition(ActorTarget::Variable(variable))
                 | Expression::ActorPositionField(ActorTarget::Variable(variable))
+                | Expression::ActorSightingField(ActorTarget::Variable(variable))
                 | Expression::Actor(ActorTarget::Variable(variable)) => ensure!(
                     usize::from(*variable) < variables,
                     "AI actor variable out of range"
                 ),
                 Expression::ActorPositionField(ActorTarget::Reference(actor))
+                | Expression::ActorSightingField(ActorTarget::Reference(actor))
                 | Expression::ActorPosition(ActorTarget::Reference(actor)) => {
                     ensure!(actor.path.member().is_none(), "position actor is a member");
                 }
@@ -1507,6 +1540,10 @@ impl Script {
                 | Expression::InventoryRemove {
                     item: left,
                     count: right,
+                }
+                | Expression::SubtractAndGetHitPoints {
+                    actor: left,
+                    value: right,
                 }
                 | Expression::VectorCos(left, right)
                 | Expression::WaypointSphereContains {
@@ -1670,6 +1707,7 @@ impl Script {
                     }
                     Statement::SetHitPointsMaximum { actor, value }
                     | Statement::AddHitPoints { actor, value }
+                    | Statement::SubtractHitPoints { actor, value }
                     | Statement::SetInventoryMaximum { item: actor, value } => {
                         expression(actor, variables, depth + 1, count)?;
                         expression(value, variables, depth + 1, count)?;
@@ -1677,6 +1715,14 @@ impl Script {
                     Statement::ActivateMapName { name, active } => {
                         expression(name, variables, depth + 1, count)?;
                         expression(active, variables, depth + 1, count)?;
+                    }
+                    Statement::ChangeActorSighting { actor, direction } => {
+                        expression(actor, variables, depth + 1, count)?;
+                        expression(direction, variables, depth + 1, count)?;
+                    }
+                    Statement::SetEconomicActorAbsolutePosition { actor, position } => {
+                        expression(actor, variables, depth + 1, count)?;
+                        expression(position, variables, depth + 1, count)?;
                     }
                     Statement::WaitFrames(frames) => {
                         expression(frames, variables, depth + 1, count)?

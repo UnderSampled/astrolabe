@@ -186,12 +186,17 @@ impl Parser<'_> {
                 continue;
             }
             out.push(match (kind, id) {
+                (4, 0) => Statement::PlayerIsDead,
                 (3, 13 | 196 | 229) => {
                     self.at -= 1;
                     Statement::Evaluate(self.expression(indent)?)
                 }
                 (4, 55) => Statement::AddHitPoints {
                     actor: self.expression(indent + 1)?, value: self.expression(indent + 1)?
+                },
+                (4, 56) => Statement::SubtractHitPoints {
+                    actor: self.expression(indent + 1)?,
+                    value: self.expression(indent + 1)?,
                 },
                 (4, 57) => Statement::SetHitPointsMaximum {
                     actor: self.expression(indent + 1)?, value: self.expression(indent + 1)?
@@ -537,6 +542,10 @@ impl Parser<'_> {
                 (4, 185) => Statement::SetTransparentDisplay(true),
                 (4, 186) => Statement::SetTransparentDisplay(false),
                 (4, 445) => Statement::ChangeSighting(self.expression(indent + 1)?),
+                (4, 415) => Statement::SetEconomicActorAbsolutePosition {
+                    actor: Expression::Actor(ActorTarget::Keyword(ActorKeyword::SelfActor)),
+                    position: self.expression(indent + 1)?,
+                },
                 (4, 136 | 157 | 160 | 163) => {
                     let operand = self.at;
                     if !self
@@ -597,6 +606,9 @@ impl Parser<'_> {
                     let actor_target = match (receiver_kind, receiver_parameter) {
                         (0, 4) => Some(ActorTarget::Keyword(ActorKeyword::SelfActor)),
                         (0, 5) => Some(ActorTarget::Keyword(ActorKeyword::MainActor)),
+                        (11, variable) if self.nodes.get(self.at).is_some_and(|n| {
+                            n.indent == indent + 1 && n.kind == 4 && matches!(n.parameter, 415 | 445)
+                        }) => Some(ActorTarget::Variable(variable.try_into()?)),
                         (24, _) => actor.clone().map(ActorTarget::Reference),
                         _ => None,
                     };
@@ -638,6 +650,25 @@ impl Parser<'_> {
                                 let mut fragment = self.unsupported(at, "object sound fade requires a bound sound event operand".into())?;
                                 fragment.receiver = Some(actor_target);
                                 Statement::Unsupported(fragment)
+                            }
+                        }
+                    } else if let Some(actor_target) = actor_target.clone()
+                        && child.is_some_and(|n| {
+                            n.indent == indent + 1 && n.kind == 4 && matches!(n.parameter, 415 | 445)
+                        })
+                    {
+                        let (_, operation) = self.take(indent + 1)?;
+                        let sighting = operation.parameter == 445;
+                        let value = self.expression(indent + 2)?;
+                        if sighting {
+                            Statement::ChangeActorSighting {
+                                actor: Expression::Actor(actor_target),
+                                direction: value,
+                            }
+                        } else {
+                            Statement::SetEconomicActorAbsolutePosition {
+                                actor: Expression::Actor(actor_target),
+                                position: value,
                             }
                         }
                     } else if let Some(actor_target) = actor_target.clone()
@@ -951,6 +982,7 @@ impl Parser<'_> {
                     }
                 }
                 (5, 6) => Statement::WaitEndOfAction,
+                (5, 61) => Statement::WaitEndOfFade,
                 (5, 8) => Statement::WaitEndOfAnimation,
                 (4, 127) => {
                     let (operand, child) = self.take(indent + 1)?;
@@ -1220,12 +1252,18 @@ impl Parser<'_> {
             (2, 12) => {
                 let actor_at = self.at;
                 if self.nodes.get(actor_at + 1).is_some_and(|field| {
-                    field.indent == indent + 1 && field.kind == 9 && field.parameter == 0
+                    field.indent == indent + 1
+                        && field.kind == 9
+                        && matches!(field.parameter, 0 | 1)
                 }) {
                     let actor = self.expression(indent + 1)?;
-                    self.take(indent + 1)?;
+                    let (_, field) = self.take(indent + 1)?;
                     if let Expression::Actor(actor) = actor {
-                        return Ok(Expression::ActorPositionField(actor));
+                        return Ok(if field.parameter == 0 {
+                            Expression::ActorPositionField(actor)
+                        } else {
+                            Expression::ActorSightingField(actor)
+                        });
                     }
                     return Ok(Expression::Unsupported(
                         self.unsupported(at, "position field needs actor".into())?,
@@ -1620,6 +1658,10 @@ impl Parser<'_> {
                 target: Box::new(self.expression(indent + 1)?),
             },
             (3, 38) => Expression::ActorHitPointsMaximum(Box::new(self.expression(indent + 1)?)),
+            (3, 37) => Expression::SubtractAndGetHitPoints {
+                actor: Box::new(self.expression(indent + 1)?),
+                value: Box::new(self.expression(indent + 1)?),
+            },
             (3, 59) => {
                 let selector = Box::new(self.expression(indent + 1)?);
                 let actor = self.expression(indent + 1)?;
@@ -1676,21 +1718,10 @@ impl Parser<'_> {
                     )
                 }
             }
-            (3, 11) => {
-                let (operand, point) = self.take(indent + 1)?;
-                if point.kind == 29
-                    && let Some(reference) = self.codec.waypoints.get(&operand)
-                {
-                    Expression::DistanceToWaypoint {
-                        actor: ActorTarget::Keyword(ActorKeyword::SelfActor),
-                        waypoint: reference.clone(),
-                    }
-                } else {
-                    Expression::Unsupported(
-                        self.unsupported(at, "unbound distance waypoint".into())?,
-                    )
-                }
-            }
+            (3, 11) => Expression::DistanceToWaypoint {
+                actor: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                waypoint: Box::new(self.expression(indent + 1)?),
+            },
             (3, 41) => Expression::GameTime,
             (3, 195) => Expression::GameState,
             (3, 27) => Expression::RandomInt {
@@ -1751,11 +1782,14 @@ impl Writer<'_> {
                     self.expression(value, indent)?;
                 }
                 Statement::SetHitPointsMaximum { actor, value }
-                | Statement::AddHitPoints { actor, value } => {
+                | Statement::AddHitPoints { actor, value }
+                | Statement::SubtractHitPoints { actor, value } => {
                     self.node(
                         4,
                         if matches!(s, Statement::AddHitPoints { .. }) {
                             55
+                        } else if matches!(s, Statement::SubtractHitPoints { .. }) {
+                            56
                         } else {
                             57
                         },
@@ -1764,6 +1798,7 @@ impl Writer<'_> {
                     self.expression(actor, indent + 1)?;
                     self.expression(value, indent + 1)?;
                 }
+                Statement::PlayerIsDead => self.node(4, 0, indent),
                 Statement::SetMagicPointsMaximum(value) => {
                     self.node(4, 434, indent);
                     self.expression(value, indent + 1)?;
@@ -2087,6 +2122,25 @@ impl Writer<'_> {
                 Statement::ChangeSighting(direction) => {
                     self.node(4, 445, indent);
                     self.expression(direction, indent + 1)?;
+                }
+                Statement::ChangeActorSighting { actor, direction } => {
+                    self.node(2, 24, indent);
+                    self.expression(actor, indent + 1)?;
+                    self.node(4, 445, indent + 1);
+                    self.expression(direction, indent + 2)?;
+                }
+                Statement::SetEconomicActorAbsolutePosition { actor, position } => {
+                    let inner = if *actor
+                        == Expression::Actor(ActorTarget::Keyword(ActorKeyword::SelfActor))
+                    {
+                        indent
+                    } else {
+                        self.node(2, 24, indent);
+                        self.expression(actor, indent + 1)?;
+                        indent + 1
+                    };
+                    self.node(4, 415, inner);
+                    self.expression(position, inner + 1)?;
                 }
                 Statement::CameraChangeTargetedPerso { camera, target } => {
                     let handle = self
@@ -2449,6 +2503,7 @@ impl Writer<'_> {
                     self.expression(near_action, indent + 1)?;
                 }
                 Statement::WaitEndOfAction => self.node(5, 6, indent),
+                Statement::WaitEndOfFade => self.node(5, 61, indent),
                 Statement::WaitEndOfAnimation => self.node(5, 8, indent),
                 Statement::Sound { event } => {
                     self.node(4, 127, indent);
@@ -2681,10 +2736,14 @@ impl Writer<'_> {
                 self.expression(point, inner + 1)?;
                 self.expression(threshold, inner + 1)?;
             }
-            Expression::ActorPositionField(actor) => {
+            Expression::ActorPositionField(actor) | Expression::ActorSightingField(actor) => {
                 self.node(2, 12, indent);
                 self.expression(&Expression::Actor(actor.clone()), indent + 1)?;
-                self.node(9, 0, indent + 1);
+                self.node(
+                    9,
+                    u32::from(matches!(e, Expression::ActorSightingField(_))),
+                    indent + 1,
+                );
             }
             Expression::DistanceToPosition { receiver, point } => {
                 let inner = if receiver.is_some() { indent + 1 } else { indent };
@@ -2713,6 +2772,11 @@ impl Writer<'_> {
             Expression::ActorHitPointsMaximum(actor) => {
                 self.node(3, 38, indent);
                 self.expression(actor, indent + 1)?;
+            }
+            Expression::SubtractAndGetHitPoints { actor, value } => {
+                self.node(3, 37, indent);
+                self.expression(actor, indent + 1)?;
+                self.expression(value, indent + 1)?;
             }
             Expression::ActorPosition(actor) => {
                 self.node(2, 24, indent);
@@ -3052,15 +3116,8 @@ impl Writer<'_> {
                         (indent + 1, indent + 2)
                     }
                 };
-                let handle = self
-                    .codec
-                    .waypoint_handles
-                    .iter()
-                    .find(|(reference, _)| reference == waypoint)
-                    .context("missing distance waypoint handle")?
-                    .1;
                 self.node(3, 11, function_indent);
-                self.node(29, handle, waypoint_indent);
+                self.expression(waypoint, waypoint_indent)?;
             }
             Expression::WaypointSphereContains { actor, waypoint } => {
                 self.node(1, 108, indent);

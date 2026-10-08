@@ -7,6 +7,7 @@ const LEVEL := "res://generated/hype/levels/manoir/level.tscn"
 const GATE_ACTOR := "world/0/15/iMGrille_Manoir_Pont"
 const MANOIR_START = preload("res://game/manoir_start.gd")
 const SAVE_STATE = preload("res://game/save_state.gd")
+const NATIVE_AUDIO_EMITTER = preload("res://addons/astrolabe/audio/emitter.gd")
 const LOADING_SCREEN_PATH := NodePath("/root/LevelTransition/LoadingScreen")
 const INITIAL_ROUTE_ERROR_META := "astrolabe_initial_route_error"
 @export var new_game: bool = false
@@ -47,6 +48,46 @@ var _initial_failure_recovery_cancelled := false
 var source_camera_controller_state: Resource
 ## Hype's source game-state selector is one shared byte, not actor Brain state.
 var source_game_state_mask: int = 0
+## A source death request is separate from Proc_SetGameState's selector mask.
+## This native terminal state is transient and never belongs to a checkpoint.
+var source_death_requested := false
+
+## Proc_PlayerIsDead requests the original engine's death/reset phase. Until
+## its level-reset lifecycle is supported, end native gameplay here. Reload
+## remains an explicit user action governed by the existing native save policy.
+func source_player_is_dead() -> bool:
+    if source_death_requested: return true
+    if loading or _initial_transition_pending or not is_instance_valid(level):
+        return false
+    source_death_requested = true
+    ready_to_play = false
+    pause_host.call("close_pause")
+    inventory_host.call("close_inventory")
+    if crossbow_aim_mode: set_crossbow_aim_mode(false)
+    # Native actor emitters contain effects and speech. The separate shared
+    # music channel is not one of the two source channels reset by death.
+    for emitter in level.find_children("*", "Node3D", true, false):
+        if emitter is NATIVE_AUDIO_EMITTER and not emitter.is_music:
+            emitter.kill_all()
+            # Forced voice stops do not invoke the natural-finish callback.
+            # Clear the speech holder after the ordered channel cleanup.
+            emitter.stop_dialogue_speech()
+    for source_brain in level.find_children("Brain", "Node", true, false):
+        source_brain.set("automatic", false)
+        source_brain.call("stop")
+    for body in level.find_children("*", "CharacterBody3D", true, false):
+        body.velocity = Vector3.ZERO
+        body.set_physics_process(false)
+    level.process_mode = Node.PROCESS_MODE_DISABLED
+    demo_camera.set_process(false)
+    demo_camera.set_process_unhandled_input(false)
+    for action in InputMap.get_actions():
+        if str(action).begins_with("BT_") or str(action).begins_with("Button_"):
+            Input.action_release(action)
+    $Hud/Panel/Margin/Rows/Save.disabled = true
+    $Hud/Panel/Margin/Rows/Controls.text = "R  reload session     Esc  main menu"
+    stage("dead", "Hype has died. Press R to reload the session.")
+    return true
 
 func source_set_game_state(state_id: int) -> void:
     var state_byte := state_id & 0xff
@@ -760,6 +801,16 @@ func _unhandled_key_input(event: InputEvent) -> void:
         leave_session("res://game/bootstrap.tscn")
 
 func _input(event: InputEvent) -> void:
+    if source_death_requested:
+        var death_key := event as InputEventKey
+        if death_key != null and death_key.pressed and not death_key.echo:
+            if death_key.physical_keycode == KEY_R:
+                leave_session(scene_file_path)
+            elif death_key.physical_keycode == KEY_ESCAPE:
+                leave_session("res://game/bootstrap.tscn")
+        if event is InputEventKey or event is InputEventMouseButton or event is InputEventMouseMotion or event is InputEventJoypadButton or event is InputEventJoypadMotion:
+            get_viewport().set_input_as_handled()
+        return
     if ready_to_play or not (_initial_transition_pending or loading):
         return
     var key := event as InputEventKey

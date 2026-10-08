@@ -879,6 +879,8 @@ fn vector_expression(e: &Expression, model: &AiModel) -> bool {
         Expression::Vector(_)
         | Expression::SelfPosition
         | Expression::ActorPosition(_)
+        | Expression::ActorPositionField(_)
+        | Expression::ActorSightingField(_)
         | Expression::SelfPositionField
         | Expression::WaypointPosition(_)
         | Expression::SelfSighting
@@ -1014,7 +1016,9 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::ActorLocalDistance { .. }
         | Expression::IsAbovePerso { .. }
         | Expression::ActorPositionField(_)
+        | Expression::ActorSightingField(_)
         | Expression::ActorHitPoints(_)
+        | Expression::SubtractAndGetHitPoints { .. }
         | Expression::InventoryGold
         | Expression::InventoryMaximum(_)
         | Expression::Sine(_)
@@ -1110,6 +1114,21 @@ fn guarded_expression(
             )?;
             format!("{local}.source_position()")
         }
+        Expression::ActorSightingField(actor) => {
+            let local = format!("sighting_actor_{}", flow.local);
+            flow.local += 1;
+            writeln!(
+                out,
+                "{pad}var {local}: Node3D = {}\n{pad}if not is_instance_valid({local}) or not {local}.is_inside_tree() or not {local}.has_method(\"source_sighting\"):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                actor_target_code(actor),
+                quoted(&format!(
+                    "{} requires native sighting for {}",
+                    model.path,
+                    actor_target_label(actor)
+                ))
+            )?;
+            format!("{local}.source_sighting()")
+        }
         Expression::ActorFacingAngle { receiver, target } => {
             let id = flow.local;
             flow.local += 1;
@@ -1145,6 +1164,20 @@ fn guarded_expression(
                 quoted(&format!("{} requires a finite actor-origin distance to position", model.path))
             )?;
             format!("distance_value_{id}")
+        }
+        Expression::SubtractAndGetHitPoints { actor, value } => {
+            let actor = guarded_expression(out, actor, model, depth, flow)?;
+            let id = flow.local;
+            flow.local += 1;
+            // Capture the actor before evaluating the amount: the source
+            // evaluator reuses its result buffer for the second operand.
+            writeln!(out, "{pad}var damage_actor_{id} = {actor}")?;
+            let value = guarded_expression(out, value, model, depth, flow)?;
+            writeln!(
+                out,
+                "{pad}if typeof(damage_actor_{id}) != TYPE_OBJECT or not is_instance_valid(damage_actor_{id}) or not damage_actor_{id}.has_method(\"source_hit_points_ready\") or not damage_actor_{id}.source_hit_points_ready():\n{pad}    fail_unsupported(\"Life subtraction requires converted actor hit points\")\n{pad}    {exit}\n{pad}var damage_life_{id}: Resource = damage_actor_{id}.get(\"source_hit_points\")\n{pad}if not damage_life_{id}.has_method(\"subtract_points\"):\n{pad}    fail_unsupported(\"Life subtraction requires the native byte damage API\")\n{pad}    {exit}\n{pad}var remaining_life_{id}: int = int(damage_life_{id}.call(\"subtract_points\", int({value})))"
+            )?;
+            format!("remaining_life_{id}")
         }
         Expression::ActorHitPointsMaximum(actor) | Expression::ActorHitPoints(actor) => {
             let value = guarded_expression(out, actor, model, depth, flow)?;
@@ -1286,7 +1319,7 @@ fn guarded_expression(
             ));
             writeln!(
                 out,
-                "{pad}var armor_damage_input_{id}: int = int({value})\n{pad}if not {armor}.has_method(\"damage\") or not is_instance_valid(main_actor):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var armor_hit_points_{id}: Resource = main_actor.get(\"source_hit_points\") as Resource\n{pad}if armor_hit_points_{id} == null or not armor_hit_points_{id}.has_method(\"subtract_damage\") or not armor_hit_points_{id}.has_method(\"can_receive_damage\") or not bool(armor_hit_points_{id}.call(\"can_receive_damage\")):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var effective_damage_{id}: int = int({armor}.call(\"damage\", armor_damage_input_{id}))\n{pad}if effective_damage_{id} < 0:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var remaining_hit_points_{id}: int = int(armor_hit_points_{id}.call(\"subtract_damage\", effective_damage_{id}))"
+                "{pad}var armor_damage_operand_{id}: Variant = {value}\n{pad}var armor_damage_input_{id}: int\n{pad}if typeof(armor_damage_operand_{id}) == TYPE_FLOAT:\n{pad}    var armor_damage_bytes_{id} := PackedByteArray()\n{pad}    armor_damage_bytes_{id}.resize(4)\n{pad}    armor_damage_bytes_{id}.encode_float(0, armor_damage_operand_{id})\n{pad}    armor_damage_input_{id} = armor_damage_bytes_{id}.decode_u32(0) & 255\n{pad}elif typeof(armor_damage_operand_{id}) in [TYPE_INT, TYPE_BOOL]:\n{pad}    armor_damage_input_{id} = int(armor_damage_operand_{id}) & 255\n{pad}else:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if not {armor}.has_method(\"damage\") or not is_instance_valid(main_actor):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var armor_hit_points_{id}: Resource = main_actor.get(\"source_hit_points\") as Resource\n{pad}if armor_hit_points_{id} == null or not armor_hit_points_{id}.has_method(\"subtract_damage\") or not armor_hit_points_{id}.has_method(\"can_receive_damage\") or not bool(armor_hit_points_{id}.call(\"can_receive_damage\")):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var effective_damage_{id}: int = int({armor}.call(\"damage\", armor_damage_input_{id}))\n{pad}if effective_damage_{id} < 0:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var remaining_hit_points_{id}: int = int(armor_hit_points_{id}.call(\"subtract_damage\", effective_damage_{id}))"
             )?;
             format!("remaining_hit_points_{id}")
         }
@@ -1319,38 +1352,27 @@ fn guarded_expression(
             local
         }
         Expression::DistanceToWaypoint { actor, waypoint } => {
-            let receiver = match actor {
-                ActorTarget::Keyword(ActorKeyword::SelfActor) => "character()".to_owned(),
-                ActorTarget::Keyword(ActorKeyword::MainActor) => "main_actor".to_owned(),
-                ActorTarget::Variable(index) => format!("dsg_{index}"),
-                ActorTarget::Reference(actor) => format!(
-                    "character().source_actor_node({})",
-                    quoted(actor.path.as_str())
-                ),
-            };
             let id = flow.local;
             flow.local += 1;
             let receiver_local = format!("distance_receiver_{id}");
             let waypoint_local = format!("distance_waypoint_{id}");
+            let point_local = format!("distance_point_{id}");
             let value_local = format!("distance_value_{id}");
+            let failure = quoted(&format!(
+                "{} requires a live distance receiver and resolved waypoint",
+                model.path
+            ));
             writeln!(
                 out,
-                "{pad}var {receiver_local}: Node3D = {receiver}\n{pad}if not is_instance_valid({receiver_local}):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var {waypoint_local} = {}\n{pad}if typeof({waypoint_local}) != TYPE_VECTOR3:\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var {value_local} = character().source_distance_to_waypoint({receiver_local}, {waypoint_local})",
-                quoted(&format!(
-                    "{} requires distance receiver {}",
-                    model.path,
-                    match actor {
-                        ActorTarget::Keyword(ActorKeyword::SelfActor) => "self",
-                        ActorTarget::Keyword(ActorKeyword::MainActor) => "main actor",
-                        ActorTarget::Reference(actor) => actor.path.as_str(),
-                        ActorTarget::Variable(_) => "actor designer field",
-                    }
-                )),
-                waypoint_constant(waypoint),
-                quoted(&format!(
-                    "{} requires resolved absolute waypoint {}",
-                    model.path, waypoint.path
-                ))
+                "{pad}var {receiver_local}: Node3D = {}\n{pad}if not is_instance_valid({receiver_local}) or not {receiver_local}.is_inside_tree():\n{pad}    fail_unsupported({failure})\n{pad}    {exit}",
+                actor_target_code(actor)
+            )?;
+            // Capture the selected Ultra receiver before evaluating the caller's
+            // waypoint expression; it may have side effects or use a DSG slot.
+            let value = guarded_expression(out, waypoint, model, depth, flow)?;
+            writeln!(
+                out,
+                "{pad}var {waypoint_local}: Variant = {value}\n{pad}if typeof({waypoint_local}) != TYPE_OBJECT or not is_instance_valid({waypoint_local}) or not {waypoint_local}.has_method(\"source_world_position\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {point_local}: Variant = {waypoint_local}.call(\"source_world_position\", character())\n{pad}if typeof({point_local}) != TYPE_VECTOR3 or not {point_local}.is_finite():\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {value_local}: float = character().source_distance_to_waypoint({receiver_local}, {point_local})"
             )?;
             value_local
         }
@@ -1923,7 +1945,9 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         | Expression::ActorLocalDistance { .. }
         | Expression::IsAbovePerso { .. }
         | Expression::ActorPositionField(_)
+        | Expression::ActorSightingField(_)
         | Expression::ActorHitPoints(_)
+        | Expression::SubtractAndGetHitPoints { .. }
         | Expression::InventoryGold
         | Expression::InventoryMaximum(_)
         | Expression::Sine(_)
@@ -2254,6 +2278,7 @@ fn blocking(
             )
         }
         Statement::WaitEndOfAction => "character().action_complete".into(),
+        Statement::WaitEndOfFade => format!("not bool(fade_busy_{id})"),
         Statement::WaitEndOfAnimation => "character().animation_complete".into(),
         _ => unreachable!("nonblocking statement"),
     };
@@ -2275,6 +2300,20 @@ fn blocking(
             "{pad}        var camera_request_result_{id}: int = character().source_camera_go_to_waypoint(request_camera_{id}, request_waypoint_{id})\n{pad}        if camera_request_result_{id} < 0:\n{pad}            fail_unsupported({})\n{pad}            {exit}",
             quoted(&format!(
                 "{} requires a resolved camera and waypoint for Meta49",
+                model.path
+            ))
+        )?;
+    }
+    if matches!(statement, Statement::WaitEndOfFade) {
+        writeln!(
+            out,
+            "{pad}        var fade_screen_{id} := source_ui()\n{pad}        if not is_instance_valid(fade_screen_{id}) or not fade_screen_{id}.has_method(\"source_fade_in_progress\"):\n{pad}            fail_unsupported({})\n{pad}            {exit}\n{pad}        var fade_busy_{id}: Variant = fade_screen_{id}.call(\"source_fade_in_progress\")\n{pad}        if typeof(fade_busy_{id}) != TYPE_BOOL:\n{pad}            fail_unsupported({})\n{pad}            {exit}",
+            quoted(&format!(
+                "{} requires the active native fade owner",
+                model.path
+            )),
+            quoted(&format!(
+                "{} requires an available native fade direction",
                 model.path
             ))
         )?;
@@ -2380,7 +2419,8 @@ fn statements(
                 writeln!(out, "{pad}var _discarded_{local} = {value}")?;
             }
             Statement::SetHitPointsMaximum { actor, value }
-            | Statement::AddHitPoints { actor, value } => {
+            | Statement::AddHitPoints { actor, value }
+            | Statement::SubtractHitPoints { actor, value } => {
                 let actor = guarded_expression(out, actor, model, depth, flow)?;
                 let local = flow.local;
                 flow.local += 1;
@@ -2392,6 +2432,8 @@ fn statements(
                 )?;
                 let method = if matches!(statement, Statement::AddHitPoints { .. }) {
                     "add_points"
+                } else if matches!(statement, Statement::SubtractHitPoints { .. }) {
+                    "subtract_points"
                 } else {
                     "set_maximum"
                 };
@@ -2803,6 +2845,14 @@ fn statements(
             Statement::KillSelf => {
                 writeln!(out, "{pad}character().source_kill()\n{pad}{exit}")?;
             }
+            Statement::PlayerIsDead => {
+                let id = flow.local;
+                flow.local += 1;
+                writeln!(
+                    out,
+                    "{pad}var death_session_{id} := source_game_session()\n{pad}if not is_instance_valid(death_session_{id}) or not death_session_{id}.has_method(\"source_player_is_dead\") or not bool(death_session_{id}.call(\"source_player_is_dead\")):\n{pad}    fail_unsupported(\"Player death requires an active native game session\")\n{pad}    {exit}\n{pad}{exit}"
+                )?;
+            }
             Statement::KillPerso { target } => {
                 // The source dispatch kills the target and cancels this
                 // schedule only when the target is its executing actor.
@@ -3061,6 +3111,35 @@ fn statements(
                         "{} received invalid sighting direction",
                         model.path
                     ))
+                )?;
+            }
+            Statement::ChangeActorSighting { actor, direction }
+            | Statement::SetEconomicActorAbsolutePosition {
+                actor,
+                position: direction,
+            } => {
+                let id = flow.local;
+                flow.local += 1;
+                let actor_value = guarded_expression(out, actor, model, depth, flow)?;
+                let method = if matches!(statement, Statement::ChangeActorSighting { .. }) {
+                    "source_change_sighting"
+                } else {
+                    "source_set_absolute_position"
+                };
+                let failure = quoted(&format!(
+                    "{} requires a live native {method} receiver and finite vector",
+                    model.path
+                ));
+                writeln!(
+                    out,
+                    "{pad}var placement_actor_{id}: Variant = {actor_value}\n{pad}if typeof(placement_actor_{id}) != TYPE_OBJECT or not is_instance_valid(placement_actor_{id}) or not (placement_actor_{id} is Node3D) or not placement_actor_{id}.is_inside_tree() or not placement_actor_{id}.has_method({}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}",
+                    quoted(method)
+                )?;
+                let value = guarded_expression(out, direction, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}var placement_vector_{id}: Variant = {value}\n{pad}if typeof(placement_vector_{id}) != TYPE_VECTOR3 or not placement_vector_{id}.is_finite():\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if not bool(placement_actor_{id}.call({}, placement_vector_{id})):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}",
+                    quoted(method)
                 )?;
             }
             Statement::CameraChangeTargetedPerso { camera, target } => {
@@ -3447,6 +3526,7 @@ fn statements(
             | Statement::ExecuteAction(_)
             | Statement::ExecuteActionAndGenerateObject { .. }
             | Statement::WaitEndOfAction
+            | Statement::WaitEndOfFade
             | Statement::WaitEndOfAnimation => {
                 blocking(out, statement, model, depth, flow)?;
             }
@@ -4278,7 +4358,7 @@ mod source_position_tests {
                 operation: Comparison::Less,
                 left: Box::new(Expression::DistanceToWaypoint {
                     actor: ActorTarget::Keyword(crate::model::ai::ActorKeyword::MainActor),
-                    waypoint: waypoint.clone(),
+                    waypoint: Box::new(Expression::WaypointReference(waypoint.clone())),
                 }),
                 right: Box::new(Expression::Real(5.0)),
             },
@@ -4337,7 +4417,11 @@ mod source_position_tests {
             &[],
             None,
             &[],
-            &[(waypoint, Some([0.0, 0.0, 0.0]), None)],
+            &[(
+                waypoint,
+                Some([0.0, 0.0, 0.0]),
+                Some("res://waypoints/entry.tres".into()),
+            )],
             &[],
         )?;
         let sequence = [
@@ -4615,7 +4699,9 @@ mod source_position_tests {
                                 operation: Comparison::Less,
                                 left: Box::new(Expression::DistanceToWaypoint {
                                     actor: ActorTarget::Reference(actor.clone()),
-                                    waypoint: waypoint.clone(),
+                                    waypoint: Box::new(Expression::WaypointReference(
+                                        waypoint.clone(),
+                                    )),
                                 }),
                                 right: Box::new(Expression::Real(5.0)),
                             },
@@ -4640,12 +4726,16 @@ mod source_position_tests {
             &[],
             None,
             &[],
-            &[(waypoint, Some([-85.744194, 14.145693, 1.973552]), None)],
+            &[(
+                waypoint,
+                Some([-85.744194, 14.145693, 1.973552]),
+                Some("res://waypoints/entry.tres".into()),
+            )],
             &[],
         )?;
         assert!(generated.contains("character().source_actor_node(\"level:/persos/world/0/34\")"));
         assert!(generated.contains("source_distance_to_waypoint(distance_receiver_"));
-        assert!(generated.contains("requires resolved absolute waypoint level:/waypoints/17-1/58"));
+        assert!(generated.contains("requires a live distance receiver and resolved waypoint"));
         Ok(())
     }
 
