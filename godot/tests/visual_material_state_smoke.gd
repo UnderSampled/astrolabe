@@ -81,6 +81,8 @@ func _run() -> void:
 	level.add_child(actor)
 	var first := _add_mesh(actor, source.duplicate() as StandardMaterial3D, Vector4(0, 0, 0, 0), "FirstUse")
 	var second := _add_mesh(actor, source.duplicate() as StandardMaterial3D, Vector4(0, 0, 0, 0), "SecondUse")
+	assert(state.can_set_visual_diffuse_coef(MATERIAL_PATH))
+	assert(not state.can_set_visual_diffuse_coef("fix:/materials/06-01/missing"))
 	assert(actor.renderer.set_transparency(actor, 128))
 	assert(actor.renderer.set_transparent_display(actor, true))
 	assert(state.set_visual_diffuse_coef(MATERIAL_PATH, 0x6e643200)) # RGBA bytes 0,50,100,110

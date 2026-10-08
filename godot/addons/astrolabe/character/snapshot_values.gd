@@ -14,3 +14,9 @@ static func keys(value: Variant, expected: Array) -> bool:
 
 static func integer(value: Variant, minimum: int, maximum: int) -> bool:
 	return typeof(value) == TYPE_INT and int(value) >= minimum and int(value) <= maximum
+
+static func item_key(value: Variant) -> bool:
+	if typeof(value) != TYPE_STRING:
+		return false
+	var key := String(value)
+	return not key.is_empty() and key.is_valid_int() and int(key) >= 0

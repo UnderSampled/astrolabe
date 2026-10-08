@@ -2028,7 +2028,14 @@ fn statements(
                     (DesignerValue::Vector(_), Expression::SelfPositionField)
                 );
                 let value = guarded_expression(out, value, model, depth, flow)?;
-                let value = if matches!(kind, DesignerValue::Actor(_)) || value_is_native_vector {
+                let value = if matches!(
+                    kind,
+                    DesignerValue::Actor(_)
+                        | DesignerValue::Waypoint(_)
+                        | DesignerValue::WaypointArray(_)
+                        | DesignerValue::ActorList(_)
+                ) || value_is_native_vector
+                {
                     value
                 } else {
                     format!("{}({value})", value_type(kind))
@@ -2292,7 +2299,15 @@ fn statements(
                 let value = guarded_expression(out, enabled, model, depth, flow)?;
                 writeln!(
                     out,
-                    "{pad}if not character().source_set_laser_pointer_sniper_mode({value}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    "{pad}if not character().source_set_laser_pointer_sniper_mode(bool({value})):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                    quoted(&format!("{} has no native laser-pointer state", model.path))
+                )?;
+            }
+            Statement::SetLaserPointerFlyMode(enabled) => {
+                let value = guarded_expression(out, enabled, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if not character().source_set_laser_pointer_fly_mode(bool({value})):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
                     quoted(&format!("{} has no native laser-pointer state", model.path))
                 )?;
             }
@@ -2526,6 +2541,7 @@ fn statements(
                     crate::model::ai::HudIndicator::Magic => "magic",
                     crate::model::ai::HudIndicator::SelectedObject => "selected_object",
                     crate::model::ai::HudIndicator::Weapon => "weapon",
+                    crate::model::ai::HudIndicator::Cash => "cash",
                 };
                 writeln!(
                     out,
@@ -2790,14 +2806,23 @@ fn statements(
                     ),
                     "Proc_SetVisualGMTDiffuseCoef requires a 32-bit integer designer field"
                 );
-                let value = guarded_expression(out, value, model, depth, flow)?;
                 let failure = quoted(&format!(
                     "{} Proc_SetVisualGMTDiffuseCoef requires native shared visual-material state for {}",
                     model.path, material.path
                 ));
                 writeln!(
                     out,
-                    "{pad}if not character().has_method(\"source_set_visual_gmt_diffuse_coef\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if not bool(character().call(\"source_set_visual_gmt_diffuse_coef\", {}, int({value}))):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if not active_{group}(token): {exit}",
+                    "{pad}if not character().has_method(\"source_visual_material_target_ready\") or not character().has_method(\"source_set_visual_gmt_diffuse_coef\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if not bool(character().call(\"source_visual_material_target_ready\", {})):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}",
+                    quoted(material.path.as_str())
+                )?;
+                // OpenSpace resolves the GameMaterial and VisualMaterial before
+                // evaluating this operand. Keep the live designer read after
+                // the native target preflight so a missing target cannot consume
+                // an unsupported or side-effecting source expression.
+                let value = guarded_expression(out, value, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if not bool(character().call(\"source_set_visual_gmt_diffuse_coef\", {}, int({value}))):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if not active_{group}(token): {exit}",
                     quoted(material.path.as_str())
                 )?;
             }
@@ -3375,7 +3400,7 @@ mod source_position_tests {
             }),
             reflex: None,
             variables: vec![crate::model::ai::DesignerVariable {
-                default: crate::model::ai::DesignerValue::Waypoint(None),
+                default: crate::model::ai::DesignerValue::Waypoint(Some(waypoint.clone())),
                 save: 0,
                 initialize: 0,
             }],

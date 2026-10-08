@@ -451,6 +451,7 @@ impl Parser<'_> {
                 (4, 337) => Statement::SetLaserPointerActive(true),
                 (4, 338) => Statement::SetLaserPointerActive(false),
                 (4, 342) => Statement::SetLaserPointerSniperMode(self.expression(indent + 1)?),
+                (4, 343) => Statement::SetLaserPointerFlyMode(self.expression(indent + 1)?),
                 (4, 266) => Statement::SetDisplayVisible(false),
                 (4, 267) => Statement::SetDisplayVisible(true),
                 (4, 187) => Statement::SetTransparency(self.expression(indent + 1)?),
@@ -634,13 +635,14 @@ impl Parser<'_> {
                 (4, 327) => Statement::SelectDialog,
                 (4, 324) => Statement::EndDialog,
                 (4, 330) => Statement::ChangeDialogBehavior,
-                (4, 422..=426) => Statement::SetHudVisible {
+                (4, 422..=426 | 428) => Statement::SetHudVisible {
                     indicator: match id {
                         422 => HudIndicator::Life,
                         423 => HudIndicator::Armor,
                         424 => HudIndicator::Magic,
                         425 => HudIndicator::SelectedObject,
-                        _ => HudIndicator::Weapon,
+                        426 => HudIndicator::Weapon,
+                        _ => HudIndicator::Cash,
                     },
                     visible: self.expression(indent + 1)?,
                 },
@@ -1604,6 +1606,10 @@ impl Writer<'_> {
                     self.node(4, 342, indent);
                     self.expression(enabled, indent + 1)?;
                 }
+                Statement::SetLaserPointerFlyMode(enabled) => {
+                    self.node(4, 343, indent);
+                    self.expression(enabled, indent + 1)?;
+                }
                 Statement::SetDisplayVisible(visible) => {
                     self.node(4, if *visible { 267 } else { 266 }, indent)
                 }
@@ -1756,6 +1762,7 @@ impl Writer<'_> {
                             HudIndicator::Magic => 424,
                             HudIndicator::SelectedObject => 425,
                             HudIndicator::Weapon => 426,
+                            HudIndicator::Cash => 428,
                         },
                         indent,
                     );
@@ -2641,6 +2648,8 @@ mod partial_tests {
             (18, 28, 2),
             (4, 426, 1),
             (12, 1, 2),
+            (4, 428, 1),
+            (12, 1, 2),
             (8, 0, 0),
         ]);
         let script = codec.read(&bytes)?;
@@ -2662,6 +2671,13 @@ mod partial_tests {
             script.statements[2],
             Statement::SetHudVisible {
                 indicator: HudIndicator::Weapon,
+                visible: Expression::Integer(1)
+            }
+        ));
+        assert!(matches!(
+            script.statements[3],
+            Statement::SetHudVisible {
+                indicator: HudIndicator::Cash,
                 visible: Expression::Integer(1)
             }
         ));

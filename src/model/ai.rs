@@ -242,6 +242,9 @@ pub enum Statement {
     SetLaserPointerActive(bool),
     /// Proc_SetLaserPointerSniperMode changes the native pointer's aiming mode.
     SetLaserPointerSniperMode(Expression),
+    /// Proc_SetLaserPointerFlyMode stores its normalized mode bit, clears sniper
+    /// mode when enabled, and selects the source pointer scale (3.0 or 1.0).
+    SetLaserPointerFlyMode(Expression),
     /// Proc_InvisibleDisplay / Proc_VisibleDisplay toggle rendered visibility
     /// while leaving the actor's native physics and AI active.
     SetDisplayVisible(bool),
@@ -383,6 +386,8 @@ pub enum HudIndicator {
     Magic,
     SelectedObject,
     Weapon,
+    /// Source Stats_DisplayCash toggles the coin icon/count in the shared HUD.
+    Cash,
 }
 /// Writable designer field selected by a source AI arithmetic operator.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

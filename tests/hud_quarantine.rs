@@ -211,6 +211,11 @@ fn verified_hud_import_rete_roundtrip_and_godot_export() -> Result<()> {
     ensure!(script.contains("const CURRENCY_ITEM_ID: int = 0"));
     ensure!(script.contains("func bind_actor(actor: Node)"));
     ensure!(script.contains("func set_currency_count(value: int)"));
+    ensure!(script.contains("\"cash\": false"));
+    ensure!(
+        script
+            .contains("var show_cash := bool(_requested.get(\"cash\", false)) and not suppressed")
+    );
     ensure!(
         !script.contains(".region_rect"),
         "TextureRect crop must not use the unsupported region_rect property"
@@ -282,7 +287,10 @@ func _run() -> void:
     hud.call("bind_actor", actor)
     await process_frame
     var label := hud.get_node("Source/CurrencyCount") as Label
+    var icon := hud.get_node("Source/CurrencyIcon") as TextureRect
     hud.call("_process", 0.0)
+    if not _check(not label.visible and not icon.visible, "source cash display default was not hidden"):
+        return
     var life_fill := hud.get_node("Source/PlayerLifeFill") as TextureRect
     var life_remainder := hud.get_node("Source/PlayerLifeRemainder") as TextureRect
     var life_atlas := life_fill.texture as AtlasTexture
@@ -310,7 +318,8 @@ func _run() -> void:
         return
     if not _check(life_fill.visible and life_remainder.visible, "actor hit points did not activate the life fill/remainder"):
         return
-    if not _check(label.visible and label.text == "0", "zero source currency was not visible"):
+    actor.emit_signal("hud_visibility_requested", "cash", true)
+    if not _check(icon.visible and label.visible and label.text == "0", "Stats_DisplayCash request did not show the source coin counter"):
         return
     inventory.set("quantities", {0: 27})
     hud.call("_process", 0.0)
@@ -323,6 +332,9 @@ func _run() -> void:
     inventory.set("quantities", {0: 0})
     hud.call("_process", 0.0)
     if not _check(label.visible and label.text == "0", "currency counter did not reappear at zero"):
+        return
+    actor.emit_signal("hud_visibility_requested", "cash", false)
+    if not _check(not icon.visible and not label.visible, "Stats_DisplayCash hide request did not hide icon and count"):
         return
     print("HUD native texture regions and currency/font binding passed")
     quit(0)

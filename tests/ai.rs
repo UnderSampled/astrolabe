@@ -1188,3 +1188,89 @@ fn dialogue_bridge_checks_scene_ui_before_query_and_compiles_source_calls() -> R
     );
     Ok(())
 }
+
+#[test]
+fn source_cash_display_toggles_the_native_currency_hud() -> Result<()> {
+    let mut model = model()?;
+    let script = Script {
+        statements: vec![Statement::SetHudVisible {
+            indicator: HudIndicator::Cash,
+            visible: Expression::Integer(1),
+        }],
+    };
+    let bytes = AiScriptCodec::default().write(&script)?;
+    assert_eq!(AiScriptCodec::default().read(&bytes)?, script);
+    assert_eq!(
+        &bytes[..8],
+        &[0xac, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x04]
+    );
+
+    model.normal.as_mut().unwrap().behaviors[0].schedule = Some(script);
+    let reopened: AiModel = rete::decode(&rete::encode(&model)?)?;
+    assert_eq!(reopened, model);
+    let compiled = godot::ai::compile(&reopened, &[])?;
+    assert!(compiled.contains("source_set_hud_indicator_visible(\"cash\", bool(1))"));
+    Ok(())
+}
+
+#[test]
+fn source_laser_pointer_fly_mode_round_trips_and_updates_native_state() -> Result<()> {
+    let source_nodes = [
+        0x57, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x04, // category 4 / op 343
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x0c, // integer false
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, // sentinel
+    ];
+    let script = AiScriptCodec::default().read(&source_nodes)?;
+    assert_eq!(
+        script.statements,
+        vec![Statement::SetLaserPointerFlyMode(Expression::Integer(0))]
+    );
+    assert_eq!(AiScriptCodec::default().write(&script)?, source_nodes);
+
+    let mut model = model()?;
+    model.normal.as_mut().unwrap().behaviors[0].schedule = Some(script);
+    let model = rete::decode::<AiModel>(&rete::encode(&model)?)?;
+    assert_eq!(rete::SCHEMA, 54);
+    let code = godot::ai::compile(&model, &[])?;
+    assert!(
+        code.contains("source_set_laser_pointer_fly_mode(bool(0))"),
+        "{code}"
+    );
+
+    let temp = tempfile::tempdir()?;
+    let project = temp.path().join("godot");
+    godot::support::initialize(&project)?;
+    fs::write(project.join("compiled_fly_mode.gd"), code)?;
+    fs::write(
+        project.join("check_laser_pointer_fly_mode.gd"),
+        include_bytes!("check_laser_pointer_fly_mode.gd"),
+    )?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    godot::run_godot(
+        &engine,
+        &project,
+        &[
+            "--headless",
+            "--check-only",
+            "--script",
+            "res://compiled_fly_mode.gd",
+            "--log-file",
+            "compiled-fly-mode.log",
+        ],
+        Duration::from_secs(10),
+    )?;
+    let evidence = godot::run_godot(
+        &engine,
+        &project,
+        &[
+            "--headless",
+            "--script",
+            "res://check_laser_pointer_fly_mode.gd",
+            "--log-file",
+            "laser-pointer-fly-mode.log",
+        ],
+        Duration::from_secs(10),
+    )?;
+    assert!(evidence.contains("LASER_POINTER_FLY_MODE_OK"), "{evidence}");
+    Ok(())
+}

@@ -18,7 +18,7 @@ func _ready() -> void:
 ## 0052efc0 clamps each packed little-endian byte to 0..100, then scales by .01.
 ## Return false without changing any variant if the target resource or one of its
 ## active uses is outside the supported native material path.
-func set_visual_diffuse_coef(material_path: String, packed_rgba: int) -> bool:
+func can_set_visual_diffuse_coef(material_path: String) -> bool:
 	var source_material := _load_source_material(material_path)
 	if source_material == null or not source_material.has_meta("source_material_path"):
 		return false
@@ -26,13 +26,21 @@ func set_visual_diffuse_coef(material_path: String, packed_rgba: int) -> bool:
 		return false
 	if int(source_material.get_meta("source_material_flags", -1)) != SUPPORTED_TARGET_FLAGS:
 		return false
-	var diffuse := _decode_packed_rgba(packed_rgba)
 	var pending: Array[Dictionary] = []
 	for node in _level_root().find_children("*", "", true, false):
 		_collect_node_uses(node, material_path, pending)
 	for entry in pending:
 		if not _can_bind_material_use(entry.material):
 			return false
+	return true
+
+func set_visual_diffuse_coef(material_path: String, packed_rgba: int) -> bool:
+	if not can_set_visual_diffuse_coef(material_path):
+		return false
+	var diffuse := _decode_packed_rgba(packed_rgba)
+	var pending: Array[Dictionary] = []
+	for node in _level_root().find_children("*", "", true, false):
+		_collect_node_uses(node, material_path, pending)
 	_diffuse_by_material[material_path] = diffuse
 	for entry in pending:
 		_bind_material(entry.node, entry.surface, entry.material, material_path, diffuse)

@@ -99,12 +99,20 @@ fn raw237_preserves_source_material_identity_and_live_dsg_gate() -> Result<()> {
         .find("character().call(\"source_set_visual_gmt_diffuse_coef\"")
         .context("raw237 renderer call was not emitted")?;
     assert!(material_call > condition, "{generated}");
+    let target_guard = generated
+        .find("character().call(\"source_visual_material_target_ready\"")
+        .context("raw237 material target preflight was not emitted")?;
+    let packed_value = generated
+        .find("int(dsg_87)")
+        .context("raw237 packed operand was not compiled")?;
+    assert!(target_guard < packed_value, "{generated}");
     assert!(
         generated.contains("\"fix:/materials/06-01/material-1\", int(dsg_87)"),
         "{generated}"
     );
     assert!(
-        generated.contains("has_method(\"source_set_visual_gmt_diffuse_coef\")")
+        generated.contains("has_method(\"source_visual_material_target_ready\")")
+            && generated.contains("has_method(\"source_set_visual_gmt_diffuse_coef\")")
             && generated.contains("fail_unsupported("),
         "renderer capability must fail explicitly until the native visual-material service is present: {generated}"
     );

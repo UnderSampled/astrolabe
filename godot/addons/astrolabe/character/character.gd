@@ -479,6 +479,16 @@ func source_set_laser_pointer_sniper_mode(enabled: bool) -> bool:
     source_laser_pointer.set("sniper_mode", enabled)
     return true
 
+## Proc_SetLaserPointerFlyMode stores the mode and source scale. Enabling it
+## clears sniper mode; disabling it leaves the sniper-mode bit unchanged.
+func source_set_laser_pointer_fly_mode(enabled: bool) -> bool:
+    if source_laser_pointer == null: return false
+    source_laser_pointer.set("fly_mode", enabled)
+    source_laser_pointer.set("source_mode_scale", 3.0 if enabled else 1.0)
+    if enabled:
+        source_laser_pointer.set("sniper_mode", false)
+    return true
+
 func source_set_laser_pointer_target(target: Vector3) -> void:
     assert(source_laser_pointer != null and target.is_finite())
     source_laser_pointer.set("target_position", target)
@@ -498,6 +508,19 @@ func source_set_transparent_display(enabled: bool) -> bool:
 
 ## Proc237 mutates the shared source VisualMaterial diffuse values. The active
 ## level owns the native variants; actor copies must resolve through that scope.
+## Keep this resolution check separate so the generated AI reads its packed
+## designer operand only after a valid source material target is available.
+func source_visual_material_target_ready(material_path: String) -> bool:
+    var current: Node = self
+    while current != null:
+        if current.has_node("SourceVisualMaterialState"):
+            var state: Node = current.get_node("SourceVisualMaterialState")
+            if not is_instance_valid(state) or not state.has_method("can_set_visual_diffuse_coef"):
+                return false
+            return bool(state.call("can_set_visual_diffuse_coef", material_path))
+        current = current.get_parent()
+    return false
+
 func source_set_visual_gmt_diffuse_coef(material_path: String, packed_rgba: int) -> bool:
     var current: Node = self
     while current != null:
@@ -589,7 +612,7 @@ func source_set_channel_active(channel: int, active: bool) -> bool:
 ## The authored HUD can bind this signal to its native Control nodes. Keep the
 ## requested state when the current test scene has no HUD composition yet.
 func source_set_hud_indicator_visible(indicator: String, visible: bool) -> void:
-    assert(indicator in ["life", "armor", "magic", "selected_object", "weapon"])
+    assert(indicator in ["life", "armor", "magic", "selected_object", "weapon", "cash"])
     source_hud_display[indicator] = visible
     hud_visibility_requested.emit(indicator, visible)
 

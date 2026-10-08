@@ -1,4 +1,4 @@
-# Astrolabe support, interface 62
+# Astrolabe support, interface 66
 
 This directory is the authoritative source distributed with the Rust exporter.
 It depends only on Godot 4.7.2. Generated assets use explicit resource paths.
@@ -134,7 +134,7 @@ store the requested target reference. A source camera component adds that native
 `Camera3D` to the saved actor scene, with the initial parameter set's horizontal
 FoV, source renderer clip planes and a half-turn matching the source viewing
 axis. Four framing parameter sets and their unknown scalar fields persist in
-Rete (currently schema 51). The active mode and rotated actor/look offsets
+Rete (currently schema 54). The active mode and rotated actor/look offsets
 export as native properties. Mode 3 aims the camera actor from its current eye position at the
 selected actor plus those offsets, using `Node3D.look_at`. A zero look offset
 uses the source default of [0,-0.05,0]. The compiled camera rule requests each
@@ -254,7 +254,9 @@ The maintained `ui/screen.tscn` composes letterboxes, dialogue and HUD on one
 CanvasLayer. Generated levels instance it and provide converted native dialogue
 resources and the main-actor binding. Authored scene compositions may adopt the
 level through an already-ready `AstrolabeUI` parent; content regeneration does
-not replace customized support scenes. See `docs/astrolabe/ui.md` in the source
+not replace customized support scenes. While dialogue is active, the maintained
+screen routes the configured `Button_Hit` action to `Proc_SelectDialog`. See
+`docs/astrolabe/ui.md` in the source
 repository for source API coverage, locale handling and remaining fidelity work.
 
 `ui/menu/menu.gd` and `ui/menu/button.gd` provide native focus, texture states and

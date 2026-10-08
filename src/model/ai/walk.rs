@@ -87,6 +87,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::AddWind(value)
                 | Statement::SetImpulse(value)
                 | Statement::SetLaserPointerSniperMode(value)
+                | Statement::SetLaserPointerFlyMode(value)
                 | Statement::SetTransparency(value)
                 | Statement::SelectArmor(value)
                 | Statement::SetArmorResistance(value)
