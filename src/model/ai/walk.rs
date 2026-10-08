@@ -1,4 +1,4 @@
-//! One exhaustive, ordered traversal for inspection, dependencies and validation.
+//! One exhaustive ordered traversal for inspection, dependency collection, and validation.
 use super::{Expression, Script, Statement};
 
 #[derive(Clone, Copy)]
@@ -12,9 +12,9 @@ pub struct AstWalk<'a> {
 }
 
 impl Script {
-    /// Preorder traversal in source evaluation order, with structural depth.
-    /// An explicit stack also lets validation reject deep authored trees before
-    /// recursive codec or compiler operations see them.
+    /// Preorder traversal in source evaluation order with structural depth.
+    /// The explicit stack lets validation reject deep trees before recursive
+    /// codec/compiler paths inspect them.
     pub fn walk(&self) -> AstWalk<'_> {
         AstWalk {
             pending: self
@@ -68,7 +68,6 @@ impl<'a> Iterator for AstWalk<'a> {
                         .push((AstNode::Expression(condition), child_depth));
                 }
                 Statement::Assign { value, .. }
-                | Statement::SelfFieldAssign { value, .. }
                 | Statement::ActorFieldAssign { value, .. }
                 | Statement::MainActorFieldAssign { value, .. }
                 | Statement::SubtractAssign { value, .. }
@@ -89,39 +88,44 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::SetImpulse(value)
                 | Statement::SetLaserPointerSniperMode(value)
                 | Statement::SetTransparency(value)
-                | Statement::ActorTransparency { opacity: value, .. }
+                | Statement::SelectArmor(value)
+                | Statement::SetArmorResistance(value)
                 | Statement::ChangeSighting(value)
                 | Statement::ChangeConfiguration(value)
                 | Statement::CameraChangeState { state: value, .. }
                 | Statement::SetActorAbsolutePosition {
                     position: value, ..
                 }
+                | Statement::SetSelfAbsolutePosition(value)
                 | Statement::RunDialog { mode: value, .. }
                 | Statement::ScrollDialog(value)
                 | Statement::SetHudVisible { visible: value, .. } => {
-                    self.expressions(child_depth, &[value])
-                }
-                Statement::ChangeActorBehavior { actor: value, .. }
-                | Statement::ChangeArmor(value)
-                | Statement::SetArmorResistance(value) => self.expressions(child_depth, &[value]),
-                Statement::WaitBoolean { field, value } => {
-                    self.expressions(child_depth, &[field, value])
-                }
-                Statement::SwapConfiguredParts { first, second } => {
-                    self.expressions(child_depth, &[first, second])
+                    self.expressions(child_depth, &[value]);
                 }
                 Statement::ArrayAssign {
                     array,
                     index,
                     value,
                 } => self.expressions(child_depth, &[array, index, value]),
+                Statement::SwapConfiguredParts { first, second } => {
+                    self.expressions(child_depth, &[first, second]);
+                }
                 Statement::PositionDialog { x, y } => self.expressions(child_depth, &[x, y]),
                 Statement::ExecuteActionAndGenerateObject { action, vector, .. } => {
-                    self.expressions(child_depth, &[action, vector])
+                    self.expressions(child_depth, &[action, vector]);
                 }
                 Statement::SoundFadeMusic { arg0, arg1 } => {
-                    self.expressions(child_depth, &[arg0, arg1])
+                    self.expressions(child_depth, &[arg0, arg1]);
                 }
+                Statement::ExecuteFade {
+                    from,
+                    to,
+                    duration_seconds,
+                } => self.expressions(child_depth, &[from, to, duration_seconds]),
+                Statement::SoundFadeAll {
+                    target,
+                    duration_ms,
+                } => self.expressions(child_depth, &[target, duration_ms]),
                 Statement::Unsupported(_)
                 | Statement::Increment { .. }
                 | Statement::Decrement { .. }
@@ -130,6 +134,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::GoOverRoute(_)
                 | Statement::GoRelative
                 | Statement::KillSelf
+                | Statement::KillPerso { .. }
                 | Statement::JumpAbsolute
                 | Statement::JumpWithoutAddingSpeed
                 | Statement::SetParticleGeneratorEnabled(_)
@@ -137,12 +142,14 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::SetLaserPointerActive(_)
                 | Statement::SetDisplayVisible(_)
                 | Statement::SetTransparentDisplay(_)
-                | Statement::ActorDisplayVisible { .. }
-                | Statement::ActorTransparentDisplay { .. }
+                | Statement::RepairArmor
                 | Statement::CameraChangeTargetedPerso { .. }
+                | Statement::CameraResetTargetedPerso { .. }
                 | Statement::CameraUpdatePosition { .. }
                 | Statement::ActorListAdd { .. }
                 | Statement::SetChannelActive { .. }
+                | Statement::ChangeMap { .. }
+                | Statement::ChangeMapAtPosition { .. }
                 | Statement::ToggleWideScreen
                 | Statement::SelectDialog
                 | Statement::EndDialog
@@ -150,33 +157,28 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::WaitEndOfAction
                 | Statement::WaitEndOfAnimation
                 | Statement::Sound { .. }
+                | Statement::SoundKillMusic
                 | Statement::Noop => {}
-                Statement::RepairArmor => {}
             },
             AstNode::Expression(expression) => match expression {
                 Expression::IntegerCast(value)
                 | Expression::Square(value)
                 | Expression::AbsoluteValue(value)
-                | Expression::ApplyArmoredDamage(value)
-                | Expression::IsValidActor(value)
                 | Expression::ActorDistance(value)
+                | Expression::ActorLocalSourceXYDistance(value)
+                | Expression::IsValidActor(value)
+                | Expression::ApplyArmoredDamage(value)
                 | Expression::IsInAction(value)
                 | Expression::Not(value)
                 | Expression::Negate(value)
                 | Expression::InventoryQuantity(value)
-                | Expression::InventoryAddGold(value)
-                | Expression::InventorySubtractGold(value)
-                | Expression::InventorySelectObject(value)
-                | Expression::InventoryAddActorObject(value)
-                | Expression::InventoryChangeWeapon(value)
-                | Expression::InventoryMaximumCapacity(value)
                 | Expression::MagicRemovePoints(value)
                 | Expression::ActorListContains { actor: value, .. }
                 | Expression::VectorComponent { vector: value, .. } => {
-                    self.expressions(child_depth, &[value])
+                    self.expressions(child_depth, &[value]);
                 }
                 Expression::Vector(values) => {
-                    self.expressions(child_depth, &[&values[0], &values[1], &values[2]])
+                    self.expressions(child_depth, &[&values[0], &values[1], &values[2]]);
                 }
                 Expression::TimeElapsed {
                     start: left,
@@ -198,6 +200,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::VectorCos(left, right)
                 | Expression::Multiply(left, right)
                 | Expression::Plus(left, right)
+                | Expression::VectorPlus(left, right)
                 | Expression::Minus(left, right)
                 | Expression::Divide(left, right)
                 | Expression::And(left, right)
@@ -206,12 +209,14 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::AbsentButton(_)
                 | Expression::Nobody
                 | Expression::Nowhere
-                | Expression::Integer(_)
-                | Expression::Real(_)
                 | Expression::Actor(_)
                 | Expression::Configuration(_)
+                | Expression::Integer(_)
+                | Expression::Real(_)
                 | Expression::SelfPosition
+                | Expression::SelfPositionField
                 | Expression::WaypointPosition(_)
+                | Expression::DistanceToWaypoint { .. }
                 | Expression::GameTime
                 | Expression::SeePerso { .. }
                 | Expression::Variable(_)
@@ -231,11 +236,9 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::Button { .. }
                 | Expression::MainActorDistance
                 | Expression::SelfHitPoints
-                | Expression::InventoryWeapon
-                | Expression::InventoryGold
-                | Expression::InventoryObject
                 | Expression::ArmorResistance
                 | Expression::ArmorCount
+                | Expression::InventoryWeapon
                 | Expression::MagicCurrentSpell
                 | Expression::MagicPoints
                 | Expression::LaserDirection

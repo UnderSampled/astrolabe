@@ -1,5 +1,11 @@
 //! Bounded English menu presentation import. Source records end at this boundary.
-use super::{container::wire, dialogue, records::*, session::SourceSession, sound::SoundSites};
+use super::{
+    container::{file, pointer_file, u32_at, wire},
+    dialogue,
+    records::*,
+    session::SourceSession,
+    sound::SoundSites,
+};
 use crate::model::{
     AssetPath, AssetRef, Selection,
     audio::{Sound, SoundDefinitionTarget, SoundOperation, SoundResourceData, SoundSampleRef},
@@ -56,6 +62,12 @@ struct MenuTextureListWire {
     _background: u32,
     _texts: u32,
 }
+#[derive(BinRead)]
+#[br(little)]
+struct MenuSliderWire {
+    _links: [u32; 8],
+    position: [f32; 3],
+}
 struct Font {
     tracking: f32,
     glyphs: BTreeMap<char, Glyph>,
@@ -97,7 +109,7 @@ fn font(s: &SourceSession, name: &str) -> Result<Font> {
         };
         let Ok(data) = s.bytes(a, 32) else { continue };
         let h: FontWire = wire(data)?;
-        if h.encoding != 0x11 || h.count != 71 {
+        if h.encoding != 0x11 || h.count == 0 || h.count > 256 {
             continue;
         }
         let Ok(n) = s.required(a, 12) else { continue };
@@ -232,10 +244,11 @@ fn artwork(font: &Font, label: &str, [x, y, z]: [f32; 3]) -> Result<Vec<MenuSpri
 /// FON_fn_vDraw3DString (005bb730) projects depth into observable pixel extent.
 fn projection(depth: f32) -> Result<(f32, f32, f32)> {
     ensure!(
-        depth.is_finite() && (0.0..=1.0).contains(&depth),
+        depth.is_finite() && (0.0..6.0).contains(&depth),
         "invalid menu text depth"
     );
     let factor = 1. - depth * 0.16666667;
+    ensure!(factor > 0., "menu text projection is behind the camera");
     let half_x = 4.65 / factor;
     Ok((half_x, 3.49 / factor, 640. / (half_x + half_x)))
 }
@@ -570,7 +583,481 @@ fn import_menu(
         items,
         navigation: AssetRef::from_path(sounds[0].0.clone()),
         confirmation: AssetRef::from_path(sounds[1].0.clone()),
+        configuration: if matches!(variant, MenuVariant::Main) {
+            Some(configuration(&s)?)
+        } else {
+            None
+        },
+        credits: if matches!(variant, MenuVariant::Main) {
+            Some(credits(&s, game)?)
+        } else {
+            None
+        },
     };
     presentation.validate()?;
     Ok((presentation, sounds))
+}
+
+/// The source credits callback appends each localized text key in INI order.
+/// English Fix block 18 contains the same 24-byte key slots; Fix.dlg's final
+/// 400 Fix block-19 handles resolve their values in that registration order.
+/// FUN_0040f3f0 and FUN_0040eb10 both stop at CDTCreditsNumEntries (397), while
+/// FUN_0040ef40 appends every active entry (400).
+fn credits(s: &SourceSession, game: &Path) -> Result<CreditsPresentation> {
+    let ini = std::fs::read_to_string(game.join("Gamedata/credits.ini"))?;
+    let mut in_credits = false;
+    let mut keys = Vec::new();
+    let mut displayed_entries = None;
+    let mut max_visible_lines = None;
+    let mut font_name = None;
+    let mut text_spacing = None;
+    let mut text_position = None;
+    for raw in ini.lines() {
+        let line = raw.split_once(';').map_or(raw, |(before, _)| before).trim();
+        if line.starts_with("{CreditsMenuTextures:") {
+            ensure!(!in_credits, "duplicate original credits section");
+            in_credits = true;
+            continue;
+        }
+        if !in_credits {
+            continue;
+        }
+        if line.starts_with('}') {
+            break;
+        }
+        let Some((name, arguments)) = line.split_once('(') else {
+            continue;
+        };
+        let Some(arguments) = arguments.strip_suffix(')') else {
+            continue;
+        };
+        let values = arguments
+            .split(',')
+            .map(|value| value.trim().trim_matches('"'))
+            .collect::<Vec<_>>();
+        match name.trim() {
+            "CDTCreditsEntry" => {
+                ensure!(
+                    values.len() == 1 && !values[0].is_empty(),
+                    "malformed credits key"
+                );
+                keys.push(values[0].to_owned());
+            }
+            "CDTCreditsNumEntries" => {
+                ensure!(
+                    values.len() == 1 && displayed_entries.is_none(),
+                    "duplicate or malformed credits count"
+                );
+                displayed_entries = Some(values[0].parse::<usize>()?);
+            }
+            "CDTCreditsMaxLinesDisplayed" => {
+                ensure!(
+                    values.len() == 1 && max_visible_lines.is_none(),
+                    "duplicate or malformed credits line limit"
+                );
+                max_visible_lines = Some(values[0].parse::<usize>()?);
+            }
+            "CDTCreditsFontName" => {
+                ensure!(values.len() == 1, "malformed credits font");
+                ensure!(
+                    font_name.replace(values[0].to_owned()).is_none(),
+                    "duplicate credits font"
+                );
+            }
+            "CDTCreditsTextSpacing" => {
+                ensure!(values.len() == 1, "malformed credits spacing");
+                ensure!(
+                    text_spacing.replace(values[0].parse::<f32>()?).is_none(),
+                    "duplicate credits spacing"
+                );
+            }
+            "CDTCreditsTextPosition" => {
+                ensure!(
+                    values.len() == 2
+                        && text_position
+                            .replace([values[0].parse::<f32>()?, values[1].parse::<f32>()?])
+                            .is_none(),
+                    "duplicate or malformed credits text position"
+                );
+            }
+            // Source has no credits image directives; keep that boundary explicit.
+            "CDTImage" | "CDTBackgroundFile" => {
+                anyhow::bail!("unsupported active original credits artwork directive {name}");
+            }
+            _ => {}
+        }
+    }
+    ensure!(in_credits, "original credits section absent");
+    ensure!(
+        keys.len() == 400,
+        "original credits INI entry count differs"
+    );
+    let displayed_entries = displayed_entries.context("credits display count absent")?;
+    ensure!(
+        displayed_entries == 397,
+        "original credits displayed-entry count differs"
+    );
+    let max_visible_lines = max_visible_lines.context("credits line limit absent")?;
+    let font_name = font_name.context("credits font name absent")?;
+    let text_spacing = text_spacing.context("credits text spacing absent")?;
+    let text_position = text_position.context("credits text position absent")?;
+
+    let key_block = BlockKey(18, 0);
+    let mut matching_key_tables = 0;
+    for (offset, _) in s.allocation_indices(Owner::Fix, key_block)? {
+        let address = Address {
+            owner: Owner::Fix,
+            key: key_block,
+            offset,
+        };
+        let Ok(bytes) = s.bytes(address, keys.len() * 24) else {
+            continue;
+        };
+        let (slots, remainder) = bytes.as_chunks::<24>();
+        ensure!(remainder.is_empty(), "credits key registry extent differs");
+        let mut parsed = Vec::new();
+        for slot in slots {
+            let Some(end) = slot.iter().position(|byte| *byte == 0) else {
+                parsed.clear();
+                break;
+            };
+            let Ok(value) = std::str::from_utf8(&slot[..end]) else {
+                parsed.clear();
+                break;
+            };
+            if end == 0 {
+                parsed.clear();
+                break;
+            }
+            parsed.push(value.to_owned());
+        }
+        if parsed == keys {
+            matching_key_tables += 1;
+        }
+    }
+    ensure!(
+        matching_key_tables == 1,
+        "English Fix credits key registry differs from credits.ini"
+    );
+
+    let folder = game.join("LangData/English/world/levels");
+    let dlg = file(&folder.join("Fix.dlg"))?;
+    ensure!(dlg.len() % 4 == 0, "Fix DLG reference table extent differs");
+    let relocations = pointer_file(&file(&folder.join("Fix.rtd"))?)?;
+    let mut text_handles = Vec::new();
+    let (references, remainder) = dlg.as_chunks::<4>();
+    ensure!(
+        remainder.is_empty(),
+        "Fix DLG reference table extent differs"
+    );
+    for bytes in references {
+        let value = u32_at(bytes, 0)?;
+        if relocations.get(&value) == Some(&BlockKey(19, 0)) {
+            text_handles.push(s.resolve(Owner::Fix, BlockKey(19, 0), value)?);
+        }
+    }
+    ensure!(
+        text_handles.len() == keys.len() + 10,
+        "English Fix DLG text-handle sequence differs"
+    );
+    let credit_start = text_handles.len() - keys.len();
+    let mut entries = Vec::with_capacity(keys.len());
+    for (index, key) in keys.into_iter().enumerate() {
+        let handle = text_handles[credit_start + index];
+        let value = s
+            .pointer(handle, 0)?
+            .context("localized credits text handle lacks its string")?;
+        let text = string(s, value)?;
+        let alignment = match key.as_bytes()[0] {
+            b'+' => 2,
+            b'-' => 0,
+            _ => 1,
+        };
+        entries.push(CreditsEntry {
+            key,
+            text,
+            alignment,
+        });
+    }
+    ensure!(
+        entries[0].text == "Hype  -  The Time Quest"
+            && entries[1].text.trim().is_empty()
+            && entries[2].text.trim() == "Original Idea and Producer"
+            && entries[3].text.trim() == "Alain Tascan",
+        "English credits key/handle registration order differs"
+    );
+
+    let font_address = source_font(s, &font_name)?;
+    let source_font = super::dialogue_presentation::font(s, font_address)?;
+    let presentation = CreditsPresentation {
+        path: AssetPath::new("fix:/menu/credits/en")?,
+        locale: "en".into(),
+        font: CreditsFont {
+            name: source_font.name,
+            atlas: source_font.atlas,
+            glyphs: source_font.glyphs,
+            tracking: source_font.tracking,
+            color: source_font.color,
+        },
+        entries,
+        displayed_entries,
+        max_visible_lines,
+        text_spacing,
+        text_position,
+    };
+    presentation.validate()?;
+    Ok(presentation)
+}
+
+fn source_font(s: &SourceSession, name: &str) -> Result<Address> {
+    let key = BlockKey(19, 1);
+    let mut found = None;
+    for (offset, _) in s.allocation_indices(Owner::Fix, key)? {
+        let address = Address {
+            owner: Owner::Fix,
+            key,
+            offset,
+        };
+        let Ok(bytes) = s.bytes(address, 32) else {
+            continue;
+        };
+        let Ok(header) = wire::<FontWire>(bytes) else {
+            continue;
+        };
+        if header.encoding != 0x11 || header.count == 0 || header.count > 1024 {
+            continue;
+        }
+        let Ok(name_address) = s.required(address, 12) else {
+            continue;
+        };
+        if string(s, name_address).ok().as_deref() != Some(name) {
+            continue;
+        }
+        ensure!(
+            found.replace(address).is_none(),
+            "duplicate source credits font {name}"
+        );
+    }
+    found.with_context(|| format!("required source credits font {name} absent"))
+}
+
+/// Import the source-owned Options text root. FUN_00413bd0 positions its
+/// three sliders from the persisted 0..127 values; the Godot UI replaces the
+/// legacy input/runtime controls while retaining the original labels/artwork.
+fn configuration(s: &SourceSession) -> Result<MenuConfiguration> {
+    let expected = [
+        ("Images", "image"),
+        ("Controls", "controls"),
+        ("Sound", "sound"),
+        ("DisplayWithSound", "music"),
+        ("DisplayWithSound", "sound"),
+        ("DisplayWithSound", "voices"),
+        ("DisplayWithSound", "stereo test"),
+        ("DisplayWithSound", "reverse stereo"),
+        ("DisplayWithImage", "graphic"),
+        ("DisplayWithImage", "textures"),
+        ("DisplayWithImage", "screen"),
+    ];
+    let key = BlockKey(18, 0);
+    let mut parent = None;
+    for (offset, _) in s.allocation_indices(Owner::Fix, key)? {
+        let address = Address {
+            owner: Owner::Fix,
+            key,
+            offset,
+        };
+        let Ok(bytes) = s.bytes(address, 12) else {
+            continue;
+        };
+        let header: MenuTextureListWire = wire(bytes)?;
+        if header.mode != 1 {
+            continue;
+        }
+        let Ok(background) = s.required(address, 4).and_then(|at| string(s, at)) else {
+            continue;
+        };
+        if !background
+            .replace('\\', "/")
+            .eq_ignore_ascii_case("Menu/config_back.bmp")
+        {
+            continue;
+        }
+        ensure!(
+            parent.replace(s.required(address, 8)?).is_none(),
+            "ambiguous source configuration root"
+        );
+    }
+    let parent = parent.context("source configuration root absent")?;
+    let mut nodes = BTreeMap::new();
+    for (offset, _) in s.allocation_indices(Owner::Fix, key)? {
+        let address = Address {
+            owner: Owner::Fix,
+            key,
+            offset,
+        };
+        let Ok(bytes) = s.bytes(address, 177) else {
+            continue;
+        };
+        let header: MenuTextWire = wire(bytes)?;
+        if s.pointer(address, 8).ok().flatten() != Some(parent) {
+            continue;
+        }
+        let action = fixed_string(&header.name)?.to_owned();
+        if !expected.iter().any(|(name, _)| *name == action) {
+            continue;
+        }
+        let label = string(s, s.required(address, 76)?)?;
+        if !expected
+            .iter()
+            .any(|(name, text)| *name == action && *text == label)
+        {
+            continue;
+        }
+        ensure!(
+            nodes
+                .insert((action, label.clone()), (address, header, label))
+                .is_none(),
+            "ambiguous source configuration item"
+        );
+    }
+    ensure!(
+        nodes.len() == expected.len(),
+        "source configuration item count differs"
+    );
+    let initial_address = s.required(parent, 8)?;
+    let mut item_names = BTreeMap::new();
+    for &(action, label) in &expected {
+        let slug = |value: &str| value.to_ascii_lowercase().replace(' ', "_");
+        item_names.insert((action, label), format!("{}_{}", slug(action), slug(label)));
+    }
+    let mut addresses = BTreeMap::new();
+    for &(action, label) in &expected {
+        addresses.insert(
+            nodes[&(action.to_owned(), label.to_owned())].0,
+            item_names[&(action, label)].clone(),
+        );
+    }
+    let initial_item = addresses
+        .get(&initial_address)
+        .context("source configuration initial item absent")?
+        .clone();
+    let mut items = Vec::new();
+    for &(source_action, source_label) in &expected {
+        let (address, header, label) = nodes
+            .remove(&(source_action.to_owned(), source_label.to_owned()))
+            .unwrap();
+        let name = item_names[&(source_action, source_label)].clone();
+        let normal_font = font(s, fixed_string(&header.normal_font)?)?;
+        let selected_font = font(s, fixed_string(&header.selected_font)?)?;
+        let (half_x, half_y, scale) = projection(header.position[2])?;
+        let anchor = if header.position[2] == 0. {
+            [
+                (4.65 + header.position[0]) * 640. / 9.3,
+                (3.49 - header.position[1]) * 640. / 9.3,
+            ]
+        } else {
+            [
+                (half_x + header.position[0]) * scale,
+                (half_y - header.position[1]) * scale,
+            ]
+        };
+        let mut normal = artwork(&normal_font, &label, header.position)?;
+        let mut selected = artwork(&selected_font, &label, header.position)?;
+        let all: Vec<_> = normal.iter().chain(&selected).collect();
+        let x = all
+            .iter()
+            .map(|g| g.rect[0])
+            .fold(f32::INFINITY, f32::min)
+            .floor()
+            - 1.;
+        let y = all
+            .iter()
+            .map(|g| g.rect[1])
+            .fold(f32::INFINITY, f32::min)
+            .floor()
+            - 1.;
+        let right = all
+            .iter()
+            .map(|g| g.rect[0] + g.rect[2])
+            .fold(f32::NEG_INFINITY, f32::max)
+            .ceil()
+            + 1.;
+        let bottom = all
+            .iter()
+            .map(|g| g.rect[1] + g.rect[3])
+            .fold(f32::NEG_INFINITY, f32::max)
+            .ceil()
+            + 1.;
+        for sprite in normal.iter_mut().chain(&mut selected) {
+            sprite.rect[0] -= x;
+            sprite.rect[1] -= y;
+        }
+        let mut neighbors: [Option<String>; 4] = [None, None, None, None];
+        for (index, field) in [12, 16, 20, 24].into_iter().enumerate() {
+            if let Some(target) = s.pointer(address, field)? {
+                neighbors[index] = Some(
+                    addresses
+                        .get(&target)
+                        .context("configuration navigation target absent")?
+                        .clone(),
+                );
+            }
+        }
+        items.push(MenuItem {
+            name,
+            label,
+            action: source_action.into(),
+            position: anchor,
+            horizontal_alignment: header.horizontal_alignment,
+            neighbors,
+            rect: [x - anchor[0], y - anchor[1], right - x, bottom - y],
+            normal,
+            selected,
+        });
+    }
+    let mut slider_positions: [Option<[f32; 3]>; 3] = [None; 3];
+    for (offset, _) in s.allocation_indices(Owner::Fix, key)? {
+        let address = Address {
+            owner: Owner::Fix,
+            key,
+            offset,
+        };
+        let Ok(block) = s.block(address) else {
+            continue;
+        };
+        let Some(raw_name) = block.data.get(offset + 68..offset + 100) else {
+            continue;
+        };
+        let end = raw_name
+            .iter()
+            .position(|byte| *byte == 0)
+            .unwrap_or(raw_name.len());
+        let Ok(name) = std::str::from_utf8(&raw_name[..end]) else {
+            continue;
+        };
+        let index = match name {
+            "Slider1" => 0,
+            "Slider2" => 1,
+            "Slider3" => 2,
+            _ => continue,
+        };
+        let position: MenuSliderWire = wire(s.bytes(address, 44)?)?;
+        ensure!(
+            slider_positions[index].replace(position.position).is_none(),
+            "duplicate source {name}"
+        );
+    }
+    let slider_positions = slider_positions
+        .map(|value| value.context("source configuration slider absent"))
+        .into_iter()
+        .collect::<Result<Vec<_>>>()?;
+    Ok(MenuConfiguration {
+        path: AssetPath::new("fix:/menu/configuration/en")?,
+        background: AssetRef::new("texture:/Menu/config_back.bmp")?,
+        initial_item,
+        items,
+        slider_positions: slider_positions
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("source slider count differs"))?,
+    })
 }

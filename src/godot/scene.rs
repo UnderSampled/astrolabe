@@ -1,10 +1,15 @@
 //! Scene hierarchy projection. Source-local transforms are converted only here.
 use super::{Project, disk_path, quoted, vec3, vector};
-use crate::model::{geometry::SourceTransform, io::Content, scene::Scene};
+use crate::model::{
+    geometry::SourceTransform,
+    io::Content,
+    scene::{NodeKind, Scene},
+};
 use anyhow::Result;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Write as _,
+    fs,
 };
 
 pub(super) fn transform(t: &SourceTransform) -> String {
@@ -23,6 +28,30 @@ pub(super) fn transform(t: &SourceTransform) -> String {
 }
 
 impl Project {
+    fn ui_scene_path(&mut self, scene: &Scene) -> Result<String> {
+        let Some(reference) = &scene.hud else {
+            return Ok("res://addons/astrolabe/ui/screen.tscn".into());
+        };
+        let generated_path = format!(
+            "generated/hype/shared/ui/screen_{}.tscn",
+            self.selection.locale
+        );
+        if !self.generated.contains(&generated_path) {
+            let source_path = self.stage.path().join("addons/astrolabe/ui/screen.tscn");
+            let source = fs::read_to_string(source_path)?;
+            let old_hud = "path=\"res://addons/astrolabe/ui/hud.tscn\"";
+            anyhow::ensure!(
+                source.matches(old_hud).count() == 1,
+                "maintained screen scene does not have exactly one HUD subscene reference"
+            );
+            let hud_path = disk_path(&self.selection, &reference.path, "tscn");
+            let replacement = format!("path=\"res://{hud_path}\"");
+            let generated = source.replace(old_hud, &replacement);
+            self.write(generated_path.clone(), generated.as_bytes())?;
+        }
+        Ok(format!("res://{generated_path}"))
+    }
+
     pub fn write_scene(
         &mut self,
         scene: &Scene,
@@ -33,15 +62,41 @@ impl Project {
         self.has_level_scene = true;
         self.reserve(&path)?;
         let scene_id = format!("scene_{}", self.preview_instances.len());
+        let ui_scene_path = self.ui_scene_path(scene)?;
         writeln!(
             self.builder,
-            "    var {scene_id} = Node3D.new()\n    {scene_id}.name = {}",
+            "    var {scene_id} = Node3D.new()\n    {scene_id}.name = {}\n    {scene_id}.set_meta(\"source_level_scene\", true)",
             quoted(&scene.name)
         )?;
         writeln!(
             self.builder,
-            "    var {scene_id}_ui = load(\"res://addons/astrolabe/ui/screen.tscn\").instantiate()\n    {scene_id}.add_child({scene_id}_ui)\n    {scene_id}_ui.owner = {scene_id}"
+            "    var {scene_id}_ui = load({}).instantiate()\n    {scene_id}.add_child({scene_id}_ui)\n    {scene_id}_ui.owner = {scene_id}",
+            quoted(&ui_scene_path)
         )?;
+        if scene.hud.is_none() {
+            // Keep the maintained screen API alive for this locale while suppressing
+            // its generic placeholder meters: only verified source artwork is drawn.
+            writeln!(
+                self.builder,
+                "    {scene_id}_ui.get_node(\"Canvas/Hud\").hide()"
+            )?;
+        }
+        // Fight_ChangeArmor mutates one shared source pointer. Clone the
+        // Fix-owned catalog once per active scene and retain the existing
+        // level-local selector facade used by compiled AI.
+        if let Some(reference) = &scene.armor {
+            let path = disk_path(&self.selection, &reference.path, "tres");
+            writeln!(
+                self.builder,
+                "    var {scene_id}_armor: Resource = load({}).call(\"clone_for_scene\")\n    {scene_id}_armor.resource_local_to_scene = true\n    {scene_id}.set_meta(\"source_armor_catalog\", {scene_id}_armor)\n    var {scene_id}_armor_state: Resource = load(\"res://addons/astrolabe/character/armor_state.gd\").new()\n    {scene_id}_armor_state.set(\"catalog\", {scene_id}_armor)\n    {scene_id}_armor_state.set(\"selected_index\", int({scene_id}_armor.get(\"selected\")))\n    {scene_id}_armor_state.resource_local_to_scene = true\n    {scene_id}.set_meta(\"source_armor_state\", {scene_id}_armor_state)",
+                quoted(&format!("res://{path}"))
+            )?;
+        } else {
+            writeln!(
+                self.builder,
+                "    var {scene_id}_armor_state = load(\"res://addons/astrolabe/character/armor_state.gd\").new()\n    {scene_id}_armor_state.resource_local_to_scene = true\n    {scene_id}.set_meta(\"source_armor_state\", {scene_id}_armor_state)"
+            )?;
+        }
         if !self.dialogue_resources.is_empty() {
             let resources = self
                 .dialogue_resources
@@ -99,6 +154,13 @@ impl Project {
                 .as_ref()
                 .map(|p| names[p].clone())
                 .unwrap_or_else(|| scene_id.clone());
+            let source_kind = node.properties.source_kind.unwrap_or(match &node.kind {
+                NodeKind::World => 0,
+                NodeKind::Sector => 8,
+                NodeKind::Perso => 4,
+                NodeKind::Object => 13,
+                NodeKind::Unknown(kind) => *kind,
+            });
             writeln!(
                 self.builder,
                 "    var {name} = Node3D.new()\n    {name}.name = {}\n    {parent}.add_child({name})\n    {name}.owner = {scene_id}",
@@ -112,7 +174,7 @@ impl Project {
             }
             writeln!(
                 self.builder,
-                "    {name}.set_meta(\"source_node_id\", {})\n    {name}.set_meta(\"source_draw_mask\", {})",
+                "    {name}.set_meta(\"source_node_id\", {})\n    {name}.set_meta(\"source_node_kind\", {source_kind})\n    {name}.set_meta(\"source_draw_mask\", {})",
                 quoted(&node.id),
                 node.draw_mask
             )?;
@@ -121,6 +183,12 @@ impl Project {
                 "    {name}.set_meta(\"source_node_properties\", {})",
                 quoted(&serde_json::to_string(&node.properties)?)
             )?;
+            if let Some(lod_count) = node.properties.source_visual_lod_count {
+                writeln!(
+                    self.builder,
+                    "    {name}.set_meta(\"source_visual_lod_count\", {lod_count})"
+                )?;
+            }
             if let Some(reference) = &node.properties.bounding_geometry {
                 let bounds = source.load(reference)?;
                 bounds.validate_reference(&reference.path)?;
@@ -140,8 +208,9 @@ impl Project {
                 }
                 writeln!(
                     self.builder,
-                    "    {name}.set_meta(\"source_sector\", {})",
-                    quoted(&serde_json::to_string(sector)?)
+                    "    {name}.set_meta(\"source_sector\", {})\n    {name}.set_meta(\"source_sector_id\", {})",
+                    quoted(&serde_json::to_string(sector)?),
+                    quoted(&node.id)
                 )?;
             }
             if let Some(instance) = &node.instance {
@@ -178,25 +247,15 @@ impl Project {
                 let name = format!("{scene_id}_global_{i}");
                 writeln!(
                     self.builder,
-                    "    var {name} = Node3D.new()\n    {name}.name = {}\n    {globals}.add_child({name})\n    {name}.owner = {scene_id}\n    {name}.set_meta(\"source_perso\", {})\n    {name}.set_meta(\"source_stock_bound\", true)",
-                    quoted(&actor.name),
-                    quoted(actor.path.as_str())
+                    "    var {name} = Node3D.new()\n    {name}.name = {}\n    {globals}.add_child({name})\n    {name}.owner = {scene_id}",
+                    quoted(&actor.name)
                 )?;
                 let mut written = std::collections::BTreeSet::new();
                 super::ai::component(self, source, &actor, &name, &mut written)?;
-                if let Some(stock) = super::character::export_stock(self, &actor)? {
-                    writeln!(
-                        self.builder,
-                        "    {name}.set_meta(\"source_stock\", load({}))",
-                        quoted(&stock)
-                    )?;
-                }
-                if actor.brain.is_some() {
-                    writeln!(
-                        self.builder,
-                        "    {name}.get_node(\"Brain\").owner = {scene_id}\n    {name}.get_node(\"Brain\").set(\"automatic\", false)"
-                    )?;
-                }
+                writeln!(
+                    self.builder,
+                    "    {name}.get_node(\"Brain\").owner = {scene_id}\n    {name}.get_node(\"Brain\").set(\"automatic\", false)"
+                )?;
                 global_names.insert(global.perso.path.clone(), name);
             }
         }
@@ -206,7 +265,8 @@ impl Project {
         // level root, so this remains valid for both rooted and global actors.
         writeln!(
             self.builder,
-            "    var {scene_id}_source_actor_brains = {{}}\n    var {scene_id}_source_actor_nodes = {{}}"
+            "    var {scene_id}_source_actor_brains = {{}}\n    var {scene_id}_source_actor_nodes = {{}}\n    var {scene_id}_source_actor_entries = {{}}\n    {scene_id}.set_meta(\"source_level\", {})",
+            quoted(&scene.name.to_ascii_lowercase())
         )?;
         let mut source_actor_keys = BTreeSet::new();
         for node in &scene.nodes {
@@ -225,6 +285,14 @@ impl Project {
                 self.builder,
                 "    {scene_id}_source_actor_nodes[{}] = {scene_id}.get_path_to({character})",
                 quoted(reference.path.as_str())
+            )?;
+            let entry_name = perso.name.to_ascii_lowercase();
+            writeln!(
+                self.builder,
+                "    if not {scene_id}_source_actor_entries.has({}): {scene_id}_source_actor_entries[{}] = []\n    {scene_id}_source_actor_entries[{}].append({scene_id}.get_path_to({character}))",
+                quoted(&entry_name),
+                quoted(&entry_name),
+                quoted(&entry_name)
             )?;
             if perso.brain.is_some() {
                 writeln!(
@@ -258,149 +326,91 @@ impl Project {
         }
         writeln!(
             self.builder,
-            "    {scene_id}.set_meta(\"source_actor_brains\", {scene_id}_source_actor_brains)\n    {scene_id}.set_meta(\"source_actor_nodes\", {scene_id}_source_actor_nodes)"
+            "    {scene_id}.set_meta(\"source_actor_brains\", {scene_id}_source_actor_brains)\n    {scene_id}.set_meta(\"source_actor_nodes\", {scene_id}_source_actor_nodes)\n    {scene_id}.set_meta(\"source_actor_entries\", {scene_id}_source_actor_entries)"
         )?;
-        // One native identity map serves rooted and nonvisual Global actors.
-        // Both kinds can own designer references and compiled behavior fields.
-        let mut actor_names = global_names.clone();
-        let mut rooted_actors = BTreeSet::new();
         for node in &scene.nodes {
-            if let Some(reference) = &node.perso {
-                actor_names.insert(
-                    reference.path.clone(),
-                    format!("{}_character", names[&node.id]),
-                );
-                rooted_actors.insert(reference.path.clone());
-            }
-        }
-        if let Some(reference) = &scene.armor {
-            let resource = disk_path(&self.selection, &reference.path, "tres");
-            // One owned catalog per level instance, shared by all its actors.
-            // Nested definitions/pieces are local resources, so new sessions
-            // cannot inherit the previous session's armor mutations.
-            writeln!(
-                self.builder,
-                "    var {scene_id}_armor: Resource = load({}).call(\"clone_for_scene\")\n    {scene_id}_armor.resource_local_to_scene = true\n    {scene_id}.set_meta(\"source_armor\", {scene_id}_armor)",
-                quoted(&format!("res://{resource}"))
-            )?;
-            for identity in &rooted_actors {
-                let character = &actor_names[identity];
-                writeln!(
-                    self.builder,
-                    "    {scene_id}.set_editable_instance({character}, true)\n    {character}.source_armor = {scene_id}_armor"
-                )?;
-            }
-        }
-        if let Some(reference) = &scene.inventory {
-            let resource = disk_path(&self.selection, &reference.path, "tres");
-            writeln!(
-                self.builder,
-                "    var {scene_id}_inventory: Resource = load({}).call(\"clone_for_scene\")\n    {scene_id}_inventory.resource_local_to_scene = true\n    {scene_id}.set_meta(\"source_inventory\", {scene_id}_inventory)",
-                quoted(&format!("res://{resource}"))
-            )?;
-            for identity in &rooted_actors {
-                let character = &actor_names[identity];
-                writeln!(
-                    self.builder,
-                    "    {scene_id}.set_editable_instance({character}, true)\n    {character}.source_inventory = {scene_id}_inventory"
-                )?;
-            }
-        }
-        // Configurations are shared assets in the source. A native swap mutates
-        // one scene-owned Resource and notifies every actor using that asset.
-        writeln!(
-            self.builder,
-            "    var {scene_id}_configurations: Dictionary = {{}}"
-        )?;
-        for (i, identity) in rooted_actors.iter().enumerate() {
-            let character = &actor_names[identity];
-            writeln!(
-                self.builder,
-                r#"    var owned_choices_{i}: Array[Resource] = []
-    for choice_{i}: Resource in {character}.source_configuration_choices:
-        var configuration_id_{i}: String = str(choice_{i}.get("source_id"))
-        if not {scene_id}_configurations.has(configuration_id_{i}):
-            var owned_configuration_{i}: Resource = choice_{i}.duplicate(true)
-            owned_configuration_{i}.resource_local_to_scene = true
-            {scene_id}_configurations[configuration_id_{i}] = owned_configuration_{i}
-        owned_choices_{i}.append({scene_id}_configurations[configuration_id_{i}])
-    {scene_id}.set_editable_instance({character}, true)
-    {character}.source_configuration_choices = owned_choices_{i}
-    for configuration_field_{i} in ["source_configuration", "source_initial_configuration"]:
-        var selected_configuration_{i}: Resource = {character}.get(configuration_field_{i})
-        if selected_configuration_{i} != null:
-            var selected_id_{i}: String = str(selected_configuration_{i}.get("source_id"))
-            if not {scene_id}_configurations.has(selected_id_{i}):
-                push_error("Character configuration is outside its saved choices")
-                quit(1)
-                return
-            {character}.set(configuration_field_{i}, {scene_id}_configurations[selected_id_{i}])"#
-            )?;
-        }
-        writeln!(
-            self.builder,
-            "    {scene_id}.set_meta(\"source_configurations\", {scene_id}_configurations)"
-        )?;
-        for (identity, character) in &actor_names {
-            let perso = source.load(
-                &crate::model::AssetRef::<crate::model::character::Perso>::from_path(
-                    identity.clone(),
-                ),
-            )?;
+            let Some(reference) = &node.perso else {
+                continue;
+            };
+            let perso = source.load(reference)?;
             let Some(brain) = &perso.brain else { continue };
-            if rooted_actors.contains(identity) {
+            if !perso.routes.is_empty()
+                && let Some(physical) = &physical_environment
+            {
+                let character = format!("{}_character", names[&node.id]);
                 writeln!(
                     self.builder,
-                    "    {scene_id}.set_editable_instance({character}, true)"
+                    "    {scene_id}.set_editable_instance({character}, true)\n    {character}.physical_environment = {physical}"
                 )?;
-                if !perso.routes.is_empty()
-                    && let Some(physical) = &physical_environment
-                {
-                    writeln!(
-                        self.builder,
-                        "    {character}.physical_environment = {physical}"
-                    )?;
-                }
             }
             let model = source.load(&brain.model)?;
             let field_writes = model.actor_field_writes();
             for (i, target) in model.actor_field_targets().iter().enumerate() {
                 let required_write = field_writes.iter().any(|(written, _)| written == target);
                 let target_perso = source.load(target)?;
-                let target_name = actor_names.get(&target.path);
-                if target_perso.brain.is_none() || target_name.is_none() {
-                    anyhow::ensure!(
-                        !required_write,
-                        "{} actor field write target {} lacks a saved native Brain",
-                        perso.path,
-                        target.path
-                    );
-                    self.diagnostic(format!(
-                        "{} actor field read target {} lacks a saved native Brain; a reached read will fail explicitly",
-                        perso.path, target.path
-                    ));
+                if target_perso.brain.is_none() {
+                    self.diagnostic(if required_write {
+                        format!(
+                            "{} actor field write target {} lacks a saved Brain; a reached write will fail explicitly",
+                            perso.path, target.path
+                        )
+                    } else {
+                        format!(
+                            "{} actor field read target {} lacks a saved Brain; a reached read will fail explicitly",
+                            perso.path, target.path
+                        )
+                    });
                     continue;
                 }
-                let target_name = target_name.unwrap();
+                let target_name = if let Some(name) = global_names.get(&target.path) {
+                    name.clone()
+                } else {
+                    let Some(target_node) = scene
+                        .nodes
+                        .iter()
+                        .find(|candidate| candidate.perso.as_ref() == Some(target))
+                    else {
+                        self.diagnostic(if required_write {
+                            format!(
+                                "{} AI actor field write target {} is absent from saved scene; a reached write will fail explicitly",
+                                perso.path, target.path
+                            )
+                        } else {
+                            format!(
+                                "{} actor field read target {} is absent from saved scene; a reached read will fail explicitly",
+                                perso.path, target.path
+                            )
+                        });
+                        continue;
+                    };
+                    format!("{}_character", names[&target_node.id])
+                };
+                let character = format!("{}_character", names[&node.id]);
                 writeln!(
                     self.builder,
-                    "    {character}.get_node(\"Brain\").set(\"actor_brain_{i}_path\", {character}.get_node(\"Brain\").get_path_to({target_name}.get_node(\"Brain\")))"
+                    "    {scene_id}.set_editable_instance({character}, true)\n    {character}.get_node(\"Brain\").set(\"actor_brain_{i}_path\", {character}.get_node(\"Brain\").get_path_to({target_name}.get_node(\"Brain\")))"
                 )?;
             }
             for (i, value) in brain.variables.iter().enumerate() {
                 let crate::model::ai::DesignerValue::Actor(Some(target)) = value else {
                     continue;
                 };
-                let target_name = actor_names.get(&target.path).ok_or_else(|| {
-                    anyhow::anyhow!(
-                        "{} designer {i} refers to actor {} outside the saved scene",
-                        perso.path,
-                        target.path
-                    )
-                })?;
+                let target_node = scene
+                    .nodes
+                    .iter()
+                    .find(|n| n.perso.as_ref() == Some(target))
+                    .ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "{} designer {i} refers to actor {} outside the saved scene",
+                            perso.path,
+                            target.path
+                        )
+                    })?;
+                let character = format!("{}_character", names[&node.id]);
+                let target = format!("{}_character", names[&target_node.id]);
                 writeln!(
                     self.builder,
-                    "    {character}.get_node(\"Brain\").dsg_{i} = {target_name}"
+                    "    {scene_id}.set_editable_instance({character}, true)\n    {character}.get_node(\"Brain\").dsg_{i} = {target}"
                 )?;
             }
         }
@@ -411,6 +421,11 @@ impl Project {
                 .find(|n| n.perso.as_ref() == Some(actor))
                 .unwrap();
             let main = format!("{}_character", names[&actor_node.id]);
+            writeln!(
+                self.builder,
+                "    {scene_id}.set_meta(\"source_main_actor\", {})",
+                quoted(actor.path.as_str())
+            )?;
             // The normally saved level, not a test wrapper, owns gameplay
             // motion for the selected player. Other persos retain their
             // inspection pose until their own behavior path is supported.
@@ -420,23 +435,41 @@ impl Project {
             )?;
             writeln!(
                 self.builder,
+                "    {scene_id}.set_meta(\"source_main_actor_asset\", {})",
+                quoted(actor.path.as_str())
+            )?;
+            for node in &scene.nodes {
+                let Some(reference) = &node.perso else {
+                    continue;
+                };
+                if source.load(reference)?.camera.is_none() {
+                    continue;
+                }
+                let camera_actor = format!("{}_character", names[&node.id]);
+                writeln!(
+                    self.builder,
+                    "    {scene_id}.set_editable_instance({camera_actor}, true)\n    {camera_actor}.get_node(\"SourceCamera\").initial_target_path = {camera_actor}.get_node(\"SourceCamera\").get_path_to({main})"
+                )?;
+            }
+            writeln!(
+                self.builder,
                 "    {scene_id}_ui.actor_path = {scene_id}_ui.get_path_to({main})"
             )?;
             if let Some(physical) = &physical_environment {
                 writeln!(self.builder, "    {main}.physical_environment = {physical}")?;
             }
-            for (identity, character) in &actor_names {
-                let perso = source.load(
-                    &crate::model::AssetRef::<crate::model::character::Perso>::from_path(
-                        identity.clone(),
-                    ),
-                )?;
-                if perso.brain.is_some() {
-                    writeln!(
-                        self.builder,
-                        "    {character}.get_node(\"Brain\").main_actor_path = {character}.get_node(\"Brain\").get_path_to({main})"
-                    )?;
+            for node in &scene.nodes {
+                let Some(reference) = &node.perso else {
+                    continue;
+                };
+                if source.load(reference)?.brain.is_none() {
+                    continue;
                 }
+                let character = format!("{}_character", names[&node.id]);
+                writeln!(
+                    self.builder,
+                    "    {scene_id}.set_editable_instance({character}, true)\n    {character}.get_node(\"Brain\").main_actor_path = {character}.get_node(\"Brain\").get_path_to({main})"
+                )?;
             }
         }
         writeln!(

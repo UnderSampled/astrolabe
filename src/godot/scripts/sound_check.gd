@@ -28,7 +28,7 @@ func check():
     var capture = AudioEffectCapture.new()
     AudioServer.add_bus_effect(bus, capture)
     AudioServer.set_bus_volume_db(bus, -80.0)
-    emitter.bus = "SoundCheck"
+    emitter.voice_bus = "SoundCheck"
     emitter.previous_choices["sound:/Sound/test.csb#2"] = 1
     events[0].execute(emitter)
     emitter.previous_choices["sound:/Sound/test.csb#2"] = 1

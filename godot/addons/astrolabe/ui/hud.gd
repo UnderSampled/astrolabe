@@ -4,10 +4,13 @@ extends Control
 var requested: Dictionary = {}
 var suppressed: bool = false
 var indicators: Dictionary = {}
+var indicator_backgrounds: Dictionary = {}
 
 func _ready() -> void:
     indicators = {"life": $Life, "armor": $Armor, "magic": $Magic,
         "selected_object": $SelectedObject, "weapon": $Weapon}
+    var life_background := get_node_or_null("LifeBackground")
+    if life_background != null: indicator_backgrounds["life"] = life_background
     for key in indicators: requested[key] = false
     if is_instance_valid(actor): bind_actor(actor)
     refresh()
@@ -28,7 +31,10 @@ func set_indicator_visible(indicator: String, enabled: bool) -> void:
     refresh()
 
 func refresh() -> void:
-    for key in indicators: indicators[key].visible = bool(requested.get(key, false)) and not suppressed
+    for key in indicators:
+        var enabled := bool(requested.get(key, false)) and not suppressed
+        indicators[key].visible = enabled
+        if indicator_backgrounds.has(key): indicator_backgrounds[key].visible = enabled
 
 func _process(_delta: float) -> void:
     if not is_instance_valid(actor): return
@@ -45,7 +51,7 @@ func _process(_delta: float) -> void:
 
 func set_meter(indicator: String, current: float, maximum: float) -> bool:
     if indicator not in ["life", "armor", "magic"] or maximum <= 0: return false
-    var meter: ProgressBar = indicators[indicator]
+    var meter: Range = indicators[indicator]
     meter.max_value = maximum
     meter.value = current
     return true

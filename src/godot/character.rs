@@ -403,11 +403,12 @@ pub(super) fn export_perso(
         rig_directory(project, &family, &rig_id)
     );
     if let Some(component) = &perso.particles {
-        anyhow::ensure!(
-            component.selected.is_none() && !component.enabled,
-            "initial selected/active particle emission remains unsupported for {}",
-            perso.path
-        );
+        if component.selected.is_some() || component.enabled {
+            project.diagnostic(format!(
+                "{} has an initial selected/active particle emission; the actor is exported without that emission",
+                perso.path
+            ));
+        }
         writeln!(
             project.builder,
             "    var {name}_particles = Node3D.new()\n    {name}_particles.name = \"ParticleSource\"\n    {name}_particles.set_script(load(\"res://addons/astrolabe/character/particle_source.gd\"))\n    {name}.add_child({name}_particles)\n    {name}_particles.owner = {name}"
@@ -478,21 +479,35 @@ pub(super) fn export_perso(
     )?;
     if let Some(camera) = &perso.camera {
         let framing = &camera.parameters[1];
+        let initial = &camera.parameters[0];
+        let initially_current = initial.registered_viewport() == Some(1);
         writeln!(
             project.builder,
-            "    var {name}_camera = Camera3D.new()\n    {name}_camera.name = \"SourceCamera\"\n    {name}_camera.set_script(load(\"res://addons/astrolabe/camera/source_camera.gd\"))\n    {name}_camera.rotation.y = PI\n    {name}_camera.keep_aspect = Camera3D.KEEP_WIDTH\n    {name}_camera.fov = {}\n    {name}_camera.near = {}\n    {name}_camera.far = {}\n    {name}_camera.motion_mode = {}\n    {name}_camera.initial_motion_mode = {}\n    {name}_camera.actor_offset = {}\n    {name}_camera.look_offset = {}\n    {name}.add_child({name}_camera)\n    {name}_camera.owner = {name}",
+            "    var {name}_camera = Camera3D.new()\n    {name}_camera.name = \"SourceCamera\"\n    {name}_camera.set_script(load(\"res://addons/astrolabe/camera/source_camera.gd\"))\n    {name}_camera.rotation.y = PI\n    {name}_camera.keep_aspect = Camera3D.KEEP_WIDTH\n    {name}_camera.fov = {}\n    {name}_camera.near = {}\n    {name}_camera.far = {}\n    {name}_camera.motion_mode = {}\n    {name}_camera.initial_motion_mode = {}\n    {name}_camera.actor_offset = {}\n    {name}_camera.look_offset = {}\n    {name}_camera.mode_zero_target_offset = {}\n    {name}_camera.mode_zero_actor_offset = {}\n    {name}_camera.mode_zero_look_offset = {}\n    {name}_camera.mode_zero_distance = {}\n    {name}_camera.mode_zero_yaw_limits = Vector2({}, {})\n    {name}_camera.mode_zero_pitch_limits = Vector2({}, {})\n    {name}_camera.mode_zero_parameter_flags = {}\n    {name}_camera.source_mode_zero_action_flags = {}\n    {name}_camera.mode_zero_target_child_index = {}\n    {name}_camera.initially_current = {}\n    {name}.add_child({name}_camera)\n    {name}_camera.owner = {name}",
             framing.horizontal_fov.to_degrees(),
             camera.clip_planes[0],
             camera.clip_planes[1],
-            framing.mode,
-            camera.parameters[0].mode,
+            initial.mode,
+            initial.mode,
             vec3(vector(framing.actor_offset)),
-            vec3(vector(framing.look_offset))
+            vec3(vector(framing.look_offset)),
+            vec3(vector(initial.target_offset)),
+            vec3(vector(initial.actor_offset)),
+            vec3(vector(initial.look_offset)),
+            format!("Vector2({},{})", initial.distance[0], initial.distance[1]),
+            initial.yaw,
+            initial.yaw_upper_bound(),
+            initial.pitch,
+            initial.pitch_upper_bound(),
+            initial.angle_flags(),
+            initial.controller_flags(),
+            initial.target_child_index(),
+            initially_current
         )?;
         // Source camera local -Y becomes the converted actor's +Z. Godot's
         // camera looks along local -Z, hence the child half-turn above.
         project.diagnostic(format!(
-            "{}: source camera framing and mode-3 native look-at exported; initial target binding, other motion modes, shot commands, viewport selection and procedure reset fields remain unsupported",
+            "{}: source parameter set 0 supplies camera mode, controller/action flags, and primary viewport registration; parameter set 1 supplies FOV and mode-3 framing; the scene binds the exact MainActor target; mode-0 dispatch/collision use source-derived inputs; +0x254 and 0051ec70 remain explicit conditional gaps",
             perso.path
         ));
     }

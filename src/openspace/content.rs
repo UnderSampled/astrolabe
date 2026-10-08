@@ -72,13 +72,6 @@ fn read(path: &Path) -> Result<Vec<u8>> {
 pub fn import_scene(game: &Path, selection: Selection) -> Result<Imported> {
     let mut imported = Imported::new(selection.clone());
     let mut scene = level::import_scene(game, &selection)?;
-    if let Some(inventory) = scene.inventory.take() {
-        imported.put(
-            &AssetRef::from_path(inventory.path.clone()),
-            inventory,
-            false,
-        )?;
-    }
     let sound_graph = super::audio::graph::SoundGraph::import(
         game,
         &selection,
@@ -148,17 +141,45 @@ pub fn import_scene(game: &Path, selection: Selection) -> Result<Imported> {
         usage: TextureUsage::Material,
     }
     .read(&read(&game.join("Gamedata/Textures.cnt"))?)?;
+    if selection.locale.eq_ignore_ascii_case("en") {
+        match import_hud_assets(&mut imported, game, &selection, &archive, false) {
+            Ok(reference) => scene.scene.hud = Some(reference),
+            Err(error) => hud_warning(
+                &mut imported,
+                None,
+                format!(
+                    "Optional source HUD omitted because its layout or texture join did not validate: {error:#}"
+                ),
+            ),
+        }
+    } else {
+        hud_warning(
+            &mut imported,
+            None,
+            format!(
+                "Optional source HUD omitted: only English artwork and layout are verified, requested locale is {}",
+                selection.locale
+            ),
+        );
+    }
     if let Some(mut armor) = scene.armor.take() {
         for artwork in armor
             .definitions
             .iter_mut()
-            .flat_map(|d| d.artwork.iter_mut().flatten())
+            .flat_map(|definition| definition.artwork.iter_mut().flatten())
         {
             let found = archive
                 .find_entry(artwork.texture.path.file())
                 .with_context(|| {
                     format!("armor texture {} absent from CNT", artwork.texture.path)
                 })?;
+            ensure!(
+                (
+                    archive.image(found)?.width(),
+                    archive.image(found)?.height()
+                ) == (artwork.size[0], artwork.size[1]),
+                "armor TextureInfo/CNT dimensions differ"
+            );
             artwork.texture = found.texture.clone();
             if !imported.assets.contains(&found.texture.path) {
                 imported.put(&found.texture, archive.image(found)?.clone(), false)?;
@@ -470,23 +491,67 @@ fn import_menu_variant(game: &Path, selection: Selection, pause: bool) -> Result
             imported.put(&entry.texture, archive.image(entry)?.clone(), false)?;
         }
     }
+    if let Some(configuration) = &mut menu.configuration {
+        for sprite in configuration
+            .items
+            .iter_mut()
+            .flat_map(|item| item.normal.iter_mut().chain(&mut item.selected))
+        {
+            let entry = archive
+                .find_entry(sprite.texture.path.file())
+                .context("configuration font atlas absent from CNT")?;
+            sprite.texture = entry.texture.clone();
+            if !imported.assets.contains(&entry.texture.path) {
+                imported.put(&entry.texture, archive.image(entry)?.clone(), false)?;
+            }
+        }
+    }
+    if let Some(credits) = &mut menu.credits {
+        let entry = archive
+            .find_entry(credits.font.atlas.texture.file())
+            .context("credits font atlas absent from CNT")?;
+        ensure!(
+            [
+                archive.image(entry)?.width(),
+                archive.image(entry)?.height()
+            ] == credits.font.atlas.size,
+            "credits font atlas dimensions differ"
+        );
+        credits.font.atlas.texture = entry.texture.path.clone();
+        if !imported.assets.contains(&entry.texture.path) {
+            imported.put(&entry.texture, archive.image(entry)?.clone(), false)?;
+        }
+    }
     for (path, sound) in sounds {
         imported.put(&AssetRef::from_path(path), sound, false)?;
     }
-    if let Some(background) = &menu.background {
+    if menu.background.is_some() || menu.configuration.is_some() {
         let vignette = codec::Cnt {
             usage: TextureUsage::Screen,
         }
         .read(&read(&game.join("Gamedata/Vignette.cnt"))?)?;
-        let entry = vignette
-            .find_entry(
-                &Path::new(background.path.file())
-                    .with_extension("gf")
-                    .to_string_lossy(),
-            )
-            .context("required main menu backdrop absent")?;
-        menu.background = Some(entry.texture.clone());
-        imported.put(&entry.texture, vignette.image(entry)?.clone(), false)?;
+        if let Some(background) = &menu.background {
+            let entry = vignette
+                .find_entry(
+                    &Path::new(background.path.file())
+                        .with_extension("gf")
+                        .to_string_lossy(),
+                )
+                .context("required main menu backdrop absent")?;
+            menu.background = Some(entry.texture.clone());
+            imported.put(&entry.texture, vignette.image(entry)?.clone(), false)?;
+        }
+        if let Some(configuration) = &mut menu.configuration {
+            let entry = vignette
+                .find_entry(
+                    &Path::new(configuration.background.path.file())
+                        .with_extension("gf")
+                        .to_string_lossy(),
+                )
+                .context("required configuration backdrop absent")?;
+            configuration.background = entry.texture.clone();
+            imported.put(&entry.texture, vignette.image(entry)?.clone(), false)?;
+        }
     }
     imported.put(&AssetRef::from_path(menu.path.clone()), menu, true)?;
     Ok(imported)
@@ -542,4 +607,116 @@ pub fn import_inventory(game: &Path, selection: Selection) -> Result<Imported> {
     imported.put(&entry.texture, vignette.image(entry)?.clone(), false)?;
     imported.put(&AssetRef::from_path(value.path.clone()), value, true)?;
     Ok(imported)
+}
+
+/// Import the source-verified Fix HUD and only its six original image dependencies.
+pub fn import_hud(game: &Path, selection: Selection) -> Result<Imported> {
+    let mut imported = Imported::new(selection.clone());
+    if !selection.locale.eq_ignore_ascii_case("en") {
+        hud_warning(
+            &mut imported,
+            None,
+            format!(
+                "Optional source HUD omitted: only English artwork and layout are verified, requested locale is {}",
+                selection.locale
+            ),
+        );
+        return Ok(imported);
+    }
+    let archive_bytes = match read(&game.join("Gamedata/Textures.cnt")) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            hud_warning(
+                &mut imported,
+                None,
+                format!("Optional source HUD omitted: cannot read Textures.cnt: {error:#}"),
+            );
+            return Ok(imported);
+        }
+    };
+    let archive = match (codec::Cnt {
+        usage: TextureUsage::Material,
+    })
+    .read(&archive_bytes)
+    {
+        Ok(archive) => archive,
+        Err(error) => {
+            hud_warning(
+                &mut imported,
+                None,
+                format!("Optional source HUD omitted: cannot decode Textures.cnt: {error:#}"),
+            );
+            return Ok(imported);
+        }
+    };
+    if let Err(error) = import_hud_assets(&mut imported, game, &selection, &archive, true) {
+        hud_warning(
+            &mut imported,
+            None,
+            format!(
+                "Optional source HUD omitted because its layout or texture join did not validate: {error:#}"
+            ),
+        );
+    }
+    Ok(imported)
+}
+
+fn hud_warning(imported: &mut Imported, asset: Option<crate::model::AssetPath>, message: String) {
+    imported.diagnostics.push(Diagnostic {
+        code: "openspace.hud.layout_unverified".into(),
+        asset,
+        severity: Severity::Warning,
+        message,
+    });
+}
+
+fn import_hud_assets(
+    imported: &mut Imported,
+    game: &Path,
+    selection: &Selection,
+    archive: &TextureArchive,
+    root: bool,
+) -> Result<AssetRef<crate::model::hud::HudPresentation>> {
+    let mut presentation = level::import_hud_presentation(game, selection, archive)?;
+    let mut textures = Vec::with_capacity(presentation.artwork.len() + 1);
+    for artwork in &presentation.artwork {
+        let entry = archive.find_entry(&artwork.source_name).with_context(|| {
+            format!("missing HUD image {} in Textures.cnt", artwork.source_name)
+        })?;
+        ensure!(
+            [
+                archive.image(entry)?.width(),
+                archive.image(entry)?.height()
+            ] == artwork.logical_size,
+            "Fix HUD image {} changed after source identity resolution",
+            artwork.source_name
+        );
+        if !imported.assets.contains(&entry.texture.path) {
+            textures.push((entry.texture.clone(), archive.image(entry)?.clone()));
+        }
+    }
+    let font = presentation
+        .currency_font
+        .as_mut()
+        .context("HUD source InventoryFont is missing")?;
+    let entry = archive
+        .find_entry(font.atlas.texture.file())
+        .context("HUD InventoryFont atlas absent from Textures.cnt")?;
+    ensure!(
+        [
+            archive.image(entry)?.width(),
+            archive.image(entry)?.height()
+        ] == font.atlas.size,
+        "HUD InventoryFont atlas dimensions differ"
+    );
+    font.atlas.texture = entry.texture.path.clone();
+    if !imported.assets.contains(&entry.texture.path) {
+        textures.push((entry.texture.clone(), archive.image(entry)?.clone()));
+    }
+    let reference = AssetRef::from_path(presentation.path.clone());
+    for (texture_reference, texture) in textures {
+        imported.put(&texture_reference, texture, false)?;
+    }
+    imported.put(&reference, presentation, root)?;
+    Ok(reference)
 }

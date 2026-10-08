@@ -404,12 +404,13 @@ mod tests {
             "native category/slot controls or navigation absent"
         );
         ensure!(
-            project.builder.find("ui_font.fixed_size = 21")
-                < project.builder.find("ui_font.set_font_name"),
+            project.builder.find("ui_font_0.fixed_size = 21")
+                < project.builder.find("ui_font_0.set_font_name"),
             "font cache setup order regressed"
         );
         ensure!(
             project.builder.contains("set_glyph_uv_rect")
+                && project.builder.contains("ui_font_0.set_glyph_uv_rect")
                 && project
                     .builder
                     .contains("res://generated/hype/shared/inventory/en/counter.font.tres"),

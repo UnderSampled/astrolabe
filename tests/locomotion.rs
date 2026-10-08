@@ -229,7 +229,6 @@ fn native_motion_survives_rete_and_drives_character_contact() -> Result<()> {
         configuration: None,
         initial_configuration: None,
         object_types: [0; 3],
-        stock: None,
         hit_points: None,
         camera: None,
         routes: vec![],
@@ -246,6 +245,7 @@ fn native_motion_survives_rete_and_drives_character_contact() -> Result<()> {
             unknown: 0,
             mind_unknown: [0; 4],
         }),
+        stock: None,
         particles: None,
         collisions: Some(CharacterCollisions {
             groups,
@@ -258,7 +258,7 @@ fn native_motion_survives_rete_and_drives_character_contact() -> Result<()> {
         name: "Motion".into(),
         main_actor: Some(AssetRef::from_path(perso.path.clone())),
         armor: None,
-        inventory: None,
+        hud: None,
         global_actors: vec![],
         nodes: vec![SceneNode {
             properties: Default::default(),

@@ -338,7 +338,8 @@ fn run_godot_with_display(
     ensure!(status.success(), "Godot failed ({status}): {output}");
     ensure!(
         !output.contains("SCRIPT ERROR:") && !output.contains("ERROR:"),
-        "Godot reported errors: {output}"
+        "Godot {effective_args:?} in {} reported errors: {output}",
+        project.display()
     );
     Ok(output)
 }

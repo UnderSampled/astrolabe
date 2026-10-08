@@ -8,19 +8,7 @@ use std::collections::BTreeMap;
 #[derive(Default)]
 pub(super) struct Profiles {
     profiles: BTreeMap<[Option<Address>; 2], usize>,
-    parts: BTreeMap<Address, usize>,
-    selections: BTreeMap<Address, (usize, u32)>,
-}
-impl Profiles {
-    fn claim(&mut self, address: Address, profile: usize) -> Result<()> {
-        if let Some(previous) = self.parts.insert(address, profile) {
-            ensure!(
-                previous == profile,
-                "partially shared collision profile needs a finer ownership boundary"
-            );
-        }
-        Ok(())
-    }
+    selections: BTreeMap<(Address, usize), u32>,
 }
 impl Importer<'_> {
     pub(super) fn collisions(&mut self, address: Address) -> Result<CharacterCollisions> {
@@ -46,15 +34,17 @@ impl Importer<'_> {
                 index
             } else {
                 let origin = geometry.or(activations).unwrap();
-                let path = self.path(origin, "collision-profiles")?;
+                // A profile can combine shared Fix geometry with Level-owned
+                // activation/selection data. Keep that bound composite in the
+                // active Level while its referenced collision geometry keeps
+                // its original Fix identity.
+                let identity = key
+                    .into_iter()
+                    .flatten()
+                    .find(|part| part.owner == Owner::Level)
+                    .unwrap_or(origin);
+                let path = self.path(identity, "collision-profiles")?;
                 let index = self.result.collision_profiles.len();
-                for part in key.into_iter().flatten() {
-                    ensure!(
-                        part.owner == origin.owner,
-                        "collision profile spans source packages"
-                    );
-                    self.collision_profiles.claim(part, index)?;
-                }
                 self.result.collision_profiles.push(CollisionProfile {
                     path,
                     geometry: None,
@@ -116,12 +106,8 @@ impl Importer<'_> {
         Ok(result)
     }
     fn collision_selection(&mut self, address: Address, profile: usize) -> Result<u32> {
-        self.collision_profiles.claim(address, profile)?;
-        if let Some(&(owner, id)) = self.collision_profiles.selections.get(&address) {
-            ensure!(
-                owner == profile,
-                "collision selection belongs to another profile"
-            );
+        let key = (address, profile);
+        if let Some(&id) = self.collision_profiles.selections.get(&key) {
             return Ok(id);
         }
         let header: CollisionSlotsWire = wire(self.session.bytes(address, 16)?)?;
@@ -140,9 +126,7 @@ impl Importer<'_> {
             zones,
             unknown: header.unknown,
         });
-        self.collision_profiles
-            .selections
-            .insert(address, (profile, id));
+        self.collision_profiles.selections.insert(key, id);
         Ok(id)
     }
 }

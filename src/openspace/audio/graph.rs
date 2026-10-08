@@ -2,7 +2,7 @@
 use super::{
     SoundScript,
     apm::read_apm,
-    bnm::{read_bnm, resource_id_at},
+    bnm::{read_bnm, resource_descriptor_at},
 };
 use crate::model::{AssetPath, AssetRef, Selection, audio::*};
 use crate::openspace::codec::FormatCodec;
@@ -160,11 +160,54 @@ impl SoundGraph {
         for event in events {
             graph.event(event)?;
         }
+        graph.bind_complete_shared_resources()?;
         graph.bank_sources.clear();
         for value in graph.definitions.values() {
             value.validate()?;
         }
         Ok(graph)
+    }
+    /// A generated sound-program script represents the whole definitions asset,
+    /// not just the events a selected map happens to exercise. Resolve every
+    /// resource in each touched shared CSB through its canonical library so
+    /// global sound definitions do not acquire level-dependent partial sample
+    /// bindings.
+    fn bind_complete_shared_resources(&mut self) -> Result<()> {
+        let touched: BTreeSet<_> = self
+            .definitions
+            .iter()
+            .filter(|(_, definitions)| matches!(&definitions.kind, SoundDefinitionKind::Events))
+            .map(|(path, _)| path.clone())
+            .collect();
+        if touched.is_empty() {
+            return Ok(());
+        }
+        let mut tasks = BTreeSet::<(AssetPath, AssetPath, u32)>::new();
+        for (library_path, library) in &self.definitions {
+            if !matches!(&library.kind, SoundDefinitionKind::Library) {
+                continue;
+            }
+            for binding in &library.bindings {
+                let SoundDefinitionTarget::Resource(reference) = &binding.target else {
+                    continue;
+                };
+                if touched.contains(&reference.definitions.path) {
+                    tasks.insert((
+                        library_path.clone(),
+                        reference.definitions.path.clone(),
+                        reference.id,
+                    ));
+                }
+            }
+        }
+        for (library_path, definitions_path, id) in tasks {
+            let reference = SoundMemberRef {
+                definitions: AssetRef::from_path(definitions_path),
+                id,
+            };
+            self.resource(&reference, &library_path, false)?;
+        }
+        Ok(())
     }
     fn definitions(&mut self, path: &AssetPath) -> Result<()> {
         if self.definitions.contains_key(path) {
@@ -195,7 +238,7 @@ impl SoundGraph {
         match operation {
             SoundOperation::Play {
                 resource: Some(r), ..
-            } => self.resource(&r, &event.library.path)?,
+            } => self.resource(&r, &event.library.path, true)?,
             SoundOperation::Stop { event: Some(r) } => {
                 self.definitions(&r.definitions.path)?;
                 self.definitions[&r.definitions.path].event(r.id)?;
@@ -208,7 +251,12 @@ impl SoundGraph {
         }
         Ok(())
     }
-    fn resource(&mut self, reference: &SoundMemberRef, library: &AssetPath) -> Result<()> {
+    fn resource(
+        &mut self,
+        reference: &SoundMemberRef,
+        library: &AssetPath,
+        materialize_samples: bool,
+    ) -> Result<()> {
         let key = (reference.definitions.path.clone(), reference.id);
         if self.visited.contains(&key) {
             return Ok(());
@@ -226,7 +274,9 @@ impl SoundGraph {
             .data
             .clone();
         match &data {
-            SoundResourceData::Sample { .. } => self.sample(reference, library)?,
+            SoundResourceData::Sample { .. } => {
+                self.sample(reference, library, materialize_samples)?
+            }
             SoundResourceData::Switch {
                 selector,
                 default,
@@ -248,12 +298,12 @@ impl SoundGraph {
                     "sound switch value missing from selector"
                 );
                 for child in data.members() {
-                    self.resource(child, library)?;
+                    self.resource(child, library, materialize_samples)?;
                 }
             }
             SoundResourceData::Random { .. } => {
                 for child in data.members() {
-                    self.resource(child, library)?;
+                    self.resource(child, library, materialize_samples)?;
                 }
             }
             SoundResourceData::Other { kind, .. } => self.diagnostics.push(format!(
@@ -265,7 +315,12 @@ impl SoundGraph {
         self.visited.insert(key);
         Ok(())
     }
-    fn sample(&mut self, reference: &SoundMemberRef, library: &AssetPath) -> Result<()> {
+    fn sample(
+        &mut self,
+        reference: &SoundMemberRef,
+        library: &AssetPath,
+        materialize: bool,
+    ) -> Result<()> {
         let mut bindings = self.definitions[library]
             .bindings
             .iter()
@@ -291,13 +346,22 @@ impl SoundGraph {
             .files
             .canonical(&proposed)?
             .with_context(|| format!("missing sound bank {}", binding.bank))?;
-        if !self.banks.contains_key(&bank_path) {
+        if !self.bank_sources.contains_key(&bank_path) {
             let bytes = self.files.read(&bank_path)?;
-            let bank = read_bnm(&bytes, bank_path.file())?;
             self.bank_sources.insert(bank_path.clone(), bytes);
-            self.banks.insert(bank_path.clone(), bank);
         }
-        let resource_id = resource_id_at(&self.bank_sources[&bank_path], binding.member)?;
+        let descriptor = resource_descriptor_at(&self.bank_sources[&bank_path], binding.member)?;
+        ensure!(
+            descriptor.resource_type == 1,
+            "selected sample uses unsupported bank resource type {}",
+            descriptor.resource_type
+        );
+        ensure!(
+            descriptor.embedded <= 1,
+            "unsupported BNM storage flag for {}",
+            descriptor.name
+        );
+        let resource_id = descriptor.resource_id;
         let name = Path::new(reference.definitions.path.file())
             .file_stem()
             .context("sound definitions lack filename")?
@@ -313,31 +377,41 @@ impl SoundGraph {
                 && resource_id == (group.id << 16) | reference.id,
             "library sound binding disagrees with bank resource identity"
         );
-        let bank = &self.banks[&bank_path];
-        let sample = if bank
-            .sounds
-            .iter()
-            .any(|s| s.resource_id == Some(resource_id))
-        {
+        let sample = if descriptor.embedded == 1 {
+            if materialize {
+                self.load_bank(&bank_path)?;
+                ensure!(
+                    self.banks[&bank_path]
+                        .sounds
+                        .iter()
+                        .any(|sound| sound.resource_id == Some(resource_id)),
+                    "embedded bank sample {resource_id} is absent from decoded bank"
+                );
+            }
             SoundSampleRef::Bank {
                 bank: AssetRef::from_path(bank_path),
                 resource_id,
             }
         } else {
-            let external = bank
-                .external_sounds
-                .iter()
-                .find(|s| s.resource_id == resource_id)
-                .context("selected sample is absent from decoded bank")?;
             let proposed =
-                AssetPath::new(format!("sound:/Gamedata/World/Sound/{}", external.name))?;
+                AssetPath::new(format!("sound:/Gamedata/World/Sound/{}", descriptor.name))?;
             let path = self
                 .files
                 .canonical(&proposed)?
-                .with_context(|| format!("external sample {} missing", external.name))?;
-            if !self.sounds.contains_key(&path) {
-                let sound = read_apm(&self.files.read(&path)?, path.file())?;
-                self.sounds.insert(path.clone(), sound);
+                .with_context(|| format!("external sample {} missing", descriptor.name))?;
+            if materialize {
+                self.load_bank(&bank_path)?;
+                ensure!(
+                    self.banks[&bank_path]
+                        .external_sounds
+                        .iter()
+                        .any(|sound| sound.resource_id == resource_id),
+                    "external bank sample {resource_id} is absent from decoded bank"
+                );
+                if !self.sounds.contains_key(&path) {
+                    let sound = read_apm(&self.files.read(&path)?, path.file())?;
+                    self.sounds.insert(path.clone(), sound);
+                }
             }
             SoundSampleRef::Sound(AssetRef::from_path(path))
         };
@@ -351,6 +425,13 @@ impl SoundGraph {
             unreachable!()
         };
         *target = Some(sample);
+        Ok(())
+    }
+    fn load_bank(&mut self, path: &AssetPath) -> Result<()> {
+        if !self.banks.contains_key(path) {
+            let bank = read_bnm(&self.bank_sources[path], path.file())?;
+            self.banks.insert(path.clone(), bank);
+        }
         Ok(())
     }
 }

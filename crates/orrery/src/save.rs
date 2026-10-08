@@ -203,73 +203,7 @@ pub fn members(path: &Path) -> Result<BTreeMap<String, Vec<u8>>> {
 }
 
 pub fn decode(source: &[u8]) -> Result<Vec<u8>> {
-    ensure!(
-        source.len() >= 5,
-        "save is shorter than its five-byte header"
-    );
-    let expected_checksum = source[0] ^ 0x53;
-    let expected_size = u32_at(source, 1)? ^ 0x5455_5657;
-    ensure!(
-        expected_size as usize <= MAX_MEMBER,
-        "decoded save exceeds research limit"
-    );
-    let mut stream = Vec::with_capacity(source.len() - 5);
-    let mut key = 0x57u8;
-    for &byte in &source[5..] {
-        stream.push(byte ^ key.reverse_bits() ^ 0xb9);
-        key = key.wrapping_add(1);
-    }
-    let checksum = stream
-        .iter()
-        .fold(0u8, |sum, value| sum.wrapping_add(*value));
-    ensure!(
-        checksum == expected_checksum,
-        "compressed stream checksum {checksum:#04x} != {expected_checksum:#04x}"
-    );
-    let mut history = [0u8; 256 * 8];
-    for (index, chunk) in history.as_chunks_mut::<8>().0.iter_mut().enumerate() {
-        chunk.fill(index as u8);
-    }
-    let mut window = [0u8; 8];
-    let mut result = Vec::with_capacity(expected_size as usize);
-    let mut pos = 0;
-    while pos < stream.len() {
-        ensure!(stream.len() - pos >= 2, "truncated save window selector");
-        let index = usize::from(stream[pos]);
-        let changed = stream[pos + 1];
-        pos += 2;
-        for slot in 0..8 {
-            if changed & (1 << slot) != 0 {
-                let value = *stream
-                    .get(pos)
-                    .context("truncated save window replacement")?;
-                history[index * 8 + slot] = value;
-                pos += 1;
-            }
-            window[slot] = history[index * 8 + slot];
-        }
-        let remaining = stream.len() - pos;
-        match remaining {
-            0 => result.extend_from_slice(&window),
-            1 => {
-                let count = usize::from(stream[pos]);
-                ensure!(count <= 8, "invalid final save window size {count}");
-                result.extend_from_slice(&window[..count]);
-                pos += 1;
-            }
-            _ => result.extend_from_slice(&window),
-        }
-        ensure!(
-            result.len() <= MAX_MEMBER,
-            "decoded save exceeds research limit"
-        );
-    }
-    ensure!(
-        result.len() == expected_size as usize,
-        "decoded save size {} != {expected_size}",
-        result.len()
-    );
-    Ok(result)
+    astrolabe::openspace::save_game::decode(source)
 }
 
 fn record_value(kind: u8, bytes: &[u8]) -> Result<Value> {
@@ -294,53 +228,20 @@ struct RecordScan {
 }
 
 fn scan_records(bytes: &[u8]) -> Result<RecordScan> {
+    let parsed = astrolabe::openspace::save_game::parse_records(bytes)?;
     let mut result = BTreeMap::new();
-    let mut pos = 0;
-    while pos < bytes.len() {
-        let start = pos;
-        ensure!(bytes.len() - pos >= 10, "truncated save record at {pos}");
-        let block = bytes[pos];
-        let module = bytes[pos + 1];
-        let offset = u32_at(bytes, pos + 2)?;
-        let flags = u16_at(bytes, pos + 6)?;
-        let reserved = bytes[pos + 8];
-        let kind = bytes[pos + 9];
-        pos += 10;
-        let length = match kind {
-            1 | 2 | 4 | 8 => usize::from(kind),
-            0x10 => {
-                let length = u32_at(bytes, pos)? as usize;
-                pos += 4;
-                length
-            }
-            0x11 => 6,
-            _ => {
-                return Ok(RecordScan {
-                    records: result,
-                    undecoded_tail: Some(json!({
-                        "position": start,
-                        "reason": format!("unknown save record type {kind:#04x}; length is unverified"),
-                        "hex": hex(&bytes[start..]),
-                    })),
-                });
-            }
-        };
-        let end = pos
-            .checked_add(length)
-            .context("save record end offset overflow")?;
-        let value = bytes
-            .get(pos..end)
-            .context("save record overruns decoded file")?;
-        pos = end;
-        let id = format!("{block}:{module}:{offset}");
+    for record in parsed.records {
+        let id = record.identity();
+        let kind = record.header.data_type;
+        let flags = record.header.save_flags;
         let entry = json!({
-            "position": start,
+            "position": record.position,
             "flags": format!("0x{flags:04x}"),
-            "reserved": reserved,
+            "reserved": record.header.reserved,
             "kind": format!("0x{kind:02x}"),
             "value_interpretation": if matches!(kind, 1 | 2 | 4 | 8) {"unsigned_le_display_only"} else {"raw_or_reference"},
-            "value": record_value(kind, value)?,
-            "value_hex": hex(value),
+            "value": record_value(kind, &record.value_bytes)?,
+            "value_hex": record.value_hex,
         });
         ensure!(
             result.insert(id.clone(), entry).is_none(),
@@ -349,7 +250,13 @@ fn scan_records(bytes: &[u8]) -> Result<RecordScan> {
     }
     Ok(RecordScan {
         records: result,
-        undecoded_tail: None,
+        undecoded_tail: parsed.unknown_tail.map(|tail| {
+            json!({
+                "position": tail.position,
+                "reason": tail.reason,
+                "hex": tail.value_hex,
+            })
+        }),
     })
 }
 

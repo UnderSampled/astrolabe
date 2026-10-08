@@ -15,7 +15,7 @@ var main_actor: Node3D
 var sound_emitter: Node3D
 var running: bool = false
 var unsupported_failure: String = ""
-var music_fade: Tween
+var audio_fades: Dictionary = {}
 var random_source := RandomNumberGenerator.new()
 var revision: int = 0
 var clock_milliseconds: float = 0.0
@@ -57,38 +57,25 @@ func _bind_inputs() -> void:
 func source_external_actor_brains() -> PackedStringArray:
 	return PackedStringArray()
 
-## Actor values also exist on nonvisual Global holders. Resolve them through
-## the active native scene, without requiring a CharacterBody3D receiver.
-func source_actor_node(asset: String) -> Node3D:
-	var ancestor := get_parent()
-	while ancestor != null:
-		if ancestor.has_meta("source_actor_nodes"):
-			var actors: Dictionary = ancestor.get_meta("source_actor_nodes")
-			if not actors.has(asset): return null
-			return ancestor.get_node_or_null(actors[asset]) as Node3D
-		ancestor = ancestor.get_parent()
-	return null
-
+## Hype keeps the selected armor definition shared across actors in one level.
+## The imported level root owns the native Resource; each Brain finds the
+## nearest owning scene through its ordinary parent chain.
 func source_armor_state() -> Resource:
-	return _shared_state("source_armor")
-
-func source_inventory_state() -> Resource:
-	return _shared_state("source_inventory")
-
-func _shared_state(property: String) -> Resource:
-	var ancestor := get_parent()
-	while ancestor != null:
-		if ancestor.has_meta(property):
-			return ancestor.get_meta(property) as Resource
-		ancestor = ancestor.get_parent()
-	# Standalone authored characters can bind the same maintained Resources
-	# directly. A generated level's shared binding always takes precedence.
-	var actor := get_parent()
-	if actor != null:
-		for field in actor.get_property_list():
-			if field.name == property:
-				return actor.get(property) as Resource
+	var owner_node: Node = self
+	while is_instance_valid(owner_node):
+		if owner_node.has_meta("source_armor_state"):
+			var state: Resource = owner_node.get_meta("source_armor_state") as Resource
+			if is_instance_valid(state):
+				return state
+			return null
+		owner_node = owner_node.get_parent()
 	return null
+
+func source_select_armor(index: int) -> bool:
+	var state := source_armor_state()
+	if not is_instance_valid(state) or not state.has_method("select_source_index"):
+		return false
+	return bool(state.call("select_source_index", index))
 
 func adopt_input(action: StringName, physical_key: Key = KEY_NONE) -> void:
 	# Existing InputMap entries belong to the project, including empty entries
@@ -138,24 +125,54 @@ func fail_unsupported(context: String) -> void:
 	push_error("Unsupported compiled behavior: " + context)
 	stop()
 
-## Proc_SND_FadeMusic(target 0..127, duration in milliseconds). The executable
-## passes source (target, duration) to its mixer helper in reversed stack order.
-func sound_fade_music(target: int, duration_ms: int) -> void:
-	assert(duration_ms >= 0)
-	var bus := AudioServer.get_bus_index(&"Astrolabe Music")
+func _source_sound_bus(bus_name: StringName) -> int:
+	var bus := AudioServer.get_bus_index(bus_name)
 	if bus < 0:
 		AudioServer.add_bus()
 		bus = AudioServer.bus_count - 1
-		AudioServer.set_bus_name(bus, &"Astrolabe Music")
-	if music_fade != null and music_fade.is_running(): music_fade.kill()
+		AudioServer.set_bus_name(bus, bus_name)
+	return bus
+
+func _source_sound_fade_bus(bus_name: StringName, target: int, duration_ms: int) -> void:
+	assert(duration_ms >= 0)
+	var bus := _source_sound_bus(bus_name)
+	var key := String(bus_name)
+	var previous: Tween = audio_fades.get(key)
+	if previous != null and previous.is_running(): previous.kill()
 	var goal := linear_to_db(maxf(float(clampi(target, 0, 127)) / 127.0, 0.000001))
 	if duration_ms <= 1:
 		AudioServer.set_bus_volume_db(bus, goal)
-	else:
-		music_fade = create_tween()
-		music_fade.tween_method(
-			func(value: float): AudioServer.set_bus_volume_db(bus, value),
-			AudioServer.get_bus_volume_db(bus), goal, float(duration_ms) / 1000.0)
+		audio_fades.erase(key)
+		return
+	var tween := create_tween()
+	audio_fades[key] = tween
+	tween.tween_method(
+		func(value: float): AudioServer.set_bus_volume_db(bus, value),
+		AudioServer.get_bus_volume_db(bus), goal, float(duration_ms) / 1000.0)
+
+## Proc_SND_FadeMusic(target 0..127, duration in milliseconds).
+func sound_fade_music(target: int, duration_ms: int) -> void:
+	_source_sound_fade_bus(&"Astrolabe Music", target, duration_ms)
+
+## Proc_SND_FadeAll applies the same target and duration to all three source
+## mixer channels: music, effects and voices.
+func sound_fade_all(target: int, duration_ms: int) -> void:
+	for bus_name in [&"Astrolabe Music", &"Astrolabe Effects", &"Astrolabe Voice"]:
+		_source_sound_fade_bus(bus_name, target, duration_ms)
+
+## Proc_SND_KillMusic stops active players on the source music channel.
+func sound_kill_music() -> void:
+	for player_type in ["AudioStreamPlayer", "AudioStreamPlayer3D"]:
+		for player in get_tree().root.find_children("*", player_type, true, false):
+			if player.bus == &"Astrolabe Music": player.stop()
+
+func source_execute_fade(from_alpha: int, to_alpha: int, duration_seconds: float) -> bool:
+	if not is_finite(duration_seconds) or duration_seconds < 0.0:
+		return false
+	var screen := source_ui()
+	if screen == null or not screen.has_method("source_execute_fade"):
+		return false
+	return bool(screen.call("source_execute_fade", from_alpha, to_alpha, duration_seconds))
 
 func advance(seconds: float) -> void:
 	assert(is_finite(seconds) and seconds >= 0.0)
@@ -199,6 +216,14 @@ func character() -> NativeCharacter:
 
 func active_normal(token: int) -> bool:
 	return running and token == normal_revision
+
+## Source behavior-query conditions compare the actor's current slot value with
+## the referenced behavior ID. The reference's model is not part of that test.
+func source_is_in_behavior(group: StringName, target: int) -> bool:
+	if target < 0: return false
+	if group == &"normal": return current_normal >= 0 and current_normal == target
+	if group == &"reflex": return current_reflex >= 0 and current_reflex == target
+	return false
 
 func change_normal(target: int, defer_entry: bool = false) -> bool:
 	if current_normal == target: return false

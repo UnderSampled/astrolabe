@@ -5,7 +5,7 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, path::Path};
 
-pub const INTERFACE: u32 = 54;
+pub const INTERFACE: u32 = 59;
 const PACKAGE: &str = "addons/astrolabe";
 const RECEIPT: &str = "addons/astrolabe/installed.json";
 
@@ -22,20 +22,15 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/audio/voice.gd.uid",
     "addons/astrolabe/audio/emitter.gd.uid",
     "addons/astrolabe/character/character.gd",
-    "addons/astrolabe/character/rendering.gd",
-    "addons/astrolabe/character/rendering.gd.uid",
+    "addons/astrolabe/character/armor_state.gd",
+    "addons/astrolabe/character/snapshot_values.gd",
+    "addons/astrolabe/character/snapshot_values.gd.uid",
     "addons/astrolabe/character/armor_catalog.gd",
     "addons/astrolabe/character/armor_catalog.gd.uid",
     "addons/astrolabe/character/armor_definition.gd",
     "addons/astrolabe/character/armor_definition.gd.uid",
     "addons/astrolabe/character/armor_piece.gd",
     "addons/astrolabe/character/armor_piece.gd.uid",
-    "addons/astrolabe/character/configuration.gd",
-    "addons/astrolabe/character/configuration.gd.uid",
-    "addons/astrolabe/character/configured_slot.gd",
-    "addons/astrolabe/character/configured_slot.gd.uid",
-    "addons/astrolabe/character/configured_payload.gd",
-    "addons/astrolabe/character/configured_payload.gd.uid",
     "addons/astrolabe/character/particle_source.gd",
     "addons/astrolabe/character/particle_source.gd.uid",
     "addons/astrolabe/character/particle_generator.gd",
@@ -43,12 +38,6 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/character/route.gd",
     "addons/astrolabe/character/route.gd.uid",
     "addons/astrolabe/character/inventory.gd",
-    "addons/astrolabe/character/inventory_definition.gd",
-    "addons/astrolabe/character/inventory_definition.gd.uid",
-    "addons/astrolabe/character/inventory_stock.gd",
-    "addons/astrolabe/character/inventory_stock.gd.uid",
-    "addons/astrolabe/character/snapshot_values.gd",
-    "addons/astrolabe/character/snapshot_values.gd.uid",
     "addons/astrolabe/character/magick.gd",
     "addons/astrolabe/character/hit_points.gd",
     "addons/astrolabe/character/hit_points.gd.uid",
@@ -57,6 +46,8 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/character/mechanics.gd",
     "addons/astrolabe/character/physical_environment.gd",
     "addons/astrolabe/camera/source_camera.gd",
+    "addons/astrolabe/camera/source_controller_state.gd",
+    "addons/astrolabe/camera/source_controller_state.gd.uid",
     "addons/astrolabe/audio/emitter.gd",
     "addons/astrolabe/audio/voice.gd",
     "addons/astrolabe/ui/inventory/item.gd",
@@ -108,12 +99,12 @@ const STARTER: &[(&str, &[u8])] = assets![
     "game/bootstrap.gd",
     "game/bootstrap.gd.uid",
     "game/bootstrap.tscn",
+    "game/credits_menu.gd",
+    "game/credits_menu.tscn",
     "game/content_cache.gd",
     "game/content_cache.gd.uid",
-    "game/level_preparation.gd",
-    "game/level_preparation.gd.uid",
-    "game/crossbow_input.gd",
-    "game/crossbow_input.gd.uid",
+    "game/level_transition.gd",
+    "game/level_transition.gd.uid",
     "game/inventory_host.gd",
     "game/inventory_host.gd.uid",
     "game/pause_host.gd",
@@ -129,6 +120,8 @@ const STARTER: &[(&str, &[u8])] = assets![
     "game/manoir_start.gd.uid",
     "game/save_state.gd",
     "game/save_state.gd.uid",
+    "game/settings_menu.gd",
+    "game/user_settings.gd",
     "game/english_save_manoir.json",
     "game/characters/luminous_hype.tscn",
     "tests/example.tscn",
@@ -271,6 +264,7 @@ pub fn update(output: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeSet;
     #[test]
     fn adoption_update_and_support_edits_have_distinct_ownership() -> Result<()> {
         let temp = tempfile::tempdir()?;
@@ -304,12 +298,76 @@ mod tests {
         stage(stage_dir.path(), output)?;
         assert_eq!(fs::read(stage_dir.path().join(edited))?, bytes);
         assert!(
+            stage_dir
+                .path()
+                .join("addons/astrolabe/character/snapshot_values.gd")
+                .is_file()
+        );
+        assert!(
             update(output)
                 .unwrap_err()
                 .to_string()
                 .contains("was edited")
         );
         assert_eq!(fs::read(output.join(edited))?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn every_bundled_gdscript_preload_is_staged() -> Result<()> {
+        let files: BTreeSet<&str> = STARTER
+            .iter()
+            .chain(SUPPORT)
+            .map(|(path, _)| *path)
+            .collect();
+        for (path, bytes) in STARTER.iter().chain(SUPPORT) {
+            if !path.ends_with(".gd") {
+                continue;
+            }
+            let source = std::str::from_utf8(bytes)?;
+            for prefix in ["preload(\"res://", "load(\"res://"] {
+                let mut offset = 0;
+                while let Some(relative) = source[offset..].find(prefix) {
+                    let start = offset + relative + prefix.len();
+                    let Some(end) = source[start..].find('"') else {
+                        anyhow::bail!("unterminated resource path in {path}");
+                    };
+                    let dependency = &source[start..start + end];
+                    if dependency.starts_with("addons/astrolabe/") {
+                        ensure!(
+                            files.contains(dependency),
+                            "{path} references {dependency}, which the support stage omits"
+                        );
+                    }
+                    offset = start + end + 1;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn snapshot_validation_helper_is_in_interface_59_and_staged() -> Result<()> {
+        let output = tempfile::tempdir()?;
+        initialize(output.path())?;
+        let version: serde_json::Value = serde_json::from_slice(&fs::read(
+            output.path().join("addons/astrolabe/version.json"),
+        )?)?;
+        assert_eq!(version["interface"].as_u64(), Some(u64::from(INTERFACE)));
+        assert_eq!(INTERFACE, 59);
+
+        let staged = tempfile::tempdir()?;
+        stage(staged.path(), output.path())?;
+        for path in [
+            "addons/astrolabe/character/snapshot_values.gd",
+            "addons/astrolabe/character/snapshot_values.gd.uid",
+        ] {
+            assert_eq!(
+                fs::read(staged.path().join(path))?,
+                fs::read(output.path().join(path))?,
+                "staged support differs for {path}"
+            );
+        }
         Ok(())
     }
 }

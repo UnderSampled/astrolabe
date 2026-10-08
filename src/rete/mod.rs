@@ -13,7 +13,7 @@ use std::{
     sync::Arc,
 };
 
-pub const SCHEMA: u32 = 42;
+pub const SCHEMA: u32 = 48;
 const MAGIC: &str = "astrolabe-rete";
 const MAX_ASSET_BYTES: u64 = 256 * 1024 * 1024;
 
@@ -81,6 +81,12 @@ pub fn encode<T: Content + Serialize>(value: &T) -> Result<Vec<u8>> {
 }
 
 pub fn decode<T: Content + DeserializeOwned>(bytes: &[u8]) -> Result<T> {
+    let value = decode_unvalidated::<T>(bytes, T::KIND)?;
+    value.validate()?;
+    Ok(value)
+}
+
+fn decode_unvalidated<T: DeserializeOwned>(bytes: &[u8], expected_kind: &str) -> Result<T> {
     ensure!(
         bytes.len() as u64 <= MAX_ASSET_BYTES,
         "Rete asset exceeds size limit"
@@ -98,12 +104,11 @@ pub fn decode<T: Content + DeserializeOwned>(bytes: &[u8]) -> Result<T> {
         envelope.schema
     );
     ensure!(
-        envelope.kind == T::KIND,
+        envelope.kind == expected_kind,
         "Rete kind {} cannot load as {}",
         envelope.kind,
-        T::KIND
+        expected_kind
     );
-    envelope.value.validate()?;
     Ok(envelope.value)
 }
 
@@ -236,10 +241,10 @@ impl Store {
     ) -> Result<()> {
         use crate::model::content::Asset;
         match asset {
-            Asset::InventoryCatalog(value) => {
+            Asset::ArmorCatalog(value) => {
                 self.save(&AssetRef::from_path(path.clone()), value.as_ref())
             }
-            Asset::ArmorCatalog(value) => {
+            Asset::InventoryCatalog(value) => {
                 self.save(&AssetRef::from_path(path.clone()), value.as_ref())
             }
             Asset::InventoryPresentation(value) => {
@@ -249,6 +254,9 @@ impl Store {
                 self.save(&AssetRef::from_path(path.clone()), value.as_ref())
             }
             Asset::MenuPresentation(value) => {
+                self.save(&AssetRef::from_path(path.clone()), value.as_ref())
+            }
+            Asset::HudPresentation(value) => {
                 self.save(&AssetRef::from_path(path.clone()), value.as_ref())
             }
             Asset::DialoguePresentation(value) => {
@@ -314,13 +322,22 @@ impl Store {
     }
     pub fn inspect(&mut self, entry: &Root) -> Result<String> {
         use crate::model::content::Asset;
+        if entry.kind == crate::model::hud::HudPresentation::KIND {
+            let value: crate::model::hud::HudPresentation = decode_unvalidated(
+                &read_file(&self.path(&entry.reference))?,
+                crate::model::hud::HudPresentation::KIND,
+            )?;
+            value.validate_reference(&entry.reference)?;
+            return Ok(serde_json::to_string_pretty(&value)?);
+        }
         let asset = Asset::load(self, entry)?;
         Ok(match asset {
-            Asset::InventoryCatalog(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::ArmorCatalog(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::InventoryCatalog(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::InventoryPresentation(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::ParticleGenerator(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::MenuPresentation(value) => serde_json::to_string_pretty(value.as_ref())?,
+            Asset::HudPresentation(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::DialoguePresentation(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::Dialogue(value) => serde_json::to_string_pretty(value.as_ref())?,
             Asset::AiModel(value) => serde_json::to_string_pretty(value.as_ref())?,

@@ -233,7 +233,6 @@ fn compiled_routes_use_native_contact_and_actor_local_progress() -> Result<()> {
         configuration: None,
         initial_configuration: None,
         object_types: [0; 3],
-        stock: None,
         hit_points: None,
         camera: None,
         routes: vec![RouteBinding {
@@ -253,6 +252,7 @@ fn compiled_routes_use_native_contact_and_actor_local_progress() -> Result<()> {
             unknown: 0,
             mind_unknown: [0; 4],
         }),
+        stock: None,
         particles: None,
         collisions: Some(CharacterCollisions {
             groups,
@@ -264,7 +264,7 @@ fn compiled_routes_use_native_contact_and_actor_local_progress() -> Result<()> {
         name: "Routes".into(),
         main_actor: Some(AssetRef::from_path(perso.path.clone())),
         armor: None,
-        inventory: None,
+        hud: None,
         nodes: vec![SceneNode {
             id: "walker".into(),
             name: "Walker".into(),

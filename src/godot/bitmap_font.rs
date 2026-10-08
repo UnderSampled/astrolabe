@@ -15,10 +15,11 @@ pub(super) struct FontInput<'a> {
     pub outline: Option<(&'a str, &'a [[f32; 4]])>,
 }
 pub(super) fn emit(project: &mut Project, value: FontInput<'_>) -> Result<()> {
+    let font_variable = format!("ui_font_{}", project.dialogue_font_checks.len());
     let mut font_builder = String::new();
     writeln!(
         font_builder,
-        "    var ui_font = FontFile.new()\n    ui_font.fixed_size = {FONT_SIZE}\n    ui_font.fixed_size_scale_mode = TextServer.FIXED_SIZE_SCALE_DISABLE\n    ui_font.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_ONE_QUARTER\n    ui_font.allow_system_fallback = false\n    ui_font.set_font_name({})\n    ui_font.set_cache_ascent(0, {FONT_SIZE}, {:?})\n    ui_font.set_cache_descent(0, {FONT_SIZE}, {:?})\n    ui_font.set_cache_scale(0, {FONT_SIZE}, 1.0)\n    ui_font.set_texture_image(0, Vector2i({FONT_SIZE},0), 0, Image.load_from_file({}))\n    ui_font.set_texture_image(0, Vector2i({FONT_SIZE},1), 0, Image.load_from_file({}))",
+        "    var {font_variable} = FontFile.new()\n    {font_variable}.fixed_size = {FONT_SIZE}\n    {font_variable}.fixed_size_scale_mode = TextServer.FIXED_SIZE_SCALE_DISABLE\n    {font_variable}.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_ONE_QUARTER\n    {font_variable}.allow_system_fallback = false\n    {font_variable}.set_font_name({})\n    {font_variable}.set_cache_ascent(0, {FONT_SIZE}, {:?})\n    {font_variable}.set_cache_descent(0, {FONT_SIZE}, {:?})\n    {font_variable}.set_cache_scale(0, {FONT_SIZE}, 1.0)\n    {font_variable}.set_texture_image(0, Vector2i({FONT_SIZE},0), 0, Image.load_from_file({}))\n    {font_variable}.set_texture_image(0, Vector2i({FONT_SIZE},1), 0, Image.load_from_file({}))",
         quoted(value.name),
         value.scale * 0.25,
         value.scale * 0.05,
@@ -32,7 +33,7 @@ pub(super) fn emit(project: &mut Project, value: FontInput<'_>) -> Result<()> {
         let bearing = (2.0 * g.half_height - g.vertical_offset) * value.scale;
         writeln!(
             font_builder,
-            "    ui_font.set_glyph_advance(0,{FONT_SIZE},{code},Vector2({:?},0.0))",
+            "    {font_variable}.set_glyph_advance(0,{FONT_SIZE},{code},Vector2({:?},0.0))",
             (g.width + value.tracking) * value.scale
         )?;
         for outline_size in [0, 1]
@@ -59,7 +60,7 @@ pub(super) fn emit(project: &mut Project, value: FontInput<'_>) -> Result<()> {
             let texture = if g.uv.is_some() { 0 } else { -1 };
             writeln!(
                 font_builder,
-                "    ui_font.set_glyph_offset(0,Vector2i({FONT_SIZE},{outline_size}),{code},Vector2({:?},{:?}))\n    ui_font.set_glyph_size(0,Vector2i({FONT_SIZE},{outline_size}),{code},Vector2({:?},{:?}))\n    ui_font.set_glyph_texture_idx(0,Vector2i({FONT_SIZE},{outline_size}),{code},{texture})\n    ui_font.set_glyph_uv_rect(0,Vector2i({FONT_SIZE},{outline_size}),{code},Rect2({:?},{:?},{:?},{:?}))",
+                "    {font_variable}.set_glyph_offset(0,Vector2i({FONT_SIZE},{outline_size}),{code},Vector2({:?},{:?}))\n    {font_variable}.set_glyph_size(0,Vector2i({FONT_SIZE},{outline_size}),{code},Vector2({:?},{:?}))\n    {font_variable}.set_glyph_texture_idx(0,Vector2i({FONT_SIZE},{outline_size}),{code},{texture})\n    {font_variable}.set_glyph_uv_rect(0,Vector2i({FONT_SIZE},{outline_size}),{code},Rect2({:?},{:?},{:?},{:?}))",
                 -pad,
                 bearing - pad,
                 width + 2.0 * pad,
@@ -73,10 +74,50 @@ pub(super) fn emit(project: &mut Project, value: FontInput<'_>) -> Result<()> {
     }
     writeln!(
         font_builder,
-        "    if ResourceSaver.save(ui_font, {}) != OK:\n        push_error(\"Cannot save bitmap FontFile\")\n        quit(1)\n        return",
+        "    if ResourceSaver.save({font_variable}, {}) != OK:\n        push_error(\"Cannot save bitmap FontFile\")\n        quit(1)\n        return",
         quoted(value.path)
     )?;
     project.builder.push_str(&font_builder);
     project.dialogue_font_checks.push(font_builder);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{godot::Project, model::Selection};
+
+    #[test]
+    fn multiple_bitmap_fonts_use_distinct_builder_locals() -> Result<()> {
+        let output = tempfile::tempdir()?;
+        let mut project = Project::new(
+            output.path().join("project"),
+            Selection::hype("font-test", "en")?,
+        )?;
+        let glyphs = [];
+        for (index, name) in ["Dialogue", "Inventory"].into_iter().enumerate() {
+            emit(
+                &mut project,
+                FontInput {
+                    name,
+                    atlas: "res://atlas.png",
+                    atlas_size: [1, 1],
+                    glyphs: &glyphs,
+                    tracking: 0.0,
+                    scale: 1.0,
+                    path: if index == 0 {
+                        "res://dialogue.font.tres"
+                    } else {
+                        "res://inventory.font.tres"
+                    },
+                    outline: None,
+                },
+            )?;
+        }
+        assert!(project.builder.contains("var ui_font_0 = FontFile.new()"));
+        assert!(project.builder.contains("var ui_font_1 = FontFile.new()"));
+        assert!(project.builder.contains("ResourceSaver.save(ui_font_0,"));
+        assert!(project.builder.contains("ResourceSaver.save(ui_font_1,"));
+        Ok(())
+    }
 }

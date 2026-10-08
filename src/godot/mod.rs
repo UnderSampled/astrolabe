@@ -14,6 +14,7 @@ mod project;
 mod publication;
 mod resources;
 mod route;
+pub mod save_import;
 mod scene;
 pub mod support;
 pub use engine::{gameplay_headless, run_godot, run_godot_gameplay};
@@ -84,6 +85,7 @@ mod environment;
 pub mod action;
 
 mod bitmap_font;
+mod hud;
 mod inventory;
 mod inventory_gameplay;
 mod menu;

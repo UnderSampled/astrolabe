@@ -63,7 +63,7 @@ fn artwork(s: &SourceSession, address: Address) -> Result<ArmorArtwork> {
         color_key: value.flags & 2 != 0,
     })
 }
-pub(crate) fn import(game: &Path, selection: &Selection) -> Result<ArmorCatalog> {
+pub fn import(game: &Path, selection: &Selection) -> Result<ArmorCatalog> {
     let s = SourceSession::open(game, selection)?;
     let folder = game.join("Gamedata/World/Levels");
     let gpt = file(&folder.join("Fix.gpt"))?;
@@ -155,8 +155,10 @@ pub(crate) fn import(game: &Path, selection: &Selection) -> Result<ArmorCatalog>
         let damage_factors = bytes
             .chunks_exact(columns * 4)
             .map(|row| {
-                row.chunks_exact(4)
-                    .map(|word| f32::from_le_bytes(word.try_into().unwrap()))
+                row.as_chunks::<4>()
+                    .0
+                    .iter()
+                    .map(|word| f32::from_le_bytes(*word))
                     .collect()
             })
             .collect();

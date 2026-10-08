@@ -1,13 +1,18 @@
 # Rust implementation evidence
 
-2026-10-04 source-first continuation: the [static port ledger](./static-port-plan-2026-10-04.md)
-tracks the current startup repair, refactors and source-supported translation.
-Regression and gameplay tests remain deferred. After preparation failures, the
-user authorized release builds and conversion retries. The final release build
-passed, and `prepare-game disk godot` completed scene, main menu, inventory and
-pause menu in 162.494 seconds, including native resource construction and Godot
-import. The ledger records fixes, failures and evidence paths. Those results do
-not extend the gameplay acceptance below.
+2026-10-07 isolated armor/AI feature port: the source-backed Fix armor catalog
+is modeled and imported through Fix relocations and explicit MMG allocation
+boundaries, persisted in Rete 43, and exported as native Godot resources and
+artwork through support interface 55. The main level-scoped armor selector is
+retained. AI gains an iterative exhaustive AST walk and typed square, absolute,
+actor-validity, actor-distance, resistance, repair, armor-count and armored
+damage operations. The actual manor Fix-only import passed and confirmed three
+catalog definitions with piece counts `[7, 5, 5]`; the AI codec/compiler test
+and Godot GDScript syntax preflight passed. Full native armor resource import
+was blocked by the executor's denied local editor socket, so resource-load and
+gameplay runtime acceptance remain pending. This is an isolated unpushed
+feature-port checkpoint, not a main integration claim. See the [detailed
+checkpoint](armor-ai-port-2026-10-07.md).
 
 2026-10-03 next opening integration: v5 regenerated support 45 and passed
 28/29 affected cases, including actual New Game first path, floor contact,

@@ -549,7 +549,28 @@ fn decode_script(
                 .insert(i, super::particle::reference(s, target)?);
         }
     }
-    codec.read(&script.bytes)
+    match codec.read(&script.bytes) {
+        Ok(script) => Ok(script),
+        Err(error) => {
+            let mut nodes = codec.preserved_nodes;
+            ensure!(
+                nodes.last().is_some_and(|node| node.category == 8),
+                "failed to preserve rejected source AI script after typed decode error: {error:#}"
+            );
+            nodes.pop();
+            ensure!(
+                !nodes.is_empty(),
+                "failed source AI script has no executable nodes"
+            );
+            Ok(Script {
+                statements: vec![Statement::Unsupported(UnsupportedFragment {
+                    reason: format!("source AI script could not be typed: {error:#}"),
+                    start: 0,
+                    nodes,
+                })],
+            })
+        }
+    }
 }
 fn decode_set(
     s: &SourceSession,
@@ -639,10 +660,9 @@ struct DesignerLayout {
 }
 struct CachedModel {
     path: AssetPath,
-    index: Option<usize>,
+    index: usize,
     sets: [Option<SourceSet>; 2],
     designer: DesignerLayout,
-    unsupported: String,
 }
 fn designer_layout(s: &SourceSession, model: Address) -> Result<DesignerLayout> {
     let Some(a) = s.pointer(model, 8)? else {
@@ -679,41 +699,75 @@ fn values(
     for info in infos {
         let offset = info.offset as usize;
         ensure!(offset < bytes.len(), "designer offset outside memory");
-        let (value, size) = source_view::designer_value(
-            &mut source_view::FileView(s),
-            a,
-            *info,
-            length,
-            |target| {
-                target
-                    .map(|target| {
-                        states
-                            .get(&target)
-                            .cloned()
-                            .context("action outside imported families")
-                    })
-                    .transpose()
-            },
-            |target| Ok(target.and_then(|target| actors.get(&target).cloned())),
-        )?;
+        let is_opaque = !DesignerValueCodec::supports(info.kind);
+        let (value, size) = if is_opaque {
+            // The next declaration bounds this uninterpreted slot. Retain its
+            // bytes as-is; never follow any words inside it as pointers.
+            let end = infos
+                .iter()
+                .map(|following| following.offset as usize)
+                .filter(|&following| following > offset)
+                .min()
+                .unwrap_or(length);
+            ensure!(
+                end <= length && end > offset,
+                "opaque designer field has no bounded extent"
+            );
+            let size = end - offset;
+            (
+                DesignerValue::Opaque {
+                    kind: info.kind,
+                    bytes: s.bytes(add(a, offset), size)?.to_vec(),
+                },
+                size,
+            )
+        } else {
+            source_view::designer_value(
+                &mut super::source_view::FileView(s),
+                a,
+                *info,
+                length,
+                |target| {
+                    target
+                        .map(|target| {
+                            states
+                                .get(&target)
+                                .cloned()
+                                .context("action outside imported families")
+                        })
+                        .transpose()
+                },
+                |target| Ok(target.and_then(|target| actors.get(&target).cloned())),
+            )?
+        };
         out.push(value);
-        ranges.push((offset, size));
+        ranges.push((offset, size, is_opaque));
     }
-    // Declarations need not follow storage order, and some scalar fields are
-    // packed. Both orders are valid; all bytes must still be accounted for.
-    ranges.sort_unstable();
+    // Declarations need not follow storage order, and some source definitions
+    // intentionally alias fields at the same offset. Preserve both values for
+    // such exact-start aliases when at least one declaration is opaque. A
+    // partial overlap remains ambiguous and is rejected. Zero-filled padding
+    // is not a designer field; nonzero unclaimed bytes remain an import error.
+    ranges.sort_unstable_by_key(|&(offset, size, _)| (offset, size));
     let mut end: usize = 0;
-    for (offset, size) in ranges {
-        let alignment = size.min(4);
-        ensure!(
-            offset == end || offset == end.div_ceil(alignment) * alignment,
-            "overlapping or unexplained designer memory gap at {offset} after {end}"
-        );
-        ensure!(
-            bytes[end..offset].iter().all(|&b| b == 0),
-            "nonzero designer alignment padding unsupported"
-        );
-        end = offset + size;
+    let mut group_start = None;
+    let mut group_has_opaque = false;
+    for (offset, size, is_opaque) in ranges {
+        if offset < end {
+            ensure!(
+                group_start == Some(offset) && (is_opaque || group_has_opaque),
+                "ambiguous overlapping designer memory field at {offset} after {end}"
+            );
+        } else {
+            ensure!(
+                bytes[end..offset].iter().all(|&b| b == 0),
+                "nonzero designer alignment padding unsupported"
+            );
+            group_start = Some(offset);
+            group_has_opaque = false;
+        }
+        group_has_opaque |= is_opaque;
+        end = end.max(offset + size);
     }
     ensure!(end == length, "unrepresented designer memory tail");
     Ok(out)
@@ -861,75 +915,79 @@ pub(super) fn import(
             let sets = source_sets
                 .remove(&model)
                 .context("AI model absent from active actor pre-index")?;
-            let mut missing = BTreeSet::new();
             let designer = designer_layout(s, model)?;
             let DesignerLayout {
                 definition,
                 fields: infos,
             } = &designer;
-            for info in infos {
+            for (index, info) in infos.iter().enumerate() {
                 if !DesignerValueCodec::supports(info.kind) {
-                    missing.insert(format!("designer type {}", info.kind));
+                    result.diagnostics.push(Diagnostic {
+                        code: "openspace.ai.opaque_designer_field".into(),
+                        asset: Some(path.clone()),
+                        severity: Severity::Warning,
+                        message: format!(
+                            "designer field {index} source type {} is retained as opaque bytes; script access remains unsupported",
+                            info.kind
+                        ),
+                    });
                 }
             }
-            let index = if missing.is_empty() {
-                let defaults = definition
+            let defaults = definition
+                .as_ref()
+                .map(|(a, h)| {
+                    values(
+                        s,
+                        states,
+                        actors,
+                        s.required(*a, 0)?,
+                        infos,
+                        h.length as usize,
+                    )
+                    .with_context(|| format!("AI model {path} designer defaults"))
+                })
+                .transpose()?
+                .unwrap_or_default();
+            let value = AiModel {
+                path: path.clone(),
+                name: perso.name.clone(),
+                normal: sets[0]
                     .as_ref()
-                    .map(|(a, h)| {
-                        values(
-                            s,
-                            states,
-                            actors,
-                            s.required(*a, 0)?,
-                            infos,
-                            h.length as usize,
-                        )
+                    .map(|set| {
+                        decode_set(s, &sounds, states, actors, &waypoints, &behavior_index, set)
                     })
-                    .transpose()?
-                    .unwrap_or_default();
-                let value = AiModel {
-                    path: path.clone(),
-                    name: perso.name.clone(),
-                    normal: sets[0]
-                        .as_ref()
-                        .map(|set| {
-                            decode_set(s, &sounds, states, actors, &waypoints, &behavior_index, set)
-                        })
-                        .transpose()?,
-                    reflex: sets[1]
-                        .as_ref()
-                        .map(|set| {
-                            decode_set(s, &sounds, states, actors, &waypoints, &behavior_index, set)
-                        })
-                        .transpose()?,
-                    variables: infos
-                        .iter()
-                        .zip(defaults)
-                        .map(|(i, default)| DesignerVariable {
-                            default,
-                            save: i.save,
-                            initialize: i.initialize,
-                        })
-                        .collect(),
-                    designer_unknown: definition.as_ref().map_or([0; 3], |(_, h)| h.unknown),
-                    unknown: h.unknown,
-                };
-                value.validate()?;
-                result
-                    .diagnostics
-                    .extend(unsupported_script_diagnostics(&value));
-                let index = result.ai_models.len();
-                result.ai_models.push(value);
-                Some(index)
-            } else {
-                None
+                    .transpose()
+                    .with_context(|| format!("AI model {path} normal behavior set"))?,
+                reflex: sets[1]
+                    .as_ref()
+                    .map(|set| {
+                        decode_set(s, &sounds, states, actors, &waypoints, &behavior_index, set)
+                    })
+                    .transpose()
+                    .with_context(|| format!("AI model {path} reflex behavior set"))?,
+                variables: infos
+                    .iter()
+                    .zip(defaults)
+                    .map(|(i, default)| DesignerVariable {
+                        default,
+                        save: i.save,
+                        initialize: i.initialize,
+                    })
+                    .collect(),
+                designer_unknown: definition.as_ref().map_or([0; 3], |(_, h)| h.unknown),
+                unknown: h.unknown,
             };
+            value.validate()?;
+            result
+                .diagnostics
+                .extend(unsupported_script_diagnostics(&value));
+            let index = result.ai_models.len();
+            result.ai_models.push(value);
             entry.insert(CachedModel {
                 path,
                 index,
                 sets,
                 designer,
-                unsupported: missing.into_iter().collect::<Vec<_>>().join(", "),
             });
         }
         let CachedModel {
@@ -937,21 +995,11 @@ pub(super) fn import(
             index,
             sets,
             designer,
-            unsupported: missing,
         } = &cache[&model];
         let DesignerLayout {
             definition,
             fields: infos,
         } = designer;
-        let Some(index) = index else {
-            result.diagnostics.push(Diagnostic {
-                code: "openspace.ai.unsupported".into(),
-                asset: Some(perso.path.clone()),
-                severity: Severity::Warning,
-                message: format!("AI model {path} is not exported: unsupported {missing}"),
-            });
-            continue;
-        };
         let ai = &result.ai_models[*index];
         let mut memory = ai.variables.iter().map(|v| v.default.clone()).collect();
         let mut initial = None;
@@ -965,11 +1013,15 @@ pub(super) fn import(
                 "designer memory refers to another definition"
             );
             if let Some(a) = s.pointer(mem, 8)? {
-                memory = values(s, states, actors, a, infos, h.length as usize)?;
+                memory = values(s, states, actors, a, infos, h.length as usize)
+                    .with_context(|| format!("AI model {path} current designer memory"))?;
             }
             initial = s
                 .pointer(mem, 4)?
-                .map(|a| values(s, states, actors, a, infos, h.length as usize))
+                .map(|a| {
+                    values(s, states, actors, a, infos, h.length as usize)
+                        .with_context(|| format!("AI model {path} initial designer memory"))
+                })
                 .transpose()?;
         }
         let brain = Brain {

@@ -1,6 +1,7 @@
 extends SceneTree
 ## Run in separate Godot processes with one isolated user-data directory.
 const SAVE_STATE = preload("res://game/save_state.gd")
+const LEVEL_SCENE_PATH := "res://generated/hype/levels/manoir/level.tscn"
 
 func _initialize() -> void:
     call_deferred("run")
@@ -115,18 +116,34 @@ func run() -> void:
     if game == null or game == menu:
         fail("Load Game did not open the manor")
         return
-    while not bool(game.get("ready_to_play")) and Time.get_ticks_msec() < deadline:
+    while game.get("ready_to_play") != true and Time.get_ticks_msec() < deadline:
         await process_frame
-    if not bool(game.get("ready_to_play")):
+    if game.get("ready_to_play") != true:
         fail("Manor did not become playable: " + str(game.get_node("Hud/Panel/Margin/Rows/Status").text))
         return
     var actor := game.get("actor") as CharacterBody3D
     var level := game.get("level") as Node3D
     var source_brains: Dictionary = level.get_meta("source_actor_brains")
     var dummy_brain := level.get_node(source_brains[SAVE_STATE.DUMMY]) as Node
-    if dummy_brain == null:
-        fail("Exported manor dummy Brain is missing")
+    var global_brain := level.get_node(source_brains[SAVE_STATE.GLOBAL]) as Node if source_brains.has(SAVE_STATE.GLOBAL) else null
+    var gate := level.get_node_or_null("world/0/15/iMGrille_Manoir_Pont") as CharacterBody3D
+    var gate_brain := gate.get_node_or_null("Brain") as Node if gate != null else null
+    if dummy_brain == null or global_brain == null or gate_brain == null:
+        fail("Exported manor is missing a saved actor Brain")
         return
+    var native := SAVE_STATE.read()
+    var original_import := SAVE_STATE.read_original_import()
+    var restored: Dictionary = native["state"] if native["status"] == "loaded" else original_import["state"] if original_import["status"] == "loaded" else {}
+    if restored.has("actors") and restored["actors"].has(SAVE_STATE.GLOBAL):
+        var expected_gate_sequence: bool = restored["actors"][SAVE_STATE.GLOBAL]["brain"]["dsg_149"]
+        if global_brain.get("dsg_149") != expected_gate_sequence:
+            fail("Load Game did not restore Global DSG[149]")
+            return
+        if expected_gate_sequence and (int(gate_brain.get("current_normal")) != 3 or not str(gate_brain.get("unsupported_failure")).is_empty()):
+            fail("Saved Global DSG[149] did not run the gate's source AI sequence")
+            return
+        if expected_gate_sequence and not gate_moved_once_from_source_pose(gate, stage):
+            return
     var magick := actor.get("source_magick") as Resource
     var inventory := actor.get("source_inventory") as Resource
     if stage == "write":
@@ -140,8 +157,12 @@ func run() -> void:
         if int(magick.get("current_points")) != 30 or int(magick.call("remove_points", 7)) != 1:
             fail("Measured starting mana or native consumption differs")
             return
+        if int(inventory.call("quantity", 0)) != 20:
+            fail("Original SaveGame0 item-0 balance was not applied to the native inventory")
+            return
         var quantities: Dictionary = inventory.get("quantities").duplicate()
         quantities[21] = 2
+        quantities[0] = 0
         inventory.set("quantities", quantities)
         dummy_brain.set("dsg_8", true)
         key(KEY_F5, true)
@@ -150,11 +171,18 @@ func run() -> void:
         if saved["status"] != "loaded" or int(saved["state"]["actors"][SAVE_STATE.ACTOR]["magick"]["current_points"]) != 23:
             fail("F5 did not write current native mana")
             return
-        if not bool(saved["state"]["world"][SAVE_STATE.DUMMY]["dsg_8"]):
+        if saved["state"]["world"][SAVE_STATE.DUMMY]["dsg_8"] != true:
             fail("F5 did not write the exported dummy's DSG[8]")
+            return
+        if not saved["state"]["actors"].has(SAVE_STATE.GLOBAL) or saved["state"]["actors"][SAVE_STATE.GLOBAL]["brain"]["dsg_149"] != true:
+            fail("F5 did not write the saved manor gate sequence flag")
             return
         if int(saved["state"]["actors"][SAVE_STATE.ACTOR]["inventory"]["quantities"]["61"]) != -1:
             fail("F5 did not preserve the measured unavailable-item sentinel")
+            return
+        var saved_quantities: Dictionary = saved["state"]["actors"][SAVE_STATE.ACTOR]["inventory"]["quantities"]
+        if not saved_quantities.has("0") or int(saved_quantities["0"]) != 0:
+            fail("F5 did not preserve an explicit item-0 balance of zero")
             return
         var original := FileAccess.get_file_as_string(SAVE_STATE.path())
         magick.set("current_points", 1000)
@@ -163,21 +191,28 @@ func run() -> void:
         if FileAccess.get_file_as_string(SAVE_STATE.path()) != original:
             fail("Invalid state overwrote a valid slot")
             return
-        print("SAVE_PROOF wrote mana=23, inventory=2, sentinel=-1 and dummy dsg_8=true; invalid write preserved slot")
+        print("SAVE_PROOF wrote mana=23, inventory=2, item-0 balance=0, sentinel=-1 and dummy dsg_8=true; invalid write preserved slot")
     else:
         if int(magick.get("current_points")) != 23 or int(inventory.call("quantity", 21)) != 2:
             fail("Fresh process did not restore mana and inventory")
             return
-        if not bool(dummy_brain.get("dsg_8")):
+        if dummy_brain.get("dsg_8") != true:
             fail("Fresh process did not restore the exported dummy's DSG[8]")
+            return
+        if global_brain.get("dsg_149") != true or int(gate_brain.get("current_normal")) != 3:
+            fail("Fresh process did not restore and run the saved manor gate sequence")
             return
         if int(inventory.call("quantity", 61)) != -1:
             fail("Fresh process did not restore the unavailable-item sentinel")
             return
+        var restored_quantities: Dictionary = inventory.get("quantities")
+        if not restored_quantities.has(0) or int(restored_quantities[0]) != 0 or int(inventory.call("quantity", 0)) != 0:
+            fail("Fresh process did not restore the explicit item-0 zero over its default")
+            return
         if int(magick.call("remove_points", 5)) != 1 or int(magick.get("current_points")) != 18:
             fail("Restored mana was not usable by the native component")
             return
-        print("SAVE_PROOF fresh process restored mana=23, inventory=2, and dummy dsg_8=true; native mana remained usable")
+        print("SAVE_PROOF fresh process restored mana=23, inventory=2, explicit item-0 zero and dummy dsg_8=true; native mana remained usable")
     await shutdown(0)
 
 func shutdown(exit_code: int) -> void:
@@ -198,6 +233,33 @@ func key(code: Key, pressed: bool) -> void:
     event.pressed = pressed
     Input.parse_input_event(event)
     Input.flush_buffered_events()
+
+func gate_moved_once_from_source_pose(gate: CharacterBody3D, stage: String) -> bool:
+    var packed := load(LEVEL_SCENE_PATH) as PackedScene
+    if packed == null:
+        fail("Could not load generated manor to compare the saved gate pose")
+        return false
+    var baseline_level := packed.instantiate() as Node3D
+    if baseline_level == null:
+        fail("Generated manor did not instantiate for the gate pose comparison")
+        return false
+    for brain in baseline_level.find_children("Brain", "Node", true, false):
+        if brain.get_property_list().any(func(property): return str(property["name"]) == "automatic"):
+            brain.set("automatic", false)
+    baseline_level.process_mode = Node.PROCESS_MODE_DISABLED
+    root.add_child(baseline_level)
+    var baseline_gate := baseline_level.get_node_or_null("world/0/15/iMGrille_Manoir_Pont") as CharacterBody3D
+    if baseline_gate == null:
+        baseline_level.free()
+        fail("Generated manor has no baseline gate pose")
+        return false
+    var displacement := gate.global_position - baseline_gate.global_position
+    baseline_level.free()
+    if absf(displacement.x - 2.6) > 0.001 or absf(displacement.y) > 0.001 or absf(displacement.z) > 0.001:
+        fail("Gate source AI displacement in %s was %s; expected exactly +2.6 X with no Y/Z shift" % [stage, displacement])
+        return false
+    print("SAVE_GATE_PROOF %s: source pose + %s = actual gate pose" % [stage, displacement])
+    return true
 
 func fail(message: String) -> void:
     push_error(message)

@@ -10,42 +10,28 @@ current game menu; loading, savegame and UI work evolve this same application.
 
 ## Load the manor save
 
-From the Astrolabe repository root, prepare a local Hype directory containing
-`Gamedata/` and `LangData/`. This example uses ignored `disk/`; any mounted or
-extracted game directory can replace it:
+With the supplied English Hype disc under `disc/`, generate the manor from the
+repository root:
 
 ```sh
 cargo build --release --locked
-target/release/astrolabe prepare-game disk godot
-godot --editor --path godot
+target/release/astrolabe port disc godot --level manoir --locale en
+target/release/astrolabe port disc godot --level manoir --locale en --content menu
+target/release/astrolabe port disc godot --level manoir --locale en --content inventory
+target/release/astrolabe port disc godot --level manoir --locale en --content pause-menu
 ```
 
-One preparation command converts the manor, main menu, inventory and pause
-menu and imports their native resources. It defaults to manor/English;
-`--godot` selects the Godot executable. Each scope keeps its own publication
-ownership. If preparation fails, its report identifies completed, failed and
-remaining scopes; resolve the reported problem and repeat the command.
-Ordinary regeneration preserves adopted settings and authored files and rejects
-edited generated-file collisions.
-
-Press **F5** and select **Load Game**. An unprepared project shows a native setup
-screen instead of trying to play without its required content. The current load
-route seeds the measured starting state of the supplied English `SaveGame0`
-using `game/english_save_manoir.json`, then restores a native save's supported
-checkpoint placement, life, armor, mana, inventory and manor world flag when present.
-The native schema-3 checkpoint saves only a settled grounded idle (action 47,
-normal/reflex 4/3), with gameplay controls released and no active projectiles.
-A rejected save leaves the previous slot intact and explains its unmet condition.
-Equipment snapshots preserve the current supported armor state, ordered inventory
-slots, quantities, capacities, gold and represented selections. Schema-1/2 slots
-remain readable, retaining seeded values for fields they omitted; an explicit
-save upgrades the slot. Complete native persistence and general source-save import
-remain unfinished. The normal generated `manoir/level.tscn` and compiled
-Hype Brain make the gameplay decisions. Authored game code provides the camera,
-control guide, mana display, reload and menu. The session currently starts with
-the bridge gate raised as a temporary workaround, separate from the restored
-save values; its opening AI is not implemented yet. The camera uses the measured
-initial manor view and a simple actor follow; the source camera update remains under
+Open `project.godot` in the Godot editor, wait for texture and sound imports to
+finish, press **F5**, and select **Load Game**. Running the project player
+before that first editor import leaves generated textures unavailable. Load
+Game first uses a native Godot slot if one exists; otherwise it reads the
+imported original slot from `game/original_save_import.json`. If neither is
+available, it uses the measured English manor seed. The normal generated
+`manoir/level.tscn` and compiled Hype Brains make gameplay decisions. Authored
+game code provides the camera, control guide, mana display, save operation and
+menu. The gate runs its imported source AI after saved state is applied; there
+is no raised-gate position workaround. The camera uses the measured initial
+manor view and a simple actor follow; the source camera update remains under
 investigation.
 
 Controls: **Arrows** move and turn, **Shift** runs, **Ctrl** jumps, **X** draws
@@ -59,11 +45,8 @@ route, and "main menu" returns to the main menu. Configure remains unfinished.
 inventory Resource; other item effects remain explicit unfinished actions.
 [inventory ownership](game/inventory/README.md) explains source content and editor overrides. The supported slice includes
 movement with contact, stationary/moving/wall jumps, sword selection and beam lifetime, and Fire cast
-with mana cost. Crossbow selection, aiming, ammunition, checkpoint contact
-and native free-flight cleanup have bounded
-[recorded evidence](../notes/crossbow-free-flight-2026-10-02.md). Enemy damage,
-original missed-shot expiry, spell contact/lifetime, cliff death and complete
-camera parity are not established. Generated animation
+with mana cost. Combat hit/damage, crossbow play, spell contact/lifetime, cliff
+death and complete camera parity are not established. Generated animation
 libraries use compressed native `.res` resources; their named states remain
 editable and seekable in the AnimationPlayer inspector. Load Game prepares the
 saved native scene in the background and reports its loading stage. Reload and
@@ -71,6 +54,28 @@ return-to-menu retain one loaded scene resource while creating fresh gameplay
 instances. See the [loading measurements](../notes/godot-loading-efficiency-2026-09-27.md)
 for the remaining fresh-process cost and retained-memory tradeoff. The menu is imported independently from its source layout;
 [menu ownership](game/menu/README.md) explains editor overrides and remaining submenus.
+
+To import an extracted original Hype slot, run from the repository root:
+
+```sh
+target/release/astrolabe import-save /path/to/SaveGame0 \
+  --profile hype-pc-english-supplied-save
+```
+
+The command writes `game/original_save_import.json`, which is ignored local
+game data; the original files are read without modification. If no native
+Godot slot exists, **Load Game** reads Hype's saved position and recoverable
+orientation, mana, selected magic slot, supported inventory numbers, manor
+lever state, and Global `DSG[149]`. It retains the raw source records in the
+import report while runtime applies only canonical supported fields. The
+supplied authentic SaveGame0 has Global `DSG[149] = true`. Gate AI model 272
+reads that value, moves its own actor through the compiled source position
+operation, and enters its next behavior. This replaces the former raised-gate
+constant; the importer does not manufacture a gate pose or progression flag.
+Current AI behavior and active-weapon selection are not imported. Native Godot
+saves also capture Hype's transform and the Global gate-sequence Boolean, so
+subsequent Load Game restores those supported fields. The status text labels
+imported originals as supported-fields-only. See the [save importer evidence](../docs/openspace/save-games.md#import-an-original-slot-into-godot).
 
 The current session still uses the historical `game/demo.*` and `demo_camera.gd`
 filenames. They are game code; the names do not define a separate demo product.
@@ -102,9 +107,7 @@ Open generated level and perso scenes directly to inspect their saved contents
 and AnimationPlayer libraries. The project menu is the game's normal entry point.
 
 To adopt this structure elsewhere, run `astrolabe init-godot PROJECT` once.
-`prepare-game` and `port` also initialize a missing project. `port` converts
-one developer-selected scope; the authored game's complete current preparation
-uses `prepare-game`. Project settings and authored files
+`port` also initializes a missing project. Project settings and authored files
 belong to the adopter after initialization. Use `update-godot-support` for an
 explicit support update. Ordinary content regeneration preserves these files
 and unselected generated levels, and rejects modified generated files.

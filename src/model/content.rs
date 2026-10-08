@@ -3,6 +3,7 @@ use super::ai::AiModel;
 use super::armor::ArmorCatalog;
 use super::dialogue::{Dialogue, DialoguePresentation};
 use super::environment::{Environment, Fog, PhysicalEnvironment, VisualEnvironment};
+use super::hud::HudPresentation;
 use super::inventory::InventoryPresentation;
 use super::inventory_gameplay::InventoryCatalog;
 use super::mechanics::Mechanics;
@@ -82,6 +83,7 @@ pub trait ContentSource:
     + Load<Dialogue>
     + Load<DialoguePresentation>
     + Load<MenuPresentation>
+    + Load<HudPresentation>
     + Load<InventoryPresentation>
     + Load<InventoryCatalog>
     + Load<AiModel>
@@ -119,6 +121,7 @@ impl<T> ContentSource for T where
         + Load<Dialogue>
         + Load<DialoguePresentation>
         + Load<MenuPresentation>
+        + Load<HudPresentation>
         + Load<InventoryPresentation>
         + Load<InventoryCatalog>
         + Load<AiModel>
@@ -143,6 +146,7 @@ pub enum Asset {
     Dialogue(Arc<Dialogue>),
     DialoguePresentation(Arc<DialoguePresentation>),
     MenuPresentation(Arc<MenuPresentation>),
+    HudPresentation(Arc<HudPresentation>),
     InventoryPresentation(Arc<InventoryPresentation>),
     InventoryCatalog(Arc<InventoryCatalog>),
     AiModel(Arc<AiModel>),
@@ -191,6 +195,7 @@ impl Asset {
                 Self::DialoguePresentation(load(source, &root.reference)?)
             }
             MenuPresentation::KIND => Self::MenuPresentation(load(source, &root.reference)?),
+            HudPresentation::KIND => Self::HudPresentation(load(source, &root.reference)?),
             InventoryPresentation::KIND => {
                 Self::InventoryPresentation(load(source, &root.reference)?)
             }

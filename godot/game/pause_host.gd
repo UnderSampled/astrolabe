@@ -2,12 +2,14 @@ extends CanvasLayer
 ## Authored game routes over the installed source menu's native presentation.
 const VIEW = preload("res://addons/astrolabe/ui/menu/menu.gd")
 const DEFAULT_SCENE := "res://generated/hype/shared/menu/pause/en/menu.tscn"
+const CONFIGURATION_SCENE := "res://generated/hype/shared/menu/configuration/en/menu.tscn"
 signal unavailable(message: String)
 @export var pause_scene: PackedScene
 @onready var status: Label = $Status
 var view: VIEW
 var owns_pause := false
 var previous_focus: WeakRef
+var configuration: Control
 
 func _ready() -> void:
     process_mode = Node.PROCESS_MODE_ALWAYS
@@ -46,6 +48,9 @@ func open_pause() -> bool:
     return true
 
 func close_pause() -> void:
+    if is_instance_valid(configuration):
+        configuration.queue_free()
+        configuration = null
     if is_instance_valid(view):
         view.cancel_activation()
         view.hide()
@@ -67,11 +72,39 @@ func _action_selected(action: StringName) -> void:
         &"Main Menu":
             close_pause()
             get_parent().call("leave_session", "res://game/bootstrap.tscn")
-        &"Options": status.text = "Configuration is not implemented yet."
+        &"Options": _open_configuration()
+
+func _open_configuration() -> void:
+    if not ResourceLoader.exists(CONFIGURATION_SCENE):
+        status.text = "Configuration assets have not been generated. Regenerate the menu content."
+        return
+    var packed := load(CONFIGURATION_SCENE) as PackedScene
+    configuration = packed.instantiate() as Control if packed != null else null
+    if configuration == null:
+        status.text = "The generated configuration scene is invalid."
+        return
+    view.hide()
+    add_child(configuration)
+    configuration.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    configuration.closed.connect(_close_configuration)
+    configuration.focus_initial()
+
+func _close_configuration() -> void:
+    if is_instance_valid(configuration): configuration.queue_free()
+    configuration = null
+    if is_instance_valid(view) and owns_pause:
+        view.show()
+        view.focus_initial()
 
 func _input(event: InputEvent) -> void:
     var key := event as InputEventKey
     if key == null or not key.pressed or key.echo or key.physical_keycode != KEY_ESCAPE: return
+    if is_instance_valid(configuration) and configuration.visible:
+        get_viewport().set_input_as_handled()
+        if configuration.has_method("cancel_input_capture") and bool(configuration.call("cancel_input_capture")):
+            return
+        _close_configuration()
+        return
     # Escape closes inventory first, before GUI cancellation or any session route.
     var inventory := get_parent().get_node_or_null("InventoryHost")
     var inventory_view := inventory.get("view") as Control if inventory != null else null

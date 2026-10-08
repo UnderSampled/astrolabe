@@ -29,10 +29,25 @@ enum Scope {
     Menu,
     PauseMenu,
     Inventory,
+    Hud,
     Model,
     Textures,
     Audio,
 }
+
+#[derive(Clone, Copy, ValueEnum)]
+enum SaveProfile {
+    HypePcEnglishSuppliedSave,
+}
+
+impl SaveProfile {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::HypePcEnglishSuppliedSave => godot::save_import::HYPE_PC_ENGLISH_PROFILE,
+        }
+    }
+}
+
 #[derive(Subcommand)]
 enum Command {
     /// Adopt the source-free Godot starter and compatible support package once.
@@ -101,6 +116,17 @@ enum Command {
         #[arg(long, default_value = "astrolabe")]
         level: String,
     },
+    /// Import an extracted original Hype SaveGameN slot for the Godot Load Game route.
+    ImportSave {
+        input: PathBuf,
+        /// Installed/extracted Hype source root used to resolve saved fields by source composition.
+        #[arg(long)]
+        game: PathBuf,
+        #[arg(long, value_enum)]
+        profile: SaveProfile,
+        #[arg(long, default_value = "godot/game/original_save_import.json")]
+        output: PathBuf,
+    },
     Lzo {
         #[command(subcommand)]
         operation: LzoCommand,
@@ -122,6 +148,7 @@ fn import(
         Scope::Menu => openspace::content::import_menu(game, selection),
         Scope::PauseMenu => openspace::content::import_pause_menu(game, selection),
         Scope::Inventory => openspace::content::import_inventory(game, selection),
+        Scope::Hud => openspace::content::import_hud(game, selection),
         Scope::Model => openspace::content::import_model(game, selection),
         Scope::Textures => openspace::content::import_textures(game, selection),
         Scope::Audio => openspace::content::import_audio(game, selection, files),
@@ -304,6 +331,26 @@ pub fn run() -> Result<()> {
             report.source_diagnostics = package.diagnostics;
             report.write(&output)?;
             println!("{}", serde_json::to_string_pretty(&report)?);
+        }
+        Command::ImportSave {
+            input,
+            game,
+            output,
+            profile,
+        } => {
+            let report =
+                godot::save_import::import_original_slot(&input, &game, &output, profile.as_str())?;
+            println!(
+                "{}",
+                serde_json::json!({
+                    "output": output,
+                    "slot": report["slot"],
+                    "current_level": report["current_level"],
+                    "godot_state_available": !report["godot_state"].is_null(),
+                    "restored_fields": report["restored_fields"],
+                    "not_restored": report["not_restored"],
+                })
+            );
         }
         Command::Inspect { input, asset, kind } => {
             let (mut store, package) = rete::Store::open(input)?;

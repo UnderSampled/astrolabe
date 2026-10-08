@@ -82,11 +82,11 @@ pub fn export<R: ContentSource>(
     let mut gaps = Vec::new();
     for root in roots {
         match Asset::load(source, root)? {
+            Asset::ArmorCatalog(_) => anyhow::bail!(
+                "Fix armor source reconstruction requires coordinated catalog and shared-gameplay state export"
+            ),
             Asset::InventoryCatalog(_) => {
-                anyhow::bail!("inventory source reconstruction requires Fix package assembly")
-            }
-            Asset::ArmorCatalog(_) => {
-                anyhow::bail!("armor source reconstruction requires Fix package assembly")
+                anyhow::bail!("Fix inventory gameplay source reconstruction is not supported")
             }
             Asset::ParticleGenerator(_) => anyhow::bail!(
                 "particle package reconstruction remains unsupported; source/environment record reconstruction is available separately"
@@ -131,6 +131,9 @@ pub fn export<R: ContentSource>(
             Asset::MenuPresentation(_) => {
                 anyhow::bail!("main menu presentation source reconstruction is not supported")
             }
+            Asset::HudPresentation(_) => {
+                anyhow::bail!("source HUD layout reconstruction is not supported")
+            }
             Asset::Dialogue(_) | Asset::DialoguePresentation(_) => {
                 anyhow::bail!("dialogue source reconstruction remains unsupported")
             }
@@ -151,9 +154,6 @@ pub fn export<R: ContentSource>(
                 anyhow::bail!("collision export requires its owning scene")
             }
             Asset::Scene(scene) => {
-                if scene.armor.is_some() || scene.inventory.is_some() {
-                    gaps.push("Shared armor and inventory gameplay state, actor stock links, and their Fix roots are retained in Rete; source package assembly is pending.".into());
-                }
                 for reference in scene.nodes.iter().filter_map(|n| n.perso.as_ref()) {
                     if !source.load(reference)?.routes.is_empty() {
                         gaps.push("Scene actor routes/waypoints are retained in Rete; source route composition and relocations are pending.".into());

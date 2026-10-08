@@ -64,7 +64,6 @@ pub(super) fn global_perso_source(
 
 pub struct SceneImport {
     pub armor: Option<crate::model::armor::ArmorCatalog>,
-    pub inventory: Option<crate::model::inventory_gameplay::InventoryCatalog>,
     pub dialogue_presentation: Option<crate::model::dialogue::DialoguePresentation>,
     pub dialogues: Vec<crate::model::dialogue::Dialogue>,
     pub ai_models: Vec<crate::model::ai::AiModel>,
@@ -104,7 +103,6 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
     let source = summary(&session, selection, &tree)?;
     let mut result = SceneImport {
         armor: None,
-        inventory: None,
         dialogue_presentation: None,
         dialogues: Vec::new(),
         ai_models: Vec::new(),
@@ -131,7 +129,7 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
             name: selection.level.clone(),
             main_actor: None,
             armor: None,
-            inventory: None,
+            hud: None,
             global_actors: Vec::new(),
             nodes: Vec::new(),
         },
@@ -154,11 +152,14 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
             n => NodeKind::Unknown(n),
         };
         let mut instance = None;
+        let mut source_visual_lod_count = None;
 
         if kind == NodeKind::Object {
             let ipo = session.required(node.address, SuperObjectWire::DATA)?;
             let po = session.required(ipo, InstantiatedObjectWire::PHYSICAL_OBJECT)?;
             let visual = session.required(po, PhysicalObjectWire::VISUAL_SET)?;
+            let visual_header: VisualSetWire = wire(session.bytes(visual, 16)?)?;
+            source_visual_lod_count = Some(visual_header.lods);
             let geometry =
                 session.required(session.required(visual, VisualSetWire::OBJECTS)?, 0)?;
             let geo: GeometryWire = wire(session.bytes(geometry, 48)?)?;
@@ -208,6 +209,7 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
         result.scene.nodes.push(SceneNode {
             properties: crate::model::scene::SceneNodeProperties {
                 source_kind: Some(header.kind),
+                source_visual_lod_count,
                 transform_space: if header.last_compute_frame == u32::MAX {
                     crate::model::scene::TransformSpace::World
                 } else {
@@ -319,6 +321,12 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
         let reference = characters.perso_at(template, path, "Object template")?;
         actor_refs.insert(template, reference);
     }
+    // Category-35 AI literals can reference ObjectLists outside the actor's
+    // current/default configurations. Discover those source registrations and
+    // import them through the same Character importer before closing it.
+    for configuration in super::ai::configuration_sources(&session, &actor_refs)? {
+        characters.configuration(configuration)?;
+    }
     let mut bounds = Vec::new();
     for (i, node) in tree.iter().enumerate() {
         if let Some(a) = session.pointer(node.address, 52)? {
@@ -335,12 +343,6 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
                     })?,
             ));
         }
-    }
-    // Typed ObjectTableRef literals may name configurations outside the owning
-    // family's catalogue. Import that dependency closure before sealing the
-    // character importer; the AI adapter later resolves the same useful assets.
-    for configuration in super::ai::configuration_sources(&session, &actor_refs)? {
-        characters.configuration(configuration)?;
     }
     let state_references = characters.finish()?;
     if let Some(actor) = global_actor {
@@ -366,39 +368,9 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
     if selection.level == "manoir" {
         super::dialogue::import(&session, game, selection, &actor_refs, &mut result)?;
     }
-    let armor = super::armor::import(game, selection).context("import shared armor catalog")?;
+    let armor = super::armor::import(game, selection).context("import shared Fix armor catalog")?;
     result.scene.armor = Some(AssetRef::from_path(armor.path.clone()));
     result.armor = Some(armor);
-    let mut inventory = super::inventory_gameplay::import(game, selection)
-        .context("import shared inventory catalog")?;
-    // Stock records are reached through typed Perso links. Allocation size or
-    // coincidental pointers alone do not establish an inventory membership.
-    for item in &mut inventory.items {
-        let mut categories = Vec::new();
-        for stock in result.persos.iter().filter_map(|p| p.stock.as_ref()) {
-            if stock.item.as_ref() != Some(&item.source) {
-                continue;
-            }
-            if let Some(category) = &stock.category
-                && inventory.categories.iter().any(|c| &c.source == category)
-                && !categories.contains(category)
-            {
-                categories.push(category.clone());
-            }
-        }
-        if categories.len() == 1 {
-            item.pickup_category = categories.pop();
-        } else if categories.len() > 1 {
-            result.diagnostics.push(Diagnostic {
-                code: "openspace.inventory.ambiguous_pickup_category".into(),
-                asset: Some(inventory.path.clone()),
-                severity: Severity::Warning,
-                message: format!("Item {} has multiple typed pickup categories; legacy admission cannot be inferred", item.id),
-            });
-        }
-    }
-    result.scene.inventory = Some(AssetRef::from_path(inventory.path.clone()));
-    result.inventory = Some(inventory);
     result.scene.validate()?;
     Ok(result)
 }

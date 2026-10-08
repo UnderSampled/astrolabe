@@ -67,6 +67,7 @@ impl DesignerValueCodec {
             DesignerValue::ActionArray(_) => 25,
             DesignerValue::SourceWaypoint(_) => 8,
             DesignerValue::SourceWaypointArray(_) => 23,
+            DesignerValue::Opaque { kind, .. } => *kind,
         }
     }
     /// Extent of one value, derived from its kind and array count, never cached.
@@ -251,6 +252,9 @@ impl FormatCodec for DesignerValueCodec {
             )?,
             DesignerValue::SourceWaypoint(_) | DesignerValue::SourceWaypointArray(_) => {
                 bail!("source waypoint reconstruction is not implemented")
+            }
+            DesignerValue::Opaque { kind, .. } => {
+                bail!("opaque source designer type {kind} cannot be reconstructed")
             }
         }
         Ok(c.into_inner())

@@ -19,6 +19,7 @@ var completion_model: String = ""
 var completion_normal: int = -1
 var completion_pending: bool = false
 var _callback_generation: int = 0
+var _source_fade_tween: Tween
 var _authored_items: Array[Resource] = []
 var _catalogues: Array[Translation] = []
 
@@ -85,6 +86,25 @@ func source_toggle_widescreen() -> void:
     widescreen = not widescreen
     _layout()
     widescreen_changed.emit(widescreen)
+
+func source_execute_fade(from_alpha: int, to_alpha: int, duration_seconds: float) -> bool:
+    if is_instance_valid(adopted_screen):
+        if not adopted_screen.has_method("source_execute_fade"):
+            return false
+        return bool(adopted_screen.call("source_execute_fade", from_alpha, to_alpha, duration_seconds))
+    if not is_finite(duration_seconds) or duration_seconds < 0.0:
+        return false
+    var start_alpha := clampf(float(from_alpha) / 255.0, 0.0, 1.0)
+    var target_alpha := clampf(float(to_alpha) / 255.0, 0.0, 1.0)
+    fade.color = Color(0.0, 0.0, 0.0, start_alpha)
+    if _source_fade_tween != null and _source_fade_tween.is_running():
+        _source_fade_tween.kill()
+    if duration_seconds == 0.0:
+        fade.color = Color(0.0, 0.0, 0.0, target_alpha)
+        return true
+    _source_fade_tween = create_tween()
+    _source_fade_tween.tween_property(fade, "color:a", target_alpha, duration_seconds)
+    return true
 
 func source_position_dialog(x: float, y: float) -> void:
     if is_instance_valid(adopted_screen):

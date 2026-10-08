@@ -30,15 +30,11 @@ pub fn export<R: ContentSource>(
     }
     for root in roots {
         match Asset::load(source, root)? {
-            Asset::InventoryCatalog(value) => {
-                if written.insert(value.path.clone()) {
-                    super::inventory_gameplay::export(&mut project, source, &value)?;
-                }
-            }
             Asset::ArmorCatalog(value) => {
-                if written.insert(value.path.clone()) {
-                    super::armor::export(&mut project, source, &value)?;
-                }
+                super::armor::export(&mut project, source, &value)?;
+            }
+            Asset::InventoryCatalog(value) => {
+                super::inventory_gameplay::export(&mut project, source, &value)?;
             }
             Asset::ParticleGenerator(value) => {
                 super::particle::export(&mut project, source, &value, &mut written)?;
@@ -56,6 +52,9 @@ pub fn export<R: ContentSource>(
             Asset::MenuPresentation(value) => super::menu::export(&mut project, source, &value)?,
             Asset::InventoryPresentation(value) => {
                 super::inventory::export(&mut project, source, &value)?
+            }
+            Asset::HudPresentation(value) => {
+                super::hud::export(&mut project, source, &value, &mut written)?
             }
             Asset::Dialogue(_) => {}
             Asset::DialoguePresentation(value) => {
@@ -84,19 +83,15 @@ pub fn export<R: ContentSource>(
                 anyhow::bail!("collision export requires its owning scene")
             }
             Asset::Scene(scene) => {
-                if let Some(reference) = &scene.inventory {
-                    let value = source.load(reference)?;
-                    value.validate_reference(&reference.path)?;
-                    if written.insert(value.path.clone()) {
-                        super::inventory_gameplay::export(&mut project, source, &value)?;
-                    }
-                }
                 if let Some(reference) = &scene.armor {
-                    let value = source.load(reference)?;
-                    value.validate_reference(&reference.path)?;
-                    if written.insert(value.path.clone()) {
-                        super::armor::export(&mut project, source, &value)?;
-                    }
+                    let armor = source.load(reference)?;
+                    armor.validate_reference(&reference.path)?;
+                    super::armor::export(&mut project, source, &armor)?;
+                }
+                if let Some(reference) = &scene.hud {
+                    let hud = source.load(reference)?;
+                    hud.validate_reference(&reference.path)?;
+                    super::hud::export(&mut project, source, &hud, &mut written)?;
                 }
                 let preview_start = project.preview_instances.len();
                 for node in &scene.nodes {

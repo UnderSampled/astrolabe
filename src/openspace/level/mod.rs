@@ -17,6 +17,7 @@ pub use way::{
     ActorWayInspection, WayInspection, WayLinkInspection, WaypointInspection, inspect_actor_ways,
 };
 mod save_join;
+mod saved_inventory;
 mod scene;
 mod session;
 mod source_view;
@@ -31,6 +32,7 @@ pub use import::{LevelSummary, ModelImport, import_first_model, inspect_level};
 pub use save_join::{
     SaveAllocationJoin, SaveJoinResult, SaveRecordLocation, join_save_allocations,
 };
+pub(crate) use saved_inventory::{SavedInventoryItem, read_saved_inventory_item_zero};
 pub use scene::{SceneImport, import_scene};
 
 #[cfg(test)]
@@ -74,6 +76,7 @@ pub use animation_export::{
     AnimationActionsExport, TransformPoolExport, write_animation, write_animation_actions,
     write_transform_pool,
 };
+pub use armor::import as import_armor;
 pub use configuration_export::write_configuration;
 mod family_export;
 #[cfg(test)]
@@ -97,9 +100,11 @@ pub use sector_export::write_sectors;
 
 mod dialogue;
 mod dialogue_presentation;
+mod hud;
 mod inventory;
 mod inventory_gameplay;
 mod menu;
+pub(crate) use hud::import as import_hud_presentation;
 pub(crate) use inventory::import as import_inventory_presentation;
 pub(crate) use menu::{import_main_menu, import_pause_menu};
 mod sound;

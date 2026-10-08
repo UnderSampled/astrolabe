@@ -1,4 +1,4 @@
-//! Shared armor definitions and their initial mutable gameplay state.
+//! Shared Fix-owned armor definitions and their initial mutable state.
 use super::{
     AssetPath, AssetRef, PackageRole,
     ai::{SourceObjectIdentity, SourceRole},
@@ -8,13 +8,15 @@ use super::{
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 
-/// Fight_ChangeArmor selects from this ordered Fix-owned catalog, globally.
+/// Fight_ChangeArmor selects from this ordered Fix-owned catalog globally.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ArmorCatalog {
     pub path: AssetPath,
     pub definitions: Vec<ArmorDefinition>,
+    /// Source initialization selects the first definition when one exists.
     pub selected: Option<u8>,
 }
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ArmorDefinition {
     pub source: SourceObjectIdentity,
@@ -30,12 +32,14 @@ pub struct ArmorDefinition {
     pub current_damage_piece: Option<u8>,
     pub unknown: [u8; 3],
 }
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ArmorArtwork {
     pub texture: AssetRef<Texture>,
     pub size: [u32; 2],
     pub color_key: bool,
 }
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ArmorPiece {
     pub source: SourceObjectIdentity,
@@ -46,11 +50,14 @@ pub struct ArmorPiece {
     pub strikes: u8,
     pub unknown: [u8; 2],
 }
+
 impl Content for ArmorCatalog {
     const KIND: &'static str = "armor-catalog";
+
     fn identity(&self) -> Option<&AssetPath> {
         Some(&self.path)
     }
+
     fn validate(&self) -> Result<()> {
         ensure!(
             self.path.role() == PackageRole::Fix && self.definitions.len() <= 255,
@@ -58,70 +65,72 @@ impl Content for ArmorCatalog {
         );
         ensure!(
             self.selected
-                .is_none_or(|n| (n as usize) < self.definitions.len()),
+                .is_none_or(|index| usize::from(index) < self.definitions.len()),
             "armor selection leaves catalog"
         );
-        let mut identities = Vec::new();
-        let mut pieces = Vec::new();
+        let mut definitions: Vec<&SourceObjectIdentity> = Vec::new();
+        let mut pieces: Vec<&SourceObjectIdentity> = Vec::new();
         for definition in &self.definitions {
             ensure!(
-                definition.source.role == SourceRole::Fix,
-                "armor definition must belong to Fix"
+                definition.source.role == SourceRole::Fix && definition.source.block == [5, 0],
+                "armor definition must belong to Fix block 5:0"
             );
             ensure!(
-                !identities.contains(&definition.source),
-                "duplicate armor identity"
+                !definitions.contains(&&definition.source),
+                "duplicate armor definition identity"
             );
-            identities.push(definition.source.clone());
+            definitions.push(&definition.source);
             let count = definition.pieces.len();
             ensure!(
                 count <= 255
                     && definition.resistance_rank < 5
-                    && definition.broken_count as usize <= count,
-                "invalid armor state"
+                    && usize::from(definition.broken_count) <= count,
+                "invalid armor definition state"
             );
             ensure!(
-                definition.broken_count as usize
-                    == definition.pieces.iter().filter(|p| p.broken == 1).count(),
+                usize::from(definition.broken_count)
+                    == definition
+                        .pieces
+                        .iter()
+                        .filter(|piece| piece.broken == 1)
+                        .count(),
                 "armor broken count differs from piece state"
             );
             ensure!(
                 definition
                     .current_damage_piece
-                    .is_none_or(|n| (n as usize) < count),
+                    .is_none_or(|index| usize::from(index) < count),
                 "armor damage selection leaves pieces"
             );
             ensure!(
                 definition.damage_factors.len() == 5
-                    && definition
-                        .damage_factors
-                        .iter()
-                        .all(|row| row.len() == count + 1 && row.iter().all(|n| n.is_finite())),
+                    && definition.damage_factors.iter().all(|row| {
+                        row.len() == count + 1 && row.iter().all(|value| value.is_finite())
+                    }),
                 "invalid armor damage factor matrix"
             );
             ensure!(
                 definition.artwork[0].is_some() && definition.artwork[1].is_some(),
                 "armor requires intact and broken artwork"
             );
-            for art in definition.artwork.iter().flatten() {
+            for artwork in definition.artwork.iter().flatten() {
                 ensure!(
-                    art.texture.path.role() == PackageRole::Texture
-                        && art.size.iter().all(|n| *n > 0),
+                    artwork.texture.path.role() == PackageRole::Texture
+                        && artwork.texture.path.member().is_none()
+                        && artwork.size.iter().all(|size| *size > 0),
                     "invalid armor artwork"
                 );
             }
             for piece in &definition.pieces {
                 ensure!(
-                    piece.source.role == SourceRole::Fix,
-                    "armor piece must belong to Fix"
-                );
-                ensure!(
-                    !pieces.contains(&piece.source)
-                        && piece.rectangle.iter().all(|n| n.is_finite())
+                    piece.source.role == SourceRole::Fix
+                        && piece.source.block == [5, 0]
+                        && !pieces.contains(&&piece.source)
+                        && piece.rectangle.iter().all(|value| value.is_finite())
                         && piece.broken <= 1,
                     "invalid or multiply owned armor piece"
                 );
-                pieces.push(piece.source.clone());
+                pieces.push(&piece.source);
             }
         }
         Ok(())

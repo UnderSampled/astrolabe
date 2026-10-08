@@ -37,6 +37,62 @@ pub struct CameraParameters {
 }
 
 impl CameraParameters {
+    /// `00440e30` reads the camera controller flags at source offset `+0x92`.
+    /// The `0051f520` input writer ORs source action bits into this word.
+    pub fn controller_flags(&self) -> u16 {
+        u16::from_le_bytes(
+            self.unknown[90..92]
+                .try_into()
+                .expect("validated camera parameter extent"),
+        )
+    }
+
+    /// `00440ea0` reads the camera parameter flags at source offset `+0x94`.
+    pub fn angle_flags(&self) -> u16 {
+        u16::from_le_bytes(
+            self.unknown[92..94]
+                .try_into()
+                .expect("validated camera parameter extent"),
+        )
+    }
+
+    /// `00440bf0` reads the camera parameter float at source offset `+0x44`.
+    /// The current useful model keeps this scalar in its source-ordered tail.
+    pub fn yaw_upper_bound(&self) -> f32 {
+        f32::from_le_bytes(
+            self.unknown[20..24]
+                .try_into()
+                .expect("validated camera extent"),
+        )
+    }
+
+    /// `00440c30` reads the camera parameter float at source offset `+0x4c`.
+    pub fn pitch_upper_bound(&self) -> f32 {
+        f32::from_le_bytes(
+            self.unknown[24..28]
+                .try_into()
+                .expect("validated camera extent"),
+        )
+    }
+
+    /// `0043daf0` reads the registered byte at parameter offset `+0x90` and
+    /// the selected viewport context at `+0x9c`. These are retained in the
+    /// source-order unknown tail rather than turned into source pointers.
+    pub fn registered_viewport(&self) -> Option<u32> {
+        if self.unknown.get(88).copied()? == 0 {
+            return None;
+        }
+        let context = u32::from_le_bytes(self.unknown.get(96..100)?.try_into().ok()?);
+        (context != 0).then_some(context)
+    }
+
+    /// `00440f80` reads the target child selector at parameter byte `+0xa0`.
+    /// In this model's pointer-free 104-byte unknown tail that is byte 100;
+    /// -1 means use the selected Perso itself.
+    pub fn target_child_index(&self) -> i8 {
+        self.unknown[100] as i8
+    }
+
     pub fn validate(&self) -> Result<()> {
         ensure!(
             self.unknown.len() == 104,
@@ -62,6 +118,76 @@ impl CameraParameters {
             "camera distance limits differ"
         );
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parameters() -> CameraParameters {
+        CameraParameters {
+            source: SourceObjectIdentity {
+                role: super::super::ai::SourceRole::Fix,
+                block: [5, 0],
+                allocation: 1,
+            },
+            target_offset: [0.; 3],
+            look_offset: [0.; 3],
+            actor_offset: [0.; 3],
+            distance: [0.; 2],
+            yaw: 0.,
+            pitch: 0.,
+            horizontal_fov: 0.,
+            mode: 0,
+            unknown: vec![0; 104],
+        }
+    }
+
+    #[test]
+    fn camera_registration_uses_active_byte_and_context_word() {
+        let mut value = parameters();
+        value.unknown[96..100].copy_from_slice(&1_u32.to_le_bytes());
+        assert_eq!(value.registered_viewport(), None);
+        value.unknown[88] = 1;
+        assert_eq!(value.registered_viewport(), Some(1));
+        value.unknown[96..100].copy_from_slice(&2_u32.to_le_bytes());
+        assert_eq!(value.registered_viewport(), Some(2));
+        value.unknown[96..100].copy_from_slice(&0_u32.to_le_bytes());
+        assert_eq!(value.registered_viewport(), None);
+    }
+
+    #[test]
+    fn camera_target_child_selector_uses_source_parameter_byte_a0() {
+        let mut value = parameters();
+        assert_eq!(value.target_child_index(), 0);
+        value.unknown[100] = 0xff;
+        assert_eq!(value.target_child_index(), -1);
+        value.unknown[100] = 7;
+        assert_eq!(value.target_child_index(), 7);
+    }
+
+    #[test]
+    fn camera_angle_upper_bounds_are_read_from_source_offsets() {
+        let mut value = parameters();
+        value.unknown[20..24].copy_from_slice(&1.25_f32.to_le_bytes());
+        value.unknown[24..28].copy_from_slice(&0.75_f32.to_le_bytes());
+        assert_eq!(value.yaw_upper_bound(), 1.25);
+        assert_eq!(value.pitch_upper_bound(), 0.75);
+    }
+
+    #[test]
+    fn camera_angle_flags_are_read_from_source_offset_94() {
+        let mut value = parameters();
+        value.unknown[92..94].copy_from_slice(&0x0004_u16.to_le_bytes());
+        assert_eq!(value.angle_flags(), 4);
+    }
+
+    #[test]
+    fn camera_controller_flags_are_read_from_source_offset_92() {
+        let mut value = parameters();
+        value.unknown[90..92].copy_from_slice(&0x8040_u16.to_le_bytes());
+        assert_eq!(value.controller_flags(), 0x8040);
     }
 }
 

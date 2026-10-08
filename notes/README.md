@@ -6,15 +6,19 @@
 
 ## Common records
 
-The [static port implementation ledger](static-port-plan-2026-10-04.md) is the
-current dependency-ordered source survey and task list. Its checked items mean
-statically implemented/reviewed; the user has deferred execution and gameplay
-validation for this pass. Earlier runtime checkpoints retain their original scope.
+The [armor catalog and AI port checkpoint](armor-ai-port-2026-10-07.md)
+records the isolated Fix-owned armor implementation, its source boundaries,
+and focused validation limits.
 
 The [in-engine manor opening checkpoint](cinematic-opening-source-2026-10-03.md)
 records typed/shared route conversion, the original opening actor/camera capture,
 the validated native Gogoud component, explicitly deferred wind and remaining
 startup blockers.
+
+The [intro camera source-first checkpoint](intro-camera-source-first-2026-10-07.md)
+records exact MainActor binding, viewport registration, target reset, mapped
+mode-zero inputs, and the still-unsupported controller smoothing and sector
+history.
 
 The [Crossbow fixes and evidence](crossbow-fixes-2026-10-02.md) continue the
 October 1 handoff with fixture recovery, typed original contact identity,
@@ -53,4 +57,11 @@ benchmarks both codecs on a retained Orrery capture.
 The [Orrery private audio record](orrery-audio-recording-2026-09-27.md)
 documents the short full-session proof, routing isolation, and timing limits.
 
+Start with the [[notes/implementation-progress|implementation report]] for current demonstrated coverage. Open work is tracked in the [[notes/godot-gameplay-plan|Godot gameplay plan]] and [[notes/realtime-comparison-plan|live comparison plan]]. The [[notes/orrery-live-session-2026-09-23|live Orrery session]], [[notes/behavior-suite-2026-09-23|movement BDD checkpoint]], [[notes/godot-movement-bdd-2026-09-23|Godot movement continuation]], [[notes/camera-research-2026-09-24|deferred camera research]], and [[notes/environment-fog-evidence|fog evidence]] preserve dated observations; [[notes/testing-history|testing checkpoints]] retain earlier suite results. Topic-specific [[notes/texture-validation-2026-09-12|texture timings]], [[notes/material-transparency-evidence|pixel comparisons]], and [[notes/scene-hierarchy-checkpoint|scene hierarchy status]] preserve detailed evidence that changes over time. Material inherited from retired approaches is indexed under [`historical/`](historical/), including the [historical-note index](historical/README.md).
+
+The [[notes/intro-initialization-2026-10-07|intro initialization checkpoint]] records the source-backed Hype armor selection implementation and the distinct camera/statue blockers still open.
+
+The [loading-presentation checkpoint](loading-presentation-2026-10-07.md)
+records the decompiled window-caption stages, the missing dedicated loading art,
+the observed threaded-resource progress contract, and native Control ownership.
 Start with the [[notes/implementation-progress|implementation report]] for current demonstrated coverage. Open work is tracked in the [[notes/godot-gameplay-plan|Godot gameplay plan]] and [[notes/realtime-comparison-plan|live comparison plan]]. The [[notes/orrery-live-session-2026-09-23|live Orrery session]], [[notes/behavior-suite-2026-09-23|movement BDD checkpoint]], [[notes/godot-movement-bdd-2026-09-23|Godot movement continuation]], [[notes/camera-research-2026-09-24|deferred camera research]], and [[notes/environment-fog-evidence|fog evidence]] preserve dated observations; the [hidden-cheat investigation](hype-cheat-exploration-2026-09-12.md) and [cheat-save experiment](cheat-save-experiment-2026-09-24.md) record source-game tests. [[notes/testing-history|Testing checkpoints]] retain earlier suite results. Topic-specific [[notes/texture-validation-2026-09-12|texture timings]], [[notes/material-transparency-evidence|pixel comparisons]], and [[notes/scene-hierarchy-checkpoint|scene hierarchy status]] preserve detailed evidence that changes over time. Material inherited from retired approaches is indexed under [`historical/`](historical/), including the [historical-note index](historical/README.md).

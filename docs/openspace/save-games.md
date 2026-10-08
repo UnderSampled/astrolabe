@@ -16,6 +16,73 @@ records source anchors, verified meanings and limits. Detailed report links in
 this chapter point to ignored, game-derived local evidence; those reports are
 not distributed with a clean checkout.
 
+## Import an original slot into Godot
+
+The Astrolabe CLI can read an extracted Hype `SaveGameN/` directory and write a
+local import file used by the Godot **Load Game** route:
+
+```sh
+cargo build --release --locked
+target/release/astrolabe import-save /path/to/SaveGame0 \
+  --game /path/to/Hype \
+  --profile hype-pc-english-supplied-save
+```
+
+The profile is explicit because a save slot does not identify its executable
+build. The reader leaves the original files unchanged and writes
+`godot/game/original_save_import.json`, an ignored local artifact. `--game`
+points to the installed/extracted source root; the OpenSpace reader uses its
+Fix and selected-level composition to resolve supported saved fields. The
+gameplay import file contains only the typed native overlay and semantic
+inventory item values. Parsed record identities, flags, raw values, unknown
+tails, and other source-address provenance go to the sibling
+`original_save_import.source-diagnostics.json`; Godot does not read that file
+or interpret source addresses at runtime. A native Godot slot takes precedence
+when one already exists.
+
+The `manoir` overlay restores Hype's saved position and a uniquely recoverable
+orientation, source-backed mana and selected magic slot, the reserved ItemWire
+0 balance, supported inventory handle numbers, `iDummy_PourCercles.DSG[8]`, and
+the Global Brain Boolean `fix:/persos/15.DSG[149]`. The source reader follows
+the Fix HUD inventory root to ItemWire id 0, its inventory handle, and the
+linked item definition, then joins their registered quantity and capacity
+fields to the player save table; the supplied fixture stores 20 and 200.
+Hype displays and uses this value as a shared resource/effect balance. The
+source does not establish its authored name, so the importer maps the existing
+item-0 quantity without assigning another meaning. A missing, invalid, or
+ambiguous join is an import error, and an explicit saved zero remains present
+in native state. Current AI behavior and active-weapon selection remain
+unsupported; the supplied slot has selected-item flags set for both item 21 and
+item 80, so neither alone identifies the active weapon. `0:5:4986210` is a
+source-verified default magic-point amount, but the native magick resource has
+no separate default-points field yet. Hype health and armor also lack a mapped
+player-owned save identity. Original SAI addresses and bytes stay in the
+diagnostic sibling; Godot receives only the canonical actor/world state and
+applies it before starting the compiled Brains.
+
+The supplied authentic `SaveGame0` contains player record `0:17:4560`,
+one-byte Boolean value `01`, with save flags `0x0204`. The typed source join
+identifies it as Global `DSG[149]`. `level:/ai/models/272` for
+`iMGrille_Manoir_Pont` checks that field in Normal behavior 0; when it is one,
+the script calls procedure 253 with `SelfPosition + Vector(2.6, 0, 0)` and
+then changes behavior. Raymap names procedure 253
+`Proc_SetPersoAbsolutePosition`; its decompiled dispatcher at
+`00544590` selects a callback using the executing Perso's position data but
+leaves the final callback indirect. Astrolabe now imports the typed vector
+addition and procedure into compiled AI and supplies a native Godot API that
+sets the executing actor's source-space position. The target therefore runs
+the saved gate sequence after restoring the actual Global flag. It does not
+apply a raised pose or vertical lift constant.
+
+The user identified the supplied SaveGame0 as the post-key gate-open
+checkpoint. The source evidence establishes that its saved Global value enters
+the grille AI sequence; it does not prove the flag's complete narrative cause.
+The source ledger retains DSG[149] as a partial sequence/latch meaning because
+IWorld can set and clear it and the authored SaveTesteurs actor can snapshot,
+restore or force it. No gate pose is read from a made-up fixture. The original
+save remains the input to the CLI importer, and the Godot Load Game route uses
+its converted state when no native Godot slot is present.
+
 ## File roles and observed contents
 
 | File | Stored bytes | Decoded bytes | Observed content |
@@ -394,12 +461,14 @@ also have linked manor vial, herb or gold model sites. The surrounding AI
 conditions and actions are not fully decoded, so none has a verified pickup
 or quest-event meaning. The catalogue retains all nine as partial unknowns;
 see the [object-template trace](../../output/savegame-semantic-map/global-object-cluster-followup.md).
-The manor Global fields `DSG[147]` and `DSG[149]` are also only partly
-resolved. Value one of DSG[147] triggers the statue actor's typed `KillSelf`
-branch after an `iGogood` action sets it. DSG[149] gates a grille behavior
-sequence and has IWorld set/clear paths. The save-test actor can snapshot,
-restore or force both fields to one, so their saved bytes do not establish a
-particular progression event. See the [manor gate trace](../../output/savegame-semantic-map/global-manoir-147-149-followup.md).
+The manor Global fields `DSG[147]` and `DSG[149]` retain partial source
+meanings. Value one of DSG[147] triggers the statue actor's typed `KillSelf`
+branch after an `iGogood` action sets it. DSG[149] gates the grille sequence
+and has IWorld set/clear paths; the save-test actor can snapshot, restore or
+force it. Its value alone does not establish the complete story event. For the
+separate Godot restore implementation of the supplied slot's grille AI, see
+[the import section above](#import-an-original-slot-into-godot) and the
+[manor gate trace](../../output/savegame-semantic-map/global-manoir-147-149-followup.md).
 Global `DSG[32]` is a Perso reference assigned by the manor checkpoint
 script. The supplied save targets the rooted checkpoint actor at
 `level:/persos/world/0/35`; a source branch can instead assign the main
@@ -494,7 +563,9 @@ The magick registration cluster at
 registers four adjacent two-byte player-file records. Current and maximum
 mana at `0:5:4986212` and `0:5:4986214` are runtime-corroborated. In
 `0:5:4986216`, the low byte is the selected magic slot/index (0–2), used by
-the gauge and selection functions; the high byte has no verified meaning.
+the gauge and selection functions. The importer maps those slots to Fire 61,
+Ice 54, and Lightning 74; the high byte has no verified meaning and remains
+preserved only as raw source data.
 That record remains partly unexplained. A dedicated fresh-process test restored
 the two-byte words `0000`, `0100` and `005a` in stable playable manor. Native
 selected-spell observations were 0, 1 and 0 respectively, corroborating the

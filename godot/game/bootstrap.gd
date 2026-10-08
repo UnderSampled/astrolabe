@@ -2,37 +2,38 @@ extends Control
 ## Application/session routes around a generated, editable native menu scene.
 const MANOR := "res://generated/hype/levels/manoir/level.tscn"
 const MENU_SCENE := "res://generated/hype/shared/menu/main/en/menu.tscn"
-const INVENTORY_SCENE := "res://generated/hype/shared/inventory/en/inventory.tscn"
-const PAUSE_SCENE := "res://generated/hype/shared/menu/pause/en/menu.tscn"
+const SETTINGS_SCENE := "res://game/settings_menu.tscn"
+const CONFIGURATION_SCENE := "res://generated/hype/shared/menu/configuration/en/menu.tscn"
+const CREDITS_SCENE := "res://game/credits_menu.tscn"
 const MENU_VIEW = preload("res://addons/astrolabe/ui/menu/menu.gd")
 const SAVE_STATE = preload("res://game/save_state.gd")
+const INITIAL_ROUTE_ERROR_META := "astrolabe_initial_route_error"
 
 ## Assign an inherited scene saved under game/ to preserve designer improvements.
 @export var menu_scene: PackedScene
 @onready var details: Label = $Status/Details
 @onready var status: PanelContainer = $Status
-@onready var setup: PanelContainer = $Setup
-@onready var setup_details: Label = $Setup/Rows/Details
-@onready var setup_quit: Button = $Setup/Rows/Quit
+@onready var error_quit: Button = $ErrorQuit
 var menu: MENU_VIEW
 var load_game: Button
 var new_game: Button
 var quit_game: Button
 var opening_game := false
-var content_ready := false
+var _menu_button_disabled: Dictionary = {}
+var configuration: Control
+var credits: Control
 
 func _ready() -> void:
     if menu_scene == null and ResourceLoader.exists(MENU_SCENE):
         menu_scene = load(MENU_SCENE) as PackedScene
-    if menu_scene == null or not menu_scene.can_instantiate():
-        _show_setup("The main menu has not been prepared.")
+    if menu_scene == null:
+        _show_menu_error()
         return
-    var instance := menu_scene.instantiate()
-    menu = instance as MENU_VIEW
+    menu = menu_scene.instantiate() as MENU_VIEW
     if menu == null or not menu.has_required_media():
-        instance.free()
+        if menu != null: menu.free()
         menu = null
-        _show_setup("The selected main menu is missing required artwork or sound resources.")
+        _show_menu_error()
         return
     $MenuHost.add_child(menu)
     menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -41,16 +42,19 @@ func _ready() -> void:
     load_game = menu.button_for_action(&"SavedGames")
     quit_game = menu.button_for_action(&"Quit")
     if new_game == null or load_game == null or quit_game == null:
-        _show_setup("The selected main menu is missing New Game, Load Game or Quit actions.")
+        details.text = "Required menu actions are missing from the selected scene."
+        status.show()
+        error_quit.show()
+        error_quit.grab_focus()
+        push_error(details.text)
         return
     var slot: Dictionary = SAVE_STATE.read()
-    var missing := _missing_content()
-    content_ready = missing.is_empty()
-    load_game.disabled = not content_ready or slot["status"] == "error"
-    new_game.disabled = not content_ready
-    if not content_ready:
-        _show_setup("Game preparation is incomplete:\n" + "\n".join(missing))
-        return
+    var manor_available := ResourceLoader.exists(MANOR)
+    load_game.disabled = not manor_available or slot["status"] == "error"
+    new_game.disabled = not manor_available
+    if not manor_available:
+        details.text = "Prepare the game data from your Hype copy to play."
+        status.show()
     elif slot["status"] == "error":
         details.text = "Load Game unavailable: " + str(slot["message"])
         status.show()
@@ -63,47 +67,93 @@ func _ready() -> void:
         new_game.grab_focus()
     else:
         quit_game.grab_focus()
+    var root := get_tree().root
+    if root.has_meta(INITIAL_ROUTE_ERROR_META):
+        details.text = "The game could not be opened: " + str(root.get_meta(INITIAL_ROUTE_ERROR_META))
+        root.remove_meta(INITIAL_ROUTE_ERROR_META)
+        status.show()
 
-## Small native presentation scenes prepare their bindings while hidden. The
-## level stays lazy so opening the menu does not load the entire manor.
-func _presentation_available(path: String) -> bool:
-    if not ResourceLoader.exists(path): return false
-    var packed := load(path) as PackedScene
-    if packed == null or not packed.can_instantiate(): return false
-    var instance := packed.instantiate()
-    var control := instance as Control
-    if control == null:
-        instance.free()
-        return false
-    control.hide()
-    add_child(control)
-    var available := instance.has_method("has_required_media") and bool(instance.call("has_required_media"))
-    instance.free()
-    return available
-
-func _missing_content() -> PackedStringArray:
-    var missing := PackedStringArray()
-    if not ResourceLoader.exists(MANOR): missing.append("Manor level")
-    if not _presentation_available(INVENTORY_SCENE): missing.append("Inventory artwork and font")
-    if not _presentation_available(PAUSE_SCENE): missing.append("Pause menu artwork and sounds")
-    return missing
-
-func _show_setup(message: String) -> void:
-    $MenuHost.hide()
-    status.hide()
-    setup_details.text = message + "\n\nPrepare the game from your own Hype copy, then reopen this project.\nRun the commands below from the Astrolabe repository. Replace the directory argument disk with your game directory, and the directory arguments godot after prepare-game and --path with this project directory."
-    setup.show()
-    setup_quit.grab_focus()
+func _show_menu_error() -> void:
+    status.show()
+    details.text = "Required menu assets are missing.\nRestore the installed menu assets."
+    error_quit.show()
+    error_quit.grab_focus()
+    push_error("Required menu assets are missing: " + MENU_SCENE + ". Restore the installed menu assets.")
 
 func _on_menu_action(action: StringName) -> void:
     match action:
         &"NewGame": _on_new_game_pressed()
         &"SavedGames": _on_load_game_pressed()
         &"Quit": _on_quit_pressed()
+        &"Options": _open_configuration()
+        &"Credits": _open_credits()
+        &"Internet": _show_obsolete_internet_route()
         _:
             var selected := menu.button_for_action(action)
             details.text = (selected.text.capitalize() if selected != null else str(action)) + " is not implemented yet."
             status.show()
+
+func _open_credits() -> void:
+    status.hide()
+    var packed := load(CREDITS_SCENE) as PackedScene if ResourceLoader.exists(CREDITS_SCENE) else null
+    credits = packed.instantiate() as Control if packed != null else null
+    if credits == null:
+        details.text = "The Credits screen could not be loaded."
+        status.show()
+        return
+    menu.hide()
+    $MenuHost.add_child(credits)
+    credits.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    credits.closed.connect(_close_credits)
+    credits.focus_initial()
+
+func _close_credits() -> void:
+    if is_instance_valid(credits): credits.queue_free()
+    credits = null
+    if is_instance_valid(menu):
+        menu.show()
+        var button := menu.button_for_action(&"Credits")
+        if button != null: button.grab_focus()
+
+func _show_obsolete_internet_route() -> void:
+    details.text = "The original Internet destination is obsolete. This menu does not open external pages."
+    status.show()
+
+func _open_configuration() -> void:
+    status.hide()
+    var settings_path := SETTINGS_SCENE if ResourceLoader.exists(SETTINGS_SCENE, "PackedScene") else CONFIGURATION_SCENE
+    if not ResourceLoader.exists(settings_path, "PackedScene"):
+        details.text = "Configuration assets have not been generated. Regenerate the menu content."
+        status.show()
+        return
+    var packed := load(settings_path) as PackedScene
+    configuration = packed.instantiate() as Control if packed != null else null
+    if configuration == null:
+        details.text = "The Options screen is invalid."
+        status.show()
+        return
+    menu.hide()
+    $MenuHost.add_child(configuration)
+    configuration.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    configuration.closed.connect(_close_configuration)
+    configuration.focus_initial()
+
+func _close_configuration() -> void:
+    if is_instance_valid(configuration): configuration.queue_free()
+    configuration = null
+    if is_instance_valid(menu):
+        menu.show()
+        var configure := menu.button_for_action(&"Options")
+        if configure != null: configure.grab_focus()
+
+func _input(event: InputEvent) -> void:
+    var key := event as InputEventKey
+    if key == null or not key.pressed or key.echo or key.physical_keycode != KEY_ESCAPE: return
+    if is_instance_valid(configuration) and configuration.visible:
+        get_viewport().set_input_as_handled()
+        if configuration.has_method("cancel_input_capture") and bool(configuration.call("cancel_input_capture")):
+            return
+        _close_configuration()
 
 func _on_new_game_pressed() -> void:
     open_game("res://game/new_game.tscn", new_game)
@@ -115,9 +165,38 @@ func _on_quit_pressed() -> void:
     get_tree().quit()
 
 func open_game(destination: String, button: Button) -> void:
-    if opening_game or not content_ready or button == null or button.disabled: return
+    if opening_game: return
+    if button == null or not is_instance_valid(button):
+        details.text = "The selected game route is unavailable."
+        status.show()
+        return
     opening_game = true
-    button.disabled = true
-    if get_tree().change_scene_to_file(destination) != OK:
+    _lock_menu_buttons()
+    details.text = "Starting a new game..." if destination == "res://game/new_game.tscn" else "Loading saved game..."
+    status.show()
+    var error := get_tree().change_scene_to_file(destination)
+    if error != OK:
         opening_game = false
-        button.disabled = false
+        _restore_menu_buttons()
+        details.text = "The game session could not be opened."
+        status.show()
+        button.grab_focus()
+        push_error("Could not open game session %s: %s" % [destination, error_string(error)])
+
+func _lock_menu_buttons() -> void:
+    _menu_button_disabled.clear()
+    if not is_instance_valid(menu):
+        return
+    for item in menu.find_children("*", "BaseButton", true, false):
+        var button := item as BaseButton
+        if button == null:
+            continue
+        _menu_button_disabled[button] = button.disabled
+        button.disabled = true
+
+func _restore_menu_buttons() -> void:
+    for item in _menu_button_disabled:
+        var button := item as BaseButton
+        if is_instance_valid(button):
+            button.disabled = bool(_menu_button_disabled[item])
+    _menu_button_disabled.clear()

@@ -1,6 +1,6 @@
 //! Bake menu sprite quads into ordinary textures before the authored game runs.
 use super::{Project, disk_path, quoted};
-use crate::model::{content::ContentSource, io::Save, menu::*};
+use crate::model::{AssetRef, content::ContentSource, io::Save, menu::*, texture::Texture};
 use anyhow::{Context, Result, ensure};
 use std::{collections::BTreeMap, fmt::Write as _};
 
@@ -73,6 +73,23 @@ pub(super) fn export(
             project.write(format!("{directory}/{}_{name}.png", item.name), &bytes)?;
         }
     }
+    let configuration_directory = if let Some(configuration) = &value.configuration {
+        let directory = disk_path(&project.selection, &configuration.path, "");
+        let directory = directory.trim_end_matches('.').to_owned();
+        for item in &configuration.items {
+            for (state, sprites) in [("normal", &item.normal), ("selected", &item.selected)] {
+                project.write(
+                    format!("{directory}/{}_{state}.png", item.name),
+                    &raster(item, sprites, source)?,
+                )?;
+            }
+        }
+        let background = source.load(&configuration.background)?;
+        project.save(&configuration.background, background.as_ref())?;
+        Some(directory)
+    } else {
+        None
+    };
     for reference in [&value.navigation, &value.confirmation] {
         let sound = source.load(reference)?;
         project.save(reference, sound.as_ref())?;
@@ -81,12 +98,141 @@ pub(super) fn export(
         let background = source.load(reference)?;
         project.save(reference, background.as_ref())?;
     }
+    if let Some(credits) = &value.credits {
+        export_credits(project, source, credits)?;
+    }
+    if let (Some(configuration), Some(directory)) = (&value.configuration, &configuration_directory)
+    {
+        project.write(
+            format!("{directory}/menu.tscn"),
+            configuration_scene(project, configuration, directory)?.as_bytes(),
+        )?;
+    }
     project.write(
         format!("{directory}/menu.tscn"),
         scene(project, value, directory)?.as_bytes(),
     )?;
-    project.diagnostic(format!("{}: English source layout/actions/navigation exported as editable native Controls; original normal/glow artwork baked ahead of runtime; music and submenu implementations remain separate",value.path));
+    project.diagnostic(format!("{}: English source layout/actions/navigation exported as editable native Controls; original normal/glow artwork baked ahead of runtime; Sound settings preserve source mixer values and stereo actions, Images maps source shadow/framing settings and marks source texture swapping unsupported, and Controls map the five playable actions to keyboard or generic Godot joypad events",value.path));
     Ok(())
+}
+
+fn export_credits(
+    project: &mut Project,
+    source: &mut impl ContentSource,
+    credits: &CreditsPresentation,
+) -> Result<()> {
+    credits.validate()?;
+    let directory = disk_path(&project.selection, &credits.path, "");
+    let directory = directory.trim_end_matches('.');
+    let atlas_path = disk_path(
+        &project.selection,
+        &credits.font.atlas.texture,
+        "credits.png",
+    );
+    let font_path = disk_path(&project.selection, &credits.path, "font.tres");
+    let atlas = source.load(&AssetRef::<Texture>::from_path(
+        credits.font.atlas.texture.clone(),
+    ))?;
+    ensure!(
+        [atlas.width(), atlas.height()] == credits.font.atlas.size,
+        "credits atlas dimensions differ"
+    );
+    let rgba = atlas.rgba8(0)?;
+    let rgba = if credits.font.atlas.color_key {
+        super::material::keyed_rgba(&atlas, &rgba)
+    } else {
+        rgba
+    };
+    project.write(
+        atlas_path.clone(),
+        &super::material::png(atlas.width(), atlas.height(), &rgba)?,
+    )?;
+    project.reserve(&font_path)?;
+    super::bitmap_font::emit(
+        project,
+        super::bitmap_font::FontInput {
+            name: &credits.font.name,
+            atlas: &format!("res://{atlas_path}"),
+            atlas_size: credits.font.atlas.size,
+            glyphs: &credits.font.glyphs,
+            tracking: credits.font.tracking,
+            scale: 640.0 / (2.0 * 4.65),
+            path: &format!("res://{font_path}"),
+            outline: None,
+        },
+    )?;
+    project.write(
+        format!("{directory}/lines.tscn"),
+        credits_scene(credits, &font_path)?.as_bytes(),
+    )?;
+    project.diagnostic(format!(
+        "{}: imported {} English credit keys/text handles and native Playmo_Font2_0 glyph atlas; source draw count is {}; +/- keys retain left/right paired-row alignment",
+        credits.path,
+        credits.entries.len(),
+        credits.displayed_entries
+    ));
+    Ok(())
+}
+
+fn credits_scene(credits: &CreditsPresentation, font_path: &str) -> Result<String> {
+    const SCALE: f32 = 640.0 / (2.0 * 4.65);
+    let mut text = format!(
+        "[gd_scene load_steps=2 format=3]\n\n[ext_resource type=\"FontFile\" path={} id=\"font\"]\n\n[node name=\"CreditsLines\" type=\"Control\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmetadata/source_registered_entries = {}\nmetadata/source_displayed_entries = {}\nmetadata/source_max_visible_lines = {}\nmetadata/source_text_spacing = {}\nmetadata/source_text_position = Vector2({}, {})\n",
+        quoted(&format!("res://{font_path}")),
+        credits.entries.len(),
+        credits.displayed_entries,
+        credits.max_visible_lines,
+        credits.text_spacing,
+        credits.text_position[0],
+        credits.text_position[1],
+    );
+    let mut right_aligned_before = 0usize;
+    let mut final_world_y = -4.3f32;
+    for (index, entry) in credits
+        .entries
+        .iter()
+        .take(credits.displayed_entries)
+        .enumerate()
+    {
+        // FUN_0040eb10 aligns +/- entries horizontally; its local_28 counter
+        // removes one row step after a right-aligned (+) entry, pairing the
+        // following left-aligned (-) name on that same baseline.
+        let row = index - right_aligned_before;
+        let world_y = -4.3 - row as f32 * credits.text_spacing;
+        let pixel_y = (3.49 - world_y) * SCALE;
+        let center_x = (4.65 + credits.text_position[0]) * SCALE;
+        let (left, right) = match entry.alignment {
+            0 => (center_x, 640.0),
+            2 => (0.0, center_x),
+            _ => (0.0, 640.0),
+        };
+        final_world_y = world_y;
+        writeln!(
+            text,
+            "\n[node name=\"Credit{index:03}\" type=\"Label\" parent=\".\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = {}\noffset_right = {}\noffset_bottom = {}\ntext = {}\nhorizontal_alignment = {}\nvertical_alignment = 1\nautowrap_mode = 0\ntheme_override_fonts/font = ExtResource(\"font\")\ntheme_override_font_sizes/font_size = 21\ntheme_override_colors/font_color = Color({}, {}, {}, {})\nmetadata/source_key = {}\nmetadata/source_world_y = {}",
+            left,
+            pixel_y - 11.0,
+            right,
+            pixel_y + 11.0,
+            quoted(&entry.text),
+            entry.alignment,
+            credits.font.color[0],
+            credits.font.color[1],
+            credits.font.color[2],
+            credits.font.color[3],
+            quoted(&entry.key),
+            world_y
+        )?;
+        if entry.alignment == 2 {
+            right_aligned_before += 1;
+        }
+    }
+    let scroll_distance = 4.3 - final_world_y;
+    writeln!(
+        text,
+        "\nmetadata/source_scroll_distance = {scroll_distance}"
+    )?;
+    Ok(text)
 }
 fn node_name(name: &str) -> String {
     name.split('_')
@@ -226,13 +372,363 @@ fn scene(project: &Project, value: &MenuPresentation, directory: &str) -> Result
     ] {
         writeln!(
             text,
-            "\n[node name={} type=\"AudioStreamPlayer\" parent=\"Audio\"]\nstream = ExtResource({})\nvolume_db = {}",
+            "\n[node name={} type=\"AudioStreamPlayer\" parent=\"Audio\"]\nbus = \"Astrolabe Effects\"\nstream = ExtResource({})\nvolume_db = {}",
             quoted(name),
             quoted(id),
             if gain > 0. { 20. * gain.log10() } else { -80. }
         )?;
     }
     Ok(text)
+}
+
+fn configuration_scene(
+    project: &Project,
+    configuration: &MenuConfiguration,
+    directory: &str,
+) -> Result<String> {
+    let find = |action: &str, label: &str| {
+        configuration
+            .items
+            .iter()
+            .find(|item| item.action == action && item.label == label)
+            .with_context(|| format!("source configuration item {action}/{label} absent"))
+    };
+    let tabs = [
+        ("Images", find("Images", "image")?),
+        ("Controls", find("Controls", "controls")?),
+        ("Sound", find("Sound", "sound")?),
+    ];
+    let sound_rows = [
+        (find("DisplayWithSound", "music")?, "Music"),
+        (find("DisplayWithSound", "sound")?, "Effects"),
+        (find("DisplayWithSound", "voices")?, "Voices"),
+    ];
+    let stereo_rows = [
+        find("DisplayWithSound", "stereo test")?,
+        find("DisplayWithSound", "reverse stereo")?,
+    ];
+    // Keep the source settings' meanings. The texture-swapping ratio has no
+    // corresponding Godot renderer setting, so its original row is explicit
+    // about being unsupported instead of substituting material filtering.
+    let image_rows = [
+        (find("DisplayWithImage", "graphic")?, "Graphic"),
+        (find("DisplayWithImage", "screen")?, "Screen"),
+        (find("DisplayWithImage", "textures")?, "Textures"),
+    ];
+    let initial = configuration
+        .items
+        .iter()
+        .find(|item| item.name == configuration.initial_item)
+        .context("source configuration initial item absent")?;
+    let initial_page = match initial.action.as_str() {
+        "Images" | "Controls" | "Sound" => initial.action.as_str(),
+        action => anyhow::bail!("unsupported source configuration initial action {action}"),
+    };
+    let ext_count =
+        2 + 1 + tabs.len() * 2 + sound_rows.len() + stereo_rows.len() * 2 + image_rows.len();
+    let load_steps = ext_count + 2; // one material subresource and the scene itself
+    let mut text = format!("[gd_scene load_steps={load_steps} format=3]\n\n");
+    for (id, kind, path) in [
+        ("settings", "Script", "game/settings_menu.gd"),
+        ("theme", "Theme", "addons/astrolabe/ui/menu/theme.tres"),
+    ] {
+        writeln!(
+            text,
+            "[ext_resource type={} path={} id={}]",
+            quoted(kind),
+            quoted(&format!("res://{path}")),
+            quoted(id)
+        )?;
+    }
+    writeln!(
+        text,
+        "[ext_resource type=\"Texture2D\" path={} id=\"background\"]",
+        quoted(&format!(
+            "res://{}",
+            disk_path(&project.selection, &configuration.background.path, "png")
+        ))
+    )?;
+    for (_, item) in tabs {
+        for state in ["normal", "selected"] {
+            writeln!(
+                text,
+                "[ext_resource type=\"Texture2D\" path={} id={}]",
+                quoted(&format!("res://{directory}/{}_{}.png", item.name, state)),
+                quoted(&format!("{}_{}", item.name, state))
+            )?;
+        }
+    }
+    for (item, _) in sound_rows.iter().chain(&image_rows) {
+        writeln!(
+            text,
+            "[ext_resource type=\"Texture2D\" path={} id={}]",
+            quoted(&format!("res://{directory}/{}_normal.png", item.name)),
+            quoted(&format!("{}_normal", item.name))
+        )?;
+    }
+    for item in stereo_rows {
+        for state in ["normal", "selected"] {
+            writeln!(
+                text,
+                "[ext_resource type=\"Texture2D\" path={} id={}]",
+                quoted(&format!("res://{directory}/{}_{state}.png", item.name)),
+                quoted(&format!("{}_{state}", item.name))
+            )?;
+        }
+    }
+    writeln!(
+        text,
+        "\n[sub_resource type=\"CanvasItemMaterial\" id=\"Additive\"]\nblend_mode = 1\n\n[node name=\"ConfigurationMenu\" type=\"Control\"]\nlayout_mode = 3\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\ngrow_horizontal = 2\ngrow_vertical = 2\ntheme = ExtResource(\"theme\")\nscript = ExtResource(\"settings\")\ncanvas_size = Vector2(640, 480)\ninitial_focus = NodePath(\"Canvas/Tab{}\")\ninitial_page = &{}\nmetadata/source_initial_item = {}\n\n[node name=\"Canvas\" type=\"Control\" parent=\".\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\n\n[node name=\"Background\" type=\"TextureRect\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\ntexture = ExtResource(\"background\")\nexpand_mode = 1\nstretch_mode = 0",
+        initial_page,
+        quoted(initial_page),
+        quoted(&configuration.initial_item)
+    )?;
+    // Keep the original source tab artwork and graph navigation. The page state
+    // remains selected after focus moves to a native control.
+    for (page, item) in tabs {
+        append_configuration_tab(&mut text, configuration, page, item)?;
+    }
+    for (page, visible) in [
+        ("SoundPage", initial_page == "Sound"),
+        ("ImagesPage", initial_page == "Images"),
+        ("ControlsPage", initial_page == "Controls"),
+    ] {
+        writeln!(
+            text,
+            "\n[node name={} type=\"Control\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\nvisible = {}",
+            quoted(page),
+            visible
+        )?;
+        if page == "ControlsPage" {
+            text.push_str("\nmetadata/source_actions = \"Keyboard,Gamepad,KeyStrokes,DefaultValues\"\nmetadata/native_mapping_scope = \"Button_Left,Button_Right,Button_Up,Button_Down,Button_Hit\"\nmetadata/controller_events = \"Godot JoypadButton/JoypadMotion; source Paddle/Joystick hardware modes are not emulated\"");
+        }
+    }
+    let [music, effects, voices] = sound_rows;
+    for (item, bus) in [
+        (music.0, music.1),
+        (effects.0, effects.1),
+        (voices.0, voices.1),
+    ] {
+        append_configuration_label(&mut text, item, "Canvas/SoundPage", bus)?;
+    }
+    text.push_str(
+        "\n[node name=\"Audio\" type=\"Control\" parent=\"Canvas/SoundPage\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2",
+    );
+    for (index, (item, bus)) in sound_rows.iter().enumerate() {
+        let center_x = item.position[0];
+        let (minimum, maximum) = if *bus == "Voices" {
+            (-20.0, 107.0)
+        } else {
+            (0.0, 127.0)
+        };
+        writeln!(
+            text,
+            "\n[node name={} type=\"VSlider\" parent=\"Canvas/SoundPage/Audio\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = 220.0\noffset_right = {}\noffset_bottom = 338.0\nmin_value = {}\nmax_value = {}\nstep = 1.0\nvalue = 100.0\nmetadata/source_slider = \"SoundSlider{}\"\nmetadata/source_position = Vector3({}, {}, {})\nmetadata/source_action = \"DisplayWithSound\"\nmetadata/volume_bus = {}",
+            quoted(bus),
+            center_x - 10.0,
+            center_x + 10.0,
+            minimum,
+            maximum,
+            index + 1,
+            configuration.slider_positions[index][0],
+            configuration.slider_positions[index][1],
+            configuration.slider_positions[index][2],
+            quoted(bus)
+        )?;
+    }
+    for (index, (item, label)) in image_rows.iter().enumerate() {
+        let item = *item;
+        let label = *label;
+        append_configuration_label(
+            &mut text,
+            item,
+            "Canvas/ImagesPage",
+            &format!("{label}Artwork"),
+        )?;
+        let center_x = item.position[0];
+        if label == "Textures" {
+            writeln!(
+                text,
+                "\n[node name=\"TexturesUnsupported\" type=\"Label\" parent=\"Canvas/ImagesPage\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = 254.0\noffset_right = {}\noffset_bottom = 304.0\nhorizontal_alignment = 1\nvertical_alignment = 1\nautowrap_mode = 3\ntext = \"Unsupported: Godot has no source texture-swapping ratio.\"\ntooltip_text = \"The source control changes GLI texture swapping. This port does not substitute texture filtering.\"\nmetadata/source_slider = \"ImageSlider3\"\nmetadata/source_action = \"DisplayWithImage\"\nmetadata/source_support = \"unsupported: no native texture-swapping ratio\"\ntheme_override_font_sizes/font_size = 12",
+                center_x - 74.0,
+                center_x + 74.0,
+            )?;
+            continue;
+        }
+        let (setting, minimum, maximum) = match label {
+            "Graphic" => ("shadow_quality", 1.0, 4.0),
+            _ => ("screen_framing", 60.0, 100.0),
+        };
+        let tooltip = match label {
+            "Graphic" => "Four source shadow levels map to Godot's native shadow filter quality.",
+            "Screen" => {
+                "The source uses a centered viewport crop. Godot scales the camera projection to match; this does not change window resolution."
+            }
+            _ => unreachable!(),
+        };
+        writeln!(
+            text,
+            "\n[node name={} type=\"VSlider\" parent=\"Canvas/ImagesPage\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = 220.0\noffset_right = {}\noffset_bottom = 338.0\nmin_value = {}\nmax_value = {}\nstep = 1.0\nvalue = {}\ntooltip_text = {}\nmetadata/source_slider = {}\nmetadata/source_action = \"DisplayWithImage\"\nmetadata/native_setting = {}",
+            quoted(label),
+            center_x - 10.0,
+            center_x + 10.0,
+            minimum,
+            maximum,
+            maximum,
+            quoted(tooltip),
+            quoted(&format!("ImageSlider{}", index + 1)),
+            quoted(setting),
+        )?;
+        writeln!(
+            text,
+            "\n[node name={} type=\"Label\" parent=\"Canvas/ImagesPage\"]\nlayout_mode = 0\noffset_left = {}\noffset_top = 341.0\noffset_right = {}\noffset_bottom = 359.0\nhorizontal_alignment = 1\ntext = {}\ntheme_override_font_sizes/font_size = 12",
+            quoted(&format!("{label}Value")),
+            center_x - 27.0,
+            center_x + 27.0,
+            quoted(&maximum.to_string()),
+        )?;
+    }
+    writeln!(
+        text,
+        "\n[node name=\"ImageMappingNote\" type=\"Label\" parent=\"Canvas/ImagesPage\"]\nlayout_mode = 0\noffset_left = 192.0\noffset_top = 367.0\noffset_right = 615.0\noffset_bottom = 408.0\ntext = {}\nautowrap_mode = 3\nhorizontal_alignment = 1\ntheme_override_font_sizes/font_size = 11",
+        quoted(
+            "Screen framing matches the source centered camera crop. Textures is unsupported: its source texture-swapping ratio has no Godot equivalent."
+        )
+    )?;
+    for (item, node) in stereo_rows.iter().zip(["StereoTest", "ReverseStereo"]) {
+        append_configuration_label(
+            &mut text,
+            item,
+            "Canvas/SoundPage",
+            &format!("{node}Artwork"),
+        )?;
+        let [relative_x, relative_y, width, height] = item.rect;
+        let x = item.position[0] + relative_x;
+        let y = item.position[1] + relative_y;
+        writeln!(
+            text,
+            "\n[node name={} type=\"TextureRect\" parent=\"Canvas/SoundPage\"]\nmaterial = SubResource(\"Additive\")\nlayout_mode = 0\noffset_left = {x}\noffset_top = {y}\noffset_right = {}\noffset_bottom = {}\nmouse_filter = 2\ntexture = ExtResource({})\nexpand_mode = 1\nstretch_mode = 0\nvisible = false",
+            quoted(&format!("{node}Selected")),
+            x + width,
+            y + height,
+            quoted(&format!("{}_selected", item.name)),
+        )?;
+        writeln!(
+            text,
+            "\n[node name={} type=\"Button\" parent=\"Canvas/SoundPage\"]\nlayout_mode = 0\noffset_left = {x}\noffset_top = {y}\noffset_right = {}\noffset_bottom = {}\nflat = true\ntext = \"\"\ntooltip_text = {}\nmetadata/source_action = {}",
+            quoted(node),
+            x + width,
+            y + height,
+            quoted(if node == "StereoTest" {
+                "Play a left-channel then right-channel test tone."
+            } else {
+                "Toggle stereo channel reversal for stereo PCM WAV streams."
+            }),
+            quoted(if node == "StereoTest" {
+                "TestButton"
+            } else {
+                "ReverseButton"
+            }),
+        )?;
+    }
+    text.push_str(
+        "\n[node name=\"StereoStatus\" type=\"Label\" parent=\"Canvas/SoundPage\"]\nlayout_mode = 0\noffset_left = 370.0\noffset_top = 386.0\noffset_right = 620.0\noffset_bottom = 413.0\nautowrap_mode = 3\ntheme_override_font_sizes/font_size = 12",
+    );
+    writeln!(
+        text,
+        "\n[node name=\"Back\" type=\"Button\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_left = 32.0\noffset_top = 424.0\noffset_right = 180.0\noffset_bottom = 464.0\ntext = \"Back\"\ntheme_override_colors/font_color = Color(1, 1, 1, 1)\ntheme_override_colors/font_focus_color = Color(1, 1, 1, 1)\ntheme_override_colors/font_hover_color = Color(1, 1, 1, 1)\ntheme_override_colors/font_pressed_color = Color(1, 1, 1, 1)\ntheme_override_font_sizes/font_size = 16\nfocus_neighbor_top = NodePath(\"../TabSound\")"
+    )?;
+    ensure!(
+        load_steps == ext_count + 2,
+        "configuration scene resource count differs"
+    );
+    Ok(text)
+}
+
+fn append_configuration_label(
+    text: &mut String,
+    item: &MenuItem,
+    parent: &str,
+    node: &str,
+) -> Result<()> {
+    let [relative_x, relative_y, width, height] = item.rect;
+    let x = item.position[0] + relative_x;
+    let y = item.position[1] + relative_y;
+    writeln!(
+        text,
+        "\n[node name={} type=\"TextureRect\" parent={}]\nmaterial = SubResource(\"Additive\")\nlayout_mode = 0\noffset_left = {x}\noffset_top = {y}\noffset_right = {}\noffset_bottom = {}\nmouse_filter = 2\ntexture = ExtResource({})\nexpand_mode = 1\nstretch_mode = 0\nmetadata/source_action = {}",
+        quoted(node),
+        quoted(parent),
+        x + width,
+        y + height,
+        quoted(&format!("{}_normal", item.name)),
+        quoted(&item.action)
+    )?;
+    Ok(())
+}
+
+fn append_configuration_tab(
+    text: &mut String,
+    configuration: &MenuConfiguration,
+    page: &str,
+    item: &MenuItem,
+) -> Result<()> {
+    let [relative_x, relative_y, width, height] = item.rect;
+    let x = item.position[0] + relative_x;
+    let y = item.position[1] + relative_y;
+    let node = format!("Tab{page}");
+    writeln!(
+        text,
+        "\n[node name={} type=\"Button\" parent=\"Canvas\"]\nlayout_mode = 0\noffset_left = {x}\noffset_top = {y}\noffset_right = {}\noffset_bottom = {}\ntext = \"\"\nmetadata/source_action = {}\nmetadata/source_anchor = Vector2({}, {})",
+        quoted(&node),
+        x + width,
+        y + height,
+        quoted(&item.action),
+        item.position[0],
+        item.position[1]
+    )?;
+    for (index, direction) in ["top", "bottom", "left", "right"].into_iter().enumerate() {
+        let target = item.neighbors[index]
+            .as_ref()
+            .and_then(|name| {
+                configuration
+                    .items
+                    .iter()
+                    .find(|candidate| &candidate.name == name)
+            })
+            .filter(|candidate| {
+                matches!(candidate.action.as_str(), "Images" | "Controls" | "Sound")
+            })
+            .map_or_else(|| node.clone(), |target| format!("Tab{}", target.action));
+        writeln!(
+            text,
+            "focus_neighbor_{direction} = NodePath({})",
+            quoted(&format!("../{target}"))
+        )?;
+        if index < 2 {
+            writeln!(
+                text,
+                "focus_{} = NodePath({})",
+                if index == 0 { "previous" } else { "next" },
+                quoted(&format!("../{target}"))
+            )?;
+        }
+    }
+    let parent = format!("Canvas/{node}");
+    for (state, child_name, visible) in [
+        ("normal", "Artwork", true),
+        ("selected", "SelectedArtwork", false),
+    ] {
+        writeln!(
+            text,
+            "\n[node name={} type=\"TextureRect\" parent={}]\nmaterial = SubResource(\"Additive\")\nlayout_mode = 1\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\ngrow_horizontal = 2\ngrow_vertical = 2\nmouse_filter = 2\ntexture = ExtResource({})\nexpand_mode = 1\nstretch_mode = 0\nvisible = {}",
+            quoted(child_name),
+            quoted(&parent),
+            quoted(&format!("{}_{}", item.name, state)),
+            visible
+        )?;
+    }
+    Ok(())
 }
 #[cfg(test)]
 mod tests {
@@ -300,6 +796,21 @@ mod tests {
                     "pause source depth/anchor differs"
                 );
             }
+        } else {
+            let credits = menu.credits.as_ref().context("source credits absent")?;
+            ensure!(
+                credits.entries.len() == 400
+                    && credits.displayed_entries == 397
+                    && credits.max_visible_lines == 40
+                    && credits.font.name == "Playmo_Font2_0"
+                    && credits.entries[0].text == "Hype  -  The Time Quest"
+                    && credits.entries[1].text.trim().is_empty()
+                    && credits.entries[2].text.trim() == "Original Idea and Producer"
+                    && credits.entries[3].text.trim() == "Alain Tascan"
+                    && credits.entries[397].key == "CDT2_B_PROD40"
+                    && credits.entries[399].key == "CDT2_B_PROD42",
+                "English credits registry/count/font mapping differs"
+            );
         }
         let mut store = crate::rete::Store::new(output.join("rete"), imported.selection.clone())?;
         for root in &imported.inventory.clone() {
@@ -335,6 +846,74 @@ mod tests {
                     && text.contains("action = &\"SavedGames\"")
                     && text.contains("focus_neighbor_top = NodePath(\"../Quit\")"),
                 "native menu layout/action/nav differs"
+            );
+            let configuration_scene = project
+                .stage
+                .path()
+                .join("generated/hype/shared/menu/configuration/en/menu.tscn");
+            let configuration_text = std::fs::read_to_string(configuration_scene)?;
+            ensure!(
+                configuration_text.matches(" type=\"VSlider\"").count() == 5
+                    && configuration_text.matches(" type=\"Button\"").count() == 6
+                    && configuration_text.contains("initial_page = &\"Images\"")
+                    && configuration_text.contains("theme_override_font_sizes/font_size = 16")
+                    && configuration_text.contains("metadata/source_slider = \"SoundSlider1\"")
+                    && configuration_text.contains("metadata/source_slider = \"ImageSlider1\"")
+                    && configuration_text.contains("metadata/source_slider = \"ImageSlider2\"")
+                    && configuration_text.contains("metadata/source_slider = \"ImageSlider3\"")
+                    && configuration_text.contains("metadata/native_setting = \"shadow_quality\"")
+                    && configuration_text.contains("metadata/native_setting = \"screen_framing\"")
+                    && configuration_text.contains("name=\"GraphicArtwork\" type=\"TextureRect\"")
+                    && configuration_text.contains("name=\"ScreenArtwork\" type=\"TextureRect\"")
+                    && configuration_text.contains("name=\"TexturesArtwork\" type=\"TextureRect\"")
+                    && configuration_text.contains("name=\"TexturesUnsupported\" type=\"Label\"")
+                    && configuration_text.contains("unsupported: no native texture-swapping ratio")
+                    && configuration_text.contains("min_value = 1\nmax_value = 4\nstep = 1.0")
+                    && configuration_text.contains("min_value = 60\nmax_value = 100\nstep = 1.0")
+                    && configuration_text.matches("min_value = 0\nmax_value = 127\nstep = 1.0").count() == 2
+                    && configuration_text.contains("min_value = -20\nmax_value = 107")
+                    && configuration_text.contains("value = 100.0\nmetadata/source_slider = \"SoundSlider1\"")
+                    && configuration_text.matches("value = 100.0\nmetadata/source_slider = \"SoundSlider").count() == 3
+                    && !configuration_text.contains("[node name=\"Textures\" type=\"VSlider\"")
+                    && configuration_text.contains("name=\"StereoTest\" type=\"Button\"")
+                    && configuration_text.contains("name=\"ReverseStereo\" type=\"Button\"")
+                    && configuration_text.contains("The source uses a centered viewport crop. Godot scales the camera projection to match")
+                    && configuration_text.contains("source texture-swapping ratio has no Godot equivalent")
+                    && !configuration_text.contains("UnsupportedImageSettings")
+                    && configuration_text.contains("metadata/native_mapping_scope = \"Button_Left,Button_Right,Button_Up,Button_Down,Button_Hit\"")
+                    && configuration_text.contains("source Paddle/Joystick hardware modes are not emulated")
+                    && !configuration_text.contains("UnsupportedControls")
+                    && configuration_text.contains("type=\"Texture2D\" path=\"res://generated/hype/textures/MENU/Config_back.gf.png\"")
+                    && configuration_text.contains("metadata/source_action = \"DisplayWithSound\""),
+                "native configuration labels/source sliders/backdrop differ"
+            );
+            let credits_scene = project
+                .stage
+                .path()
+                .join("generated/hype/shared/menu/credits/en/lines.tscn");
+            let credits_text = std::fs::read_to_string(credits_scene)?;
+            let credits_checks = [
+                credits_text.matches(" type=\"Label\"").count() == 397,
+                credits_text.contains("metadata/source_registered_entries = 400"),
+                credits_text.contains("metadata/source_displayed_entries = 397"),
+                credits_text.contains("metadata/source_key = \"+CDT2_B_MGNT0\""),
+                credits_text.contains("text = \"Original Idea and Producer  \""),
+                credits_text.contains("horizontal_alignment = 2"),
+                credits_text.contains("text = \"  Alain Tascan\""),
+                credits_text.contains("horizontal_alignment = 0"),
+                credits_text.contains("metadata/source_key = \"CDT2_B_PROD39c\""),
+                !credits_text.contains("metadata/source_key = \"CDT2_B_PROD40\""),
+                project
+                    .generated
+                    .iter()
+                    .any(|path| path.ends_with(".credits.png")),
+                project
+                    .builder
+                    .contains("ui_font_0.set_font_name(\"Playmo_Font2_0\")"),
+            ];
+            ensure!(
+                credits_checks.into_iter().all(|check| check),
+                "native credits scene/font/data differ"
             );
         }
         std::fs::create_dir_all(&project_output)?;

@@ -43,7 +43,7 @@ fn fixture() -> Result<(Scene, Collision, Material)> {
     let mut scene = Scene {
         main_actor: None,
         armor: None,
-        inventory: None,
+        hud: None,
         global_actors: vec![],
         path: AssetPath::new("level:/scene")?,
         name: "SyntheticScene".into(),

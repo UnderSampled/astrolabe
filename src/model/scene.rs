@@ -14,9 +14,12 @@ pub struct Scene {
     pub name: String,
     /// Explicit actor role, independent of a perso's display name or tree order.
     pub main_actor: Option<AssetRef<super::character::Perso>>,
-    /// Shared gameplay definitions and initial state bound to this active level.
+    /// Shared Fix-owned armor definitions bound to this active level session.
+    #[serde(default)]
     pub armor: Option<AssetRef<super::armor::ArmorCatalog>>,
-    pub inventory: Option<AssetRef<super::inventory_gameplay::InventoryCatalog>>,
+    /// Source-derived Fix HUD projected into this level's saved screen scene.
+    #[serde(default)]
+    pub hud: Option<AssetRef<super::hud::HudPresentation>>,
     /// Shared source actors referenced by AI but not rooted in this level's scene tree.
     /// These are useful assets with source identity, not fabricated scene nodes.
     #[serde(default)]
@@ -53,6 +56,11 @@ pub struct SceneNode {
 pub struct SceneNodeProperties {
     /// Preserve Hype's two IPO kind identities without splitting useful objects.
     pub source_kind: Option<u32>,
+    /// Source VisualSet LOD count for physical visuals. Camera sector
+    /// membership queries must use the same geometry selected by the source;
+    /// an imported LOD-0 mesh is only equivalent when this is exactly one.
+    #[serde(default)]
+    pub source_visual_lod_count: Option<u16>,
     pub transform_space: TransformSpace,
     pub initial_global_transform: Option<SourceTransform>,
     /// Bounds used for source visibility/picking; these are not collision bodies.
@@ -111,6 +119,7 @@ impl Default for SceneNodeProperties {
     fn default() -> Self {
         Self {
             source_kind: None,
+            source_visual_lod_count: None,
             transform_space: TransformSpace::Local,
             initial_global_transform: None,
             bounding_geometry: None,
@@ -134,15 +143,16 @@ impl Content for Scene {
         Some(&self.path)
     }
     fn validate(&self) -> Result<()> {
-        for path in self
-            .armor
-            .iter()
-            .map(|reference| &reference.path)
-            .chain(self.inventory.iter().map(|reference| &reference.path))
-        {
+        if let Some(armor) = &self.armor {
             ensure!(
-                path.role() == super::PackageRole::Fix,
-                "shared gameplay catalogue must be Fix-owned"
+                armor.path.role() == super::PackageRole::Fix && armor.path.member().is_none(),
+                "scene armor reference must identify a whole Fix asset"
+            );
+        }
+        if let Some(hud) = &self.hud {
+            ensure!(
+                hud.path.role() == super::PackageRole::Fix && hud.path.member().is_none(),
+                "scene HUD reference must identify a whole Fix asset"
             );
         }
         if let Some(actor) = &self.main_actor {
@@ -192,6 +202,12 @@ impl Content for Scene {
                         NodeKind::Unknown(n) => kind == n,
                     },
                     "source node kind disagrees with useful node kind"
+                );
+            }
+            if let Some(lod_count) = node.properties.source_visual_lod_count {
+                ensure!(
+                    lod_count > 0 && matches!(node.properties.source_kind, Some(0xd | 0x15)),
+                    "source visual LOD count requires a type-13/21 physical visual"
                 );
             }
             ensure!(

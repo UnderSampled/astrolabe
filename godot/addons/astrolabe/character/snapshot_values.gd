@@ -1,17 +1,16 @@
 extends RefCounted
-## Shared value guards for native Resource snapshots; no source save addresses.
-static func integer(value: Variant, low: int, high: int) -> bool:
-    if not (value is int or value is float): return false
-    var number := float(value)
-    if not is_finite(number) or number < float(low) or number > float(high): return false
-    return float(int(value)) == number
+## Strict shape and integer checks shared by versioned native snapshots.
 
-static func keys(value: Variant, required: Array[String]) -> bool:
-    if not value is Dictionary or value.size() != required.size(): return false
-    for key in value:
-        if not key is String or not required.has(key): return false
-    return true
+static func keys(value: Variant, expected: Array) -> bool:
+	if typeof(value) != TYPE_DICTIONARY:
+		return false
+	var dictionary: Dictionary = value
+	if dictionary.size() != expected.size():
+		return false
+	for key in expected:
+		if not dictionary.has(key):
+			return false
+	return true
 
-static func item_key(value: Variant) -> bool:
-    if not value is String or value.length() > 6 or not value.is_valid_int(): return false
-    return str(int(value)) == value and integer(int(value), -1, 32767)
+static func integer(value: Variant, minimum: int, maximum: int) -> bool:
+	return typeof(value) == TYPE_INT and int(value) >= minimum and int(value) <= maximum

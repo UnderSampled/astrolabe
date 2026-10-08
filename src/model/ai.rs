@@ -2,14 +2,15 @@
 use super::{
     AssetPath, AssetRef,
     audio::SoundEventLink,
-    character::{Perso, StateRef},
+    character::{ObjectList, Perso, StateRef},
     io::Content,
     route::Waypoint,
 };
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
-mod walk;
-pub use walk::{AstNode, AstWalk};
+
+pub mod walk;
+use walk::AstNode;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AiModel {
@@ -121,11 +122,6 @@ pub enum Statement {
         variable: u16,
         value: Expression,
     },
-    /// Explicit source Dot(Me, field) retains its source tree shape.
-    SelfFieldAssign {
-        variable: u16,
-        value: Expression,
-    },
     /// Assignment through a typed actor reference, such as Hype's shared
     /// Fix-owned Global actor. The destination is ordinary actor Brain state.
     ActorFieldAssign {
@@ -166,21 +162,11 @@ pub enum Statement {
         milliseconds: Expression,
     },
     WaitFrames(Expression),
-    /// Capture the expected Boolean once; reread the named designer field
-    /// until it equals that value (0054db40 / 0054dbd0).
-    WaitBoolean {
-        field: Expression,
-        value: Expression,
-    },
     ChangeBehavior {
         target: BehaviorRef,
         /// Yield the calling flow after the request; a change to that same
         /// behavior group consequently enters its new behavior next tick.
         pause_after: bool,
-    },
-    ChangeActorBehavior {
-        actor: Expression,
-        target: BehaviorRef,
     },
     ChangeAction(Expression),
     Turn {
@@ -195,8 +181,8 @@ pub enum Statement {
     /// Source motion requests retain their order in the AI schedule. The
     /// character component owns their runtime effects.
     SetVectorSpeed(Expression),
-    /// Proc_AddWind assigns an actor-local world-axis drift vector in Hype.
-    /// The native character composes that persistent drift with motion.
+    /// Proc_AddWind assigns an actor-local drift vector in Hype. The native
+    /// target currently accepts this call as an explicitly deferred no-op.
     AddWind(Expression),
     /// Hype category-23 operands are actor-local route slot indices.
     ResetRoute(u8),
@@ -204,6 +190,17 @@ pub enum Statement {
     GoRelative,
     /// Proc_KillPerso(Me): remove the current generated Perso.
     KillSelf,
+    /// Hype's Proc_KillPerso takes a Perso operand. Preserve non-self targets
+    /// by identity even when they are outside the rooted actor graph.
+    KillPerso {
+        target: KillPersoTarget,
+    },
+    /// Proc_ExecuteFade's source alpha range and duration in seconds.
+    ExecuteFade {
+        from: Expression,
+        to: Expression,
+        duration_seconds: Expression,
+    },
     SetImpulse(Expression),
     JumpAbsolute,
     JumpWithoutAddingSpeed,
@@ -221,35 +218,30 @@ pub enum Statement {
     SetTransparency(Expression),
     /// TransparentDisplay enables actor opacity; DefaultDisplay disables it.
     SetTransparentDisplay(bool),
-    /// Operator_Ultra applies the existing rendering API to another actor.
-    ActorDisplayVisible {
-        actor: ActorTarget,
-        visible: bool,
-    },
-    ActorTransparency {
-        actor: ActorTarget,
-        opacity: Expression,
-    },
-    ActorTransparentDisplay {
-        actor: ActorTarget,
-        enabled: bool,
-    },
-    ChangeArmor(Expression),
+    /// Fight_ChangeArmor selects the shared source armor definition by byte index.
+    /// Each active level binds the Fix-owned catalog through shared state.
+    SelectArmor(Expression),
+    /// Fight_ChangeArmorResistance changes the selected Fix definition's rank.
     SetArmorResistance(Expression),
+    /// Fight_RepairArmor clears piece damage while retaining the current piece.
     RepairArmor,
-    /// Proc82 swaps complete parts in the shared selected configuration.
-    /// Arguments retain source one-based integer indices.
+    /// Proc82 swaps complete parts in the actor's selected configuration.
+    /// The original one-based indices are preserved as source operands.
     SwapConfiguredParts {
         first: Expression,
         second: Expression,
     },
-    /// Proc83 replaces the current ObjectList reference without resetting it.
+    /// Proc83 replaces the actor's configuration selection without resetting it.
     ChangeConfiguration(Expression),
     ChangeSighting(Expression),
     /// Camera procedure 160 stores a keyword or referenced target actor.
     CameraChangeTargetedPerso {
         camera: AssetRef<Perso>,
         target: ActorTarget,
+    },
+    /// Source camera procedure 163 restores the component target to MainActor.
+    CameraResetTargetedPerso {
+        camera: AssetRef<Perso>,
     },
     /// Source camera procedure 157 selects a motion mode; -1 restores the
     /// original preset's mode. Unsupported transitions fail at the target API.
@@ -262,6 +254,8 @@ pub enum Statement {
         actor: AssetRef<Perso>,
         position: Expression,
     },
+    /// Source procedure 253 sets the executing Perso's absolute world position.
+    SetSelfAbsolutePosition(Expression),
     /// Source camera procedure 135 requests a position update. The preceding
     /// return-zero form is retained for source reconstruction only; Godot
     /// receives one native camera API call.
@@ -279,6 +273,18 @@ pub enum Statement {
     SetChannelActive {
         channel: u32,
         active: bool,
+    },
+    /// Source Proc_ChangeMap loads a named map and uses its authored main
+    /// actor placement when no named entry is supplied.
+    ChangeMap {
+        level: String,
+    },
+    /// Source Proc_ChangeMapAtPosition selects authored Hype and camera entry
+    /// Persos by their source names in the destination level.
+    ChangeMapAtPosition {
+        level: String,
+        entry: String,
+        camera_entry: String,
     },
     ToggleWideScreen,
     PositionDialog {
@@ -317,6 +323,14 @@ pub enum Statement {
         arg0: Expression,
         arg1: Expression,
     },
+    /// Proc_SND_FadeAll applies one target level (0..127) and duration
+    /// (milliseconds) to music, effects and voice channels.
+    SoundFadeAll {
+        target: Expression,
+        duration_ms: Expression,
+    },
+    /// Proc_SND_KillMusic stops the current music channel.
+    SoundKillMusic,
     Noop,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -347,30 +361,32 @@ pub enum Expression {
     Nobody,
     /// Source Keyword_Nowhere: an absent waypoint reference.
     Nowhere,
+    /// A source actor handle or one of the two AI actor keywords.
+    Actor(ActorTarget),
+    /// Category35 ObjectTableRef, including a null selection.
+    Configuration(Option<AssetRef<ObjectList>>),
     Integer(i32),
     Real(f32),
     /// Source Func_Int truncates a real-valued expression to an integer.
     IntegerCast(Box<Expression>),
-    /// 00538350 converts integer/real input and stores its square as a real.
+    /// Func_Square and Func_AbsoluteValue return a rounded source real.
     Square(Box<Expression>),
-    /// 00538650 returns a real and negates nonpositive input (including zero).
     AbsoluteValue(Box<Expression>),
-    /// Func224 applies shared armor damage to the main actor and returns its
-    /// remaining byte hit points (00536452 / 0043aa20 / 00460b10).
-    ApplyArmoredDamage(Box<Expression>),
-    /// Useful actor values, including source keywords and rooted references.
-    Actor(ActorTarget),
-    /// Category35 ObjectTableRef, including a null current configuration.
-    Configuration(Option<AssetRef<super::character::ObjectList>>),
-    IsValidActor(Box<Expression>),
-    /// Func_DistanceToPerso measures from the evaluating actor to its argument.
-    ActorDistance(Box<Expression>),
     /// Source vector literal (category 16); components remain source-space.
     Vector(Box<[Expression; 3]>),
     /// Current actor's world position in source coordinates.
     SelfPosition,
+    /// Source Field.Position reads the current receiver's world translation.
+    /// Keep this distinct from Func_GetPersoAbsolutePosition for source fidelity.
+    SelfPositionField,
     /// Func_GetWPAbsolutePosition resolves a meaningful shared waypoint asset.
     WaypointPosition(AssetRef<Waypoint>),
+    /// Func_DistanceToWP evaluates a source-space waypoint distance on its
+    /// receiver (self unless an enclosing Operator_Ultra selects another actor).
+    DistanceToWaypoint {
+        actor: ActorTarget,
+        waypoint: AssetRef<Waypoint>,
+    },
     /// Source gameplay clock value; its target implementation is owned by Godot.
     GameTime,
     /// Cond_IsTimeElapsed checks the shared gameplay clock against a saved
@@ -419,7 +435,7 @@ pub enum Expression {
     SelfFieldRead(u16),
     MainActorFieldRead(u16),
     IsInBehavior {
-        actor: ActorKeyword,
+        actor: ActorTarget,
         target: BehaviorRef,
     },
     Button {
@@ -435,25 +451,27 @@ pub enum Expression {
         axis: VectorAxis,
     },
     MainActorDistance,
+    /// Func_DistanceToPerso resolves a typed actor operand from the active scene.
+    ActorDistance(Box<Expression>),
+    /// The installed Hype category-3/raw-ID-8 handler returns the source-XY
+    /// magnitude between its current actor and the actor operand in that
+    /// operand's local frame. The installed table names row 8
+    /// `Func_DistanceXZToPerso`, while the handler passes selector 3 to the
+    /// helper, whose selector 3 computes XY. Keep this behavior named from the
+    /// handler and preserve the API-name mismatch in source evidence.
+    ActorLocalSourceXYDistance(Box<Expression>),
+    /// Cond_IsValidObject observes whether its actor handle is non-null/valid.
+    IsValidActor(Box<Expression>),
+    /// Func_ApplyArmoredDamage mutates shared armor and returns remaining main life.
+    ApplyArmoredDamage(Box<Expression>),
+    /// Source functions read selected armor state and the shared definition count.
+    ArmorResistance,
+    ArmorCount,
     /// Func_GetHitPoints(Me): read the current actor's mutable life value.
     SelfHitPoints,
     /// Source inventory functions operate on the game inventory, not on a
     /// projectile's own designer fields.
     InventoryWeapon,
-    InventoryGold,
-    InventoryAddGold(Box<Expression>),
-    InventorySubtractGold(Box<Expression>),
-    InventoryObject,
-    InventorySelectObject(Box<Expression>),
-    /// Function196 admits the evaluated actor's StockAction into shared
-    /// inventory and returns its signed item ID; null actor returns zero.
-    InventoryAddActorObject(Box<Expression>),
-    /// Function202 selects an admitted Weapon item and returns source 1/0.
-    InventoryChangeWeapon(Box<Expression>),
-    /// Function210 reads catalog capacity, including source special item -1.
-    InventoryMaximumCapacity(Box<Expression>),
-    ArmorResistance,
-    ArmorCount,
     InventoryQuantity(Box<Expression>),
     InventoryRemove {
         item: Box<Expression>,
@@ -474,6 +492,8 @@ pub enum Expression {
     },
     Multiply(Box<Expression>, Box<Expression>),
     Plus(Box<Expression>, Box<Expression>),
+    /// Hype Operator_VectorPlusVector (category 2, operation 16).
+    VectorPlus(Box<Expression>, Box<Expression>),
     Minus(Box<Expression>, Box<Expression>),
     Divide(Box<Expression>, Box<Expression>),
     Negate(Box<Expression>),
@@ -497,6 +517,14 @@ pub enum ActorKeyword {
 pub enum ActorTarget {
     Keyword(ActorKeyword),
     Reference(AssetRef<Perso>),
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum KillPersoTarget {
+    SelfActor,
+    MainActor,
+    Reference(AssetRef<Perso>),
+    /// Source actor operand not yet promoted into the active useful Perso graph.
+    Source(SourceObjectIdentity),
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ButtonQuery {
@@ -551,6 +579,12 @@ pub enum DesignerValue {
     /// Source waypoint identity until the route/waypoint model is promoted.
     SourceWaypoint(Option<SourceObjectIdentity>),
     SourceWaypointArray(DesignerArray<Option<SourceObjectIdentity>>),
+    /// Preserved bytes for a source designer field whose value semantics are
+    /// not understood. The payload is never traversed as pointers or executed.
+    Opaque {
+        kind: u32,
+        bytes: Vec<u8>,
+    },
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DesignerActorList {
@@ -666,11 +700,28 @@ impl Content for AiModel {
     }
 }
 impl AiModel {
+    fn scripts(&self) -> Vec<&Script> {
+        [&self.normal, &self.reflex]
+            .into_iter()
+            .flatten()
+            .flat_map(|set| &set.behaviors)
+            .flat_map(|behavior| {
+                behavior
+                    .rules
+                    .iter()
+                    .flatten()
+                    .chain(behavior.schedule.iter())
+            })
+            .collect()
+    }
+
     pub fn particle_generators(&self) -> Vec<AssetRef<super::particle::ParticleGenerator>> {
         let mut out = Vec::new();
-        for statement in self.statements() {
-            if let Statement::SetParticleGenerator(reference) = statement {
-                if !out.contains(reference) {
+        for script in self.scripts() {
+            for (node, _) in script.walk() {
+                if let AstNode::Statement(Statement::SetParticleGenerator(reference)) = node
+                    && !out.contains(reference)
+                {
                     out.push(reference.clone());
                 }
             }
@@ -679,9 +730,14 @@ impl AiModel {
     }
     pub fn object_templates(&self) -> Vec<AssetRef<Perso>> {
         let mut out = Vec::new();
-        for statement in self.statements() {
-            if let Statement::ExecuteActionAndGenerateObject { template, .. } = statement {
-                if !out.contains(template) {
+        for script in self.scripts() {
+            for (node, _) in script.walk() {
+                if let AstNode::Statement(Statement::ExecuteActionAndGenerateObject {
+                    template,
+                    ..
+                }) = node
+                    && !out.contains(template)
+                {
                     out.push(template.clone());
                 }
             }
@@ -690,41 +746,25 @@ impl AiModel {
     }
     pub fn actor_field_writes(&self) -> Vec<(AssetRef<Perso>, u16)> {
         let mut out = Vec::new();
-        for statement in self.statements() {
-            let entry = match statement {
-                Statement::ActorFieldAssign {
-                    actor, variable, ..
-                }
-                | Statement::Increment {
-                    target: FieldTarget::ActorField { actor, variable },
-                }
-                | Statement::Decrement {
-                    target: FieldTarget::ActorField { actor, variable },
-                } => Some((actor.clone(), *variable)),
-                _ => None,
-            };
-            if let Some(entry) = entry {
-                if !out.contains(&entry) {
+        for script in self.scripts() {
+            for (node, _) in script.walk() {
+                let entry = match node {
+                    AstNode::Statement(Statement::ActorFieldAssign {
+                        actor, variable, ..
+                    })
+                    | AstNode::Statement(Statement::Increment {
+                        target: FieldTarget::ActorField { actor, variable },
+                    })
+                    | AstNode::Statement(Statement::Decrement {
+                        target: FieldTarget::ActorField { actor, variable },
+                    }) => Some((actor.clone(), *variable)),
+                    _ => None,
+                };
+                if let Some(entry) = entry
+                    && !out.contains(&entry)
+                {
                     out.push(entry);
                 }
-            }
-        }
-        out
-    }
-    pub fn actor_field_targets(&self) -> Vec<AssetRef<Perso>> {
-        let mut out = Vec::new();
-        for (actor, _) in self.actor_field_accesses() {
-            if !out.contains(&actor) {
-                out.push(actor);
-            }
-        }
-        out
-    }
-    pub fn actor_field_accesses(&self) -> Vec<(AssetRef<Perso>, u16)> {
-        let mut out = self.actor_field_writes();
-        for entry in self.actor_field_reads() {
-            if !out.contains(&entry) {
-                out.push(entry);
             }
         }
         out
@@ -741,29 +781,27 @@ impl AiModel {
         }
         out
     }
-    pub fn scripts(&self) -> impl Iterator<Item = &Script> {
-        [&self.normal, &self.reflex]
-            .into_iter()
-            .flatten()
-            .flat_map(|set| &set.behaviors)
-            .flat_map(|behavior| {
-                behavior
-                    .rules
-                    .iter()
-                    .flatten()
-                    .chain(behavior.schedule.iter())
-            })
+    pub fn actor_field_accesses(&self) -> Vec<(AssetRef<Perso>, u16)> {
+        let mut out = self.actor_field_writes();
+        for entry in self.actor_field_reads() {
+            if !out.contains(&entry) {
+                out.push(entry);
+            }
+        }
+        out
     }
-    fn statements(&self) -> impl Iterator<Item = &Statement> {
-        self.scripts()
-            .flat_map(Script::walk)
-            .filter_map(|(node, _)| match node {
-                AstNode::Statement(statement) => Some(statement),
-                AstNode::Expression(_) => None,
-            })
+    pub fn actor_field_targets(&self) -> Vec<AssetRef<Perso>> {
+        let mut out = Vec::new();
+        for (actor, _) in self.actor_field_accesses() {
+            if !out.contains(&actor) {
+                out.push(actor);
+            }
+        }
+        out
     }
     pub fn expressions(&self) -> Vec<&Expression> {
         self.scripts()
+            .into_iter()
             .flat_map(Script::walk)
             .filter_map(|(node, _)| match node {
                 AstNode::Expression(expression) => Some(expression),
@@ -789,16 +827,17 @@ impl AiModel {
     pub fn waypoint_references(&self) -> Vec<&AssetRef<Waypoint>> {
         self.expressions()
             .into_iter()
-            .filter_map(|e| {
-                if let Expression::WaypointPosition(r) = e {
-                    Some(r)
-                } else {
-                    None
-                }
+            .filter_map(|e| match e {
+                Expression::WaypointPosition(reference)
+                | Expression::DistanceToWaypoint {
+                    waypoint: reference,
+                    ..
+                } => Some(reference),
+                _ => None,
             })
             .collect()
     }
-    pub fn configuration_references(&self) -> Vec<&AssetRef<super::character::ObjectList>> {
+    pub fn configuration_references(&self) -> Vec<&AssetRef<ObjectList>> {
         let mut out = Vec::new();
         for expression in self.expressions() {
             if let Expression::Configuration(Some(reference)) = expression
@@ -816,31 +855,34 @@ impl AiModel {
             .collect()
     }
     fn behavior_references_with_owner(&self) -> Vec<(&BehaviorRef, bool)> {
-        let mut out: Vec<_> = self
-            .statements()
-            .filter_map(|statement| match statement {
-                Statement::ChangeBehavior { target, .. } => Some((target, true)),
-                Statement::ChangeActorBehavior { target, .. } => Some((target, false)),
-                _ => None,
-            })
-            .collect();
-        out.extend(
-            self.expressions()
-                .into_iter()
-                .filter_map(|expression| match expression {
-                    Expression::IsInBehavior { target, .. } => Some((target, false)),
-                    _ => None,
-                }),
-        );
+        let mut out = Vec::new();
+        let mut queries = Vec::new();
+        for script in self.scripts() {
+            for (node, _) in script.walk() {
+                match node {
+                    AstNode::Statement(Statement::ChangeBehavior { target, .. }) => {
+                        out.push((target, true));
+                    }
+                    AstNode::Expression(Expression::IsInBehavior { target, .. }) => {
+                        queries.push((target, false));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        out.extend(queries);
         out
     }
     pub fn sound_events(&self) -> Vec<&SoundEventLink> {
-        self.statements()
-            .filter_map(|statement| match statement {
-                Statement::Sound { event: Some(event) } => Some(event),
-                _ => None,
-            })
-            .collect()
+        let mut out = Vec::new();
+        for script in self.scripts() {
+            for (node, _) in script.walk() {
+                if let AstNode::Statement(Statement::Sound { event: Some(event) }) = node {
+                    out.push(event);
+                }
+            }
+        }
+        out
     }
 }
 impl DesignerValue {
@@ -879,6 +921,9 @@ impl DesignerValue {
                     "nonfinite designer array vector"
                 );
             }
+            Self::Opaque { bytes, .. } => {
+                ensure!(!bytes.is_empty(), "empty opaque designer field");
+            }
             _ => {}
         }
         Ok(())
@@ -894,6 +939,16 @@ impl DesignerValue {
                 a.values.len() == b.values.len()
             }
             (Self::ActorList(a), Self::ActorList(b)) => a.slots.len() == b.slots.len(),
+            (
+                Self::Opaque {
+                    kind: a_kind,
+                    bytes: a,
+                },
+                Self::Opaque {
+                    kind: b_kind,
+                    bytes: b,
+                },
+            ) => a_kind == b_kind && a.len() == b.len(),
             _ => std::mem::discriminant(self) == std::mem::discriminant(other),
         }
     }
@@ -909,71 +964,198 @@ impl Script {
             .collect()
     }
     pub fn validate(&self, variables: usize) -> Result<()> {
-        for (count, (node, depth)) in self.walk().enumerate() {
-            ensure!(depth <= 64 && count < 65535, "excessive AI tree");
+        let mut walked = 0usize;
+        for (node, depth) in self.walk() {
+            walked += 1;
+            ensure!(depth <= 64 && walked <= 65535, "excessive AI tree");
             match node {
-                AstNode::Expression(expression) => match expression {
-                    Expression::Unsupported(fragment) => fragment.validate()?,
-                    Expression::Real(value) => ensure!(value.is_finite(), "nonfinite AI real"),
-                    Expression::WaypointPosition(reference) => {
-                        ensure!(reference.path.member().is_none(), "waypoint is a member")
+                AstNode::Statement(Statement::Unsupported(fragment))
+                | AstNode::Expression(Expression::Unsupported(fragment)) => fragment.validate()?,
+                _ => {}
+            }
+        }
+        fn expression(
+            e: &Expression,
+            variables: usize,
+            depth: usize,
+            count: &mut usize,
+        ) -> Result<()> {
+            *count += 1;
+            ensure!(depth <= 64 && *count <= 65535, "excessive AI tree");
+            match e {
+                Expression::Unsupported(fragment) => fragment.validate()?,
+                Expression::Real(v) => ensure!(v.is_finite(), "nonfinite AI real"),
+                Expression::WaypointPosition(r) => {
+                    ensure!(r.path.member().is_none(), "waypoint is a member")
+                }
+                Expression::DistanceToWaypoint { actor, waypoint } => {
+                    ensure!(
+                        waypoint.path.member().is_none(),
+                        "distance waypoint is a member"
+                    );
+                    if let ActorTarget::Reference(actor) = actor {
+                        ensure!(actor.path.member().is_none(), "distance actor is a member");
                     }
-                    Expression::Actor(ActorTarget::Reference(actor)) => {
-                        ensure!(actor.path.member().is_none(), "actor is a member")
-                    }
-                    Expression::Configuration(Some(reference)) => {
-                        ensure!(
-                            reference.path.member().is_none(),
-                            "configuration is a member"
-                        )
-                    }
-                    Expression::Variable(index) | Expression::SelfFieldRead(index) => {
-                        ensure!(usize::from(*index) < variables, "AI variable out of range")
-                    }
-                    Expression::ActorListContains { list, .. } => {
-                        ensure!(usize::from(*list) < variables, "AI list out of range")
-                    }
-                    Expression::ActorFieldRead { actor, variable } => {
-                        ensure!(
-                            actor.path.member().is_none(),
-                            "actor field read is a member"
-                        );
-                        ensure!(*variable < 255, "actor designer field out of range");
-                    }
-                    Expression::MainActorFieldRead(variable) => {
-                        ensure!(*variable < 255, "main actor designer field out of range")
-                    }
-                    Expression::Button { action, .. } => ensure!(
-                        !action.is_empty()
-                            && action.len() <= 1024
-                            && !action.chars().any(char::is_control),
-                        "invalid logical button name"
-                    ),
-                    _ => {}
-                },
-                AstNode::Statement(statement) => match statement {
-                    Statement::Unsupported(fragment) => fragment.validate()?,
-                    Statement::Assign { variable, .. }
-                    | Statement::SelfFieldAssign { variable, .. }
-                    | Statement::SubtractAssign { variable, .. }
-                    | Statement::AddAssign { variable, .. }
-                    | Statement::VectorComponentAssign {
-                        vector: variable, ..
-                    } => ensure!(
+                }
+                Expression::IsInBehavior {
+                    actor: ActorTarget::Reference(actor),
+                    target,
+                } => {
+                    ensure!(
+                        actor.path.member().is_none(),
+                        "behavior query actor is a member"
+                    );
+                    ensure!(
+                        target.group == BehaviorGroup::Normal,
+                        "referenced actors in Reflex behavior queries are unsupported"
+                    );
+                }
+                Expression::Actor(ActorTarget::Reference(actor)) => {
+                    ensure!(
+                        actor.path.member().is_none(),
+                        "actor expression is a member"
+                    )
+                }
+                Expression::Configuration(Some(reference)) => {
+                    ensure!(
+                        reference.path.member().is_none(),
+                        "configuration is a member"
+                    )
+                }
+                Expression::Variable(id) => {
+                    ensure!(usize::from(*id) < variables, "AI variable out of range")
+                }
+                Expression::ActorListContains { list, actor } => {
+                    ensure!(usize::from(*list) < variables, "AI list out of range");
+                    expression(actor, variables, depth + 1, count)?;
+                }
+                Expression::ActorFieldRead { actor, variable } => {
+                    ensure!(
+                        actor.path.member().is_none(),
+                        "actor field read is a member"
+                    );
+                    ensure!(*variable < 255, "actor designer field out of range");
+                }
+                Expression::SelfFieldRead(variable) => {
+                    ensure!(
                         usize::from(*variable) < variables,
-                        "AI assignment out of range"
-                    ),
+                        "own designer field out of range"
+                    );
+                }
+                Expression::MainActorFieldRead(variable) => {
+                    ensure!(*variable < 255, "main actor designer field out of range");
+                }
+                Expression::Compare { left, right, .. }
+                | Expression::And(left, right)
+                | Expression::Or(left, right)
+                | Expression::Multiply(left, right)
+                | Expression::Plus(left, right)
+                | Expression::VectorPlus(left, right)
+                | Expression::Minus(left, right)
+                | Expression::Divide(left, right)
+                | Expression::TimeElapsed {
+                    start: left,
+                    duration: right,
+                }
+                | Expression::RandomInt {
+                    lower: left,
+                    upper: right,
+                }
+                | Expression::InventoryRemove {
+                    item: left,
+                    count: right,
+                }
+                | Expression::VectorCos(left, right) => {
+                    expression(left, variables, depth + 1, count)?;
+                    expression(right, variables, depth + 1, count)?;
+                }
+                Expression::Not(value)
+                | Expression::Negate(value)
+                | Expression::IsInAction(value)
+                | Expression::Square(value)
+                | Expression::AbsoluteValue(value)
+                | Expression::ActorDistance(value)
+                | Expression::ActorLocalSourceXYDistance(value)
+                | Expression::IsValidActor(value)
+                | Expression::ApplyArmoredDamage(value)
+                | Expression::InventoryQuantity(value)
+                | Expression::MagicRemovePoints(value)
+                | Expression::VectorComponent { vector: value, .. } => {
+                    expression(value, variables, depth + 1, count)?
+                }
+                Expression::Vector(values) => {
+                    for value in values.iter() {
+                        expression(value, variables, depth + 1, count)?;
+                    }
+                }
+                Expression::ArrayElement { array, index } => {
+                    expression(array, variables, depth + 1, count)?;
+                    expression(index, variables, depth + 1, count)?;
+                }
+                Expression::Button { action, .. } => ensure!(
+                    !action.is_empty()
+                        && action.len() <= 1024
+                        && !action.chars().any(char::is_control),
+                    "invalid logical button name"
+                ),
+                _ => {}
+            }
+            Ok(())
+        }
+        fn statements(
+            values: &[Statement],
+            variables: usize,
+            depth: usize,
+            count: &mut usize,
+        ) -> Result<()> {
+            ensure!(depth <= 64, "excessive AI tree");
+            for s in values {
+                *count += 1;
+                ensure!(*count <= 65535, "excessive AI tree");
+                match s {
+                    Statement::Unsupported(fragment) => fragment.validate()?,
+                    Statement::If {
+                        condition,
+                        then,
+                        otherwise,
+                    } => {
+                        expression(condition, variables, depth + 1, count)?;
+                        statements(then, variables, depth + 1, count)?;
+                        if let Some(v) = otherwise {
+                            statements(v, variables, depth + 1, count)?;
+                        }
+                    }
+                    Statement::Assign { variable, value }
+                    | Statement::SubtractAssign { variable, value }
+                    | Statement::AddAssign { variable, value } => {
+                        ensure!(
+                            usize::from(*variable) < variables,
+                            "AI assignment out of range"
+                        );
+                        expression(value, variables, depth + 1, count)?;
+                    }
+                    Statement::VectorComponentAssign { vector, value, .. } => {
+                        ensure!(
+                            usize::from(*vector) < variables,
+                            "AI vector assignment out of range"
+                        );
+                        expression(value, variables, depth + 1, count)?;
+                    }
                     Statement::ActorFieldAssign {
-                        actor, variable, ..
+                        actor,
+                        variable,
+                        value,
                     } => {
                         ensure!(
                             actor.path.member().is_none(),
                             "actor field target is a member"
                         );
                         ensure!(*variable < 255, "actor designer field out of range");
+                        expression(value, variables, depth + 1, count)?;
                     }
-                    Statement::MainActorFieldAssign { variable, .. } => {
-                        ensure!(*variable < 255, "main actor designer field out of range")
+                    Statement::MainActorFieldAssign { variable, value } => {
+                        ensure!(*variable < 255, "main actor designer field out of range");
+                        expression(value, variables, depth + 1, count)?;
                     }
                     Statement::ActorListAdd { list, actor } => {
                         ensure!(usize::from(*list) < variables, "AI list out of range");
@@ -993,38 +1175,56 @@ impl Script {
                                 ensure!(*variable < 255, "actor designer field out of range");
                             }
                             FieldTarget::MainActorField(variable) => {
-                                ensure!(*variable < 255, "main actor designer field out of range")
+                                ensure!(*variable < 255, "main actor designer field out of range");
                             }
                         }
                     }
-                    Statement::RunDialog { name, .. } => ensure!(
-                        !name.is_empty() && name.len() <= 255,
-                        "invalid dialogue identity"
-                    ),
-                    Statement::WaitBoolean { field, .. } => ensure!(
-                        matches!(
-                            field,
-                            Expression::Variable(_)
-                                | Expression::SelfFieldRead(_)
-                                | Expression::ActorFieldRead { .. }
-                                | Expression::MainActorFieldRead(_)
-                        ),
-                        "Boolean wait requires a designer field reference"
-                    ),
-                    Statement::ChangeConfiguration(value) => ensure!(
-                        matches!(value, Expression::Configuration(_)),
-                        "configuration change requires a resolved literal reference"
-                    ),
-                    Statement::IncrementalTurnToward { target, .. }
-                    | Statement::ActorDisplayVisible { actor: target, .. }
-                    | Statement::ActorTransparency { actor: target, .. }
-                    | Statement::ActorTransparentDisplay { actor: target, .. } => {
-                        if let ActorTarget::Reference(actor) = target {
-                            ensure!(actor.path.member().is_none(), "actor target is a member");
-                        }
+                    Statement::RunDialog { name, mode } => {
+                        ensure!(
+                            !name.is_empty() && name.len() <= 255,
+                            "invalid dialogue identity"
+                        );
+                        expression(mode, variables, depth + 1, count)?;
                     }
-                    Statement::CameraChangeState { camera, .. } => {
-                        ensure!(camera.path.member().is_none(), "camera is a member")
+                    Statement::ChangeConfiguration(value) => {
+                        ensure!(
+                            matches!(value, Expression::Configuration(_)),
+                            "configuration change requires a literal reference"
+                        );
+                        expression(value, variables, depth + 1, count)?;
+                    }
+                    Statement::SwapConfiguredParts { first, second } => {
+                        expression(first, variables, depth + 1, count)?;
+                        expression(second, variables, depth + 1, count)?;
+                    }
+                    Statement::ScrollDialog(value) => {
+                        expression(value, variables, depth + 1, count)?
+                    }
+                    Statement::PositionDialog { x, y } => {
+                        expression(x, variables, depth + 1, count)?;
+                        expression(y, variables, depth + 1, count)?;
+                    }
+                    Statement::Wait { milliseconds } => {
+                        expression(milliseconds, variables, depth + 1, count)?
+                    }
+                    Statement::SelectArmor(index) | Statement::SetArmorResistance(index) => {
+                        expression(index, variables, depth + 1, count)?
+                    }
+                    Statement::WaitFrames(frames) => {
+                        expression(frames, variables, depth + 1, count)?
+                    }
+                    Statement::Turn { degrees_per_second } => {
+                        expression(degrees_per_second, variables, depth + 1, count)?
+                    }
+                    Statement::IncrementalTurnToward { target, frames } => {
+                        if let ActorTarget::Reference(actor) = target {
+                            ensure!(actor.path.member().is_none(), "turn target is a member");
+                        }
+                        expression(frames, variables, depth + 1, count)?;
+                    }
+                    Statement::CameraChangeState { camera, state } => {
+                        ensure!(camera.path.member().is_none(), "camera is a member");
+                        expression(state, variables, depth + 1, count)?;
                     }
                     Statement::CameraChangeTargetedPerso { camera, target } => {
                         ensure!(camera.path.member().is_none(), "camera is a member");
@@ -1032,19 +1232,89 @@ impl Script {
                             ensure!(actor.path.member().is_none(), "camera target is a member");
                         }
                     }
-                    Statement::SetActorAbsolutePosition { actor, .. } => ensure!(
-                        actor.path.member().is_none(),
-                        "position receiver is a member"
-                    ),
-                    Statement::ExecuteActionAndGenerateObject { template, .. } => ensure!(
-                        template.path.member().is_none(),
-                        "object template is a member"
+                    Statement::CameraResetTargetedPerso { camera } => {
+                        ensure!(camera.path.member().is_none(), "camera is a member");
+                    }
+                    Statement::SetActorAbsolutePosition { actor, position } => {
+                        ensure!(
+                            actor.path.member().is_none(),
+                            "position receiver is a member"
+                        );
+                        expression(position, variables, depth + 1, count)?;
+                    }
+                    Statement::SetSelfAbsolutePosition(position) => {
+                        expression(position, variables, depth + 1, count)?;
+                    }
+                    Statement::SetVectorSpeed(value)
+                    | Statement::AddWind(value)
+                    | Statement::SetImpulse(value)
+                    | Statement::ChangeSighting(value)
+                    | Statement::SetTransparency(value) => {
+                        expression(value, variables, depth + 1, count)?
+                    }
+                    Statement::ArrayAssign {
+                        array,
+                        index,
+                        value,
+                    } => {
+                        expression(array, variables, depth + 1, count)?;
+                        expression(index, variables, depth + 1, count)?;
+                        expression(value, variables, depth + 1, count)?;
+                    }
+                    Statement::ChangeAction(action) | Statement::ExecuteAction(action) => {
+                        expression(action, variables, depth + 1, count)?
+                    }
+                    Statement::ExecuteActionAndGenerateObject {
+                        template,
+                        action,
+                        vector,
+                    } => {
+                        ensure!(
+                            template.path.member().is_none(),
+                            "object template is a member"
+                        );
+                        expression(action, variables, depth + 1, count)?;
+                        expression(vector, variables, depth + 1, count)?;
+                    }
+                    Statement::SoundFadeMusic { arg0, arg1 } => {
+                        expression(arg0, variables, depth + 1, count)?;
+                        expression(arg1, variables, depth + 1, count)?;
+                    }
+                    Statement::ExecuteFade {
+                        from,
+                        to,
+                        duration_seconds,
+                    } => {
+                        expression(from, variables, depth + 1, count)?;
+                        expression(to, variables, depth + 1, count)?;
+                        expression(duration_seconds, variables, depth + 1, count)?;
+                    }
+                    Statement::SoundFadeAll {
+                        target,
+                        duration_ms,
+                    } => {
+                        expression(target, variables, depth + 1, count)?;
+                        expression(duration_ms, variables, depth + 1, count)?;
+                    }
+                    Statement::ChangeMap { level } => {
+                        ensure!(!level.is_empty() && level.len() <= 255, "invalid map name")
+                    }
+                    Statement::ChangeMapAtPosition {
+                        level,
+                        entry,
+                        camera_entry,
+                    } => ensure!(
+                        [level, entry, camera_entry]
+                            .iter()
+                            .all(|value| !value.is_empty() && value.len() <= 255),
+                        "invalid positioned map entry"
                     ),
                     _ => {}
-                },
+                }
             }
+            Ok(())
         }
-        Ok(())
+        statements(&self.statements, variables, 0, &mut 0)
     }
 }
 impl Brain {

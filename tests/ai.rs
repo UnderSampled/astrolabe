@@ -34,6 +34,317 @@ fn native_magick_service_follows_verified_remove_points_contract() -> Result<()>
 }
 
 #[test]
+fn vector_designer_comparisons_parse_as_native_gdscript() -> Result<()> {
+    let mut model = model()?;
+    model.variables.extend([
+        DesignerVariable {
+            default: DesignerValue::Vector([0.0; 3]),
+            save: 0,
+            initialize: 0,
+        },
+        DesignerVariable {
+            default: DesignerValue::VectorArray(DesignerArray::new(vec![[1.0, 2.0, 3.0]])),
+            save: 0,
+            initialize: 0,
+        },
+    ]);
+    model.normal.as_mut().unwrap().behaviors[0].schedule = Some(Script {
+        statements: vec![
+            Statement::If {
+                condition: Expression::Compare {
+                    operation: Comparison::Equal,
+                    left: Box::new(Expression::Variable(2)),
+                    right: Box::new(Expression::Vector(Box::new([
+                        Expression::Real(0.0),
+                        Expression::Real(0.0),
+                        Expression::Real(0.0),
+                    ]))),
+                },
+                then: vec![Statement::Noop],
+                otherwise: None,
+            },
+            Statement::If {
+                condition: Expression::Compare {
+                    operation: Comparison::Different,
+                    left: Box::new(Expression::ArrayElement {
+                        array: Box::new(Expression::Variable(3)),
+                        index: Box::new(Expression::Integer(0)),
+                    }),
+                    right: Box::new(Expression::Variable(2)),
+                },
+                then: vec![Statement::Noop],
+                otherwise: None,
+            },
+        ],
+    });
+    let code = godot::ai::compile(&model, &[])?;
+
+    let temp = tempfile::tempdir()?;
+    let project = temp.path().join("godot");
+    godot::support::initialize(&project)?;
+    fs::write(project.join("compiled_vector.gd"), code)?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    godot::run_godot(
+        &engine,
+        &project,
+        &[
+            "--headless",
+            "--check-only",
+            "--script",
+            "res://compiled_vector.gd",
+            "--log-file",
+            "compiled-vector.log",
+        ],
+        Duration::from_secs(10),
+    )?;
+    Ok(())
+}
+
+#[test]
+fn fight_change_armor_round_trips_and_updates_level_shared_selection_state() -> Result<()> {
+    // Hype model 28's reached node 987: procedure 429, then byte index 0.
+    let source_nodes = [
+        0xad, 0x01, 0x00, 0x00, 0x00, 0x00, 0x01, 0x04, // category 4 / op 429
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x0c, // integer 0
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, // sentinel
+    ];
+    let script = AiScriptCodec::default().read(&source_nodes)?;
+    assert_eq!(
+        script.statements,
+        vec![Statement::SelectArmor(Expression::Integer(0))]
+    );
+    assert_eq!(AiScriptCodec::default().write(&script)?, source_nodes);
+
+    let mut model = model()?;
+    model.normal.as_mut().unwrap().behaviors[0].schedule = Some(script.clone());
+    let model = rete::decode::<AiModel>(&rete::encode(&model)?)?;
+    let code = godot::ai::compile(&model, &[])?;
+    assert!(code.contains("source_select_armor(int(0))"), "{code}");
+
+    let temp = tempfile::tempdir()?;
+    let project = temp.path().join("godot");
+    godot::support::initialize(&project)?;
+    fs::write(project.join("compiled_armor.gd"), code)?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    godot::run_godot(
+        &engine,
+        &project,
+        &[
+            "--headless",
+            "--check-only",
+            "--script",
+            "res://compiled_armor.gd",
+            "--log-file",
+            "compiled-armor.log",
+        ],
+        Duration::from_secs(10),
+    )?;
+    fs::write(
+        project.join("check_armor_state.gd"),
+        include_bytes!("check_armor_state.gd"),
+    )?;
+    let evidence = godot::run_godot(
+        &engine,
+        &project,
+        &[
+            "--headless",
+            "--script",
+            "res://check_armor_state.gd",
+            "--log-file",
+            "armor-state.log",
+        ],
+        Duration::from_secs(20),
+    )?;
+    assert!(evidence.contains("SOURCE_ARMOR_STATE_OK"), "{evidence}");
+    Ok(())
+}
+
+#[test]
+fn source_ai_math_actor_and_armor_operations_round_trip_and_compile() -> Result<()> {
+    let script = Script {
+        statements: vec![
+            Statement::If {
+                condition: Expression::IsValidActor(Box::new(Expression::Actor(
+                    ActorTarget::Keyword(ActorKeyword::MainActor),
+                ))),
+                then: vec![
+                    Statement::SetArmorResistance(Expression::AbsoluteValue(Box::new(
+                        Expression::Real(-2.5),
+                    ))),
+                    Statement::RepairArmor,
+                    Statement::Assign {
+                        variable: 1,
+                        value: Expression::ApplyArmoredDamage(Box::new(Expression::Integer(5))),
+                    },
+                ],
+                otherwise: None,
+            },
+            Statement::If {
+                condition: Expression::Compare {
+                    operation: Comparison::Less,
+                    left: Box::new(Expression::ActorDistance(Box::new(Expression::Actor(
+                        ActorTarget::Keyword(ActorKeyword::SelfActor),
+                    )))),
+                    right: Box::new(Expression::Real(10.0)),
+                },
+                then: vec![Statement::Assign {
+                    variable: 0,
+                    value: Expression::Square(Box::new(Expression::Real(3.0))),
+                }],
+                otherwise: None,
+            },
+        ],
+    };
+    let bytes = AiScriptCodec::default().write(&script)?;
+    let decoded = AiScriptCodec::default().read(&bytes)?;
+    assert_eq!(decoded, script);
+
+    // Check independently against Hype's eight-byte node encoding and the
+    // operation IDs corroborated by the pinned executable disassembly.
+    fn append_node(nodes: &mut Vec<u8>, kind: u8, parameter: u32, indent: u8) {
+        nodes.extend(parameter.to_le_bytes());
+        nodes.extend([0, 0, indent, kind]);
+    }
+    let mut source_nodes = Vec::new();
+    append_node(&mut source_nodes, 4, 430, 1);
+    append_node(&mut source_nodes, 12, 5, 2);
+    append_node(&mut source_nodes, 4, 431, 1);
+    for function in [224, 226, 227] {
+        append_node(&mut source_nodes, 5, 37, 1);
+        append_node(&mut source_nodes, 3, function, 2);
+        if function == 224 {
+            append_node(&mut source_nodes, 12, 5, 3);
+        }
+    }
+    append_node(&mut source_nodes, 5, 37, 1);
+    append_node(&mut source_nodes, 3, 25, 2);
+    append_node(&mut source_nodes, 13, 3.0f32.to_bits(), 3);
+    append_node(&mut source_nodes, 5, 37, 1);
+    append_node(&mut source_nodes, 3, 33, 2);
+    append_node(&mut source_nodes, 13, (-2.5f32).to_bits(), 3);
+    append_node(&mut source_nodes, 5, 37, 1);
+    append_node(&mut source_nodes, 1, 64, 2);
+    append_node(&mut source_nodes, 0, 5, 3);
+    append_node(&mut source_nodes, 5, 37, 1);
+    append_node(&mut source_nodes, 3, 4, 2);
+    append_node(&mut source_nodes, 0, 4, 3);
+    append_node(&mut source_nodes, 8, 0, 0);
+    assert_eq!(
+        AiScriptCodec::default().read(&source_nodes)?,
+        Script {
+            statements: vec![
+                Statement::SetArmorResistance(Expression::Integer(5)),
+                Statement::RepairArmor,
+                Statement::Wait {
+                    milliseconds: Expression::ApplyArmoredDamage(Box::new(Expression::Integer(5))),
+                },
+                Statement::Wait {
+                    milliseconds: Expression::ArmorResistance,
+                },
+                Statement::Wait {
+                    milliseconds: Expression::ArmorCount,
+                },
+                Statement::Wait {
+                    milliseconds: Expression::Square(Box::new(Expression::Real(3.0))),
+                },
+                Statement::Wait {
+                    milliseconds: Expression::AbsoluteValue(Box::new(Expression::Real(-2.5))),
+                },
+                Statement::Wait {
+                    milliseconds: Expression::IsValidActor(Box::new(Expression::Actor(
+                        ActorTarget::Keyword(ActorKeyword::MainActor),
+                    ))),
+                },
+                Statement::Wait {
+                    milliseconds: Expression::ActorDistance(Box::new(Expression::Actor(
+                        ActorTarget::Keyword(ActorKeyword::SelfActor),
+                    ))),
+                },
+            ],
+        }
+    );
+
+    let mut model = model()?;
+    model.normal.as_mut().unwrap().behaviors[0].schedule = Some(decoded.clone());
+    let model = rete::decode::<AiModel>(&rete::encode(&model)?)?;
+    let expressions = model.expressions();
+    assert!(
+        expressions
+            .iter()
+            .any(|e| matches!(e, Expression::ActorDistance(_)))
+    );
+    assert!(
+        expressions
+            .iter()
+            .any(|e| matches!(e, Expression::Square(_)))
+    );
+    let code = godot::ai::compile(&model, &[])?;
+    assert!(code.contains("source_armor_state()"), "{code}");
+    assert!(code.contains("set_resistance"), "{code}");
+    assert!(code.contains(".call(\"repair\")"), "{code}");
+    assert!(code.contains(".call(\"damage\""), "{code}");
+    assert!(code.contains("distance_actor_"), "{code}");
+    assert!(code.contains("PackedFloat32Array"), "{code}");
+
+    let temp = tempfile::tempdir()?;
+    let project = temp.path().join("godot");
+    godot::support::initialize(&project)?;
+    fs::write(project.join("compiled_source_ai.gd"), code)?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    godot::run_godot(
+        &engine,
+        &project,
+        &[
+            "--headless",
+            "--check-only",
+            "--script",
+            "res://compiled_source_ai.gd",
+            "--log-file",
+            "compiled-source-ai.log",
+        ],
+        Duration::from_secs(10),
+    )?;
+    Ok(())
+}
+
+#[test]
+fn source_position_field_round_trips_and_compiles_to_the_current_actor_world_position() -> Result<()>
+{
+    // Hype Field.Position (category 9 / operation 0) has an implicit receiver.
+    let source_nodes = [
+        0x0b, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02, // Assign
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x0b, // designer variable 1
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x09, // Field.Position
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, // sentinel
+    ];
+    let script = AiScriptCodec::default().read(&source_nodes)?;
+    assert_eq!(
+        script.statements,
+        vec![Statement::Assign {
+            variable: 1,
+            value: Expression::SelfPositionField,
+        }]
+    );
+    assert_eq!(AiScriptCodec::default().write(&script)?, source_nodes);
+
+    let mut model = model()?;
+    model.variables[1] = DesignerVariable {
+        default: DesignerValue::Vector([0.0; 3]),
+        save: 0,
+        initialize: 0,
+    };
+    model.normal.as_mut().unwrap().behaviors[0].schedule = Some(script);
+    let reopened = rete::decode::<AiModel>(&rete::encode(&model)?)?;
+    let code = godot::ai::compile(&reopened, &[])?;
+    assert!(
+        code.contains("dsg_1 = character().source_position()"),
+        "{code}"
+    );
+    assert!(!code.contains("unsupported AI expression category 9 operation 0"));
+    Ok(())
+}
+
+#[test]
 fn generated_actor_receives_live_scene_actor_brain_binding() -> Result<()> {
     let temp = tempfile::tempdir()?;
     let project = temp.path().join("godot");
@@ -281,7 +592,27 @@ fn camera_target_call_keeps_source_actor_and_main_actor() -> Result<()> {
 }
 
 #[test]
-fn external_behavior_query_checks_main_actor_brain_identity_before_branch() -> Result<()> {
+fn camera_reset_target_passes_the_bound_main_actor() -> Result<()> {
+    let mut model = model()?;
+    model.normal.as_mut().unwrap().behaviors[0]
+        .schedule
+        .as_mut()
+        .unwrap()
+        .statements = vec![Statement::CameraResetTargetedPerso {
+        camera: AssetRef::new("level:/persos/world/0/2")?,
+    }];
+    let code = godot::ai::compile(&model, &[])?;
+    assert!(
+        code.contains(
+            "source_camera_reset_targeted_perso(\"level:/persos/world/0/2\", main_actor)"
+        )
+    );
+    assert!(code.contains("requires camera reset target state"));
+    Ok(())
+}
+
+#[test]
+fn external_behavior_query_uses_main_actor_behavior_id_without_model_guard() -> Result<()> {
     let mut model = model()?;
     model.normal.as_mut().unwrap().behaviors[0]
         .schedule
@@ -289,7 +620,7 @@ fn external_behavior_query_checks_main_actor_brain_identity_before_branch() -> R
         .unwrap()
         .statements = vec![Statement::If {
         condition: Expression::IsInBehavior {
-            actor: ActorKeyword::MainActor,
+            actor: ActorTarget::Keyword(ActorKeyword::MainActor),
             target: BehaviorRef {
                 model: AssetRef::new("fix:/ai/models/28")?,
                 group: BehaviorGroup::Normal,
@@ -306,16 +637,15 @@ fn external_behavior_query_checks_main_actor_brain_identity_before_branch() -> R
     let reopened = rete::decode::<AiModel>(&rete::encode(&model)?)?;
     assert_eq!(reopened, model);
     let code = godot::ai::compile(&reopened, &[])?;
-    let guard = code
-        .find("requires MainActor Brain model fix:/ai/models/28")
-        .unwrap();
-    let model_identity = code
-        .find("str(behavior_brain_0.get(\"source_model_path\")) != \"fix:/ai/models/28\"")
-        .unwrap();
-    let query = code
-        .find("int(behavior_brain_0.get(\"current_normal\")) == 94")
-        .unwrap();
-    assert!(guard < model_identity && model_identity < query, "{code}");
+    assert!(
+        code.contains("requires resolved actor MainActor for behavior query"),
+        "{code}"
+    );
+    assert!(
+        code.contains("source_actor_is_in_behavior(behavior_actor_0, &\"normal\", 94)"),
+        "{code}"
+    );
+    assert!(!code.contains("!= \"fix:/ai/models/28\""), "{code}");
     assert!(code.contains("@export var source_model_path: String = \"level:/ai/proximity\""));
     Ok(())
 }
@@ -447,6 +777,62 @@ fn typed_ai_codec_preserves_branches_values_and_rejects_unknown_or_malformed_nod
             })
             .is_err()
     );
+    Ok(())
+}
+
+#[test]
+fn opaque_designer_values_round_trip_and_reached_access_fails_explicitly() -> Result<()> {
+    let bytes = vec![0, 255, 1, 128];
+    let mut source = model()?;
+    source.variables.push(DesignerVariable {
+        default: DesignerValue::Opaque {
+            kind: 13,
+            bytes: bytes.clone(),
+        },
+        save: 0,
+        initialize: 0,
+    });
+    source.normal.as_mut().unwrap().behaviors[0]
+        .schedule
+        .as_mut()
+        .unwrap()
+        .statements
+        .push(Statement::Assign {
+            variable: 2,
+            value: Expression::Integer(9),
+        });
+
+    let reopened = rete::decode::<AiModel>(&rete::encode(&source)?)?;
+    assert_eq!(reopened, source);
+    let code = godot::ai::compile(&reopened, &[])?;
+    assert!(
+        code.contains("@export var dsg_2: PackedByteArray = PackedByteArray([0, 255, 1, 128])"),
+        "{code}"
+    );
+    assert!(
+        code.contains("level:/ai/proximity accesses opaque source designer field 2"),
+        "{code}"
+    );
+    assert!(!code.contains("dsg_2 = int(9)"), "{code}");
+
+    let temp = tempfile::tempdir()?;
+    let project = temp.path().join("godot");
+    godot::support::initialize(&project)?;
+    fs::write(project.join("compiled_opaque.gd"), code)?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    godot::run_godot(
+        &engine,
+        &project,
+        &[
+            "--headless",
+            "--check-only",
+            "--script",
+            "res://compiled_opaque.gd",
+            "--log-file",
+            "compiled-opaque.log",
+        ],
+        Duration::from_secs(10),
+    )?;
     Ok(())
 }
 

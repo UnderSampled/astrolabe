@@ -3,14 +3,18 @@
 The Hype PC main menu uses `MenuTextList`/`MenuTextureAndTextList` serialized
 records, distinct from the general `MNU_fn_vDrawMenuItem` API. The importer
 selects the Fix menu root whose background is `Menu\\menu_princ.bmp`, then follows
-its text-list membership. The pause import selects the distinct `Resume Game`
-text-list parent and verifies that no texture header owns that root.
+its text-list membership. The Options route selects the sibling
+`Menu\\config_back.bmp` root and retains its source labels, links, depth-projected
+layout, backdrop and three `Slider1`/`Slider2`/`Slider3` positions. The pause
+import selects the distinct `Resume Game` text-list parent and verifies that no
+texture header owns that root.
 The validated English profile contains new game, load game, configure, credits,
 internet and quit. The installed pause profile contains `Resume Game`,
 `NextGame`, `Options` and `Main Menu`, with localized labels "resume game",
 "start a new adventure", "configure" and "main menu". These roots remain
-separate; other menus are outside this slice. Inventory has its own `InvBox`
-import.
+separate; image quality and the legacy Internet launch remain outside this
+slice. Credits retains a separate typed English text/font presentation nested
+under the main menu root. Inventory has its own `InvBox` import.
 
 `FUN_004105b0` draws each item using position words 8–10, localized text word
 0x13, selected/normal font names at 0x1c/0x24, and horizontal alignment byte 0xb0.
@@ -60,6 +64,96 @@ contains editable native Controls, normal/glow PNGs and audio resources.
 Regeneration protects authored inherited scenes and rejects modified generated
 bases. See [game menu ownership](../../godot/game/menu/README.md).
 `--content pause-menu` publishes the analogous independent `pause-menu` closure.
-Rete schema 41 permits the useful presentation's explicitly absent backdrop;
-support interface 51 exposes modal focus reset and confirmation cancellation.
+Rete schema 42 permits the useful presentation's explicitly absent backdrop;
+support interface 54 exposes modal focus reset, confirmation cancellation and a
+separate voice audio bus.
 See [pause composition](../../godot/game/menu/README.md#pause-menu-composition).
+
+`FUN_00414b00` routes `Options` into `DAT_007523f4` and enters configuration mode
+`0x25`; the source initial item is `Images`. The separate Godot scene retains
+all three original tabs and glyph labels. Its Music, Sound and Voices page uses
+native vertical sliders on the source scales, applies them to Godot audio buses,
+and persists them through `UserSettings`. `FUN_00428a60` initializes the three
+sound values to 100/127. Music and Sound use `0..127`; Voices displays `-20..107`
+and clamps negative values to zero when applying volume.
+
+`ImageSlider1` has four discrete quality choices, 1–4, and calls
+`SHW_fn_vSetLevelOfQualityOfShadows`; Godot maps these to available shadow
+filter qualities as an explicit approximation. `ImageSlider2` ranges from 60 to
+100 and passes that value to `FUN_004054c0`, which narrows the active source
+camera viewport. The Godot port maps the centered crop to a perspective FOV
+adjustment (or orthographic camera-size adjustment) while keeping the UI at full
+size. This preserves the source framing direction but is not pixel-identical
+viewport behavior. `ImageSlider3` passes a 0–1 texture-swapping ratio to the
+OpenSpace resource system. The converted Godot project loads local assets and
+has no matching streaming policy, so it retains the source label and explains
+that texture swapping is unsupported; it does not substitute material
+filtering.
+
+`FUN_00414b00`/`FUN_00413bd0` identify `TestButton` and `ReverseButton`, and the
+source action resolves stereo-test and reverse-stereo items in the Sound page.
+The native test action synthesizes a short left-channel then right-channel tone.
+Reverse Stereo swaps interleaved channels for stereo 8/16-bit PCM WAV streams
+through cached copies, without editing the exported resources; mono, IMA ADPCM,
+QOA and non-WAV streams keep their original channels. This is a usable
+Godot-side equivalent for the project's WAV output, not a recreation of the
+external source sound-system API.
+
+The Controls page provides native remapping for the five source actions that the
+current Godot session actually consumes: left, right, up, down and hit. It
+persists physical keyboard keys and generic Godot joypad buttons/axis directions
+in `user://hype-settings.cfg`; the current binding transfers to another action
+when the same input is selected, matching the decompiled remapper's occupied-key
+transfer path. Escape cancels an active capture before closing configuration.
+Reset restores Astrolabe's current arrow/Space keyboard defaults and clears
+generic joypad bindings. These are the port's present defaults, not values
+recovered from the game's source options file.
+
+`FUN_00414b00`, `FUN_004123b0` and `IPT_fn_bChangeIPTValue` show separate source
+Keyboard and Paddle/Joystick paths. The generic controller tab deliberately
+uses Godot JoypadButton/JoypadMotion events and does not claim support for the
+source Paddle or Joystick device modes. The source KeyStrokes route displays
+current bindings; the native action rows show those values directly. Other
+source controls are not exposed until their gameplay actions exist in this
+session.
+
+The same dispatcher sends `Credits` to mode `0x16`; `FUN_00403fc0` enters credits
+mode `0x17`. `FUN_0040f3f0` loads `credits.ini`, selects `Playmo_Font2_0`, and
+looks up a text handle for each configured key. `FUN_0040ef40` appends every
+active key into a 24-byte slot; it does not increment the display count. The
+font-assignment loop in `FUN_0040f3f0` and draw loop in `FUN_0040eb10` both stop
+at `DAT_0060fa00`, loaded by `CDTCreditsNumEntries("397")`. The installed INI
+has 400 active directives, ending with `CDT2_B_PROD40`, `PROD41` and `PROD42`;
+those last three registered keys are not assigned or drawn by the source loops.
+
+The English `Fix.lng` Fix block 18 contains exactly 400 fixed-width credit key
+slots. The importer compares every slot with the active INI entries in order.
+English `Fix.dlg`/`Fix.rtd` contains 410 references to Fix block 19; its final
+400 text handles map to that same key order, after ten unrelated Fix text
+handles. Their pointer targets provide the localized strings. This matches the
+decompiled `FON_fn_eLoadTextString` callback, which calls `Link_SetValue(key,
+text_handle)`, and `FON_fn_hGetTextHandle`, which searches that key table. The
+importer checks the first localized values and retains all 400 pairs in Rete;
+Godot emits only the first 397 as native Label nodes. It uses the source font
+metrics/UVs/atlas, black background, 40-line visible window and 0.35 world-unit
+spacing. In `FUN_0040eb10`, `-` is left alignment, no prefix is centered and
+`+` is right alignment; a right-aligned entry and the following left-aligned
+entry share a baseline. Back/Escape return to the menu, and the source end
+condition is represented by automatically returning when the final row leaves
+the top of the viewport.
+
+The decompilation snapshot does not include the numeric initializer for
+`DAT_005e6c78`, the timer-to-world scroll multiplier used by `FUN_0040eb10`.
+The authored Godot controller exposes a default speed of 1 world unit per
+second for tuning; exact timed parity remains unverified. The credits background
+image is commented out and there are no active `CDTImage` declarations, so the
+source black background is used without extra artwork.
+
+The dispatcher sends `Internet` through its legacy branch, which writes a
+temporary HTML file and asks the installed browser to open the old Playmobil
+destination. Godot reports that this route is obsolete and does not open an
+external page. The inspected main-menu dispatcher does not establish a music
+or idle-prompt playback path. Credits starts a track through `FUN_0040e9a0`, but
+its `playmo_cd.c` package is absent from local disc data; a second credits clip
+is loaded without a located playback call. The port does not synthesize
+replacement background audio.
