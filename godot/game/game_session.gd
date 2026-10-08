@@ -648,7 +648,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
         save_game()
     elif key.physical_keycode == KEY_R:
         get_viewport().set_input_as_handled()
-        leave_session("res://game/new_game.tscn" if new_game else "res://game/demo.tscn")
+        leave_session("res://game/new_game.tscn" if new_game else "res://game/game_session.tscn")
     elif key.physical_keycode == KEY_ESCAPE and not pause_available():
         # Keep the existing exit route while loading or after a failed entry.
         get_viewport().set_input_as_handled()

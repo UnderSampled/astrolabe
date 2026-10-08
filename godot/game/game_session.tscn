@@ -1,7 +1,7 @@
 [gd_scene load_steps=5 format=3]
 
-[ext_resource type="Script" path="res://game/demo.gd" id="demo"]
-[ext_resource type="Script" path="res://game/demo_camera.gd" id="camera"]
+[ext_resource type="Script" path="res://game/game_session.gd" id="demo"]
+[ext_resource type="Script" path="res://game/session_camera.gd" id="camera"]
 [ext_resource type="Script" path="res://game/inventory_host.gd" id="inventory"]
 [ext_resource type="PackedScene" path="res://game/pause_host.tscn" id="pause"]
 

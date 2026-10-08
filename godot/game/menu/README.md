@@ -10,7 +10,7 @@ font table, menu interpreter or source-disc access are needed at runtime.
 
 `game/bootstrap.tscn` composes that scene and owns application routes.
 `NewGame` opens the actual manor opening through `game/new_game.tscn`;
-`SavedGames` keeps the existing Load Game/save route through `game/demo.tscn`.
+`SavedGames` keeps the existing Load Game/save route through `game/game_session.tscn`.
 The named `NewGame` and `LoadGame` Buttons remain discoverable by session tests.
 Configure opens `game/settings_menu.tscn`, an authored route alias for the
 source-generated configuration scene. The scene root keeps the existing

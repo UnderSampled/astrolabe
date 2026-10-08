@@ -18,7 +18,7 @@ pub mod save_import;
 mod scene;
 pub mod support;
 pub use engine::{gameplay_headless, run_godot, run_godot_gameplay};
-pub use project::Project;
+pub use project::{Project, prepare_directory, publish_prepared};
 
 /// Godot is Y-up and right-handed. Canonical Hype values remain untouched.
 pub fn vector([x, y, z]: [f32; 3]) -> [f32; 3] {

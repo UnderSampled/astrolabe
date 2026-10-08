@@ -77,8 +77,10 @@ saves also capture Hype's transform and the Global gate-sequence Boolean, so
 subsequent Load Game restores those supported fields. The status text labels
 imported originals as supported-fields-only. See the [save importer evidence](../docs/openspace/save-games.md#import-an-original-slot-into-godot).
 
-The current session still uses the historical `game/demo.*` and `demo_camera.gd`
-filenames. They are game code; the names do not define a separate demo product.
+The shared production session is `game/game_session.gd` / `game_session.tscn`;
+its authored fallback/aim camera is `session_camera.gd`. New Game inherits the
+same session used by Load Game. Legacy scene/node and observer field names remain
+stable through this filename cleanup.
 
 ## New Game
 

@@ -110,8 +110,8 @@ impl Project {
         self.reserve(&path)?;
         write_atomic(&self.stage.path().join(path), bytes)
     }
-    /// Text input for Godot's conversion-time ResourceSaver. It is never
-    /// published: the owned output is the binary native resource instead.
+    /// Private input for conversion-time builders, never a published asset.
+    /// Raw mip PNGs are read through Image rather than the resource importer.
     pub(super) fn write_build_input(&self, path: &str, bytes: &[u8]) -> Result<()> {
         ensure!(
             path.starts_with("build_inputs/")
@@ -122,6 +122,20 @@ impl Project {
         );
         let full = self.stage.path().join(path);
         fs::create_dir_all(full.parent().expect("build input has a parent"))?;
+        if path.starts_with("build_inputs/texture-mips/") {
+            // Both source and color-keyed mip chains use this helper. Their
+            // PNGs are decoded directly by build_mips.gd; importing each level
+            // as another texture only adds filesystem scans and unused caches.
+            // Other inputs include native Animations loaded as Resources, so
+            // the rest of build_inputs must remain visible to Godot.
+            let ignored = self
+                .stage
+                .path()
+                .join("build_inputs/texture-mips/.gdignore");
+            if !ignored.exists() {
+                write_atomic(&ignored, b"")?;
+            }
+        }
         write_atomic(&full, bytes)
     }
     pub fn diagnostic(&mut self, note: impl Into<String>) {
@@ -129,6 +143,13 @@ impl Project {
     }
     /// Build and validate native Godot resources, then publish only generated files.
     pub fn finish(mut self, godot: &str) -> Result<Manifest> {
+        let import_timeout = import_deadline(self.generated.len());
+        eprintln!(
+            "Godot import allowance {}s for {} declared outputs ({})",
+            import_timeout.as_secs(),
+            self.generated.len(),
+            self.selection.level
+        );
         let version = run_godot(
             godot,
             self.stage.path(),
@@ -367,7 +388,7 @@ environment = SubResource("environment")
             godot,
             self.stage.path(),
             &["--headless", "--import"],
-            Duration::from_secs(60),
+            import_timeout,
         )?;
         // The first import needs the placeholder; the builder can inspect the
         // real preview once it has saved all referenced native scenes.
@@ -426,7 +447,7 @@ environment = SubResource("environment")
             godot,
             self.stage.path(),
             &["--headless", "--import"],
-            Duration::from_secs(60),
+            import_timeout,
         )?;
         let manifest = super::publication::publish(
             self.stage.path(),
@@ -442,8 +463,52 @@ environment = SubResource("environment")
             godot,
             &self.output,
             &["--headless", "--import"],
-            Duration::from_secs(60),
+            import_timeout,
         )?;
         Ok(manifest)
     }
+}
+
+/// Editor import includes scans, script compilation and native media conversion.
+/// Allocate one minute per 2,000 declared outputs, bounded to ten minutes. The
+/// complete Manor's previous 8,785-file closure receives five minutes; small
+/// isolated conversions keep their one-minute allowance. Private mip inputs are
+/// excluded through .gdignore rather than buying time for unused imports.
+pub(super) fn import_deadline(file_count: usize) -> Duration {
+    Duration::from_secs(file_count.div_ceil(2_000).clamp(1, 10) as u64 * 60)
+}
+
+/// Prepare application scopes away from the consumer until all have succeeded.
+pub fn prepare_directory(output: &Path) -> Result<tempfile::TempDir> {
+    let stage = tempfile::tempdir()?;
+    super::support::stage(stage.path(), output)?;
+    Ok(stage)
+}
+
+/// Publish a fully prepared set through the same ownership guards as one scope.
+pub fn publish_prepared(stage: &Path, output: &Path, godot: &str) -> Result<Manifest> {
+    super::support::compatible(stage)?;
+    let prepared: Manifest =
+        serde_json::from_slice(&fs::read(stage.join("generated/astrolabe-manifest.json"))?)?;
+    ensure!(prepared.schema == 2, "unsupported prepared Godot manifest");
+    ensure!(
+        prepared.support_interface == super::support::INTERFACE,
+        "prepared support interface differs from the exporter"
+    );
+    for (path, expected) in &prepared.files {
+        ensure!(
+            super::digest(&fs::read(stage.join(path))?) == *expected,
+            "prepared generated file changed: {path}"
+        );
+    }
+    let import_timeout = import_deadline(prepared.files.len());
+    let manifest = super::publication::publish_scopes(
+        stage,
+        output,
+        prepared.selections,
+        prepared.diagnostics,
+        prepared.godot_version,
+    )?;
+    run_godot(godot, output, &["--headless", "--import"], import_timeout)?;
+    Ok(manifest)
 }

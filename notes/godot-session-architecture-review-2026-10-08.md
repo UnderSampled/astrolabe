@@ -109,3 +109,19 @@ session references. Verify support initialization/update, scene parser checks,
 New/Load/restart routes, failure/cancel recovery and named-entry camera handoff.
 Regenerate local content only when the agreed aggregate validation is authorized.
 No rename or component refactor is part of this reconciliation.
+
+## Approved filename cleanup completed
+
+The integration lead approved and the main executor completed the filename-only
+change after the feature union. The actual routes, inherited New Game scene,
+script preloads, starter/UID inventory and current documentation now reference
+`game_session.gd`, `game_session.tscn` and `session_camera.gd`. The session UID
+`uid://bljejs4l1sof2` and camera UID `uid://bel4kbbefd8qg` are unchanged. Existing
+node names and the `demo_camera` observer property remain unchanged; there is no
+new implementation or node/API migration. Older filenames in this dated review
+describe the audited baseline. The rename is no longer a pending proposal.
+
+Latest user direction prohibits tests, harnesses and gameplay acceptance. These
+source references are statically reviewed; no parser/test/observer is run for the
+rename. A production CLI build and source-content preparation are separately
+authorized artifact creation, not game-behavior acceptance.

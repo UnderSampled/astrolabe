@@ -5,9 +5,9 @@ const Screen = preload("res://addons/astrolabe/ui/screen.tscn")
 const Character = preload("res://addons/astrolabe/character/character.gd")
 const Emitter = preload("res://addons/astrolabe/audio/emitter.gd")
 const Fixture = preload("res://check_location_title.gd")
-const GameSession = preload("res://game/demo.gd")
+const GameSession = preload("res://game/game_session.gd")
 class CueSession:
-    extends "res://game/demo.gd"
+    extends "res://game/game_session.gd"
     func _ready() -> void: pass
 
 func require(condition: bool, message: String) -> bool:

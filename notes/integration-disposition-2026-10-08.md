@@ -337,3 +337,48 @@ an unmatched old hash is not automatically a missing capability.
 | `ui/manor-screen-space` | `234643b7752596838f09c1814d3c5ab37bdc1732` |
 | `ui/menu-settings-20261007` | `3588a5c6574335cb21250d45082682856e0b1fbb` |
 | `ui/pause-menu` | `2047ea0df6c917c14d66c5d19ff48c77b62d1aee` |
+
+## Static continuation under no-tests direction
+
+The user subsequently prohibits further test, harness and gameplay runs and
+approves the production filename cleanup plus a corrected artifact-preparation
+retry. The historical118/118/29 results above remain valid for their recorded
+source revision; they do not validate this later static change. Six new isolated
+feature workers are a separate continuation; no patch from them enters this
+snapshot.
+
+Static tracing finds avoidable mip import work: `material.rs` writes ordinary
+and color-keyed per-level PNGs under `build_inputs/texture-mips/`, then
+`build_mips.gd` reads them directly with `Image.load_from_file` and saves/reopens
+the resulting native ImageTexture. The writer now creates one private
+`.gdignore` in that subtree, outside the generated manifest/publication. Other
+build inputs include native Animations loaded as Resources, so their directory
+and all published PNG/native resources remain visible. Godot's official
+[folder-ignore documentation](https://docs.godotengine.org/en/stable/tutorials/best_practices/project_organization.html#ignoring-specific-folders)
+and [raw image loading documentation](https://docs.godotengine.org/en/stable/tutorials/io/runtime_file_loading_and_saving.html#images)
+support this boundary. This removes unnecessary imports; it is not proof of the
+previous full-import delay's sole cause.
+
+Each editor import now receives60s per2,000 declared output files, bounded to
+60..600s. The recorded8,785-file Manor closure receives300s, rather than the
+inherited tiny-conversion60s. The separate mip-builder60s and native-builder360s
+deadlines remain distinct. Local privileges address the earlier verified editor
+socket denial. No production frame cap or actor/source state changes accompany
+this retry. Failed logs are preserved. No resumable staging workflow existed: the
+failed temporary stage was deleted, so the explicitly authorized retry starts
+fresh.
+
+To honor publication only after all preparation succeeds, `prepare-game` now
+composes the same four adapters into an isolated Godot project, then submits all
+completed scope closures together to the existing ownership-checked publication
+implementation. Edited/unowned/shared assets and unrelated levels retain the
+same guards. Consumer generated content is unchanged if a preparation scope
+fails; destination cache import follows successful grouped publication. No
+source inputs, authored project settings or saves are published.
+
+Production names are now `game/game_session.gd`, `game_session.tscn` and
+`session_camera.gd`. Script UIDs remain unchanged; all maintained references are
+updated while node/observer API names remain stable. The earlier naming proposal
+is completed. The normal release CLI build and corrected source-content
+preparation are authorized artifact generation; no test suite, temporary probe,
+actual game or observer acceptance runs after the latest no-tests instruction.

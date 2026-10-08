@@ -13,7 +13,7 @@ centres, three magic groups, six-slot row, focus links, scale/colour values and
 bitmap glyph metrics come from serialized source values. Media and Godot caches
 are ignored; there is no replacement art.
 
-`game/demo.tscn` composes `inventory_host.gd`, shared by actual New Game and Load
+`game/game_session.tscn` composes `inventory_host.gd`, shared by actual New Game and Load
 Game. **Tab** opens it when gameplay is ready and the cinematic letterbox is closed.
 **Tab** or **Esc** closes it. Tab is handled before Godot's focus navigation;
 only a non-echo key press toggles the view. Opening pauses the tree; closing releases only the

@@ -26,7 +26,8 @@ is the main menu. **New Game** is the canonical entry for intro integration and
 acceptance: it loads the complete generated manor from the original starting
 state and runs the full imported AI. The provisional **Load Game** route restores
 the measured supplied-save state. Both routes share one game-session lifecycle.
-The current `game/demo.*` filenames are historical session filenames.
+The shared production root is `game/game_session.gd` / `game_session.tscn`;
+`session_camera.gd` owns the authored fallback/aim camera.
 
 New Game initialization, camera and presentation remain incomplete. The authored
 follow camera provides a view until source camera initialization runs, and
@@ -48,8 +49,7 @@ remain explicit fidelity debt in the game and its evidence.
 
 ### Authored session components
 
-`game/demo.gd` coordinates both the saved-start and New Game routes. Its
-historical path is retained; it is the shared game session. It owns start-state
+`game/game_session.gd` coordinates both the saved-start and New Game routes. It owns start-state
 selection, native level instantiation, actor binding, save application, readiness
 stages, UI routes and generated-Brain startup. Its existing observable fields,
 stage signal and methods remain the entry points for game observers.
@@ -299,3 +299,18 @@ Keep these checks within the existing whole-suite deadline. Record interface
 coverage and known gaps as features land. Consumer dependencies may be developed
 now; broad compatibility promises and full-game parity require their own
 evidence, not a blanket waiting period for all adapters to finish.
+
+### Application preparation publication
+
+`prepare-game` builds the four application scopes in an isolated project and
+publishes their owned closures together only after all scopes succeed. The
+ordinary generated-file collision/sharing guards apply to this grouped
+publication, preserving consumer settings, authored files and unrelated levels.
+A failed scope leaves consumer generated content unchanged. Destination cache
+import occurs after publication; its failure is reported separately.
+
+Private raw mip PNGs have a `.gdignore` beneath `build_inputs/texture-mips/`;
+the conversion builder reads them directly with `Image.load_from_file`. Native
+Animation inputs and published resources retain ordinary resource visibility.
+Editor import gets one minute per2,000 declared outputs, bounded to one through
+ten minutes; the native resource builder has its separate360-second deadline.

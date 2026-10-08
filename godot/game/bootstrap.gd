@@ -161,7 +161,7 @@ func _on_new_game_pressed() -> void:
     open_game("res://game/new_game.tscn", new_game)
 
 func _on_load_game_pressed() -> void:
-    open_game("res://game/demo.tscn", load_game)
+    open_game("res://game/game_session.tscn", load_game)
 
 func _on_quit_pressed() -> void:
     get_tree().quit()

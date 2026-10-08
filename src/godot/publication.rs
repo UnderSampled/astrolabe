@@ -16,6 +16,23 @@ pub(super) fn publish(
     version: String,
     selection: &str,
 ) -> Result<Manifest> {
+    publish_scopes(
+        stage,
+        output,
+        BTreeMap::from([(selection.to_owned(), generated)]),
+        diagnostics,
+        version,
+    )
+}
+
+pub(super) fn publish_scopes(
+    stage: &Path,
+    output: &Path,
+    selected: BTreeMap<String, BTreeSet<String>>,
+    diagnostics: Vec<String>,
+    version: String,
+) -> Result<Manifest> {
+    let generated: BTreeSet<String> = selected.values().flatten().cloned().collect();
     validate_output_path(output, "generated/hype/check")?;
     let old_path = output.join("generated/astrolabe-manifest.json");
     ensure!(
@@ -35,12 +52,12 @@ pub(super) fn publish(
         validate_output_path(output, path)?;
     }
     let mut selections = old.selections.clone();
-    selections.insert(selection.into(), generated.clone());
+    selections.extend(selected.clone());
     let retained: BTreeSet<String> = selections.values().flatten().cloned().collect();
     let other: BTreeSet<&String> = old
         .selections
         .iter()
-        .filter(|(k, _)| *k != selection)
+        .filter(|(k, _)| !selected.contains_key(*k))
         .flat_map(|(_, v)| v)
         .collect();
     // All collisions, including stale-file edits, are checked before publishing anything.

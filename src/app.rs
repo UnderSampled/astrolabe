@@ -155,14 +155,15 @@ fn import(
     }
 }
 
-/// Application preparation composes ordinary scope conversions. Each scope
-/// keeps its own publication ownership; a failure preserves completed scopes.
+/// Application preparation composes ordinary scope conversions in isolation.
+/// Publish their distinct owned closures together after every scope succeeds.
 fn prepare_game(game: &Path, output: &Path, selection: Selection, engine: &str) -> Result<()> {
     anyhow::ensure!(
         selection.level == "manoir" && selection.locale == "en",
         "prepare-game currently prepares the authored manor/English application; use port for other level or locale selections"
     );
     let started = Instant::now();
+    let prepared = godot::prepare_directory(output)?;
     let scopes = [
         ("scene", Scope::Scene),
         ("menu", Scope::Menu),
@@ -178,8 +179,14 @@ fn prepare_game(game: &Path, output: &Path, selection: Selection, engine: &str) 
             let mut imported = import(game, selection.clone(), *scope, &[])?;
             let roots = imported.roots.clone();
             let owner = imported.selection.clone();
-            phase = "export-and-publication";
-            let manifest = godot::export(&mut imported, &roots, owner.clone(), output, engine)?;
+            phase = "staged-export";
+            let manifest = godot::export(
+                &mut imported,
+                &roots,
+                owner.clone(),
+                prepared.path(),
+                engine,
+            )?;
             Ok(serde_json::json!({
                 "scope": name,
                 "owner": owner.level,
@@ -203,7 +210,7 @@ fn prepare_game(game: &Path, output: &Path, selection: Selection, engine: &str) 
                         "completed": completed,
                         "failed": { "scope": name, "phase": phase, "error": format!("{error:#}") },
                         "remaining": scopes[index + 1..].iter().map(|(name, _)| name).collect::<Vec<_>>(),
-                        "recovery": "Resolve the reported failure and repeat prepare-game. Completed scopes remain owned by their original conversion selections; publication guards still apply. The failed scope may have been published before a destination import failed.",
+                        "recovery": "Resolve the reported failure and repeat prepare-game. The consumer generated content is unchanged; completed scopes were prepared only in an isolated temporary project.",
                         "seconds": started.elapsed().as_secs_f64()
                     }))?
                 );
@@ -212,6 +219,8 @@ fn prepare_game(game: &Path, output: &Path, selection: Selection, engine: &str) 
             }
         }
     }
+    godot::publish_prepared(prepared.path(), output, engine)
+        .context("publish completed application preparation")?;
     println!(
         "{}",
         serde_json::to_string_pretty(&serde_json::json!({

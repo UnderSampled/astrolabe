@@ -59,7 +59,7 @@ fn menu_new_game_preserves_slot_and_restarts_original_opening() -> Result<()> {
         include_bytes!("../../../godot/tests/new_game_smoke.gd"),
     )?;
     for (name, script) in [
-        ("session", "res://game/demo.gd"),
+        ("session", "res://game/game_session.gd"),
         ("menu", "res://game/bootstrap.gd"),
         ("smoke", "res://tests/new_game_smoke.gd"),
     ] {
