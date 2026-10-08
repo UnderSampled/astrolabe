@@ -1,0 +1,17 @@
+[gd_scene load_steps=2 format=3]
+[ext_resource type="Script" path="res://addons/astrolabe/ui/location_title.gd" id="script"]
+[node name="LocationTitle" type="Control"]
+visible = false
+layout_mode = 0
+mouse_filter = 2
+script = ExtResource("script")
+[node name="Panel" type="TextureRect" parent="."]
+layout_mode = 0
+mouse_filter = 2
+texture_filter = 2
+expand_mode = 1
+flip_v = true
+[node name="SourceText" type="Control" parent="."]
+visible = false
+layout_mode = 0
+mouse_filter = 2
