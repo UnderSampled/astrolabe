@@ -33,6 +33,7 @@ var _source_opened: bool = false
 var _source_closing: bool = false
 var _source_step_elapsed: float = 0.0
 var _source_page_deadline: float = SOURCE_UNTIMED_SECONDS
+var _source_page_complete := false
 
 func _ready() -> void:
     modulate.a = 0.0
@@ -41,10 +42,14 @@ func _ready() -> void:
     panel.configure(null, panel_style)
 
 func can_run(value: Resource, run_mode: int) -> bool:
-    if value == null or run_mode != 1 or value.box not in [1, 3]: return false
+    if value == null or run_mode != 1 or value.box not in [1, 3, 5]: return false
+    if value.box == 5:
+        if value.presentation == null or value.voice != null or value.lines.is_empty() or value.lines.size() > 6: return false
+        for line in value.lines:
+            if line.flags != 3 or line.alignment != Vector2i.ZERO or line.draw_offset != Vector2.ZERO or line.end_seconds != SOURCE_UNTIMED_SECONDS: return false
     if value.presentation != null:
         for line in value.lines:
-            if line.flags != 0: return false
+            if line.flags != 0 and not (value.box == 5 and line.flags == 3): return false
     return true
 
 func run(value: Resource, run_mode: int, emitter: Node = null, main_emitter: Node = null) -> bool:
@@ -63,7 +68,7 @@ func run(value: Resource, run_mode: int, emitter: Node = null, main_emitter: Nod
     panel.modulate.a = 0.0 if _source_presentation else 1.0
     show()
     panel.visible = item.box != 3
-    panel.configure(item.presentation, panel_style)
+    panel.configure(item.presentation, panel_style, item.box)
     # Authored fallback is used by fixtures or a user-authored item without source art.
     text.position = Vector2(4, 0) if item.box == 3 else Vector2(28, 28)
     text.size = Vector2(632, 44) if item.box == 3 else Vector2(278, 126)
@@ -139,6 +144,9 @@ func _process(delta: float) -> void:
             panel.modulate.a = float(PackedFloat32Array([next_alpha])[0])
             return
     if _source_presentation:
+        # The admitted style5 page bypasses partial reveal for every line.
+        # Both null-text padding records count toward the source page draw.
+        _source_page_complete = true
         # Source compares playback only while the owner's speech record exists.
         # Its draw overwrites the deadline in line order, never takes a minimum.
         if is_instance_valid(voice_emitter) and voice_emitter.get("source_dialogue_record") != null:
@@ -165,6 +173,7 @@ func _process(delta: float) -> void:
 func _render_page() -> void:
     var end: int = mini(page_start + item.lines_per_page(), item.lines.size())
     _source_page_deadline = SOURCE_UNTIMED_SECONDS
+    _source_page_complete = false
     if page_start < item.lines.size():
         _source_page_deadline = float(PackedFloat32Array([item.lines[page_start].end_seconds])[0])
     text.clear()
@@ -185,10 +194,22 @@ func _render_page() -> void:
                 view.text = item.message(span.key)
                 view.add_theme_font_override("font", style.font)
                 view.add_theme_color_override("font_color", style.normal_color)
-                if span.emphasis:
+                if span.emphasis and item.box != 5:
                     view.add_theme_color_override("font_outline_color", style.emphasis_color)
                     view.add_theme_constant_override("outline_size", 1)
-                view.position = origin + Vector2(style.span_origin(view.text, span.source_offset), (index - page_start) * style.line_spacing())
+                var span_x: float = style.chain_span_origin(span.source_offset) if item.box == 5 else style.span_origin(view.text, span.source_offset)
+                var line_pitch: float = style.chain_line_spacing() if item.box == 5 else style.line_spacing()
+                view.position = origin + Vector2(span_x, (index - page_start) * line_pitch)
+                if span.emphasis and item.box == 5:
+                    # Source draws the four emphasis passes in this order,
+                    # then the normal foreground. The native bitmap font has
+                    # the same admitted metrics for both source font roles.
+                    var shift: float = style.chain_emphasis_offset()
+                    for direction in [Vector2(1, -1), Vector2(1, 1), Vector2(-1, -1), Vector2(-1, 1)]:
+                        var outline: Label = view.duplicate()
+                        outline.add_theme_color_override("font_color", style.emphasis_color)
+                        outline.position += direction * shift
+                        source_text.add_child(outline)
                 source_text.add_child(view)
             if span.emphasis: text.push_color(Color(1.0, 0.83, 0.32))
             # add_text treats source brackets literally, without interpreting
@@ -208,6 +229,7 @@ func scroll(direction: int) -> void:
 func select() -> void:
     if item == null or closing or modulate.a < 0.99: return
     if _source_presentation and not _source_opened: return
+    if _source_presentation and page_start < item.lines.size() and (item.lines[page_start].flags & 2) != 0 and not _source_page_complete: return
     if page_start + item.lines_per_page() < item.lines.size():
         page_start += item.lines_per_page()
         _render_page()

@@ -365,3 +365,13 @@ frame, through the same guarded dialogue callback as natural playback finish.
 Explicit owner speech stop still clears its record immediately. These distinct
 paths preserve completion ownership without treating bulk request kill as a
 synchronous source holder clear.
+
+The bounded style5 dialogue path uses the source center stencil without frame
+edges. It accepts one unvoiced page of flags3 lines with no line layout or
+answer side effects. Null-text rows retain their vertical/page positions;
+normal and emphasis spans use the converted bitmap font, with four ordered
+emphasis passes before the normal foreground. Bit0 bypasses letter
+reveal, and bit1 permits selection only after the complete page has drawn.
+The shared Screen retains the existing owner/completion callback and explicit
+source selection. `keysico_gogood` has this contract; it has no icon or timed
+auto-close. Other style5 contracts remain explicit import/runtime failures.

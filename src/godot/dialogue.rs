@@ -136,5 +136,8 @@ pub(super) fn export(
     if value.box_style == 4 {
         project.diagnostic(format!("{}: native style4 two-line title; compiled source AI owns entry/waits/end; original pixel parity remains unverified", value.path));
     }
+    if value.box_style == 5 {
+        project.diagnostic(format!("{}: native center-only style5; one flags3 page bypasses letter reveal, counts null padding, and waits for accepted selection before the existing owner callback; source pixel/control-release parity remains unverified", value.path));
+    }
     Ok(())
 }

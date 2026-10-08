@@ -39,6 +39,25 @@ struct ItemWire {
     _hide_channels: u32,
     _voice: u32,
 }
+// Selection/module source bodies identify these fields. Unknown prefix/runtime
+// words remain unclassified; no pointer is traversed from those placeholders.
+#[derive(BinRead)]
+#[br(little)]
+struct AnswerWire {
+    stock_lists: [u32; 2],
+    _unknown_prefix: [u8; 16],
+    _text: u32,
+    _completion: u32,
+    _used: u32,
+    _unknown_word: u32,
+    branch: u32,
+    actions: [u32; 2],
+    modules: [u32; 2],
+    voice: u32,
+    result_mapping: [u32; 2],
+    signed_word: i32,
+    icon: i32,
+}
 #[derive(BinRead)]
 #[br(little)]
 struct LineWire {
@@ -288,7 +307,7 @@ impl ItemDecoder<'_> {
     fn read(&self, item: Address, name: String) -> Result<ItemImport> {
         let s = self.source;
         let h: ItemWire = wire(s.bytes(item, 52)?)?;
-        if h.answers != 1 || !matches!(h.box_style, 1 | 3 | 4) {
+        if h.answers != 1 || !matches!(h.box_style, 1 | 3 | 4 | 5) {
             return Ok(ItemImport::Unsupported(format!(
                 "{name}: {} answers and box style {} require additional dialogue semantics",
                 h.answers, h.box_style
@@ -315,13 +334,25 @@ impl ItemDecoder<'_> {
             )));
         };
         let answer = s.required(s.required(item, 4)?, 0)?;
-        let answer_bytes = s.bytes(answer, 80)?;
+        let answer_wire: AnswerWire = wire(s.bytes(answer, 80)?)?;
         if s.pointer(answer, 24)?.is_some()
-            || u32_at(answer_bytes, 40)? != 0
-            || u32_at(answer_bytes, 76)? != u32::MAX - 1
+            || answer_wire.branch != 0
+            || answer_wire.icon != -2
         {
             return Ok(ItemImport::Unsupported(format!(
                 "{name}: answer text, branching or icon behavior is not represented"
+            )));
+        }
+        if h.box_style == 5
+            && (answer_wire.stock_lists != [0; 2]
+                || answer_wire.actions != [0; 2]
+                || answer_wire.modules != [0; 2]
+                || answer_wire.voice != 0
+                || answer_wire.result_mapping != [0; 2]
+                || answer_wire.signed_word != 0)
+        {
+            return Ok(ItemImport::Unsupported(format!(
+                "{name}: style5 answer side effects require additional dialogue semantics"
             )));
         }
         let callback = if let Some(target) = s.pointer(answer, 28)? {
@@ -384,7 +415,7 @@ impl ItemDecoder<'_> {
                 h.ordinal as usize == lines.len(),
                 "{name}: dialogue line order differs"
             );
-            if h.flags != 0 {
+            if h.flags != 0 && !(box_style == 5 && h.flags == 3) {
                 return Ok(ItemImport::Unsupported(format!(
                     "{name}: dialogue line {} requires additional behavior (flags {:#04x})",
                     h.ordinal, h.flags
@@ -454,6 +485,19 @@ impl ItemDecoder<'_> {
             })
             .transpose()?
             .flatten();
+        if h.box_style == 5
+            && (lines.len() > 6
+                || voice.is_some()
+                || lines.iter().any(|line| {
+                    line.flags != 3
+                        || line.layout.is_some()
+                        || line.end_seconds.to_bits() != 0x7f7fc99e
+                }))
+        {
+            return Ok(ItemImport::Unsupported(format!(
+                "{name}: style5 requires one unvoiced page of flags3, unanchored, untimed lines"
+            )));
+        }
         if h.box_style == 4
             && (lines.len() > 2
                 || voice.is_some()

@@ -155,7 +155,7 @@ impl Content for Dialogue {
             "dialogue extraction currently validates English only"
         );
         ensure!(
-            matches!(self.box_style, 1 | 3 | 4),
+            matches!(self.box_style, 1 | 3 | 4 | 5),
             "unsupported dialogue box style"
         );
         ensure!(
@@ -197,6 +197,19 @@ impl Content for Dialogue {
                         .iter()
                         .all(|line| line.flags == 0 && line.end_seconds >= 3.0e38),
                 "unsupported style4 title semantics"
+            );
+        }
+        if self.box_style == 5 {
+            ensure!(
+                self.presentation.is_some()
+                    && self.lines.len() <= 6
+                    && self.voice.is_none()
+                    && self.lines.iter().all(|line| {
+                        line.flags == 3
+                            && line.layout.is_none()
+                            && line.end_seconds.to_bits() == 0x7f7fc99e
+                    }),
+                "unsupported style5 dialogue semantics"
             );
         }
         if let Some(voice) = &self.voice {

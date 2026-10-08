@@ -250,8 +250,8 @@ The lead requested this small connected follow-on after the first three
 presentation commits. It remains on the same isolated baseline branch. No
 build, compiler, formatter, type/lint check, test, export, Godot, original-game
 or other runtime command was run. Only original source, source asset metadata,
-existing implementation and authored diffs were inspected. No assets were
-written. The provisional branch stamps advance to Rete60/support79; the lead
+existing implementation and authored diffs were inspected. No original-game
+or generated assets were written. The provisional branch stamps advance to Rete60/support79; the lead
 must reconcile the unpublished union once before any later content conversion.
 
 Original-engine source commit
@@ -332,10 +332,123 @@ union. New support files are `ui/vignette.gd`, its UID and native scene; the
 authored session instances that same maintained component. Existing schema
 assertions were changed mechanically only and were not executed.
 
-The next source-only follow-on is the real key resource `keysico_gogood`:
+The separate follow-on below implements the real key resource `keysico_gogood`:
 box5, five flags3 lines, two null-text padding lines, one completion behavior
-to key703 Normal2, no voice and no item/answer icon. Current importer/render
-subset rejects it. The lead and original source translator are tracing its
-actual panel/text geometry and selection-after-page-complete contract before
-any separate implementation. No generic pickup popup or timed hold replaces
-that resource.
+to key703 Normal2, no voice and no item/answer icon. The prior importer/render
+subset rejected it; the separate source review establishes the panel/text
+geometry and selection-after-page-complete contract. No generic pickup popup
+or timed hold replaces that resource.
+
+## Independent style5 key-dialogue follow-on
+
+This follow-on changes only the source decoder, useful dialogue validation,
+native exporter diagnostic, and maintained dialogue/font/frame support. It
+does not change item acquisition, key stock, attachment, training or death
+logic. Rete60/support79 remain the unpublished branch contract from the prior
+GameOver batch; no further fields are added to persistence or native Resources.
+There are no generated assets or changes to main/peer worktrees. No checks,
+tests, compiler/formatter/lint/type commands, exports or runtime experiments
+were run. Review is source/data/diff inspection only.
+
+The copied-disc resource `keysico_gogood` belongs to world key142/model703.
+It has one answer, box5, five lines, no voice, no item/answer icon, no channel
+lists, no stock/gold/action/module side effects, no answer text or branch/result
+map, and a Normal2 completion reference. Both first lines contain a single
+normal-font record with an absent text pointer; those are padding records.
+Line2 has normal/emphasis/normal spans, line3 normal, line4 emphasis/normal.
+Every line has flags3, no drawing layout, and exact untimed-sentinel bits
+7f7fc99e. The semantic missing-text values already survive Rete/native export;
+the new admission keeps those empty rows in the five-line page.
+
+The original source translator independently corroborated the selector tables:
+style5 draw page size and selection stride both6. Each flags3 line bypasses
+the draw reveal-limit check through bit0, including the null padding records.
+The wrapper consequently consumes the entire five-line page and marks it
+complete/final. Bit1 blocks selection until page-complete becomes nonzero.
+After an accepted selection the original scrolling helper advances the page,
+enters mode0 and publishes the Normal2 continuation. There is no speech-started
+flag or ordered non-sentinel deadline to trigger timed selection. Partial
+letter reveal, choices, icons and next-page arrows are not needed for this item
+and remain unsupported rather than simulated.
+
+Source panel/calibration/text-chain helpers establish the geometry. Style5
+draws only the center material, with columns8/rows4, signed integer texture
+ratios and corner half-dimensions. Original Fix texture metadata and independently
+decrypted CNT GF headers agree that the four stencil textures are32×32. At
+calibrated origin0 the rectangle is left16/right304/top16/bottom176, or288×160.
+The native frame derives those bounds from the converted textures, hides edge
+and corner controls for style5, and restores the established frame layout when
+an ordinary dialogue runs afterward. PositionDialog still owns the supplied
+native source-pixel position; no pickup trigger/layout is authored into the
+game session.
+
+The native style5 font-record path maps the source's first-glyph half-width
+addition and centered FON projection to native left bearings. Intervening
+float32 stores do not prove bit-exact cancellation for arbitrary values.
+Calibration uses the corroborated float32 constant
+0.01406249962747097 and final float32 anchor stores; row pitch uses the
+corroborated0.30000001192092896. The converted FontFile supplies the space
+half-height and glyph bearings. Style5 now uses four ordered native emphasis
+labels at the source diagonal offsets, followed by the normal foreground;
+the admitted source font roles have identical glyph/atlas metrics. The
+replacement source layout is zeroed after emphasis and remains equivalent
+to the absent layouts admitted here. Existing style1/3/title geometry remains
+on its previous paths.
+Portable x87/renderer equivalence, exact emphasis pixels and full viewport
+projection remain outside this native adaptation's static proof.
+
+Importer admission is deliberately semantic rather than keyed to a resource
+name: one unvoiced page, flags3, no layouts, exact untimed deadlines, and no
+unrepresented answer effects. Answer fields are now a declarative80-byte
+private wire record with explicit unknown prefix/runtime words. Stock lists,
+actions, modules, answer speech, result mapping and signed selection word must
+be absent/zero for this new subset. Unsupported style5 resources keep a clear
+diagnostic. Native `can_run` applies the same representable page contract.
+
+Read-only copied-disc SNA/LZO and relocation decoding additionally confirms
+the existing importer admission fields: reserved header byte, item word+08
+and item word+20 are all zero. The decoder's original guards therefore admit
+this item; no meaning is invented for those unpromoted fields. No original
+text, source pointers or data-derived assets are saved by this inspection.
+
+The complete native page becomes eligible only after the shared source panel
+opening/draw gate. Both padding rows count despite creating no glyph labels.
+An accepted Button_Hit/SelectDialog then uses the existing Screen completion
+owner and Proc330 continuation consumer; the UI does not invent item ownership,
+modify MainActor DSG[56], or skip the key's later source behavior.
+
+**Remaining key-control dependencies:** the preserved full key703 Normal1
+path reaches unsupported camera Proc141 and Proc158 before RunDialog; its
+Normal2 reset reaches Proc141 before MainActor DSG[56] is cleared. Additional
+rotation/MTH calls on that path are owned by the key/mechanics workstream.
+The source translator found Proc141's handler missing from raw/current clean
+C and has not claimed its contract. Those callers still fail explicitly;
+this UI follow-on alone does not establish item-pickup/control-release or full
+Manor acceptance. The lead must compose their separate source/native camera
+work with this resource, then authorize later validation of padding positions,
+page-complete/early selection, emphasis, callback/cancel ordering and actual
+player control. No popup, timed hold, camera substitute or gameplay bypass is
+introduced here.
+
+Source corroboration is isolated original-engine commit
+`163b56c4fbf1282a79cead405541df4355a7521f`, following
+`c208b411a2cd3905369d8515cdcc17358e6f1e2e` for the GameOver chain.
+The five complete renderer/calibration helpers are in
+`src/dialogue/dialogue_text_coordinates.c`, `dialogue_font_chain.c` and
+`dialogue_panel.c`, with `include/hype/dialogue/renderer_internal.h`.
+Their `research/worker-deltas/sol-manor-presentation-style5-handoff.md`,
+`-evidence.json` and `-coverage.tsv` record the exact selected PE spans,
+constants, table values and copied-disc semantic metadata. All full new C
+bodies/header and the evidence were read for this follow-on. Font/quad driver,
+arbitrary x87 precision and pixel parity remain external contracts.
+
+Training sibling dependency: preserve both
+`84a124449b4470194e4080a508ed190dcaa5a5bf` and its follow-on
+`60a2aec4263ae41129fa706e97254be216047260`. That worker owns Proc136/reset,
+immediate Proc166 groups0/1, direct camera-mode3 activation and actor cleanup
+that calls `kill_all()` without synchronous holder clearing. Its settled
+training stage5 snapshot requires item21 plus the inactive/suppressed key
+after presentation/removal; it does not bypass this UI. Key703 Normal2's
+Proc141 primary-viewport prerequisite must be recovered before claiming
+the subsequent player-control release. Schema/support stamps60/79 are shared
+provisional branch values, not proof that sibling Resources are interchangeable.
