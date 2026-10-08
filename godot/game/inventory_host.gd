@@ -39,6 +39,7 @@ func open_inventory() -> bool:
             return false
         view.closed.connect(close_inventory)
         view.item_requested.connect(_item_requested)
+    view.reset_motion()
     if not view.bind_state(state): return false
     # Modal pause is owned only while this view is open. No Brain, actor state,
     # quantities, fixture, or save is replaced to show the inventory.
@@ -50,7 +51,9 @@ func open_inventory() -> bool:
     return true
 
 func close_inventory() -> void:
-    if is_instance_valid(view): view.hide()
+    if is_instance_valid(view):
+        view.reset_motion()
+        view.hide()
     if owns_pause and is_inside_tree(): get_tree().paused = false
     owns_pause = false
 

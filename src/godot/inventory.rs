@@ -15,6 +15,77 @@ fn vector(v: [f32; 2]) -> String {
 fn color(v: [f32; 4]) -> String {
     format!("Color({:?},{:?},{:?},{:?})", v[0], v[1], v[2], v[3])
 }
+fn motion_animation(name: &str, path: &str, offset: [f32; 2], motion: InventoryMotion) -> String {
+    let duration = motion.duration_seconds();
+    format!(
+        "[gd_resource type=\"Animation\" format=3]\n\n[resource]\nresource_name = {}\nlength = {:?}\nloop_mode = 0\nstep = {:?}\ntracks/0/type = \"value\"\ntracks/0/path = NodePath({})\ntracks/0/interp = 1\ntracks/0/loop_wrap = false\ntracks/0/keys = {{\n\"times\": PackedFloat32Array(0,{:?}),\n\"transitions\": PackedFloat32Array(1,1),\n\"update\": 0,\n\"values\": [{},Vector2(0,0)]\n}}\n",
+        quoted(name),
+        duration,
+        duration,
+        quoted(path),
+        duration,
+        vector(offset),
+    )
+}
+fn write_motion_animations(
+    project: &mut Project,
+    directory: &str,
+    value: &InventoryPresentation,
+) -> Result<String> {
+    let path = format!("{directory}/motion");
+    let animations = [
+        (
+            "category_up",
+            "Canvas/Categories:position",
+            [0.0, value.category_motion.distance],
+            value.category_motion,
+        ),
+        (
+            "category_down",
+            "Canvas/Categories:position",
+            [0.0, -value.category_motion.distance],
+            value.category_motion,
+        ),
+        (
+            "items_left",
+            "Canvas/Slots:position",
+            [-value.item_motion.distance, 0.0],
+            value.item_motion,
+        ),
+        (
+            "items_right",
+            "Canvas/Slots:position",
+            [value.item_motion.distance, 0.0],
+            value.item_motion,
+        ),
+    ];
+    let mut library =
+        String::from("[gd_resource type=\"AnimationLibrary\" load_steps=5 format=3]\n\n");
+    for (index, (name, track, offset, motion)) in animations.iter().enumerate() {
+        let resource_path = format!("{path}/{name}.tres");
+        project.write(
+            resource_path.clone(),
+            motion_animation(name, track, *offset, *motion).as_bytes(),
+        )?;
+        writeln!(
+            library,
+            "[ext_resource type=\"Animation\" path={} id=\"animation{index}\"]",
+            quoted(&format!("res://{resource_path}"))
+        )?;
+    }
+    library.push_str("\n[resource]\n_data = {\n");
+    for (index, (name, _, _, _)) in animations.iter().enumerate() {
+        writeln!(
+            library,
+            "{}: ExtResource(\"animation{index}\"),",
+            quoted(name)
+        )?;
+    }
+    library.push_str("}\n");
+    let library_path = format!("{directory}/motion.animlib.tres");
+    project.write(library_path.clone(), library.as_bytes())?;
+    Ok(library_path)
+}
 fn image(
     project: &mut Project,
     source: &mut impl ContentSource,
@@ -44,6 +115,7 @@ pub(super) fn export(
     value.validate()?;
     let directory = disk_path(&project.selection, &value.path, "");
     let directory = directory.trim_end_matches('.');
+    let motion_library_path = write_motion_animations(project, directory, value)?;
     let mut images = BTreeMap::new();
     for layer in value
         .categories
@@ -123,7 +195,7 @@ pub(super) fn export(
     }
     let mut text = format!(
         "[gd_scene load_steps={} format=3]\n",
-        value.items.len() + images.len() + 8
+        value.items.len() + images.len() + 9
     );
     for (id, script) in [
         ("screen", "screen"),
@@ -137,12 +209,13 @@ pub(super) fn export(
     }
     writeln!(
         text,
-        "[ext_resource type=\"Texture2D\" path={} id=\"background\"]\n[ext_resource type=\"FontFile\" path={} id=\"font\"]\n[ext_resource type=\"Theme\" path=\"res://addons/astrolabe/ui/menu/theme.tres\" id=\"theme\"]",
+        "[ext_resource type=\"Texture2D\" path={} id=\"background\"]\n[ext_resource type=\"FontFile\" path={} id=\"font\"]\n[ext_resource type=\"Theme\" path=\"res://addons/astrolabe/ui/menu/theme.tres\" id=\"theme\"]\n[ext_resource type=\"AnimationLibrary\" path={} id=\"motion\"]",
         quoted(&format!(
             "res://{}",
             disk_path(&project.selection, &value.background.path, "png")
         )),
-        quoted(&format!("res://{font_path}"))
+        quoted(&format!("res://{font_path}")),
+        quoted(&format!("res://{motion_library_path}"))
     )?;
     for (n, path) in images.values().enumerate() {
         writeln!(
@@ -319,7 +392,7 @@ pub(super) fn export(
     // The app owns unavailable-action status. This generated label is an editable seam.
     writeln!(
         text,
-        "\n[node name=\"Status\" type=\"Label\" parent=\"Canvas\"]\nvisible = false\noffset_left = 180.0\noffset_top = 420.0\noffset_right = 620.0\noffset_bottom = 470.0\ntheme_override_fonts/font = ExtResource(\"font\")\ntheme_override_font_sizes/font_size = 21\ntheme_override_colors/font_color = Color(1,1,1,1)\nautowrap_mode = 3"
+        "\n[node name=\"Status\" type=\"Label\" parent=\"Canvas\"]\nvisible = false\noffset_left = 180.0\noffset_top = 420.0\noffset_right = 620.0\noffset_bottom = 470.0\ntheme_override_fonts/font = ExtResource(\"font\")\ntheme_override_font_sizes/font_size = 21\ntheme_override_colors/font_color = Color(1,1,1,1)\nautowrap_mode = 3\n\n[node name=\"AnimationPlayer\" type=\"AnimationPlayer\" parent=\".\"]\nroot_node = NodePath(\"..\")\nlibraries = {{\n\"\": ExtResource(\"motion\")\n}}"
     )?;
     project.write(format!("{directory}/inventory.tscn"), text.as_bytes())?;
     project.diagnostic(format!("{}: native inventory presentation with original category/slot layout, icons/font and localized labels; consume/magic effects remain separate",value.path));
@@ -332,7 +405,7 @@ mod tests {
     use crate::model::{Selection, io::Load};
     use anyhow::Context;
     #[test]
-    #[ignore = "local source-only inventory import/Rete/native-text conversion; never starts an engine"]
+    #[ignore = "requires local Hype data and Godot; runs the source-to-Rete-to-native inventory UI check"]
     fn local_inventory_source_and_rete_native_conversion() -> Result<()> {
         let game = std::env::var_os("ASTROLABE_GAME_DIR")
             .map(std::path::PathBuf::from)
@@ -347,6 +420,30 @@ mod tests {
                 )
             });
         ensure!(!output.exists(), "source evidence path must be fresh");
+        let godot = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+        let syntax = scratch.path().join("syntax");
+        super::super::support::initialize(&syntax)?;
+        let harness = include_str!("../../godot/tests/inventory_scene_runtime.gd");
+        std::fs::write(syntax.join("inventory_runtime_validation.gd"), harness)?;
+        let parser_log = syntax.join("parser.log");
+        crate::godot::run_godot(
+            &godot,
+            &syntax,
+            &[
+                "--headless",
+                "--log-file",
+                parser_log.to_str().context("parser log path")?,
+                "--check-only",
+                "--script",
+                "res://inventory_runtime_validation.gd",
+            ],
+            std::time::Duration::from_secs(10),
+        )?;
+        let parser_diagnostics = std::fs::read_to_string(parser_log)?;
+        ensure!(
+            !parser_diagnostics.contains("ERROR:"),
+            "inventory syntax check: {parser_diagnostics}"
+        );
         let mut imported =
             crate::openspace::content::import_inventory(&game, Selection::hype("manoir", "en")?)?;
         ensure!(
@@ -370,6 +467,26 @@ mod tests {
         ensure!(
             original.category_scale == [0.5, 0.85] && original.item_scale == [0.75, 0.75, 1.0],
             "source selection scales differ"
+        );
+        ensure!(
+            original.category_motion
+                == InventoryMotion {
+                    distance: 96.0,
+                    speed_per_millisecond: 0.3,
+                }
+                && original.item_motion
+                    == InventoryMotion {
+                        distance: 50.0,
+                        speed_per_millisecond: 0.7,
+                    }
+                && (original.category_motion.duration_seconds() - 0.320).abs() < 0.00001
+                && (original.item_motion.duration_seconds() - (50.0 / 0.7 / 1000.0)).abs()
+                    < 0.00001,
+            "source inventory transition values differ"
+        );
+        ensure!(
+            original.text_position == [480.0, 375.0] && original.stats_position == [64.0, 64.0],
+            "source inventory text/stats origins differ"
         );
         for (id, label) in [(80, "Crossbow bolts"), (81, "Modern Crossbow bolts")] {
             let item = original
@@ -405,6 +522,27 @@ mod tests {
             "native category/slot controls or navigation absent"
         );
         ensure!(
+            scene.contains("type=\"AnimationLibrary\"")
+                && scene.contains("[node name=\"AnimationPlayer\"")
+                && scene.contains("motion.animlib.tres"),
+            "native source-motion AnimationPlayer is absent"
+        );
+        let generated = project
+            .stage
+            .path()
+            .join("generated/hype/shared/inventory/en/motion");
+        let category_up = std::fs::read_to_string(generated.join("category_up.tres"))?;
+        let item_left = std::fs::read_to_string(generated.join("items_left.tres"))?;
+        ensure!(
+            category_up.contains("length = 0.32")
+                && category_up.contains("PackedFloat32Array(0,0.32)")
+                && category_up.contains("Vector2(0.0,96.0)")
+                && category_up.contains("Canvas/Categories:position")
+                && item_left.contains("length = 0.071428575")
+                && item_left.contains("Vector2(-50.0,0.0)"),
+            "native animations do not preserve source distance/rate/timing"
+        );
+        ensure!(
             project.builder.find("ui_font_0.fixed_size = 21")
                 < project.builder.find("ui_font_0.set_font_name"),
             "font cache setup order regressed"
@@ -417,19 +555,43 @@ mod tests {
                     .contains("res://generated/hype/shared/inventory/en/counter.font.tres"),
             "native counter font builder absent"
         );
-        for path in &project.generated {
-            let source = project.stage.path().join(path);
-            if source.is_file() {
-                let target = output.join("project").join(path);
-                std::fs::create_dir_all(target.parent().unwrap())?;
-                std::fs::copy(source, target)?;
-            }
-        }
-        std::fs::write(output.join("font_build.gd"), &project.builder)?;
+        let manifest = project.finish(&godot)?;
         std::fs::write(
             output.join("inventory.json"),
             serde_json::to_vec_pretty(loaded.as_ref())?,
         )?;
+        std::fs::write(
+            output.join("manifest.json"),
+            serde_json::to_vec_pretty(&manifest)?,
+        )?;
+        let runtime_check = include_str!("../../godot/tests/inventory_scene_runtime.gd");
+        let project_path = output.join("project");
+        std::fs::write(
+            project_path.join("inventory_runtime_validation.gd"),
+            runtime_check,
+        )?;
+        let runtime_log = project_path.join("inventory-runtime.log");
+        let evidence = crate::godot::run_godot(
+            &godot,
+            &project_path,
+            &[
+                "--headless",
+                "--log-file",
+                runtime_log.to_str().context("runtime log path")?,
+                "--script",
+                "res://inventory_runtime_validation.gd",
+            ],
+            std::time::Duration::from_secs(45),
+        )?;
+        let runtime_diagnostics = std::fs::read_to_string(runtime_log)?;
+        ensure!(
+            !runtime_diagnostics.contains("ERROR:"),
+            "inventory runtime: {runtime_diagnostics}"
+        );
+        ensure!(
+            evidence.contains("INVENTORY_UI_OK"),
+            "Godot inventory runtime evidence is missing: {evidence}"
+        );
         Ok(())
     }
 }

@@ -29,13 +29,30 @@ Sprite list layers retain their order, original TextureInfo identity and explici
 size, with source defaults when the size is zero. The original background name
 resolves through Vignette.cnt; category/item/font images resolve through Textures.cnt.
 
+The Fix.sda presentation wire at file offset 272 stores category/item motion
+distance and rate pairs. The inventory setup callback `00418380` names them
+`BoxesDistance`, `BoxesScrollingSpeed`, `CasesDistance` and
+`CasesScrollingSpeed`; `0041b500` applies the signed offset by elapsed
+milliseconds and stops at the zero crossing. Timer type 0 is `timeGetTime()` at
+1,000 ticks per second (`00502620`, `00502680`). The supplied profile decodes to
+`[96, 0.3, 50, 0.7]`, so the native linear category transition lasts 320 ms and
+the six-slot row transition lasts about 71.43 ms. Up/down move the category layer
+by +96/−96 pixels; moving forward/back in the item list starts the row at
+−50/+50 pixels. `AnimationPlayer` and `AnimationLibrary` resources keep these
+motions editable in Godot. Directional input is held while either source
+transition runs, and open/close resets its position. The source selection scale
+and color changes remain immediate; the checked source routines do not establish
+an inventory open/close tween.
+
 The catalogue has 62 instantiated items. Stock pickup actions retain actual
 category and item references at +8/+12 (`0045bf00`, `0045c350`, `0045c370`,
 `0041c720`). The importer validates repeated bindings and publishes the 46
 corroborated ordinary items. Twelve NotFound magic placeholders and four other
 entries lack that binding and remain unsupported. Category membership is never
-inferred from a name or fabricated native list. Runtime ownership comes from the
-actor inventory Resource, including dictionary presence and negative sentinels.
+inferred from a name or fabricated native list. Runtime presentation ownership comes from admitted category slots in the
+shared native inventory Resource. Sparse legacy saves retain their saved IDs in
+`legacy_owned_ids`; a full catalogue quantity dictionary, including negative
+sentinels, does not establish ownership. See the [gameplay contract](inventory-gameplay.md).
 
 The inventory multilingual registration chain starts at pointer slot 18124.
 Its 52 writable text sites identify item-label table slots. `004a2310` and
@@ -51,16 +68,27 @@ is set before its name to preserve all glyph caches. The inventory has 127 glyph
 entries; it uses its own atlas and source projection. Dialogue keeps its existing
 atlas, projection, outline and glyph values. No fallback font is enabled.
 
-The authored host owns session/pause and item actions. It updates the existing
-selected_weapon for owned Weapon items. It does not replace quantity/removal/save
-semantics or implement source rendering, inventory memory machinery, consumption,
-magic effects, wheel animation, permissions or a new HUD. Native runtime/visual
-checks must be run by the shared authorized runner; source-only checks stop before
-Project::finish and do not establish original-game or actual session parity.
+The custom `Inventory.ini` structure also declares HUD-adjacent status elements
+(`JaugeArmor`, `JaugeMagic`, `JaugeSword`, `JaugePommeau`, era/time text and
+background-fading settings). Those are not Fix.sda values: their actual layout,
+asset bindings and drawing callback have not been recovered in the available
+decompilation, and the installed data tree has no loose `Inventory.ini`. The
+Fix.sda `text_position` and `stats_position` origins are now retained in the
+useful model as `(480, 375)` and `(64, 64)`. They do not provide the missing
+gauge/text layout or asset bindings. These remain explicit source-coverage gaps;
+no stand-in bars, icons, time or era values are emitted.
+
+The authored host owns session/pause and item actions. It calls the maintained
+weapon-selection API for owned Weapon items and propagates unresolved admission
+explicitly. Source timing becomes native animation tracks; consumption, magic
+effects and unknown status elements remain separate gameplay domains. The
+focused inventory check reloads Rete, finishes the independent native scene and
+checks admitted ownership, motion timing, blocked input and interrupted-motion
+reset. It does not establish complete original-game or actual-session parity.
 
 The supplied manual (`disc/HypeManual.pdf`, printed pages 12–15 and 18) establishes
 Tab as the default inventory key and configurable controls. Esc opens a separate
 pause menu (Resume, Load another adventure, Configuration, Return to main menu).
 The native inventory host consumes a non-echo Tab press before GUI focus navigation
-and ignores releases. The separate pause menu and configuration backend remain
-unsupported; this increment does not substitute inventory for that menu.
+and ignores releases. The actual game composes separate maintained inventory, pause and configuration
+screens; inventory does not own those menu operations.

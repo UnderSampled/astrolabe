@@ -719,6 +719,8 @@ impl GameSession {
     /// Capture the actor AI, selected inventory-derived spell and an optional
     /// short DynamicWorld tail while the original process is stopped once.
     /// This is source memory evidence, not a completed-update observation.
+    // Keep the established bounded observation inputs explicit at this API.
+    #[allow(clippy::too_many_arguments)]
     pub fn observe_magick_behavior(
         &self,
         actions: &[u32],

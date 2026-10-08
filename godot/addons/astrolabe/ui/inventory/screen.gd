@@ -17,6 +17,8 @@ var slot_views: Array[SLOT] = []
 var shown: Array[ITEM] = []
 var _quantities: Dictionary = {}
 var _weapon: int = -1
+var _navigation_action: StringName
+var _navigation_frame: int = -1
 
 func _ready() -> void:
     get_viewport().size_changed.connect(_layout)
@@ -56,11 +58,16 @@ func select_category(key: StringName) -> void:
     var selected := category_views[key] as CATEGORY
     if selected == null: return
     var changed := current_category != key
+    var previous := category_views.get(current_category) as CATEGORY
     current_category = key
     for value in category_views.values():
         var view := value as CATEGORY
         view.select(view.category == key or view.category == selected.parent_category)
-    if changed: window_start = 0
+    if changed:
+        window_start = 0
+        if previous != null and previous.parent_category.is_empty() and selected.parent_category.is_empty() and _navigation_frame == Engine.get_process_frames():
+            if _navigation_action == &"ui_up": _play_motion(&"category_up")
+            elif _navigation_action == &"ui_down": _play_motion(&"category_down")
     refresh()
 
 func refresh() -> void:
@@ -93,16 +100,33 @@ func refresh() -> void:
     _detail(focused.item if focused != null else null)
 
 func _process(_delta: float) -> void:
+    if _navigation_frame != Engine.get_process_frames():
+        _navigation_action = &""
+        _navigation_frame = -1
     if not visible or inventory == null: return
     if inventory.call("presentation_quantities") != _quantities or int(inventory.get("selected_weapon")) != _weapon: refresh()
 
 func _scroll(direction: int) -> void:
+    if $AnimationPlayer.is_playing(): return
     var next := clampi(window_start + direction, 0, maxi(shown.size() - slot_views.size(), 0))
     if next != window_start:
         window_start = next
         refresh()
         var focus := get_viewport().gui_get_focus_owner() as SLOT
         if focus != null: _detail(focus.item)
+        _play_motion(&"items_left" if direction > 0 else &"items_right")
+
+func _play_motion(name: StringName) -> void:
+    if $AnimationPlayer.is_playing(): return
+    $AnimationPlayer.play(name)
+
+func reset_motion() -> void:
+    if not is_node_ready(): return
+    $AnimationPlayer.stop()
+    $Canvas/Categories.position = Vector2.ZERO
+    $Canvas/Slots.position = Vector2.ZERO
+    _navigation_action = &""
+    _navigation_frame = -1
 
 func _detail(item: ITEM) -> void:
     $Canvas/Description.text = item.label.replace("#", "\n") if item != null else ""
@@ -135,3 +159,16 @@ func _unhandled_input(event: InputEvent) -> void:
     if visible and event.is_action_pressed("ui_cancel"):
         get_viewport().set_input_as_handled()
         closed.emit()
+
+func _input(event: InputEvent) -> void:
+    if not visible: return
+    if $AnimationPlayer.is_playing():
+        if event is InputEventMouse or event.is_action_pressed(&"ui_up") or event.is_action_pressed(&"ui_down") or event.is_action_pressed(&"ui_left") or event.is_action_pressed(&"ui_right"):
+            get_viewport().set_input_as_handled()
+        return
+    if event is InputEventKey and (event as InputEventKey).echo: return
+    for action in [&"ui_up", &"ui_down"]:
+        if event.is_action_pressed(action):
+            _navigation_action = action
+            _navigation_frame = Engine.get_process_frames()
+            return

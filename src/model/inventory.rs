@@ -22,11 +22,32 @@ pub struct InventoryPresentation {
     /// Ordinary, equipped, current item scales and ordinary/current colors.
     pub item_scale: [f32; 3],
     pub item_color: [[f32; 4]; 2],
+    /// Source `BoxesDistance` and `BoxesScrollingSpeed`, used by the vertical
+    /// category-box transition. Speed is measured per millisecond.
+    pub category_motion: InventoryMotion,
+    /// Source `CasesDistance` and `CasesScrollingSpeed`, used by the horizontal
+    /// six-slot item-row transition. Speed is measured per millisecond.
+    pub item_motion: InventoryMotion,
     pub counter_offset: [f32; 2],
+    /// Fix.sda inventory text origin retained from the source presentation wire.
+    pub text_position: [f32; 2],
+    /// Fix.sda inventory stats origin retained even though its gauge layout is not yet known.
+    pub stats_position: [f32; 2],
     pub description_position: [f32; 2],
     pub detail_position: [f32; 2],
     pub detail_scale: f32,
     pub font: InventoryFont,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct InventoryMotion {
+    pub distance: f32,
+    pub speed_per_millisecond: f32,
+}
+impl InventoryMotion {
+    /// The source timer uses one tick per millisecond (0041b500/00502620).
+    pub fn duration_seconds(self) -> f32 {
+        self.distance / self.speed_per_millisecond / 1000.0
+    }
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InventoryFont {
@@ -145,11 +166,24 @@ impl Content for InventoryPresentation {
                 && self
                     .counter_offset
                     .iter()
+                    .chain(&self.text_position)
+                    .chain(&self.stats_position)
                     .chain(&self.description_position)
                     .chain(&self.detail_position)
                     .all(|n| n.is_finite()),
             "invalid inventory scale"
         );
+        for motion in [self.category_motion, self.item_motion] {
+            ensure!(
+                motion.distance.is_finite()
+                    && (f32::MIN_POSITIVE..=640.0).contains(&motion.distance)
+                    && motion.speed_per_millisecond.is_finite()
+                    && (f32::MIN_POSITIVE..=10.0).contains(&motion.speed_per_millisecond)
+                    && motion.duration_seconds().is_finite()
+                    && (0.0..=5.0).contains(&motion.duration_seconds()),
+                "invalid inventory motion"
+            );
+        }
         ensure!(
             self.category_color
                 .iter()

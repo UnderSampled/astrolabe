@@ -21,6 +21,7 @@ var _session: Node
 var _initial_request := false
 var _session_transition_started := false
 var _resource_loading := false
+var _saved_loading_max_fps := -1
 
 func _ready() -> void:
 	# The loading screen is optional in older generated projects and is owned by
@@ -76,6 +77,7 @@ func _start_request(session: Node, normalized: String, entry: String, camera_ent
 	_initial_request = initial
 	_session_transition_started = session_transition_started
 	_resource_loading = true
+	_limit_loading_frames()
 	transition_started.emit(_current_level(session), normalized, _active_entry)
 	var request_error := ResourceLoader.load_threaded_request(path, "PackedScene", false, ResourceLoader.CACHE_MODE_REUSE)
 	if request_error != OK:
@@ -89,6 +91,7 @@ func cancel_current_transition() -> bool:
 	if not _busy or _terminal_sent or not _resource_loading:
 		return false
 	_cancel_requested = true
+	_restore_loading_frames()
 	_terminal_sent = true
 	transition_cancelled.emit(_active_level)
 	# Godot does not expose cancellation for ResourceLoader's threaded request.
@@ -122,18 +125,23 @@ func _load_and_install(level: String, entry: String, camera_entry: String, path:
 					if result.get("ok", false):
 						if not _terminal_sent:
 							_terminal_sent = true
+							_restore_loading_frames()
 							transition_completed.emit(level, "")
 					else:
 						_fail(str(result.get("message", "The initial level could not be opened.")))
 				else:
-					var destination := packed.instantiate() as Node3D
+					var instantiated := packed.instantiate()
+					var destination := instantiated as Node3D
 					if destination == null:
+						if is_instance_valid(instantiated):
+							instantiated.free()
 						_fail("The destination scene root is not a 3D level.")
 					else:
 						var result: Dictionary = await session.call("install_level_transition", destination, entry, camera_entry, packed)
 						if result.get("ok", false):
 							if not _terminal_sent:
 								_terminal_sent = true
+								_restore_loading_frames()
 								transition_completed.emit(level, entry)
 						else:
 							_fail(str(result.get("message", "The destination level could not be installed.")))
@@ -146,6 +154,7 @@ func _load_and_install(level: String, entry: String, camera_entry: String, path:
 		_clear_request()
 
 func _fail(message: String) -> void:
+	_restore_loading_frames()
 	if _session_transition_started and is_instance_valid(_session):
 		_session.call("abort_level_transition")
 	if not _terminal_sent:
@@ -153,6 +162,7 @@ func _fail(message: String) -> void:
 		transition_failed.emit(_active_level, message)
 
 func _clear_request() -> void:
+	_restore_loading_frames()
 	_busy = false
 	_cancel_requested = false
 	_terminal_sent = false
@@ -178,3 +188,19 @@ func _valid_level_name(level: String) -> bool:
 		if not ((code >= 97 and code <= 122) or (code >= 48 and code <= 57) or code == 45 or code == 95 or code == 126):
 			return false
 	return true
+
+# Measured startup mitigation: the actual service route bypasses the session's
+# fallback cap. Limit rendering only while loading/installing, without changing
+# a lower user limit or claiming a particular loader contention mechanism.
+func _limit_loading_frames() -> void:
+	if _saved_loading_max_fps < 0 and (Engine.max_fps == 0 or Engine.max_fps > 30):
+		_saved_loading_max_fps = Engine.max_fps
+		Engine.max_fps = 30
+
+func _restore_loading_frames() -> void:
+	if _saved_loading_max_fps >= 0:
+		Engine.max_fps = _saved_loading_max_fps
+		_saved_loading_max_fps = -1
+
+func _exit_tree() -> void:
+	_restore_loading_frames()

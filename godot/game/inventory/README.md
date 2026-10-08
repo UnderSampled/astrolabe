@@ -21,15 +21,25 @@ pause owned by this host. The view binds the actor's existing inventory Resource
 It never inserts items into New Game, restores a fixture or changes save schema.
 A missing generated scene/font/artwork reports an explicit required-assets error.
 
-Selecting an owned `Weapon` updates the same `selected_weapon` used by gameplay
-and saving. Item quantity queries/removal retain their existing semantics,
-including present negative sentinels. Potion/magic/object effects, dynamic item
-permission changes, source pickup-order preservation, category-wheel motion,
-item-scroll animation, stats and configurable controls remain
-unfinished. The initial catalogue includes 46 items with corroborated Stock
-category bindings; 16 source entries without those bindings are omitted rather
-than assigned to an invented category. This is an inventory presentation and
-owned-weapon selection increment, not complete original inventory parity.
+Selecting an owned `Weapon` calls the maintained selection API for the same
+`selected_weapon` used by gameplay and saving. Item quantity queries/removal retain their existing semantics,
+including present negative sentinels. Category up/down and six-slot row
+left/right motion now use native `AnimationPlayer`/`AnimationLibrary` tracks
+with Fix.sda's distance, rate and linear timing. New directional input is held
+until a transition completes; closing/reopening resets interrupted motion. The
+source does not establish an open/close tween, so that lifecycle remains
+immediate.
+
+Potion/magic/object effects, dynamic item permission changes, source pickup-order
+preservation, status gauges/text and configurable controls remain unfinished.
+The source names Armor, Magic, Sword and Pommeau gauges plus era/time and fading
+settings, but the `Inventory.ini` layout values and its drawing callback are not
+available in the installed loose data/decompilation. These HUD-adjacent elements
+remain tracked as an evidence gap rather than guessed controls or values. The
+initial catalogue includes 46 items with corroborated Stock category bindings;
+16 source entries without those bindings are omitted rather than assigned to an
+invented category. This is an inventory presentation and owned-weapon selection
+increment, not complete original inventory parity.
 
 The original manual (`disc/HypeManual.pdf`, printed pages 12–15 and 18) specifies
 Tab for inventory and Esc for a separate pause menu, with Resume, Load another
@@ -46,5 +56,6 @@ keyboard shortcut. Regeneration preserves authored scenes and unrelated generate
 packages; modifying a generated base in place triggers the existing safeguard.
 
 [Source format and evidence](../../../docs/openspace/inventory.md) describe
-conversion boundaries. Runtime QA is delegated exclusively to the shared Luna
-runner, and evidence must distinguish this presentation from actual session entry.
+conversion boundaries. The focused inventory runner checks source/Rete/native
+conversion, admitted ownership and animation timing/reset. Its independent
+presentation evidence is separate from actual session entry.

@@ -15,7 +15,9 @@
     "magick",
     "save",
     "runtime",
-    "comparison"
+    "comparison",
+    "inventory",
+    "loading"
   ],
   "dependencies": {
     "movement": [
@@ -43,7 +45,9 @@
     "comparison": [
       "runtime"
     ],
-    "runtime": []
+    "runtime": [],
+    "inventory": [],
+    "loading": []
   },
   "budgets_seconds": {
     "development": 720,
@@ -4417,14 +4421,17 @@
         "source",
         "rete",
         "scene",
-        "media"
+        "media",
+        "runtime",
+        "inventory"
       ],
-      "kind": "corpus",
+      "kind": "engine",
       "prerequisites": [
-        "disc"
+        "disc",
+        "godot"
       ],
-      "fixture": "supplied Hype English inventory; source-only import, fresh complete Rete reload, native scene/resource text and original PNGs; no engine launch",
-      "timeout_seconds": 30,
+      "fixture": "supplied Hype English inventory; complete Rete reload; saved native AnimationPlayer tracks, admitted catalogue state, source timing/input/reset; independent inventory export only",
+      "timeout_seconds": 120,
       "ignored": true,
       "release": true
     },
@@ -4729,13 +4736,15 @@
     },
     {
       "binary": "astrolabe",
-      "test": "godot::support::tests::snapshot_validation_helper_is_in_interface_60_and_staged",
+      "test": "godot::support::tests::actor_display_receiver_helper_is_in_interface_70_and_staged",
       "areas": [
-        "runtime"
+        "runtime",
+        "inventory",
+        "loading"
       ],
       "kind": "unit",
       "prerequisites": [],
-      "fixture": "Bundled Godot support interface staging",
+      "fixture": "Bundled current Godot support interface, actor receiver helpers and starter staging",
       "timeout_seconds": 30,
       "ignored": false,
       "release": true
@@ -4758,7 +4767,7 @@
     },
     {
       "binary": "astrolabe",
-      "test": "model::camera::tests::camera_angle_upper_bounds_are_read_from_source_offsets",
+      "test": "model::camera::tests::camera_shift_alpha_and_shift_teta_are_read_from_source_offsets",
       "areas": [
         "source",
         "scene",
@@ -5487,7 +5496,7 @@
       ],
       "fixture": "synthetic shared material variants, mutable diffuse uniforms, and preserved prelit RLI",
       "timeout_seconds": 45,
-      "ignored": true,
+      "ignored": false,
       "release": true
     },
     {
@@ -5765,6 +5774,414 @@
       "prerequisites": [],
       "fixture": "independent actor visitors share one compiled sound script and waveform while exporting distinct voices",
       "timeout_seconds": 5,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::loading_service",
+      "test": "production_loading_limit_restores_on_terminal_cancel_and_exit",
+      "areas": [
+        "runtime",
+        "loading"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "actual LevelTransition with synthetic native scene requests, awaited install, invalid scene root, lower caps, semaphore-held loader cancellation/draining and service exit",
+      "timeout_seconds": 35,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::ai::source_position_tests::compares_and_assigns_waypoint_resources_without_numeric_casts",
+      "areas": [
+        "source",
+        "ai",
+        "scene"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic named waypoint references and native compiled assignments",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::ai::source_position_tests::compiles_camera_shift_getters_with_selectors_and_guarded_perso_receivers",
+      "areas": [
+        "source",
+        "scene",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source camera shifts and typed AI/Rete expressions",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::ai::source_position_tests::compiles_ultra_display_receiver_to_its_named_perso",
+      "areas": [
+        "source",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic typed AI operands, explicit actor receivers and native compilation",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::ai::source_position_tests::compiles_ultra_distance_receiver_and_target_as_named_persos",
+      "areas": [
+        "source",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic typed AI operands, explicit actor receivers and native compilation",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::ai::source_position_tests::generated_waypoint_array_instance_assignments_parse_in_godot",
+      "areas": [
+        "source",
+        "ai",
+        "scene"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "Synthetic named waypoint references and native compiled assignments",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::ai::source_position_tests::unsupported_ultra_calls_keep_the_resolved_receiver_in_failure_output",
+      "areas": [
+        "source",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic typed AI operands, explicit actor receivers and native compilation",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::save_import::tests::optional_global_brain_field_adapter_rejects_wrong_semantics_and_inconsistent_absence",
+      "areas": [
+        "source",
+        "save"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source save registration, named actor ownership, typed Boolean and explicit ambiguity/absence",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::save_import::tests::optional_global_brain_field_preserves_boolean_and_absence_semantics",
+      "areas": [
+        "source",
+        "save"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source save registration, named actor ownership, typed Boolean and explicit ambiguity/absence",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::camera_shift_alpha_keeps_selector_and_perso_receiver",
+      "areas": [
+        "source",
+        "scene",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source camera shifts and typed AI/Rete expressions",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::camera_shift_teta_keeps_selector_and_perso_receiver",
+      "areas": [
+        "source",
+        "scene",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source camera shifts and typed AI/Rete expressions",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::opening_fade_and_music_calls_round_trip_as_ordered_native_semantics",
+      "areas": [
+        "source",
+        "ai",
+        "media"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic opening state and audio statements, source order and binary reconstruction",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::proc_set_game_state_preserves_its_long_operand",
+      "areas": [
+        "source",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic typed AI operands, explicit actor receivers and native compilation",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::ultra_display_calls_keep_the_resolved_actor_identity",
+      "areas": [
+        "source",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic typed AI operands, explicit actor receivers and native compilation",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::ultra_distance_to_perso_preserves_receiver_and_target",
+      "areas": [
+        "source",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic typed AI operands, explicit actor receivers and native compilation",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::ultra_main_actor_absolute_waypoint_receiver_round_trips",
+      "areas": [
+        "source",
+        "ai",
+        "scene"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic named waypoint references and native compiled assignments",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::brain_save::tests::ambiguous_actor_owners_are_rejected_without_selecting_a_candidate",
+      "areas": [
+        "source",
+        "save"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source save registration, named actor ownership, typed Boolean and explicit ambiguity/absence",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::brain_save::tests::canonical_owner_keeps_level_appearance_alias_separate",
+      "areas": [
+        "source",
+        "save"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source save registration, named actor ownership, typed Boolean and explicit ambiguity/absence",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::brain_save::tests::descriptor_ambiguity_is_rejected_explicitly",
+      "areas": [
+        "source",
+        "save"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source save registration, named actor ownership, typed Boolean and explicit ambiguity/absence",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::brain_save::tests::duplicate_semantic_identity_requests_are_rejected",
+      "areas": [
+        "source",
+        "save"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source save registration, named actor ownership, typed Boolean and explicit ambiguity/absence",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::brain_save::tests::global_intro_gate_projection_is_address_free_and_typed",
+      "areas": [
+        "source",
+        "save"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source save registration, named actor ownership, typed Boolean and explicit ambiguity/absence",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::brain_save::tests::godot_facing_brain_projection_contains_only_semantic_identity_and_value",
+      "areas": [
+        "source",
+        "save"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source save registration, named actor ownership, typed Boolean and explicit ambiguity/absence",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::brain_save::tests::optional_brain_projection_reports_only_a_missing_registered_record",
+      "areas": [
+        "source",
+        "save"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "Supplied Manor source/SAI Boolean projection: absent registered record is distinguished from malformed joins",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::level::brain_save::tests::source_brain_fields_join_to_named_owner_and_typed_value",
+      "areas": [
+        "source",
+        "save"
+      ],
+      "kind": "corpus",
+      "prerequisites": [
+        "disc"
+      ],
+      "fixture": "Supplied Manor Hype and lever Boolean SAI records joined to semantic owners and fields",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
+      "test": "source_cash_display_toggles_the_native_currency_hud",
+      "areas": [
+        "source",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic typed AI operands, explicit actor receivers and native compilation",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::ai",
+      "test": "source_laser_pointer_fly_mode_round_trips_and_updates_native_state",
+      "areas": [
+        "source",
+        "ai",
+        "rete"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "Synthetic typed source/Rete/compiled laser pointer mode plus maintained native actor-state consumer",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::camera_shift_getters",
+      "test": "camera_shift_expressions_round_trip_through_rete",
+      "areas": [
+        "source",
+        "scene",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source camera shifts and typed AI/Rete expressions",
+      "timeout_seconds": 10,
       "ignored": false,
       "release": true
     }
