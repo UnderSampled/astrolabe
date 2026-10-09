@@ -8,6 +8,9 @@ references, including a known null holder value. Proc386 retains the raw effects
 volume override, and Proc412 uses a bounded native effects fade followed by
 effects-only stop/reset. Voice playback remains independent. Explicit camera
 translation publication and changed boundary history update the actor's sector;
+mode-zero publication captures the saved final sector-child identity before its
+point lookup, selects the source second/third point, then updates membership
+before translation.
 native walk/mass motion maintains an existing sector. Ready-time null remains
 null until an explicit lifecycle publication; queries do not assign containment.
 

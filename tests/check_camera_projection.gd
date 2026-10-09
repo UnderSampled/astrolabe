@@ -222,10 +222,15 @@ func run() -> void:
     var probe_root := Node3D.new()
     probe_root.set_meta("source_level_scene", true)
     var probe_sector := Node3D.new()
+    probe_sector.name = "CameraSectorFinalChild"
     probe_sector.set_meta("source_sector_id", "camera-sector-probe")
     probe_sector.set_meta("source_sector", JSON.stringify({"virtual_sector": 0, "activation": 4, "collision": [], "unknown": [0,0,0], "boundary": {}}))
     probe_root.add_child(probe_sector)
-    var probe_owner := Node3D.new()
+    probe_root.set_meta("source_sector_fallback_path", NodePath("CameraSectorFinalChild"))
+    var probe_owner := CharacterBody3D.new()
+    probe_owner.set_script(load("res://addons/astrolabe/character/character.gd"))
+    probe_owner.set("autoplay", false)
+    probe_owner.set("motion_enabled", false)
     probe_owner.position = Vector3(0,0.5,0)
     probe_root.add_child(probe_owner)
     var probe_camera := Camera3D.new()
@@ -242,6 +247,7 @@ func run() -> void:
     floor_boundary.face_normals = PackedVector3Array([Vector3.UP])
     probe_sector.add_child(floor_boundary)
     root.add_child(probe_root)
+    probe_owner.process_mode = Node.PROCESS_MODE_DISABLED
     if not require(probe_owner.get_parent() == probe_root, "camera bootstrap fixture unexpectedly nested its owner under a source sector"): return
     if not require(probe_camera.call("_source_update_sector_history", probe_owner.global_position), "source 004e0020 did not seed boundary history for the unparented camera Perso"): return
     if not require(probe_camera.get("_source_active_sector") == probe_sector, "source 004e0020 bound the camera to the wrong initial sector"): return
@@ -423,14 +429,18 @@ func run() -> void:
 
     var resolved_sector: Dictionary = probe_camera.source_resolve_mode_zero_sector(Vector3(0,0.5,0))
     if not require(resolved_sector.get("sector_id", "") == "camera-sector-probe" and resolved_sector.get("complete", false), "source downward sector geometry did not resolve the active border GEO"): return
-    if not require(probe_camera.source_publish_mode_zero_translation(Vector3(0,0.5,0),Vector3(0.5,0.5,0)), "source same-sector pose publication failed"): return
-    if not require(probe_owner.global_position.is_equal_approx(Vector3(0.5,0.5,0)), "source same-sector pose publication chose the wrong argument"): return
+    if not require(probe_camera.source_publish_mode_zero_translation(Vector3(0,0.5,0),Vector3(0.5,0.5,0)), "source final-child pose publication failed"): return
+    if not require(probe_owner.global_position.is_equal_approx(Vector3(0.5,0.5,0)), "source final-child pose publication chose the wrong argument"): return
     var next_sector := Node3D.new()
     next_sector.set_meta("source_sector_id", "camera-sector-next")
-    next_sector.set_meta("source_sector", JSON.stringify({"virtual_sector": 0, "activation": 4, "collision": [], "unknown": [0,0,0], "boundary": null}))
+    next_sector.set_meta("source_sector", JSON.stringify({"virtual_sector": 0, "activation": 4, "collision": [], "unknown": [0,0,0], "boundary": {}}))
+    var next_boundary := floor_boundary.duplicate() as MeshInstance3D
+    next_boundary.name = "SectorBoundary"
+    next_boundary.position = Vector3(2,0,0)
+    next_sector.add_child(next_boundary)
     probe_root.add_child(next_sector)
-    if not require(probe_camera.source_publish_mode_zero_translation(Vector3(2,0.5,0),Vector3(1,0.5,0),"camera-sector-next"), "source cross-sector pose publication failed"): return
-    if not require(probe_owner.global_position.is_equal_approx(Vector3(2,0.5,0)), "source cross-sector pose publication chose the wrong argument"): return
+    if not require(probe_camera.source_publish_mode_zero_translation(Vector3(2,0.5,0),Vector3(1,0.5,0)), "source non-final-sector pose publication failed"): return
+    if not require(probe_owner.global_position.is_equal_approx(Vector3(2,0.5,0)), "source non-final-sector pose publication chose the wrong argument"): return
     var farther_sector := Node3D.new()
     farther_sector.set_meta("source_sector_id", "camera-sector-farther-boundary")
     farther_sector.set_meta("source_sector", JSON.stringify({"virtual_sector": 0, "activation": 4, "collision": [], "unknown": [0,0,0], "boundary": {}}))

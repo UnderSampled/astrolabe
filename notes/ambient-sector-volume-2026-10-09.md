@@ -1,5 +1,18 @@
 # Manor ambient actor sector and effects volume, static implementation
 
+Integration outcome: the original ambient and lifecycle commits are on main as
+`2645698f72ab02ad96329ad79fa25e8becf4bf16` and
+`7cf38563cb761ea45a8f7a0fca78c0ceed23b0e3`. The recovered final-child follow-on
+`dd545dfcfc7ca51283b469aea570771782033b74` is integrated as
+`2bf67a565d3771c5c2261779424d66b62440e967`. Rete62/support83 assertions and
+fixture migrations are reconciled; the camera fixture uses the maintained
+Character holder, final-child reference, actual second-sector geometry and
+two-argument publication API. Its test was not run. The approved Manor-only
+publication completed before the native-only follow-on; its existing semantic
+final-child binding remains valid. See the [composition/publication handoff](manor-ambient-channel-composition-2026-10-09.md).
+The isolated-worker restrictions and pending-integration statements below are
+historical; startup mode/list mapping and runtime acceptance remain uncertain.
+
 This isolated change starts at clean main `681b53ea74fbc44bec107be5fe5176e367a92753`, on `work/ambient-condition124` in `/tmp/astrolabe-ambient-condition124`. Kip owns integration, regeneration and any subsequent validation. Only existing source, code and data were read. No tests, builds, lints, formatter checks, probes, gameplay, original-game runs or exports were performed. Test sources, generated assets, reference submodules, main, saves and settings were not changed. No workers or pushes were launched.
 
 ## Observed failure and limits of the observation

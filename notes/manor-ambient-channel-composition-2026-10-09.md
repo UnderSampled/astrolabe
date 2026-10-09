@@ -1,10 +1,13 @@
-# Manor ambient/channel static composition — 2026-10-09
+# Manor ambient/channel composition and game handoff — 2026-10-09
 
 Kip authorized integrating the two isolated corrections after clean main
 `681b53ea74fbc44bec107be5fe5176e367a92753`, preserving the mana-pool correction
 `dd8dd291561097320092c70dbd389979e3177f3c`. No builds, tests, lints, formatter
 checks, regeneration, gameplay, original-game execution, reference changes or
-remote pushes occurred during this composition. Worker files remain unchanged.
+remote pushes occurred during the initial static composition. Kip subsequently
+approved the one converter build and Manor-only publication below, followed by
+the recovered native camera fix. Worker files remain unchanged. No new gameplay,
+test or lint suite was run for this handoff.
 
 ## Integrated source and reconciliation
 
@@ -13,8 +16,9 @@ remote pushes occurred during this composition. Worker files remain unchanged.
 | Absent logical-channel visibility | `b9c351f8f29051cfaa653f742232e71950cc50c3` | `54f5d16b6cf6e751b0190d05bc1b48d786bf99e4` |
 | Actor-sector condition and effects volume | `01afe20f802a890135a307dca4f4ac1b34b045ce` | `2645698f72ab02ad96329ad79fa25e8becf4bf16` |
 | Camera sector publication and movement maintenance | `f495b34f51f217eaee6fa07ccecd4b53877c92c4` | `7cf38563cb761ea45a8f7a0fca78c0ceed23b0e3` |
+| Recovered final-child camera branch | `dd545dfcfc7ca51283b469aea570771782033b74` | `2bf67a565d3771c5c2261779424d66b62440e967` |
 
-All three cherry-picks preserve original provenance. Their shared Character, AI,
+All four cherry-picks preserve original provenance. Their shared Character, AI,
 model and support changes combined without conflicts. Static comparison retains
 the mana subtraction's point-readiness guard and the channel component's
 byte-narrowed actor-owned state and native animation tracks.
@@ -31,7 +35,8 @@ The main compiler additionally limits native sector identity equality to
 object operands. A captured null uses the separately computed raw-zero/null
 payload condition; integers and float32 payload bits are never compared
 directly to a native Node3D. Capture still precedes evaluation of the second
-operand. This correction has not been executed or syntax-checked.
+operand. The approved converter build and original-source publication exercise
+this lowering; gameplay behavior remains unaccepted.
 
 The original condition/channel contract was reviewed at independent original-C
 commit `93d7d9efcf859469338bd95e35d3eb0ae26e919c`; Proc386 was reviewed at
@@ -67,47 +72,106 @@ ordered sector-root sibling when research returns no sector. Ordinary actor
 update004499b0 invokes00448280, which applies004e03f0 directional history after
 animation/motion. That history routine assumes a valid starting sector and
 does not initialize a null holder. The query00535460 does neither operation.
-Two original-source boundaries remain. Startup holder event00447900 has no
-reconstructed body, so its initial membership effects and ordering are unknown.
-The incomplete decompiled00448350 return leaves the camera's second/third
-position branch comparison unverified; this patch preserves the existing
-native branch policy. Neither boundary is an explicit native unsupported call
-or direct fail-stop. A known null passes membership readiness and compares
-false against the four nonnull ambient literals until a supported publication
-updates it. Missing startup effects or a different branch result could still
-alter behavior silently; that is fidelity uncertainty, not an accepted opening.
+Original-source commit `b94813c3d6b508aa53f7427b0f9844ecb89a539d` subsequently
+recovered00447900 and00448350. The latter returns the full final sector-root
+child pointer. Camera0051c7b0 captures it before researching the third position;
+a no-hit or final-child result selects the second point, another nonnull hit
+selects the third. The integrated follow-on compares native node identity,
+removes the caller's prequery/third sector-ID argument and incidental entry
+collision-history mutation, and refreshes membership before writing the chosen
+pose. The actual saved Manor scene already binds `source_sector_fallback_path`
+to `world/1/28` (Univers), so no generated contract changed. Original addresses
+remain reader/research evidence; the game uses the named native reference.
+
+The recovered startup callback's stable placement states are nonmember+mode2,
+member+mode4, or mode0/1, with repeated calls and original short-circuit order.
+The port does not yet map those startup snapshot modes and membership lists.
+No unconditional ready-time seed is added. Known null passes membership
+readiness and compares false against the four nonnull ambient literals until
+an explicit publication updates it. Startup membership and ordering therefore
+remain fidelity uncertainty; recovering the body does not accept the opening.
 
 The camera's existing incomplete point-resolver, missing sector/fallback
 binding and broader unmapped camera-motion branches can separately return
 false and stop its compiled Brain. Static review does not establish that such
 a guard is reached in this scene. Those guards are distinct from the two
-unreconstructed source boundaries. Kip owns the parallel source investigation.
+startup fidelity boundary.
 Generated-object inheritance of the new known-membership flag/path remains
 outside this placed ambient-actor slice. No guessed startup assignment,
 query-time containment or new shared resolver is added. The source composition
-is synchronized; compilation, publication and runtime behavior remain unverified.
+is synchronized. Compilation/publication succeeded below; the later native
+follow-on and mechanically migrated camera fixture were not executed.
 
-## Smallest proposed fresh-content update
+## Completed fresh-content publication
 
-The smallest proposed update is one fresh release converter build and the
-supported command
-`astrolabe port disc godot --level manoir --locale en --content scene` suffice
-for the currently published ownership graph. Import must start from original
-source; existing Rete61 snapshots do not contain the new sector semantics.
-The source checkout owns support through Git, so an addon installer must not
-overwrite it. All source support literals now agree on83.
+From clean `d1293abbbfaeb7f938f9b912f49f62a5ca270ee9`, the approved operations
+were `cargo build --release --locked --offline --bin astrolabe` and
+`target/release/astrolabe port disc godot --level manoir --locale en --content scene --godot /usr/bin/godot`.
+The build exited0 in72.54s; the supported conversion/native import/publication
+exited0 in433.46s. Both stayed within explicit300s/1200s budgets and ended with
+no timeout, leaked children or remaining processes. Source stayed unchanged
+through conversion. No additional suite, gameplay, original-game run, full
+conversion or packaging-only rebuild followed.
 
-The unchanged published manifest remains schema2/support82, SHA256
+The actual root manifest is schema2/support83 on pinned Godot
+`4.7.2.stable.arch_linux.ed1daf0bf`, SHA256
+`abd12f59e5b3e0983d38a2531f18ad6e8ef2c5171e4efba5a6ce4980d684cb26`.
+Its previous support82 SHA256 was
 `34db7a792f935976e859ea57a2477adc151f3ac0958e4a5595673d93846bc7a0`.
-Manor owns8,855 files; inventory213, menu88 and pause-menu27 own no character or
-AI resources. The only Manor files shared with those scopes are
+There are9,181 unique files: Manor8,855, inventory213, menu88, pause-menu27,
+with3,369 preserved diagnostics. Memberships, file identities and generated UID
+identities are preserved; no files were added or removed. The113 changed files
+are11 AI scripts,41 native animation libraries,60 Perso/template scenes and
+the saved native Manor root scene. All9,181 actual file hashes matched the
+published manifest. All retained UI file hashes are unchanged.
+
+The only Manor files shared with those UI scopes are
 `textures/FixTex/Inventor/Objects/Usable/plastiks_nz.gf.mips.tres` and
 `textures/FixTex/MOTORTXT/lettrageb.gf.mips.tres` under `generated/hype/`.
-Neither correction changes texture conversion. The ordinary publisher checks
-those hashes and refuses changed shared resources while other scopes depend
-on them. It also checks every owned replacement and preserves authored files,
-settings and unrelated scopes. This is a static scope proposal, not a successful
-build/publication or a new acceptance result.
+Both hashes are unchanged. Protected native saves, settings, imported original
+slot and `project.godot` are unchanged. The current useful model is Rete62;
+this direct original-source port did not serialize a new Rete snapshot.
+
+The maintained camera follow-on was applied only after publication finished.
+Actual root `godot/addons/astrolabe/camera/source_camera.gd` now has the corrected
+branch; its script path/UID, existing fallback NodePath and support83 contract
+are unchanged. The generated native scene references this maintained external
+script. The converter binary remains the d1293ab build; its embedded support
+predates this native-only follow-on, so it was not rebuilt merely for packaging.
+The affected camera fixture now uses a native Character holder and final-child
+binding, with real destination geometry and the two-argument method. Its source
+migration is committed without a test execution.
+
+Local evidence is under `output/ambient-channel-publication-20261009/`:
+`result.json`, both manifest snapshots, `generated-ai.diff`, build/port logs,
+and `remaining-checkout-status.json`. Generated assets and game-derived evidence
+remain ignored and local.
+
+## Normal launch and remaining limits
+
+Launch the actual prepared game normally:
+
+```sh
+godot --path /home/stephen/Projects/astrolabe/godot
+```
+
+Its entry remains `res://game/bootstrap.tscn`; both New Game and Load Game use
+the saved native Manor content. This handoff leaves no owned game/build process
+running. Preparation succeeds; the full opening and subsequent gameplay have
+not been accepted. The prior New Game acceptance failed before the completed
+intro, physical handoff, Load Game, HUD, inventory or barrel checks. Those
+observations are not superseded by publication. Startup membership mapping,
+source sound scheduling/gain, broader camera geometry/motion and generated
+actor membership inheritance retain their documented limits.
+
+Read-only status audited61 registered/preserved checkout locations. Five old
+archival paths are missing and remain unpruned. No current approved worker has
+uncommitted changes. Preserved `new-game-load-game` staging is already integrated
+or superseded, and the `session-recovery-20261008` note correction is already
+reconciled on main; neither requires replay or a new game commit. Six other
+dirty checkout directories contain retained temporary/validation/evidence
+files. Worker state remains untouched; the final main handoff commit owns all
+changes required here.
 
 Local Git fetches transferred the worker commit objects but reported an existing
 invalid Codex checkpoint ref during connectivity checking. Cherry-picks from
