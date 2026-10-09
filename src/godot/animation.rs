@@ -10,7 +10,8 @@ pub(super) struct Pose {
     pub transform: SourceTransform,
     pub object: Option<u16>,
     pub opacity: u8,
-    pub visible: bool,
+    /// Only object samples consume the source visibility override.
+    pub default_visibility: Option<bool>,
 }
 pub(super) fn bake(
     clip: &AnimationClip,
@@ -76,7 +77,8 @@ pub(super) fn bake(
                             } else {
                                 None
                             },
-                            visible: sample.visibility != 0 && sample.opacity > 0,
+                            default_visibility: (sample.kind == ChannelKind::Object)
+                                .then_some(sample.visibility != 0),
                             opacity: sample.opacity,
                         }
                     )
@@ -144,6 +146,25 @@ impl NativeAnimation {
         values: impl IntoIterator<Item = String>,
         fps: u8,
     ) -> Result<()> {
+        self.value_track(path, values, fps, 1)
+    }
+    /// Continuous native evaluation lets a property combine the current sample
+    /// with runtime state even when consecutive source values are identical.
+    pub fn continuous_values(
+        &mut self,
+        path: &str,
+        values: impl IntoIterator<Item = String>,
+        fps: u8,
+    ) -> Result<()> {
+        self.value_track(path, values, fps, 0)
+    }
+    fn value_track(
+        &mut self,
+        path: &str,
+        values: impl IntoIterator<Item = String>,
+        fps: u8,
+        update: u8,
+    ) -> Result<()> {
         let mut keys: Vec<(f64, String)> = Vec::new();
         for (index, value) in values.into_iter().enumerate() {
             if keys.last().is_none_or(|(_, v)| *v != value) {
@@ -155,7 +176,7 @@ impl NativeAnimation {
         self.tracks += 1;
         writeln!(
             self.text,
-            "tracks/{i}/type = \"value\"\ntracks/{i}/path = NodePath({})\ntracks/{i}/interp = 0\ntracks/{i}/loop_wrap = false\ntracks/{i}/keys = {{\n\"times\": PackedFloat32Array({}),\n\"transitions\": PackedFloat32Array({}),\n\"update\": 1,\n\"values\": [{}]\n}}",
+            "tracks/{i}/type = \"value\"\ntracks/{i}/path = NodePath({})\ntracks/{i}/interp = 0\ntracks/{i}/loop_wrap = false\ntracks/{i}/keys = {{\n\"times\": PackedFloat32Array({}),\n\"transitions\": PackedFloat32Array({}),\n\"update\": {update},\n\"values\": [{}]\n}}",
             quoted(path),
             keys.iter()
                 .map(|(t, _)| t.to_string())

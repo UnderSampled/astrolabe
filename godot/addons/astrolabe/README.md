@@ -1,4 +1,8 @@
-# Astrolabe support, interface 82
+# Astrolabe support, interface 83
+
+Interface83 retains byte-narrowed channel requests even without a matching rig
+node. Actor-owned overrides combine with native animation default-visibility
+keys, and disabled IDs are reapplied before native animation evaluation.
 
 Interface82 retains actor-owned activation/suppression and placed/generated
 removal, preserves paused compiled Brains, permits direct Proc12 placement of
@@ -151,9 +155,19 @@ the action chain. `select_state()` is still a direct, looping inspection overrid
 selection for gameplay diagnostics.
 
 The compiled `Proc_ActivateChannel` and `Proc_DeactivateChannel` calls use
-`source_set_channel_active(channel, active)`. It sets visibility on every
-exported channel parent whose `source_channel` metadata matches the script's
-typed channel operand; native animation tracks continue to select child parts.
+`source_set_channel_active(channel, active)`. The actor-owned
+`character/channel_visibility.gd` component narrows the operand to a byte,
+retains visibility overrides and ordered deactivated IDs, and sets visibility
+on every exported parent whose logical `source_channel` matches. An ID absent
+from the rig still changes that component state successfully, as original
+`00541880` does; a missing `Channels` binding or malformed matching node still
+fails. Native `channel.gd:sample_visibility` keys supply object-channel defaults
+and consume redundant overrides; absent/hidden channels do not consume them.
+Part-selection tracks stay independent of this visibility, including activation
+of a source-hidden object. Action changes reuse the native parents and component.
+Native animation updates reapply the persistent deactivated IDs. These are ordinary
+properties, native Animation tracks and visibility; no source channel/frame
+tables or OpenSpace module/linked-list machinery run in the port.
 Compiled inventory functions read and update `character/inventory.gd`, a shared
 native Resource holding the selected weapon and item quantities. Generated
 Persos share the spawning character's inventory reference. The Resource

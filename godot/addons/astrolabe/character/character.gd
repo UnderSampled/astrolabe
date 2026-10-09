@@ -12,6 +12,7 @@ const SOURCE_LASER_POINTER = preload("res://addons/astrolabe/character/laser_poi
 const SOURCE_RENDERING = preload("res://addons/astrolabe/character/rendering.gd")
 const SOURCE_LIFT_MOTION = preload("res://addons/astrolabe/character/lift_motion.gd")
 const SOURCE_CHANNEL_ATTACHMENT = preload("res://addons/astrolabe/character/channel_attachment.gd")
+const SOURCE_CHANNEL_VISIBILITY = preload("res://addons/astrolabe/character/channel_visibility.gd")
 const CONTACT_MATERIAL = preload("res://addons/astrolabe/character/explosive_barrel.gd")
 const SOURCE_COLLISION_QUERY_MAX_RESULTS := 4096
 const CAMERA_POST_CONTACT_POSITION := &"post_contact_position"
@@ -30,6 +31,7 @@ const CAMERA_RETAINED_POSITION_HISTORY := &"retained_position_history"
 var source_rendering := SOURCE_RENDERING.new()
 var source_lift_motion := SOURCE_LIFT_MOTION.new()
 var source_channel_attachment := SOURCE_CHANNEL_ATTACHMENT.new()
+var source_channel_visibility := SOURCE_CHANNEL_VISIBILITY.new()
 var source_opacity: int:
     get: return source_rendering.opacity
     set(value): source_rendering.opacity = value
@@ -1034,17 +1036,10 @@ func source_set_particle_generator_enabled(enabled: bool) -> bool:
     source_particle_generator_enabled = enabled
     return true
 
-## The exported rig retains source channel IDs on native Node3D parents.
-## Set the parent visibility so animation tracks can still select child parts.
+## Requests belong to the actor, including IDs absent from its current rig.
+## Matching native parents carry visibility independently of part-selection tracks.
 func source_set_channel_active(channel: int, active: bool) -> bool:
-    var channels := get_node_or_null("Channels")
-    if channels == null: return false
-    var found := false
-    for candidate in channels.get_children():
-        if int(candidate.get_meta("source_channel", -1)) == channel:
-            (candidate as Node3D).visible = active
-            found = true
-    return found
+    return source_channel_visibility.set_active(self, channel, active)
 
 func source_set_channel_parent(parent: Node3D, channel: int, attached: bool) -> bool:
     return source_channel_attachment.change(self, parent, channel, attached)
@@ -1673,6 +1668,7 @@ func _set_movement_shape_active(shape: CollisionShape3D, active: bool) -> void:
     shape.disabled = not active or (int(shape.get_meta("source_collision_identifier", 0)) & 0x8000) != 0
 
 func advance_native(seconds: float) -> void:
+    source_channel_visibility.reapply_deactivated(self)
     advancing = true
     animation_player.advance(seconds)
     if seconds > 0.0:
@@ -1686,6 +1682,7 @@ func advance_native(seconds: float) -> void:
 func seek_frame(index: int) -> void:
     if current_clip == null: return
     assert(index >= 0 and index < int(current_clip.get_meta("source_frames", 1)))
+    source_channel_visibility.reapply_deactivated(self)
     animation_player.seek(float(index) / maxf(sample_rate, 1.0), true, true)
 
 func restore_configuration() -> bool:

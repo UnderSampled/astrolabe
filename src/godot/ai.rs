@@ -3190,7 +3190,7 @@ fn statements(
                         out,
                         "{pad}if not character().source_set_channel_active({channel}, {active}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
                         quoted(&format!(
-                            "{} requires character channel {channel}",
+                            "{} requires native character channel visibility for operand {channel}",
                             model.path
                         ))
                     )?;
@@ -3200,7 +3200,7 @@ fn statements(
                         out,
                         "{pad}if not is_instance_valid(main_actor) or not character().source_actor_set_channel_active_from_receiver(main_actor, {channel}, {active}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
                         quoted(&format!(
-                            "{} requires MainActor channel {channel}",
+                            "{} requires MainActor channel visibility for operand {channel}",
                             model.path
                         ))
                     )?;
@@ -3211,7 +3211,7 @@ fn statements(
                         "{pad}if not character().source_actor_set_channel_active({}, {channel}, {active}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
                         quoted(actor.path.as_str()),
                         quoted(&format!(
-                            "{} requires channel receiver {} channel {channel}",
+                            "{} requires native channel visibility receiver {} for operand {channel}",
                             model.path, actor.path
                         ))
                     )?;
@@ -3548,7 +3548,7 @@ fn statements(
                     out,
                     "{pad}if not character().source_set_channel_active({channel}, {active}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
                     quoted(&format!(
-                        "{} requires converted character channel {channel}",
+                        "{} requires native character channel visibility for operand {channel}",
                         model.path
                     ))
                 )?;

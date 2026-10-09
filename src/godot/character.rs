@@ -872,7 +872,7 @@ fn export_rig(
     for channel in &channels {
         writeln!(
             function,
-            "    var c_{channel} = Node3D.new()\n    c_{channel}.name = \"channel_{channel}\"\n    channels.add_child(c_{channel})\n    c_{channel}.owner = actor\n    c_{channel}.set_meta(\"source_channel\", {})\n    c_{channel}.set_meta(\"source_channel_occurrence\", {})",
+            "    var c_{channel} = Node3D.new()\n    c_{channel}.set_script(native_resource(\"res://addons/astrolabe/character/channel.gd\"))\n    c_{channel}.name = \"channel_{channel}\"\n    channels.add_child(c_{channel})\n    c_{channel}.owner = actor\n    c_{channel}.set_meta(\"source_channel\", {})\n    c_{channel}.set_meta(\"source_channel_occurrence\", {})",
             channel % 256,
             channel / 256
         )?;
@@ -1050,6 +1050,16 @@ fn export_animation(
         fps,
     )?;
     for channel in channels {
+        anim.continuous_values(
+            &format!("Channels/channel_{channel}:sample_visibility"),
+            frames.iter().map(|f| {
+                f.get(channel)
+                    .and_then(|sample| sample.default_visibility)
+                    .map_or(-1, i32::from)
+                    .to_string()
+            }),
+            fps,
+        )?;
         anim.values(
             &format!("Channels/channel_{channel}:transform"),
             frames.iter().map(|f| {
@@ -1078,7 +1088,9 @@ fn export_animation(
                 let active = |f: &BTreeMap<u16, Pose>| {
                     f.get(&channel)
                         .filter(|s| restored == anchor_restored && s.object == Some(slot))
-                        .map(|s| (s.visible, s.opacity))
+                        // Channel visibility owns the sampled default and AI
+                        // override. The anchor only selects the current part.
+                        .map(|s| (s.opacity > 0, s.opacity))
                 };
                 anim.values(
                     &format!("{node}:visible"),

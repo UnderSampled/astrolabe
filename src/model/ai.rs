@@ -509,8 +509,9 @@ pub enum Statement {
         list: u16,
         actor: AssetRef<Perso>,
     },
-    /// Hype Proc_ActivateChannel / Proc_DeactivateChannel select an existing
-    /// character channel by its source channel number.
+    /// Hype Proc_ActivateChannel / Proc_DeactivateChannel request visibility
+    /// by logical channel ID. The runtime narrows the source operand to a byte
+    /// and retains deactivation even when the current animation has no module.
     SetChannelActive {
         channel: u32,
         active: bool,

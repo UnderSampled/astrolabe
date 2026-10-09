@@ -6,6 +6,10 @@
 
 ## Common records
 
+The [Manor channel visibility static correction](manor-channel-visibility-static-2026-10-09.md)
+traces the two absent-channel initialization failures, original request/default
+semantics and the actor-owned native correction without a new acceptance run.
+
 The [Manor promotion and actual-game acceptance](manor-promotion-acceptance-2026-10-09.md)
 records the approved main promotion, complete four-scope native publication,
 the single failed New Game session and its traced mana-subtraction guard.
