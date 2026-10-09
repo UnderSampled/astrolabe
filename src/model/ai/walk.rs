@@ -68,6 +68,7 @@ impl<'a> Iterator for AstWalk<'a> {
                         .push((AstNode::Expression(condition), child_depth));
                 }
                 Statement::Evaluate(value)
+                | Statement::SoundSetMyEffectsVolume(value)
                 | Statement::SetMagicPointsMaximum(value)
                 | Statement::Assign { value, .. }
                 | Statement::ActorFieldAssign { value, .. }
@@ -245,6 +246,11 @@ impl<'a> Iterator for AstWalk<'a> {
                     target,
                     duration_ms,
                     ..
+                }
+                | Statement::SoundFadeObjectAndStop {
+                    target,
+                    duration_ms,
+                    ..
                 } => self.expressions(child_depth, &[target, duration_ms]),
                 Statement::WaitInteger {
                     left,
@@ -402,12 +408,17 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::WaypointSphereContains {
                     actor: left,
                     waypoint: right,
+                }
+                | Expression::ActorInSector {
+                    actor: left,
+                    sector: right,
                 } => self.expressions(child_depth, &[left, right]),
                 Expression::Unsupported(_)
                 | Expression::AbsentButton(_)
                 | Expression::Nobody
                 | Expression::Nowhere
                 | Expression::Actor(_)
+                | Expression::SectorReference(_)
                 | Expression::Configuration(_)
                 | Expression::Integer(_)
                 | Expression::Real(_)

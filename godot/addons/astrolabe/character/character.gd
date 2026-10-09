@@ -53,6 +53,7 @@ var source_transparent_display: bool:
 @export var motion_enabled: bool = false
 @export_node_path("Marker3D") var source_picking_center_path: NodePath
 @export_node_path("Node3D") var source_contact_sector_path: NodePath
+@export var source_sector_membership_known: bool = false
 var source_contact_eligible: bool:
     get: return source_object_active and not source_return_suppressed
 ## StandardGame custom flags belong to this actor; draw/activation flags are separate.
@@ -1231,6 +1232,18 @@ func source_actor_node(actor_asset: String) -> Node3D:
         level = level.get_parent()
     return null
 
+## Sector operands identify scene-owned components, separately from Perso assets.
+func source_sector_node(sector_member: String) -> Node3D:
+    var level: Node = self
+    while level != null:
+        if level.has_meta("source_sector_nodes"):
+            var sectors: Dictionary = level.get_meta("source_sector_nodes")
+            if not sectors.has(sector_member): return null
+            var sector := level.get_node_or_null(sectors[sector_member]) as Node3D
+            return sector if is_instance_valid(sector) and sector.has_meta("source_sector_id") else null
+        level = level.get_parent()
+    return null
+
 ## Query the current behavior slot on a resolved actor. A missing Brain or an
 ## empty current slot is false, matching the source query's null-slot result.
 func source_actor_is_in_behavior(actor: Node3D, group: StringName, target: int) -> bool:
@@ -1578,13 +1591,25 @@ func source_refresh_contact_sector(sector: Node3D) -> bool:
     if not is_instance_valid(sector) or not is_inside_tree() or not sector.is_inside_tree() or not sector.has_meta("source_sector_id") or sector.get_tree() != get_tree():
         return false
     _contact_sector = sector
+    source_sector_membership_known = true
     source_contact_sector_path = get_path_to(sector)
     _contact_previous = global_position
     return true
 
-func source_contact_sector() -> Node3D:
+## SCT_ActorInSector reads holder+4 without recomputing geometric membership.
+## An absent holder/binding is an unsupported query; a bound null sector is valid.
+func source_sector_membership_ready() -> bool:
+    if not source_sector_membership_known: return false
+    if source_contact_sector_path.is_empty(): return _contact_sector == null
+    return is_instance_valid(source_current_sector())
+
+func source_current_sector() -> Node3D:
     if not is_instance_valid(_contact_sector) and not source_contact_sector_path.is_empty():
         _contact_sector = get_node_or_null(source_contact_sector_path) as Node3D
+    return _contact_sector
+
+func source_contact_sector() -> Node3D:
+    source_current_sector()
     if _contact_previous == null: _contact_previous = global_position
     if is_instance_valid(_contact_sector) and _contact_previous != global_position:
         var start: Vector3 = _contact_previous

@@ -473,6 +473,7 @@ fn decode_script(
     states: &BTreeMap<Address, StateRef>,
     actors: &BTreeMap<Address, AssetRef<Perso>>,
     waypoints: &BTreeMap<Address, AssetRef<crate::model::route::Waypoint>>,
+    sectors: &BTreeMap<Address, AssetRef<crate::model::scene::Scene>>,
     behaviors: &BTreeMap<Address, BehaviorRef>,
     script: &SourceScript,
 ) -> Result<Script> {
@@ -505,6 +506,14 @@ fn decode_script(
             && let Some(actor) = actors.get(&target)
         {
             codec.actors.insert(i, actor.clone());
+        }
+        if n.kind == 27 {
+            let target = s.pointer(add(script.address, i * 8), 0)?;
+            if let Some(sector) = target.and_then(|target| sectors.get(&target)) {
+                codec.sectors.insert(i, Some(sector.clone()));
+            } else if target.is_none() && n.parameter == 0 {
+                codec.sectors.insert(i, None);
+            }
         }
         if n.kind == 36
             && let Some(target) = s.pointer(add(script.address, i * 8), 0)?
@@ -597,6 +606,7 @@ fn decode_set(
     states: &BTreeMap<Address, StateRef>,
     actors: &BTreeMap<Address, AssetRef<Perso>>,
     waypoints: &BTreeMap<Address, AssetRef<crate::model::route::Waypoint>>,
+    sectors: &BTreeMap<Address, AssetRef<crate::model::scene::Scene>>,
     behaviors: &BTreeMap<Address, BehaviorRef>,
     set: &SourceSet,
 ) -> Result<BehaviorSet> {
@@ -615,7 +625,7 @@ fn decode_set(
                             slot.as_ref()
                                 .map(|script| {
                                     decode_script(
-                                        s, sounds, states, actors, waypoints, behaviors, script,
+                                        s, sounds, states, actors, waypoints, sectors, behaviors, script,
                                     )
                                 })
                                 .transpose()
@@ -625,7 +635,7 @@ fn decode_set(
                         .schedule
                         .as_ref()
                         .map(|script| {
-                            decode_script(s, sounds, states, actors, waypoints, behaviors, script)
+                            decode_script(s, sounds, states, actors, waypoints, sectors, behaviors, script)
                         })
                         .transpose()?,
                     unknown: b.unknown,
@@ -881,11 +891,23 @@ pub(super) fn import(
     material_ids: &mut BTreeMap<Address, AssetPath>,
 ) -> Result<()> {
     let source_actor_links = source_actor_links(s, actors)?;
+    // This Hype category-27 payload is the sector SuperObject, as confirmed
+    // by the actual ambient operands and holder+4. Raymap labels it SectorRef.
+    let tree = s.tree()?;
+    let mut sectors = BTreeMap::new();
+    for node in &tree {
+        if u32_at(s.bytes(node.address, 4)?, 0)? == 8 {
+            let reference = AssetRef::new(format!("{}#{}", result.scene.path, node.path))?;
+            ensure!(
+                sectors.insert(node.address, reference).is_none(),
+                "sector node occurs more than once"
+            );
+        }
+    }
     if u32_at(&s.gpt, 0x2ae0)? != 0 {
         let a = s.root(0x2ae0)?;
         let _: MainActorWire = wire(allocated(s, a, 20)?)?;
         let node = s.required(a, 4)?;
-        let tree = s.tree()?;
         let node = tree
             .iter()
             .find(|n| n.address == node)
@@ -1033,14 +1055,14 @@ pub(super) fn import(
                 normal: sets[0]
                     .as_ref()
                     .map(|set| {
-                        decode_set(s, &sounds, states, actors, &waypoints, &behavior_index, set)
+                        decode_set(s, &sounds, states, actors, &waypoints, &sectors, &behavior_index, set)
                     })
                     .transpose()
                     .with_context(|| format!("AI model {path} normal behavior set"))?,
                 reflex: sets[1]
                     .as_ref()
                     .map(|set| {
-                        decode_set(s, &sounds, states, actors, &waypoints, &behavior_index, set)
+                        decode_set(s, &sounds, states, actors, &waypoints, &sectors, &behavior_index, set)
                     })
                     .transpose()
                     .with_context(|| format!("AI model {path} reflex behavior set"))?,

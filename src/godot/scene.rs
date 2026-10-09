@@ -373,21 +373,54 @@ impl Project {
                         "    {sector_name}_boundary.neighbor_paths.assign([{targets}])"
                     )?;
                 }
+                // Preserve authored contact bindings when no imported holder
+                // is supplied. They do not fabricate known source membership.
                 for actor_id in &sector.persos {
-                    if scene
-                        .nodes
-                        .iter()
-                        .any(|candidate| candidate.id == *actor_id && candidate.perso.is_some())
+                    if scene.nodes.iter().any(|actor| {
+                        actor.id == *actor_id && actor.perso.is_some()
+                            && actor.properties.actor_sector.is_none()
+                    })
                     {
-                        let actor_name = &names[actor_id];
+                        let actor = &names[actor_id];
                         writeln!(
                             self.builder,
-                            "    {actor_name}_character.source_contact_sector_path = {actor_name}_character.get_path_to({sector_name})"
+                            "    {actor}_character.source_contact_sector_path = {actor}_character.get_path_to({sector_name})"
                         )?;
                     }
                 }
             }
         }
+        // Actor membership comes from its current-sector holder, independently
+        // of the sector's ordered actor list. Save native references in the scene.
+        for node in &scene.nodes {
+            if let Some(membership) = &node.properties.actor_sector {
+                let actor = &names[&node.id];
+                let target = membership.current.as_ref().map_or_else(
+                    || "NodePath()".to_owned(),
+                    |id| format!("{actor}_character.get_path_to({})", names[id]),
+                );
+                writeln!(
+                    self.builder,
+                    "    {actor}_character.source_contact_sector_path = {target}\n    {actor}_character.source_sector_membership_known = true"
+                )?;
+            }
+        }
+        writeln!(
+            self.builder,
+            "    var {scene_id}_source_sector_nodes = {{}}"
+        )?;
+        for node in scene.nodes.iter().filter(|node| node.sector.is_some()) {
+            writeln!(
+                self.builder,
+                "    {scene_id}_source_sector_nodes[{}] = {scene_id}.get_path_to({})",
+                quoted(&format!("{}#{}", scene.path, node.id)),
+                names[&node.id]
+            )?;
+        }
+        writeln!(
+            self.builder,
+            "    {scene_id}.set_meta(\"source_sector_nodes\", {scene_id}_source_sector_nodes)"
+        )?;
         writeln!(
             self.builder,
             "    var {scene_id}_source_actor_brains = {{}}\n    var {scene_id}_source_actor_nodes = {{}}\n    var {scene_id}_source_actor_entries = {{}}\n    {scene_id}.set_meta(\"source_level\", {})",

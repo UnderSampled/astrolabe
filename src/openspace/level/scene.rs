@@ -101,6 +101,18 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
         super::dialogue::load_language(&mut session, game, selection)?;
     }
     let tree = session.tree()?;
+    let mut sector_nodes = BTreeMap::new();
+    for node in &tree {
+        let header: SuperObjectWire = wire(session.bytes(node.address, 64)?)?;
+        if header.kind == 8 {
+            let component = session.required(node.address, SuperObjectWire::DATA)?;
+            let _: SectorWire = wire(session.bytes(component, 160)?)?;
+            ensure!(
+                sector_nodes.insert(node.address, node.path.clone()).is_none(),
+                "sector node occurs more than once"
+            );
+        }
+    }
     let source = summary(&session, selection, &tree)?;
     let mut result = SceneImport {
         inventory_catalog: None,
@@ -212,6 +224,28 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
         }
         result.scene.nodes.push(SceneNode {
             properties: crate::model::scene::SceneNodeProperties {
+                actor_sector: if kind == NodeKind::Perso {
+                    let perso = session.required(node.address, SuperObjectWire::DATA)?;
+                    let holder: PersoSectorWire = wire(session.bytes(perso, 44)?)?;
+                    if holder.sector_character_list == 0 {
+                        None
+                    } else {
+                        let holder = session.required(perso, 40)?;
+                        let _: SectorCharacterListWire = wire(session.bytes(holder, 24)?)?;
+                        let current = session
+                            .pointer(holder, 4)?
+                            .map(|target| {
+                                sector_nodes
+                                    .get(&target)
+                                    .cloned()
+                                    .context("actor current sector outside the active scene")
+                            })
+                            .transpose()?;
+                        Some(crate::model::scene::ActorSectorMembership { current })
+                    }
+                } else {
+                    None
+                },
                 source_kind: Some(header.kind),
                 source_visual_lod_count,
                 transform_space: if header.last_compute_frame == u32::MAX {

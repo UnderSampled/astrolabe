@@ -72,6 +72,10 @@ pub struct SceneNode {
 /// Node-owned state, independent of its reusable geometry and its data component.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SceneNodeProperties {
+    /// Scene-local actor sector state; absent means no source holder was bound.
+    /// This is independent of the sector's ordered character list.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub actor_sector: Option<ActorSectorMembership>,
     /// Preserve Hype's two IPO kind identities without splitting useful objects.
     pub source_kind: Option<u32>,
     /// Source VisualSet LOD count for physical visuals. Camera sector
@@ -136,6 +140,7 @@ pub enum TransformSpace {
 impl Default for SceneNodeProperties {
     fn default() -> Self {
         Self {
+            actor_sector: None,
             source_kind: None,
             source_visual_lod_count: None,
             transform_space: TransformSpace::Local,
@@ -144,6 +149,13 @@ impl Default for SceneNodeProperties {
             opacity: 255.,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ActorSectorMembership {
+    /// Perso+0x28 holder+4, as a named sector component in this scene.
+    /// None is a known null current-sector identity.
+    pub current: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -287,6 +299,20 @@ impl Content for Scene {
         let nodes: std::collections::BTreeMap<_, _> =
             self.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
         for node in &self.nodes {
+            if let Some(membership) = &node.properties.actor_sector {
+                ensure!(
+                    node.kind == NodeKind::Perso,
+                    "actor sector state on a non-actor node"
+                );
+                if let Some(current) = &membership.current {
+                    ensure!(
+                        nodes.get(current.as_str()).is_some_and(|candidate| {
+                            candidate.kind == NodeKind::Sector && candidate.sector.is_some()
+                        }),
+                        "actor current sector is missing: {current}"
+                    );
+                }
+            }
             if let Some(sector) = &node.sector {
                 ensure!(
                     node.kind == NodeKind::Sector,

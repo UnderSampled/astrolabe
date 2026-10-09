@@ -860,13 +860,13 @@ pub(super) struct StandardSaveWire {
     pub(super) custom_bits_init: u32,
     pub(super) suffix: [u8; 8],
 }
-/// 00447750 allocates 0x18 bytes; 00447bf0 writes the sector link at +4
-/// and copies it into the first word after reassigning the character.
+/// 00447750 allocates 0x18 bytes; 00447f90 reads the current sector SO at +4.
+/// 00447bf0 copies it to the previous-sector word after reassigning the actor.
 #[derive(BinRead, BinWrite)]
 #[brw(little)]
 pub(super) struct SectorCharacterListWire {
+    pub(super) previous_sector: u32,
     pub(super) current_sector: u32,
-    pub(super) sector_link: u32,
     pub(super) character_list: u32,
     pub(super) remaining: [u8; 12],
 }

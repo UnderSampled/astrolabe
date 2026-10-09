@@ -264,6 +264,20 @@ func source_switch_microphone(selected: Variant) -> bool:
 	var basis: Variant = NativeAudioEmitter.microphone_basis_for(actor)
 	return NativeAudioEmitter.switch_micro_perso(self, selected as Node3D, main_actor, basis)
 
+## Proc386 resolves the caller's effects component after its raw operand runs.
+func sound_set_my_effects_volume(value: int) -> bool:
+	var emitter := character().get_node_or_null("SoundEmitter")
+	if emitter == null or not emitter.has_method("source_set_effects_volume_word"): return false
+	emitter.call("source_set_effects_volume_word", value)
+	return true
+
+## Proc412 selects actor first; both operands still evaluate on the Brain caller.
+func sound_fade_object_and_stop(actor: Node3D, target: int, duration_ms: int) -> bool:
+	if not is_instance_valid(actor): return false
+	var emitter := actor.get_node_or_null("SoundEmitter")
+	if emitter == null or not emitter.has_method("source_fade_effects_and_stop"): return false
+	return bool(emitter.call("source_fade_effects_and_stop", target, duration_ms))
+
 ## Proc413's operands belong to the caller; only effects playback/fade use actor.
 func sound_fade_in_object(actor: Node3D, target: int, duration_ms: int, event: Resource) -> bool:
 	if not is_instance_valid(actor): return false

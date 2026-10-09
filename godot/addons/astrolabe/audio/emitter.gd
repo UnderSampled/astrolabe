@@ -81,6 +81,8 @@ func _physics_process(_delta: float) -> void:
 
 ## Per-object effects volume; source413 applies it before starting its event.
 var object_volume: float = 127.0
+## Exact source override word. Null means no override (004eb750's DWORD127).
+var source_effects_volume_override: Variant = null
 var volume_fades: Array[Tween] = []
 var is_music: bool = false
 var music_failure: String = ""
@@ -146,10 +148,59 @@ func stop_dialogue_speech() -> void:
         if not bool(info.get("uses_object_volume", true)): _stop_voice_info(info)
 
 func set_object_volume(value: float) -> void:
-    object_volume = clampf(value, 0.0, 127.0)
+    source_set_effects_volume_word(int(clampf(value, 0.0, 127.0)))
+
+## 004ed840/004eb750 store the full word; only exact127 removes the override.
+## Refresh active effects and let subsequent effects inherit the same gain.
+func source_set_effects_volume_word(value: int) -> void:
+    var word := value & 0xffffffff
+    source_effects_volume_override = null if word == 127 else word
+    object_volume = float(word)
     for info in voices:
         if bool(info.get("uses_object_volume", true)) and is_instance_valid(info.player):
             info.player.volume_db = linear_to_db(maxf(info.gain * object_volume / 127.0, 0.000001))
+
+## 0040bad0 admits at most ten outstanding effects fade-out requests.
+## Native Tweens own their lifetime; a full set reports and preserves all fades.
+func source_fade_effects_and_stop(target: int, duration_ms: int) -> bool:
+    var owner := get_tree().root
+    var fades: Array = owner.get_meta(&"astrolabe_effects_fades", [])
+    for fade in fades.duplicate():
+        if not is_instance_valid(fade) or not fade.is_running(): fades.erase(fade)
+    if fades.size() >= 10:
+        push_error("Source object effects fade-out capacity exceeded (10)")
+        return true
+    if duration_ms <= 0 or duration_ms > 0x7fffffff: return false
+    var initial: int = 127 if source_effects_volume_override == null else int(source_effects_volume_override)
+    var tween := get_tree().create_tween().bind_node(self)
+    fades.append(tween)
+    owner.set_meta(&"astrolabe_effects_fades", fades)
+    volume_fades.append(tween)
+    # The updater clamps its computed word, not the requested target/override.
+    tween.tween_method(func(elapsed: float):
+        var remaining := maxi(duration_ms - int(elapsed), 0)
+        var product := (remaining * ((target - initial) & 0xffffffff)) & 0xffffffff
+        if product >= 0x80000000: product -= 0x100000000
+        @warning_ignore("integer_division")
+        var quotient: int = product / duration_ms
+        var level := (target - quotient) & 0xffffffff
+        if level >= 0x80000000: level -= 0x100000000
+        source_set_effects_volume_word(clampi(level, 0, 127)),
+        0.0, float(duration_ms), float(duration_ms) / 1000.0).set_trans(Tween.TRANS_LINEAR)
+    tween.finished.connect(func():
+        # Free admission before the effects kill/reset, as in0040b900.
+        fades.erase(tween)
+        volume_fades.erase(tween)
+        for info in voices.duplicate():
+            if bool(info.get("uses_object_volume", true)):
+                if is_instance_valid(info.player): info.player.stop()
+                # Request removal stops playback; the next native frame
+                # publishes completion to holders, as for the bulk kill API.
+                if not bool(info.get("completion_pending", false)):
+                    info.completion_pending = true
+                    get_tree().process_frame.connect(complete_voice.bind(info), CONNECT_ONE_SHOT)
+        source_set_effects_volume_word(127))
+    return true
 
 ## Proc413 is nonblocking: silence this object's effects, send the event, then
 ## fade its effects volume. Null events still update the object's volume.

@@ -1,7 +1,7 @@
 //! Typed AI trees become ordinary GDScript control flow and native resource calls.
 use super::{Project, quoted};
 use crate::model::{
-    AssetPath,
+    AssetPath, AssetRef,
     ai::{walk::AstNode, *},
     character::{ObjectList, Perso},
     content::ContentSource,
@@ -70,6 +70,23 @@ pub(super) fn export_program(
     written: &mut BTreeSet<AssetPath>,
 ) -> Result<String> {
     model.validate()?;
+    for reference in model.sector_references() {
+        let scene_reference = AssetRef::<crate::model::scene::Scene>::new(
+            reference.path.as_str().split_once('#')
+                .context("sector reference lacks its owning scene")?.0,
+        )?;
+        let scene = source.load(&scene_reference)?;
+        scene.validate_reference(&scene_reference.path)?;
+        ensure!(
+            scene.nodes.iter().any(|node| {
+                Some(node.id.as_str()) == reference.path.member()
+                    && node.kind == crate::model::scene::NodeKind::Sector
+                    && node.sector.is_some()
+            }),
+            "{} names a missing sector component {}",
+            model.path, reference.path
+        );
+    }
     for variable in &model.variables {
         if let DesignerValue::ActorList(list) = &variable.default {
             ensure!(
@@ -974,7 +991,9 @@ fn comparison_code(
 
 fn reference_expression(expression: &Expression, model: &AiModel) -> bool {
     match expression {
-        Expression::WaypointReference(_) | Expression::Actor(_) => true,
+        Expression::WaypointReference(_)
+        | Expression::Actor(_)
+        | Expression::SectorReference(_) => true,
         Expression::Variable(index) | Expression::SelfFieldRead(index) => matches!(
             model
                 .variables
@@ -1016,6 +1035,8 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::WaypointPosition(_)
         | Expression::DistanceToWaypoint { .. }
         | Expression::WaypointSphereContains { .. }
+        | Expression::ActorInSector { .. }
+        | Expression::SectorReference(Some(_))
         | Expression::CollideWithNothing
         | Expression::LaserDirection
         | Expression::MagicCurrentSpell
@@ -1089,6 +1110,27 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         _ => false,
     }
 }
+/// Sound procedures consume the source scalar payload without numeric coercion.
+fn raw_scalar_word(
+    out: &mut String,
+    value: &Expression,
+    model: &AiModel,
+    depth: usize,
+    flow: &mut Flow,
+) -> Result<String> {
+    let value = guarded_expression(out, value, model, depth, flow)?;
+    let id = flow.local;
+    flow.local += 1;
+    let pad = "    ".repeat(depth);
+    let exit = flow.exit();
+    let failure = quoted(&format!("{} requires a scalar source DWORD sound operand", model.path));
+    writeln!(
+        out,
+        "{pad}var sound_operand_{id}: Variant = {value}\n{pad}var sound_word_{id}: int\n{pad}if typeof(sound_operand_{id}) == TYPE_FLOAT:\n{pad}    var sound_bytes_{id} := PackedByteArray()\n{pad}    sound_bytes_{id}.resize(4)\n{pad}    sound_bytes_{id}.encode_float(0, sound_operand_{id})\n{pad}    sound_word_{id} = sound_bytes_{id}.decode_u32(0)\n{pad}elif typeof(sound_operand_{id}) in [TYPE_INT, TYPE_BOOL]:\n{pad}    sound_word_{id} = int(sound_operand_{id}) & 0xffffffff\n{pad}else:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
+    )?;
+    Ok(format!("sound_word_{id}"))
+}
+
 /// A fragment emits a failure and exits the enclosing coroutine before a
 /// branch, assignment, or action request can use a fabricated fallback value.
 fn guarded_expression(
@@ -1104,6 +1146,36 @@ fn guarded_expression(
     let pad = "    ".repeat(depth);
     let exit = flow.exit();
     Ok(match e {
+        Expression::SectorReference(Some(reference)) => {
+            let local = format!("sector_operand_{}", flow.local);
+            flow.local += 1;
+            writeln!(
+                out,
+                "{pad}var {local}: Node3D = character().source_sector_node({})\n{pad}if not is_instance_valid({local}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                quoted(reference.path.as_str()),
+                quoted(&format!("{} requires named sector {}", model.path, reference.path))
+            )?;
+            local
+        }
+        Expression::ActorInSector { actor, sector } => {
+            let id = flow.local;
+            flow.local += 1;
+            let actor = guarded_expression(out, actor, model, depth, flow)?;
+            writeln!(
+                out,
+                "{pad}var sector_actor_{id}: Variant = {actor}\n{pad}if typeof(sector_actor_{id}) != TYPE_OBJECT or not is_instance_valid(sector_actor_{id}) or not sector_actor_{id}.has_method(\"source_sector_membership_ready\") or not sector_actor_{id}.source_sector_membership_ready():\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var captured_sector_{id}: Node3D = sector_actor_{id}.source_current_sector()",
+                quoted(&format!("{} SCT_ActorInSector requires the operand actor's bound sector holder", model.path))
+            )?;
+            // 00535460 captures holder+4 before the second caller expression.
+            // Read the maintained membership; this query performs no crossing.
+            let sector = guarded_expression(out, sector, model, depth, flow)?;
+            writeln!(
+                out,
+                "{pad}var compared_sector_{id}: Variant = {sector}\n{pad}var null_sector_payload_{id}: bool = compared_sector_{id} == null\n{pad}if typeof(compared_sector_{id}) in [TYPE_INT, TYPE_BOOL]:\n{pad}    null_sector_payload_{id} = (int(compared_sector_{id}) & 0xffffffff) == 0\n{pad}elif typeof(compared_sector_{id}) == TYPE_FLOAT:\n{pad}    var sector_payload_bytes_{id} := PackedByteArray()\n{pad}    sector_payload_bytes_{id}.resize(4)\n{pad}    sector_payload_bytes_{id}.encode_float(0, compared_sector_{id})\n{pad}    null_sector_payload_{id} = sector_payload_bytes_{id}.decode_u32(0) == 0"
+            )?;
+            // A raw zero payload equals a null pointer, independently of kind.
+            format!("(captured_sector_{id} == compared_sector_{id} or (captured_sector_{id} == null and null_sector_payload_{id}))")
+        }
         Expression::IsValidActor(actor) => {
             let value = guarded_expression(out, actor, model, depth, flow)?;
             let local = format!("actor_value_{}", flow.local);
@@ -1906,6 +1978,10 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
     Ok(match e {
         Expression::Nobody | Expression::Nowhere => "null".into(),
         Expression::Actor(actor) => actor_target_code(actor),
+        Expression::SectorReference(None) => "null".into(),
+        Expression::SectorReference(Some(_)) | Expression::ActorInSector { .. } => {
+            anyhow::bail!("sector expression requires guarded compilation")
+        }
         Expression::Configuration(None) => "null".into(),
         Expression::Configuration(Some(reference)) => configuration_constant(reference),
         Expression::Integer(v) => v.to_string(),
@@ -3928,6 +4004,33 @@ fn statements(
                 out,
                 "{pad}send_music(null)\n{pad}if not active_{group}(token): {exit}"
             )?,
+            Statement::SoundSetMyEffectsVolume(value) => {
+                let value = raw_scalar_word(out, value, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if not sound_set_my_effects_volume({value}):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}if not active_{group}(token): {exit}",
+                    quoted(&format!("{} requires the caller's native effects emitter", model.path))
+                )?;
+            }
+            Statement::SoundFadeObjectAndStop {
+                actor,
+                target,
+                duration_ms,
+            } => {
+                let id = flow.local;
+                flow.local += 1;
+                let receiver = format!("sound_receiver_{id}");
+                // Ultra selection precedes both caller-context evaluations.
+                // Resolve the emitter only after those operands have run.
+                writeln!(out, "{pad}var {receiver}: Node3D = {}", actor_target_code(actor))?;
+                let target = raw_scalar_word(out, target, model, depth, flow)?;
+                let duration = raw_scalar_word(out, duration_ms, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if not sound_fade_object_and_stop({receiver}, {target}, {duration}):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}if not active_{group}(token): {exit}",
+                    quoted(&format!("{} requires a native effects fade receiver and positive signed duration", model.path))
+                )?;
+            }
             Statement::SoundFadeInObject {
                 actor,
                 target,

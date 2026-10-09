@@ -577,6 +577,16 @@ pub enum Statement {
         actor: Expression,
         evaluated_second: Option<Expression>,
     },
+    /// Proc386 evaluates one raw scalar DWORD on the caller, then updates
+    /// that caller's effects-volume override. Exact 127 removes the override.
+    SoundSetMyEffectsVolume(Expression),
+    /// Proc412 captures the Ultra/self receiver, evaluates target then duration
+    /// on the caller, and fades effects before stopping that object's effects.
+    SoundFadeObjectAndStop {
+        actor: ActorTarget,
+        target: Expression,
+        duration_ms: Expression,
+    },
     /// Proc413 sets the receiver's effects volume to zero, sends the event,
     /// then starts a nonblocking fade. Operands use the original caller.
     SoundFadeInObject {
@@ -645,6 +655,15 @@ pub enum Expression {
     Nowhere,
     /// A source actor handle or one of the two AI actor keywords.
     Actor(ActorTarget),
+    /// Category-27 SectorRef is a named sector component in its owning scene.
+    /// None retains a source null identity, rather than an unresolved binding.
+    SectorReference(Option<AssetRef<super::scene::Scene>>),
+    /// SCT_ActorInSector captures the first operand's current sector before
+    /// evaluating the second operand on the original caller. No Ultra receiver.
+    ActorInSector {
+        actor: Box<Expression>,
+        sector: Box<Expression>,
+    },
     /// Category35 ObjectTableRef, including a null selection.
     Configuration(Option<AssetRef<ObjectList>>),
     Integer(i32),
@@ -1137,6 +1156,23 @@ impl Content for AiModel {
                 );
             }
         }
+        for script in self.scripts() {
+            for (node, _) in script.walk() {
+                if let AstNode::Statement(Statement::SoundFadeObjectAndStop {
+                    actor: ActorTarget::Variable(index),
+                    ..
+                }) = node
+                {
+                    ensure!(
+                        matches!(
+                            self.variables[usize::from(*index)].default,
+                            DesignerValue::Actor(_) | DesignerValue::SourceActor(_)
+                        ),
+                        "object fade receiver requires an actor-valued designer field"
+                    );
+                }
+            }
+        }
         for (reference, requires_own_model) in self.behavior_references_with_owner() {
             // A query may name a behavior in another actor's AI model. Its
             // owning model is resolved by the content adapter, not by `self`.
@@ -1292,6 +1328,15 @@ impl AiModel {
             }
         }
         out
+    }
+    pub fn sector_references(&self) -> Vec<&AssetRef<super::scene::Scene>> {
+        self.expressions()
+            .into_iter()
+            .filter_map(|expression| match expression {
+                Expression::SectorReference(Some(reference)) => Some(reference),
+                _ => None,
+            })
+            .collect()
     }
     pub fn configuration_references(&self) -> Vec<&AssetRef<ObjectList>> {
         let mut out = Vec::new();
@@ -1606,6 +1651,12 @@ impl Script {
                         "actor expression is a member"
                     )
                 }
+                Expression::SectorReference(Some(reference)) => {
+                    ensure!(
+                        reference.path.member().is_some(),
+                        "sector reference lacks a named scene member"
+                    );
+                }
                 Expression::Configuration(Some(reference)) => {
                     ensure!(
                         reference.path.member().is_none(),
@@ -1663,6 +1714,10 @@ impl Script {
                 | Expression::WaypointSphereContains {
                     actor: left,
                     waypoint: right,
+                }
+                | Expression::ActorInSector {
+                    actor: left,
+                    sector: right,
                 } => {
                     expression(left, variables, depth + 1, count)?;
                     expression(right, variables, depth + 1, count)?;
@@ -2102,11 +2157,22 @@ impl Script {
                         target,
                         duration_ms,
                         ..
+                    }
+                    | Statement::SoundFadeObjectAndStop {
+                        actor,
+                        target,
+                        duration_ms,
                     } => {
                         if let ActorTarget::Reference(actor) = actor {
                             ensure!(
                                 actor.path.member().is_none(),
                                 "sound fade receiver is a member"
+                            );
+                        }
+                        if let ActorTarget::Variable(variable) = actor {
+                            ensure!(
+                                usize::from(*variable) < variables,
+                                "sound receiver variable out of range"
                             );
                         }
                         expression(target, variables, depth + 1, count)?;
@@ -2131,6 +2197,9 @@ impl Script {
                     } => {
                         expression(target, variables, depth + 1, count)?;
                         expression(duration_ms, variables, depth + 1, count)?;
+                    }
+                    Statement::SoundSetMyEffectsVolume(value) => {
+                        expression(value, variables, depth + 1, count)?;
                     }
                     Statement::ExecuteFade {
                         from,

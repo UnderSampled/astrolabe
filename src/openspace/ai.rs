@@ -40,6 +40,9 @@ pub struct AiScriptCodec {
     pub behavior_handles: Vec<(BehaviorRef, u32)>,
     pub actors: BTreeMap<usize, AssetRef<Perso>>,
     pub actor_handles: Vec<(AssetRef<Perso>, u32)>,
+    /// Category-27 source SuperObjects resolve named scene sector nodes.
+    pub sectors: BTreeMap<usize, Option<AssetRef<crate::model::scene::Scene>>>,
+    pub sector_handles: Vec<(Option<AssetRef<crate::model::scene::Scene>>, u32)>,
     /// Source category-36 GameMaterialRef operands and write-time handles.
     pub materials: BTreeMap<usize, AssetRef<Material>>,
     pub material_handles: Vec<(AssetRef<Material>, u32)>,
@@ -685,6 +688,17 @@ impl Parser<'_> {
                             }
                         }
                     } else if let Some(actor_target) = actor_target.clone()
+                        && child.is_some_and(|n| {
+                            n.indent == indent + 1 && n.kind == 4 && n.parameter == 412
+                        })
+                    {
+                        self.take(indent + 1)?;
+                        Statement::SoundFadeObjectAndStop {
+                            actor: actor_target,
+                            target: self.expression(indent + 2)?,
+                            duration_ms: self.expression(indent + 2)?,
+                        }
+                    } else if let Some(actor_target) = actor_target.clone()
                         && child.is_some_and(|n| n.indent == indent + 1 && n.kind == 4 && n.parameter == 413)
                     {
                         self.take(indent + 1)?;
@@ -1065,6 +1079,12 @@ impl Parser<'_> {
                     arg0: self.expression(indent + 1)?,
                     arg1: self.expression(indent + 1)?,
                 },
+                (4, 386) => Statement::SoundSetMyEffectsVolume(self.expression(indent + 1)?),
+                (4, 412) => Statement::SoundFadeObjectAndStop {
+                    actor: ActorTarget::Keyword(ActorKeyword::SelfActor),
+                    target: self.expression(indent + 1)?,
+                    duration_ms: self.expression(indent + 1)?,
+                },
                 (4, 413) => {
                     let target = self.expression(indent + 1)?;
                     let duration_ms = self.expression(indent + 1)?;
@@ -1251,6 +1271,13 @@ impl Parser<'_> {
                 Some(actor) => Expression::Actor(ActorTarget::Reference(actor.clone())),
                 None => Expression::Unsupported(
                     self.unsupported(at, format!("unbound actor at node {at}"))?,
+                ),
+            },
+            (27, _) => match self.codec.sectors.get(&at) {
+                Some(sector) => Expression::SectorReference(sector.clone()),
+                None if id == 0 => Expression::SectorReference(None),
+                None => Expression::Unsupported(
+                    self.unsupported(at, format!("unbound sector at node {at}"))?,
                 ),
             },
             (35, 0 | u32::MAX)
@@ -1447,6 +1474,12 @@ impl Parser<'_> {
             (1, 108) => Expression::WaypointSphereContains {
                 actor: Box::new(self.expression(indent + 1)?),
                 waypoint: Box::new(self.expression(indent + 1)?),
+            },
+            // 00535460 evaluates the actor and captures its current sector
+            // before evaluating the second value. It does not select Ultra.
+            (1, 124) => Expression::ActorInSector {
+                actor: Box::new(self.expression(indent + 1)?),
+                sector: Box::new(self.expression(indent + 1)?),
             },
             (2, 24) => {
                 let (receiver_at, actor) = self.take(indent + 1)?;
@@ -2730,6 +2763,25 @@ impl Writer<'_> {
                         .1;
                     self.node(34, handle, operation_indent + 1);
                 }
+                Statement::SoundSetMyEffectsVolume(value) => {
+                    self.node(4, 386, indent);
+                    self.expression(value, indent + 1)?;
+                }
+                Statement::SoundFadeObjectAndStop {
+                    actor,
+                    target,
+                    duration_ms,
+                } => {
+                    let is_self = *actor == ActorTarget::Keyword(ActorKeyword::SelfActor);
+                    let operation_indent = if is_self { indent } else { indent + 1 };
+                    if !is_self {
+                        self.node(2, 24, indent);
+                        self.expression(&Expression::Actor(actor.clone()), indent + 1)?;
+                    }
+                    self.node(4, 412, operation_indent);
+                    self.expression(target, operation_indent + 1)?;
+                    self.expression(duration_ms, operation_indent + 1)?;
+                }
                 Statement::SoundFadeVoice {
                     target,
                     duration_ms,
@@ -2806,6 +2858,19 @@ impl Writer<'_> {
                 indent,
             ),
             Expression::Actor(ActorTarget::Reference(actor)) => self.actor_node(actor, indent)?,
+            Expression::SectorReference(reference) => {
+                let handle = if reference.is_none() {
+                    0
+                } else {
+                    self.codec
+                        .sector_handles
+                        .iter()
+                        .find(|(sector, _)| sector == reference)
+                        .context("missing assigned AI sector handle")?
+                        .1
+                };
+                self.node(27, handle, indent);
+            }
             Expression::Configuration(reference) => {
                 let handle = if reference.is_none() {
                     0
@@ -3344,6 +3409,11 @@ impl Writer<'_> {
                 self.node(1, 108, indent);
                 self.expression(actor, indent + 1)?;
                 self.expression(waypoint, indent + 1)?;
+            }
+            Expression::ActorInSector { actor, sector } => {
+                self.node(1, 124, indent);
+                self.expression(actor, indent + 1)?;
+                self.expression(sector, indent + 1)?;
             }
             Expression::GameTime => self.node(3, 41, indent),
             Expression::GameState => self.node(3, 195, indent),
