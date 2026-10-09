@@ -24,12 +24,24 @@ class Scene:
     shape_counts: Counter
     shape_bodies: set
     size: int
+    parked_payload_section_bytes: int
+
+
+def parked_template(key):
+    """Return the current converter's bank/slot name, excluding the bank root."""
+    parts = key.split('/')
+    for index, part in enumerate(parts[:-1]):
+        if part.startswith('bank_'):
+            return ((part, parts[index + 1])
+                    if re.fullmatch(r'payload_\d+', parts[index + 1]) else None)
+    return None
 
 
 def read_scene(path):
     resources, nodes = {}, []
     shape_counts, shape_bodies = Counter(), set()
     shape_type, shape_data = None, []
+    parked_payload_section_bytes, parked_section = 0, False
 
     def finish_shape():
         if shape_type is not None:
@@ -44,6 +56,7 @@ def read_scene(path):
                 shape_type, shape_data = None, []
                 attrs = {key: json.loads('"' + value + '"')
                          for key, value in ATTRIBUTES.findall(line)}
+                parked_section = False
                 if line.startswith('[ext_resource '):
                     if attrs.get('type') == 'PackedScene':
                         resources[attrs['id']] = attrs['path']
@@ -54,6 +67,7 @@ def read_scene(path):
                     parent = attrs.get('parent')
                     key = '' if parent is None else (
                         attrs['name'] if parent == '.' else parent + '/' + attrs['name'])
+                    parked_section = parked_template(key) is not None
                     instance = INSTANCE.search(line)
                     if 'instance=' in line and instance is None:
                         raise ValueError(f'{path}: unsupported non-external scene instance')
@@ -61,6 +75,8 @@ def read_scene(path):
                                   instance.group(1) if instance else None))
             elif shape_type is not None and line.strip():
                 shape_data.append(line.strip())
+            if parked_section:
+                parked_payload_section_bytes += len(line.encode())
     finish_shape()
     if not nodes or nodes[0][0] != '':
         raise ValueError(f'{path}: missing native scene root')
@@ -69,7 +85,8 @@ def read_scene(path):
         if instance is not None and instance not in resources:
             raise ValueError(f'{path}: missing PackedScene resource {instance}')
         resolved.append((key, kind, resources.get(instance)))
-    return Scene(resolved, shape_counts, shape_bodies, path.stat().st_size)
+    return Scene(resolved, shape_counts, shape_bodies, path.stat().st_size,
+                 parked_payload_section_bytes)
 
 
 def census(project, resource):
@@ -109,6 +126,16 @@ def census(project, resource):
     nodes = expand(resource)
     parked = {key: kind for key, kind in nodes.items()
               if any(part.startswith('bank_') for part in key.split('/'))}
+    parked_payloads = {}
+    template_keys = set()
+    bank_roots = 0
+    for key, kind in parked.items():
+        if key.rsplit('/', 1)[-1].startswith('bank_'):
+            bank_roots += 1
+        template = parked_template(key)
+        if template is not None:
+            parked_payloads[key] = kind
+            template_keys.add(template)
     shape_counts, shape_bodies = Counter(), set()
     for scene in scenes.values():
         shape_counts.update(scene.shape_counts)
@@ -124,6 +151,18 @@ def census(project, resource):
         'node_types': dict(Counter(nodes.values())),
         'parked_bank_node_paths': len(parked),
         'parked_bank_node_types': dict(Counter(parked.values())),
+        'bank_template_projection': {
+            'scope': 'structural candidate; retains every bank/anchor and initially selected payload; not generated or timed',
+            'retained_empty_bank_nodes': bank_roots,
+            'parked_payload_descendants_to_omit': len(parked_payloads),
+            'omitted_node_types': dict(Counter(parked_payloads.values())),
+            'projected_entry_node_paths': len(nodes) - len(parked_payloads),
+            'distinct_parked_template_keys': len(template_keys),
+            'template_identity_basis': 'existing converter bank name and original payload slot; source URIs must be verified during export',
+            'entry_parked_payload_section_bytes': scenes[resource].parked_payload_section_bytes,
+            'dependency_parked_payload_section_bytes': sum(scene.parked_payload_section_bytes for scene in scenes.values()),
+            'byte_scope': 'existing parked node headers/properties, including inherited overrides; excludes resource sections; shared templates/catalogues add unmeasured bytes',
+        },
         'embedded_shape_resources': dict(shape_counts),
         'distinct_embedded_shape_bodies': dict(Counter(kind for kind, _ in shape_bodies)),
         'scene_dependencies': sorted(scenes),

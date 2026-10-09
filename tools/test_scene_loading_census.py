@@ -40,6 +40,15 @@ radius = 2.0
             self.assertEqual(report['node_types']['MeshInstance3D'], 2)
             self.assertEqual(report['node_types']['Sprite3D'], 2)
             self.assertEqual(report['parked_bank_node_paths'], 8)
+            projection = report['bank_template_projection']
+            self.assertEqual(projection['retained_empty_bank_nodes'], 2)
+            self.assertEqual(projection['parked_payload_descendants_to_omit'], 6)
+            self.assertEqual(projection['projected_entry_node_paths'], 5)
+            self.assertEqual(projection['distinct_parked_template_keys'], 1)
+            self.assertEqual(projection['entry_parked_payload_section_bytes'],
+                             len('[node name="Visual" parent="First/bank_normal/payload_0"]\n'.encode()))
+            self.assertGreater(projection['dependency_parked_payload_section_bytes'],
+                               projection['entry_parked_payload_section_bytes'])
             self.assertEqual(report['embedded_shape_resources'], {'SphereShape3D': 2})
             self.assertEqual(report['distinct_embedded_shape_bodies'], {'SphereShape3D': 1})
             self.assertEqual(before, {p.name: p.read_bytes() for p in root.iterdir()})
