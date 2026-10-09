@@ -6532,6 +6532,24 @@
       "timeout_seconds": 10,
       "ignored": false,
       "release": true
+    },
+    {
+      "binary": "godot-harness::save_load_selection",
+      "test": "save_identity_gold_and_startup_require_complete_restoration",
+      "areas": [
+        "save",
+        "inventory",
+        "loading",
+        "runtime"
+      ],
+      "kind": "process",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "synthetic source-bound gold, explicit save identities and maintained compiled Brain startup; no game data or user saves",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
     }
   ]
 }

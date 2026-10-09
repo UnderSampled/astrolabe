@@ -4,9 +4,10 @@ extends Node3D
 ## seeds the manor; a native slot restores supported mutable player fields.
 
 const LEVEL := "res://generated/hype/levels/manoir/level.tscn"
-const GATE_ACTOR := "world/0/15/iMGrille_Manoir_Pont"
+const GATE_ACTOR := "level:/persos/world/0/15"
 const MANOIR_START = preload("res://game/manoir_start.gd")
 const SAVE_STATE = preload("res://game/save_state.gd")
+const SAVE_STARTUP = preload("res://game/save_startup.gd")
 const NATIVE_AUDIO_EMITTER = preload("res://addons/astrolabe/audio/emitter.gd")
 const SOURCE_CAMERA = preload("res://addons/astrolabe/camera/source_camera.gd")
 const LOADING_SCREEN_PATH := NodePath("/root/LevelTransition/LoadingScreen")
@@ -49,6 +50,8 @@ var _initial_transition_pending := false
 var _initial_failure_recovery_started := false
 var _initial_failure_recovery_cancelled := false
 var source_camera_controller_state: Resource
+## The selected file remains explicit through loading and an R reload.
+var selected_save: Dictionary = {}
 ## Hype's source game-state selector is one shared byte, not actor Brain state.
 var source_game_state_mask: int = 0
 ## A source death request is separate from Proc_SetGameState's selector mask.
@@ -247,14 +250,12 @@ func open_level() -> void:
     if not ResourceLoader.exists(LEVEL):
         fail("The manor has not been generated. See godot/README.md.")
         return
-    var saved: Dictionary = {"status":"missing"} if new_game else SAVE_STATE.read()
-    if saved["status"] == "error":
-        fail(str(saved["message"]))
-        return
-    var imported: Dictionary = {"status":"missing"} if new_game or saved["status"] == "loaded" else SAVE_STATE.read_original_import()
-    if imported["status"] == "error":
-        fail(str(imported["message"]))
-        return
+    if not new_game:
+        var source := str(get_tree().root.get_meta(SAVE_STATE.LOAD_SOURCE_META, ""))
+        selected_save = SAVE_STATE.read_for_load(source)
+        if selected_save["status"] != "loaded":
+            fail(str(selected_save.get("message", "The selected saved game is unavailable.")))
+            return
     var packed: PackedScene = content_cache.call("get_level", LEVEL) as PackedScene if content_cache != null else null
     if packed == null:
         stage("resource_loading", "Loading the manor...")
@@ -302,31 +303,34 @@ func open_level() -> void:
     if world_brain == null or not world_brain.get_property_list().any(func(property): return str(property["name"]) == "dsg_8"):
         fail("The generated manor is missing the saved dummy world flag.")
         return
-    var gate := level.get_node_or_null(GATE_ACTOR) as CharacterBody3D
-    var gate_brain := gate.get_node_or_null("Brain") if gate != null else null
-    if gate == null or gate_brain == null:
+    var gate_brain := SAVE_STATE._source_brain(level, GATE_ACTOR)
+    var gate := gate_brain.get_parent() as CharacterBody3D if gate_brain != null else null
+    if gate == null or str(gate.get_meta("source_perso", "")) != GATE_ACTOR:
         fail("The generated manor is missing iMGrille_Manoir_Pont or its Brain.")
         return
     var fixture := MANOIR_START.load_fixture()
     if fixture.is_empty():
         fail("The English-save starting state is missing.")
         return
-    brain.set("automatic", false)
-    gate_brain.set("automatic", false)
-    actor.set_physics_process(false)
+    var startup := SAVE_STARTUP.new()
+    var startup_error := startup.hold_before_tree(level)
+    if not startup_error.is_empty():
+        fail(startup_error)
+        return
     add_child(level)
     stage("tree_ready", "Restoring saved game...")
-    actor.set_physics_process(false)
+    startup_error = startup.hold_after_tree()
+    if not startup_error.is_empty():
+        fail(startup_error)
+        return
     var fixture_error: String = MANOIR_START.apply(actor, brain, fixture)
     if not fixture_error.is_empty():
         fail(fixture_error)
         return
-    var restore_state: Dictionary = saved["state"] if saved["status"] == "loaded" else imported["state"] if imported["status"] == "loaded" else {}
-    if not restore_state.is_empty():
-        var source_error: String = SAVE_STATE.apply(actor, level, restore_state)
-        if not source_error.is_empty():
-            fail(source_error)
-            return
+    var source_error: String = SAVE_STATE.apply(actor, level, selected_save["state"])
+    if not source_error.is_empty():
+        fail(source_error)
+        return
     demo_camera.set("target", actor)
     demo_camera.call("follow")
     demo_camera.make_current()
@@ -336,27 +340,31 @@ func open_level() -> void:
     await get_tree().physics_frame
     if not is_inside_tree():
         return
-    actor.set_physics_process(true)
+    startup.release_physics()
     await get_tree().physics_frame
     if not is_inside_tree():
         return
     stage("physics_ready", "Starting Hype...")
-    brain.set("automatic", true)
-    if not brain.call("start"):
-        fail("Hype's compiled behavior could not start.")
-        return
-    gate_brain.set("automatic", true)
-    if not gate_brain.call("start"):
-        fail("iMGrille_Manoir_Pont's compiled behavior could not start.")
+    startup_error = startup.start_brains()
+    if not startup_error.is_empty():
+        fail(startup_error)
         return
     await get_tree().process_frame
     if not is_inside_tree():
         return
+    if not is_instance_valid(brain) or not bool(brain.get("running")) or not str(brain.get("unsupported_failure")).is_empty():
+        fail("The restored player behavior stopped before controls became ready.")
+        return
+    if not actor.is_physics_processing() or not bool(actor.get("source_object_active")):
+        fail("The restored player is inactive before controls became ready.")
+        return
+    if source_get_game_state() != 1:
+        fail("The restored world has not entered the source gameplay state.")
+        return
     ready_to_play = true
     loading = false
-    var restored_save: bool = saved["status"] == "loaded" or imported["status"] == "loaded"
-    var loaded_message := "Original save loaded (supported fields only)" if imported["status"] == "loaded" and saved["status"] != "loaded" else "Saved game loaded"
-    stage("playable", loaded_message if restored_save else "Explore the manor")
+    var loaded_message := "Original save loaded (supported fields only)" if selected_save["source"] == SAVE_STATE.ORIGINAL_SOURCE else "Saved game loaded"
+    stage("playable", loaded_message)
     _finish_initial_transition(true, "")
 
 func open_new_game() -> void:
@@ -902,6 +910,8 @@ func _input(event: InputEvent) -> void:
         get_viewport().set_input_as_handled()
 
 func leave_session(destination: String) -> void:
+    if destination == "res://game/game_session.tscn" and not selected_save.is_empty():
+        get_tree().root.set_meta(SAVE_STATE.LOAD_SOURCE_META, selected_save["source"])
     var transitions := get_node_or_null("/root/LevelTransition")
     if transitions != null and bool(transitions.call("is_transitioning")):
         if not bool(transitions.call("cancel_current_transition")):

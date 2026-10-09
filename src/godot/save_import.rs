@@ -71,10 +71,7 @@ fn signed_i16(save: &SaveSlot, identity: &str) -> Result<i16> {
     ))
 }
 
-fn supported_inventory_quantities(
-    save: &SaveSlot,
-    item_zero: SavedInventoryItem,
-) -> Result<serde_json::Map<String, Value>> {
+fn supported_inventory_state(save: &SaveSlot, item_zero: SavedInventoryItem) -> Result<Value> {
     ensure!(
         item_zero.item_id == 0
             && item_zero.quantity >= 0
@@ -84,9 +81,9 @@ fn supported_inventory_quantities(
     );
     let mut quantities = serde_json::Map::new();
 
-    // The OpenSpace reader resolves item 0 from the Fix inventory composition;
-    // keep the native quantity key stable and preserve a saved zero verbatim.
-    quantities.insert(item_zero.item_id.to_string(), json!(item_zero.quantity));
+    // The Fix composition resolves item 0 as the special gold resource, which
+    // is not an ordinary catalogue member. Keep its independently owned value
+    // out of the ordinary item/admission dictionary, including an explicit zero.
 
     // Inventory main-list +10 stores signed instantiated item numbers. Map
     // only the item handles used by the current Godot manor slice; every
@@ -103,7 +100,7 @@ fn supported_inventory_quantities(
             quantities.insert(item.to_owned(), json!(value));
         }
     }
-    Ok(quantities)
+    Ok(json!({"gold": item_zero.quantity, "quantities": quantities}))
 }
 
 fn source_diagnostics_path(output: &Path) -> PathBuf {
@@ -308,7 +305,7 @@ fn godot_state(
     let global_gate_sequence = saved_bool(save, "0:17:4560", 0x10)?;
     let global_intro_latch = global_intro_latch(game, save)?;
 
-    let quantities = supported_inventory_quantities(save, item_zero)?;
+    let inventory = supported_inventory_state(save, item_zero)?;
 
     let magick = json!({
         "current_points": current_mana,
@@ -324,7 +321,11 @@ fn godot_state(
             "No saved semantic value resolved for optional Global Brain dsg_147; the field was omitted so native restore preserves the scene-defined initial value.".to_owned(),
         );
     }
-    if quantities.len() != 6 {
+    if inventory["quantities"]
+        .as_object()
+        .map_or(0, |value| value.len())
+        != 5
+    {
         warnings.push(
             "One or more supported source item numbers use special negative values; their raw records remain preserved.".to_owned(),
         );
@@ -336,7 +337,7 @@ fn godot_state(
         "actors": {
             "world/0/0/Hype": {
                 "magick": magick,
-                "inventory": {"quantities": quantities},
+                "inventory": inventory,
                 "transform": {"position": position},
             },
             "fix:/persos/15": {
@@ -445,7 +446,7 @@ pub fn import_original_slot(
 mod tests {
     use super::{
         global_brain_state, global_intro_latch_from_projection, godot_basis, source_rotation,
-        supported_inventory_quantities,
+        supported_inventory_state,
     };
     use crate::model::ai::DesignerValue;
     use crate::openspace::level::SavedInventoryItem;
@@ -530,11 +531,11 @@ mod tests {
             quantity: 0,
             capacity: 200,
         };
-        let quantities =
-            supported_inventory_quantities(&save, item_zero).expect("supported quantities");
-        assert_eq!(quantities["0"], 0);
-        assert_eq!(quantities["80"], 8);
-        assert_eq!(quantities.len(), 6);
+        let inventory = supported_inventory_state(&save, item_zero).expect("supported inventory");
+        assert_eq!(inventory["gold"], 0);
+        assert!(inventory["quantities"].get("0").is_none());
+        assert_eq!(inventory["quantities"]["80"], 8);
+        assert_eq!(inventory["quantities"].as_object().unwrap().len(), 5);
     }
 
     #[test]
@@ -550,10 +551,11 @@ mod tests {
             quantity: 20,
             capacity: 200,
         };
-        let original_state = supported_inventory_quantities(&save, original).unwrap();
-        let relocated_state = supported_inventory_quantities(&save, relocated).unwrap();
+        let original_state = supported_inventory_state(&save, original).unwrap();
+        let relocated_state = supported_inventory_state(&save, relocated).unwrap();
         assert_eq!(original_state, relocated_state);
-        let payload = serde_json::json!({"inventory":{"quantities":relocated_state}});
+        assert_eq!(relocated_state["gold"], 20);
+        let payload = serde_json::json!({"inventory":relocated_state});
         let serialized = serde_json::to_string(&payload).unwrap();
         for forbidden in ["offset", "block", "module", "relocation", "5790", "5828"] {
             assert!(!serialized.contains(forbidden));

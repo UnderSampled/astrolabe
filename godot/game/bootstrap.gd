@@ -5,7 +5,9 @@ const MENU_SCENE := "res://generated/hype/shared/menu/main/en/menu.tscn"
 const SETTINGS_SCENE := "res://game/settings_menu.tscn"
 const CONFIGURATION_SCENE := "res://generated/hype/shared/menu/configuration/en/menu.tscn"
 const CREDITS_SCENE := "res://game/credits_menu.tscn"
+const LOAD_GAME_SCENE := "res://game/load_game_picker.tscn"
 const MENU_VIEW = preload("res://addons/astrolabe/ui/menu/menu.gd")
+const LOAD_GAME_PICKER = preload("res://game/load_game_picker.gd")
 const SAVE_STATE = preload("res://game/save_state.gd")
 const INITIAL_ROUTE_ERROR_META := "astrolabe_initial_route_error"
 
@@ -22,6 +24,7 @@ var opening_game := false
 var _menu_button_disabled: Dictionary = {}
 var configuration: Control
 var credits: Control
+var save_picker: LOAD_GAME_PICKER
 
 func _ready() -> void:
     if menu_scene == null and ResourceLoader.exists(MENU_SCENE):
@@ -49,15 +52,15 @@ func _ready() -> void:
             error_quit.grab_focus()
         push_error(details.text)
         return
-    var slot: Dictionary = SAVE_STATE.read()
+    var candidates := SAVE_STATE.load_candidates()
     var manor_available := ResourceLoader.exists(MANOR)
-    load_game.disabled = not manor_available or slot["status"] == "error"
+    load_game.disabled = not manor_available or candidates.is_empty()
     new_game.disabled = not manor_available
     if not manor_available:
         details.text = "Prepare the game data from your Hype copy to play."
         status.show()
-    elif slot["status"] == "error":
-        details.text = "Load Game unavailable: " + str(slot["message"])
+    elif candidates.is_empty():
+        details.text = "No saved game is available. Start New Game or import an original Hype save."
         status.show()
     var initial := menu.get_node_or_null(menu.initial_focus) as Button
     if initial != null and not initial.disabled:
@@ -158,10 +161,47 @@ func _input(event: InputEvent) -> void:
         _close_configuration()
 
 func _on_new_game_pressed() -> void:
+    get_tree().root.remove_meta(SAVE_STATE.LOAD_SOURCE_META)
     open_game("res://game/new_game.tscn", new_game)
 
 func _on_load_game_pressed() -> void:
+    if opening_game or is_instance_valid(save_picker): return
+    var candidates := SAVE_STATE.load_candidates()
+    if candidates.is_empty():
+        details.text = "No saved game is available. Start New Game or import an original Hype save."
+        status.show()
+        return
+    var packed := load(LOAD_GAME_SCENE) as PackedScene
+    save_picker = packed.instantiate() as LOAD_GAME_PICKER if packed != null else null
+    if save_picker == null:
+        details.text = "The Load Game screen could not be opened."
+        status.show()
+        return
+    status.hide()
+    menu.hide()
+    $MenuHost.add_child(save_picker)
+    save_picker.selected.connect(_on_save_selected)
+    save_picker.closed.connect(_close_save_picker)
+    save_picker.show_candidates(candidates)
+
+func _on_save_selected(source: String) -> void:
+    # Re-read the selected source just before navigation; an unavailable or
+    # changed slot must not switch the route to a different save or New Game.
+    var candidate := SAVE_STATE.read_for_load(source)
+    if candidate["status"] != "loaded":
+        _close_save_picker()
+        details.text = str(candidate.get("message", "The selected save is unavailable."))
+        status.show()
+        return
+    get_tree().root.set_meta(SAVE_STATE.LOAD_SOURCE_META, source)
+    _close_save_picker()
     open_game("res://game/game_session.tscn", load_game)
+
+func _close_save_picker() -> void:
+    if is_instance_valid(save_picker): save_picker.queue_free()
+    save_picker = null
+    if is_instance_valid(menu): menu.show()
+    if is_instance_valid(load_game): load_game.grab_focus()
 
 func _on_quit_pressed() -> void:
     get_tree().quit()

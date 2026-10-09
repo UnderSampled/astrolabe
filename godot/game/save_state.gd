@@ -28,6 +28,9 @@ const EXERCISE_IDLE := {1: 14, 2: 15, 3: 16, 4: 22, 5: 23}
 const ATTACK_PERMISSIONS: Array[String] = ["dsg_0", "dsg_55", "dsg_58"]
 const MANOR_KEY := 21
 const KEY_ACTOR := "level:/persos/world/0/142"
+const NATIVE_SOURCE := "native"
+const ORIGINAL_SOURCE := "original"
+const LOAD_SOURCE_META := &"astrolabe_load_save_source"
 
 
 static func path() -> String:
@@ -175,8 +178,12 @@ static func validate(value: Variant) -> String:
     var inventory: Variant = player.get("inventory")
     if not inventory is Dictionary:
         return "Save has invalid inventory selection."
-    if not _only_keys(inventory, ["selected_weapon", "quantities", "snapshot"]):
+    var inventory_fields: Array[String] = ["selected_weapon", "quantities", "snapshot"]
+    if schema == 1: inventory_fields.append("gold")
+    if not _only_keys(inventory, inventory_fields):
         return "Save has unsupported inventory state."
+    if inventory.has("gold") and (inventory.has("snapshot") or not _integer(inventory["gold"], 0, 32767)):
+        return "Save has invalid independently owned gold state."
     if inventory.has("selected_weapon") and not _integer(inventory.get("selected_weapon"), -1, 32767):
         return "Save has invalid inventory selection."
     var quantities: Variant = inventory.get("quantities")
@@ -285,7 +292,69 @@ static func read_original_import() -> Dictionary:
     var error := validate_original_import(parsed)
     if not error.is_empty():
         return {"status": "error", "message": error}
-    return {"status": "loaded", "state": parsed["godot_state"]}
+    return {"status": "loaded", "state": parsed["godot_state"], "slot": str(parsed.get("slot", "")), "display_name": str(parsed.get("display_name", ""))}
+
+
+## An overlay can be valid for component restoration without being a complete
+## Load Game checkpoint. Missing placement/progression must never inherit New
+## Game values merely because an older native file exists.
+static func validate_load(value: Variant) -> String:
+    var error := validate(value)
+    if not error.is_empty(): return error
+    var actors: Dictionary = value["actors"]
+    if not actors[ACTOR].has("transform"):
+        return "Save has no player position and cannot resume a game."
+    if not actors[ACTOR]["transform"].has("basis"):
+        return "Save has no player orientation and cannot resume a game."
+    if not actors.has(GLOBAL) or not actors[GLOBAL]["brain"].has("dsg_147"):
+        return "Save has no opening progression state and cannot resume a game."
+    if not value.get("world") is Dictionary or not value["world"].has(DUMMY):
+        return "Save has no manor world state and cannot resume a game."
+    var inventory: Dictionary = actors[ACTOR]["inventory"]
+    if int(value["schema"]) == SCHEMA and not inventory.has("snapshot"):
+        return "Checkpoint has no complete inventory state and cannot resume a game."
+    if int(value["schema"]) == 1 and not inventory.has("gold") and not inventory["quantities"].has("0"):
+        return "Original save has no gold balance and cannot resume a game."
+    return ""
+
+
+static func _load_candidate(result: Dictionary, source: String) -> Dictionary:
+    var candidate := result.duplicate(true)
+    candidate["source"] = source
+    candidate["path"] = SLOT if source == NATIVE_SOURCE else ORIGINAL_IMPORT
+    candidate["label"] = "Godot checkpoint — Manoir" if source == NATIVE_SOURCE else "Original Hype — " + str(candidate.get("display_name", "Manoir"))
+    if source == ORIGINAL_SOURCE and not str(candidate.get("slot", "")).is_empty():
+        candidate["label"] += " (" + str(candidate["slot"]) + ")"
+    if candidate["status"] == "loaded":
+        var error := validate_load(candidate["state"])
+        if not error.is_empty():
+            candidate.erase("state")
+            candidate["status"] = "error"
+            candidate["message"] = error
+    return candidate
+
+
+## The menu lists each existing source, including unusable files with their
+## reason. Selecting an original import never deletes or upgrades a native slot.
+static func load_candidates() -> Array[Dictionary]:
+    var candidates: Array[Dictionary] = []
+    for candidate in [_load_candidate(read(), NATIVE_SOURCE), _load_candidate(read_original_import(), ORIGINAL_SOURCE)]:
+        if candidate["status"] != "missing": candidates.append(candidate)
+    return candidates
+
+
+static func read_for_load(source: String = "") -> Dictionary:
+    if source == NATIVE_SOURCE: return _load_candidate(read(), source)
+    if source == ORIGINAL_SOURCE: return _load_candidate(read_original_import(), source)
+    if not source.is_empty():
+        return {"status": "error", "message": "The selected save source is unsupported."}
+    # Direct session entry retains explicit native precedence. A broken or
+    # incomplete native slot is an error, never a silent switch of save identity.
+    var native := _load_candidate(read(), NATIVE_SOURCE)
+    if native["status"] != "missing": return native
+    var original := _load_candidate(read_original_import(), ORIGINAL_SOURCE)
+    if original["status"] != "missing": return original
+    return {"status": "error", "message": "No saved game is available. Choose New Game or import an original save."}
 
 
 static func validate_original_import(value: Variant) -> String:
@@ -674,7 +743,7 @@ static func write(actor: CharacterBody3D, level: Node3D) -> String:
     var error := checkpoint_error(actor, level)
     if not error.is_empty(): return error
     var state := capture(actor, level)
-    error = validate(state)
+    error = validate_load(state)
     if not error.is_empty():
         return error
     # Shape alone cannot establish the ordered native definition/piece binding.
@@ -696,6 +765,38 @@ static func write(actor: CharacterBody3D, level: Node3D) -> String:
     if not error.is_empty():
         DirAccess.remove_absolute(ProjectSettings.globalize_path(temporary))
     return error
+
+
+## Original import used to put source item 0 in the ordinary quantities map.
+## Its source composition is the separate gold resource. Resolve that binding
+## explicitly; never discard an unknown ordinary item to make restoration pass.
+static func _restore_inventory(inventory: Resource, saved: Dictionary) -> String:
+    if saved.has("snapshot"):
+        return inventory.call("apply_snapshot", saved["snapshot"])
+    var amounts: Dictionary = {}
+    for item in saved["quantities"]: amounts[int(item)] = int(saved["quantities"][item])
+    var gold: Variant = saved.get("gold")
+    if gold != null or amounts.has(0):
+        if not _has_properties(inventory, ["source_initialized", "gold_definition", "gold", "definitions"]) or inventory.get("source_initialized") != true:
+            return "Saved gold has no initialized source inventory binding."
+        var definition: Resource = inventory.get("gold_definition")
+        if not _has_integer_properties(definition, ["item_id", "maximum"]) or definition.get("item_id") != 0:
+            return "Saved item 0 differs from the converted gold resource."
+        for member: Resource in inventory.get("definitions"):
+            if _has_property(member, "item_id") and member.get("item_id") == 0:
+                return "Saved item 0 ambiguously identifies gold and an ordinary item."
+        if amounts.has(0):
+            if gold != null and int(gold) != amounts[0]:
+                return "Saved gold conflicts with the legacy item-0 balance."
+            gold = amounts[0]
+            amounts.erase(0)
+        if not _integer(gold, 0, 32767) or int(gold) > int(definition.get("maximum")):
+            return "Saved gold exceeds the source resource capacity."
+    var weapon := int(saved.get("selected_weapon", inventory.get("selected_weapon")))
+    var error: String = inventory.call("restore_legacy", weapon, amounts)
+    if not error.is_empty(): return error
+    if gold != null: inventory.set("gold", int(gold))
+    return ""
 
 
 static func apply(actor: CharacterBody3D, level: Node3D, value: Dictionary) -> String:
@@ -757,16 +858,9 @@ static func apply(actor: CharacterBody3D, level: Node3D, value: Dictionary) -> S
         if not error.is_empty(): return error
     var saved_magick: Dictionary = player["magick"]
     var saved_inventory: Dictionary = player["inventory"]
-    var quantities: Dictionary = {}
-    for item in saved_inventory["quantities"]:
-        quantities[int(item)] = int(saved_inventory["quantities"][item])
     # Validate on a private copy before changing any live save component.
     var checked_inventory: Resource = inventory.call("clone_for_scene")
-    var weapon := int(saved_inventory.get("selected_weapon", inventory.get("selected_weapon")))
-    if saved_inventory.has("snapshot"):
-        error = checked_inventory.call("apply_snapshot", saved_inventory["snapshot"])
-    else:
-        error = checked_inventory.call("restore_legacy", weapon, quantities)
+    error = _restore_inventory(checked_inventory, saved_inventory)
     if not error.is_empty():
         return error
     if value["actors"].has(GLOBAL):
@@ -799,8 +893,7 @@ static func apply(actor: CharacterBody3D, level: Node3D, value: Dictionary) -> S
     magick.set("current_points", int(saved_magick["current_points"]))
     magick.set("maximum_points", int(saved_magick["maximum_points"]))
     magick.set("selected_spell_code", int(saved_magick["selected_spell_code"]))
-    if saved_inventory.has("snapshot"): inventory.call("apply_snapshot", saved_inventory["snapshot"])
-    else: inventory.call("restore_legacy", weapon, quantities)
+    _restore_inventory(inventory, saved_inventory)
     if player.has("transform"):
         var saved_transform: Dictionary = player["transform"]
         var basis := actor.global_transform.basis

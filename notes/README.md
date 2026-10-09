@@ -21,6 +21,10 @@ The [source fade and preference handoff](audio-mixer-separation-2026-10-09.md)
 records the independent native mixer controls, exact DWORD-to-byte gain,
 static/dynamic publication, dedicated clean-source evidence and PCM test plan.
 
+The [save selection and startup restoration](save-startup-restoration-2026-10-09.md)
+records the partial native-slot precedence defect, source gold ownership,
+all-Brain restoration ordering, exact supplied state and pending runtime checks.
+
 The [gameplay performance composition](gameplay-performance-composition-2026-10-09.md)
 records the combined dormant-bank and indexed camera fixes, interface84,
 static integration repair and scoped actual-game publication receipt.

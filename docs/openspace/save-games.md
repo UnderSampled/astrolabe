@@ -37,8 +37,11 @@ gameplay import file contains only the typed native overlay and semantic
 inventory item values. Parsed record identities, flags, raw values, unknown
 tails, and other source-address provenance go to the sibling
 `original_save_import.source-diagnostics.json`; Godot does not read that file
-or interpret source addresses at runtime. A native Godot slot takes precedence
-when one already exists.
+or interpret source addresses at runtime. The main-menu Load Game picker lists
+the native checkpoint and original import separately. An incomplete or invalid
+file keeps its identity and displays the rejection reason; it cannot silently
+switch the route to a different save or New Game. Direct session entry retains
+native precedence and fails if that selected file cannot be resumed.
 
 The `manoir` overlay restores Hype's saved position and a uniquely recoverable
 orientation, source-backed mana and selected magic slot, the reserved ItemWire
@@ -48,8 +51,11 @@ the Fix HUD inventory root to ItemWire id 0, its inventory handle, and the
 linked item definition, then joins their registered quantity and capacity
 fields to the player save table; the supplied fixture stores 20 and 200.
 Hype displays and uses this value as a shared resource/effect balance. The
-source does not establish its authored name, so the importer maps the existing
-item-0 quantity without assigning another meaning. A missing, invalid, or
+source does not establish its authored name. The native inventory API owns it
+as a separate `gold` value, outside the ordinary catalogue and admission slots;
+the importer writes that native field. Existing item-0 imports are explicitly
+resolved against the converted gold definition before restoring that value.
+This does not establish a localized in-game name. A missing, invalid, or
 ambiguous join is an import error, and an explicit saved zero remains present
 in native state. Current AI behavior and active-weapon selection remain
 unsupported; the supplied slot has selected-item flags set for both item 21 and
@@ -58,7 +64,15 @@ source-verified default magic-point amount, but the native magick resource has
 no separate default-points field yet. Hype health and armor also lack a mapped
 player-owned save identity. Original SAI addresses and bytes stay in the
 diagnostic sibling; Godot receives only the canonical actor/world state and
-applies it before starting the compiled Brains.
+applies it before starting the compiled Brains. A resumable Load Game state
+requires placement and orientation, Global opening/gate fields, the dummy
+world flag, and gold/full native inventory state. Sparse component overlays
+remain inspectable, but cannot inherit missing resume state from scene defaults.
+The saved-level startup barrier holds every automatic Brain across tree
+installation and restoration, then restores each character's own physics
+activation before starting compiled behaviors. See the
+[dated restoration investigation](../../notes/save-startup-restoration-2026-10-09.md)
+for exact fixture values, runtime gaps and integration ownership.
 
 The supplied authentic `SaveGame0` contains player record `0:17:4560`,
 one-byte Boolean value `01`, with save flags `0x0204`. The typed source join
