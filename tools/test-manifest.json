@@ -6432,6 +6432,20 @@
       "timeout_seconds": 20,
       "ignored": true,
       "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "godot::collision::tests::repeated_collision_geometry_shares_resources_without_sharing_contact_state",
+      "areas": [
+        "scene",
+        "loading"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Shared native shape geometry with independent source material, placement, disabled flag and edited radius; no engine execution",
+      "timeout_seconds": 10,
+      "ignored": false,
+      "release": true
     }
   ]
 }
