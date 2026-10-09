@@ -13,11 +13,15 @@ var preference_levels: Dictionary = {&"music": 127, &"effects": 127, &"voice": 1
 
 static func shared(requester: Node) -> Node:
     var root := requester.get_tree().root
-    var mixer := root.get_node_or_null("AstrolabeMixer")
-    if mixer == null:
+    var mixer: Node = root.get_meta(&"astrolabe_audio_mixer", null) as Node
+    if not is_instance_valid(mixer):
         mixer = load("res://addons/astrolabe/audio/mixer.gd").new()
         mixer.name = "AstrolabeMixer"
-        root.add_child(mixer)
+        # Preferences can create the component in their autoload _ready, while
+        # Root is setting up children. Publish the binding immediately so the
+        # three preference groups share one component before deferred insertion.
+        root.set_meta(&"astrolabe_audio_mixer", mixer)
+        root.call_deferred("add_child", mixer)
     return mixer
 
 static func module_for_bus(bus_name: StringName) -> StringName:
@@ -25,7 +29,7 @@ static func module_for_bus(bus_name: StringName) -> StringName:
         if BUSES[module] == bus_name: return module
     return &""
 
-func _ready() -> void:
+func _init() -> void:
     for module in BUSES:
         var bus := AudioServer.get_bus_index(BUSES[module])
         if bus < 0:

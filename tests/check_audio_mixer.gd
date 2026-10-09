@@ -30,7 +30,7 @@ func waveform() -> Resource:
     voice.stream = stream
     return voice
 
-func set_preference(settings: Node, group: String, level: int) -> void:
+func set_preference(settings, group: String, level: int) -> void:
     # Exercise the maintained settings route without writing any preferences.
     settings.values[group] = float(level)
     settings.call("_apply_group", group)
@@ -51,7 +51,7 @@ func check() -> void:
     # narrowing and two DWORDs whose product overflows Godot's signed64 range.
     for case in [[127, 127, 127, 127], [100, 127, 127, 100], [127, 127, 90, 88], [100, 64, 127, 49], [127, 127, 0x1000007f, 125], [127, 127, 0xffffffff, 255], [127, 0xffffffff, 0xffffffff, 0]]:
         if not require(Mixer.parameter_volume_byte(case[0], case[1], case[2]) == case[3], "source DWORD/byte contract " + str(case)): return
-    var settings := root.get_node("UserSettings")
+    var settings = root.get_node("UserSettings")
     set_preference(settings, "Music", 73)
     set_preference(settings, "Effects", 61)
     set_preference(settings, "Voices", 92)

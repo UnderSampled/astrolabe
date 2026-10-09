@@ -120,3 +120,38 @@ transitions. Native spatial defaults remain unchanged because executable
 004f7fe0 dispatch/import the external sound implementation. These must be
 resolved with the dedicated source worker and controlled runtime evidence,
 not a global gain cut. The full user-reported New Game mix remains unaccepted.
+
+## Callback boundary and next source request
+
+Source follow-up `7026a1980802d329222ceb953da54e163fee8792` completes the
+reserved callback/driver group in `audio_driver_callbacks.c` and
+`audio_driver_dispatch.c`.00432540..00432630 publish fixed65536-scaled position
+and velocity.00432660 supplies byte0.00432670 supplies velocity magnitude for
+its first output and fixed unity65536 for volume/pan.00432760 selects a sector
+or dynamics-derived word;00432830 supplies Boolean sector eligibility using
+the currently selected microphone position actor, with its source-defined
+default1 when no matching link exists. These establish no distance curve.
+
+The shared model already retains ordered `SectorSoundPropagation` links and
+their signed volume words. The Godot scene/audio adapter does not yet publish
+those links. Driver interpretation of the eligibility word must be established
+before mapping it to native player gain; its Boolean callback does not justify
+using the raw link magnitude as a floating amplitude.
+
+Read-only disc evidence: `disc/DLL/snd_cpa.ini` sets
+`SXD_DIST_SATUR=2`, `SXD_DIST_FADE=16`, `DLL_Sxd Default=WAVX2` and conditional
+`File0=WAVMW`, `Test0=_SND_fn_bTestSnd_WinNT@0`. The actual original files are
+`/home/stephen/Projects/hype-decomp/disc/DLL/WAVx2BVR.dll` and
+`WAVMWBVR.DLL`. Both expose `_SND_fn_lPlaySxd@20`,
+`_SND_fn_bSetParamSxd@8`, `_SND_fn_vSetMicroParamSxd@8`,
+`_SND_fn_vParam3Dto2D@8`, `_SND_fn_vSetDefaultRollOffSxd@4` and
+`_SND_fn_bSetResourceStaticVolumeSxd@8`. The dedicated source worker is
+inspecting these and selection/loading statically. Which DLL the original
+runtime selected remains unobserved. Config variable names alone are not a
+verified law and no attenuation setting was changed from them.
+
+The shared native mixer binding is published before its deferred insertion
+under Root, so UserSettings can create it during autoload initialization without
+adding a child to a parent still setting up children or creating one component
+per preference group. Native buses are available on component construction.
+No runtime validation of this initialization or the rest of the patch exists.
