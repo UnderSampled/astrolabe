@@ -163,3 +163,44 @@ private session; the planned Load Game check would use the supplied imported
 post-gate save. Its SHA-256 remained
 `8d20ef3de198f53c0ca86ba11c3227145496a939e5ff2eaaeba1a2c2a7153c67`.
 No game-derived content, screenshot, log or save is included in commits.
+
+## Authorized mana-pool correction after the failed session
+
+Kip subsequently authorized the proposed local fix and the smallest supported
+affected regeneration, with no new test or gameplay run. The two subtraction
+guards now use `source_magic_points_ready()`. Operand compilation, argument
+evaluation placement, nonnegative assertion, subtraction/clamp/return behavior
+and selected-spell guards remain as before. This is a compatible guard repair:
+no model/schema, native method signature or support-file inventory changes, so
+Rete61/support82 remain coordinated.
+
+Before changing code, the complete original function dispatcher at00536550
+through its return/jump table and procedure dispatcher at0053de60 through its
+return/jump table were read statically from the independent project's original
+source-profile PE, SHA-256
+`ed105a423f6e1bcf0460aa8f7357e2bae3783ca8aadfff8ef8a13b93d967d97d`.
+Function230 evaluates its operand before resolving the pool, compares the
+requested signed amount against unsigned current mana, subtracts/clamps the
+low word on success and publishes a UInt0/1. It never reads selected spell.
+The complete selected-spell wrapper00439e30 and inventory-name lookup0041d660
+were also read; they form the distinct Function232 selection path.
+
+The static sibling audit covers Function228 current read,229 addition,230
+subtraction,231 maximum read,232 spell query and Procedure434 maximum change.
+Only subtraction had the pool/spell guard confusion. Current/maximum reads,
+addition and maximum change already use point readiness; the pool Resource
+allows zero maximum and independent16-bit current/maximum values. Existing
+selected-spell readiness requirements are preserved. The shared native pool
+algorithms and OpenSpace operation mappings need no change.
+
+The supported `port disc godot --level manoir --locale en --content scene`
+route regenerates the complete Manor ownership closure while retaining menu,
+inventory and pause-menu. Their only two shared files are non-AI resources;
+publication refuses changed shared resources and checks every replacement
+against its old hash. The existing scene preparation took326.74s, compared
+with465.51s for full application preparation/publication. The fresh scope
+still requires one release build to include the changed compiler and native
+support; the already preserved UID inventory needs no separate rebuild.
+Publication outcome is recorded separately after that operation completes.
+This section supersedes the earlier unapplied-proposal status, without changing
+the recorded failed acceptance or implying runtime verification.

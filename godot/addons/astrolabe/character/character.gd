@@ -864,7 +864,7 @@ func source_get_hit_points() -> int:
     return int(source_hit_points.get("current"))
 
 func source_magic_remove_points(amount: int) -> int:
-    assert(source_magic_ready() and amount >= 0)
+    assert(source_magic_points_ready() and amount >= 0)
     return source_magick.call("remove_points", amount)
 
 func source_set_laser_pointer_active(active: bool) -> void:

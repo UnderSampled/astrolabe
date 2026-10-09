@@ -1752,7 +1752,7 @@ fn guarded_expression(
             let amount = guarded_expression(out, amount, model, depth, flow)?;
             writeln!(
                 out,
-                "{pad}if not character().source_magic_ready():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                "{pad}if not character().source_magic_points_ready():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
                 quoted(&format!(
                     "{} requires restored source magick state",
                     model.path
