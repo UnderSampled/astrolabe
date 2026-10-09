@@ -8,6 +8,7 @@ extends Node
 @export var mesh_paths: Dictionary = {}
 
 var _metadata: Dictionary = {}
+var _primitive_geometry: Dictionary = {}
 const RAY_START_MARGIN := 0.0001
 
 func sector_node(sector_id: String) -> Node3D:
@@ -98,15 +99,20 @@ func resolve_position(position: Vector3) -> Dictionary:
                 if mesh_node == null or mesh_node.mesh == null:
                     complete = false
                     continue
-                # The exporter saves ArrayMeshes. Godot exposes this native
-                # BVH method to GDScript on ArrayMesh, not the Mesh base class.
-                var mesh := mesh_node.mesh as ArrayMesh
-                if mesh == null:
+                var mesh := mesh_node.mesh
+                var geometry: TriangleMesh
+                if mesh is ArrayMesh:
+                    # Godot owns the shared ArrayMesh BVH and its invalidation.
+                    geometry = (mesh as ArrayMesh).generate_triangle_mesh()
+                elif mesh is PrimitiveMesh:
+                    var cached := _primitive_query_geometry(mesh as PrimitiveMesh)
+                    if not cached["complete"]:
+                        complete = false
+                        continue
+                    geometry = cached["geometry"] as TriangleMesh
+                else:
                     complete = false
                     continue
-                # Godot owns this cache on the shared resource, including
-                # geometry invalidation. No faces are extracted per query.
-                var geometry := mesh.generate_triangle_mesh()
                 if geometry == null:
                     # A valid mesh without triangle surfaces is an empty GEO.
                     continue
@@ -120,6 +126,40 @@ func resolve_position(position: Vector3) -> Dictionary:
         "fraction": nearest_distance,
         "complete": complete,
     }
+
+func _primitive_query_geometry(mesh: PrimitiveMesh) -> Dictionary:
+    var mesh_id := mesh.get_instance_id()
+    if _primitive_geometry.has(mesh_id):
+        return _primitive_geometry[mesh_id]
+    # PrimitiveMesh has get_faces(), but no script-bound generate_triangle_mesh().
+    # Extract faces only on a cache miss; all ray traversal remains native.
+    var faces := mesh.get_faces()
+    var geometry: TriangleMesh
+    var complete := faces.size() % 3 == 0
+    if complete and not faces.is_empty():
+        geometry = TriangleMesh.new()
+        if not geometry.create_from_faces(faces):
+            geometry = null
+            complete = false
+    # Retain the resource as well as its nullable result: IDs cannot be reused,
+    # and empty/failed geometry is not rebuilt for every camera query. Bind only
+    # the ID so the resource's signal cannot retain itself through its callable.
+    var invalidate := _invalidate_primitive_geometry.bind(mesh_id)
+    var cached := {"mesh": mesh, "geometry": geometry, "complete": complete, "invalidate": invalidate}
+    _primitive_geometry[mesh_id] = cached
+    # Initial face extraction can generate the primitive and emit changed.
+    # Subscribe afterwards so that first generation cannot evict this result.
+    mesh.changed.connect(invalidate)
+    return cached
+
+func _invalidate_primitive_geometry(mesh_id: int) -> void:
+    var cached: Dictionary = _primitive_geometry.get(mesh_id, {})
+    if cached.is_empty(): return
+    var mesh := cached["mesh"] as PrimitiveMesh
+    var invalidate: Callable = cached["invalidate"]
+    if is_instance_valid(mesh) and mesh.changed.is_connected(invalidate):
+        mesh.changed.disconnect(invalidate)
+    _primitive_geometry.erase(mesh_id)
 
 func _bound_node(path: NodePath) -> Node:
     var level := get_parent()
@@ -153,4 +193,6 @@ func _ray_distance(node: Node3D, geometry: TriangleMesh, position: Vector3) -> f
     return maxf(distance, 0.0) if distance >= -0.000001 else -1.0
 
 func _exit_tree() -> void:
+    for mesh_id in _primitive_geometry.keys():
+        _invalidate_primitive_geometry(int(mesh_id))
     _metadata.clear()
