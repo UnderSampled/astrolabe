@@ -70,15 +70,83 @@ before PackedScene publication. Existing save restoration uses the same
 activation method and retains the game's physics-readiness waits. These are
 static lifecycle findings, not executed gameplay acceptance.
 
-## Publication
+## Completed publication and import recovery
 
-Publication is pending the single required current-source converter build and
-Manor-only `port disc godot --level manoir --locale en --content scene --godot
-/usr/bin/godot`. The source checkout owns adopted support through Git; no
-bundled support installer may overwrite it. Menu, inventory, pause-menu and
-shared textures must retain their existing closures and hashes.
+Main was fast-forwarded through the reviewed composition commit
+`c98b96d94673fe4cd9429240e3a37562a5fd11d1`. The source checkout's adopted
+support changed through Git, without a bundled support installer overwriting
+it. From that clean source, one required
+`cargo build --release --locked --offline --bin astrolabe` exited0 in98.71s.
+The binary therefore embeds both fixes and interface84; no older converter
+was reused and no second build occurred.
 
-The final receipt will be recorded under
-`output/gameplay-performance-publication-20261009/`. Native syntax/import
-acceptance belongs to this publication; gameplay and actual frame-time
-improvement remain unmeasured by instruction.
+The only conversion was
+`target/release/astrolabe port disc godot --level manoir --locale en --content
+scene --godot /usr/bin/godot`. Native construction, staged imports and scoped
+publication completed. Its destination import then exceeded the240s allowance
+inherited from7,243 pre-build declarations; the complete destination owns9,181
+files. The first port exited1 after649.47s. This remains a recorded failure,
+even though its generated files had already been published.
+
+Only destination import was resumed, using the documented300s allowance for
+the complete destination closure. Logs showed restoration of the remembered
+Manor editor scene. That owned retry was interrupted with exit130 and its
+child was cleaned up. Godot's official
+[editor source](https://github.com/godotengine/godot/blob/4.7/editor/editor_node.cpp)
+confirms that editor startup restores saved scene tabs independently of resource
+import. `interface/scene_tabs/restore_scenes_on_load` was then disabled only in
+the publication-owned XDG_CONFIG_HOME. Project editor layout, metadata and
+script-editor preferences were snapshotted and restored byte-for-byte.
+
+Ordinary `/usr/bin/godot --path godot --headless --import` then exited0 in2.83s,
+with no script/resource errors, timeout or remaining child. No recovery mode,
+script suppression, gameplay, second conversion, additional build or separate
+validation suite was used. The original timeout and interrupted retry remain
+in the receipt. Delivery from the first manifest snapshot to the completed
+receipt took1,067.61s, including the build, publication and import recovery.
+Future CLI imports still use their existing allowance and
+editor-session behavior; this recovery did not broaden production converter
+changes. Editor reopening of the dense scene is not accepted by this import.
+
+The final schema2/support84 manifest uses pinned Godot
+`4.7.2.stable.arch_linux.ed1daf0bf`, SHA256
+`2980c8f9c174c6137946a901d817b5bb8b197ca0abfad0546651fb10487de5cc`.
+Its previous support83 hash was
+`abd12f59e5b3e0983d38a2531f18ad6e8ef2c5171e4efba5a6ce4980d684cb26`.
+Rete remains62; this direct source port did not serialize a new Rete snapshot.
+
+| Generated scope | Files |
+| --- | ---: |
+| Manor | 8,855 |
+| Inventory | 213 |
+| Menu | 88 |
+| Pause menu | 27 |
+| Unique union | 9,181 |
+
+There are59 changed generated files:58 native Perso/template scenes and the
+saved Manor root. No generated file was added/removed; all344 existing generated
+UID files and all AI/animation files retain their identities/bytes. The saved
+`SourceSectorIndex` has29 ordered sector paths,37 physical-visual paths and43
+mesh paths, persisted as native NodePath bindings.
+
+All retained UI memberships and actual file hashes are unchanged. The two
+Manor/UI shared textures remain
+`textures/FixTex/Inventor/Objects/Usable/plastiks_nz.gf.mips.tres` and
+`textures/FixTex/MOTORTXT/lettrageb.gf.mips.tres` under `generated/hype/`.
+Native saves, game settings, imported original slot and `project.godot` hashes
+are unchanged. Tracked source remained frozen throughout delivery, and no
+uncommitted authored work remained on main before this receipt-only update.
+The maintained `godot/game/` authored files were not changed by these fixes.
+
+Local evidence is under `output/gameplay-performance-publication-20261009/`:
+`result.json`, `receipt-summary.json`, before/after manifests, original build/port
+logs, both resumed-import logs, editor-session snapshots and the saved index
+fragment. These outputs and game-derived evidence remain ignored/local. Direct
+progress messaging to the supplied parent thread returned `thread not found`;
+`progress.json` carried the live phase and this final handoff carries the outcome.
+
+The actual game is prepared at `godot/`, with its existing
+`res://game/bootstrap.tscn` entry. No owned process remains and no delivery
+blocker remains. Tests, gameplay launches, benchmarks and performance checks
+were not run. Actual frame-time improvement and gameplay lifecycle acceptance
+remain unmeasured by instruction; previous opening/fidelity limits remain.
