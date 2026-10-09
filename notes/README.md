@@ -6,6 +6,10 @@
 
 ## Common records
 
+The [gameplay performance composition](gameplay-performance-composition-2026-10-09.md)
+records the combined dormant-bank and indexed camera fixes, interface84,
+static integration repair and scoped actual-game publication receipt.
+
 The [camera sector lookup static handoff](camera-sector-index-static-2026-10-09.md)
 records exported native bindings, BVH queries, publication-result reuse,
 integration/regeneration requirements and unmeasured behavior/performance.

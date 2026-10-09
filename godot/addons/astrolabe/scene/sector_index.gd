@@ -98,9 +98,15 @@ func resolve_position(position: Vector3) -> Dictionary:
                 if mesh_node == null or mesh_node.mesh == null:
                     complete = false
                     continue
-                # Godot owns this cache on the shared Mesh, including geometry
-                # change invalidation. No faces are copied/extracted per query.
-                var geometry := mesh_node.mesh.generate_triangle_mesh()
+                # The exporter saves ArrayMeshes. Godot exposes this native
+                # BVH method to GDScript on ArrayMesh, not the Mesh base class.
+                var mesh := mesh_node.mesh as ArrayMesh
+                if mesh == null:
+                    complete = false
+                    continue
+                # Godot owns this cache on the shared resource, including
+                # geometry invalidation. No faces are extracted per query.
+                var geometry := mesh.generate_triangle_mesh()
                 if geometry == null:
                     # A valid mesh without triangle surfaces is an empty GEO.
                     continue

@@ -10,6 +10,13 @@ point result when that point is selected. Level scenes must be regenerated;
 support updates alone do not supply the new bindings. Query geometry follows
 native Godot ray/vertex tolerances, with a small origin margin for surface hits.
 
+Interface84 also suspends unselected configuration banks and hidden animation
+slots through native process inheritance and top-level transforms. Physical
+fallback areas use REMOVE disable mode; visibility restores local transforms
+before physics participation. Independent ZDE/ZDR zones keep their own state
+rules. Perso scenes must be regenerated with this support version to save the
+new defaults, including initial actor activation and slot participation.
+
 Interface83 retains byte-narrowed channel requests even without a matching rig
 node. Actor-owned overrides combine with native animation default-visibility
 keys, and disabled IDs are reapplied before native animation evaluation.
