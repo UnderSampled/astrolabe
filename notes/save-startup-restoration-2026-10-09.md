@@ -66,11 +66,22 @@ Unknown ordinary items still fail. The user file is never silently upgraded.
   an inventory failure or missing save. Gate lookup uses the level's semantic
   `level:/persos/world/0/15` Brain binding, preserving authored node renames.
 
-Camera handoff remains owned by the camera worker. Its integration hooks belong
-after contact preparation/before Brain startup and after the first Brain frame.
-The baseline three DemoCamera calls are deliberately left for that worker's
-registered-source-camera correction. This branch alone is not camera acceptance.
+The camera worker subsequently requested merging its saved-startup handoff
+into this barrier. Its helper now runs after contact preparation/before Brain
+startup and after the first Brain frame. The baseline three DemoCamera calls
+are removed. The first lookup may defer registration; the final lookup requires
+the existing semantic owner to belong to this level and viewport context1 and
+to be Godot's current Camera3D. It does not assign pose, target or motion mode.
+Only that helper and its required constant-time weak-owner getter were extracted
+from the worker's source; full follow motion, New Game and aim changes remain
+owned by its separate patch. Runtime camera acceptance is still pending.
 No dialogue suppression or raised-gate transform is added.
+
+This companion native API is provisionally support85, with exporter constant,
+version file, README and declared support test synchronized. Rete stays62.
+Kip must reconcile duplicate getter/helper hunks and the final union stamp when
+composing camera/audio/sequence commits. The canonical project was not updated;
+support publication remains integration-owned.
 
 ## Exact supplied fixture expectations
 

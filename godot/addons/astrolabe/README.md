@@ -26,6 +26,12 @@ The authored settings file and native bus names stay the same. Native byte gain
 normalization, resource gain and distance attenuation still require external
 driver evidence; this interface does not claim audible New Game mix parity.
 
+Interface85 exposes `source_camera.gd.source_primary_camera(viewport)` as a
+validated weak-owner lookup for the selected source camera. Saved-game startup
+reclaims that existing camera's rendering before Brain startup and validates it
+again before readiness, while compiled camera AI retains pose, target and mode.
+It preserves the indexed sector and inactive configuration-bank policies below.
+
 Interface84 saves a level-owned `scene/sector_index.gd` component with ordered
 sector, physical-visual and mesh NodePaths. Camera neighbor/history lookups use
 these native bindings. Downward sector classification uses Godot TriangleMesh

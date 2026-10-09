@@ -331,9 +331,6 @@ func open_level() -> void:
     if not source_error.is_empty():
         fail(source_error)
         return
-    demo_camera.set("target", actor)
-    demo_camera.call("follow")
-    demo_camera.make_current()
     stage("restored", "Preparing to play...")
     # The first physics tick enters the saved world before movement starts.
     # A second tick lets CharacterBody3D update native contact before Brain runs.
@@ -345,6 +342,7 @@ func open_level() -> void:
     if not is_inside_tree():
         return
     stage("physics_ready", "Starting Hype...")
+    if not restore_source_camera_presentation(false): return
     startup_error = startup.start_brains()
     if not startup_error.is_empty():
         fail(startup_error)
@@ -352,6 +350,7 @@ func open_level() -> void:
     await get_tree().process_frame
     if not is_inside_tree():
         return
+    if not restore_source_camera_presentation(): return
     if not is_instance_valid(brain) or not bool(brain.get("running")) or not str(brain.get("unsupported_failure")).is_empty():
         fail("The restored player behavior stopped before controls became ready.")
         return
@@ -391,6 +390,27 @@ func open_new_game() -> void:
     stage("opening","New Game — opening. R restarts; Esc pauses.")
     update_opening_status()
     _finish_initial_transition(true, "")
+
+## The selected source owner and Godot's rendered Camera3D are separate.
+## Reclaim presentation after restoring saves and starting compiled Brains;
+## target, motion mode and actor pose remain owned by the source camera AI.
+## The first pass may precede Brain registration, so readiness checks again
+## after the process frame and requires the concrete selected source owner.
+func restore_source_camera_presentation(required: bool = true) -> bool:
+    var viewport := get_viewport()
+    var selected: Camera3D = SOURCE_CAMERA.source_primary_camera(viewport)
+    if selected == null:
+        if not required: return true
+        fail("The manor did not register its primary source camera.")
+        return false
+    if not is_instance_valid(level) or not level.is_ancestor_of(selected) or not bool(selected.get("source_viewport_registered")) or int(selected.get("source_viewport_context")) != 1:
+        fail("The selected source camera does not belong to the active manor viewport.")
+        return false
+    selected.make_current()
+    if viewport.get_camera_3d() != selected:
+        fail("The primary source camera could not become the rendered view.")
+        return false
+    return true
 
 func _finish_initial_transition(ok: bool, message: String) -> void:
     if not _initial_transition_pending:

@@ -114,13 +114,17 @@ func _ready() -> void:
 ## The native viewport owns the source camera selection independently of an
 ## authored presentation camera temporarily made current on the same viewport.
 ## A weak reference avoids retaining an unloaded level's camera.
-func _source_primary_owner() -> Camera3D:
-    var binding: Variant = get_viewport().get_meta(SOURCE_PRIMARY_CAMERA_OWNER, null)
+static func source_primary_camera(viewport: Viewport) -> Camera3D:
+    if not is_instance_valid(viewport): return null
+    var binding: Variant = viewport.get_meta(SOURCE_PRIMARY_CAMERA_OWNER, null)
     if not (binding is WeakRef): return null
     var camera := binding.get_ref() as Camera3D
-    if not is_instance_valid(camera) or not camera.is_inside_tree() or camera.get_viewport() != get_viewport():
+    if not is_instance_valid(camera) or not camera.is_inside_tree() or camera.get_viewport() != viewport:
         return null
     return camera
+
+func _source_primary_owner() -> Camera3D:
+    return source_primary_camera(get_viewport())
 
 func _source_publish_primary() -> void:
     source_viewport_registered = true
