@@ -143,7 +143,7 @@ func check() -> void:
             if not require(not dialogue.continuation.visible, "continuation held while opening"): return
             for index in range(14): dialogue._process(0.011)
             if not require(dialogue.continuation.visible and dialogue.continuation.texture_normal == style.continuation, "completed nonfinal page shows source arrow"): return
-            var expected_arrow := Vector2(266,138) if item.box == 1 else style.continuation_origin(dialogue.position,3,root.get_visible_rect().size)
+            var expected_arrow: Vector2 = Vector2(266,138) if item.box == 1 else style.continuation_origin(dialogue.position,3,root.get_visible_rect().size)
             if not require(dialogue.continuation.position.is_equal_approx(expected_arrow), "source arrow uses border width/side height or viewport anchor"): return
             dialogue.continuation.pressed.emit()
             if not require(dialogue.page_start == item.lines_per_page() and not dialogue.continuation.visible, "native continue button advances one page then resets indicator"): return
