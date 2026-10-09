@@ -4351,7 +4351,7 @@ pub(super) fn component(
 
 #[cfg(test)]
 mod source_position_tests {
-    use super::{compile, compile_with_templates, model_script_file};
+    use super::{compile, compile_with_templates, expression, model_script_file};
     use crate::model::{
         AssetPath, AssetRef,
         ai::{
