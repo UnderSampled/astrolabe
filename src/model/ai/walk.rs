@@ -401,6 +401,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::Multiply(left, right)
                 | Expression::Plus(left, right)
                 | Expression::VectorPlus(left, right)
+                | Expression::VectorMinus(left, right)
                 | Expression::Minus(left, right)
                 | Expression::Divide(left, right)
                 | Expression::And(left, right)

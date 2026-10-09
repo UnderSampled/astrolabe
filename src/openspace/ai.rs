@@ -1342,6 +1342,10 @@ impl Parser<'_> {
                 Box::new(self.expression(indent + 1)?),
                 Box::new(self.expression(indent + 1)?),
             ),
+            (2, 17) => Expression::VectorMinus(
+                Box::new(self.expression(indent + 1)?),
+                Box::new(self.expression(indent + 1)?),
+            ),
             (2, 12) => {
                 let actor_at = self.at;
                 if self.nodes.get(actor_at + 1).is_some_and(|field| {
@@ -3133,8 +3137,16 @@ impl Writer<'_> {
                 self.expression(a, indent + 1)?;
                 self.expression(b, indent + 1)?;
             }
-            Expression::VectorPlus(a, b) => {
-                self.node(2, 16, indent);
+            Expression::VectorPlus(a, b) | Expression::VectorMinus(a, b) => {
+                self.node(
+                    2,
+                    if matches!(e, Expression::VectorPlus(..)) {
+                        16
+                    } else {
+                        17
+                    },
+                    indent,
+                );
                 self.expression(a, indent + 1)?;
                 self.expression(b, indent + 1)?;
             }
@@ -4231,6 +4243,40 @@ mod partial_tests {
                     Expression::Real(0.0),
                 ]))),
             ))]
+        );
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn entrance_gate_lift_reconstructs_vector_minus_endpoint() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (5, 36, 1),
+            (3, 0, 2),
+            (2, 17, 2),
+            (3, 0, 3),
+            (16, 0, 3),
+            (13, 0.0_f32.to_bits(), 4),
+            (13, 0.0_f32.to_bits(), 4),
+            (13, 3.0_f32.to_bits(), 4),
+            (12, 5, 2),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        assert_eq!(
+            script.statements,
+            vec![Statement::MoveLift {
+                from: Expression::SelfPosition,
+                to: Expression::VectorMinus(
+                    Box::new(Expression::SelfPosition),
+                    Box::new(Expression::Vector(Box::new([
+                        Expression::Real(0.0),
+                        Expression::Real(0.0),
+                        Expression::Real(3.0),
+                    ]))),
+                ),
+                duration_seconds: Expression::Integer(5),
+            }]
         );
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())

@@ -924,7 +924,8 @@ fn vector_expression(e: &Expression, model: &AiModel) -> bool {
         | Expression::WaypointPosition(_)
         | Expression::SelfSighting
         | Expression::LaserDirection
-        | Expression::VectorPlus(_, _) => true,
+        | Expression::VectorPlus(_, _)
+        | Expression::VectorMinus(_, _) => true,
         Expression::Variable(index) | Expression::SelfFieldRead(index) => matches!(
             model
                 .variables
@@ -1086,6 +1087,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         Expression::Multiply(a, b)
         | Expression::Plus(a, b)
         | Expression::VectorPlus(a, b)
+        | Expression::VectorMinus(a, b)
         | Expression::Minus(a, b)
         | Expression::Divide(a, b)
         | Expression::TimeElapsed {
@@ -1756,6 +1758,18 @@ fn guarded_expression(
             guarded_expression(out, left, model, depth, flow)?,
             guarded_expression(out, right, model, depth, flow)?
         ),
+        Expression::VectorMinus(left, right) => {
+            // 00524d70 evaluates/captures the left before evaluating the right.
+            // Right-side guards may call gameplay APIs, so emit the left store
+            // before generating those guards rather than deferring its read.
+            let id = flow.local;
+            flow.local += 1;
+            let left = guarded_expression(out, left, model, depth, flow)?;
+            writeln!(out, "{pad}var vector_minus_left_{id}: Vector3 = {left}")?;
+            let right = guarded_expression(out, right, model, depth, flow)?;
+            writeln!(out, "{pad}var vector_minus_right_{id}: Vector3 = {right}")?;
+            format!("(vector_minus_left_{id} - vector_minus_right_{id})")
+        }
         Expression::Vector(values) => format!(
             "Vector3(float({}), float({}), float({}))",
             guarded_expression(out, &values[0], model, depth, flow)?,
@@ -2193,8 +2207,17 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
                 expression(b, model)?
             )
         }
-        Expression::VectorPlus(a, b) => {
-            format!("({} + {})", expression(a, model)?, expression(b, model)?)
+        Expression::VectorPlus(a, b) | Expression::VectorMinus(a, b) => {
+            let operator = if matches!(e, Expression::VectorPlus(..)) {
+                "+"
+            } else {
+                "-"
+            };
+            format!(
+                "({} {operator} {})",
+                expression(a, model)?,
+                expression(b, model)?
+            )
         }
         Expression::Negate(v) => format!("(-float({}))", expression(v, model)?),
         Expression::Compare {
@@ -4394,6 +4417,69 @@ mod source_position_tests {
         ));
         assert!(generated.contains("if change_normal(3, false):"));
         assert!(!generated.contains("unsupported AI statement category 4 operation 253"));
+        Ok(())
+    }
+
+    #[test]
+    fn compiles_entrance_gate_vector_minus_to_native_lift_endpoint() -> anyhow::Result<()> {
+        let model = AiModel {
+            path: AssetPath::new("level:/ai/models/1220")?,
+            name: "i_Grille_Entree_Manoir1".into(),
+            normal: Some(BehaviorSet {
+                behaviors: vec![Behavior {
+                    id: 0,
+                    rules: Vec::new(),
+                    schedule: Some(Script {
+                        statements: vec![Statement::MoveLift {
+                            from: Expression::SelfPosition,
+                            to: Expression::VectorMinus(
+                                Box::new(Expression::SelfPosition),
+                                Box::new(Expression::Vector(Box::new([
+                                    Expression::Real(0.0),
+                                    Expression::Real(0.0),
+                                    Expression::Real(3.0),
+                                ]))),
+                            ),
+                            duration_seconds: Expression::Integer(5),
+                        }],
+                    }),
+                    unknown: [0; 3],
+                }],
+                default_behavior: Some(0),
+                action_capacity: 0,
+                unknown: [0; 3],
+            }),
+            reflex: None,
+            variables: Vec::new(),
+            designer_unknown: [0; 3],
+            unknown: [0; 4],
+        };
+        let generated = compile(&model, &[])?;
+        assert!(
+            generated.contains("var vector_minus_left_1: Vector3 = character().source_position()")
+        );
+        assert!(generated.contains(
+            "var vector_minus_right_1: Vector3 = Vector3(float(0.0), float(0.0), float(3.0))"
+        ));
+        assert!(
+            generated
+                .contains("var lift_to_0: Vector3 = (vector_minus_left_1 - vector_minus_right_1)")
+        );
+        assert!(
+            generated.contains("source_begin_lift_motion(lift_from_0, lift_to_0, lift_duration_0)")
+        );
+        assert!(generated.contains("source_lift_motion_finished(lift_ticket_0)"));
+        assert!(!generated.contains("unsupported AI expression"));
+        assert_eq!(
+            expression(
+                &Expression::VectorMinus(
+                    Box::new(Expression::SelfPosition),
+                    Box::new(Expression::SelfPosition)
+                ),
+                &model
+            )?,
+            "(character().source_position() - character().source_position())"
+        );
         Ok(())
     }
 

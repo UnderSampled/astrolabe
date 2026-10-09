@@ -904,6 +904,8 @@ pub enum Expression {
     Plus(Box<Expression>, Box<Expression>),
     /// Hype Operator_VectorPlusVector (category 2, operation 16).
     VectorPlus(Box<Expression>, Box<Expression>),
+    /// Hype Operator_VectorMinusVector (category 2, operation 17).
+    VectorMinus(Box<Expression>, Box<Expression>),
     Minus(Box<Expression>, Box<Expression>),
     Divide(Box<Expression>, Box<Expression>),
     Negate(Box<Expression>),
@@ -1692,6 +1694,7 @@ impl Script {
                 | Expression::Multiply(left, right)
                 | Expression::Plus(left, right)
                 | Expression::VectorPlus(left, right)
+                | Expression::VectorMinus(left, right)
                 | Expression::Minus(left, right)
                 | Expression::Divide(left, right)
                 | Expression::TimeElapsed {

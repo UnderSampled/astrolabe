@@ -4569,6 +4569,21 @@
     },
     {
       "binary": "astrolabe",
+      "test": "godot::ai::source_position_tests::compiles_entrance_gate_vector_minus_to_native_lift_endpoint",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Manor entrance gate endpoint, native vector subtraction and MoveLift completion",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "godot::ai::source_position_tests::compiles_saved_gate_branch_to_self_position_and_next_behavior",
       "areas": [
         "ai",
@@ -4897,6 +4912,21 @@
       "kind": "unit",
       "prerequisites": [],
       "fixture": "Typed AI source, AST/Rete round trip and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::entrance_gate_lift_reconstructs_vector_minus_endpoint",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Manor entrance MoveLift source nodes, decoded vector subtraction and reconstructed bytes",
       "timeout_seconds": 30,
       "ignored": false,
       "release": true

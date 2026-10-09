@@ -1330,7 +1330,7 @@ fn source_laser_pointer_fly_mode_round_trips_and_updates_native_state() -> Resul
     let mut model = model()?;
     model.normal.as_mut().unwrap().behaviors[0].schedule = Some(script);
     let model = rete::decode::<AiModel>(&rete::encode(&model)?)?;
-    assert_eq!(rete::SCHEMA, 62);
+    assert_eq!(rete::SCHEMA, 63);
     let code = godot::ai::compile(&model, &[])?;
     assert!(
         code.contains("source_set_laser_pointer_fly_mode(bool(0))"),
