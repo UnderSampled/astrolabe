@@ -196,7 +196,10 @@ pub fn import_scene(game: &Path, selection: Selection) -> Result<Imported> {
         imported.put(&AssetRef::from_path(armor.path.clone()), armor, false)?;
     }
     if let Some(mut presentation) = scene.dialogue_presentation.take() {
-        for texture in std::iter::once(&mut presentation.atlas).chain(&mut presentation.frame) {
+        for texture in std::iter::once(&mut presentation.atlas)
+            .chain(&mut presentation.frame)
+            .chain(std::iter::once(&mut presentation.continuation))
+        {
             let found = archive
                 .find_entry(texture.texture.file())
                 .with_context(|| format!("dialogue texture {} absent from CNT", texture.texture))?;

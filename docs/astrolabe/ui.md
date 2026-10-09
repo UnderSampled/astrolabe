@@ -145,12 +145,20 @@ The native screen routes the configured `Button_Hit` action to
 `Proc_SelectDialog` only while a dialogue item is active. This lets the starter
 project's Space binding advance source dialogue pages and complete their
 pending callbacks through the same presentation API.
+The screen and compiled Hype rules share each physical input edge, so a press
+advances one page even when both observe it. The source `red_arrow` stencil is
+imported through its shared presentation asset and exported as a native
+TextureButton. Completed nonfinal pages show it at the source style's pixel
+anchor; clicking selects the page through the same dialogue API. Final finite
+speech pages complete through their speech holder without requiring this arrow.
 
-The dialogue node owns page index, elapsed time, voice-player reference and
-native Tween fade. The voice event runs through the existing actor SoundEmitter
-and compiled native waveform resources. Page deadlines are cumulative: scan
-finite timestamps within the displayed page, since blank padding can be
-untimed. The installed untimed sentinel is `3.4e38`, not IEEE FLT_MAX. An entirely
+The dialogue node owns page index, elapsed time and voice-player reference.
+Source fades retain their per-draw alpha steps; authored items may use a native
+Tween. The voice event runs through the existing actor SoundEmitter
+and compiled native waveform resources. Page deadlines are cumulative. Source
+drawing stores the last drawable line's timestamp in source order, while authored
+items use the earliest finite timestamp on the page. Blank padding can be untimed.
+The installed untimed sentinel is `3.4e38`, not IEEE FLT_MAX. An entirely
 untimed final page waits for selection. Cancellation invalidates deferred work.
 
 Ending the text emits a native signal and stores a pending callback;

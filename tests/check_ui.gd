@@ -102,6 +102,19 @@ func check() -> void:
     if not require(screen.hud.get_node("Life").visible and screen.fade.size == Vector2(640,480), "wide suppression preserves requested HUD state"): return
     screen.dialogue_items.assign([fixture(3)])
     if not require(screen.source_run_dialog("fixture",1,brain) and not dialogue.panel.visible and dialogue.item.lines_per_page() == 2, "unframed cinematic style"): return
+    dialogue.modulate.a = 1.0
+    if not InputMap.has_action(&"Button_Hit"): InputMap.add_action(&"Button_Hit")
+    Input.action_press(&"Button_Hit")
+    screen.source_select_dialog()
+    screen.source_select_dialog()
+    if not require(dialogue.page_start == 2, "native screen and compiled rule share one physical select edge"): return
+    Input.action_release(&"Button_Hit")
+    screen._process(0.0)
+    Input.action_press(&"Button_Hit")
+    screen.source_select_dialog()
+    if not require(dialogue.page_start == 4, "next physical select edge advances another page"): return
+    Input.action_release(&"Button_Hit")
+    screen._process(0.0)
     screen.source_end_dialog()
     await process_frame
     await process_frame

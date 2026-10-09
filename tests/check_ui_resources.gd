@@ -1,5 +1,9 @@
 extends SceneTree
 const Emitter = preload("res://addons/astrolabe/audio/emitter.gd")
+class SpeechHolder extends Node:
+    var source_dialogue_record: Resource
+    func stop_dialogue_speech() -> void:
+        source_dialogue_record = null
 const RECORDS = [
     ["gogood_texte1_manoir", 3, 3, 25, 4, 210, {1:1.4, 2:4.14}],
     ["gogood_texte1a_manoir", 3, 3, 2, 5, 210, {1:3.06, 2:5.31}],
@@ -114,6 +118,7 @@ func check() -> void:
         if not require(font.get_glyph_offset(0,Vector2i(21,0),glyph_a).is_equal_approx(Vector2(0.0,(-2.0*0.12705882+0.01)*scale)), "source glyph baseline bearing"): return
         if not require(style.normal_color == Color.WHITE and style.emphasis_color == Color.RED and is_equal_approx(style.line_spacing(),0.3*scale), "source white text/red emphasis/line spacing"): return
         if not require(style.corner.get_size() == Vector2(32,32) and style.border.get_size() == Vector2(32,32) and style.center.get_size() == Vector2(32,32) and style.side.get_size() == Vector2(32,32), "source frame texture sizes"): return
+        if not require(style.continuation is Texture2D and style.continuation.get_width() > 0 and style.continuation.get_height() > 0, "native continuation stencil"): return
         for index in range(item.lines.size()):
             var expected: float = record[6].get(index, 3.4e38)
             var actual: float = item.lines[index].end_seconds
@@ -135,7 +140,26 @@ func check() -> void:
             if not require(label.position.is_equal_approx(expected_origin) and label.text == item.message(span.key) and label.get_theme_font("font") == font, "source span offsets and literal native text"): return
             var panel: Control = dialogue.panel
             if not require(panel.size == Vector2(320,192) and panel.get_node("Top").stretch_mode == TextureRect.STRETCH_TILE and panel.get_node("Left").stretch_mode == TextureRect.STRETCH_TILE and panel.get_node("Center").stretch_mode == TextureRect.STRETCH_SCALE and not panel.get_node("Fallback").visible, "authored frame repeats edges/stretch center"): return
+            if not require(not dialogue.continuation.visible, "continuation held while opening"): return
+            for index in range(14): dialogue._process(0.011)
+            if not require(dialogue.continuation.visible and dialogue.continuation.texture_normal == style.continuation, "completed nonfinal page shows source arrow"): return
+            var expected_arrow := Vector2(266,138) if item.box == 1 else style.continuation_origin(dialogue.position,3,root.get_visible_rect().size)
+            if not require(dialogue.continuation.position.is_equal_approx(expected_arrow), "source arrow uses border width/side height or viewport anchor"): return
+            dialogue.continuation.pressed.emit()
+            if not require(dialogue.page_start == item.lines_per_page() and not dialogue.continuation.visible, "native continue button advances one page then resets indicator"): return
             dialogue.cancel()
+            if not require(not dialogue.continuation.visible, "cancellation hides continuation"): return
+        if item.identity == "hype_texte1_manoir":
+            # This final finite page must finish when speech clears, without an
+            # arrow press. The actual mixer/holder path has its own audio check.
+            if not require(dialogue.run(item,1), "Hype finite final page starts"): return
+            var holder := SpeechHolder.new()
+            root.add_child(holder)
+            dialogue.voice_emitter = holder
+            for index in range(14): dialogue._process(0.011)
+            if not require(dialogue.closing and not dialogue.continuation.visible, "finite final speech page completes without continue input"): return
+            dialogue.cancel()
+            holder.queue_free()
     print("UI_MANOR_RESOURCES_OK " + JSON.stringify(facts))
     print("UI_NATIVE_PRESENTATION_OK glyphs=133 source_span_labels=1 frame=320x192")
     dialogue.queue_free()

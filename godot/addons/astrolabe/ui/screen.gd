@@ -25,6 +25,11 @@ var _source_fade_tween: Tween
 var _source_fade_direction: int = 0
 var _authored_items: Array[Resource] = []
 var _catalogues: Array[Translation] = []
+var _select_press_claimed: bool = false
+
+func _process(_delta: float) -> void:
+    if _select_press_claimed and (not InputMap.has_action(&"Button_Hit") or not Input.is_action_pressed(&"Button_Hit")):
+        _select_press_claimed = false
 
 func _ready() -> void:
     source_level = get_parent()
@@ -214,10 +219,20 @@ func source_scroll_dialog(direction: int) -> void:
     elif active_presentation == dialogue: dialogue.scroll(direction)
 
 func source_select_dialog() -> void:
-    if is_instance_valid(adopted_screen): adopted_screen.source_select_dialog()
-    elif is_instance_valid(active_presentation): active_presentation.request_select()
+    if is_instance_valid(adopted_screen):
+        adopted_screen.source_select_dialog()
+        return
+    if not is_instance_valid(active_presentation): return
+    # The native screen and compiled Hype rules both observe Button_Hit's
+    # edge. Claim that physical press once; ordinary Proc_SelectDialog calls
+    # without a new input edge and the clickable arrow keep their API behavior.
+    if InputMap.has_action(&"Button_Hit") and Input.is_action_just_pressed(&"Button_Hit"):
+        if _select_press_claimed: return
+        _select_press_claimed = true
+    active_presentation.request_select()
 
 func _unhandled_input(event: InputEvent) -> void:
+    if InputMap.has_action(&"Button_Hit") and event.is_action_released(&"Button_Hit"): _select_press_claimed = false
     # The source Button_Hit action advances an active dialogue. Menus and
     # gameplay retain their existing input ownership outside this component.
     if is_instance_valid(adopted_screen) or not is_instance_valid(active_presentation) or active_presentation.item == null:

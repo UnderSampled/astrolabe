@@ -63,7 +63,7 @@ pub(super) fn export(
         },
     )?;
     let mut text = format!(
-        "[gd_resource type=\"Resource\" load_steps=7 format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/ui/dialogue_presentation.gd\" id=\"script\"]\n[ext_resource type=\"FontFile\" path={} id=\"font\"]\n",
+        "[gd_resource type=\"Resource\" load_steps=8 format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/ui/dialogue_presentation.gd\" id=\"script\"]\n[ext_resource type=\"FontFile\" path={} id=\"font\"]\n",
         quoted(&format!("res://{font_path}"))
     );
     for (texture, name) in value
@@ -78,9 +78,15 @@ pub(super) fn export(
             quoted(&format!("res://{png}"))
         )?;
     }
+    let (continuation, _) = image(project, source, &value.continuation, "dialogue.png")?;
     writeln!(
         text,
-        "\n[resource]\nscript = ExtResource(\"script\")\nfont = ExtResource(\"font\")\nnormal_color = Color({},{},{},{})\nemphasis_color = Color({},{},{},{})\ncorner = ExtResource(\"corner\")\nborder = ExtResource(\"border\")\ncenter = ExtResource(\"center\")\nside = ExtResource(\"side\")",
+        "[ext_resource type=\"Texture2D\" path={} id=\"continuation\"]",
+        quoted(&format!("res://{continuation}"))
+    )?;
+    writeln!(
+        text,
+        "\n[resource]\nscript = ExtResource(\"script\")\nfont = ExtResource(\"font\")\nnormal_color = Color({},{},{},{})\nemphasis_color = Color({},{},{},{})\ncorner = ExtResource(\"corner\")\nborder = ExtResource(\"border\")\ncenter = ExtResource(\"center\")\nside = ExtResource(\"side\")\ncontinuation = ExtResource(\"continuation\")",
         value.normal_color[0],
         value.normal_color[1],
         value.normal_color[2],

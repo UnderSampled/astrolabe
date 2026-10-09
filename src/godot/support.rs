@@ -401,14 +401,14 @@ mod tests {
     }
 
     #[test]
-    fn actor_support_helpers_are_in_interface_84_and_staged() -> Result<()> {
+    fn actor_support_helpers_are_in_interface_85_and_staged() -> Result<()> {
         let output = tempfile::tempdir()?;
         initialize(output.path())?;
         let version: serde_json::Value = serde_json::from_slice(&fs::read(
             output.path().join("addons/astrolabe/version.json"),
         )?)?;
         assert_eq!(version["interface"].as_u64(), Some(u64::from(INTERFACE)));
-        assert_eq!(INTERFACE, 84);
+        assert_eq!(INTERFACE, 85);
 
         let staged = tempfile::tempdir()?;
         stage(staged.path(), output.path())?;

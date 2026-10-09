@@ -38,6 +38,26 @@ fn manor_dialogue_localization_voice_and_callback_survive_rete() -> Result<()> {
     assert_eq!(style.normal_color, [1.0; 4]);
     assert_eq!(style.emphasis_color, [1.0, 0.0, 0.0, 1.0]);
     assert_eq!(style.tracking, 0.01);
+    assert!(
+        style
+            .continuation
+            .size
+            .iter()
+            .all(|&dimension| dimension > 0)
+    );
+    assert!(
+        style
+            .continuation
+            .texture
+            .as_str()
+            .starts_with("texture:/fixtex/stencil/")
+    );
+    assert!(
+        !style
+            .frame
+            .iter()
+            .any(|texture| texture.texture == style.continuation.texture)
+    );
     let a = style.glyphs.iter().find(|g| g.character == 'A').unwrap();
     assert_eq!(
         (a.width, a.half_height, a.vertical_offset),

@@ -28,6 +28,8 @@ pub struct DialoguePresentation {
     pub emphasis_color: [f32; 4],
     /// Source order: corner, horizontal border, center, vertical side.
     pub frame: [DialogueTexture; 4],
+    /// The shared red_arrow stencil used to indicate a completed nonfinal page.
+    pub continuation: DialogueTexture,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DialogueTexture {
@@ -103,7 +105,10 @@ impl Content for DialoguePresentation {
                 .all(|v| v.is_finite() && (0.0..=1.0).contains(v)),
             "invalid dialogue font color"
         );
-        for texture in std::iter::once(&self.atlas).chain(&self.frame) {
+        for texture in std::iter::once(&self.atlas)
+            .chain(&self.frame)
+            .chain(std::iter::once(&self.continuation))
+        {
             ensure!(
                 texture.size.iter().all(|&n| n > 0 && n <= 4096),
                 "invalid dialogue texture dimensions"

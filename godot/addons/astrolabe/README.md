@@ -1,4 +1,14 @@
-# Astrolabe support, interface 84
+# Astrolabe support, interface 85
+
+Interface85 adds the source continuation stencil as a native TextureButton.
+Completed nonfinal dialogue pages show it at the source style anchor; clicking
+uses the same selection path as Button_Hit. Finite final speech pages retain
+their speech-holder completion contract. The native screen and compiled Hype
+rules claim each physical Button_Hit press once, preventing a double advance.
+Dialogue presentation and level assets
+must be regenerated from Rete schema63; support updates alone lack the texture.
+The exporter also compiles source vector subtraction (operator17), allowing the
+entrance gate closing MoveLift to reach its authored endpoint and stop cue.
 
 Interface84 saves a level-owned `scene/sector_index.gd` component with ordered
 sector, physical-visual and mesh NodePaths. Camera neighbor/history lookups use

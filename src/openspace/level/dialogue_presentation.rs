@@ -198,8 +198,8 @@ pub(super) fn import(
         "normal/emphasis fonts need distinct metrics"
     );
     // Installed Fix GPT: DLG_fn_vSNAWriteInFix (0056bbe0) writes corner,
-    // border, center and side materials consecutively. Promote only these roots
-    // through RTP; the rest of GPT stays outside this manor presentation slice.
+    // border, center, side and red_arrow materials consecutively. Resolve the
+    // arrow by its declared material role, without guessing a texture filename.
     let gpt = file(&game.join("Gamedata/World/Levels/Fix.gpt"))?;
     ensure!(gpt.len() == 19344, "installed Fix GPT extent differs");
     let refs = pointer_file(&file(&game.join("Gamedata/World/Levels/Fix.rtp"))?)?;
@@ -218,6 +218,12 @@ pub(super) fn import(
         );
         frame.push(input);
     }
+    let word = u32_at(&gpt, 18084 + 4 * 4)?;
+    let key = *refs
+        .get(&word)
+        .context("Fix GPT continuation stencil root lacks RTP binding")?;
+    let material = s.resolve(Owner::Fix, key, word)?;
+    let continuation = texture(s, s.required(material, 72)?)?;
     let value = DialoguePresentation {
         path: AssetPath::new("level:/dialogue/presentation/en")?,
         font_name: font.name,
@@ -227,6 +233,7 @@ pub(super) fn import(
         normal_color: font.color,
         emphasis_color: other.color,
         frame: frame.try_into().unwrap(),
+        continuation,
     };
     value.validate()?;
     Ok(value)

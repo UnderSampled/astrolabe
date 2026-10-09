@@ -10,6 +10,7 @@ const SpanView = preload("res://addons/astrolabe/ui/dialogue_span_view.tscn")
 @onready var text: RichTextLabel = $Text
 @onready var source_text: Control = $SourceText
 @onready var answers: ItemList = $Answers
+@onready var continuation: TextureButton = $Continue
 var item: Resource
 var page_start: int = 0
 var elapsed: float = 0.0
@@ -40,6 +41,7 @@ func _ready() -> void:
     hide()
     if font != null: text.add_theme_font_override("normal_font", font)
     panel.configure(null, panel_style)
+    continuation.pressed.connect(request_select)
 
 func can_run(value: Resource, run_mode: int) -> bool:
     if value == null or run_mode != 1 or value.box not in [1, 3, 5]: return false
@@ -48,6 +50,7 @@ func can_run(value: Resource, run_mode: int) -> bool:
         for line in value.lines:
             if line.flags != 3 or line.alignment != Vector2i.ZERO or line.draw_offset != Vector2.ZERO or line.end_seconds != SOURCE_UNTIMED_SECONDS: return false
     if value.presentation != null:
+        if value.presentation.continuation == null: return false
         for line in value.lines:
             if line.flags != 0 and not (value.box == 5 and line.flags == 3): return false
     return true
@@ -111,6 +114,7 @@ func _voice_started(info: Dictionary) -> void:
     if str(info.event) == active_voice_identity: voice_player = info.player
 
 func _process(delta: float) -> void:
+    _refresh_continuation()
     if _source_closing:
         # 0056d960: decrement once per draw; the >10ms timer only controls
         # reset/start and does not gate this subtraction.
@@ -147,6 +151,7 @@ func _process(delta: float) -> void:
         # The admitted style5 page bypasses partial reveal for every line.
         # Both null-text padding records count toward the source page draw.
         _source_page_complete = true
+        _refresh_continuation()
         # Source compares playback only while the owner's speech record exists.
         # Its draw overwrites the deadline in line order, never takes a minimum.
         if is_instance_valid(voice_emitter) and voice_emitter.get("source_dialogue_record") != null:
@@ -171,6 +176,7 @@ func _process(delta: float) -> void:
     if threshold < 3.0e38 and clock >= threshold: select()
 
 func _render_page() -> void:
+    continuation.hide()
     var end: int = mini(page_start + item.lines_per_page(), item.lines.size())
     _source_page_deadline = SOURCE_UNTIMED_SECONDS
     _source_page_complete = false
@@ -217,6 +223,17 @@ func _render_page() -> void:
             text.add_text(item.message(span.key))
             if span.emphasis: text.pop()
 
+func _refresh_continuation() -> void:
+    if not is_instance_valid(continuation): return
+    var main_speech_wait := is_instance_valid(main_speech_emitter) and main_speech_emitter.get("source_dialogue_record") != null
+    # 0056c2d0 draws the arrow only after the page, and only with a successor
+    # page. Finite final speech pages complete through the speech holder.
+    continuation.visible = item != null and not closing and _source_presentation and _source_opened and _source_page_complete and not main_speech_wait and page_start + item.lines_per_page() < item.lines.size()
+    if not continuation.visible: return
+    continuation.texture_normal = item.presentation.continuation
+    continuation.position = item.presentation.continuation_origin(position, item.box, get_viewport_rect().size)
+    continuation.disabled = not item.allow_skip
+
 func refresh_layout() -> void:
     if item != null: _render_page()
 
@@ -247,6 +264,7 @@ func end(animated: bool = true) -> void:
 
 func _finish(notify_completion: bool = true) -> void:
     closing = true
+    continuation.hide()
     # The screen uses a live item to own Button_Hit until the fade completes.
     var finished := item
     var generation := _generation
@@ -313,6 +331,7 @@ func cancel() -> void:
     _source_step_elapsed = 0.0
     _source_page_deadline = SOURCE_UNTIMED_SECONDS
     main_speech_emitter = null
+    if is_instance_valid(continuation): continuation.hide()
     if is_instance_valid(panel): panel.modulate.a = 1.0
     hide()
     _clear_source_text()

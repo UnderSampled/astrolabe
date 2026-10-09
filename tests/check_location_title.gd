@@ -34,6 +34,7 @@ static func fixture_item() -> Resource:
     style.border = fixture_texture()
     style.side = fixture_texture()
     style.center = fixture_texture()
+    style.continuation = fixture_texture()
     var value: Resource = Item.new()
     value.identity = "synthetic_title"
     value.box = 4

@@ -35,3 +35,10 @@ mouse_filter = 2
 [node name="SourceText" type="Control" parent="."]
 layout_mode = 0
 mouse_filter = 2
+
+[node name="Continue" type="TextureButton" parent="."]
+visible = false
+layout_mode = 0
+mouse_filter = 0
+focus_mode = 0
+tooltip_text = "Continue"

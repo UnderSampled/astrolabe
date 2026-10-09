@@ -14,6 +14,19 @@ const SOURCE_EMPHASIS_OFFSET: float = 0.009999999776482582
 @export var border: Texture2D
 @export var center: Texture2D
 @export var side: Texture2D
+@export var continuation: Texture2D
+
+func continuation_origin(dialog_position: Vector2, box: int, viewport_size: Vector2) -> Vector2:
+    # 0056d5c0 anchors cinematic arrows to the viewport, independently of
+    # PositionDialog. The shared canvas owns scaling from 640x480 pixels.
+    if box == 3:
+        var x: int = ((int(viewport_size.x) * 608) & 0xffffffff) / 640
+        var y: int = ((int(viewport_size.y) * 448) & 0xffffffff) / 480
+        if x >= 0x80000000: x -= 0x100000000
+        if y >= 0x80000000: y -= 0x100000000
+        return Vector2(float(x), float(y)) * Vector2(640, 480) / viewport_size - dialog_position
+    # The admitted framed selectors 1/5 use border width and side height.
+    return Vector2(border.get_width() * 8 + 10, side.get_height() * 4 + 10)
 
 func line_spacing() -> float:
     return SOURCE_SCALE * 0.3
