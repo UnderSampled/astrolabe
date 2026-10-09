@@ -204,6 +204,7 @@ func _physics_process(delta: float) -> void:
             external_velocity = Vector3.ZERO
             velocity = motion
             move_and_slide()
+            source_contact_sector()
             source_camera_data3d_step(delta)
             return
     elif source_route_active:
@@ -237,6 +238,9 @@ func _physics_process(delta: float) -> void:
             external_velocity -= up_direction * external_velocity.dot(up_direction)
         source_airborne = false
     elif external_velocity.dot(up_direction) > 0.0: source_airborne = true
+    # 00448280 follows the original walk/mass translation write. Maintain
+    # an existing sector outside AI queries; a saved null stays null here.
+    source_contact_sector()
     source_camera_data3d_step(delta)
 
 ## 00443f00 dispatches this sample through DAT_00757320 by the active DNM

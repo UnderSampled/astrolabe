@@ -201,7 +201,13 @@ func _source_reset_for_selection() -> bool:
     return true
 
 func _source_refresh_selection_sector(owner: Node3D) -> bool:
-    var result := source_resolve_mode_zero_sector(owner.global_position)
+    return _source_refresh_owner_sector_at(owner, owner.global_position)
+
+## 00447bf0 researches the explicit lifecycle position and publishes holder+4.
+## Use the existing ordered source resolver and bound last-sibling fallback.
+func _source_refresh_owner_sector_at(owner: Node3D, position: Vector3) -> bool:
+    if not owner.has_method("source_refresh_contact_sector"): return false
+    var result := source_resolve_mode_zero_sector(position)
     if not bool(result.get("complete", false)): return false
     var root := _source_level_root()
     var sector: Node3D
@@ -217,7 +223,7 @@ func _source_refresh_selection_sector(owner: Node3D) -> bool:
     if not is_instance_valid(sector) or not bool(owner.call("source_refresh_contact_sector", sector)):
         return false
     _source_active_sector = sector
-    _source_previous_history_position = owner.global_position
+    _source_previous_history_position = position
     return true
 
 ## Proc158's unregistered branch returns before evaluating selector or value.
@@ -1274,11 +1280,11 @@ func source_publish_mode_zero_translation(
     if next_sector == null:
         push_error("Source camera pose references an unbound destination sector")
         return false
-    if resolved_sector_id != active_sector_id:
-        owner.global_position = third_argument_position
-        _source_active_sector = next_sector
-    else:
-        owner.global_position = second_argument_position
+    var published_position := third_argument_position if resolved_sector_id != active_sector_id else second_argument_position
+    # 0051c7b0 calls00447bf0 in both branches BEFORE its matrix writes.
+    # Research the chosen position, including the second-position branch.
+    if not _source_refresh_owner_sector_at(owner, published_position): return false
+    owner.global_position = published_position
     _source_previous_history_position = owner.global_position
     return true
 
@@ -1559,6 +1565,13 @@ func _source_update_sector_history(current_position: Vector3) -> bool:
             break
         sector = next_sector
         cursor = crossing["position"]
+    # 00448280 publishes a changed current-sector holder during contact history.
+    # A private initial resolver seed alone does not replace an imported null.
+    var owner := get_parent() as Node3D
+    if owner != null and owner.has_method("source_sector_membership_ready") and bool(owner.call("source_sector_membership_ready")):
+        var current := owner.call("source_current_sector") as Node3D
+        if is_instance_valid(current) and current != sector:
+            if not bool(owner.call("source_refresh_contact_sector", sector)): return false
     _source_active_sector = sector
     _source_previous_history_position = current_position
     return true
