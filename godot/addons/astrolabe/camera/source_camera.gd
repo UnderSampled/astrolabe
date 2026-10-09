@@ -1250,37 +1250,42 @@ func source_has_eye_displacement() -> bool:
 func source_clear_eye_displacement() -> void:
     _eye_displacement_pending = false
 
-## 0051c7b0 tests its third position argument against the active source sector.
-## It publishes that point when it belongs to another sector, otherwise its
-## second position argument. The caller must resolve the third-argument sector
-## from source boundary data.
+## 0051c7b0 captures00448350's final sector-root child before researching its
+## third position. A nonnull hit other than that child selects the third point;
+## a no-hit or final-child result selects the second point.
 func source_publish_mode_zero_translation(
     third_argument_position: Vector3,
-    second_argument_position: Vector3,
-    third_argument_sector_id: String = ""
+    second_argument_position: Vector3
 ) -> bool:
     var owner := get_parent() as Node3D
-    var context := _source_collision_context()
-    if owner == null or not owner.is_inside_tree() or context.is_empty():
+    if owner == null or not owner.is_inside_tree():
         return false
     if not third_argument_position.is_finite() or not second_argument_position.is_finite():
         return false
-    var resolved_sector_id := third_argument_sector_id
-    if resolved_sector_id.is_empty():
-        var sector_result := source_resolve_mode_zero_sector(third_argument_position)
-        if not bool(sector_result.get("complete", false)):
-            push_error("Source 0051c7b0 publication needs a complete 004e0020 sector result; type-1/11 child GEO and physical visuals with multiple source LODs are not represented faithfully")
+    # The original getter returns a full pointer, independent of the camera's
+    # current holder. Capture the exported native identity before the lookup.
+    var root := _source_level_root()
+    if not is_instance_valid(root): return false
+    var fallback: Variant = root.get_meta("source_sector_fallback_path", NodePath())
+    if not (fallback is NodePath) or fallback.is_empty():
+        push_error("Source 0051c7b0 publication needs the final sector-root child binding")
+        return false
+    var final_sector := root.get_node_or_null(fallback) as Node3D
+    if not is_instance_valid(final_sector) or not final_sector.has_meta("source_sector_id"):
+        push_error("Source 00448350 final sector-root child is unbound")
+        return false
+    var sector_result := source_resolve_mode_zero_sector(third_argument_position)
+    if not bool(sector_result.get("complete", false)):
+        push_error("Source 0051c7b0 publication needs a complete 004e0020 sector result; type-1/11 child GEO and physical visuals with multiple source LODs are not represented faithfully")
+        return false
+    var resolved_sector_id := str(sector_result.get("sector_id", ""))
+    var next_sector: Node
+    if not resolved_sector_id.is_empty():
+        next_sector = _find_source_sector(root, resolved_sector_id)
+        if not is_instance_valid(next_sector):
+            push_error("Source camera pose references an unbound destination sector")
             return false
-        resolved_sector_id = str(sector_result.get("sector_id", ""))
-    if resolved_sector_id.is_empty():
-        return false
-    var active_sector := context["sector"] as Node
-    var active_sector_id := str(active_sector.get_meta("source_sector_id", ""))
-    var next_sector := _find_source_sector(_source_level_root(), resolved_sector_id)
-    if next_sector == null:
-        push_error("Source camera pose references an unbound destination sector")
-        return false
-    var published_position := third_argument_position if resolved_sector_id != active_sector_id else second_argument_position
+    var published_position := third_argument_position if is_instance_valid(next_sector) and next_sector != final_sector else second_argument_position
     # 0051c7b0 calls00447bf0 in both branches BEFORE its matrix writes.
     # Research the chosen position, including the second-position branch.
     if not _source_refresh_owner_sector_at(owner, published_position): return false
@@ -1779,14 +1784,9 @@ func _source_update_mode_zero() -> bool:
                 return false
         var obstruction_position: Vector3 = controller_state.call("mode_zero_last_obstructed_position")
         var last_good_position: Vector3 = controller_state.call("mode_zero_last_good_position")
-        var sector_result := source_resolve_mode_zero_sector(obstruction_position)
-        if not bool(sector_result.get("complete", false)):
-            push_error("Source 0051c7b0 pose publication needs a complete 004e0020 sector result")
-            return false
         if not source_publish_mode_zero_translation(
             obstruction_position,
-            last_good_position,
-            str(sector_result.get("sector_id", ""))
+            last_good_position
         ):
             push_error("Source 0051c7b0 rejected the conditional mode-0 translation")
             return false
