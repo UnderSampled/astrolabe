@@ -54,12 +54,18 @@ func _alpha_blended_shader(source_shader: Shader) -> Shader:
     if source_shader == null:
         return null
     var code := source_shader.code
-    if code.contains("blend_add") or code.contains("blend_mix"):
+    # A zero scissor threshold still selects Godot's cutout pipeline, which
+    # makes surviving texels fully opaque. Fading needs an alpha output without
+    # that built-in, including for additive source materials.
+    code = code.replace("ALPHA_SCISSOR_THRESHOLD = source_alpha_scissor_threshold;", "")
+    if code == source_shader.code and (code.contains("blend_add") or code.contains("blend_mix")):
         return source_shader
     if not code.contains("depth_draw_opaque"):
         return null
+    if not code.contains("blend_add") and not code.contains("blend_mix"):
+        code = code.replace("depth_draw_opaque", "blend_mix, depth_draw_opaque")
     var result := Shader.new()
-    result.code = code.replace("depth_draw_opaque", "blend_mix, depth_draw_opaque")
+    result.code = code
     return result
 
 func _apply_opacity(actor: Node3D) -> bool:
@@ -83,6 +89,10 @@ func _apply_opacity(actor: Node3D) -> bool:
                 # Source shaded blending must be enabled on this material.
                 if original.has_meta("source_material_flags") and (int(original.get_meta("source_material_flags")) & 0x20000000) == 0: continue
                 var owned := original.duplicate() as Material
+                if original is StandardMaterial3D:
+                    # Diffuse conversion may replace this copy while faded.
+                    # Keep its ordinary pipeline separate from actor opacity.
+                    owned.set_meta("source_opacity_base_transparency", original.transparency)
                 pending.append({"mesh":mesh_instance,"surface":surface,"original":original,"owned":owned,"source_shader":original.shader if original is ShaderMaterial else null})
         opacity_materials = pending
         for entry in opacity_materials:

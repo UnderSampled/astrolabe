@@ -141,6 +141,11 @@ func _make_variant(material: StandardMaterial3D, material_path: String, diffuse:
 	var old_mode := "render_mode unshaded, depth_draw_opaque, cull_back;" if source_mode == BaseMaterial3D.SHADING_MODE_UNSHADED else "render_mode vertex_lighting, depth_draw_opaque, cull_back;"
 	var shader := Shader.new()
 	shader.code = base_shader.code.replace(old_mode, render_mode)
+	var source_transparency := int(material.get_meta("source_opacity_base_transparency", material.transparency))
+	# Writing the scissor built-in selects cutout rendering even at threshold
+	# zero. Preserve alpha/additive materials as blended native variants.
+	if source_transparency == BaseMaterial3D.TRANSPARENCY_ALPHA:
+		shader.code = shader.code.replace("ALPHA_SCISSOR_THRESHOLD = source_alpha_scissor_threshold;", "")
 	var result := ShaderMaterial.new()
 	result.shader = shader
 	result.set_shader_parameter("source_has_albedo_texture", material.albedo_texture != null)
@@ -151,7 +156,7 @@ func _make_variant(material: StandardMaterial3D, material_path: String, diffuse:
 	result.set_shader_parameter("source_ambient", material.get_meta("source_visual_ambient", Color(0.0, 0.0, 0.0, 0.0)))
 	result.set_shader_parameter("source_uv_scale", Vector2(material.uv1_scale.x, material.uv1_scale.y))
 	result.set_shader_parameter("source_uv_offset", Vector2(material.uv1_offset.x, material.uv1_offset.y))
-	var scissor := material.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	var scissor := source_transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
 	result.set_shader_parameter("source_alpha_scissor_threshold", material.alpha_scissor_threshold if scissor else 0.0)
 	result.set_meta("source_material_path", material_path)
 	result.set_meta("source_material_flags", material.get_meta("source_material_flags", 0))

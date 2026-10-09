@@ -96,6 +96,7 @@ func _run() -> void:
 	assert(first_variant.get_shader_parameter("source_albedo_texture") == texture)
 	assert(first_variant.get_shader_parameter("source_alpha_scissor_threshold") == 0.0)
 	assert(first_variant.shader.code.contains("blend_mix"))
+	assert(not first_variant.shader.code.contains("ALPHA_SCISSOR_THRESHOLD ="))
 	assert(is_equal_approx(float(first_variant.get_shader_parameter("source_opacity")), 128.0 / 255.0))
 
 	assert(state.set_visual_diffuse_coef(MATERIAL_PATH, 0x96324b19)) # RGBA bytes 25,75,50,150
@@ -122,6 +123,28 @@ func _run() -> void:
 	assert(is_equal_approx(float(first_variant.get_shader_parameter("source_opacity")), 128.0 / 255.0))
 	assert(actor.renderer.set_transparent_display(actor, false))
 	assert(not first_variant.shader.code.contains("blend_mix"))
+	assert(first_variant.shader.code.contains("ALPHA_SCISSOR_THRESHOLD ="))
 	assert(first_variant.get_shader_parameter("source_alpha_scissor_threshold") == 0.5)
+	assert(actor.renderer.set_transparency(actor, 0))
+	assert(actor.renderer.set_transparent_display(actor, true))
+	assert(not first_variant.shader.code.contains("ALPHA_SCISSOR_THRESHOLD ="))
+	assert(float(first_variant.get_shader_parameter("source_opacity")) == 0.0)
+	assert(actor.renderer.set_transparency(actor, 254))
+	assert(first_variant.shader.code.contains("ALPHA_SCISSOR_THRESHOLD ="))
+	assert(float(first_variant.get_shader_parameter("source_opacity")) == 1.0)
+	assert(first_variant.get_shader_parameter("source_alpha_scissor_threshold") == 0.5)
+	# Both native lighting variants must retain the base material's blend mode.
+	for mode in [0, 2]:
+		for blend in [BaseMaterial3D.BLEND_MODE_MIX, BaseMaterial3D.BLEND_MODE_ADD]:
+			var blended_source := _make_source_material(mode, texture)
+			blended_source.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			blended_source.blend_mode = blend
+			var blended := _add_mesh(level, blended_source, Vector4.ONE, "Blended_%s_%s" % [mode, blend])
+			await process_frame
+			var blended_variant := blended.get_active_material(0) as ShaderMaterial
+			assert(blended_variant != null)
+			assert(not blended_variant.shader.code.contains("ALPHA_SCISSOR_THRESHOLD ="))
+			assert(blended_variant.shader.code.contains("blend_add") == (blend == BaseMaterial3D.BLEND_MODE_ADD))
+			assert(float(blended_variant.get_shader_parameter("source_opacity")) == 1.0)
 	print("VISUAL_MATERIAL_STATE_OK")
 	quit(0)
