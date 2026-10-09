@@ -101,6 +101,11 @@ when preference changes127 to64. It applies the maintained settings route
 without saving preferences. This checks mixer output, not audible original
 driver parity. Existing source fade and music fixtures are updated for the
 separate state and integer object gain. No execution result exists yet.
+PCM is captured at Master downstream of the Effects preference fader, so the
+ratio includes that fader rather than just its input. Godot's documented
+[bus routing](https://docs.godotengine.org/en/stable/tutorials/audio/audio_buses.html)
+and [native PCM capture](https://docs.godotengine.org/en/stable/classes/class_audioeffectcapture.html)
+were consulted statically; no engine was launched to validate the fixture.
 
 Luna should parser-check the maintained scripts first and then run the new
 test, the first channel test, source fade/music fixtures and Proc386/412 checks

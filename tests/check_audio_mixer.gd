@@ -96,13 +96,16 @@ func check() -> void:
     emitter.stop_event("static")
     await process_frame
     var capture := AudioEffectCapture.new()
-    AudioServer.add_bus_effect(effects_bus, capture)
+    # Capture downstream of the Effects preference fader. An effect attached
+    # to Effects itself observes its input before that bus applies its gain.
+    var capture_bus := AudioServer.get_bus_index(&"Master")
+    AudioServer.add_bus_effect(capture_bus, capture)
     var full: float = await captured_rms(capture)
     set_preference(settings, "Effects", 64)
     var quiet: float = await captured_rms(capture)
     if not require(full > 0.01 and quiet > 0.0 and absf(quiet / full - 64.0 / 127.0) < 0.06, "native preference gain is missing/doubled or produced no PCM"): return
     if not require(dynamic.parameter_volume == 64 and starts == 2, "preference change restarted playback or lost published gain"): return
-    AudioServer.remove_bus_effect(effects_bus, AudioServer.get_bus_effect_count(effects_bus) - 1)
+    AudioServer.remove_bus_effect(capture_bus, AudioServer.get_bus_effect_count(capture_bus) - 1)
     emitter.kill_all()
     await process_frame
     emitter.free()
