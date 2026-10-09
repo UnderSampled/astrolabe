@@ -632,7 +632,7 @@ pub(super) fn export_perso(
     super::ai::component(project, source, perso, &name, written)?;
     writeln!(
         project.builder,
-        "    save_scene({name}, {})\n    {name}.free()",
+        "    {name}.source_set_object_active_state({name}.source_object_active and not {name}.source_return_suppressed)\n    {name}.refresh_configured_participation()\n    save_scene({name}, {})\n    {name}.free()",
         quoted(&format!("res://{path}"))
     )?;
     if state < 0 {
@@ -877,6 +877,9 @@ fn export_rig(
             channel / 256
         )?;
     }
+    // Parking banks remain saved native content. They inherit neither physics
+    // processing nor animated transforms; moving a payload to a selected slot
+    // restores its ordinary local transform and native contact participation.
     for config in configurations {
         let identity = &super::digest(config.path.as_str().as_bytes())[..12];
         for &channel in sampled_slots.keys() {
@@ -898,7 +901,7 @@ fn export_rig(
                 );
                 writeln!(
                     function,
-                    "    var {bank}_{channel} = Node3D.new()\n    {bank}_{channel}.name = {}\n    {bank}_{channel}.visible = false\n    {bank}_{channel}.set_meta(\"source_configuration\", {})\n    {bank}_{channel}.set_meta(\"source_restored\", {})\n    {bank}_{channel}.set_meta(\"empty_payload_slots\", PackedInt32Array([{empty_slots}]))\n    c_{channel}.add_child({bank}_{channel})\n    {bank}_{channel}.owner = actor",
+                    "    var {bank}_{channel} = Node3D.new()\n    {bank}_{channel}.name = {}\n    {bank}_{channel}.visible = false\n    {bank}_{channel}.process_mode = Node.PROCESS_MODE_DISABLED\n    {bank}_{channel}.top_level = true\n    {bank}_{channel}.set_meta(\"source_configuration\", {})\n    {bank}_{channel}.set_meta(\"source_restored\", {})\n    {bank}_{channel}.set_meta(\"empty_payload_slots\", PackedInt32Array([{empty_slots}]))\n    c_{channel}.add_child({bank}_{channel})\n    {bank}_{channel}.owner = actor",
                     quoted(&bank),
                     quoted(config.path.as_str()),
                     restored
@@ -920,7 +923,7 @@ fn export_rig(
                 anchors.insert(key, anchor);
                 writeln!(
                     function,
-                    "    var part_{anchor} = Node3D.new()\n    part_{anchor}.set_script(native_resource(\"res://addons/astrolabe/character/configured_slot.gd\"))\n    part_{anchor}.name = {}\n    c_{channel}.add_child(part_{anchor})\n    part_{anchor}.owner = actor\n    part_{anchor}.visible = false\n    part_{anchor}.set_meta(\"configuration_slot\", {slot})",
+                    "    var part_{anchor} = Node3D.new()\n    part_{anchor}.set_script(native_resource(\"res://addons/astrolabe/character/configured_slot.gd\"))\n    part_{anchor}.name = {}\n    c_{channel}.add_child(part_{anchor})\n    part_{anchor}.owner = actor\n    part_{anchor}.visible = false\n    part_{anchor}.process_mode = Node.PROCESS_MODE_DISABLED\n    part_{anchor}.top_level = true\n    part_{anchor}.set_meta(\"configuration_slot\", {slot})",
                     quoted(&name)
                 )?;
             }
@@ -970,7 +973,7 @@ fn export_rig(
             let area = format!("physical_contact_{i}");
             writeln!(
                 function,
-                "    var {area} = Area3D.new()\n    {area}.name = \"PhysicalContact\"\n    {area}.collision_layer = 16\n    {area}.collision_mask = 0\n    {area}.monitoring = false\n    {area}.monitorable = true\n    {area}.set_meta(\"physical_object_contact\", true)\n    {area}.transform = {}\n    payload_{i}.add_child({area})\n    {area}.owner = actor",
+                "    var {area} = Area3D.new()\n    {area}.name = \"PhysicalContact\"\n    {area}.disable_mode = CollisionObject3D.DISABLE_MODE_REMOVE\n    {area}.collision_layer = 16\n    {area}.collision_mask = 0\n    {area}.monitoring = false\n    {area}.monitorable = true\n    {area}.set_meta(\"physical_object_contact\", true)\n    {area}.transform = {}\n    payload_{i}.add_child({area})\n    {area}.owner = actor",
                 transform
             )?;
             let outer = std::mem::take(&mut project.builder);

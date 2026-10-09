@@ -121,6 +121,7 @@ var action_complete: bool = false
 var animation_complete: bool = false
 var action_controlled: bool = false
 var repeats_remaining: int = 0
+var _configuration_bound: bool = false
 
 var animation_player: AnimationPlayer:
     get: return get_node("AnimationPlayer")
@@ -139,6 +140,12 @@ var playing: bool:
 ## Resolve ordinary scene-owned state before child Brains enter _ready. Nested
 ## PackedScene instances otherwise duplicate local-to-scene resource overrides.
 func _enter_tree() -> void:
+    # Re-entered actors catch up with shared configuration changes made while
+    # outside the scene. Removed actors must not mutate their payload parents.
+    if _configuration_bound:
+        if source_configuration != null and not source_configuration.changed.is_connected(_apply_source_configuration):
+            source_configuration.changed.connect(_apply_source_configuration)
+        _apply_source_configuration.call_deferred()
     var stock: Resource = (get_meta("source_stock") if has_meta("source_stock") else null) as Resource
     if stock != null: set_meta("source_stock", stock.duplicate(true))
     if source_state_owner_path.is_empty():
@@ -146,6 +153,10 @@ func _enter_tree() -> void:
     var state_owner := get_node(source_state_owner_path)
     source_inventory = state_owner.get_meta("source_inventory") as Resource
     source_magick = state_owner.get_meta("source_magick") as Resource
+
+func _exit_tree() -> void:
+    if source_configuration != null and source_configuration.changed.is_connected(_apply_source_configuration):
+        source_configuration.changed.disconnect(_apply_source_configuration)
 
 func _ready() -> void:
     _contact_previous = global_position
@@ -1579,12 +1590,17 @@ func _state_repeats(_id: int) -> int:
 
 func _state_movement_collision(_state: int) -> void:
     # Activate saved query/reaction shapes selected by source character state.
-    for value in find_children("*", "CollisionShape3D", true, false):
-        var shape := value as CollisionShape3D
-        if not shape.has_meta("source_active_states"):
-            continue
-        var states: PackedInt32Array = shape.get_meta("source_active_states")
-        _set_zde_shape_active(shape, states.has(_state))
+    # These two native groups own state-selected shapes. Configuration banks
+    # carry independent physical fallback; do not traverse them on each action.
+    for group_name in ["ZDE", "ZDR"]:
+        var group := get_node_or_null(group_name)
+        if group == null: continue
+        for value in group.find_children("*", "CollisionShape3D", true, false):
+            var shape := value as CollisionShape3D
+            if not shape.has_meta("source_active_states"):
+                continue
+            var states: PackedInt32Array = shape.get_meta("source_active_states")
+            _set_zde_shape_active(shape, states.has(_state))
 
 func _set_zde_shape_active(shape: CollisionShape3D, active: bool) -> void:
     shape.disabled = not active or (int(shape.get_meta("source_collision_identifier", 0)) & 0x8000) != 0
@@ -1741,7 +1757,18 @@ func _bind_source_configuration() -> void:
         source_initial_configuration = shared[str(source_initial_configuration.get("source_id"))]
     if source_configuration != null and not source_configuration.changed.is_connected(_apply_source_configuration):
         source_configuration.changed.connect(_apply_source_configuration)
+    _configuration_bound = true
     _apply_source_configuration()
+
+## Called during conversion after the initial native pose has been applied.
+## Runtime animation/visibility transitions are handled by the slots' signals.
+func refresh_configured_participation() -> void:
+    var channels := get_node_or_null("Channels")
+    if channels == null: return
+    for channel in channels.get_children():
+        for anchor in channel.get_children():
+            if anchor.has_method("refresh_participation"):
+                anchor.call("refresh_participation")
 
 ## Proc83 replaces only this actor's selection. Shared table state is retained.
 ## Null is an empty visual selection, without an animation or gameplay reset.
@@ -1771,6 +1798,7 @@ func source_swap_configured_parts(first: int, second: int) -> bool:
     return bool(source_configuration.call("swap_slots", first, second))
 
 func _apply_source_configuration() -> void:
+    if _configuration_bound and not is_inside_tree(): return
     var channels := get_node_or_null("Channels")
     # Synthetic, non-rendered actors used by focused behavior scenes may omit
     # the imported channel hierarchy. There is no native payload to update.
