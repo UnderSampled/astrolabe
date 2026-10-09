@@ -90,6 +90,14 @@
       ],
       "safeguard": "always",
       "timeout_seconds": 15
+    },
+    {
+      "script": "test_scene_loading_census.py",
+      "areas": [
+        "loading",
+        "scene"
+      ],
+      "timeout_seconds": 10
     }
   ],
   "tests": [
