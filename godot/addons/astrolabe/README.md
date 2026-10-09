@@ -6,9 +6,10 @@ keys, and disabled IDs are reapplied before native animation evaluation.
 It also exposes read-only actor current-sector identity through saved named
 references, including a known null holder value. Proc386 retains the raw effects
 volume override, and Proc412 uses a bounded native effects fade followed by
-effects-only stop/reset. Voice playback remains independent. Initial actor-sector
-refresh requires its source-backed lifecycle integration; queries do not assign
-geometric containment.
+effects-only stop/reset. Voice playback remains independent. Explicit camera
+translation publication and changed boundary history update the actor's sector;
+native walk/mass motion maintains an existing sector. Ready-time null remains
+null until an explicit lifecycle publication; queries do not assign containment.
 
 Interface82 retains actor-owned activation/suppression and placed/generated
 removal, preserves paused compiled Brains, permits direct Proc12 placement of

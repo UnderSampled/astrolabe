@@ -8,7 +8,8 @@
 
 The [Manor ambient/channel composition](manor-ambient-channel-composition-2026-10-09.md)
 records both integrated corrections, synchronized Rete62/support83 source,
-the remaining actor-sector lifecycle boundary and the smallest publication scope.
+camera-sector lifecycle publication, remaining source fidelity boundaries and
+the smallest publication scope.
 
 The [Manor channel visibility static correction](manor-channel-visibility-static-2026-10-09.md)
 traces the two absent-channel initialization failures, original request/default

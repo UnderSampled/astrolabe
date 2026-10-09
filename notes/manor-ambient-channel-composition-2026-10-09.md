@@ -12,8 +12,9 @@ remote pushes occurred during this composition. Worker files remain unchanged.
 | --- | --- | --- |
 | Absent logical-channel visibility | `b9c351f8f29051cfaa653f742232e71950cc50c3` | `54f5d16b6cf6e751b0190d05bc1b48d786bf99e4` |
 | Actor-sector condition and effects volume | `01afe20f802a890135a307dca4f4ac1b34b045ce` | `2645698f72ab02ad96329ad79fa25e8becf4bf16` |
+| Camera sector publication and movement maintenance | `f495b34f51f217eaee6fa07ccecd4b53877c92c4` | `7cf38563cb761ea45a8f7a0fca78c0ceed23b0e3` |
 
-Both cherry-picks preserve original provenance. Their shared Character, AI,
+All three cherry-picks preserve original provenance. Their shared Character, AI,
 model and support changes combined without conflicts. Static comparison retains
 the mana subtraction's point-readiness guard and the channel component's
 byte-narrowed actor-owned state and native animation tracks.
@@ -41,21 +42,23 @@ gain fidelity remain unverified. See the two isolated notes for exact evidence
 and boundaries: [channel](manor-channel-visibility-static-2026-10-09.md) and
 [ambient](ambient-sector-volume-2026-10-09.md).
 
-## Remaining actor-sector lifecycle boundary
+## Sector lifecycle and remaining source boundaries
 
-The imported current-sector holder for Hype is known null. Condition124's
-`source_current_sector()` is deliberately read-only. It must not assign a
-containing sector while answering a query.
+The imported current-sector holder for the ambient operand `world/0/2`
+(StdCamer, not Hype) is known null. The original ambient handoff's human label
+was incorrect; the worker corrects it in follow-up
+`f495b34f51f217eaee6fa07ccecd4b53877c92c4`. Hype is `world/0/0`.
+Condition124's `source_current_sector()` is deliberately read-only. It must not
+assign a containing sector while answering a query.
 
-The maintained `_ready()` eventually invokes `source_set_object_active_state`,
-but that method currently changes activity without a sector placement query.
-The movement paths call `move_and_slide` and camera-history maintenance without
-an actor-sector update. `source_contact_sector()` only traverses portals when
-there is already a bound current sector, so the saved null cannot be repaired
-by that method. Camera selection's explicit refresh updates the camera owner,
-not Hype. Generated actors inherit the caller's cached sector but do not yet
-copy the new known-membership flag or bind its native path. These are connected
-integration gaps, not accepted condition behavior after startup.
+The approved follow-up connects camera0051c7b0 publication to the Character's
+holder before the selected translation is written. It reuses the existing
+ordered point resolver and source-bound last-sibling fallback. Camera history
+publishes changed sectors when a known nonnull holder exists. Post-walk/mass
+motion now runs existing directional contact-sector maintenance. The private
+camera seed does not replace imported null, and ready-time activation does not
+guess containment. Existing viewport-selection refresh also publishes the
+camera owner's holder when its selection branch runs.
 
 Read-only original source identifies the relevant boundaries:
 `src/actor/actor_activation.c`'s00437740 invokes00447bf0 before activation
@@ -64,15 +67,30 @@ ordered sector-root sibling when research returns no sector. Ordinary actor
 update004499b0 invokes00448280, which applies004e03f0 directional history after
 animation/motion. That history routine assumes a valid starting sector and
 does not initialize a null holder. The query00535460 does neither operation.
-The delegated ambient worker's follow-up lifecycle evidence remains with Kip;
-no guessed sector, query-time containment, or new shared resolver is added here.
-Static composition is therefore not yet sufficient to claim fresh gameplay
-sector behavior, and regeneration remains unrun.
+Two original-source boundaries remain. Startup holder event00447900 has no
+reconstructed body, so its initial membership effects and ordering are unknown.
+The incomplete decompiled00448350 return leaves the camera's second/third
+position branch comparison unverified; this patch preserves the existing
+native branch policy. Neither boundary is an explicit native unsupported call
+or direct fail-stop. A known null passes membership readiness and compares
+false against the four nonnull ambient literals until a supported publication
+updates it. Missing startup effects or a different branch result could still
+alter behavior silently; that is fidelity uncertainty, not an accepted opening.
+
+The camera's existing incomplete point-resolver, missing sector/fallback
+binding and broader unmapped camera-motion branches can separately return
+false and stop its compiled Brain. Static review does not establish that such
+a guard is reached in this scene. Those guards are distinct from the two
+unreconstructed source boundaries. Kip owns the parallel source investigation.
+Generated-object inheritance of the new known-membership flag/path remains
+outside this placed ambient-actor slice. No guessed startup assignment,
+query-time containment or new shared resolver is added. The source composition
+is synchronized; compilation, publication and runtime behavior remain unverified.
 
 ## Smallest proposed fresh-content update
 
-After the lifecycle boundary is reconciled, one fresh release converter build
-and the supported command
+The smallest proposed update is one fresh release converter build and the
+supported command
 `astrolabe port disc godot --level manoir --locale en --content scene` suffice
 for the currently published ownership graph. Import must start from original
 source; existing Rete61 snapshots do not contain the new sector semantics.
