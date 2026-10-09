@@ -204,3 +204,43 @@ support; the already preserved UID inventory needs no separate rebuild.
 Publication outcome is recorded separately after that operation completes.
 This section supersedes the earlier unapplied-proposal status, without changing
 the recorded failed acceptance or implying runtime verification.
+
+### Completed scene-only publication
+
+The correction is cleanly committed as
+`dd8dd291561097320092c70dbd389979e3177f3c`. Its one required release converter
+build exited0 in72.24s. Supported Manor-only `port` exited0 in420.73s and
+published successfully; both supervisor results have no timeout, leaked child
+or remaining process. No full preparation or additional build was run.
+
+The final manifest remains schema2/support82 on the same pinned Godot version,
+with9,181 unique files and unchanged selection counts. Its SHA-256 is
+`34db7a792f935976e859ea57a2477adc151f3ac0958e4a5595673d93846bc7a0`.
+All menu, inventory and pause-menu memberships and actual file hashes were
+checked unchanged. Both shared mip resources retained their exact bytes.
+The native world scene, meshes, textures, sound and animation resources also
+retained their hashes. Exactly14 generated AI scripts changed: World154 and
+Fix535,757,768,782,797,817,828,842,864,882,893,908,922. Static line-by-line
+comparison finds only15 substitutions of the subtraction spell-readiness
+guard with the pool-readiness guard; Fix535 has two generated sites. No line
+count, operand/evaluation order or selected-spell query changed.
+
+The manifest now exposes the scene scope's3,369 diagnostics. They are identical
+to that scope's diagnostics in the earlier complete preparation. The previous
+published manifest exposed the last pause-menu scope's three diagnostics;
+scope publication replaces that diagnostic array while retaining asset
+memberships. The prior complete report and manifest remain preserved. This
+diagnostic count difference is not a new observed native/runtime failure.
+
+The converter binary includes the corrected compiler, native assertion and
+already tracked UIDs. No new UID sidecars were generated, and no post-publication
+metadata rebuild was needed. Tracked sources, user settings/save paths, the
+supplied save import and project settings were unchanged during preparation.
+
+Ignored evidence is under `output/mana-pool-correction-20261009/`: build/port
+logs, supervised `result.json`, before/after manifests, `generated-ai.diff`,
+`static-generated-review.json` and `final-outcome.json`. The earlier failed
+acceptance and Library image remain intact. **The corrected published content
+has not had another gameplay or test run.** The70-second readiness failure,
+later source errors and unreached Load Game/HUD/inventory/barrel acceptance
+remain the runtime limits pending the lead's next direction.
