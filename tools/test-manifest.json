@@ -3150,7 +3150,7 @@
       "prerequisites": [
         "godot"
       ],
-      "fixture": "synthetic schema-1 Global Brain state with explicit DSG[147]=false",
+      "fixture": "production native checkpoint Resources and floor contact with explicit DSG[147]=false; legacy schema1 omission retained as component-overlay coverage",
       "timeout_seconds": 30,
       "ignored": true,
       "release": true
