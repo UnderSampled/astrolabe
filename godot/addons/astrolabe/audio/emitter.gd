@@ -1,6 +1,7 @@
 extends Node3D
 ## Engine sound semantics over converted waveforms. Resource selection is compiled code.
 const Mixer = preload("res://addons/astrolabe/audio/mixer.gd")
+const SpatialGain = preload("res://addons/astrolabe/audio/spatial_gain.gd")
 signal voice_started(info: Dictionary)
 signal voice_completed(info: Dictionary)
 @export var bus: StringName = &"Astrolabe Effects"
@@ -78,7 +79,14 @@ func update_microphone_pose() -> bool:
     return true
 
 func _physics_process(_delta: float) -> void:
-    if is_microphone: update_microphone_pose()
+    if is_microphone:
+        update_microphone_pose()
+        return
+    # 004ec710 republishes ordinary dynamic requests each sound update. The
+    # software Sxd backend leaves static compact parameters unchanged when
+    # only the selected Micro moves; its notification hook is RET-only.
+    for info in voices:
+        if info.dynamic and info.source_parameter_conversion: _publish_voice_gain(info)
 
 ## Per-object effects volume; source413 applies it before starting its event.
 var object_volume: float = 127.0
@@ -118,7 +126,23 @@ func _publish_voice_gain(info: Dictionary) -> void:
     info.source_volume_word = mixer.source_volume_word(info.module)
     info.preference_volume = int(mixer.preference_levels[info.module])
     info.object_volume_word = object_word
-    info.player.volume_db = linear_to_db(maxf(info.gain * mixer.native_request_gain(info.module, object_word, info.bus), 0.000001))
+    var byte: int = info.parameter_volume
+    if info.source_parameter_conversion and info.spatial:
+        var listener = get_tree().root.get_node_or_null("AstrolabeListener")
+        info.source_position = info.player.global_position
+        if listener == null or not bool(listener.get("is_microphone")) or not listener.update_microphone_pose():
+            # 00431c30 creates one publication node. A missing imported pose
+            # stays explicitly unsupported, never the current camera position.
+            info.source_spatial_state = &"unbound_microphone"
+            info.distance_volume = 0
+        else:
+            info.source_spatial_state = &"selected_microphone"
+            info.microphone_position = listener.global_position
+            info.distance_word = SpatialGain.distance_word(info.source_position, info.microphone_position)
+            info.distance_volume = SpatialGain.distance_volume(info.distance_word)
+        byte = SpatialGain.converted_volume(byte, info.distance_volume)
+    info.converted_volume = byte
+    info.player.volume_db = linear_to_db(maxf(info.gain * mixer.native_parameter_gain(info.module, byte, info.bus), 0.000001))
 
 ## Music uses the source's shared object-less channel and survives its Brain.
 static func music_channel(requester: Node) -> Node3D:
@@ -282,18 +306,25 @@ func play_voice(voice: Resource, identity: String, pitch_variation: float, stopp
                 return
             music_failure = "Switching active music themes requires the source audio-driver transition contract"
             return
-    var spatial: bool = voice.spatial and not is_music
+    var spatial: bool = (voice.source_parameter_conversion or voice.spatial) and not is_music
     _audio_mixer()
     var player: Node = AudioStreamPlayer3D.new() if spatial else AudioStreamPlayer.new()
     player.bus = &"Astrolabe Voice" if _dialogue_speech_request else voice_bus
     player.stream = voice.stream
     player.pitch_scale = maxf(1.0 + random.randf_range(-pitch_variation, pitch_variation), 0.001) if voice.pitchable else 1.0
     add_child(player)
+    if spatial and voice.source_parameter_conversion:
+        # Native panning remains available; source software gain supplies the
+        # distance law once, without inverse distance or a distant low-pass.
+        player.attenuation_model = AudioStreamPlayer3D.ATTENUATION_DISABLED
+        player.attenuation_filter_cutoff_hz = 20500.0
     if player is Node3D and not dynamic:
         player.top_level = true
         player.global_transform = global_transform
-    var info := {"event": identity, "stream": voice.stream.resource_path, "pitch": player.pitch_scale, "gain": voice.gain, "choices": voice.trace, "spatial": spatial, "stoppable": stoppable, "dynamic": dynamic, "player": player, "theme": voice.theme_identity, "uses_object_volume": not _dialogue_speech_request, "module": _request_module(), "bus": player.bus}
+    var info := {"event": identity, "stream": voice.stream.resource_path, "sample": voice.source_sample, "pitch": player.pitch_scale, "gain": voice.gain, "choices": voice.trace, "spatial": spatial, "source_parameter_conversion": voice.source_parameter_conversion, "stoppable": stoppable, "dynamic": dynamic, "player": player, "theme": voice.theme_identity, "uses_object_volume": not _dialogue_speech_request, "module": _request_module(), "bus": player.bus}
     _publish_voice_gain(info)
+    if spatial and voice.source_parameter_conversion and info.source_spatial_state == &"unbound_microphone":
+        push_warning("Source sound has no bound Micro pose: " + identity)
     voices.append(info)
     player.finished.connect(_voice_finished.bind(info))
     player.play()

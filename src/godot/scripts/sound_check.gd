@@ -9,6 +9,7 @@ func check():
     var emitter = Node3D.new()
     emitter.set_script(load("res://addons/astrolabe/audio/emitter.gd"))
     root.add_child(emitter)
+    if not require(emitter.switch_micro_perso(emitter, emitter, emitter, Basis.IDENTITY), "source sound fixture requires a selected Micro"): return
     var events = JSON.parse_string(FileAccess.get_file_as_string("res://generated/hype/sound-test/events.json")).map(func(path):return load(path))
     emitter.random.seed = 42
     var first = events[0].select(emitter)

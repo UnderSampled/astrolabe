@@ -84,7 +84,9 @@ func request_volume_byte(module: StringName, object_word: int) -> int:
 ## same preference twice. Authored alternate buses receive the complete gain.
 ## Byte-to-native amplitude remains /127 pending the external driver's law.
 func native_request_gain(module: StringName, object_word: int, native_bus: StringName) -> float:
-    var byte := request_volume_byte(module, object_word)
+    return native_parameter_gain(module, request_volume_byte(module, object_word), native_bus)
+
+func native_parameter_gain(module: StringName, byte: int, native_bus: StringName) -> float:
     if native_bus == BUSES[module]:
         var preference := int(preference_levels[module])
         return float(byte) / float(preference) if preference > 0 else 0.0

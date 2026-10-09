@@ -251,7 +251,7 @@ fn export_resource(
             }
         }
         project.write(definitions_script, script.as_bytes())?;
-        project.diagnostic(format!("{}: native streams and compiled weighted/selector sound choices; attenuation, random generator, reverb and release envelopes remain approximations; live switch updates/material sensing are unsupported",reference.definitions.path));
+        project.diagnostic(format!("{}: native streams and compiled weighted/selector sound choices; plain object samples use single-Micro source byte attenuation; pan, resource gain, random generator, sector eligibility, reverb and release envelopes remain approximations; live switch updates/material sensing are unsupported",reference.definitions.path));
     }
     match &selected.data {
         SoundResourceData::Sample { sample, controls } => {
@@ -555,7 +555,7 @@ fn export_sample_voice(
     project.write(
         voice[6..].into(),
         format!(
-            "[gd_resource type=\"Resource\" load_steps=3 format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/audio/voice.gd\" id=\"script\"]\n[ext_resource type=\"AudioStreamWAV\" path={} id=\"stream\"]\n\n[resource]\nscript = ExtResource(\"script\")\nstream = ExtResource(\"stream\")\nspatial = {}\npitchable = {}\nsource_sample = {}\n",
+            "[gd_resource type=\"Resource\" load_steps=3 format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/audio/voice.gd\" id=\"script\"]\n[ext_resource type=\"AudioStreamWAV\" path={} id=\"stream\"]\n\n[resource]\nscript = ExtResource(\"script\")\nstream = ExtResource(\"stream\")\nspatial = {}\npitchable = {}\nsource_parameter_conversion = true\nsource_sample = {}\n",
             quoted(&waveform),
             controls.spatial,
             controls.pitchable,

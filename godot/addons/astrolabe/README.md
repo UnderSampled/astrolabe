@@ -359,6 +359,20 @@ or owning-scene destruction. Native finish frees that player without publishing
 a second completion.
 No source-shaped sound program or opcode interpreter is loaded at runtime.
 
+Converted sample voices set `source_parameter_conversion`. Plain object events
+then use the source's software distance law, independently of `SetSpacable`:
+fixed world coordinates, pseudo norm over source X/Y followed by Z, saturation
+at two units and an eightfold endpoint at16. Godot distance attenuation and its
+distant low-pass filter are disabled for these voices. Dynamic requests publish
+on physics updates; static requests keep their captured distance gain until a
+preference publication. A missing selected Micro records
+`source_spatial_state = unbound_microphone` with zero converted distance gain;
+the camera does not substitute for it. Metadata exposes the parameter byte,
+distance word/byte, converted byte and selected positions. Authored native
+voices keep their native spatial behavior. Single-Micro distance conversion is
+implemented; sector eligibility, panning, resource byte gain and driver amplitude
+mapping remain fidelity gaps.
+
 `behavior/behavior.gd` provides timing, cancellation and bindings for generated
 normal/reflex behavior coroutines. Each saved `Brain` node has typed `dsg_N` instance properties;
 `main_actor_path` is a level-owned NodePath and `sound_emitter_path` resolves the

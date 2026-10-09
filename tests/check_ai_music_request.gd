@@ -30,6 +30,7 @@ func check() -> void:
     root.add_child(caller)
     brain.main_actor = actor
     brain.sound_emitter = caller_emitter
+    if not require(Emitter.switch_micro_perso(effects, actor, actor, Basis.IDENTITY), "source effects fixture requires a selected Micro"): return
     var mixer := Mixer.shared(brain) as Mixer
     mixer.set_preference(&"effects", 127)
     mixer.set_preference(&"music", 127)
@@ -58,7 +59,7 @@ func check() -> void:
     caller.queue_free()
     await create_timer(0.15).timeout
     if not require(player.playing and is_equal_approx(effects.object_volume, 90.0), "request lifetime or receiver fade completion"): return
-    if not require(effects.voices[0].player.playing and is_equal_approx(db_to_linear(effects.voices[0].player.volume_db), 88.0 / 127.0), "fade completion must preserve effects playback with source byte gain"): return
+    if not require(effects.voices[0].player.playing and effects.voices[0].parameter_volume == 88 and effects.voices[0].converted_volume == 87 and is_equal_approx(db_to_linear(effects.voices[0].player.volume_db), 87.0 / 127.0), "fade completion must preserve effects playback with source byte gain"): return
     var visited: Array[int] = []
     for i in 100:
         var clip: int = player.get_stream_playback().get_current_clip_index()

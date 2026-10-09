@@ -103,6 +103,17 @@
   "tests": [
     {
       "binary": "astrolabe",
+      "test": "godot::sound::tests::native_source_audio_attenuation_preserves_static_publication",
+      "areas": ["media", "ai"],
+      "kind": "engine",
+      "prerequisites": ["godot"],
+      "fixture": "source pseudo norm, selected Micro, static/dynamic software distance publication and native PCM curve",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "godot::sound::tests::native_source_fades_preserve_preferences_and_publish_byte_gain",
       "areas": [
         "media",
