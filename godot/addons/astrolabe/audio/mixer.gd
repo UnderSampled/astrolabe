@@ -13,7 +13,9 @@ var preference_levels: Dictionary = {&"music": 127, &"effects": 127, &"voice": 1
 
 static func shared(requester: Node) -> Node:
     var root := requester.get_tree().root
-    var mixer: Node = root.get_meta(&"astrolabe_audio_mixer", null) as Node
+    # get_meta(key, default) still logs an ERROR for an absent key; the
+    # autoload reads this on a fresh root before the meta exists, so guard.
+    var mixer: Node = root.get_meta(&"astrolabe_audio_mixer") as Node if root.has_meta(&"astrolabe_audio_mixer") else null
     if not is_instance_valid(mixer):
         mixer = load("res://addons/astrolabe/audio/mixer.gd").new()
         mixer.name = "AstrolabeMixer"
