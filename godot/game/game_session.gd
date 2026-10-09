@@ -377,14 +377,13 @@ func open_new_game() -> void:
     add_child(level)
     # The imported viewport registration owns the opening camera. Its native
     # component and compiled AI own every subsequent pose and target change.
-    if is_instance_valid(opening_camera) and bool(opening_camera.get("initially_current")):
-        opening_camera.make_current()
-    else:
-        demo_camera.set("target",actor)
-        demo_camera.call("follow")
-        demo_camera.make_current()
+    if not is_instance_valid(opening_camera):
+        fail("The generated manor is missing its named opening camera.")
+        return
+    if not restore_source_camera_presentation(): return
     await get_tree().process_frame
     if not is_inside_tree(): return
+    if not restore_source_camera_presentation(): return
     ready_to_play = true
     loading = false
     stage("opening","New Game — opening. R restarts; Esc pauses.")
@@ -873,9 +872,11 @@ func set_crossbow_aim_mode(enabled: bool) -> void:
 func update_crossbow_aim_target() -> void:
     if not is_instance_valid(actor): return
     var viewport := get_viewport()
+    var presentation := viewport.get_camera_3d()
+    if not is_instance_valid(presentation): return
     var center := viewport.get_visible_rect().size * 0.5
-    var origin := demo_camera.project_ray_origin(center)
-    var direction := demo_camera.project_ray_normal(center)
+    var origin := presentation.project_ray_origin(center)
+    var direction := presentation.project_ray_normal(center)
     var query := PhysicsRayQueryParameters3D.create(origin, origin + direction * 2000.0, 1)
     query.exclude = [actor.get_rid()]
     var hit := actor.get_world_3d().direct_space_state.intersect_ray(query)
