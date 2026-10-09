@@ -2,6 +2,26 @@ use super::*;
 use crate::model::{Selection, io::Load};
 
 #[test]
+#[ignore = "requires native Godot; source sound module and request lifecycle"]
+fn native_sound_requests_keep_module_scope_and_complete_removed_holders() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    crate::godot::support::initialize(temp.path())?;
+    std::fs::write(
+        temp.path().join("check_audio_channels.gd"),
+        include_bytes!("../../tests/check_audio_channels.gd"),
+    )?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    let log = crate::godot::run_godot(
+        &engine,
+        temp.path(),
+        &["--headless", "--script", "res://check_audio_channels.gd"],
+        std::time::Duration::from_secs(20),
+    )?;
+    assert!(log.contains("AUDIO_CHANNELS_OK"), "{log}");
+    Ok(())
+}
+
+#[test]
 fn independent_actor_sound_visits_share_scripts_and_waveforms() -> Result<()> {
     let library_ref = AssetRef::<SoundDefinitions>::new("sound:/shared.lcb")?;
     let package_a = AssetRef::<SoundDefinitions>::new("sound:/a.csb")?;

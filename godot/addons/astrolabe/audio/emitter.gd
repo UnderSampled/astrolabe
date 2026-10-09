@@ -111,9 +111,7 @@ func kill_all() -> void:
         # Hype's next speech-animation update observes request completion. Use
         # the same guarded completion path on the next native frame, even if
         # the actor's processing has been disabled by a terminal session route.
-        if not bool(info.get("completion_pending", false)):
-            info.completion_pending = true
-            get_tree().process_frame.connect(complete_voice.bind(info), CONNECT_ONE_SHOT)
+        _defer_voice_completion(info, &"kill")
     set_object_volume(127.0)
 
 func request_music(event: Resource) -> bool:
@@ -126,14 +124,19 @@ func request_music(event: Resource) -> bool:
 func play_dialogue_speech(record: Resource) -> void:
     source_dialogue_record = record
     var voice: Resource = record.get("voice") as Resource
-    if voice == null: return
+    execute_voice_event(voice)
+
+## The source module is request context, separate from the speech holder.
+## Compiled STOP/PLAY events select voice without changing the effects module.
+func execute_voice_event(event: Resource) -> void:
+    if event == null: return
     var bus_index := AudioServer.get_bus_index(&"Astrolabe Voice")
     if bus_index < 0:
         AudioServer.add_bus()
         AudioServer.set_bus_name(AudioServer.bus_count - 1, &"Astrolabe Voice")
     var previous_request := _dialogue_speech_request
     _dialogue_speech_request = true
-    voice.execute(self)
+    event.execute(self)
     _dialogue_speech_request = previous_request
 
 ## 0041e910 clears the speech holder even when no stop is needed. Ordinary
@@ -145,19 +148,20 @@ func stop_dialogue_speech() -> void:
     # Source kills this object's voice module; a matching event on the effects
     # module must survive, even when both requests use the same resource.
     for info in voices.duplicate():
-        if not bool(info.get("uses_object_volume", true)): _stop_voice_info(info)
+        if info.module == &"voice": _stop_voice_info(info)
 
 func set_object_volume(value: float) -> void:
     source_set_effects_volume_word(int(clampf(value, 0.0, 127.0)))
 
 ## 004ed840/004eb750 store the full word; only exact127 removes the override.
-## Refresh active effects and let subsequent effects inherit the same gain.
+## 004ec710 refreshes parameters only for dynamic requests. Static requests
+## retain their captured gain; subsequent effects inherit the current override.
 func source_set_effects_volume_word(value: int) -> void:
     var word := value & 0xffffffff
     source_effects_volume_override = null if word == 127 else word
     object_volume = float(word)
     for info in voices:
-        if bool(info.get("uses_object_volume", true)) and is_instance_valid(info.player):
+        if bool(info.get("uses_object_volume", true)) and info.dynamic and is_instance_valid(info.player):
             info.player.volume_db = linear_to_db(maxf(info.gain * object_volume / 127.0, 0.000001))
 
 ## 0040bad0 admits at most ten outstanding effects fade-out requests.
@@ -196,9 +200,7 @@ func source_fade_effects_and_stop(target: int, duration_ms: int) -> bool:
                 if is_instance_valid(info.player): info.player.stop()
                 # Request removal stops playback; the next native frame
                 # publishes completion to holders, as for the bulk kill API.
-                if not bool(info.get("completion_pending", false)):
-                    info.completion_pending = true
-                    get_tree().process_frame.connect(complete_voice.bind(info), CONNECT_ONE_SHOT)
+                _defer_voice_completion(info, &"effects_fade")
         source_set_effects_volume_word(127))
     return true
 
@@ -264,27 +266,52 @@ func play_voice(voice: Resource, identity: String, pitch_variation: float, stopp
     if player is Node3D and not dynamic:
         player.top_level = true
         player.global_transform = global_transform
-    var info := {"event": identity, "stream": voice.stream.resource_path, "pitch": player.pitch_scale, "gain": voice.gain, "choices": voice.trace, "spatial": spatial, "stoppable": stoppable, "player": player, "theme": voice.theme_identity, "uses_object_volume": not _dialogue_speech_request}
+    var info := {"event": identity, "stream": voice.stream.resource_path, "pitch": player.pitch_scale, "gain": voice.gain, "choices": voice.trace, "spatial": spatial, "stoppable": stoppable, "dynamic": dynamic, "player": player, "theme": voice.theme_identity, "uses_object_volume": not _dialogue_speech_request, "module": _request_module(), "bus": player.bus}
     voices.append(info)
-    player.finished.connect(complete_voice.bind(info))
+    player.finished.connect(_voice_finished.bind(info))
     player.play()
     voice_started.emit(info)
 
+## 004ec880 supplies a source module even when the event identity is shared.
+## Speech0041e8a0 selects voice; Proc127/413 select effects; Proc129 music.
+func _request_module() -> StringName:
+    if _dialogue_speech_request: return &"voice"
+    return &"music" if is_music else &"effects"
+
 func stop_event(identity: Variant = null) -> void:
+    var module := _request_module()
     for voice in voices.duplicate():
-        if identity == null or voice.event == identity:
+        if voice.module == module and (identity == null or voice.event == identity):
             _stop_voice_info(voice)
 
 func _stop_voice_info(voice: Dictionary) -> void:
+    if bool(voice.get("completion_pending", false)) or bool(voice.get("completed", false)): return
+    voices.erase(voice)
     if voice.stoppable:
         voice.player.stop()
-        release_voice(voice)
     else:
-        voices.erase(voice)
+        voice.detached = true
         if voice.player is Node3D:
             var placement: Transform3D = voice.player.global_transform
             voice.player.top_level = true
             voice.player.global_transform = placement
+    # Removing a request and finishing its native playback are distinct. The
+    # speech selector0041e4c0 observes a missing request on its next update,
+    # including an unabortable sample that keeps playing at its captured pose.
+    _defer_voice_completion(voice, &"event_stop")
+
+func _defer_voice_completion(info: Dictionary, reason: StringName) -> void:
+    if bool(info.get("completion_pending", false)) or bool(info.get("completed", false)): return
+    info.completion_pending = true
+    info.completion_reason = reason
+    get_tree().process_frame.connect(complete_voice.bind(info), CONNECT_ONE_SHOT)
+
+func _voice_finished(info: Dictionary) -> void:
+    if not info.has("completion_reason"): info.completion_reason = &"finished"
+    complete_voice(info)
+    # Detached requests already published completion; their native player is
+    # owned until actual playback finishes or the owning scene is destroyed.
+    if bool(info.get("detached", false)): release_voice(info)
 
 func release_voice(info: Dictionary) -> void:
     voices.erase(info)
@@ -293,5 +320,6 @@ func release_voice(info: Dictionary) -> void:
 func complete_voice(info: Dictionary) -> void:
     if bool(info.get("completed", false)): return
     info.completed = true
-    release_voice(info)
+    voices.erase(info)
+    if not bool(info.get("detached", false)): release_voice(info)
     voice_completed.emit(info)

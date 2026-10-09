@@ -95,6 +95,22 @@
   "tests": [
     {
       "binary": "astrolabe",
+      "test": "godot::sound::tests::native_sound_requests_keep_module_scope_and_complete_removed_holders",
+      "areas": [
+        "media",
+        "ai"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "native shared-event effects/speech, maintained dialogue holder, nonabortable playback, Proc386/412 completion",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "openspace::level::camera_probe::source_camera_parameter_ownership_and_target",
       "areas": [
         "source",

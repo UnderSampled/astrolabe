@@ -67,6 +67,7 @@ func check() -> void:
     for frame in frames: peak = maxf(peak, maxf(absf(frame.x), absf(frame.y)))
     if not require(frames.size() > 0 and peak > 0.01, "music produced no native mixer output"): return
     music.kill_all()
+    await process_frame
     if not require(music.voices.is_empty() and effects.voices[0].player.playing, "music stop affected object effects"): return
     effects.kill_all()
     actor.free()

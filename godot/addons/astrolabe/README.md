@@ -304,8 +304,17 @@ non-integer numeric values before any checkpoint state is applied.
 random pitch and event-targeted stopping. Compiled event Resources provide
 `execute(emitter)` and supported play events provide `select(emitter)`.
 `voice_started(info)` exposes the selected stream, gain, pitch and source-choice
-trace for testing/game integrations. A stopped nonabortable voice continues at
-its captured position until it finishes or its owning scene is destroyed.
+trace, source module and native bus for testing/game integrations. STOP selects
+only the request's effects, voice or music module, including when modules share
+an event identity. `execute_voice_event(event)` dispatches a compiled voice event
+without changing the speech holder. Per-object volume changes refresh dynamic
+effects; existing static effects retain their captured gain. Removed requests
+publish `voice_completed`
+on the next native frame; `completion_reason` distinguishes natural finish,
+event stop, bulk kill and effects fade. A stopped nonabortable request completes
+while its native player continues at its captured position until natural finish
+or owning-scene destruction. Native finish frees that player without publishing
+a second completion.
 No source-shaped sound program or opcode interpreter is loaded at runtime.
 
 `behavior/behavior.gd` provides timing, cancellation and bindings for generated

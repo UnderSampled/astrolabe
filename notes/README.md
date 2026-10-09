@@ -6,6 +6,10 @@
 
 ## Common records
 
+The [audio request scope and completion handoff](audio-channel-semantics-2026-10-09.md)
+records source module isolation, deferred speech completion, entrance-gate loop
+cue evidence, untranslated mixer contracts and prepared Luna validation.
+
 The [gameplay performance composition](gameplay-performance-composition-2026-10-09.md)
 records the combined dormant-bank and indexed camera fixes, interface84,
 static integration repair and scoped actual-game publication receipt.
