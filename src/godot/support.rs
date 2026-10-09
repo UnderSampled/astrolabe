@@ -5,7 +5,7 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, path::Path};
 
-pub const INTERFACE: u32 = 83;
+pub const INTERFACE: u32 = 84;
 const PACKAGE: &str = "addons/astrolabe";
 const RECEIPT: &str = "addons/astrolabe/installed.json";
 
@@ -140,6 +140,8 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/rendering/source_diffuse_prelit.gdshader.uid",
     "addons/astrolabe/scene/sector_boundary.gd",
     "addons/astrolabe/scene/sector_boundary.gd.uid",
+    "addons/astrolabe/scene/sector_index.gd",
+    "addons/astrolabe/scene/sector_index.gd.uid",
 ];
 const STARTER: &[(&str, &[u8])] = assets![
     "project.godot",

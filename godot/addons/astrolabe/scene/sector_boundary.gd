@@ -1,11 +1,28 @@
-# Disposable portal-inspection support, independent of collision bodies and gameplay routing.
+# Native sector geometry queries and portal-inspection support.
 extends MeshInstance3D
-@export var vertices: PackedVector3Array
+@export var vertices: PackedVector3Array:
+    set(value):
+        vertices = value
+        _query_geometry = null
+        _query_geometry_built = false
 @export var neighbors: PackedStringArray
 ## Exporter-resolved native neighbors, parallel to triangle faces.
 @export var neighbor_paths: Array[NodePath] = []
 @export var surfaces: PackedInt32Array
 @export var face_normals: PackedVector3Array
+var _query_geometry: TriangleMesh
+var _query_geometry_built := false
+
+## Native BVH for downward classification; wireframe display remains separate.
+## The exported geometry is immutable during play. Deliberate vertex edits
+## invalidate only this boundary's derived acceleration structure.
+func source_query_geometry() -> TriangleMesh:
+    if not _query_geometry_built and not vertices.is_empty():
+        _query_geometry_built = true
+        var geometry := TriangleMesh.new()
+        if geometry.create_from_faces(vertices):
+            _query_geometry = geometry
+    return _query_geometry
 
 func build_wireframe():
     var lines = ArrayMesh.new()

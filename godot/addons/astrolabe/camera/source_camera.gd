@@ -206,8 +206,11 @@ func _source_refresh_selection_sector(owner: Node3D) -> bool:
 ## 00447bf0 researches the explicit lifecycle position and publishes holder+4.
 ## Use the existing ordered source resolver and bound last-sibling fallback.
 func _source_refresh_owner_sector_at(owner: Node3D, position: Vector3) -> bool:
-    if not owner.has_method("source_refresh_contact_sector"): return false
     var result := source_resolve_mode_zero_sector(position)
+    return _source_publish_owner_sector_result(owner, position, result)
+
+func _source_publish_owner_sector_result(owner: Node3D, position: Vector3, result: Dictionary) -> bool:
+    if not owner.has_method("source_refresh_contact_sector"): return false
     if not bool(result.get("complete", false)): return false
     var root := _source_level_root()
     var sector: Node3D
@@ -1286,9 +1289,13 @@ func source_publish_mode_zero_translation(
             push_error("Source camera pose references an unbound destination sector")
             return false
     var published_position := third_argument_position if is_instance_valid(next_sector) and next_sector != final_sector else second_argument_position
-    # 0051c7b0 calls00447bf0 in both branches BEFORE its matrix writes.
-    # Research the chosen position, including the second-position branch.
-    if not _source_refresh_owner_sector_at(owner, published_position): return false
+    # Publication precedes matrix writes. Reuse the already complete result
+    # when that exact position was selected; only the second-point branch can
+    # require another query. Do not cache position results across updates.
+    if published_position == third_argument_position:
+        if not _source_publish_owner_sector_result(owner, published_position, sector_result): return false
+    elif not _source_refresh_owner_sector_at(owner, published_position):
+        return false
     owner.global_position = published_position
     _source_previous_history_position = owner.global_position
     return true
@@ -1296,150 +1303,12 @@ func source_publish_mode_zero_translation(
 ## 004e0020 drops a one-unit semiaxis from the query point and chooses the
 ## nearest hit among active nonvirtual sector borders and eligible child GEOs.
 func source_resolve_mode_zero_sector(position: Vector3) -> Dictionary:
-    if not position.is_finite():
+    if not position.is_finite(): return {}
+    var index := _source_sector_index(_source_level_root())
+    if index == null:
+        push_error("Source camera needs the exported SourceSectorIndex; regenerate this level")
         return {}
-    var root := _source_level_root()
-    if not is_instance_valid(root):
-        push_error("Source camera has no level root for 004e0020 sector lookup")
-        return {}
-    var nearest_distance := INF
-    var nearest_sector_id := ""
-    var complete := true
-    var source_nodes := root.find_children("*", "Node3D", true, false)
-    for candidate in source_nodes:
-        if not candidate.has_meta("source_sector_id"):
-            continue
-        if not candidate.has_meta("source_sector"):
-            complete = false
-            continue
-        var sector := candidate
-        var source_data = JSON.parse_string(str(sector.get_meta("source_sector")))
-        if not source_data is Dictionary:
-            complete = false
-            continue
-        if int(source_data.get("virtual_sector", 0)) != 0 or (int(source_data.get("activation", 0)) & 4) == 0:
-            continue
-        var sector_id := str(sector.get_meta("source_sector_id"))
-        if not source_data.has("boundary"):
-            complete = false
-            continue
-        var boundary_data = source_data.get("boundary")
-        if boundary_data is Dictionary:
-            var boundary := sector.get_node_or_null("SectorBoundary") as Node3D
-            var boundary_vertices: Variant = boundary.get("vertices") if boundary != null else null
-            if not boundary_vertices is PackedVector3Array or boundary_vertices.size() % 3 != 0:
-                complete = false
-            else:
-                var border_distance := _source_sector_mesh_ray_distance(boundary, position, boundary_vertices)
-                if border_distance >= 0.0 and border_distance < nearest_distance:
-                    nearest_distance = border_distance
-                    nearest_sector_id = sector_id
-
-        var unknown_bytes = source_data.get("unknown")
-        if not unknown_bytes is Array or unknown_bytes.is_empty():
-            complete = false
-            continue
-        if int(unknown_bytes[0]) != 0:
-            continue
-        for physical_visual in source_nodes:
-            var source_kind := int(physical_visual.get_meta("source_node_kind", -1))
-            if source_kind not in [1, 11, 13, 21] or physical_visual == sector:
-                continue
-            if _source_sector_for(physical_visual) != sector:
-                continue
-            var visual_hit := _source_sector_physical_visual_ray(physical_visual, position)
-            if not bool(visual_hit.get("complete", false)):
-                complete = false
-            var visual_distance := float(visual_hit.get("distance", -1.0))
-            if visual_distance >= 0.0 and visual_distance < nearest_distance:
-                nearest_distance = visual_distance
-                nearest_sector_id = sector_id
-    return {
-        "sector_id": nearest_sector_id,
-        "distance": nearest_distance,
-        "fraction": nearest_distance,
-        "complete": complete,
-    }
-
-## 004e0020 uses the same semi-axis against sector-border and child GEO faces.
-## Transforming the origin and one-unit direction into local space preserves
-## the source ray parameter even when a node has a nonuniform basis.
-func _source_sector_mesh_ray_distance(node: Node3D, position: Vector3, vertices: PackedVector3Array) -> float:
-    var local_origin := node.to_local(position)
-    var local_direction := node.to_local(position + Vector3.DOWN) - local_origin
-    return _source_sector_faces_ray_distance(local_origin, local_direction, vertices)
-
-func _source_sector_physical_visual_ray(node: Node3D, position: Vector3) -> Dictionary:
-    var source_kind := int(node.get_meta("source_node_kind", -1))
-    if source_kind in [13, 21]:
-        if not node.has_meta("source_visual_lod_count") or int(node.get_meta("source_visual_lod_count")) != 1:
-            return {"complete": false, "distance": -1.0}
-        var meshes: Array[Node] = []
-        if node is MeshInstance3D:
-            meshes.append(node)
-        meshes.append_array(node.find_children("*", "MeshInstance3D", true, false))
-        if meshes.is_empty():
-            return {"complete": false, "distance": -1.0}
-        var nearest_distance := INF
-        for candidate in meshes:
-            var mesh_node := candidate as MeshInstance3D
-            if mesh_node == null or mesh_node.mesh == null:
-                return {"complete": false, "distance": -1.0}
-            var faces := mesh_node.mesh.get_faces()
-            if faces.size() % 3 != 0:
-                return {"complete": false, "distance": -1.0}
-            var local_origin := mesh_node.to_local(position)
-            var local_direction := mesh_node.to_local(position + Vector3.DOWN) - local_origin
-            var distance := _source_sector_faces_ray_distance(local_origin, local_direction, faces)
-            if distance >= 0.0 and distance < nearest_distance:
-                nearest_distance = distance
-        return {"complete": true, "distance": nearest_distance if is_finite(nearest_distance) else -1.0}
-    # Types 1/11 expose GEO through source records that the current useful
-    # scene model does not promote. Do not substitute picking/collision bounds.
-    return {"complete": false, "distance": -1.0}
-
-func _source_sector_faces_ray_distance(
-    origin: Vector3,
-    direction: Vector3,
-    vertices: PackedVector3Array
-) -> float:
-    if direction.length_squared() < 0.0000000001 or vertices.size() % 3 != 0:
-        return -1.0
-    var nearest_distance := INF
-    for index in range(0, vertices.size(), 3):
-        var distance := _source_ray_triangle_distance(
-            origin, direction, vertices[index], vertices[index + 1], vertices[index + 2]
-        )
-        if distance >= 0.0 and distance < nearest_distance:
-            nearest_distance = distance
-    return nearest_distance if is_finite(nearest_distance) else -1.0
-
-func _source_ray_triangle_distance(
-    origin: Vector3,
-    direction: Vector3,
-    a: Vector3,
-    b: Vector3,
-    c: Vector3
-) -> float:
-    var edge_ab := b - a
-    var edge_ac := c - a
-    var determinant_vector := direction.cross(edge_ac)
-    var determinant := edge_ab.dot(determinant_vector)
-    if absf(determinant) < 0.00000001:
-        return -1.0
-    var inverse_determinant := 1.0 / determinant
-    var from_a := origin - a
-    var u := from_a.dot(determinant_vector) * inverse_determinant
-    if u < -0.000001 or u > 1.000001:
-        return -1.0
-    var cross_from_a := from_a.cross(edge_ab)
-    var v := direction.dot(cross_from_a) * inverse_determinant
-    if v < -0.000001 or u + v > 1.000001:
-        return -1.0
-    var distance := edge_ac.dot(cross_from_a) * inverse_determinant
-    if distance < -0.000001:
-        return -1.0
-    return maxf(distance, 0.0)
+    return index.call("resolve_position", position)
 
 func _source_collision_context() -> Dictionary:
     var owner := get_parent() as Node3D
@@ -1454,13 +1323,13 @@ func _source_collision_context() -> Dictionary:
             var camera_reachable := _source_collision_sectors([camera_sector])
             if camera_reachable.is_empty():
                 return {}
-            var geometry_sectors: Array[Node] = [camera_sector]
+            var geometry_reachable := camera_reachable
             var target_sector := _source_sector_for(targeted_actor) if is_instance_valid(targeted_actor) else null
             if target_sector != null and target_sector != camera_sector:
-                geometry_sectors.append(target_sector)
-            var geometry_reachable := _source_collision_sectors(geometry_sectors)
-            if geometry_reachable.is_empty():
-                return {}
+                var target_reachable := _source_collision_sectors([target_sector])
+                if target_reachable.is_empty(): return {}
+                geometry_reachable = camera_reachable.duplicate()
+                geometry_reachable.merge(target_reachable)
             return {
                 "sector": camera_sector,
                 "reachable": camera_reachable,
@@ -1481,7 +1350,7 @@ func _source_collision_sectors(direct_sectors: Array[Node]) -> Dictionary:
             push_error("Source mode-0 collision query has an unbound direct sector")
             return {}
         var sector_id := str(direct_sector.get_meta("source_sector_id"))
-        var source_data = JSON.parse_string(str(direct_sector.get_meta("source_sector", "")))
+        var source_data = _source_sector_data(direct_sector)
         if not source_data is Dictionary or not source_data.has("collision"):
             push_error("Source mode-0 sector metadata has no collision-neighbor list")
             return {}
@@ -1492,7 +1361,7 @@ func _source_collision_sectors(direct_sectors: Array[Node]) -> Dictionary:
             if neighbor_sector == null:
                 push_error("Source collision list references an unbound sector")
                 return {}
-            var neighbor_data = JSON.parse_string(str(neighbor_sector.get_meta("source_sector", "")))
+            var neighbor_data = _source_sector_data(neighbor_sector)
             if not neighbor_data is Dictionary or not neighbor_data.has("activation"):
                 push_error("Source collision neighbor has no activation metadata")
                 return {}
@@ -1508,6 +1377,8 @@ func _source_update_sector_history(current_position: Vector3) -> bool:
         push_error("Source camera sector history received a nonfinite position")
         return false
     var sector: Node = _source_active_sector
+    if is_instance_valid(sector) and _find_source_sector(_source_level_root(), str(sector.get_meta("source_sector_id", ""))) != sector:
+        sector = null
     if not is_instance_valid(sector):
         sector = _source_sector_for(get_parent())
     if not is_instance_valid(sector):
@@ -1527,14 +1398,10 @@ func _source_update_sector_history(current_position: Vector3) -> bool:
         if not is_instance_valid(level_root):
             push_error("Source camera has no level root for initial sector binding")
             return false
-        var matches: Array[Node] = []
-        for candidate in level_root.find_children("*", "Node3D", true, false):
-            if candidate.has_meta("source_sector_id") and str(candidate.get_meta("source_sector_id")) == initial_sector_id:
-                matches.append(candidate)
-        if matches.size() != 1:
-            push_error("Source 004e0020 initial sector binding is missing or ambiguous")
+        sector = _find_source_sector(level_root, initial_sector_id)
+        if sector == null:
+            push_error("Source 004e0020 initial sector binding is missing")
             return false
-        sector = matches[0]
         if not sector.has_meta("source_sector"):
             push_error("Source 004e0020 initial sector lacks source collision metadata")
             return false
@@ -1558,11 +1425,16 @@ func _source_update_sector_history(current_position: Vector3) -> bool:
         var active_id := str(sector.get_meta("source_sector_id", ""))
         if next_id.is_empty() or next_id == active_id:
             break
-        var next_sector := _find_source_sector(_source_level_root(), next_id)
+        var next_sector := crossing.get("target") as Node
+        if not is_instance_valid(next_sector):
+            next_sector = _find_source_sector(_source_level_root(), next_id)
+        elif _find_source_sector(_source_level_root(), next_id) != next_sector:
+            push_error("Source sector crossing target does not match its level binding")
+            return false
         if next_sector == null:
             push_error("Source sector boundary references an unbound neighbor")
             return false
-        var next_data = JSON.parse_string(str(next_sector.get_meta("source_sector", "")))
+        var next_data = _source_sector_data(next_sector)
         if not next_data is Dictionary or not next_data.has("activation"):
             push_error("Source destination sector has no activation metadata")
             return false
@@ -1589,16 +1461,18 @@ func _source_level_root() -> Node:
         current = current.get_parent()
     return null
 
+func _source_sector_index(root: Node) -> Node:
+    if not is_instance_valid(root) or root.is_queued_for_deletion(): return null
+    var index := root.get_node_or_null("SourceSectorIndex")
+    return index if is_instance_valid(index) and not index.is_queued_for_deletion() else null
+
+func _source_sector_data(sector: Node) -> Variant:
+    var index := _source_sector_index(_source_level_root())
+    return index.call("sector_data", sector) if index != null else null
+
 func _find_source_sector(root: Node, sector_id: String) -> Node:
-    if not is_instance_valid(root):
-        return null
-    if root.has_meta("source_sector_id") and str(root.get_meta("source_sector_id")) == sector_id:
-        return root
-    for child in root.get_children():
-        var found := _find_source_sector(child, sector_id)
-        if found != null:
-            return found
-    return null
+    var index := _source_sector_index(root)
+    return index.call("sector_node", sector_id) if index != null else null
 
 func _source_camera_ray_blocked(
     start: Vector3,

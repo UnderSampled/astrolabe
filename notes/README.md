@@ -6,6 +6,10 @@
 
 ## Common records
 
+The [camera sector lookup static handoff](camera-sector-index-static-2026-10-09.md)
+records exported native bindings, BVH queries, publication-result reuse,
+integration/regeneration requirements and unmeasured behavior/performance.
+
 The [Manor ambient/channel composition](manor-ambient-channel-composition-2026-10-09.md)
 records both integrated corrections, synchronized Rete62/support83 source,
 camera-sector lifecycle publication, remaining source fidelity boundaries and

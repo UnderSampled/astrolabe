@@ -1,4 +1,14 @@
-# Astrolabe support, interface 83
+# Astrolabe support, interface 84
+
+Interface84 saves a level-owned `scene/sector_index.gd` component with ordered
+sector, physical-visual and mesh NodePaths. Camera neighbor/history lookups use
+these native bindings. Downward sector classification uses Godot TriangleMesh
+BVHs shared by Mesh resources and cached on each sector boundary; it preserves
+sector order, strict nearest-distance ties, activation/virtual-sector gates and
+the existing incomplete-GEO diagnostics. Explicit publication reuses its first
+point result when that point is selected. Level scenes must be regenerated;
+support updates alone do not supply the new bindings. Query geometry follows
+native Godot ray/vertex tolerances, with a small origin margin for surface hits.
 
 Interface83 retains byte-narrowed channel requests even without a matching rig
 node. Actor-owned overrides combine with native animation default-visibility

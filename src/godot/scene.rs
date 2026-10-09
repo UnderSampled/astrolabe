@@ -3,7 +3,7 @@ use super::{Project, disk_path, quoted, vec3, vector};
 use crate::model::{
     geometry::SourceTransform,
     io::Content,
-    scene::{NodeKind, Scene},
+    scene::{NodeKind, Scene, SceneNode},
 };
 use anyhow::Result;
 use std::{
@@ -27,7 +27,96 @@ pub(super) fn transform(t: &SourceTransform) -> String {
     )
 }
 
+fn source_node_kind(node: &SceneNode) -> u32 {
+    node.properties.source_kind.unwrap_or(match &node.kind {
+        NodeKind::World => 0,
+        NodeKind::Sector => 8,
+        NodeKind::Perso => 4,
+        NodeKind::Object => 13,
+        NodeKind::Unknown(kind) => *kind,
+    })
+}
+
 impl Project {
+    fn scene_sector_index(
+        &mut self,
+        scene: &Scene,
+        names: &BTreeMap<String, String>,
+        scene_id: &str,
+    ) -> Result<()> {
+        // Preserve native depth-first child order, even if the useful scene's
+        // parent-before-child list interleaves descendants of different roots.
+        // Equal-distance sector hits keep the first sector in this order.
+        let mut children: BTreeMap<Option<&str>, Vec<usize>> = BTreeMap::new();
+        let mut sector_owners: BTreeMap<&str, Option<&str>> = BTreeMap::new();
+        for (index, node) in scene.nodes.iter().enumerate() {
+            children
+                .entry(node.parent.as_deref())
+                .or_default()
+                .push(index);
+            let owner = if node.sector.is_some() {
+                Some(node.id.as_str())
+            } else {
+                node.parent
+                    .as_deref()
+                    .and_then(|parent| sector_owners[parent])
+            };
+            sector_owners.insert(&node.id, owner);
+        }
+        let mut pending = children.get(&None).cloned().unwrap_or_default();
+        pending.reverse();
+        let mut ordered = Vec::with_capacity(scene.nodes.len());
+        while let Some(index) = pending.pop() {
+            ordered.push(index);
+            if let Some(descendants) = children.get(&Some(scene.nodes[index].id.as_str())) {
+                pending.extend(descendants.iter().rev().copied());
+            }
+        }
+        let index_name = format!("{scene_id}_sector_index");
+        let sector_order = ordered
+            .iter()
+            .map(|&index| &scene.nodes[index])
+            .filter(|node| node.sector.is_some())
+            .map(|node| quoted(&node.id))
+            .collect::<Vec<_>>()
+            .join(", ");
+        writeln!(
+            self.builder,
+            "    var {index_name} = Node.new()\n    {index_name}.name = \"SourceSectorIndex\"\n    {index_name}.set_script(load(\"res://addons/astrolabe/scene/sector_index.gd\"))\n    {scene_id}.add_child({index_name})\n    {index_name}.owner = {scene_id}\n    {index_name}.sector_order = PackedStringArray([{sector_order}])"
+        )?;
+        for &index in &ordered {
+            let node = &scene.nodes[index];
+            if node.sector.is_some() {
+                writeln!(
+                    self.builder,
+                    "    {index_name}.sector_paths[{}] = {index_name}.get_path_to({})\n    {index_name}.visual_paths[{}] = []",
+                    quoted(&node.id),
+                    names[&node.id],
+                    quoted(&node.id)
+                )?;
+            }
+        }
+        for index in ordered {
+            let node = &scene.nodes[index];
+            let Some(sector) = sector_owners[node.id.as_str()] else {
+                continue;
+            };
+            if node.sector.is_some() || !matches!(source_node_kind(node), 1 | 11 | 13 | 21) {
+                continue;
+            }
+            let visual = &names[&node.id];
+            // Mesh discovery belongs to conversion, while instantiated model
+            // descendants are available. Save only native references; no scene
+            // or character-bank traversal is needed by the runtime query.
+            writeln!(
+                self.builder,
+                "    var {visual}_query_path = {index_name}.get_path_to({visual})\n    {index_name}.visual_paths[{}].append({visual}_query_path)\n    {index_name}.mesh_paths[{visual}_query_path] = []\n    for {visual}_query_mesh in {visual}.find_children(\"*\", \"MeshInstance3D\", true, false):\n        {index_name}.mesh_paths[{visual}_query_path].append({index_name}.get_path_to({visual}_query_mesh))",
+                quoted(sector)
+            )?;
+        }
+        Ok(())
+    }
+
     fn ui_scene_path(&mut self, scene: &Scene) -> Result<String> {
         let Some(reference) = &scene.hud else {
             return Ok("res://addons/astrolabe/ui/screen.tscn".into());
@@ -195,13 +284,7 @@ impl Project {
                 .as_ref()
                 .map(|p| names[p].clone())
                 .unwrap_or_else(|| scene_id.clone());
-            let source_kind = node.properties.source_kind.unwrap_or(match &node.kind {
-                NodeKind::World => 0,
-                NodeKind::Sector => 8,
-                NodeKind::Perso => 4,
-                NodeKind::Object => 13,
-                NodeKind::Unknown(kind) => *kind,
-            });
+            let source_kind = source_node_kind(node);
             writeln!(
                 self.builder,
                 "    var {name} = Node3D.new()\n    {name}.name = {}\n    {parent}.add_child({name})\n    {name}.owner = {scene_id}",
@@ -377,10 +460,10 @@ impl Project {
                 // is supplied. They do not fabricate known source membership.
                 for actor_id in &sector.persos {
                     if scene.nodes.iter().any(|actor| {
-                        actor.id == *actor_id && actor.perso.is_some()
+                        actor.id == *actor_id
+                            && actor.perso.is_some()
                             && actor.properties.actor_sector.is_none()
-                    })
-                    {
+                    }) {
                         let actor = &names[actor_id];
                         writeln!(
                             self.builder,
@@ -421,6 +504,7 @@ impl Project {
             self.builder,
             "    {scene_id}.set_meta(\"source_sector_nodes\", {scene_id}_source_sector_nodes)"
         )?;
+        self.scene_sector_index(scene, &names, &scene_id)?;
         writeln!(
             self.builder,
             "    var {scene_id}_source_actor_brains = {{}}\n    var {scene_id}_source_actor_nodes = {{}}\n    var {scene_id}_source_actor_entries = {{}}\n    {scene_id}.set_meta(\"source_level\", {})",
