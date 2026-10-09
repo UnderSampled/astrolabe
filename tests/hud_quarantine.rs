@@ -140,6 +140,7 @@ fn verified_hud_import_rete_roundtrip_and_godot_export() -> Result<()> {
         global_actors: vec![],
         nodes: vec![SceneNode {
             properties: SceneNodeProperties {
+                actor_sector: None,
                 source_kind: Some(0),
                 source_visual_lod_count: None,
                 transform_space: TransformSpace::Local,

@@ -399,14 +399,14 @@ mod tests {
     }
 
     #[test]
-    fn actor_display_receiver_helper_is_in_interface_70_and_staged() -> Result<()> {
+    fn actor_display_receiver_helper_is_in_interface_83_and_staged() -> Result<()> {
         let output = tempfile::tempdir()?;
         initialize(output.path())?;
         let version: serde_json::Value = serde_json::from_slice(&fs::read(
             output.path().join("addons/astrolabe/version.json"),
         )?)?;
         assert_eq!(version["interface"].as_u64(), Some(u64::from(INTERFACE)));
-        assert_eq!(INTERFACE, 82);
+        assert_eq!(INTERFACE, 83);
 
         let staged = tempfile::tempdir()?;
         stage(staged.path(), output.path())?;
@@ -419,6 +419,10 @@ mod tests {
             "addons/astrolabe/character/configured_payload.gd.uid",
             "addons/astrolabe/character/configuration.gd",
             "addons/astrolabe/character/configuration.gd.uid",
+            "addons/astrolabe/character/channel.gd",
+            "addons/astrolabe/character/channel.gd.uid",
+            "addons/astrolabe/character/channel_visibility.gd",
+            "addons/astrolabe/character/channel_visibility.gd.uid",
             "addons/astrolabe/character/inventory_definition.gd",
             "addons/astrolabe/character/inventory_definition.gd.uid",
             "addons/astrolabe/character/inventory_stock.gd",

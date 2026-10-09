@@ -6,6 +6,10 @@
 
 ## Common records
 
+The [Manor ambient/channel composition](manor-ambient-channel-composition-2026-10-09.md)
+records both integrated corrections, synchronized Rete62/support83 source,
+the remaining actor-sector lifecycle boundary and the smallest publication scope.
+
 The [Manor channel visibility static correction](manor-channel-visibility-static-2026-10-09.md)
 traces the two absent-channel initialization failures, original request/default
 semantics and the actor-owned native correction without a new acceptance run.

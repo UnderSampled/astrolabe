@@ -1171,10 +1171,11 @@ fn guarded_expression(
             let sector = guarded_expression(out, sector, model, depth, flow)?;
             writeln!(
                 out,
-                "{pad}var compared_sector_{id}: Variant = {sector}\n{pad}var null_sector_payload_{id}: bool = compared_sector_{id} == null\n{pad}if typeof(compared_sector_{id}) in [TYPE_INT, TYPE_BOOL]:\n{pad}    null_sector_payload_{id} = (int(compared_sector_{id}) & 0xffffffff) == 0\n{pad}elif typeof(compared_sector_{id}) == TYPE_FLOAT:\n{pad}    var sector_payload_bytes_{id} := PackedByteArray()\n{pad}    sector_payload_bytes_{id}.resize(4)\n{pad}    sector_payload_bytes_{id}.encode_float(0, compared_sector_{id})\n{pad}    null_sector_payload_{id} = sector_payload_bytes_{id}.decode_u32(0) == 0"
+                "{pad}var compared_sector_{id}: Variant = {sector}\n{pad}var null_sector_payload_{id}: bool = typeof(compared_sector_{id}) == TYPE_NIL\n{pad}if typeof(compared_sector_{id}) in [TYPE_INT, TYPE_BOOL]:\n{pad}    null_sector_payload_{id} = (int(compared_sector_{id}) & 0xffffffff) == 0\n{pad}elif typeof(compared_sector_{id}) == TYPE_FLOAT:\n{pad}    var sector_payload_bytes_{id} := PackedByteArray()\n{pad}    sector_payload_bytes_{id}.resize(4)\n{pad}    sector_payload_bytes_{id}.encode_float(0, compared_sector_{id})\n{pad}    null_sector_payload_{id} = sector_payload_bytes_{id}.decode_u32(0) == 0\n{pad}var sector_matches_{id}: bool = false\n{pad}if captured_sector_{id} == null:\n{pad}    sector_matches_{id} = null_sector_payload_{id}\n{pad}elif typeof(compared_sector_{id}) == TYPE_OBJECT:\n{pad}    sector_matches_{id} = captured_sector_{id} == compared_sector_{id}"
             )?;
-            // A raw zero payload equals a null pointer, independently of kind.
-            format!("(captured_sector_{id} == compared_sector_{id} or (captured_sector_{id} == null and null_sector_payload_{id}))")
+            // A raw zero payload equals null independently of kind. Restrict
+            // native identity comparison to objects; scalar words are not nodes.
+            format!("sector_matches_{id}")
         }
         Expression::IsValidActor(actor) => {
             let value = guarded_expression(out, actor, model, depth, flow)?;
