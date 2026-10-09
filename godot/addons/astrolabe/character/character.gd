@@ -117,6 +117,9 @@ var playback_revision: int = 0
 var advancing: bool = false
 var pending_state: int = -1
 var requested_action_state: int = -1
+## Numeric requested action and native completion target are distinct. Source
+## automatic next-state selection realigns its target without rewriting the id.
+var completion_target_state: int = -1
 var action_complete: bool = false
 var animation_complete: bool = false
 var action_controlled: bool = false
@@ -1513,6 +1516,7 @@ func select_state(id: int) -> bool:
     if not animation_player.has_animation(StringName("state_%d" % id)): return false
     action_controlled = false
     requested_action_state = id
+    completion_target_state = id
     source_route_holds_motion = false
     source_point_holds_motion = false
     action_complete = false
@@ -1536,8 +1540,15 @@ func _select_state(id: int) -> bool:
 ## Proc_ChangeAction preserves an already requested action; ExecuteAction restarts.
 ## A rejected transition leaves the current action and its completion unchanged.
 func is_in_action(id: int) -> bool:
-    # 00435750 queries the requested state, including a transition into it.
+    # 00435750 compares the numeric request id, independently of the native
+    # completion target selected by a transition or automatic next action.
     return (requested_action_state if action_controlled else current_state) == id
+
+func source_action_completed() -> bool:
+    # 00436000: byte14a and current/requested action pointer equality. Native
+    # state identity replaces the source pointers; animation completion stays
+    # separate (00436040) and this predicate does not wait for speech/audio.
+    return action_complete and current_state == completion_target_state
 
 func request_action(id: int, restart: bool = false) -> bool:
     var previous := pending_state if pending_state >= 0 else current_state
@@ -1562,6 +1573,9 @@ func request_action(id: int, restart: bool = false) -> bool:
 func _play_action_state(id: int) -> void:
     action_controlled = true
     action_complete = false
+    # 00433e90 installs the selected/automatic next action, then realigns the
+    # completion target to it. The numeric request used by00435750 is retained.
+    completion_target_state = id
     repeats_remaining = _state_repeats(id)
     _select_state(id)
 

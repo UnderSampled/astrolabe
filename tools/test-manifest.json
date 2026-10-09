@@ -1930,13 +1930,15 @@
       "binary": "astrolabe::locomotion",
       "test": "native_motion_survives_rete_and_drives_character_contact",
       "areas": [
-        "movement"
+        "movement",
+        "animation",
+        "ai"
       ],
       "kind": "engine",
       "prerequisites": [
         "godot"
       ],
-      "fixture": "synthetic",
+      "fixture": "Converted native action transitions/root motion/contact plus completion target vs numeric request id and independent animation end",
       "timeout_seconds": 90,
       "ignored": false,
       "release": true,
@@ -4569,6 +4571,21 @@
     },
     {
       "binary": "astrolabe",
+      "test": "godot::ai::source_position_tests::action_completion_dispatches_the_evaluated_actor_and_preserves_wait_contracts",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Evaluated Cond123 actor survives Rete and native dispatch; ExecuteAction rejection/id/target completion and independent animation wait",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "godot::ai::source_position_tests::compiles_entrance_gate_vector_minus_to_native_lift_endpoint",
       "areas": [
         "ai",
@@ -4912,6 +4929,21 @@
       "kind": "unit",
       "prerequisites": [],
       "fixture": "Typed AI source, AST/Rete round trip and native compilation",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::action_finished_condition_preserves_its_evaluated_actor_operand",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Cond123 self/main actor operand meaning and reconstructed source bytes",
       "timeout_seconds": 30,
       "ignored": false,
       "release": true

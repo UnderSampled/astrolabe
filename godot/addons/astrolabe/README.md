@@ -9,6 +9,10 @@ Dialogue presentation and level assets
 must be regenerated from Rete schema63; support updates alone lack the texture.
 The exporter also compiles source vector subtraction (operator17), allowing the
 entrance gate closing MoveLift to reach its authored endpoint and stop cue.
+Cond123 retains its evaluated actor operand. Action waits and conditions use
+the native completion flag together with current/target state identity;
+automatic next states realign that target while retaining the numeric request.
+Animation completion remains independent of action and speech completion.
 
 Interface84 saves a level-owned `scene/sector_index.gd` component with ordered
 sector, physical-visual and mesh NodePaths. Camera neighbor/history lookups use

@@ -13,7 +13,9 @@ cue evidence, untranslated mixer contracts and prepared Luna validation.
 The [New Game entrance gate correction](new-game-gate-vector-minus-2026-10-09.md)
 and [dialogue continuation handoff](dialogue-continuation-2026-10-09.md) trace
 source vector subtraction, the native continuation button, input ownership and
-the still-unobserved Hype speaking stall.
+the still-unobserved Hype speaking stall. The
+[action completion follow-up](action-completion-targets-2026-10-09.md) preserves
+completion target identity and Cond123's evaluated actor operand.
 
 The [gameplay performance composition](gameplay-performance-composition-2026-10-09.md)
 records the combined dormant-bank and indexed camera fixes, interface84,

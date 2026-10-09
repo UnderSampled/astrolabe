@@ -338,6 +338,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::IsValidActor(value)
                 | Expression::ApplyArmoredDamage(value)
                 | Expression::IsInAction(value)
+                | Expression::ActionFinished(value)
                 | Expression::Not(value)
                 | Expression::Negate(value)
                 | Expression::InventoryQuantity(value)
@@ -437,7 +438,6 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::SeePerso { .. }
                 | Expression::Variable(_)
                 | Expression::Action(_)
-                | Expression::ActionFinished
                 | Expression::CurrentAnimationFrame
                 | Expression::DialogIsOver
                 | Expression::DialogIsOverAndChangeBehavior

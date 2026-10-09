@@ -1417,7 +1417,7 @@ impl Parser<'_> {
             (1, 59) => Expression::IsInAction(Box::new(self.expression(indent + 1)?)),
             (1, 121) => Expression::DialogIsOver,
             (1, 120) => Expression::DialogIsOverAndChangeBehavior,
-            (1, 123) => Expression::ActionFinished,
+            (1, 123) => Expression::ActionFinished(Box::new(self.expression(indent + 1)?)),
             (1, 31) => Expression::CollideWithGround,
             (1, 33) => Expression::CollideWithNothing,
             (1, 34) => Expression::CollideWithSlope,
@@ -3200,7 +3200,10 @@ impl Writer<'_> {
             }
             Expression::DialogIsOver => self.node(1, 121, indent),
             Expression::DialogIsOverAndChangeBehavior => self.node(1, 120, indent),
-            Expression::ActionFinished => self.node(1, 123, indent),
+            Expression::ActionFinished(actor) => {
+                self.node(1, 123, indent);
+                self.expression(actor, indent + 1)?;
+            }
             Expression::HasCustomBit { actor, bit } => {
                 if *actor == ActorTarget::Keyword(ActorKeyword::SelfActor) {
                     self.node(1, 107, indent);
@@ -4279,6 +4282,35 @@ mod partial_tests {
             }]
         );
         assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn action_finished_condition_preserves_its_evaluated_actor_operand() -> Result<()> {
+        for keyword in [4, 5] {
+            let (codec, bytes) = partial(&[
+                (2, 11, 1),
+                (11, 0, 2),
+                (1, 123, 2),
+                (0, keyword, 3),
+                (8, 0, 0),
+            ]);
+            let script = codec.read(&bytes)?;
+            let Statement::Assign { value, .. } = &script.statements[0] else {
+                panic!()
+            };
+            assert_eq!(
+                value,
+                &Expression::ActionFinished(Box::new(Expression::Actor(ActorTarget::Keyword(
+                    if keyword == 4 {
+                        ActorKeyword::SelfActor
+                    } else {
+                        ActorKeyword::MainActor
+                    }
+                ))))
+            );
+            assert_eq!(codec.write(&script)?, bytes);
+        }
         Ok(())
     }
 

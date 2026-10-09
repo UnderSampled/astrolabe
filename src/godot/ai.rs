@@ -1052,6 +1052,8 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::HasCustomBit { .. }
         | Expression::VectorAngle { .. }
         | Expression::CurrentAnimationFrame
+        | Expression::ActionFinished(_)
+        | Expression::VectorMinus(_, _)
         | Expression::MagicRemovePoints(_)
         | Expression::Square(_)
         | Expression::AbsoluteValue(_)
@@ -1087,7 +1089,6 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         Expression::Multiply(a, b)
         | Expression::Plus(a, b)
         | Expression::VectorPlus(a, b)
-        | Expression::VectorMinus(a, b)
         | Expression::Minus(a, b)
         | Expression::Divide(a, b)
         | Expression::TimeElapsed {
@@ -1949,6 +1950,20 @@ fn guarded_expression(
             "character().is_in_action(int({}))",
             guarded_expression(out, action, model, depth, flow)?
         ),
+        Expression::ActionFinished(actor) => {
+            let actor = guarded_expression(out, actor, model, depth, flow)?;
+            let id = flow.local;
+            flow.local += 1;
+            writeln!(
+                out,
+                "{pad}var action_actor_{id}: Variant = {actor}\n{pad}if typeof(action_actor_{id}) != TYPE_OBJECT or not is_instance_valid(action_actor_{id}) or not action_actor_{id}.has_method(\"source_action_completed\"):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                quoted(&format!(
+                    "{} requires the evaluated native actor for Cond123",
+                    model.path
+                ))
+            )?;
+            format!("action_actor_{id}.source_action_completed()")
+        }
         Expression::ArrayElement { array, index } => format!(
             "{}[int({})]",
             guarded_expression(out, array, model, depth, flow)?,
@@ -2052,7 +2067,9 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         Expression::DialogIsOverAndChangeBehavior => {
             "source_ui().source_dialog_is_over_and_change_behavior(main_actor)".into()
         }
-        Expression::ActionFinished => "character().action_complete".into(),
+        Expression::ActionFinished(actor) => {
+            format!("{}.source_action_completed()", expression(actor, model)?)
+        }
         Expression::CurrentAnimationFrame => {
             anyhow::bail!("current animation frame requires guarded lowering")
         }
@@ -2456,7 +2473,7 @@ fn blocking(
                 operand.as_deref().expect("action operand prepared")
             )?;
             format!(
-                "not accepted_{id} or not character().is_in_action(requested_{id}) or character().action_complete"
+                "not accepted_{id} or not character().is_in_action(requested_{id}) or character().source_action_completed()"
             )
         }
         Statement::ExecuteActionAndGenerateObject { template, .. } => {
@@ -2476,10 +2493,10 @@ fn blocking(
                 ))
             )?;
             format!(
-                "spawn_result_{id} == 0 or not character().is_in_action(requested_{id}) or character().action_complete"
+                "spawn_result_{id} == 0 or not character().is_in_action(requested_{id}) or character().source_action_completed()"
             )
         }
-        Statement::WaitEndOfAction => "character().action_complete".into(),
+        Statement::WaitEndOfAction => "character().source_action_completed()".into(),
         Statement::WaitEndOfFade => format!("not bool(fade_busy_{id})"),
         Statement::WaitEndOfAnimation => "character().animation_complete".into(),
         _ => unreachable!("nonblocking statement"),
@@ -4480,6 +4497,55 @@ mod source_position_tests {
             )?,
             "(character().source_position() - character().source_position())"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn action_completion_dispatches_the_evaluated_actor_and_preserves_wait_contracts()
+    -> anyhow::Result<()> {
+        let target = AssetRef::<Perso>::new("level:/persos/world/0/28")?;
+        let model = AiModel {
+            path: AssetPath::new("level:/ai/models/completion")?,
+            name: "completion".into(),
+            normal: Some(BehaviorSet {
+                behaviors: vec![Behavior {
+                    id: 0,
+                    rules: vec![Some(Script {
+                        statements: vec![Statement::If {
+                            condition: Expression::ActionFinished(Box::new(Expression::Actor(
+                                ActorTarget::Reference(target),
+                            ))),
+                            then: vec![Statement::Noop],
+                            otherwise: None,
+                        }],
+                    })],
+                    schedule: Some(Script {
+                        statements: vec![
+                            Statement::ExecuteAction(Expression::Integer(7)),
+                            Statement::WaitEndOfAction,
+                            Statement::WaitEndOfAnimation,
+                        ],
+                    }),
+                    unknown: [0; 3],
+                }],
+                default_behavior: Some(0),
+                action_capacity: 0,
+                unknown: [0; 3],
+            }),
+            reflex: None,
+            variables: Vec::new(),
+            designer_unknown: [0; 3],
+            unknown: [0; 4],
+        };
+        let reopened: AiModel = crate::rete::decode(&crate::rete::encode(&model)?)?;
+        assert_eq!(reopened, model);
+        let generated = compile(&reopened, &[])?;
+        assert!(generated.contains("var action_actor_0: Variant = character().source_actor_node(\"level:/persos/world/0/28\")"));
+        assert!(generated.contains("action_actor_0.source_action_completed()"));
+        assert!(generated.contains("not accepted_0 or not character().is_in_action(requested_0) or character().source_action_completed()"));
+        assert!(generated.contains("if character().source_action_completed(): break"));
+        assert!(generated.contains("if character().animation_complete: break"));
+        assert!(!generated.contains("or character().action_complete"));
         Ok(())
     }
 

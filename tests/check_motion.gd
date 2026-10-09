@@ -71,6 +71,7 @@ func check() -> void:
     actor.select_state(0)
     if not require(not actor.request_action(5), "prohibited action accepted"): return
     if not require(actor.request_action(1) and actor.current_state == 3 and actor.requested_action_state == 1, "first explicit transition did not win"): return
+    if not require(actor.completion_target_state == 3 and not actor.source_action_completed(), "transition retains numeric request and native completion target separately"): return
     actor.advance(0.1)
     var transition_time: float = actor.animation_player.current_animation_position
     actor.request_action(1)
@@ -79,10 +80,15 @@ func check() -> void:
     if not require(actor.current_state == 3 and actor.animation_complete and not actor.action_complete, "additional action cycle not respected"): return
     actor.advance(0.3)
     if not require(actor.current_state == 1 and not actor.action_complete, "action next state not followed"): return
+    if not require(actor.completion_target_state == 1 and actor.is_in_action(1), "automatic next action realigns completion target and retains request id"): return
     var finished: Array[int] = []
     actor.action_finished.connect(func(id: int): finished.append(id))
     actor.advance(0.15)
     if not require(actor.action_complete and finished == [1] and not actor.playing, "finite action completion not signaled"): return
+    if not require(actor.source_action_completed(), "matching terminal action completes source predicate"): return
+    actor.completion_target_state = 3
+    if not require(not actor.source_action_completed() and actor.animation_complete, "action completion flag alone cannot complete a different target; animation is independent"): return
+    actor.completion_target_state = 1
     actor.advance(0.2)
     if not require(actor.root_motion_displacement.is_zero_approx() and finished == [1], "completed action kept moving or signaled twice"): return
     actor.request_action(1, true)

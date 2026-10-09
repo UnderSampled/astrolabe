@@ -750,7 +750,9 @@ pub enum Expression {
     },
     Action(Option<StateRef>),
     IsInAction(Box<Expression>),
-    ActionFinished,
+    /// Cond123 evaluates its actor operand, then tests completion and the
+    /// actor's current/requested native action target identity (00436000).
+    ActionFinished(Box<Expression>),
     /// Source Func_GetCurrectAnimFrame reads the active animation's discrete
     /// frame cursor. Godot lowering requires a bound native animation clip.
     CurrentAnimationFrame,
@@ -1737,6 +1739,7 @@ impl Script {
                 Expression::Not(value)
                 | Expression::Negate(value)
                 | Expression::IsInAction(value)
+                | Expression::ActionFinished(value)
                 | Expression::Square(value)
                 | Expression::AbsoluteValue(value)
                 | Expression::ActorDistance(value)
