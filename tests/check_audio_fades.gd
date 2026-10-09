@@ -1,6 +1,7 @@
 extends SceneTree
 
 const Behavior = preload("res://addons/astrolabe/behavior/behavior.gd")
+const Mixer = preload("res://addons/astrolabe/audio/mixer.gd")
 const FADE_STATE_META := &"astrolabe_source_audio_fades"
 
 func _initialize() -> void:
@@ -13,6 +14,10 @@ func _check_audio_fades() -> void:
 	second.automatic = false
 	root.add_child(first)
 	root.add_child(second)
+	var mixer := Mixer.shared(first) as Mixer
+	mixer.set_preference(&"music", 73)
+	mixer.set_preference(&"effects", 61)
+	mixer.set_preference(&"voice", 92)
 
 	first.sound_fade_voice(0, 60000)
 	first.sound_fade_sound(0, 60000)
@@ -51,7 +56,10 @@ func _check_audio_fades() -> void:
 	for bus_name in [&"Astrolabe Voice", &"Astrolabe Effects", &"Astrolabe Music"]:
 		var bus := AudioServer.get_bus_index(bus_name)
 		assert(bus >= 0)
-		assert(db_to_linear(AudioServer.get_bus_volume_db(bus)) > 0.99)
+		var module := Mixer.module_for_bus(bus_name)
+		assert(mixer.source_volume_word(module) == 127)
+		var preference := int(mixer.preference_levels[module])
+		assert(is_equal_approx(db_to_linear(AudioServer.get_bus_volume_db(bus)), float(preference) / 127.0), "source fade overwrote user preference")
 	second.queue_free()
 	await process_frame
 	root.remove_meta(FADE_STATE_META)

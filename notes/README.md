@@ -17,6 +17,10 @@ the still-unobserved Hype speaking stall. The
 [action completion follow-up](action-completion-targets-2026-10-09.md) preserves
 completion target identity and Cond123's evaluated actor operand.
 
+The [source fade and preference handoff](audio-mixer-separation-2026-10-09.md)
+records the independent native mixer controls, exact DWORD-to-byte gain,
+static/dynamic publication, dedicated clean-source evidence and PCM test plan.
+
 The [gameplay performance composition](gameplay-performance-composition-2026-10-09.md)
 records the combined dormant-bank and indexed camera fixes, interface84,
 static integration repair and scoped actual-game publication receipt.

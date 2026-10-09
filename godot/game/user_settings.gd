@@ -2,6 +2,7 @@ extends Node
 ## User-owned audio and gameplay input preferences for native Godot menus.
 
 const FILE_PATH := "user://hype-settings.cfg"
+const NativeAudioMixer = preload("res://addons/astrolabe/audio/mixer.gd")
 const AUDIO_SCALE_VERSION := 1
 const BUSES := {
 	"Music": "Astrolabe Music",
@@ -298,11 +299,9 @@ func _apply() -> void:
 		_apply_group(group)
 
 func _apply_group(group: String) -> void:
-	var index := AudioServer.get_bus_index(BUSES[group])
-	if index < 0:
-		return
-	var linear_gain := float(values[group]) / 127.0
-	AudioServer.set_bus_volume_db(index, linear_to_db(maxf(linear_gain, 0.000001)))
+	var mixer := NativeAudioMixer.shared(self) as NativeAudioMixer
+	var module := NativeAudioMixer.module_for_bus(StringName(BUSES[group]))
+	mixer.set_preference(module, int(values[group]))
 
 func _on_node_added(node: Node) -> void:
 	# A scene can remove/free an added node before the deferred call is drained.

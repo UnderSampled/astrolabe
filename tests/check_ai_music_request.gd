@@ -1,6 +1,7 @@
 extends SceneTree
 
 const Emitter = preload("res://addons/astrolabe/audio/emitter.gd")
+const Mixer = preload("res://addons/astrolabe/audio/mixer.gd")
 
 func _initialize() -> void:
     call_deferred("check")
@@ -29,6 +30,9 @@ func check() -> void:
     root.add_child(caller)
     brain.main_actor = actor
     brain.sound_emitter = caller_emitter
+    var mixer := Mixer.shared(brain) as Mixer
+    mixer.set_preference(&"effects", 127)
+    mixer.set_preference(&"music", 127)
     for bus_name in [&"Astrolabe Music", &"MusicCheckEffects"]:
         if AudioServer.get_bus_index(bus_name) < 0:
             AudioServer.add_bus()
@@ -54,7 +58,7 @@ func check() -> void:
     caller.queue_free()
     await create_timer(0.15).timeout
     if not require(player.playing and is_equal_approx(effects.object_volume, 90.0), "request lifetime or receiver fade completion"): return
-    if not require(effects.voices[0].player.playing and is_equal_approx(db_to_linear(effects.voices[0].player.volume_db), 90.0 / 127.0), "fade completion must preserve effects playback"): return
+    if not require(effects.voices[0].player.playing and is_equal_approx(db_to_linear(effects.voices[0].player.volume_db), 88.0 / 127.0), "fade completion must preserve effects playback with source byte gain"): return
     var visited: Array[int] = []
     for i in 100:
         var clip: int = player.get_stream_playback().get_current_clip_index()

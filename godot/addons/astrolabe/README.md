@@ -14,6 +14,18 @@ the native completion flag together with current/target state identity;
 automatic next states realign that target while retaining the numeric request.
 Animation completion remains independent of action and speech completion.
 
+Interface85 scopes STOP to its effects/voice/music module and publishes request
+removal completion on the next native frame, including detached nonabortable
+playback. `audio/mixer.gd` holds three source fade words independently of user
+preference buses. Scripted source/object updates refresh dynamic players;
+preference publication refreshes all active matching players, including current
+static gain/pose. Raw effects overrides use low32 multiplication, signed SAR14
+and final byte narrowing; exact127 remains the no-override sentinel. Emitters
+expose the published byte and source/preference/object words in request signals.
+The authored settings file and native bus names stay the same. Native byte gain
+normalization, resource gain and distance attenuation still require external
+driver evidence; this interface does not claim audible New Game mix parity.
+
 Interface84 saves a level-owned `scene/sector_index.gd` component with ordered
 sector, physical-visual and mesh NodePaths. Camera neighbor/history lookups use
 these native bindings. Downward sector classification uses Godot TriangleMesh

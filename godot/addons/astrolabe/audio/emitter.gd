@@ -1,5 +1,6 @@
 extends Node3D
 ## Engine sound semantics over converted waveforms. Resource selection is compiled code.
+const Mixer = preload("res://addons/astrolabe/audio/mixer.gd")
 signal voice_started(info: Dictionary)
 signal voice_completed(info: Dictionary)
 @export var bus: StringName = &"Astrolabe Effects"
@@ -86,6 +87,38 @@ var source_effects_volume_override: Variant = null
 var volume_fades: Array[Tween] = []
 var is_music: bool = false
 var music_failure: String = ""
+var _mixer: Mixer
+
+func _audio_mixer() -> Mixer:
+    if _mixer == null:
+        _mixer = Mixer.shared(self) as Mixer
+        _mixer.source_volume_changed.connect(_source_volume_changed)
+        _mixer.preference_volume_changed.connect(_preference_volume_changed)
+    return _mixer
+
+func _source_volume_changed(module: StringName) -> void:
+    for info in voices:
+        if info.module == module and info.dynamic: _publish_voice_gain(info)
+
+func _preference_volume_changed(module: StringName) -> void:
+    for info in voices:
+        if info.module != module: continue
+        if not is_instance_valid(info.player): continue
+        # 004ec660/004ec300 capture current object parameters even for a static
+        # request. Ordinary source publications leave its saved pose alone.
+        if info.player is Node3D and not info.dynamic:
+            info.player.global_transform = global_transform
+        _publish_voice_gain(info)
+
+func _publish_voice_gain(info: Dictionary) -> void:
+    if not is_instance_valid(info.player): return
+    var mixer := _audio_mixer()
+    var object_word := int(object_volume) if bool(info.uses_object_volume) else 127
+    info.parameter_volume = mixer.request_volume_byte(info.module, object_word)
+    info.source_volume_word = mixer.source_volume_word(info.module)
+    info.preference_volume = int(mixer.preference_levels[info.module])
+    info.object_volume_word = object_word
+    info.player.volume_db = linear_to_db(maxf(info.gain * mixer.native_request_gain(info.module, object_word, info.bus), 0.000001))
 
 ## Music uses the source's shared object-less channel and survives its Brain.
 static func music_channel(requester: Node) -> Node3D:
@@ -97,11 +130,8 @@ static func music_channel(requester: Node) -> Node3D:
     channel.set_script(load("res://addons/astrolabe/audio/emitter.gd"))
     channel.voice_bus = &"Astrolabe Music"
     channel.is_music = true
-    var bus_index := AudioServer.get_bus_index(channel.voice_bus)
-    if bus_index < 0:
-        AudioServer.add_bus()
-        AudioServer.set_bus_name(AudioServer.bus_count - 1, channel.voice_bus)
     owner_node.add_child(channel)
+    channel._audio_mixer()
     return channel
 
 func kill_all() -> void:
@@ -130,10 +160,7 @@ func play_dialogue_speech(record: Resource) -> void:
 ## Compiled STOP/PLAY events select voice without changing the effects module.
 func execute_voice_event(event: Resource) -> void:
     if event == null: return
-    var bus_index := AudioServer.get_bus_index(&"Astrolabe Voice")
-    if bus_index < 0:
-        AudioServer.add_bus()
-        AudioServer.set_bus_name(AudioServer.bus_count - 1, &"Astrolabe Voice")
+    _audio_mixer()
     var previous_request := _dialogue_speech_request
     _dialogue_speech_request = true
     event.execute(self)
@@ -162,7 +189,7 @@ func source_set_effects_volume_word(value: int) -> void:
     object_volume = float(word)
     for info in voices:
         if bool(info.get("uses_object_volume", true)) and info.dynamic and is_instance_valid(info.player):
-            info.player.volume_db = linear_to_db(maxf(info.gain * object_volume / 127.0, 0.000001))
+            _publish_voice_gain(info)
 
 ## 0040bad0 admits at most ten outstanding effects fade-out requests.
 ## Native Tweens own their lifetime; a full set reports and preserves all fades.
@@ -256,17 +283,17 @@ func play_voice(voice: Resource, identity: String, pitch_variation: float, stopp
             music_failure = "Switching active music themes requires the source audio-driver transition contract"
             return
     var spatial: bool = voice.spatial and not is_music
+    _audio_mixer()
     var player: Node = AudioStreamPlayer3D.new() if spatial else AudioStreamPlayer.new()
     player.bus = &"Astrolabe Voice" if _dialogue_speech_request else voice_bus
     player.stream = voice.stream
-    var object_gain := 1.0 if _dialogue_speech_request else object_volume / 127.0
-    player.volume_db = linear_to_db(maxf(voice.gain * object_gain, 0.000001))
     player.pitch_scale = maxf(1.0 + random.randf_range(-pitch_variation, pitch_variation), 0.001) if voice.pitchable else 1.0
     add_child(player)
     if player is Node3D and not dynamic:
         player.top_level = true
         player.global_transform = global_transform
     var info := {"event": identity, "stream": voice.stream.resource_path, "pitch": player.pitch_scale, "gain": voice.gain, "choices": voice.trace, "spatial": spatial, "stoppable": stoppable, "dynamic": dynamic, "player": player, "theme": voice.theme_identity, "uses_object_volume": not _dialogue_speech_request, "module": _request_module(), "bus": player.bus}
+    _publish_voice_gain(info)
     voices.append(info)
     player.finished.connect(_voice_finished.bind(info))
     player.play()

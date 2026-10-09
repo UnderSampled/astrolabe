@@ -2,6 +2,26 @@ use super::*;
 use crate::model::{Selection, io::Load};
 
 #[test]
+#[ignore = "requires native Godot; source fades, preferences and DWORD gain"]
+fn native_source_fades_preserve_preferences_and_publish_byte_gain() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    crate::godot::support::initialize(temp.path())?;
+    std::fs::write(
+        temp.path().join("check_audio_mixer.gd"),
+        include_bytes!("../../tests/check_audio_mixer.gd"),
+    )?;
+    let engine = std::env::var("ASTROLABE_GODOT").unwrap_or_else(|_| "godot".into());
+    let log = crate::godot::run_godot(
+        &engine,
+        temp.path(),
+        &["--headless", "--script", "res://check_audio_mixer.gd"],
+        std::time::Duration::from_secs(20),
+    )?;
+    assert!(log.contains("AUDIO_MIXER_OK"), "{log}");
+    Ok(())
+}
+
+#[test]
 #[ignore = "requires native Godot; source sound module and request lifecycle"]
 fn native_sound_requests_keep_module_scope_and_complete_removed_holders() -> Result<()> {
     let temp = tempfile::tempdir()?;

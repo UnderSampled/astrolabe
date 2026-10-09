@@ -1,6 +1,7 @@
 extends Node3D
 const NativeCharacter = preload("res://addons/astrolabe/character/character.gd")
 const NativeAudioEmitter = preload("res://addons/astrolabe/audio/emitter.gd")
+const NativeAudioMixer = preload("res://addons/astrolabe/audio/mixer.gd")
 ## Timing and actor/audio bindings for compiled behavior code. No source trees are loaded.
 signal normal_tick
 signal reflex_tick
@@ -133,14 +134,6 @@ func fail_unsupported(context: String) -> void:
 	push_error("Unsupported compiled behavior: " + context)
 	stop()
 
-func _source_sound_bus(bus_name: StringName) -> int:
-	var bus := AudioServer.get_bus_index(bus_name)
-	if bus < 0:
-		AudioServer.add_bus()
-		bus = AudioServer.bus_count - 1
-		AudioServer.set_bus_name(bus, bus_name)
-	return bus
-
 func _source_audio_fades() -> Dictionary:
 	var root := get_tree().root
 	var fades: Variant = null
@@ -153,17 +146,18 @@ func _source_audio_fades() -> Dictionary:
 
 func _source_sound_fade_bus(bus_name: StringName, target: int, duration_ms: int) -> void:
 	assert(duration_ms >= 0)
-	var bus := _source_sound_bus(bus_name)
+	var mixer := NativeAudioMixer.shared(self) as NativeAudioMixer
+	var module := NativeAudioMixer.module_for_bus(bus_name)
 	var key := String(bus_name)
 	var fades := _source_audio_fades()
 	var previous_id := int(fades.get(key, 0))
 	if previous_id != 0:
 		var previous := instance_from_id(previous_id) as Tween
 		if is_instance_valid(previous) and previous.is_running(): previous.kill()
-	var start_level := clampf(db_to_linear(AudioServer.get_bus_volume_db(bus)) * 127.0, 0.0, 127.0)
+	var start_level := float(mixer.source_volume_word(module))
 	var target_level := float(clampi(target, 0, 127))
 	var set_level := func(value: float) -> void:
-		AudioServer.set_bus_volume_db(bus, linear_to_db(maxf(value / 127.0, 0.000001)))
+		mixer.set_source_volume_word(module, int(value))
 	if duration_ms == 0:
 		set_level.call(target_level)
 		fades.erase(key)

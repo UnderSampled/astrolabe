@@ -103,6 +103,22 @@
   "tests": [
     {
       "binary": "astrolabe",
+      "test": "godot::sound::tests::native_source_fades_preserve_preferences_and_publish_byte_gain",
+      "areas": [
+        "media",
+        "ai"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "maintained user settings/source fades, exact DWORD byte gain, static/dynamic native playback and PCM RMS ratio",
+      "timeout_seconds": 30,
+      "ignored": true,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "godot::sound::tests::native_sound_requests_keep_module_scope_and_complete_removed_holders",
       "areas": [
         "media",
