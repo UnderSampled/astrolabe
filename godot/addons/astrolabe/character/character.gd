@@ -10,6 +10,7 @@ const SOURCE_INVENTORY = preload("res://addons/astrolabe/character/inventory.gd"
 const SOURCE_MAGICK = preload("res://addons/astrolabe/character/magick.gd")
 const SOURCE_LASER_POINTER = preload("res://addons/astrolabe/character/laser_pointer.gd")
 const SOURCE_RENDERING = preload("res://addons/astrolabe/character/rendering.gd")
+const CONFIGURED_BANK = preload("res://addons/astrolabe/character/configured_bank.gd")
 const SOURCE_LIFT_MOTION = preload("res://addons/astrolabe/character/lift_motion.gd")
 const SOURCE_CHANNEL_ATTACHMENT = preload("res://addons/astrolabe/character/channel_attachment.gd")
 const SOURCE_CHANNEL_VISIBILITY = preload("res://addons/astrolabe/character/channel_visibility.gd")
@@ -130,6 +131,7 @@ var animation_complete: bool = false
 var action_controlled: bool = false
 var repeats_remaining: int = 0
 var _configuration_bound: bool = false
+var source_configuration_error: String = ""
 
 var animation_player: AnimationPlayer:
     get: return get_node("AnimationPlayer")
@@ -1793,7 +1795,8 @@ func seek_frame(index: int) -> void:
 
 func restore_configuration() -> bool:
     if source_configuration == null: return false
-    return bool(source_configuration.call("restore"))
+    var changed := bool(source_configuration.call("restore"))
+    return changed and source_configuration_error.is_empty()
 
 func _bind_source_configuration() -> void:
     var ancestor := get_parent()
@@ -1846,8 +1849,7 @@ func source_change_configuration(value: Resource) -> bool:
         source_configuration.changed.disconnect(_apply_source_configuration)
     source_configuration = selected
     if selected != null: selected.changed.connect(_apply_source_configuration)
-    _apply_source_configuration()
-    return true
+    return _apply_source_configuration()
 
 ## 004421f2 restores the initial table's saved values without selecting it.
 func source_restore_initial_configuration() -> bool:
@@ -1856,14 +1858,21 @@ func source_restore_initial_configuration() -> bool:
 
 func source_swap_configured_parts(first: int, second: int) -> bool:
     if source_configuration == null: return false
-    return bool(source_configuration.call("swap_slots", first, second))
+    var changed := bool(source_configuration.call("swap_slots", first, second))
+    return changed and source_configuration_error.is_empty()
 
-func _apply_source_configuration() -> void:
-    if _configuration_bound and not is_inside_tree(): return
+func _configuration_failure(reason: String) -> bool:
+    source_configuration_error = reason
+    push_error("Native configuration for " + str(get_meta("source_perso", name)) + ": " + reason)
+    return false
+
+func _apply_source_configuration() -> bool:
+    if _configuration_bound and not is_inside_tree(): return true
+    source_configuration_error = ""
     var channels := get_node_or_null("Channels")
     # Synthetic, non-rendered actors used by focused behavior scenes may omit
     # the imported channel hierarchy. There is no native payload to update.
-    if channels == null: return
+    if channels == null: return true
     var order := PackedInt32Array()
     var restored: bool = restored_configuration
     var identity: String = ""
@@ -1871,48 +1880,54 @@ func _apply_source_configuration() -> void:
         order = source_configuration.get("payload_order")
         restored = bool(source_configuration.get("restored"))
         identity = str(source_configuration.get("source_id"))
+        var seen: Dictionary = {}
+        for original_slot in order:
+            if original_slot < 0 or original_slot >= order.size() or seen.has(original_slot):
+                return _configuration_failure("Selected configuration order is not a source-slot permutation.")
+            seen[original_slot] = true
     var prefix: String = "reset_part_" if restored else "part_"
     for channel in channels.get_children():
         var anchors: Array[Node] = []
-        # Return existing payloads to their saved hidden banks. Object-free
-        # channels remain native transform/cue targets without payload banks.
+        # Return warm instances to their hidden native banks before selecting
+        # the next permutation. Null selection intentionally leaves slots empty.
         for anchor in channel.get_children():
             if not str(anchor.name).begins_with("part_") and not str(anchor.name).begins_with("reset_part_"): continue
             anchors.append(anchor)
+            anchor.process_mode = Node.PROCESS_MODE_DISABLED
             for payload in anchor.get_children():
+                if not payload.has_meta("source_configuration_bank"):
+                    return _configuration_failure("Selected native payload has no bank binding.")
                 var bank_path: NodePath = payload.get_meta("source_configuration_bank")
-                payload.reparent(get_node(bank_path), false)
+                var previous := get_node_or_null(bank_path) as CONFIGURED_BANK
+                if previous == null:
+                    return _configuration_failure("Selected native payload requires its channel's bank.")
+                payload.reparent(previous, false)
+            anchor.call("refresh_participation")
         if source_configuration == null or anchors.is_empty(): continue
-        var bank: Node3D = null
+        var bank: CONFIGURED_BANK = null
         for candidate in channel.get_children():
             if str(candidate.get_meta("source_configuration", "")) == identity and bool(candidate.get_meta("source_restored", false)) == restored:
-                bank = candidate as Node3D
+                bank = candidate as CONFIGURED_BANK
                 break
-        assert(bank != null, "Selected configuration needs its saved native bank")
-        var payloads: Dictionary = {}
-        for payload in bank.get_children():
-            var original_slot: int = int(payload.get("original_slot"))
-            assert(original_slot >= 0 and original_slot < order.size() and not payloads.has(original_slot), "Converted native payload identity is invalid")
-            payloads[original_slot] = payload
-        var empty_slots: PackedInt32Array = bank.get_meta("empty_payload_slots")
-        var absent: Dictionary = {}
-        for original_slot in empty_slots:
-            assert(original_slot >= 0 and original_slot < order.size() and not absent.has(original_slot) and not payloads.has(original_slot), "Converted native absent-slot identity is invalid")
-            absent[original_slot] = true
-        assert(payloads.size() + absent.size() == order.size(), "Converted native configuration payload count differs")
-        # Only sampled slots have anchors. Every nonempty original payload is
-        # still saved in this channel's bank, so arbitrary swaps remain valid.
+        if bank == null:
+            return _configuration_failure("Selected configuration needs its converted native bank.")
+        var error := bank.validate_configuration(identity, restored, order.size())
+        if not error.is_empty(): return _configuration_failure(error)
+        # Animation addresses remain stable; only content at sampled anchors is
+        # acquired. The immutable catalogue retains every other original slot.
         for anchor in anchors:
             if not str(anchor.name).begins_with(prefix): continue
             var slot: int = int(anchor.get_meta("configuration_slot"))
+            if slot < 0: return _configuration_failure("Native animation anchor has an invalid slot.")
             if slot >= order.size(): continue
             var original_slot: int = order[slot]
-            if not payloads.has(original_slot):
-                assert(absent.has(original_slot), "Selected native configuration payload is missing")
-                continue
-            var payload: Node3D = payloads[original_slot]
-            payload.reparent(anchor, false)
-            anchor.call("refresh_transparency")
+            if bank.catalog.payload_scenes[original_slot] == null: continue
+            var payload := bank.acquire_payload(original_slot, self)
+            if payload == null:
+                return _configuration_failure("Selected native payload could not be acquired.")
+            if not source_rendering.prepare_payload(self, payload):
+                return _configuration_failure("Selected native payload cannot inherit actor material state.")
+            anchor.call("attach_payload", payload)
     if restored_configuration != restored:
         var time := animation_player.current_animation_position
         var was_playing := playing
@@ -1925,6 +1940,7 @@ func _apply_source_configuration() -> void:
             animation_player.seek(time, true, true)
             if not was_playing: animation_player.pause()
             suppress_cues = false
+    return true
 
 func set_bounds_visible(value: bool) -> void:
     var bounds := get_node_or_null("FamilyBounds") as Node3D

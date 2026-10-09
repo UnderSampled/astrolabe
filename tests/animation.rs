@@ -195,6 +195,8 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
             unknown: [0; 10],
         },
     );
+    configuration.parts[299] = configuration.parts[0].clone();
+    configuration.parts[299].scale = Some([4., 5., 6.]);
     configuration.parts[300] = configuration.parts[0].clone();
     configuration.reset_parts = Some(configuration.parts.clone());
     configuration.reset_parts.as_mut().unwrap()[300].scale = Some([3., 4., 5.]);
@@ -615,6 +617,16 @@ func check():
     actor.autoplay = false
     root.add_child(scene)
     if not require(saved_count == actor.find_children("*", "", true, false).size(), "ready constructed missing character content"): return
+    var shared_catalog: Resource = null
+    for channel in [channel0, channel1]:
+        for bank in channel.get_children():
+            if not str(bank.name).begins_with("bank_"): continue
+            if not require(bank.get_child_count() == 0, "initial load instantiated parked payloads"): return
+            var catalog = bank.get("catalog") as Resource
+            if not require(catalog != null and catalog.get("payload_scenes").size() == 301, "native payload catalogue missing"): return
+            if not bool(bank.get_meta("source_restored")):
+                if shared_catalog == null: shared_catalog = catalog
+                elif not require(catalog == shared_catalog, "channel catalogues were duplicated"): return
     if not require(channel1.global_position.is_equal_approx(Vector3(6,3,-2)), "source placement"): return
     actor.set_bounds_visible(true)
     var bound = actor.get_node("FamilyBounds/Bound_0")
@@ -643,14 +655,25 @@ func check():
     player.seek(0.5, true, true)
     if not require(actor.frame_index == 1 and actor.current_state == 0, "state rate overrides clip fps"): return
     if not require(not initial.visible and channel0.get_node("part_1").visible, "native object visibility switch"): return
-    if not require(channel0.get_node("part_1").scale.is_equal_approx(Vector3(2,2,2)), "configuration scale"): return
+    if not require(channel0.get_node("part_1").get_child(0).scale.is_equal_approx(Vector3(2,2,2)), "configuration payload scale"): return
     player.seek(1.0, true, true)
     if not require(channel0.position.is_equal_approx(Vector3(1,3,-2)) and channel1.position.is_zero_approx(), "logical identity follows swapped columns"): return
     player.seek(0.0, true, true)
     if not require(initial.visible and not channel0.get_node("part_1").visible and channel1.position.is_equal_approx(Vector3(1,3,-2)), "backward seek did not restore pose/configuration"): return
     if not require(cues.is_empty(), "editor seek dispatched cue side effects"): return
+    # Slot299 is never sampled. Proc82 must acquire its native scene before
+    # returning, keep the animation address/time, and reuse it on warm swaps.
+    if not require(actor.source_swap_configured_parts(301, 300), "unused payload swap"): return
+    var acquired = channel1.get_node("part_300").get_child(0)
+    if not require(acquired.original_slot == 299 and acquired.scale.is_equal_approx(Vector3(4,6,5)), "unused native payload identity/scale"): return
+    var swap_count = actor.find_children("*", "", true, false).size()
+    if not require(actor.source_swap_configured_parts(301, 300) and actor.source_swap_configured_parts(301, 300), "warm payload swap"): return
+    if not require(channel1.get_node("part_300").get_child(0) == acquired and actor.find_children("*", "", true, false).size() == swap_count, "warm swap duplicated native content"): return
+    if not require(actor.source_swap_configured_parts(301, 300), "restore normal source order"): return
+    if not require(cues.is_empty() and actor.frame_index == 0, "swap advanced animation or replayed cues"): return
     if not require(actor.restore_configuration(), "reset library missing"): return
-    if not require(not initial.visible and channel1.get_node("reset_part_300").visible and channel1.get_node("reset_part_300").scale.is_equal_approx(Vector3(3,5,4)), "native reset configuration edit"): return
+    var playback_count = actor.find_children("*", "", true, false).size()
+    if not require(not initial.visible and channel1.get_node("reset_part_300").visible and channel1.get_node("reset_part_300").get_child(0).scale.is_equal_approx(Vector3(3,5,4)), "native reset configuration edit"): return
     if not require(cues.is_empty() and actor.frame_index == 0, "configuration restore replayed cues or changed time: " + str(cues) + " frame " + str(actor.frame_index)): return
     actor.select_state(5)
     player.advance(0.25)
@@ -698,7 +721,7 @@ func check():
     if not require(repeated.position.is_equal_approx(Vector3(13,3,-2)) and repeated.get_node("reset_part_300").visible and not channel1.get_node("reset_part_300").visible, "duplicate occurrence object selection"): return
     player.seek(0.0, true, true)
     if not require(channel1.get_node("reset_part_300").visible and not repeated.get_node("reset_part_300").visible, "duplicate occurrence backward seek"): return
-    if not require(saved_count == actor.find_children("*", "", true, false).size(), "native playback rebuilt parts"): return
+    if not require(playback_count == actor.find_children("*", "", true, false).size(), "native playback rebuilt warm parts"): return
     scene.free()
     quit(0)
 "#,

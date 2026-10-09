@@ -40,7 +40,6 @@ pub(super) fn perso_path(project: &Project, perso: &Perso) -> String {
     ))
 }
 struct Part {
-    channel: u16,
     slot: u16,
     restored: bool,
     instance: Option<String>,
@@ -51,14 +50,140 @@ struct Part {
     selected: bool,
 }
 impl Part {
-    fn node(&self) -> String {
+    fn node(&self, channel: u16) -> String {
         format!(
             "Channels/channel_{}/{}part_{}",
-            self.channel,
+            channel,
             if self.restored { "reset_" } else { "" },
             self.slot
         )
     }
+}
+
+fn payload_directory(project: &Project, configuration: &str) -> String {
+    project.level_path(&format!(
+        "characters/configuration_payloads/{}",
+        super::digest(configuration.as_bytes())
+    ))
+}
+
+fn payload_path(project: &Project, configuration: &str, restored: bool, slot: u16) -> String {
+    format!(
+        "{}/{}/payload_{slot}.tscn",
+        payload_directory(project, configuration),
+        if restored { "reset" } else { "normal" }
+    )
+}
+
+/// A fully converted native payload, shared by every actor/channel using this
+/// source slot. Only its bank binding is actor-relative and assigned per use.
+fn export_payload(
+    project: &mut Project,
+    source: &mut impl ContentSource,
+    part: &Part,
+) -> Result<()> {
+    let path = payload_path(project, &part.configuration, part.restored, part.slot);
+    if project.generated.contains(&path) {
+        return Ok(());
+    }
+    project.reserve(&path)?;
+    let name = format!("payload_{}", super::digest(path.as_bytes()));
+    writeln!(
+        project.builder,
+        "    var {name} = Node3D.new()\n    {name}.set_script(native_resource(\"res://addons/astrolabe/character/configured_payload.gd\"))\n    {name}.name = \"payload_{}\"\n    {name}.original_slot = {}",
+        part.slot, part.slot
+    )?;
+    if let Some(action) = &part.action {
+        writeln!(
+            project.builder,
+            "    {name}.action = native_resource({})",
+            quoted(action)
+        )?;
+    }
+    if let Some(instance) = &part.instance {
+        writeln!(
+            project.builder,
+            "    var {name}_visual = native_resource({}).instantiate()\n    {name}_visual.name = \"Visual\"\n    {name}.add_child({name}_visual)\n    {name}_visual.owner = {name}",
+            quoted(instance)
+        )?;
+    }
+    if let Some((mesh, transforms)) = &part.physical_contact {
+        let transform = transforms
+            .iter()
+            .fold(String::from("Transform3D.IDENTITY"), |outer, value| {
+                format!("({outer} * {})", super::scene::transform(value))
+            });
+        let area = format!("{name}_contact");
+        writeln!(
+            project.builder,
+            "    var {area} = Area3D.new()\n    {area}.name = \"PhysicalContact\"\n    {area}.disable_mode = CollisionObject3D.DISABLE_MODE_REMOVE\n    {area}.collision_layer = 16\n    {area}.collision_mask = 0\n    {area}.monitoring = false\n    {area}.monitorable = true\n    {area}.set_meta(\"physical_object_contact\", true)\n    {area}.transform = {}\n    {name}.add_child({area})\n    {area}.owner = {name}",
+            transform
+        )?;
+        project.collision_shapes(
+            mesh,
+            source,
+            &area,
+            &name,
+            &format!("{name}_collision"),
+            false,
+        )?;
+    }
+    if let Some([x, y, z]) = part.scale {
+        writeln!(project.builder, "    {name}.scale = {}", vec3([x, z, y]))?;
+    }
+    writeln!(
+        project.builder,
+        "    save_scene({name}, {})\n    {name}.free()",
+        quoted(&format!("res://{path}"))
+    )?;
+    Ok(())
+}
+
+fn export_bank_catalog(
+    project: &mut Project,
+    config: &ObjectList,
+    restored: bool,
+) -> Result<String> {
+    let table = if restored {
+        config
+            .reset_parts
+            .as_ref()
+            .context("reset catalogue requires its source table")?
+    } else {
+        &config.parts
+    };
+    let path = format!(
+        "{}/{}.tres",
+        payload_directory(project, config.path.as_str()),
+        if restored { "reset" } else { "normal" }
+    );
+    if !project.generated.contains(&path) {
+        let mut links = String::new();
+        let mut scenes = Vec::with_capacity(table.len());
+        for (slot, part) in table.iter().enumerate() {
+            if part.kind == ObjectPartKind::Absent {
+                scenes.push("null".into());
+            } else {
+                let payload =
+                    payload_path(project, config.path.as_str(), restored, slot.try_into()?);
+                ensure!(
+                    project.generated.contains(&payload),
+                    "native bank catalogue requires payload {payload}"
+                );
+                writeln!(
+                    links,
+                    "[ext_resource type=\"PackedScene\" path={} id=\"payload_{slot}\"]",
+                    quoted(&format!("res://{payload}"))
+                )?;
+                scenes.push(format!("ExtResource(\"payload_{slot}\")"));
+            }
+        }
+        project.write(path.clone(), format!(
+            "[gd_resource type=\"Resource\" load_steps={} format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/character/configured_bank_catalog.gd\" id=\"script\"]\n{links}\n[resource]\nresource_local_to_scene = false\nscript = ExtResource(\"script\")\nsource_id = {}\nrestored = {restored}\npayload_scenes = Array[PackedScene]([{}])\n",
+            links.lines().count() + 2, quoted(config.path.as_str()), scenes.join(", ")
+        ).as_bytes())?;
+    }
+    Ok(format!("res://{path}"))
 }
 pub(super) fn export_configuration(project: &mut Project, config: &ObjectList) -> Result<String> {
     config.validate()?;
@@ -750,30 +875,54 @@ fn export_rig(
         });
     }
     let mut parts = Vec::new();
-    // Only channels that sample objects need saved payload banks. Transform and
-    // cue targets remain native channels even when they never display content.
-    // Keep every nonempty original slot: an arbitrary Proc82 swap can move it
-    // into a sampled slot. Empty entries are explicit bank metadata, not nodes.
+    // Resolve/export each original slot once. Every nonempty slot remains
+    // available for arbitrary Proc82 permutations, without instantiating it in
+    // every channel. Transform/cue channels and animation anchors remain saved.
     const MAX_CONFIGURED_PAYLOADS: usize = 65_536;
     let payload_count = configurations.iter().try_fold(0usize, |total, config| {
         let nonempty = config
             .all_parts()
-            .filter(|part| part.kind != ObjectPartKind::Absent)
+            .filter(|part| !sampled_slots.is_empty() && part.kind != ObjectPartKind::Absent)
             .count();
-        nonempty
-            .checked_mul(sampled_slots.len())
-            .and_then(|n| total.checked_add(n))
+        total.checked_add(nonempty)
     });
     let payload_count = payload_count
         .ok_or_else(|| anyhow::anyhow!("{} configured payload count overflow", family.path))?;
     ensure!(
         payload_count <= MAX_CONFIGURED_PAYLOADS,
-        "{} needs {payload_count} native configured payloads across {} object-bearing channels; supported rig budget is {MAX_CONFIGURED_PAYLOADS}",
-        family.path,
-        sampled_slots.len()
+        "{} needs {payload_count} unique native configured payloads; supported rig budget is {MAX_CONFIGURED_PAYLOADS}",
+        family.path
+    );
+    let selected_config = configurations
+        .iter()
+        .find(|config| selected == Some(&config.path));
+    let initial_payload_count = sampled_slots
+        .values()
+        .try_fold(0usize, |total, slots| {
+            let count = slots
+                .iter()
+                .filter(|&&slot| {
+                    selected_config.is_some_and(|config| {
+                        config
+                            .parts
+                            .get(usize::from(slot))
+                            .is_some_and(|part| part.kind != ObjectPartKind::Absent)
+                    })
+                })
+                .count();
+            total.checked_add(count)
+        })
+        .context("initial native payload count overflow")?;
+    ensure!(
+        initial_payload_count <= MAX_CONFIGURED_PAYLOADS,
+        "{} needs {initial_payload_count} initially selected native payloads; supported rig budget is {MAX_CONFIGURED_PAYLOADS}",
+        family.path
     );
     for config in configurations {
         export_configuration(project, config)?;
+        if sampled_slots.is_empty() {
+            continue;
+        }
         for (restored, table) in [
             (false, Some(&config.parts)),
             (true, config.reset_parts.as_ref()),
@@ -781,61 +930,61 @@ fn export_rig(
             let Some(table) = table else {
                 continue;
             };
-            for &channel in sampled_slots.keys() {
-                for (slot, part) in table.iter().enumerate() {
-                    if part.kind == ObjectPartKind::Absent {
-                        continue;
-                    }
-                    let physical_contact = if let Some(reference) = &part.instance {
-                        let instance = source.load(reference)?;
-                        let collision = crate::model::collision::Collision {
-                            path: instance.model.path.clone(),
-                            geometry: crate::model::collision::CollisionGeometry::Model(
-                                instance.model.clone(),
-                            ),
-                        };
-                        Some((collision.resolve(source)?, instance.transforms.clone()))
-                    } else {
-                        None
-                    };
-                    let instance = if let Some(reference) = &part.instance {
-                        let instance = source.load(reference)?;
-                        instance.validate_reference(&reference.path)?;
-                        let model = source.load(&instance.model)?;
-                        if written.insert(instance.path.clone()) {
-                            super::export::export_instance(
-                                project, source, &model, &instance, written,
-                            )?;
-                        }
-                        Some(format!(
-                            "res://{}",
-                            disk_path(&project.selection, &instance.path, "tscn")
-                        ))
-                    } else {
-                        None
-                    };
-                    let action = if let Some(reference) = &part.action {
-                        export_action(project, source, reference, written)?;
-                        Some(format!(
-                            "res://{}",
-                            disk_path(&project.selection, &reference.path, "tres")
-                        ))
-                    } else {
-                        None
-                    };
-                    parts.push(Part {
-                        channel,
-                        slot: slot.try_into()?,
-                        restored,
-                        instance,
-                        physical_contact,
-                        action,
-                        scale: part.scale,
-                        configuration: config.path.to_string(),
-                        selected: selected == Some(&config.path),
-                    });
+            for (slot, part) in table.iter().enumerate() {
+                if part.kind == ObjectPartKind::Absent {
+                    continue;
                 }
+                let physical_contact = if let Some(reference) = &part.instance {
+                    let instance = source.load(reference)?;
+                    let collision = crate::model::collision::Collision {
+                        path: instance.model.path.clone(),
+                        geometry: crate::model::collision::CollisionGeometry::Model(
+                            instance.model.clone(),
+                        ),
+                    };
+                    Some((collision.resolve(source)?, instance.transforms.clone()))
+                } else {
+                    None
+                };
+                let instance = if let Some(reference) = &part.instance {
+                    let instance = source.load(reference)?;
+                    instance.validate_reference(&reference.path)?;
+                    let model = source.load(&instance.model)?;
+                    if written.insert(instance.path.clone()) {
+                        super::export::export_instance(
+                            project, source, &model, &instance, written,
+                        )?;
+                    }
+                    Some(format!(
+                        "res://{}",
+                        disk_path(&project.selection, &instance.path, "tscn")
+                    ))
+                } else {
+                    None
+                };
+                let action = if let Some(reference) = &part.action {
+                    export_action(project, source, reference, written)?;
+                    Some(format!(
+                        "res://{}",
+                        disk_path(&project.selection, &reference.path, "tres")
+                    ))
+                } else {
+                    None
+                };
+                let payload = Part {
+                    slot: slot.try_into()?,
+                    restored,
+                    instance,
+                    physical_contact,
+                    action,
+                    scale: part.scale,
+                    configuration: config.path.to_string(),
+                    selected: selected == Some(&config.path),
+                };
+                export_payload(project, source, &payload)?;
+                parts.push(payload);
             }
+            export_bank_catalog(project, config, restored)?;
         }
     }
     ensure!(
@@ -911,9 +1060,9 @@ fn export_rig(
             channel / 256
         )?;
     }
-    // Parking banks remain saved native content. They inherit neither physics
-    // processing nor animated transforms; moving a payload to a selected slot
-    // restores its ordinary local transform and native contact participation.
+    // Saved banks own a channel-local warm cache. Their immutable native scene
+    // catalogues are shared across actors/channels. Newly needed payloads enter
+    // these disabled banks before rendering state or contact is enabled.
     for config in configurations {
         let identity = &super::digest(config.path.as_str().as_bytes())[..12];
         for &channel in sampled_slots.keys() {
@@ -933,10 +1082,12 @@ fn export_rig(
                     "bank_{identity}_{}",
                     if restored { "reset" } else { "normal" }
                 );
+                let catalog = export_bank_catalog(project, config, restored)?;
                 writeln!(
                     function,
-                    "    var {bank}_{channel} = Node3D.new()\n    {bank}_{channel}.name = {}\n    {bank}_{channel}.visible = false\n    {bank}_{channel}.process_mode = Node.PROCESS_MODE_DISABLED\n    {bank}_{channel}.top_level = true\n    {bank}_{channel}.set_meta(\"source_configuration\", {})\n    {bank}_{channel}.set_meta(\"source_restored\", {})\n    {bank}_{channel}.set_meta(\"empty_payload_slots\", PackedInt32Array([{empty_slots}]))\n    c_{channel}.add_child({bank}_{channel})\n    {bank}_{channel}.owner = actor",
+                    "    var {bank}_{channel} = Node3D.new()\n    {bank}_{channel}.set_script(native_resource(\"res://addons/astrolabe/character/configured_bank.gd\"))\n    {bank}_{channel}.name = {}\n    {bank}_{channel}.catalog = native_resource({})\n    {bank}_{channel}.visible = false\n    {bank}_{channel}.process_mode = Node.PROCESS_MODE_DISABLED\n    {bank}_{channel}.top_level = true\n    {bank}_{channel}.set_meta(\"source_configuration\", {})\n    {bank}_{channel}.set_meta(\"source_restored\", {})\n    {bank}_{channel}.set_meta(\"empty_payload_slots\", PackedInt32Array([{empty_slots}]))\n    c_{channel}.add_child({bank}_{channel})\n    {bank}_{channel}.owner = actor",
                     quoted(&bank),
+                    quoted(&catalog),
                     quoted(config.path.as_str()),
                     restored
                 )?;
@@ -963,60 +1114,28 @@ fn export_rig(
             }
         }
     }
-    for (i, part) in parts.iter().enumerate() {
+    // Keep the complete initially selected normal configuration at every
+    // sampled anchor, so native editor seeking never requires runtime setup.
+    // Other original slots exist as native scene resources, not parked nodes.
+    for (i, part) in parts
+        .iter()
+        .enumerate()
+        .filter(|(_, part)| part.selected && !part.restored)
+    {
         let identity = &super::digest(part.configuration.as_bytes())[..12];
-        let bank = format!(
-            "bank_{identity}_{}",
-            if part.restored { "reset" } else { "normal" }
-        );
-        let parent = if part.selected
-            && !part.restored
-            && let Some(anchor) = anchors.get(&part.node())
-        {
-            format!("part_{anchor}")
-        } else {
-            format!("{bank}_{}", part.channel)
-        };
-        writeln!(
-            function,
-            "    var payload_{i} = Node3D.new()\n    payload_{i}.set_script(native_resource(\"res://addons/astrolabe/character/configured_payload.gd\"))\n    payload_{i}.name = \"payload_{}\"\n    payload_{i}.original_slot = {}\n    payload_{i}.set_meta(\"source_configuration_bank\", NodePath({}))\n    {parent}.add_child(payload_{i})\n    payload_{i}.owner = actor",
-            part.slot,
-            part.slot,
-            quoted(&format!("Channels/channel_{}/{bank}", part.channel))
-        )?;
-        if let Some(action) = &part.action {
+        for &channel in sampled_slots.keys() {
+            let Some(anchor) = anchors.get(&part.node(channel)) else {
+                continue;
+            };
+            let path = payload_path(project, &part.configuration, false, part.slot);
             writeln!(
                 function,
-                "    payload_{i}.action = native_resource({})",
-                quoted(action)
+                "    var payload_{i}_{channel} = native_resource({}).instantiate()\n    payload_{i}_{channel}.set_meta(\"source_configuration_bank\", NodePath({}))\n    part_{anchor}.add_child(payload_{i}_{channel})\n    payload_{i}_{channel}.owner = actor",
+                quoted(&format!("res://{path}")),
+                quoted(&format!(
+                    "Channels/channel_{channel}/bank_{identity}_normal"
+                ))
             )?;
-        }
-        if let Some(instance) = &part.instance {
-            writeln!(
-                function,
-                "    var visual_{i} = native_resource({}).instantiate()\n    visual_{i}.name = \"Visual\"\n    payload_{i}.add_child(visual_{i})\n    visual_{i}.owner = actor",
-                quoted(instance)
-            )?;
-        }
-        if let Some((mesh, transforms)) = &part.physical_contact {
-            let transform = transforms
-                .iter()
-                .fold(String::from("Transform3D.IDENTITY"), |outer, value| {
-                    format!("({outer} * {})", super::scene::transform(value))
-                });
-            let area = format!("physical_contact_{i}");
-            writeln!(
-                function,
-                "    var {area} = Area3D.new()\n    {area}.name = \"PhysicalContact\"\n    {area}.disable_mode = CollisionObject3D.DISABLE_MODE_REMOVE\n    {area}.collision_layer = 16\n    {area}.collision_mask = 0\n    {area}.monitoring = false\n    {area}.monitorable = true\n    {area}.set_meta(\"physical_object_contact\", true)\n    {area}.transform = {}\n    payload_{i}.add_child({area})\n    {area}.owner = actor",
-                transform
-            )?;
-            let outer = std::mem::take(&mut project.builder);
-            project.collision_shapes(mesh, source, &area, "actor", &area, false)?;
-            function.push_str(&project.builder);
-            project.builder = outer;
-        }
-        if let Some([x, y, z]) = part.scale {
-            writeln!(function, "    payload_{i}.scale = {}", vec3([x, z, y]))?;
         }
     }
     writeln!(

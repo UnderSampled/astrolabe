@@ -1368,13 +1368,15 @@
       "binary": "astrolabe::animation",
       "test": "godot_sampled_animation_reparents_switches_hides_and_uses_state_timing",
       "areas": [
-        "animation"
+        "animation",
+        "scene",
+        "loading"
       ],
       "kind": "engine",
       "prerequisites": [
         "godot"
       ],
-      "fixture": "synthetic",
+      "fixture": "synthetic native export: saved initial pose, shared payload catalogues, lazy original-slot swaps, reset seeking, cue suppression and warm node stability",
       "timeout_seconds": 60,
       "ignored": true,
       "release": true
@@ -4810,7 +4812,7 @@
     },
     {
       "binary": "astrolabe",
-      "test": "godot::support::tests::actor_support_helpers_are_in_interface_85_and_staged",
+      "test": "godot::support::tests::actor_support_helpers_and_native_banks_are_staged",
       "areas": [
         "runtime",
         "inventory",
@@ -4818,7 +4820,7 @@
       ],
       "kind": "unit",
       "prerequisites": [],
-      "fixture": "Bundled current Godot support interface, actor receivers, native resources/UIDs and starter staging",
+      "fixture": "Bundled current Godot support interface, actor receivers, native bank/catalogue resources/UIDs and starter staging",
       "timeout_seconds": 30,
       "ignored": false,
       "release": true
@@ -5592,7 +5594,8 @@
       "test": "native_shader_variants_share_source_diffuse_updates",
       "areas": [
         "scene",
-        "runtime"
+        "runtime",
+        "loading"
       ],
       "kind": "engine",
       "prerequisites": [
@@ -6548,6 +6551,24 @@
       ],
       "fixture": "synthetic source-bound gold, explicit save identities and maintained compiled Brain startup; no game data or user saves",
       "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe::configured_bank_native",
+      "test": "native_payload_banks_preserve_shared_configuration_and_activation_state",
+      "areas": [
+        "scene",
+        "animation",
+        "loading",
+        "runtime"
+      ],
+      "kind": "engine",
+      "prerequisites": [
+        "godot"
+      ],
+      "fixture": "native payload acquisition/reuse, active-level shared permutation, explicit absence/null/current/initial semantics, cached opacity/cutouts/diffuse/display and contact/channel activation",
+      "timeout_seconds": 40,
       "ignored": false,
       "release": true
     }

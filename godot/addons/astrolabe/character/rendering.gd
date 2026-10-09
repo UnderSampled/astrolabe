@@ -2,12 +2,19 @@ extends RefCounted
 ## Actor-owned native visibility and material state. The actor is supplied to
 ## each operation, so this component does not retain its owner or create cycles.
 var hidden_layers: Dictionary = {}
+var display_visible: bool = true
 var opacity: int = 255
 var transparent_display: bool = false
 var opacity_materials: Array[Dictionary] = []
+var opacity_meshes: Dictionary = {}
+var opacity_initialized: bool = false
 
-func set_display_visible(actor: Node3D, display_visible: bool) -> void:
-    for visual in actor.find_children("*", "VisualInstance3D", true, false):
+func set_display_visible(actor: Node3D, value: bool) -> void:
+    display_visible = value
+    _apply_display_visible(actor, actor)
+
+func _apply_display_visible(actor: Node3D, subtree: Node3D) -> void:
+    for visual in subtree.find_children("*", "VisualInstance3D", true, false):
         if not visual is VisualInstance3D or _is_generated_child(actor, visual): continue
         var instance_id := visual.get_instance_id()
         if display_visible:
@@ -68,37 +75,59 @@ func _alpha_blended_shader(source_shader: Shader) -> Shader:
     result.code = code
     return result
 
+## Called while the payload is still in its disabled bank. Native tree entry
+## has already applied the active level's material variants. Register new actor
+## copies without losing previously cached opacity or display-hidden layers.
+func prepare_payload(actor: Node3D, payload: Node3D) -> bool:
+    _apply_display_visible(actor, payload)
+    if opacity_initialized or (transparent_display and opacity < 254):
+        if not _collect_opacity_materials(actor, payload): return false
+    return _apply_opacity(actor)
+
+func _collect_opacity_materials(actor: Node3D, subtree: Node3D) -> bool:
+    var pending: Array[Dictionary] = []
+    var registered: Array[int] = []
+    for visual in subtree.find_children("*", "MeshInstance3D", true, false):
+        var mesh_instance := visual as MeshInstance3D
+        if _is_generated_child(actor, mesh_instance) or mesh_instance.has_meta("family_bounds_debug") or mesh_instance.mesh == null: continue
+        var identity := mesh_instance.get_instance_id()
+        if opacity_meshes.has(identity): continue
+        # A whole-mesh override is one binding, regardless of surface count.
+        var surfaces: Array[int] = []
+        if mesh_instance.material_override != null:
+            surfaces.append(-1)
+        else:
+            for surface in mesh_instance.mesh.get_surface_count(): surfaces.append(surface)
+        for surface in surfaces:
+            var material: Material = mesh_instance.material_override if surface < 0 else mesh_instance.get_active_material(surface)
+            if material == null: continue
+            var original: Material = material
+            if material is ShaderMaterial and material.has_meta("source_visual_material_runtime"):
+                pass
+            elif not material is StandardMaterial3D:
+                return false
+            # Source shaded blending must be enabled on this material.
+            if original.has_meta("source_material_flags") and (int(original.get_meta("source_material_flags")) & 0x20000000) == 0: continue
+            var owned := original.duplicate() as Material
+            if original is StandardMaterial3D:
+                # Retain the shield fix's ordinary pipeline for diffuse rebind.
+                owned.set_meta("source_opacity_base_transparency", original.transparency)
+            pending.append({"mesh":mesh_instance,"surface":surface,"original":original,"owned":owned,"source_shader":original.shader if original is ShaderMaterial else null})
+        registered.append(identity)
+    for entry in pending:
+        var mesh_instance := entry["mesh"] as MeshInstance3D
+        if int(entry["surface"]) < 0: mesh_instance.material_override = entry["owned"]
+        else: mesh_instance.set_surface_override_material(entry["surface"], entry["owned"])
+        opacity_materials.append(entry)
+    for identity in registered: opacity_meshes[identity] = true
+    return true
+
 func _apply_opacity(actor: Node3D) -> bool:
     # 00499ed0 leaves the ordinary material pipeline at opacity >=254.
     var faded := transparent_display and opacity < 254
-    if faded and opacity_materials.is_empty():
-        var pending: Array[Dictionary] = []
-        for visual in actor.find_children("*", "MeshInstance3D", true, false):
-            var mesh_instance := visual as MeshInstance3D
-            if _is_generated_child(actor, mesh_instance) or mesh_instance.has_meta("family_bounds_debug") or mesh_instance.mesh == null: continue
-            for surface in mesh_instance.mesh.get_surface_count():
-                var material := mesh_instance.get_active_material(surface)
-                if material == null: continue
-                var original: Material = material
-                if material is ShaderMaterial and material.has_meta("source_visual_material_runtime"):
-                    pass
-                elif material is StandardMaterial3D:
-                    original = material as StandardMaterial3D
-                else:
-                    return false
-                # Source shaded blending must be enabled on this material.
-                if original.has_meta("source_material_flags") and (int(original.get_meta("source_material_flags")) & 0x20000000) == 0: continue
-                var owned := original.duplicate() as Material
-                if original is StandardMaterial3D:
-                    # Diffuse conversion may replace this copy while faded.
-                    # Keep its ordinary pipeline separate from actor opacity.
-                    owned.set_meta("source_opacity_base_transparency", original.transparency)
-                pending.append({"mesh":mesh_instance,"surface":surface,"original":original,"owned":owned,"source_shader":original.shader if original is ShaderMaterial else null})
-        opacity_materials = pending
-        for entry in opacity_materials:
-            var mesh_instance := entry["mesh"] as MeshInstance3D
-            if mesh_instance.material_override != null: mesh_instance.material_override = entry["owned"]
-            else: mesh_instance.set_surface_override_material(entry["surface"],entry["owned"])
+    if faded and not opacity_initialized:
+        if not _collect_opacity_materials(actor, actor): return false
+        opacity_initialized = true
     for entry in opacity_materials:
         var original: Material = entry["original"]
         var owned: Material = entry["owned"]

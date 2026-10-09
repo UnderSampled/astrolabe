@@ -54,3 +54,12 @@ func refresh_participation() -> void:
 func refresh_transparency() -> void:
     for geometry in find_children("*", "GeometryInstance3D", true, false):
         (geometry as GeometryInstance3D).transparency = transparency
+
+func attach_payload(payload: Node3D) -> void:
+    # Material/display state is prepared in the hidden bank. Suspend this
+    # anchor before reparenting, then publish pose/transparency before its
+    # REMOVE-mode contacts rejoin physics, including same-tick source queries.
+    process_mode = Node.PROCESS_MODE_DISABLED
+    payload.reparent(self, false)
+    refresh_transparency()
+    refresh_participation()

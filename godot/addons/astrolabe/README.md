@@ -32,6 +32,15 @@ reclaims that existing camera's rendering before Brain startup and validates it
 again before readiness, while compiled camera AI retains pose, target and mode.
 It preserves the indexed sector and inactive configuration-bank policies below.
 
+Interface85 keeps stable animation anchors and the complete initially selected
+normal payloads in each saved actor scene. Other normal/reset payloads are shared
+native PackedScene resources in immutable configuration catalogues. Selecting a
+configuration or swapping an unused slot synchronously acquires its native scene
+inside a hidden, disabled channel bank, applies current level material variants
+and actor opacity/display state, then attaches it to the existing anchor. Warm
+instances remain actor/channel-owned. Regenerate perso/level scenes; an update
+of support scripts alone cannot supply the new bank catalogues. Rete is unchanged.
+
 Interface84 saves a level-owned `scene/sector_index.gd` component with ordered
 sector, physical-visual and mesh NodePaths. Camera neighbor/history lookups use
 these native bindings. Downward sector classification uses Godot TriangleMesh
@@ -123,8 +132,9 @@ and handles state changes requested by cue callbacks after the mixer returns.
 For independent deterministic control, disable processing on the character and
 call `advance` yourself. Use native AnimationPlayer seeking or `seek_frame` for
 side-effect-free inspection. The saved initial pose needs no script execution.
-The `restored/` library and reset parts are generated ahead of time from the
-canonical reset configuration. Editing Rete and regenerating updates them.
+The `restored/` library and reset payload scene resources are generated ahead of
+time from the canonical reset configuration. Reset instances are acquired on
+selection. Editing Rete and regenerating updates these native assets.
 
 The character root is a `CharacterBody3D`. `motion_enabled` opts into physics
 playback, applying native root translation once through `move_and_slide`.

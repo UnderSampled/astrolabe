@@ -42,6 +42,10 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/character/configured_slot.gd.uid",
     "addons/astrolabe/character/configured_payload.gd",
     "addons/astrolabe/character/configured_payload.gd.uid",
+    "addons/astrolabe/character/configured_bank.gd",
+    "addons/astrolabe/character/configured_bank.gd.uid",
+    "addons/astrolabe/character/configured_bank_catalog.gd",
+    "addons/astrolabe/character/configured_bank_catalog.gd.uid",
     "addons/astrolabe/character/configuration.gd",
     "addons/astrolabe/character/configuration.gd.uid",
     "addons/astrolabe/character/inventory_definition.gd",
@@ -408,7 +412,7 @@ mod tests {
     }
 
     #[test]
-    fn actor_support_helpers_are_in_interface_85_and_staged() -> Result<()> {
+    fn actor_support_helpers_and_native_banks_are_staged() -> Result<()> {
         let output = tempfile::tempdir()?;
         initialize(output.path())?;
         let version: serde_json::Value = serde_json::from_slice(&fs::read(
@@ -426,6 +430,10 @@ mod tests {
             "addons/astrolabe/character/configured_slot.gd.uid",
             "addons/astrolabe/character/configured_payload.gd",
             "addons/astrolabe/character/configured_payload.gd.uid",
+            "addons/astrolabe/character/configured_bank.gd",
+            "addons/astrolabe/character/configured_bank.gd.uid",
+            "addons/astrolabe/character/configured_bank_catalog.gd",
+            "addons/astrolabe/character/configured_bank_catalog.gd.uid",
             "addons/astrolabe/character/configuration.gd",
             "addons/astrolabe/character/configuration.gd.uid",
             "addons/astrolabe/character/channel.gd",
