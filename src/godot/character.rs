@@ -536,29 +536,29 @@ pub(super) fn export_perso(
     if let Some(camera) = &perso.camera {
         let framing = &camera.parameters[1];
         let initial = &camera.parameters[0];
-        let initially_current = initial.registered_viewport() == Some(1);
+        let initially_current = framing.registered_viewport() == Some(1);
         writeln!(
             project.builder,
             "    var {name}_camera = Camera3D.new()\n    {name}_camera.name = \"SourceCamera\"\n    {name}_camera.set_script(load(\"res://addons/astrolabe/camera/source_camera.gd\"))\n    {name}_camera.rotation.y = PI\n    {name}_camera.keep_aspect = Camera3D.KEEP_WIDTH\n    {name}_camera.fov = {}\n    {name}_camera.near = {}\n    {name}_camera.far = {}\n    {name}_camera.motion_mode = {}\n    {name}_camera.initial_motion_mode = {}\n    {name}_camera.actor_offset = {}\n    {name}_camera.look_offset = {}\n    {name}_camera.mode_zero_target_offset = {}\n    {name}_camera.mode_zero_actor_offset = {}\n    {name}_camera.mode_zero_look_offset = {}\n    {name}_camera.mode_zero_distance = {}\n    {name}_camera.mode_zero_yaw_limits = Vector2({}, {})\n    {name}_camera.source_shift_alpha = {}\n    {name}_camera.mode_zero_pitch_limits = Vector2({}, {})\n    {name}_camera.mode_zero_parameter_flags = {}\n    {name}_camera.source_mode_zero_action_flags = {}\n    {name}_camera.mode_zero_target_child_index = {}\n    {name}_camera.initially_current = {}\n    {name}.add_child({name}_camera)\n    {name}_camera.owner = {name}",
             framing.horizontal_fov.to_degrees(),
             camera.clip_planes[0],
             camera.clip_planes[1],
-            initial.mode,
+            framing.mode,
             initial.mode,
             vec3(vector(framing.actor_offset)),
             vec3(vector(framing.look_offset)),
-            vec3(vector(initial.target_offset)),
-            vec3(vector(initial.actor_offset)),
-            vec3(vector(initial.look_offset)),
-            format_args!("Vector2({},{})", initial.distance[0], initial.distance[1]),
-            initial.yaw,
-            initial.shift_alpha(),
-            initial.shift_alpha(),
-            initial.pitch,
-            initial.shift_teta(),
-            initial.angle_flags(),
-            initial.controller_flags(),
-            initial.target_child_index(),
+            vec3(vector(framing.target_offset)),
+            vec3(vector(framing.actor_offset)),
+            vec3(vector(framing.look_offset)),
+            format_args!("Vector2({},{})", framing.distance[0], framing.distance[1]),
+            framing.yaw,
+            framing.shift_alpha(),
+            framing.shift_alpha(),
+            framing.pitch,
+            framing.shift_teta(),
+            framing.angle_flags(),
+            framing.controller_flags(),
+            framing.target_child_index(),
             initially_current
         )?;
         writeln!(
@@ -566,8 +566,8 @@ pub(super) fn export_perso(
             "    {name}_camera.owner_motion_binding_present = {}\n    {name}_camera.source_initial_horizontal_fov = {}\n    {name}_camera.initially_registered = {}\n    {name}_camera.initial_viewport_context = {}\n    {name}_camera.initial_secondary_registered = {}\n    {name}_camera.initial_secondary_viewport_context = {}\n    {name}_camera.initial_auxiliary_viewport_context = {}",
             camera.owner_motion_binding_present,
             initial.horizontal_fov,
-            initial.registration_active(),
-            initial.viewport_context(),
+            framing.registration_active(),
+            framing.viewport_context(),
             camera.parameters[3].registration_active(),
             camera.parameters[3].viewport_context(),
             camera.parameters[2].viewport_context()
@@ -591,10 +591,44 @@ pub(super) fn export_perso(
             initial.target_child_index(),
             initial.horizontal_fov,
         )?;
+        writeln!(
+            project.builder,
+            "    {name}_camera_initial.viewport_registered = {}\n    {name}_camera_initial.viewport_context = {}",
+            initial.registration_active(),
+            initial.viewport_context()
+        )?;
+        for (owner, parameters) in [
+            (format!("{name}_camera"), framing),
+            (format!("{name}_camera_initial"), initial),
+        ] {
+            let limits = parameters.follow_linear_speed_limits();
+            writeln!(
+                project.builder,
+                "    {owner}.follow_linear_speed_limits = Vector2({}, {})\n    {owner}.follow_linear_response_distance = {}\n    {owner}.follow_linear_acceleration_divisor = {}\n    {owner}.follow_angular_speed = {}\n    {owner}.follow_angular_response_scale = {}\n    {owner}.follow_angular_acceleration_divisor = {}\n    {owner}.follow_view_angles = {}\n    {owner}.follow_view_angle_speed = {}",
+                limits[0],
+                limits[1],
+                parameters.follow_linear_response_distance(),
+                initial.follow_linear_acceleration_divisor(),
+                parameters.follow_angular_speed(),
+                parameters.follow_angular_response_scale(),
+                parameters.follow_angular_acceleration_divisor(),
+                vec3(parameters.follow_view_angles()),
+                parameters.follow_view_angle_speed(),
+            )?;
+            writeln!(
+                project.builder,
+                "    {owner}.follow_controls_present = true"
+            )?;
+        }
+        writeln!(
+            project.builder,
+            "    {name}_camera.static_obstruction_frames = {}",
+            camera.static_retry_frames()
+        )?;
         // Source camera local -Y becomes the converted actor's +Z. Godot's
         // camera looks along local -Z, hence the child half-turn above.
         project.diagnostic(format!(
-            "{}: source parameter set 0 supplies camera mode, controller/action flags, and primary viewport registration; parameter set 1 supplies FOV and mode-3 framing; the scene binds the exact MainActor target; mode-0 dispatch/collision use source-derived inputs; +0x254 and 0051ec70 remain explicit conditional gaps",
+            "{}: source parameter set 1 supplies active camera framing/registration and set 0 supplies the reset preset and linear acceleration divisor; the scene binds the exact MainActor target; native mode-0 follow applies source motion controls to the owner pose; Type3 multi-contact sliding, target-roll publication and 0051ec70 recovery remain explicit conditional gaps",
             perso.path
         ));
     }
@@ -1244,16 +1278,23 @@ fn export_mechanics(
         "[gd_resource type=\"Resource\" load_steps=2 format=3]\n[ext_resource type=\"Script\" path=\"res://addons/astrolabe/character/mechanics.gd\" id=\"script\"]\n\n[resource]\nscript = ExtResource(\"script\")\n",
     );
     // The source table has an update/control pair per identity-card kind.
-    // Kinds 0 and 4 share the Walk position publisher; kind 8 has a different
-    // update. Bind the converted native consumer by meaning, never by address.
-    let camera_position_source = match &value.data {
-        MechanicsData::Character { mode: 0 | 4, .. } => "post_contact_position",
-        _ => "",
+    // Walk 0/4 and Mass9 publish post-contact velocity and position. Type3
+    // publishes its committed frame displacement. These native bindings do
+    // not infer unknown card fields or reconstruct the source dynamics block.
+    let (camera_position_source, camera_velocity_source) = match &value.data {
+        MechanicsData::Character { mode: 0 | 4, .. } | MechanicsData::Mass { .. } => {
+            ("post_contact_position", "post_contact_velocity")
+        }
+        MechanicsData::Unresolved { kind: 3, .. } => {
+            ("camera_frame_position", "camera_frame_displacement")
+        }
+        _ => ("", ""),
     };
     writeln!(
         text,
-        "camera_position_source = &{}",
-        quoted(camera_position_source)
+        "camera_position_source = &{}\ncamera_velocity_source = &{}",
+        quoted(camera_position_source),
+        quoted(camera_velocity_source)
     )?;
     match &value.data {
         MechanicsData::Mass { mass } => writeln!(text, "mode = 9\nmass = {mass}")?,

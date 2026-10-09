@@ -85,6 +85,61 @@ impl CameraParameters {
         self.shift_teta()
     }
 
+    /// 0051e350 clamps twice the target's motion speed to +6c..+68.
+    /// 00528030 supplies that bound to the native translation consumer.
+    pub fn follow_linear_speed_limits(&self) -> [f32; 2] {
+        [self.follow_scalar(0x6c), self.follow_scalar(0x68)]
+    }
+
+    /// 00528030 supplies +74 as the distance-response denominator used by
+    /// 00578588; +70 supplies its acceleration divisor through camera+70.
+    pub fn follow_linear_response_distance(&self) -> f32 {
+        self.follow_scalar(0x74)
+    }
+
+    pub fn follow_linear_acceleration_divisor(&self) -> f32 {
+        self.follow_scalar(0x70)
+    }
+
+    /// 00528030 maps +78/+80/+7c to the angular speed, response scale and
+    /// acceleration divisor consumed by 0057ab7d, respectively.
+    pub fn follow_angular_speed(&self) -> f32 {
+        self.follow_scalar(0x78)
+    }
+
+    pub fn follow_angular_response_scale(&self) -> f32 {
+        self.follow_scalar(0x80)
+    }
+
+    pub fn follow_angular_acceleration_divisor(&self) -> f32 {
+        self.follow_scalar(0x7c)
+    }
+
+    /// 0051db70 supplies +50/+54/+58 as the pitch, roll and yaw adjustments
+    /// subsequently composed by 0057b17f. These are source radians.
+    pub fn follow_view_angles(&self) -> [f32; 3] {
+        [
+            self.follow_scalar(0x50),
+            self.follow_scalar(0x54),
+            self.follow_scalar(0x58),
+        ]
+    }
+
+    /// +84 limits changes to those three adjustments when action flags are zero.
+    pub fn follow_view_angle_speed(&self) -> f32 {
+        self.follow_scalar(0x84)
+    }
+
+    fn follow_scalar(&self, source_offset: usize) -> f32 {
+        // The contiguous +4c..+8b span follows 24 retained scalar bytes.
+        let index = 24 + source_offset - 0x4c;
+        f32::from_le_bytes(
+            self.unknown[index..index + 4]
+                .try_into()
+                .expect("validated camera parameter extent"),
+        )
+    }
+
     /// `0043daf0` reads the registered byte at parameter offset `+0x90` and
     /// the selected viewport context at `+0x9c`. These are retained in the
     /// source-order unknown tail rather than turned into source pointers.
@@ -148,6 +203,16 @@ impl CameraParameters {
 }
 
 impl Camera {
+    /// 0052bb50 updates the distinct signed retry counter at camera +ca.
+    /// The pointer-free component tail begins at +20 after eight +14 bytes.
+    pub fn static_retry_frames(&self) -> i16 {
+        i16::from_le_bytes(
+            self.unknown[178..180]
+                .try_into()
+                .expect("validated camera component extent"),
+        )
+    }
+
     pub fn validate(&self) -> Result<()> {
         ensure!(
             self.unknown.len() == 196,
@@ -238,5 +303,48 @@ mod tests {
         let mut value = parameters();
         value.unknown[90..92].copy_from_slice(&0x8040_u16.to_le_bytes());
         assert_eq!(value.controller_flags(), 0x8040);
+    }
+
+    #[test]
+    fn camera_follow_controls_use_the_frame_consumers_source_offsets() {
+        let mut value = parameters();
+        for (offset, real) in [
+            (0x68, 200.),
+            (0x6c, 12.),
+            (0x70, 25.),
+            (0x74, 7.),
+            (0x78, 3.25),
+            (0x7c, 10.),
+            (0x80, 5.),
+            (0x50, 0.25),
+            (0x54, -0.125),
+            (0x58, 0.5),
+            (0x84, 2.),
+        ] {
+            let index = offset - 0x4c + 24;
+            value.unknown[index..index + 4].copy_from_slice(&f32::to_le_bytes(real));
+        }
+        assert_eq!(value.follow_linear_speed_limits(), [12., 200.]);
+        assert_eq!(value.follow_linear_response_distance(), 7.);
+        assert_eq!(value.follow_linear_acceleration_divisor(), 25.);
+        assert_eq!(value.follow_angular_speed(), 3.25);
+        assert_eq!(value.follow_angular_response_scale(), 5.);
+        assert_eq!(value.follow_angular_acceleration_divisor(), 10.);
+        assert_eq!(value.follow_view_angles(), [0.25, -0.125, 0.5]);
+        assert_eq!(value.follow_view_angle_speed(), 2.);
+    }
+
+    #[test]
+    fn camera_static_retry_count_is_a_distinct_signed_word() {
+        let mut value = Camera {
+            source: parameters().source,
+            owner_motion_binding_present: true,
+            clip_planes: [0.25, 10000.],
+            unknown: vec![0; 196],
+            parameters: std::array::from_fn(|_| parameters()),
+        };
+        value.unknown[178..180].copy_from_slice(&(-7_i16).to_le_bytes());
+        value.unknown[172..174].copy_from_slice(&21_i16.to_le_bytes());
+        assert_eq!(value.static_retry_frames(), -7);
     }
 }

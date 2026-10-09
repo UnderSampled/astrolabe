@@ -83,6 +83,19 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
     };
     parameters.unknown[20..24].copy_from_slice(&0.375_f32.to_le_bytes());
     parameters.unknown[24..28].copy_from_slice(&0.625_f32.to_le_bytes());
+    for (offset, real) in [
+        (0x68, 200.),
+        (0x6c, 12.),
+        (0x70, 25.),
+        (0x74, 7.),
+        (0x78, 3.25),
+        (0x7c, 10.),
+        (0x80, 5.),
+        (0x84, 0.),
+    ] {
+        let index = offset - 0x4c + 24;
+        parameters.unknown[index..index + 4].copy_from_slice(&f32::to_le_bytes(real));
+    }
     parameters.unknown[88] = 1;
     parameters.unknown[96..100].copy_from_slice(&1_u32.to_le_bytes());
     // The intro manor camera uses -1 to select the bound Perso itself.
@@ -124,8 +137,15 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
     let mut main_family = family.clone();
     main_family.path = AssetPath::new("fix:/families/main")?;
     let mut mechanics = Vec::new();
-    for kind in [0_u32, 4, 18] {
-        let mut wire = vec![0; 92];
+    for kind in [0_u32, 3, 4, 9, 18] {
+        let mut wire = vec![
+            0;
+            match kind {
+                3 => 16,
+                9 => 8,
+                _ => 92,
+            }
+        ];
         wire[..4].copy_from_slice(&kind.to_le_bytes());
         wire[4..8].copy_from_slice(&120_f32.to_le_bytes());
         let value = astrolabe::openspace::level::read_mechanics(
@@ -204,6 +224,11 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
     let reference = AssetRef::from_path(actor.path.clone());
     store.save(&reference, &actor)?;
     actor = (*store.load(&reference)?).clone();
+    // Active framing must survive _ready; the reset preset is deliberately
+    // different and supplies the linear divisor independently of active +70.
+    actor.camera.as_mut().unwrap().parameters[0].mode = 6;
+    actor.camera.as_mut().unwrap().parameters[1].unknown[60..64]
+        .copy_from_slice(&99_f32.to_le_bytes());
     actor.camera.as_mut().unwrap().parameters[1].horizontal_fov = 1.2;
     store.save(&reference, &actor)?;
     let actor = store.load(&reference)?;

@@ -17,6 +17,10 @@ const CONTACT_MATERIAL = preload("res://addons/astrolabe/character/explosive_bar
 const SOURCE_COLLISION_QUERY_MAX_RESULTS := 4096
 const CAMERA_POST_CONTACT_POSITION := &"post_contact_position"
 const CAMERA_RETAINED_POSITION_HISTORY := &"retained_position_history"
+const CAMERA_FRAME_POSITION := &"camera_frame_position"
+const CAMERA_POST_CONTACT_VELOCITY := &"post_contact_velocity"
+const CAMERA_FRAME_DISPLACEMENT := &"camera_frame_displacement"
+const CAMERA_RETAINED_VELOCITY_HISTORY := &"retained_velocity_history"
 @export var initial_state: int = -1
 @export var current_state: int = -1
 @export var current_mechanics: Resource
@@ -71,6 +75,7 @@ var source_impulse: Vector3 = Vector3.ZERO
 var source_relative_motion: bool = false
 var source_airborne: bool = false
 var _source_camera_data3d_positions := PackedVector3Array()
+var _source_camera_data3d_velocities := PackedVector3Array()
 var _source_camera_data3d_weights := PackedFloat32Array()
 var _source_camera_data3d_active_position_source: StringName
 var _source_camera_data3d_sample_count := 0
@@ -258,10 +263,10 @@ func _physics_process(delta: float) -> void:
     source_camera_data3d_step(delta)
 
 ## 00443f00 dispatches this sample through DAT_00757320 by the active DNM
-## identity-card type, then 00443d50/00443db0 shift the +0x310 xyz result into
-## the eight Data3D samples with the current delta as weight. In Godot the
-## physical body's post-contact world translation is the native equivalent
-## of the walk callback's published position.
+## identity-card type. 00443cf0/00443d50/00443db0 shift motion, position and
+## seconds into the same eight newest-first samples. Walk and Mass9 publish
+## post-contact velocity in units/sec; Type3 publishes frame displacement.
+## Preserve that distinction instead of deriving motion from position samples.
 func source_camera_data3d_step(delta: float) -> bool:
     if not is_finite(delta) or delta < 0.0:
         return false
@@ -271,29 +276,38 @@ func source_camera_data3d_step(delta: float) -> bool:
     if position_source.is_empty():
         _source_reset_camera_data3d_history()
         return false
+    var motion: Variant = _source_camera_data3d_motion()
+    if motion == null:
+        return false
     if position_source != _source_camera_data3d_active_position_source:
         _source_reset_camera_data3d_history()
         _source_camera_data3d_active_position_source = position_source
-    if _source_camera_data3d_positions.size() != 8 or _source_camera_data3d_weights.size() != 8:
+    if _source_camera_data3d_positions.size() != 8 or _source_camera_data3d_velocities.size() != 8 or _source_camera_data3d_weights.size() != 8:
         _source_reset_camera_data3d_history()
         _source_camera_data3d_active_position_source = position_source
     for index in range(7, 0, -1):
         _source_camera_data3d_positions[index] = _source_camera_data3d_positions[index - 1]
+        _source_camera_data3d_velocities[index] = _source_camera_data3d_velocities[index - 1]
         _source_camera_data3d_weights[index] = _source_camera_data3d_weights[index - 1]
     _source_camera_data3d_positions[0] = global_position
+    _source_camera_data3d_velocities[0] = motion
     _source_camera_data3d_weights[0] = delta
     _source_camera_data3d_sample_count = mini(_source_camera_data3d_sample_count + 1, 8)
     return true
 
 ## Native state animation selects a converted mechanics Resource. Its named
 ## position publisher is resolved during export; unknown bindings fail closed.
-func source_camera_data3d_inputs() -> Dictionary:
+func source_camera_data3d_inputs(initialize_empty: bool = false) -> Dictionary:
     if source_camera_retains_position_history and current_mechanics == null:
+        if initialize_empty: _source_initialize_empty_camera_history()
         return {
             "supported": true,
             "position_source": CAMERA_RETAINED_POSITION_HISTORY,
+            "velocity_source": CAMERA_RETAINED_VELOCITY_HISTORY,
+            "motion_binding_present": source_motion_binding_present,
             "sample_count": _source_camera_data3d_sample_count,
             "points": _source_camera_data3d_positions.duplicate(),
+            "velocities": _source_camera_data3d_velocities.duplicate(),
             "weights": _source_camera_data3d_weights.duplicate(),
         }
     var position_source := _source_camera_data3d_position_source()
@@ -302,11 +316,15 @@ func source_camera_data3d_inputs() -> Dictionary:
     if position_source != _source_camera_data3d_active_position_source:
         _source_reset_camera_data3d_history()
         _source_camera_data3d_active_position_source = position_source
+    if initialize_empty: _source_initialize_empty_camera_history()
     return {
         "supported": true,
         "position_source": position_source,
+        "velocity_source": _source_camera_data3d_velocity_source(),
+        "motion_binding_present": source_motion_binding_present,
         "sample_count": _source_camera_data3d_sample_count,
         "points": _source_camera_data3d_positions.duplicate(),
+        "velocities": _source_camera_data3d_velocities.duplicate(),
         "weights": _source_camera_data3d_weights.duplicate(),
     }
 
@@ -314,15 +332,44 @@ func _source_camera_data3d_position_source() -> StringName:
     if current_mechanics == null:
         return &""
     var position_source: Variant = current_mechanics.get("camera_position_source")
-    return CAMERA_POST_CONTACT_POSITION if position_source == CAMERA_POST_CONTACT_POSITION else &""
+    return position_source if position_source in [CAMERA_POST_CONTACT_POSITION, CAMERA_FRAME_POSITION] else &""
+
+func _source_camera_data3d_velocity_source() -> StringName:
+    if current_mechanics == null: return &""
+    var motion_source: Variant = current_mechanics.get("camera_velocity_source")
+    return motion_source if motion_source in [CAMERA_POST_CONTACT_VELOCITY, CAMERA_FRAME_DISPLACEMENT] else &""
+
+func _source_camera_data3d_motion() -> Variant:
+    match _source_camera_data3d_velocity_source():
+        CAMERA_POST_CONTACT_VELOCITY:
+            # move_and_slide updates this native velocity during contact.
+            return velocity if velocity.is_finite() else null
+        CAMERA_FRAME_DISPLACEMENT:
+            var camera := get_node_or_null("SourceCamera")
+            if camera != null and camera.has_method("source_camera_frame_displacement"):
+                return camera.call("source_camera_frame_displacement")
+    return null
 
 func _source_reset_camera_data3d_history() -> void:
     _source_camera_data3d_positions.resize(8)
     _source_camera_data3d_positions.fill(Vector3.ZERO)
+    _source_camera_data3d_velocities.resize(8)
+    _source_camera_data3d_velocities.fill(Vector3.ZERO)
     _source_camera_data3d_weights.resize(8)
     _source_camera_data3d_weights.fill(0.0)
     _source_camera_data3d_active_position_source = &""
     _source_camera_data3d_sample_count = 0
+
+## 00443bf0 initializes the target-owned history at the first weighted query.
+## Raw history inspection remains separate; zero weights are valid at creation.
+func _source_initialize_empty_camera_history() -> void:
+    var total := 0.0
+    for weight in _source_camera_data3d_weights:
+        total = PackedFloat32Array([total + weight])[0]
+    if total == 0.0 or not is_finite(total):
+        _source_camera_data3d_positions.fill(global_position)
+        _source_camera_data3d_velocities.fill(Vector3.ZERO)
+        _source_camera_data3d_weights.fill(0.03)
 
 func turn(degrees_per_second: float, seconds: float) -> void:
     # Proc_Turn requests a rate about the actor's local up axis. Source +Z maps

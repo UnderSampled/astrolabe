@@ -5,6 +5,9 @@ extends Resource
 ## Conversion binds a supported position publisher independently of the raw
 ## source card kind. Empty means the callback has not been mapped.
 @export var camera_position_source: StringName
+## Named native publisher for +2d8. Camera frames are displacement; Walk and
+## Mass9 publish velocity in units/sec. An empty binding is unsupported.
+@export var camera_velocity_source: StringName
 @export var mass: float
 @export var stairs_step_height: float
 @export var min_linear_speed: float

@@ -1,5 +1,6 @@
 extends Camera3D
 ## Native target and framing addressed by the compiled camera AI API.
+## Mode 0 applies source follow motion to its owning actor's native pose.
 ## Mode 3 aims the authored eye; mode 6 preserves its authored orientation.
 ## Primary viewport selection reuses the framing reset and contact-sector owner.
 ## Copying another camera's pose and optimal placement remain separate contracts.
@@ -35,6 +36,17 @@ const SOURCE_PRIMARY_CAMERA_OWNER := &"astrolabe_source_primary_camera"
 @export var source_shift_alpha: float = 0.0
 @export var mode_zero_pitch_limits: Vector2 = Vector2.ZERO
 @export var mode_zero_parameter_flags: int = 0
+## Camera parameter controls consumed by native follow motion. Zero defaults
+## deliberately require regeneration rather than inventing absent source data.
+@export var follow_linear_speed_limits := Vector2.ZERO
+@export var follow_linear_response_distance := 0.0
+@export var follow_linear_acceleration_divisor := 0.0
+@export var follow_angular_speed := 0.0
+@export var follow_angular_response_scale := 0.0
+@export var follow_angular_acceleration_divisor := 0.0
+@export var follow_view_angles := Vector3.ZERO # source pitch, roll, yaw
+@export var follow_view_angle_speed := 0.0
+@export var follow_controls_present := false
 @export var controller_state: Resource
 ## Imported from the owning Perso's motion component edge. Mechanics identity
 ## and camera presence alone cannot establish this binding.
@@ -45,7 +57,7 @@ var fallback_motion_frames := 0
 var collision_recovery_frames := 0
 var look_direction_hold_frames := 0
 var static_probe_frames := 0
-var static_obstruction_frames := 0
+@export var static_obstruction_frames := 0 # signed camera +ca retry count
 var previous_look_radius := 0.0
 var slope_pitch_adjustment := 0.0
 var _eye_displacement_pending := false
@@ -54,6 +66,11 @@ var source_mode_zero_action_flags: int = 0 # parameter +0x92, read by 00440e30
 var source_controller_position_24 := Vector3.ZERO
 var source_controller_position_30 := Vector3.ZERO
 var source_controller_candidate_result := false
+## Native follow response history, owned by this camera rather than its target.
+var _follow_previous_linear_step := 0.0
+var _follow_previous_angular_step := 0.0
+var _follow_previous_view_angles := Vector3.ZERO
+var _follow_frame_displacement := Vector3.ZERO
 
 const SOURCE_MODE_ZERO_PIVOT_THRESHOLD_SQUARED := 9.0 # _DAT_005fcc2c from the decompiled build's .data image
 const SOURCE_MODE_ZERO_RANGE_EPSILON := 0.001 # _DAT_0060b238 from the verified executable's .data image
@@ -68,6 +85,7 @@ const SOURCE_POSITION_DEFAULT_MIN := -3.4028220466166163e38 # source finite lowe
 const SOURCE_POSITION_DEFAULT_MAX := 3.4028220466166163e38 # source finite upper sentinel
 const CAMERA_POST_CONTACT_POSITION := &"post_contact_position"
 const CAMERA_RETAINED_POSITION_HISTORY := &"retained_position_history"
+const CAMERA_FRAME_POSITION := &"camera_frame_position"
 
 var targeted_actor: Node3D
 var _reported_mode_zero_gap := false
@@ -94,7 +112,6 @@ func source_get_shift_teta(selector: int) -> Variant:
     return mode_zero_pitch_limits.y
 
 func _ready() -> void:
-    motion_mode = initial_motion_mode
     source_viewport_registered = initially_registered
     source_viewport_context = initial_viewport_context
     source_secondary_registered = initial_secondary_registered
@@ -200,8 +217,8 @@ func _source_reset_for_selection() -> bool:
     # are part of the same initial -> active copy, rather than renderer state.
     if not has_method("source_reset_to_initial") or not bool(call("source_reset_to_initial")):
         return false
-    source_viewport_registered = initially_registered
-    source_viewport_context = initial_viewport_context
+    source_viewport_registered = bool(initial_framing.viewport_registered)
+    source_viewport_context = int(initial_framing.viewport_context)
     return true
 
 func _source_refresh_selection_sector(owner: Node3D) -> bool:
@@ -342,6 +359,15 @@ func source_reset_to_initial() -> bool:
     mode_zero_parameter_flags = int(initial_framing.parameter_flags) | 8
     source_mode_zero_action_flags = int(initial_framing.action_flags)
     mode_zero_target_child_index = int(initial_framing.target_child_index)
+    follow_linear_speed_limits = initial_framing.follow_linear_speed_limits
+    follow_linear_response_distance = initial_framing.follow_linear_response_distance
+    follow_linear_acceleration_divisor = initial_framing.follow_linear_acceleration_divisor
+    follow_angular_speed = initial_framing.follow_angular_speed
+    follow_angular_response_scale = initial_framing.follow_angular_response_scale
+    follow_angular_acceleration_divisor = initial_framing.follow_angular_acceleration_divisor
+    follow_view_angles = initial_framing.follow_view_angles
+    follow_view_angle_speed = initial_framing.follow_view_angle_speed
+    follow_controls_present = initial_framing.follow_controls_present
     fov = rad_to_deg(initial_fov)
     _reset_target_progress()
     static_obstruction_frames = 0
@@ -372,6 +398,7 @@ func source_change_state(state: int) -> bool:
 func source_update_position() -> bool:
     # Capture before calculation; source clears only the initially present bit.
     var clear_initial_snap := (mode_zero_parameter_flags & 8) != 0
+    var saved_action_flags := source_mode_zero_action_flags
     var result := false
     if motion_mode == 0:
         result = _source_update_mode_zero()
@@ -380,6 +407,8 @@ func source_update_position() -> bool:
     elif motion_mode == 6:
         result = _source_update_mode_six()
     if not result:
+        if owner_motion_binding_present:
+            source_mode_zero_action_flags = saved_action_flags
         return false
     # 00545d80's null caller motion-component branch is after frame application
     # and skips ordinary cleanup. Preserve the mapped transient values there.
@@ -387,6 +416,9 @@ func source_update_position() -> bool:
         if clear_initial_snap:
             mode_zero_parameter_flags &= ~8
         source_clear_eye_displacement()
+        # Calculation ORs frame actions into shared parameters; it does not
+        # persist a recovery 0x414 or input 0x880 on the actor's active preset.
+        source_mode_zero_action_flags = saved_action_flags
     return true
 
 ## 005200a0 supplies no displacement in mode6. Its 0x100 frame-action branch
@@ -398,6 +430,9 @@ func _source_update_mode_six() -> bool:
     if eye == null or not eye.is_inside_tree() or not is_instance_valid(targeted_actor):
         return false
     _reset_motion_progress()
+    if owner_motion_binding_present:
+        _follow_frame_displacement = Vector3.ZERO
+        _follow_previous_linear_step = 0.0
     return true
 
 func _source_update_mode_three() -> bool:
@@ -418,6 +453,9 @@ func _source_update_mode_three() -> bool:
     eye.look_at(point, Vector3.UP, true)
     # The mode-3 calculation resets word-sized progress, but not look radius.
     _reset_motion_progress()
+    if owner_motion_binding_present:
+        _follow_frame_displacement = Vector3.ZERO
+        _follow_previous_linear_step = 0.0
     return true
 
 func _reset_motion_progress() -> void:
@@ -499,7 +537,7 @@ func _source_smooth_mode_zero_pivot(target_position: Vector3, center: Vector3) -
 ## 00443f00 dispatches through the target's active mechanics identity card,
 ## copies physical-object output +0x310 into the Data3D history ring, and
 ## 00444620 consumes its weighted center. The current native actor adapter
-## supports the converted Walk position publisher shared by kinds 0 and 4.
+## supports the named Walk/Mass9 velocity and Type3 displacement publishers.
 func source_mode_zero_live_pivot() -> Dictionary:
     var geometry := source_mode_zero_target_geometry()
     if geometry.is_empty():
@@ -507,18 +545,18 @@ func source_mode_zero_live_pivot() -> Dictionary:
     if not targeted_actor.has_method("source_camera_data3d_inputs"):
         push_error("Source mode-0 target does not expose an actor-owned Data3D producer")
         return {}
-    var data3d: Dictionary = targeted_actor.call("source_camera_data3d_inputs")
+    var data3d: Dictionary = targeted_actor.call("source_camera_data3d_inputs", true)
     if not bool(data3d.get("supported", false)):
         push_error("Source mode-0 target identity-card callback is unsupported: " + str(data3d.get("reason", "no source callback")))
         return {}
     var position_source: StringName = data3d.get("position_source", &"")
-    if position_source not in [CAMERA_POST_CONTACT_POSITION, CAMERA_RETAINED_POSITION_HISTORY]:
+    if position_source not in [CAMERA_POST_CONTACT_POSITION, CAMERA_RETAINED_POSITION_HISTORY, CAMERA_FRAME_POSITION]:
         push_error("Source mode-0 target position history has no converted binding")
         return {}
     var target_position: Vector3 = geometry["target_position"]
     var points: PackedVector3Array = data3d.get("points", PackedVector3Array())
     var weights: PackedFloat32Array = data3d.get("weights", PackedFloat32Array())
-    var pivot := source_mode_zero_weighted_pivot(points, weights, target_position)
+    var pivot := {"anchor": target_position, "raw_center": target_position} if (mode_zero_parameter_flags & 8) != 0 else source_mode_zero_weighted_pivot(points, weights, target_position)
     if pivot.is_empty():
         return {}
     var actor_basis := targeted_actor.global_basis.orthonormalized()
@@ -534,6 +572,7 @@ func source_mode_zero_live_pivot() -> Dictionary:
     pivot["focus"] = pivot["anchor"] + actor_basis * look
     pivot["position_source"] = position_source
     pivot["sample_count"] = int(data3d.get("sample_count", 0))
+    pivot["motion_inputs"] = data3d
     return pivot
 
 ## Port of the 0051d410/0051d6e0/0051d7b0 candidate calculation. Inputs are
@@ -544,6 +583,16 @@ func source_compute_mode_zero_candidate(
     origin_18: Vector3,
     orientation_54: Vector3,
     source_vertical_limits: Vector2
+) -> Dictionary:
+    return _source_mode_zero_candidate_with_windows(anchor_3c, origin_18, orientation_54, source_vertical_limits, mode_zero_yaw_limits, mode_zero_pitch_limits)
+
+func _source_mode_zero_candidate_with_windows(
+    anchor_3c: Vector3,
+    origin_18: Vector3,
+    orientation_54: Vector3,
+    source_vertical_limits: Vector2,
+    yaw_limits: Vector2,
+    pitch_limits: Vector2
 ) -> Dictionary:
     if not anchor_3c.is_finite() or not origin_18.is_finite() or not orientation_54.is_finite() or not source_vertical_limits.is_finite():
         push_error("Source mode-0 controller vectors are nonfinite")
@@ -561,8 +610,8 @@ func source_compute_mode_zero_candidate(
     var angles := _source_camera_angles(orientation_54, desired)
     if angles.is_empty():
         return {}
-    var yaw: Variant = _source_clamp_mode_zero_angle(float(angles["yaw"]), mode_zero_yaw_limits.x, mode_zero_yaw_limits.y)
-    var pitch: Variant = _source_clamp_mode_zero_angle(float(angles["pitch"]), mode_zero_pitch_limits.x, mode_zero_pitch_limits.y)
+    var yaw: Variant = _source_clamp_mode_zero_angle(float(angles["yaw"]), yaw_limits.x, yaw_limits.y)
+    var pitch: Variant = _source_clamp_mode_zero_angle(float(angles["pitch"]), pitch_limits.x, pitch_limits.y)
     if yaw == null or pitch == null:
         push_error("Source camera angle flag-bit-2 smoothing is not mapped for this parameter set")
         return {}
@@ -1048,6 +1097,9 @@ func _source_mode_zero_controller_670(
     if first_initial == null:
         return {}
     var first: Dictionary = first_initial
+    # 00463df0 copies normal/point only on a successful query. Its later
+    # clear/filter returns leave that geometry in the reused caller packet.
+    var query_geometry: Dictionary = first if bool(first["blocked"]) else {}
     var first_initially_blocked := bool(first["blocked"])
     if first_initially_blocked:
         controller_state.call("record_mode_zero_candidate_obstruction", true)
@@ -1059,6 +1111,7 @@ func _source_mode_zero_controller_670(
         first = _source_camera_ray_result(anchor_3c, candidate_30, context)
         if first == null:
             return {}
+        if bool(first["blocked"]): query_geometry = first
     else:
         controller_state.call("record_mode_zero_candidate_obstruction", false)
         if not bool(controller_state.call("record_mode_zero_controller_position", candidate_24)):
@@ -1069,12 +1122,15 @@ func _source_mode_zero_controller_670(
     if second == null:
         return {}
     var second_blocked := bool(second["blocked"])
+    if second_blocked: query_geometry = second
     controller_state.call("record_candidate_collision", second_blocked)
     if second_blocked:
         controller_state.call("mark_mode_zero_update_obstructed")
     if not bool(first["blocked"]) and not second_blocked:
         _source_mode_zero_apply_input_flags(first_initially_blocked or bool(first["blocked"]))
-        return _source_mode_zero_controller_result(true, candidate_24, candidate_30, first_initially_blocked, second_blocked, false)
+        var result := _source_mode_zero_controller_result(true, candidate_24, candidate_30, first_initially_blocked, second_blocked, false)
+        if first_initially_blocked: result["motion_eye"] = candidate_24
+        return result
 
     if not is_instance_valid(targeted_actor) or not targeted_actor.is_inside_tree():
         push_error("Source 0051f670 target-head segment has no selected Perso")
@@ -1083,9 +1139,10 @@ func _source_mode_zero_controller_670(
     var third: Variant = _source_camera_ray_result(origin_18, target_head, context)
     if third == null:
         return {}
+    if bool(third["blocked"]): query_geometry = third
     if not bool(third["blocked"]):
         if bool(first["blocked"]):
-            var hit_position: Variant = _source_mode_zero_collision_adjusted_position(first, 0.35)
+            var hit_position: Variant = _source_mode_zero_collision_adjusted_position(query_geometry, 0.35)
             if hit_position == null:
                 return {}
             candidate_24 = hit_position
@@ -1095,16 +1152,20 @@ func _source_mode_zero_controller_670(
             # 0051f670 copies +0x3c into both +0x24 and +0x30.
             candidate_24 = anchor_3c
             candidate_30 = anchor_3c
-        return _source_mode_zero_controller_result(true, candidate_24, candidate_30, first_initially_blocked, second_blocked, true)
+        var result := _source_mode_zero_controller_result(true, candidate_24, candidate_30, first_initially_blocked, second_blocked, true)
+        result["motion_eye"] = candidate_24
+        return result
 
     if bool(first["blocked"]):
-        var adjusted_to_hit: Variant = _source_mode_zero_collision_adjusted_position(first, 0.35)
+        var adjusted_to_hit: Variant = _source_mode_zero_collision_adjusted_position(query_geometry, 0.35)
         if adjusted_to_hit == null:
             return {}
         candidate_24 = adjusted_to_hit
         candidate_30 = adjusted_to_hit
         _source_mode_zero_apply_input_flags(true)
-        return _source_mode_zero_controller_result(true, candidate_24, candidate_30, first_initially_blocked, second_blocked, true)
+        var result := _source_mode_zero_controller_result(true, candidate_24, candidate_30, first_initially_blocked, second_blocked, true)
+        result["motion_eye"] = candidate_24
+        return result
 
     if not second_blocked:
         # Kept for the source's explicit return-0 branch after the preceding
@@ -1112,6 +1173,7 @@ func _source_mode_zero_controller_670(
         return _source_mode_zero_controller_result(false, candidate_24, candidate_30, first_initially_blocked, false, true)
 
     candidate_24 = candidate_30
+    var motion_eye := candidate_24
     var obstruction_count := int(controller_state.call("mode_zero_collision_streak"))
     if obstruction_count > SOURCE_MODE_ZERO_CAMERA_BLOCK_STREAK_LIMIT or source_camera_collision_guard_value():
         # The source special case adds the raw parameter +0x24 vector to the
@@ -1119,7 +1181,11 @@ func _source_mode_zero_controller_670(
         candidate_24 = targeted_actor.global_position + mode_zero_actor_offset
         candidate_30 = candidate_24
         source_mode_zero_action_flags |= 0x414
-    return _source_mode_zero_controller_result(true, candidate_24, candidate_30, first_initially_blocked, second_blocked, true)
+    var result := _source_mode_zero_controller_result(true, candidate_24, candidate_30, first_initially_blocked, second_blocked, true)
+    # The >50/guard branch changes frame+24/+30 for observation but preserves
+    # the displacement already written to +48. Keep that actual motion distinct.
+    result["motion_eye"] = motion_eye
+    return result
 
 ## Source selector 1: 0052bb50's persistent static-geometry timer, followed
 ## by 0051f290's 00463df0 ray and 0051f040/0051f250 recovery calculation.
@@ -1572,6 +1638,232 @@ func _source_sector_for(node: Node) -> Node:
         current = current.get_parent()
     return null
 
+## 0057910c/00578111 select the simple translation bound for the ordinary
+## camera flags; 00578588 then applies distance response and acceleration.
+## Callers supply the source-selected speed, not a reconstructed dynamics block.
+func source_follow_translation_step(requested: Vector3, speed: float, delta: float) -> Variant:
+    if not requested.is_finite() or not is_finite(speed) or speed < 0.0 or not is_finite(delta) or delta <= 0.0:
+        return null
+    var distance := requested.length()
+    if distance < 0.001: # 0060ca64/005c440c in the verified source PE
+        return Vector3.ZERO
+    if (source_mode_zero_action_flags & 4) != 0:
+        return requested
+    # Source bit2 with bit1 clear selects the curved-history limiter. Bit40
+    # obtains controls from an environment record, neither mapped here.
+    if ((source_mode_zero_action_flags & 2) != 0 and (source_mode_zero_action_flags & 1) == 0) or (source_mode_zero_action_flags & 0x40) != 0:
+        push_error("Source follow translation requires an unsupported history/environment limiter")
+        return null
+    if not is_finite(follow_linear_response_distance) or follow_linear_response_distance < 0.0 or not is_finite(follow_linear_acceleration_divisor) or follow_linear_acceleration_divisor <= 0.0:
+        push_error("Source follow motion controls are absent or invalid; regenerate this level")
+        return null
+    var maximum_step := speed * delta
+    var applied := requested.limit_length(maximum_step)
+    if (source_mode_zero_action_flags & 0x80) == 0:
+        var remaining := follow_linear_response_distance - distance
+        if distance < maximum_step * remaining:
+            var response_step := distance / remaining
+            if applied.length() > 0.001 and response_step < applied.length():
+                applied = applied.limit_length(response_step)
+        var acceleration_step := _follow_previous_linear_step + maximum_step / follow_linear_acceleration_divisor
+        if acceleration_step < applied.length():
+            applied = applied.limit_length(acceleration_step)
+    return applied
+
+## 0057ab7d limits the angle between the previous viewing direction and the
+## current eye-to-focus direction. Native vectors represent that geometry;
+## no source frame, matrix workspace or dynamics allocation is reconstructed.
+func source_follow_view_direction(previous: Vector3, requested: Vector3, delta: float) -> Variant:
+    if not previous.is_finite() or not requested.is_finite() or previous.is_zero_approx() or requested.is_zero_approx() or not is_finite(delta) or delta <= 0.0:
+        return null
+    var from := previous.normalized()
+    var to := requested.normalized()
+    if (source_mode_zero_action_flags & 0x400) != 0:
+        _follow_previous_angular_step = 0.0
+        return to
+    if not is_finite(follow_angular_speed) or follow_angular_speed < 0.0 or not is_finite(follow_angular_response_scale) or follow_angular_response_scale < 0.0 or not is_finite(follow_angular_acceleration_divisor) or follow_angular_acceleration_divisor <= 0.0:
+        push_error("Source follow angular controls are absent or invalid; regenerate this level")
+        return null
+    var angle := from.angle_to(to)
+    if angle < 0.0005: # 0060ca68 in the verified source PE
+        _follow_previous_angular_step = 0.0
+        return to
+    var maximum_step := follow_angular_speed * delta
+    var applied_angle := angle
+    if (source_mode_zero_action_flags & 0x800) != 0:
+        applied_angle = minf(angle, maximum_step)
+    elif angle * _follow_previous_angular_step >= 0.0:
+        var response_window := follow_angular_response_scale * maximum_step
+        if angle < response_window:
+            var response_angle := angle / response_window
+            if absf(response_angle) < absf(angle): applied_angle = response_angle
+        var acceleration_step := _follow_previous_angular_step + maximum_step / follow_angular_acceleration_divisor
+        if absf(acceleration_step) < absf(applied_angle): applied_angle = acceleration_step
+    else:
+        applied_angle = 0.0
+    _follow_previous_angular_step = applied_angle
+    # 0058fb27 leaves a zero cross axis for opposite vectors. Preserve that
+    # source geometry; do not invent Quaternion's alternate antipodal axis.
+    return _source_rotate_axis_angle(from, from.cross(to).normalized(), applied_angle).normalized()
+
+## 004444d0 consumes the target's existing newest-first motion samples. The
+## publisher identifies their units; the consumer never divides them by time.
+func source_follow_weighted_motion(inputs: Dictionary) -> Variant:
+    if not inputs.has("motion_binding_present") or not inputs["motion_binding_present"] is bool:
+        push_error("Source follow target has no explicit motion binding")
+        return null
+    if not bool(inputs["motion_binding_present"]): return Vector3.ZERO
+    if inputs.get("velocity_source", &"") not in [&"post_contact_velocity", &"camera_frame_displacement", &"retained_velocity_history"]:
+        push_error("Source follow target motion publisher is not mapped")
+        return null
+    var samples: PackedVector3Array = inputs.get("velocities", PackedVector3Array())
+    var weights: PackedFloat32Array = inputs.get("weights", PackedFloat32Array())
+    if samples.size() != 8 or weights.size() != 8:
+        push_error("Source follow requires the target's eight motion samples and weights")
+        return null
+    var total := 0.0
+    for index in range(8):
+        if not samples[index].is_finite() or not is_finite(weights[index]): return null
+        total = PackedFloat32Array([total + weights[index]])[0]
+    if total == 0.0: return Vector3.ZERO # 00443bf0 zeroes all motion samples
+    var sum := Vector3.ZERO
+    var weight_sum := 0.0
+    var threshold: float = PackedFloat32Array([0.4])[0] # 0043f180 -> 00745a88
+    for index in range(8):
+        # Original weighted products/additions each have one final f32 store.
+        var sample := samples[index]
+        var weight := weights[index]
+        sum = Vector3(sum.x + float(sample.x) * weight, sum.y + float(sample.y) * weight, sum.z + float(sample.z) * weight)
+        weight_sum = PackedFloat32Array([weight_sum + weight])[0]
+        if weight_sum >= threshold: break
+    if weight_sum == 0.0: return Vector3.ZERO
+    return sum * (1.0 / weight_sum)
+
+func source_follow_motion_controls(inputs: Dictionary, distance_class: int, separation: float) -> Dictionary:
+    if not follow_controls_present or not follow_linear_speed_limits.is_finite() or follow_linear_speed_limits.x < 0.0 or follow_linear_speed_limits.y < follow_linear_speed_limits.x:
+        push_error("Source follow controls are absent or invalid; regenerate this level")
+        return {}
+    var motion: Variant = source_follow_weighted_motion(inputs)
+    if motion == null: return {}
+    var speed := clampf(2.0 * (motion as Vector3).length(), follow_linear_speed_limits.x, follow_linear_speed_limits.y)
+    # 0043f180 fixes the retry limit at 60. Its x87 60*(double 2/3) is
+    # slightly below 40, so signed count 40 already accepts the second boost.
+    if static_obstruction_frames > 20: speed = PackedFloat32Array([speed * 0.5 + speed])[0]
+    if static_obstruction_frames >= 40: speed = PackedFloat32Array([speed * 0.5 + speed])[0]
+    var divisor := follow_linear_acceleration_divisor
+    if distance_class != 0:
+        speed = maxf(speed, 12.0) # 005fcc40, applied after source min/max/boost
+        if distance_class == -1: divisor *= 0.6 # 005fcc30
+        elif distance_class == 1 and separation > mode_zero_distance.y * 2.0: divisor *= 0.5
+    return {"speed": speed, "divisor": divisor}
+
+func source_camera_frame_displacement() -> Vector3:
+    return _follow_frame_displacement
+
+## The original frame consumer applies the translation and builds a basis
+## toward its focus. The child half-turn adapts that +Z actor basis to -Z
+## Camera3D viewing. This is shared by ordinary follow and the teleport gate.
+func _source_publish_follow_frame(eye: Vector3, focus: Vector3, delta: float, requested_eye: Vector3) -> bool:
+    var owner := get_parent() as Node3D
+    if owner == null or not owner.is_inside_tree() or not eye.is_finite() or not focus.is_finite() or not requested_eye.is_finite(): return false
+    # Reject unsupported rotation inputs before mutating contact/history or
+    # advancing angular response for a pose that cannot be committed.
+    if (source_mode_zero_action_flags & 0x100) == 0:
+        if (mode_zero_parameter_flags & 0x200) != 0:
+            push_error("Source follow target roll requires its unported dynamics angle publisher")
+            return false
+        if not follow_view_angles.is_finite() or not is_finite(follow_view_angle_speed) or follow_view_angle_speed < 0.0: return false
+    if not owner.has_method("source_refresh_contact_sector"): return false
+    var basis := owner.global_basis
+    var next_angular_step := _follow_previous_angular_step
+    var next_view_angles := _follow_previous_view_angles
+    if (source_mode_zero_action_flags & 0x100) == 0:
+        var previous_angular_step := _follow_previous_angular_step
+        var direction: Variant = source_follow_view_direction(basis.z, focus - eye, delta)
+        if direction == null: return false
+        next_angular_step = _follow_previous_angular_step
+        _follow_previous_angular_step = previous_angular_step
+        var forward: Vector3 = direction
+        # 0057b17f applies bit1 after angular response. Its reconstructed target
+        # keeps the original focus-to-old-owner radius before this eye shift.
+        if (source_mode_zero_action_flags & 1) != 0:
+            forward = eye + forward * focus.distance_to(owner.global_position) - requested_eye
+            if forward.is_zero_approx(): return false
+            forward = forward.normalized()
+        if not forward.is_finite() or forward.is_zero_approx(): return false
+        # 0057b17f's finite vertical case chooses +X as the fallback side axis.
+        var up := Vector3.UP
+        if forward.cross(up).is_zero_approx():
+            up = Vector3.FORWARD if forward.y > 0.0 else Vector3.BACK
+        basis = Basis.looking_at(forward, up, true)
+        var angles := Vector3(_source_wrap_angle_once(follow_view_angles.x), _source_wrap_angle_once(follow_view_angles.y), _source_wrap_angle_once(follow_view_angles.z))
+        if source_mode_zero_action_flags == 0:
+            for axis in range(3):
+                angles[axis] = move_toward(_follow_previous_view_angles[axis], angles[axis], follow_view_angle_speed * delta)
+        next_view_angles = angles
+        # Source roll turns about the negative view axis; its source-local
+        # yaw/pitch matrix converts to Godot Y yaw followed by X pitch.
+        basis *= Basis(Vector3.FORWARD, angles.y) * Basis(Vector3.UP, angles.z) * Basis(Vector3.RIGHT, angles.x)
+    if not basis.is_finite(): return false
+    if not _source_update_sector_history(eye): return false
+    if not is_instance_valid(_source_active_sector) or not bool(owner.call("source_refresh_contact_sector", _source_active_sector)): return false
+    _follow_previous_angular_step = next_angular_step
+    _follow_previous_view_angles = next_view_angles
+    _follow_frame_displacement = eye - owner.global_position
+    # 005796ea's +218 writer records actual committed motion, after contact.
+    _follow_previous_linear_step = _follow_frame_displacement.length()
+    owner.global_transform = Transform3D(basis, eye)
+    return true
+
+func _source_wrap_angle_once(angle: float) -> float:
+    return angle + TAU if angle < -PI else angle - TAU if angle > PI else angle
+
+## 00578852 prevents an outside eye request from entering the target's
+## horizontal 1.5 radius. Source +Z projection becomes native +Y; vertical
+## motion stays intact. A zero radial vector retains zero without a new axis.
+func source_follow_adjust_requested_motion(origin: Vector3, focus: Vector3, motion: Vector3) -> Variant:
+    if not origin.is_finite() or not focus.is_finite() or not motion.is_finite(): return null
+    var radius := 1.5
+    var separation := (focus - origin).slide(Vector3.UP)
+    if separation.length() < radius: return motion
+    var radial := (origin + motion - focus).slide(Vector3.UP)
+    var distance := radial.length()
+    if distance >= radius: return motion
+    var epsilon: float = PackedFloat32Array([0.05])[0] # source bits3d4ccccd
+    var correction := radial.normalized() * (radius - distance + epsilon)
+    var adjusted := motion + correction
+    if motion.length() < adjusted.length():
+        adjusted = motion - correction.normalized() * (radius + distance + epsilon)
+    return adjusted
+
+func _source_apply_mode_zero_follow(requested_eye: Vector3, focus: Vector3, inputs: Dictionary, distance_class: int, separation: float, context: Dictionary) -> bool:
+    var owner := get_parent() as Node3D
+    if owner == null: return false
+    var requested_motion := requested_eye - owner.global_position
+    if not source_camera_collision_guard_value() and (source_mode_zero_action_flags & 0x24) == 0:
+        var adjusted: Variant = source_follow_adjust_requested_motion(owner.global_position, focus, requested_motion)
+        if adjusted == null: return false
+        requested_motion = adjusted
+    var controls := {"speed": 0.0, "divisor": follow_linear_acceleration_divisor} if (source_mode_zero_action_flags & 4) != 0 else source_follow_motion_controls(inputs, distance_class, separation)
+    if controls.is_empty(): return false
+    var delta := get_physics_process_delta_time()
+    var initial_divisor := follow_linear_acceleration_divisor
+    follow_linear_acceleration_divisor = float(controls["divisor"])
+    var step: Variant = source_follow_translation_step(requested_motion, float(controls["speed"]), delta)
+    follow_linear_acceleration_divisor = initial_divisor
+    if step == null: return false
+    var eye: Vector3 = owner.global_position + step
+    if (source_mode_zero_action_flags & 0x10) == 0:
+        var contact: Variant = _source_camera_ray_result(owner.global_position, eye, context)
+        if contact == null: return false
+        source_camera_collision_callback_update(bool(contact["blocked"]))
+        if bool(contact["blocked"]):
+            push_error("Source follow frame requires the unported multi-contact Type3 slide response")
+            return false
+    else:
+        source_camera_collision_callback_update(false)
+    return _source_publish_follow_frame(eye, focus, delta, requested_eye)
+
 func _source_update_mode_zero() -> bool:
     var owner := get_parent() as Node3D
     if owner == null or not owner.is_inside_tree():
@@ -1596,10 +1888,12 @@ func _source_update_mode_zero() -> bool:
     var anchor_3c: Vector3 = live_pivot["anchor"]
     var candidate_24: Vector3
     var candidate_30: Vector3
+    var requested_eye: Vector3
     if supplied_eye_displacement:
         # The supplied motion bypasses target angle/range solving.
         candidate_24 = current_eye + _eye_displacement
         candidate_30 = candidate_24
+        requested_eye = candidate_24
     else:
         var candidate := source_compute_mode_zero_candidate(
             anchor_3c,
@@ -1609,7 +1903,12 @@ func _source_update_mode_zero() -> bool:
         )
         if candidate.is_empty():
             return false
-        candidate_24 = candidate["position"]
+        requested_eye = candidate["position"]
+        # 0051e620 recomputes observation24/30 with zero angular windows,
+        # leaving 0051db70's ordinary motion48 request unchanged.
+        var observed := _source_mode_zero_candidate_with_windows(anchor_3c, current_eye, orientation_data["orientation"], source_mode_zero_vertical_limits(), Vector2(mode_zero_yaw_limits.x, 0.0), Vector2(mode_zero_pitch_limits.x, 0.0))
+        if observed.is_empty(): return false
+        candidate_24 = observed["position"]
         candidate_30 = candidate_24
     var context := _source_collision_context()
     if context.is_empty():
@@ -1629,6 +1928,7 @@ func _source_update_mode_zero() -> bool:
     var candidate_result := bool(controller_result["controller_result"])
     candidate_24 = controller_result["candidate_position_24"]
     candidate_30 = controller_result["candidate_position"]
+    var motion_eye: Vector3 = controller_result.get("motion_eye", requested_eye)
     if candidate_result and not bool(controller_state.call("record_mode_zero_good_position", candidate_30)):
         push_error("Source camera controller state rejected the current DAT_007219ac candidate")
         return false
@@ -1675,6 +1975,11 @@ func _source_update_mode_zero() -> bool:
         # computed controller positions observable, but do not claim success.
         push_error("Source camera collision state requires the unported 0051ec70 offset-interpolation path")
         return false
-    # 0051c7b0 is the only proven owner-pose writer in the mode-0 gate; the
-    # ordinary candidate remains controller state for the camera actor path.
-    return true
+    # 00528030 -> 0052eeb0 -> the type3 frame consumer also applies ordinary
+    # motion and orientation. Calculation success alone is not a pose update.
+    if pose_write_requested and (not candidate_result or not supplied_eye_displacement):
+        if not owner_motion_binding_present: return true
+        return _source_publish_follow_frame(owner.global_position, live_pivot["focus"], get_physics_process_delta_time(), owner.global_position)
+    # 00528030 returns before motion application when Perso+8 is null.
+    if not owner_motion_binding_present: return true
+    return _source_apply_mode_zero_follow(motion_eye, live_pivot["focus"], live_pivot["motion_inputs"], int(distance_class), current_eye.distance_to(anchor_3c), context)

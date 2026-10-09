@@ -40,6 +40,11 @@ func run() -> void:
     var camera := actor.get_node("SourceCamera") as Camera3D
     root.add_child(scene)
     if not require(camera.owner_motion_binding_present, "owning Perso motion-binding presence was not exported to the saved camera"): return
+    var camera_api = load("res://addons/astrolabe/camera/source_camera.gd")
+    if not require(camera_api.source_primary_camera(root) == camera and root.get_camera_3d() == camera, "semantic source camera owner and rendered Camera3D were not bound separately"): return
+    if not require(camera.motion_mode == 0 and camera.initial_motion_mode == 6 and camera.initial_framing.motion_mode == 6, "camera _ready replaced active framing with its distinct reset preset"): return
+    if not require(camera.follow_controls_present and camera.follow_linear_speed_limits == Vector2(12,200) and camera.follow_linear_response_distance == 7.0 and camera.follow_linear_acceleration_divisor == 25.0, "source linear follow controls or initial-preset divisor did not survive conversion"): return
+    if not require(camera.follow_angular_speed == 3.25 and camera.follow_angular_response_scale == 5.0 and camera.follow_angular_acceleration_divisor == 10.0 and camera.initial_framing.follow_controls_present, "source angular follow controls or reset resource were not exported"): return
     var main_actor := scene.get_node("world/main/MainActor")
     camera.controller_state = load("res://addons/astrolabe/camera/source_controller_state.gd").new()
     if not require(main_actor.current_mechanics.mode == 4 and main_actor.current_mechanics.camera_position_source == &"post_contact_position", "saved active mechanics kind 4 lost the converted position publisher"): return
@@ -158,16 +163,20 @@ func run() -> void:
     for index in range(8):
         if not require(initialized_points[index] == Vector3.ZERO and initialized_weights[index] == 0.0, "source Data3D initial slots were not zero-filled"): return
     data3d_actor.global_position = Vector3(1,0,0)
+    data3d_actor.velocity = Vector3(2,0,0)
     if not require(data3d_actor.call("source_camera_data3d_step", 0.1), "source Walk Data3D producer rejected mechanics type 0"): return
     data3d_actor.global_position = Vector3(2,0,0)
+    data3d_actor.velocity = Vector3(4,0,0)
     if not require(data3d_actor.call("source_camera_data3d_step", 0.2), "source Walk Data3D producer rejected a second sample"): return
     data3d = data3d_actor.call("source_camera_data3d_inputs")
     var data3d_points: PackedVector3Array = data3d.get("points", PackedVector3Array())
     var data3d_weights: PackedFloat32Array = data3d.get("weights", PackedFloat32Array())
+    var data3d_velocities: PackedVector3Array = data3d.get("velocities", PackedVector3Array())
     if not require(data3d.get("supported", false) and data3d.get("position_source", &"") == &"post_contact_position" and not data3d.has("callback_address"), "source mechanics type 0 did not expose the named Walk publisher"): return
     if not require(data3d.get("sample_count", 0) == 2 and data3d_points.size() == 8 and data3d_weights.size() == 8, "source Data3D producer did not expose an eight-slot history and its live count"): return
     if not require(data3d_points[0].is_equal_approx(Vector3(2,0,0)) and data3d_points[1].is_equal_approx(Vector3(1,0,0)), "source Data3D samples are not newest-first post-movement world positions"): return
     if not require(absf(data3d_weights[0] - 0.2) < 0.000001 and absf(data3d_weights[1] - 0.1) < 0.000001, "source Data3D weights do not track the callback frame deltas"): return
+    if not require(data3d.get("velocity_source", &"") == &"post_contact_velocity" and data3d_velocities.size() == 8 and data3d_velocities[0] == Vector3(4,0,0) and data3d_velocities[1] == Vector3(2,0,0), "Walk motion history was derived from positions or divided by frame time"): return
     var data3d_owner := Node3D.new()
     var data3d_camera := Camera3D.new()
     data3d_camera.set_script(load("res://addons/astrolabe/camera/source_camera.gd"))
@@ -187,6 +196,9 @@ func run() -> void:
     if not require(data3d_actor.call("source_camera_data3d_step", 0.1), "source mechanics kind 4 did not use the shared Walk publisher"): return
     data3d = data3d_actor.call("source_camera_data3d_inputs")
     if not require(data3d.get("sample_count", 0) == 3 and data3d.get("position_source", &"") == &"post_contact_position", "changing between shared publishers lost Data3D history"): return
+    data3d_actor.current_mechanics = load("res://generated/hype/shared/mechanics/9.tres")
+    data3d_actor.velocity = Vector3(7,0,0)
+    if not require(data3d_actor.source_camera_data3d_step(0.25) and data3d_actor.source_camera_data3d_inputs().velocities[0] == Vector3(7,0,0), "Mass9 publisher changed velocity units"): return
     var unbound: Resource = load("res://addons/astrolabe/character/mechanics.gd").new()
     unbound.mode = 8
     data3d_actor.current_mechanics = unbound
@@ -259,7 +271,9 @@ func run() -> void:
     probe_owner.position = Vector3(0,0.5,0)
     probe_root.add_child(probe_owner)
     var probe_camera := Camera3D.new()
+    probe_camera.name = "SourceCamera"
     probe_camera.set_script(load("res://addons/astrolabe/camera/source_camera.gd"))
+    probe_camera.rotation.y = PI
     probe_owner.add_child(probe_camera)
     var floor_boundary := MeshInstance3D.new()
     floor_boundary.name = "SectorBoundary"
@@ -298,9 +312,45 @@ func run() -> void:
     clear_target.call("source_camera_data3d_step", 0.1)
     probe_camera.targeted_actor = clear_target
     if not require(probe_camera.call("source_update_position"), "source mode-0 collision-free candidate path did not complete"): return
-    if not require(probe_owner.global_position.is_equal_approx(Vector3(0,0.5,-4)), "source mode-0 clear-ray gate published a translation without a source 0051c7b0 request"): return
+    if not require(probe_owner.global_position.is_equal_approx(Vector3(0,0.5,-4)), "source mode-0 null owner motion binding applied a frame"): return
     if not require(probe_camera.controller_state.call("mode_zero_update_has_position"), "source 0051f670 clear first ray did not set DAT_007219d0"): return
     if not require(probe_camera.source_controller_candidate_result and probe_camera.source_controller_position_30.is_equal_approx(Vector3(0,0.5,-4)), "source 0051f670 did not retain its +0x30 candidate output"): return
+
+    # Exercise the missing ordinary consumer with the same maintained camera,
+    # target publisher and indexed sector adapter used by saved game scenes.
+    var before_follow := probe_owner.global_transform
+    probe_camera.owner_motion_binding_present = true
+    probe_camera.follow_controls_present = camera.follow_controls_present
+    probe_camera.follow_linear_speed_limits = camera.follow_linear_speed_limits
+    probe_camera.follow_linear_response_distance = camera.follow_linear_response_distance
+    probe_camera.follow_linear_acceleration_divisor = camera.follow_linear_acceleration_divisor
+    probe_camera.follow_angular_speed = camera.follow_angular_speed
+    probe_camera.follow_angular_response_scale = camera.follow_angular_response_scale
+    probe_camera.follow_angular_acceleration_divisor = camera.follow_angular_acceleration_divisor
+    probe_camera.mode_zero_distance = Vector2(4,4)
+    clear_target.source_motion_binding_present = true
+    clear_target.global_position = Vector3(1,0.5,0)
+    clear_target.velocity = Vector3(20,0,0)
+    if not require(clear_target.source_camera_data3d_step(0.1) and probe_camera.source_update_position(), "ordinary source follow consumer rejected its converted motion publisher"): return
+    var committed_motion := probe_owner.global_position - before_follow.origin
+    if not require(not committed_motion.is_zero_approx() and probe_camera.source_camera_frame_displacement().is_equal_approx(committed_motion), "ordinary follow computed candidates without publishing actor translation"): return
+    var actual_view := (clear_target.global_position - probe_owner.global_position).normalized()
+    if not require(probe_owner.global_basis.is_finite() and probe_owner.global_basis.z.x > 0.0 and probe_owner.global_basis.z.dot(actual_view) > before_follow.basis.z.dot(actual_view) and (-probe_camera.global_basis.z).is_equal_approx(probe_owner.global_basis.z), "ordinary source follow did not turn its rendered view toward the target"): return
+    if not require(is_equal_approx(probe_camera.get("_follow_previous_linear_step"), committed_motion.length()), "linear response history was not updated from the committed frame"): return
+    probe_owner.current_mechanics = load("res://generated/hype/shared/mechanics/3.tres")
+    probe_owner.source_motion_binding_present = true
+    if not require(probe_owner.source_camera_data3d_step(0.1) and probe_owner.source_camera_data3d_inputs().velocity_source == &"camera_frame_displacement" and probe_owner.source_camera_data3d_inputs().velocities[0].is_equal_approx(committed_motion), "Type3 history did not publish frame displacement verbatim"): return
+    probe_owner.current_mechanics = null
+    probe_owner.global_transform = before_follow
+    probe_camera.owner_motion_binding_present = false
+    probe_camera.mode_zero_distance = Vector2(0,10)
+    probe_camera.set("_follow_previous_linear_step", 0.0)
+    probe_camera.set("_follow_previous_angular_step", 0.0)
+    probe_camera.controller_state = load("res://addons/astrolabe/camera/source_controller_state.gd").new()
+    clear_target.global_position = Vector3(0,0.5,0)
+    clear_target.velocity = Vector3.ZERO
+    clear_target.call("_source_reset_camera_data3d_history")
+    clear_target.source_camera_data3d_step(0.1)
 
     var blocker := StaticBody3D.new()
     blocker.collision_layer = 1
@@ -405,6 +455,7 @@ func run() -> void:
     )
     if not require(not guarded_branch.get("first_ray_initially_blocked", true) and guarded_branch.get("target_head_checked", false) and guarded_branch.get("second_ray_blocked", false) and probe_camera.source_camera_collision_guard_value(), "guarded source callback did not retain its blocked target-head input"): return
     if not require(probe_camera.source_controller_position_30.is_equal_approx(clear_target.global_position + probe_camera.mode_zero_actor_offset), "set +0x254 guard did not select the 0051f670 raw target-plus-offset candidate"): return
+    if not require(guarded_branch.get("motion_eye", Vector3.ZERO).is_equal_approx(branch_candidate), "late collision guard overwrote motion already computed from the prior observation candidate"): return
     if not require((probe_camera.source_mode_zero_action_flags & 0x414) == 0x414, "set +0x254 guard did not apply the 0051f670 special-case action flags"): return
     probe_camera.source_camera_collision_callback_update(false)
     if not require(not probe_camera.source_camera_collision_guard_value(), "post-obstruction callback did not reset the camera guard for the next controller update"): return

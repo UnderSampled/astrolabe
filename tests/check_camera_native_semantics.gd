@@ -9,6 +9,12 @@ class AlphaActor extends Node3D:
         alpha = value
         return true
 
+class InterruptedFollow extends "res://addons/astrolabe/camera/source_camera.gd":
+    var allow_frame := false
+    func _source_update_mode_zero() -> bool:
+        source_mode_zero_action_flags |= 0x414
+        return allow_frame
+
 func _initialize() -> void:
     call_deferred("check")
 
@@ -108,6 +114,48 @@ func check() -> void:
     camera.static_probe_frames = 4
     if not require(camera.source_change_state(6) and camera.static_probe_frames == 4, "equal-mode request reset camera progress"): return
     if not require(camera.source_change_state(-1) and camera.motion_mode == 0 and camera.targeted_actor == old_target and owner.global_position == traveling_eye and owner.global_basis.is_equal_approx(held_basis), "initial-mode restore moved or rebound the camera"): return
+    camera.follow_controls_present = true
+    camera.follow_linear_speed_limits = Vector2(12,200)
+    camera.follow_linear_response_distance = 7.0
+    camera.follow_linear_acceleration_divisor = 25.0
+    camera.follow_angular_speed = 3.25
+    camera.follow_angular_response_scale = 5.0
+    camera.follow_angular_acceleration_divisor = 10.0
+    camera.source_mode_zero_action_flags = 0
+    var first_step: Variant = camera.source_follow_translation_step(Vector3(10,0,0), 12.0, 0.1)
+    if not require(first_step is Vector3 and first_step.is_equal_approx(Vector3(0.048,0,0)), "ordinary follow did not apply the source acceleration bound"): return
+    if not require(camera.get("_follow_previous_linear_step") == 0.0, "calculating a candidate advanced committed follow history"): return
+    camera.source_mode_zero_action_flags = 0x80
+    if not require(camera.source_follow_translation_step(Vector3(10,0,0), 12.0, 0.1).is_equal_approx(Vector3(1.2,0,0)), "0x80 did not bypass response while retaining the speed limit"): return
+    camera.source_mode_zero_action_flags = 4
+    if not require(camera.source_follow_translation_step(Vector3(10,0,0), 12.0, 0.1) == Vector3(10,0,0), "0x4 did not bypass the translation limiter"): return
+    if not require(camera.source_follow_adjust_requested_motion(Vector3(-2,2,0), Vector3.ZERO, Vector3(1,3,0)).is_equal_approx(Vector3(0.45,3,0)), "00578852 radius correction changed vertical motion or skipped the horizontal adjustment"): return
+    if not require(camera.source_follow_adjust_requested_motion(Vector3(-2,0,0), Vector3.ZERO, Vector3(3,0,0)).is_equal_approx(Vector3(0.45,0,0)), "00578852 did not reverse a correction that lengthened the requested motion"): return
+    if not require(camera.source_follow_adjust_requested_motion(Vector3(-2,0,0), Vector3.ZERO, Vector3(2,0,0)) == Vector3(2,0,0), "00578852 invented an axis for a zero radial vector"): return
+    camera.source_mode_zero_action_flags = 0
+    var direction: Variant = camera.source_follow_view_direction(Vector3.BACK, Vector3.RIGHT, 0.1)
+    if not require(direction is Vector3 and absf(Vector3.BACK.angle_to(direction) - 0.0325) < 0.00001, "ordinary follow angular acceleration differs"): return
+    camera.source_mode_zero_action_flags = 0x400
+    if not require(camera.source_follow_view_direction(Vector3.BACK, Vector3.RIGHT, 0.1) == Vector3.RIGHT and camera.get("_follow_previous_angular_step") == 0.0, "0x400 did not snap viewing direction and clear angular history"): return
+    camera.source_mode_zero_action_flags = 0x800
+    direction = camera.source_follow_view_direction(Vector3.BACK, Vector3.RIGHT, 0.1)
+    if not require(absf(Vector3.BACK.angle_to(direction) - 0.325) < 0.00001, "0x800 did not apply the direct angular step cap"): return
+    var velocities := PackedVector3Array([Vector3(2,0,0),Vector3(4,0,0),Vector3(6,0,0),Vector3(8,0,0),Vector3(1000,0,0),Vector3(1000,0,0),Vector3(1000,0,0),Vector3(1000,0,0)])
+    var motion_inputs := {"motion_binding_present": true, "velocity_source": &"post_contact_velocity", "velocities": velocities, "weights": PackedFloat32Array([0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1])}
+    if not require(camera.source_follow_weighted_motion(motion_inputs).is_equal_approx(Vector3(5,0,0)), "004444d0 did not stop after including the threshold-crossing sample"): return
+    camera.static_obstruction_frames = 40
+    var controls: Dictionary = camera.source_follow_motion_controls(motion_inputs, 0, 4.0)
+    if not require(is_equal_approx(controls.get("speed", 0), 27.0), "signed retry count 40 did not accept both source speed boosts"): return
+    motion_inputs["motion_binding_present"] = false
+    motion_inputs.erase("velocities")
+    if not require(camera.source_follow_weighted_motion(motion_inputs) == Vector3.ZERO, "null source motion binding fabricated target velocity"): return
+    var interrupted := InterruptedFollow.new()
+    interrupted.owner_motion_binding_present = true
+    interrupted.source_mode_zero_action_flags = 0x80
+    owner.add_child(interrupted)
+    if not require(not interrupted.source_update_position() and interrupted.source_mode_zero_action_flags == 0x80, "failed follow leaked its transient recovery bypass into the next frame"): return
+    interrupted.allow_frame = true
+    if not require(interrupted.source_update_position() and interrupted.source_mode_zero_action_flags == 0x80, "follow retry changed the active action preset"): return
     level.free()
     print("CAMERA_NATIVE_SEMANTICS_OK")
     quit(0)
