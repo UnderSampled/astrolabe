@@ -1,5 +1,10 @@
 # Isolated Manor static integration — 2026-10-08
 
+Follow-up: the [October9 promotion and acceptance record](manor-promotion-acceptance-2026-10-09.md)
+documents the subsequently approved main fast-forward, complete publication and
+single failed actual-game session. The unchanged-main and unexecuted claims
+below describe this earlier isolated source-review phase.
+
 This branch starts at accepted main
 `78a1c861a41c3ec5ba2780ad3eef5e41ee060fc9` and lives at
 `output/worktrees/integration-manor-static-20261008`, branch

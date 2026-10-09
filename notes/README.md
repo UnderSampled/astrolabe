@@ -6,6 +6,10 @@
 
 ## Common records
 
+The [Manor promotion and actual-game acceptance](manor-promotion-acceptance-2026-10-09.md)
+records the approved main promotion, complete four-scope native publication,
+the single failed New Game session and its traced mana-subtraction guard.
+
 The [isolated Manor static integration](manor-static-integration-2026-10-08.md)
 records exact training/tunnel/presentation provenance, conflict reconciliation,
 the unpublished schema/interface union and lifecycle findings without tests,
