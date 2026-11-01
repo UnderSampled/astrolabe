@@ -917,7 +917,7 @@ func source_magic_points_ready() -> bool:
     return source_magick != null and bool(source_magick.call("points_ready"))
 
 func source_magic_current_spell() -> int:
-    assert(source_magic_ready())
+    assert(source_magic_points_ready())
     return int(source_magick.get("selected_spell_code"))
 
 func source_magic_points() -> int:

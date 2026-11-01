@@ -1856,11 +1856,8 @@ fn guarded_expression(
         Expression::MagicCurrentSpell
         | Expression::MagicPoints
         | Expression::MagicPointsMaximum => {
-            let ready = if matches!(e, Expression::MagicCurrentSpell) {
-                "source_magic_ready"
-            } else {
-                "source_magic_points_ready"
-            };
+            // A fresh game has no selected spell, which reads as -1, not a failure.
+            let ready = "source_magic_points_ready";
             writeln!(
                 out,
                 "{pad}if not character().{ready}():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
