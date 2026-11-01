@@ -8,6 +8,11 @@ signal reflex_tick
 signal normal_schedule_tick
 signal reflex_schedule_tick
 signal sound_requested(identity: String)
+## Strict Brains stop at unsupported behavior, which tests rely on. The game
+## clears this at startup so a documented stand-in keeps the actor playing.
+static var strict_unsupported := true
+## Stand-ins and abandoned guards reached this run: id -> {count, context}.
+static var stand_ins_reached: Dictionary = {}
 @export var automatic: bool = true
 @export_node_path("Node3D") var main_actor_path: NodePath
 @export_node_path("Node3D") var sound_emitter_path: NodePath = ^"../SoundEmitter"
@@ -130,9 +135,33 @@ func stop() -> void:
 	reflex_schedule_tick.emit()
 
 func fail_unsupported(context: String) -> void:
+	if not strict_unsupported:
+		# The caller returns, abandoning this rule pass; rules retry next tick.
+		_record_stand_in("guard", context)
+		return
 	unsupported_failure = context
 	push_error("Unsupported compiled behavior: " + context)
 	stop()
+
+## A documented guess stands in for a source call: see docs/astrolabe/stand-ins.md.
+## Returns true when a strict Brain stopped, so the compiled caller must exit.
+func stand_in(id: String, context: String) -> bool:
+	if strict_unsupported:
+		fail_unsupported(context)
+		return true
+	_record_stand_in(id, context)
+	return false
+
+func _record_stand_in(id: String, context: String) -> void:
+	var key := id + " " + context
+	if not stand_ins_reached.has(key):
+		stand_ins_reached[key] = {"id": id, "context": context, "count": 0}
+		push_warning("Stand-in reached: " + key)
+	stand_ins_reached[key]["count"] += 1
+
+## Overridden by compiled scripts whose initial behavior selects native state.
+func source_restore_initial_selections() -> void:
+	pass
 
 func _source_audio_fades() -> Dictionary:
 	var root := get_tree().root

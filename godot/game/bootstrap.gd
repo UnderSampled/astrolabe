@@ -9,6 +9,7 @@ const LOAD_GAME_SCENE := "res://game/load_game_picker.tscn"
 const MENU_VIEW = preload("res://addons/astrolabe/ui/menu/menu.gd")
 const LOAD_GAME_PICKER = preload("res://game/load_game_picker.gd")
 const SAVE_STATE = preload("res://game/save_state.gd")
+const BEHAVIOR = preload("res://addons/astrolabe/behavior/behavior.gd")
 const INITIAL_ROUTE_ERROR_META := "astrolabe_initial_route_error"
 
 ## Assign an inherited scene saved under game/ to preserve designer improvements.
@@ -27,6 +28,8 @@ var credits: Control
 var save_picker: LOAD_GAME_PICKER
 
 func _ready() -> void:
+    # Play on through documented stand-ins unless a check asks for strict Brains.
+    BEHAVIOR.strict_unsupported = OS.get_environment("ASTROLABE_STRICT_BEHAVIOR") == "1"
     if menu_scene == null and ResourceLoader.exists(MENU_SCENE):
         menu_scene = load(MENU_SCENE) as PackedScene
     if menu_scene == null:

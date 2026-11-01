@@ -5011,6 +5011,21 @@
     },
     {
       "binary": "astrolabe",
+      "test": "godot::stand_ins::tests::stand_ins_are_found_by_decoder_reason_and_documented",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Decoder reasons reach their stand-in and every stand-in is documented",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::action_finished_condition_preserves_its_evaluated_actor_operand",
       "areas": [
         "ai",

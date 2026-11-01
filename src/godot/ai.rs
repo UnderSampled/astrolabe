@@ -469,6 +469,15 @@ fn compile_with_bindings(
         writeln!(out, "@export var actor_brain_{i}_path: NodePath")?;
         writeln!(out, "var actor_brain_{i}: Node")?;
     }
+    // A restored Brain enters a saved behavior and never runs the initial one
+    // that chooses this actor's generator, so restoration repeats that choice.
+    if let Some(generator) = model.particle_generators().first() {
+        writeln!(
+            out,
+            "func source_restore_initial_selections() -> void:\n    character().source_set_particle_generator({})",
+            super::particle::constant(generator)
+        )?;
+    }
     writeln!(
         out,
         "func source_external_actor_brains() -> PackedStringArray:"
@@ -1665,12 +1674,15 @@ fn guarded_expression(
                 .as_ref()
                 .map(|target| format!(" (receiver {})", actor_target_label(target)))
                 .unwrap_or_default();
+            let (stand_in, stand_in_id) = super::stand_ins::for_reason(&fragment.reason);
             writeln!(
                 out,
-                "{pad}var {local}\n{pad}fail_unsupported({})\n{pad}{exit}",
+                "{pad}var {local} = {}\n{pad}if stand_in({}, {}):\n{pad}    {exit}",
+                stand_in.value,
+                quoted(&stand_in_id),
                 quoted(&format!(
-                    "{} source AI node {}{}: {}",
-                    model.path, fragment.start, receiver, fragment.reason
+                    "{} source AI node {}{}: {} [{}: {}]",
+                    model.path, fragment.start, receiver, fragment.reason, stand_in.name, stand_in.guess
                 ))
             )?;
             local
@@ -4306,12 +4318,14 @@ fn statements(
                     .as_ref()
                     .map(|target| format!(" (receiver {})", actor_target_label(target)))
                     .unwrap_or_default();
+                let (stand_in, stand_in_id) = super::stand_ins::for_reason(&fragment.reason);
                 writeln!(
                     out,
-                    "{pad}fail_unsupported({})\n{pad}{exit}",
+                    "{pad}if stand_in({}, {}):\n{pad}    {exit}",
+                    quoted(&stand_in_id),
                     quoted(&format!(
-                        "{} source AI node {}{}: {}",
-                        model.path, fragment.start, receiver, fragment.reason
+                        "{} source AI node {}{}: {} [{}: {}]",
+                        model.path, fragment.start, receiver, fragment.reason, stand_in.name, stand_in.guess
                     ))
                 )?;
             }

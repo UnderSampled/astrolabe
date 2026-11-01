@@ -54,6 +54,7 @@ func start_brains() -> String:
         var brain: BEHAVIOR = state["brain"]
         if not is_instance_valid(brain) or brain.is_queued_for_deletion(): continue
         brain.automatic = state["automatic"]
+        if brain.main_actor != null: brain.source_restore_initial_selections()
         # Earlier owner initialization may legitimately request a behavior on
         # a later actor; preserve it without restarting its native continuation.
         # Match behavior._ready's eligibility: unbound pooled definitions are

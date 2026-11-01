@@ -27,7 +27,9 @@ func select_generator(template: PackedScene) -> bool:
 
 func set_generator_enabled(requested: bool) -> bool:
     if selected == null:
-        return false
+        # Turning off a generator that was never selected changes nothing.
+        enabled = false
+        return not requested
     if requested and not selected.call("enable_source_emission"):
         return false
     enabled = requested

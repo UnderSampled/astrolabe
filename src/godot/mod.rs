@@ -16,6 +16,7 @@ mod resources;
 mod route;
 pub mod save_import;
 mod scene;
+mod stand_ins;
 pub mod support;
 pub use engine::{gameplay_headless, run_godot, run_godot_gameplay};
 pub use project::{Project, prepare_directory, publish_prepared};
