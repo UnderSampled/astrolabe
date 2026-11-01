@@ -22,6 +22,7 @@ func finish(ok: bool, message: String) -> void:
     report["outcome"] = "passed" if ok else "failed"
     report["message"] = message
     report["elapsed_ms"] = Time.get_ticks_msec() - started_ms
+    report["stand_ins"] = load("res://addons/astrolabe/behavior/behavior.gd").stand_ins_reached.values()
     write_report()
     print("MANOR_INTRO_ACCEPTANCE ", JSON.stringify({"outcome": report["outcome"], "message": message, "elapsed_ms": report["elapsed_ms"]}))
     if not ok: push_error(message)
