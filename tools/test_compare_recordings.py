@@ -6,6 +6,11 @@ import sys
 import tempfile
 import unittest
 
+import importlib.util
+
+if importlib.util.find_spec('numpy') is None:
+    raise unittest.SkipTest('tools/compare_recordings.py needs numpy, which this Python lacks')
+
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))

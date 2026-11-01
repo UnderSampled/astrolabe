@@ -170,7 +170,7 @@ fn manor_dialogue_localization_voice_and_callback_survive_rete() -> Result<()> {
                 .lines
                 .iter()
                 .flat_map(|l| &l.spans)
-                .flat_map(|s| s.text.chars())
+                .flat_map(|s| s.text.iter().flat_map(|t| t.chars()))
                 .all(|c| style.glyphs.iter().any(|g| g.character == c)),
             "selected source text has a missing native glyph"
         );

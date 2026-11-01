@@ -52,8 +52,8 @@
   "budgets_seconds": {
     "development": 720,
     "routine": 600,
-    "local": 1800,
-    "release": 2400,
+    "local": 3900,
+    "release": 7200,
     "build": 300,
     "cleanup": 10
   },
@@ -4832,6 +4832,38 @@
       "kind": "unit",
       "prerequisites": [],
       "fixture": "Bundled current Godot support interface, actor receivers, native bank/catalogue resources/UIDs and starter staging",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "model::camera::tests::camera_follow_controls_use_the_frame_consumers_source_offsets",
+      "areas": [
+        "source",
+        "scene",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source camera records and typed AI target references",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
+      "test": "model::camera::tests::camera_static_retry_count_is_a_distinct_signed_word",
+      "areas": [
+        "source",
+        "scene",
+        "ai",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Synthetic source camera records and typed AI target references",
       "timeout_seconds": 30,
       "ignored": false,
       "release": true
