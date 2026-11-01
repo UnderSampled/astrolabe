@@ -21,6 +21,9 @@ id `guard`: abandon the current pass. A rule retries on the next tick, while a
 schedule ends until its behavior is entered again. Calls with no table entry use
 the `generic` stand-in, which skips the call and reads as zero.
 
+Stand-ins most reached in the gate are the squirrel (model 816) and pigeons
+(model 779), which are ambient, and camera angle requests from model 437.
+
 To retire a stand-in, implement the call, delete its table row and delete its
 row here. Replace them in order of what blocks play.
 

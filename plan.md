@@ -68,10 +68,12 @@ the gate exists, and fatal unsupported calls have stand-ins.
 ### 2. The manor plays on the machine it runs on
 
 The next milestone. The player can start, fight and move through the manor at a
-usable frame rate with a default launch.
+usable frame rate with a default launch, and Load Game loads a real save.
 
-- **Default launch performance.** A default launch uses the Intel GPU. Measure
-  it and make it playable, or make the launch choose the discrete GPU.
+- **Default launch performance.** A default launch uses the Intel GPU, which
+  measured a 16.6 ms median on both routes on 2026-11-01, so the reported
+  seconds per frame did not reproduce. Hitches remain: 60 ms at p95 and a worst
+  frame of 847 ms. Find them, and retest in a real window under the editor.
 - **Load actually loads.** Load Game must read the savegame file. Today it reads
   a fixture and a small JSON made ahead of time by `astrolabe import-save`. It
   should accept a real `SaveGameN` slot, with inventory, position, progression

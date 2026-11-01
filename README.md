@@ -33,7 +33,7 @@ Press **F5**, then choose **New Game** for the opening or **Load Game** for the
 saved start. New Game plays the full converted opening with compiled AI and hands
 control to Hype. The player can then walk, run, jump, draw and swing the sword,
 and open the inventory. Fight outcomes, progression and the rest of the manor are
-not finished, and the game still needs work to be playable on an integrated GPU.
+not finished.
 
 Load Game does not read an original savegame yet. It applies a measured fixture
 plus either the native slot or a small JSON written ahead of time by
