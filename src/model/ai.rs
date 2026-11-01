@@ -752,7 +752,10 @@ pub enum Expression {
     IsInAction(Box<Expression>),
     /// Cond123 evaluates its actor operand, then tests completion and the
     /// actor's current/requested native action target identity (00436000).
-    ActionFinished(Box<Expression>),
+    /// Cond123. The loaded Manor and Fix scripts carry no operand: all 30 nodes
+    /// observed in live memory on 2026-11-01 are leaves, meaning the executing
+    /// actor. `Some` keeps the evaluated form for scripts that do supply one.
+    ActionFinished(Option<Box<Expression>>),
     /// Source Func_GetCurrectAnimFrame reads the active animation's discrete
     /// frame cursor. Godot lowering requires a bound native animation clip.
     CurrentAnimationFrame,
@@ -1748,7 +1751,7 @@ impl Script {
                 Expression::Not(value)
                 | Expression::Negate(value)
                 | Expression::IsInAction(value)
-                | Expression::ActionFinished(value)
+                | Expression::ActionFinished(Some(value))
                 | Expression::Square(value)
                 | Expression::AbsoluteValue(value)
                 | Expression::ActorDistance(value)

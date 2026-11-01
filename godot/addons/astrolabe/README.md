@@ -6,7 +6,7 @@ uses the same selection path as Button_Hit. Finite final speech pages retain
 their speech-holder completion contract. The native screen and compiled Hype
 rules claim each physical Button_Hit press once, preventing a double advance.
 Dialogue presentation and level assets
-must be regenerated from Rete schema63; support updates alone lack the texture.
+must be regenerated from Rete schema64; support updates alone lack the texture.
 The exporter also compiles source vector subtraction (operator17), allowing the
 entrance gate closing MoveLift to reach its authored endpoint and stop cue.
 Cond123 retains its evaluated actor operand. Action waits and conditions use

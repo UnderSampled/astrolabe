@@ -1978,7 +1978,8 @@ fn guarded_expression(
             "character().is_in_action(int({}))",
             guarded_expression(out, action, model, depth, flow)?
         ),
-        Expression::ActionFinished(actor) => {
+        Expression::ActionFinished(None) => "character().source_action_completed()".into(),
+        Expression::ActionFinished(Some(actor)) => {
             let actor = guarded_expression(out, actor, model, depth, flow)?;
             let id = flow.local;
             flow.local += 1;
@@ -2095,7 +2096,8 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         Expression::DialogIsOverAndChangeBehavior => {
             "source_ui().source_dialog_is_over_and_change_behavior(main_actor)".into()
         }
-        Expression::ActionFinished(actor) => {
+        Expression::ActionFinished(None) => "character().source_action_completed()".into(),
+        Expression::ActionFinished(Some(actor)) => {
             format!("{}.source_action_completed()", expression(actor, model)?)
         }
         Expression::CurrentAnimationFrame => {
@@ -4600,8 +4602,8 @@ mod source_position_tests {
                     id: 0,
                     rules: vec![Some(Script {
                         statements: vec![Statement::If {
-                            condition: Expression::ActionFinished(Box::new(Expression::Actor(
-                                ActorTarget::Reference(target),
+                            condition: Expression::ActionFinished(Some(Box::new(
+                                Expression::Actor(ActorTarget::Reference(target)),
                             ))),
                             then: vec![Statement::Noop],
                             otherwise: None,

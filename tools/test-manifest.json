@@ -4996,6 +4996,21 @@
     },
     {
       "binary": "astrolabe",
+      "test": "openspace::ai::partial_tests::action_finished_condition_without_an_operand_round_trips_as_a_leaf",
+      "areas": [
+        "ai",
+        "source",
+        "rete"
+      ],
+      "kind": "unit",
+      "prerequisites": [],
+      "fixture": "Cond123 leaf shape from every loaded Manor and Fix script",
+      "timeout_seconds": 30,
+      "ignored": false,
+      "release": true
+    },
+    {
+      "binary": "astrolabe",
       "test": "openspace::ai::partial_tests::action_finished_condition_preserves_its_evaluated_actor_operand",
       "areas": [
         "ai",
