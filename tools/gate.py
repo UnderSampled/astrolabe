@@ -48,12 +48,12 @@ def run(name, command, cwd, environment, limit):
     return child.returncode
 
 
-def godot_check(name, script, report, environment):
+def godot_check(name, script, report, environment, limit):
     xdg = work/'xdg'/name
     xdg.mkdir(parents=True)
     private = dict(environment, XDG_DATA_HOME=str(xdg), XDG_CONFIG_HOME=str(xdg), XDG_CACHE_HOME=str(xdg))
     command = [*gpu_prefix(), 'godot', '--path', '.', '--audio-driver', 'Dummy', '--script', script, '--', str(report)]
-    code = run(name, command, root/'godot', private, 300)
+    code = run(name, command, root/'godot', private, limit)
     if code is None or not report.is_file():
         return {'passed': False, 'detail': 'timed out' if code is None else f'no report, exit {code}'}
     data = json.loads(report.read_text())
@@ -62,11 +62,11 @@ def godot_check(name, script, report, environment):
 
 
 def intro(environment):
-    return godot_check('intro', 'res://tests/new_game_intro_acceptance.gd', work/'intro.json', environment)
+    return godot_check('intro', 'res://tests/new_game_intro_acceptance.gd', work/'intro.json', environment, 300)
 
 
 def controls(environment):
-    return godot_check('controls', 'res://tests/controls_probe.gd', work/'controls.json', environment)
+    return godot_check('controls', 'res://tests/controls_probe.gd', work/'controls.json', environment, 120)
 
 
 def original(environment):

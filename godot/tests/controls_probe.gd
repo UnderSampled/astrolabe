@@ -95,10 +95,10 @@ func run() -> void:
 		return
 	click(save)
 	var deadline := Time.get_ticks_msec() + 60000
-	while (current_scene == menu or not bool(current_scene.get("ready_to_play"))) and Time.get_ticks_msec() < deadline:
+	while (current_scene == null or current_scene == menu or not bool(current_scene.get("ready_to_play"))) and Time.get_ticks_msec() < deadline:
 		await process_frame
 	game = current_scene
-	if game == menu or not bool(game.get("ready_to_play")):
+	if game == null or game == menu or not bool(game.get("ready_to_play")):
 		finish("Load Game did not reach play within 60 seconds")
 		return
 	check("load_within_30s", Time.get_ticks_msec() - started_ms < 30000, Time.get_ticks_msec() - started_ms)

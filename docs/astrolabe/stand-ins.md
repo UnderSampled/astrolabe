@@ -28,6 +28,7 @@ row here. Replace them in order of what blocks play.
 
 | Id | Source call | Current guess | Game-accurate follow-up |
 | --- | --- | --- | --- |
+| `unbound-waypoint` | Absolute waypoint with no binding | Level origin | Bind the waypoint |
 | `3-189` | MTH_Modulus | Nonzero remainder, so periodic regeneration does not tick | Type both operands and compute the remainder |
 | `1-65` | Cond_IsValidWayPoint | Waypoint is invalid | Check the waypoint reference |
 | `1-118` | Cond_Inv_InventoryIsFull | Always has room | Ask the inventory Resource |

@@ -174,6 +174,13 @@ pub(super) const STAND_INS: &[StandIn] = &[
     ),
 ];
 
+const WAYPOINT: StandIn = entry(
+    "unbound-waypoint",
+    "unbound absolute waypoint",
+    "Vector3.ZERO",
+    "read the level origin as the waypoint",
+);
+
 const GENERIC: StandIn = entry(
     "generic",
     "undocumented call",
@@ -188,6 +195,9 @@ pub(super) fn for_reason(reason: &str) -> (&'static StandIn, String) {
         let digits = tail.split(|c: char| !c.is_ascii_digit()).next()?;
         Some(format!("{category}-{digits}"))
     });
+    if reason.starts_with("unbound absolute waypoint") {
+        return (&WAYPOINT, "unbound-waypoint".into());
+    }
     match operation {
         Some(id) => match STAND_INS.iter().find(|entry| entry.id == id) {
             Some(entry) => (entry, id),
@@ -217,6 +227,7 @@ mod tests {
             "generic-untyped"
         );
         let document = include_str!("../../docs/astrolabe/stand-ins.md");
+        assert!(document.contains("`unbound-waypoint`"));
         for entry in STAND_INS {
             assert!(
                 document.contains(&format!("`{}`", entry.id)),
