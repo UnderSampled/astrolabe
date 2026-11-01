@@ -2,6 +2,22 @@
 
 The test supervisor in `tools/test.py` selects declared Rust tests, prepares fixtures, owns child processes, enforces bounded deadlines, and records a JSON report with cleanup and provenance. The checked-in `tools/test-manifest.json` declares test areas, prerequisites, fixture needs, release membership, and per-test deadlines. Discovery mismatches, missing selected prerequisites, skipped results, leaked child processes, and cleanup failures make a run fail.
 
+## The merge gate
+
+`python3 tools/gate.py` runs at merge points, not continuously. It takes about
+five minutes and asks one question: is this still a game?
+
+| Check | What it shows |
+| --- | --- |
+| Intro acceptance | The real menu, full New Game opening, dialogue, camera and handoff to physical movement |
+| Controls probe | Load Game, then turn, walk, run, jump and sword through physical keys, with a median frame time floor on real hardware |
+| Original comparison | Live original data against the parser, on a disposable copy of the prefix |
+
+The gate is capped at three checks and ten minutes. Adding a check means removing
+one. It prints every stand-in reached. Godot renders on the discrete GPU through
+a headless Gamescope, so no window opens. It doesn't replace `tools/test.py`,
+which is run when it answers a question.
+
 ## Run checks
 
 ```sh

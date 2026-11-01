@@ -10,14 +10,14 @@ distinguish implemented code from demonstrated gameplay.
 ## Open the native Godot project
 
 Requires Rust/Cargo, Godot **4.7.2**, and a local Hype game directory containing
-`Gamedata/` and `LangData/`. The example uses the ignored `disk/` directory;
+`Gamedata/` and `LangData/`. The example uses the ignored `disc/` directory;
 any mounted or extracted game directory can be supplied instead.
 
 From the repository root:
 
 ```sh
 cargo build --release --locked
-target/release/astrolabe prepare-game disk godot
+target/release/astrolabe prepare-game disc godot
 godot --editor --path godot
 ```
 
@@ -29,27 +29,20 @@ ownership if a later scope fails. Resolve the reported failure and repeat the
 command; authored files, edited generated files and unrelated levels retain
 the existing publication protections.
 
-Press **F5**, then choose **Load Game** for the supported saved-start slice or
-**New Game** for the incomplete original opening. Without prepared content,
-the project opens to setup instructions; its original menu artwork requires
-conversion. Load Game seeds a measured English-save fixture and restores the
-native save's supported checkpoint placement, life, armor, inventory, mana and
-world flag. Saving requires a settled grounded idle with gameplay controls
-released and no active projectiles. Older native slots remain readable; fields
-they omitted retain the fixture's seeded state until an explicit save upgrades
-the slot. General source save import and complete
-native persistence remain unfinished. New Game uses
-the full generated manor and compiled AI; saving during its unfinished opening
-is disabled.
+Press **F5**, then choose **New Game** for the opening or **Load Game** for the
+saved start. New Game plays the full converted opening with compiled AI and hands
+control to Hype. The player can then walk, run, jump, draw and swing the sword,
+and open the inventory. Fight outcomes, progression and the rest of the manor are
+not finished, and the game still needs work to be playable on an integrated GPU.
 
-Movement/contact, jump, sword selection and Fire casting have bounded evidence.
-Crossbow selection, aiming, ammunition, checkpoint contact and native free-flight
-cleanup also have [recorded evidence](./notes/crossbow-free-flight-2026-10-02.md).
-Enemy damage, original missed-shot expiry, spell contact/lifetime, death,
-source camera and complete intro/UI parity remain open. Open generated scenes
-and native animation libraries directly in the editor to inspect converted
-content. See the [game guide](./godot/README.md) and
-[native migration evidence](./notes/native-godot-migration.md).
+Load Game does not read an original savegame yet. It applies a measured fixture
+plus either the native slot or a small JSON written ahead of time by
+`astrolabe import-save`. Reading real save files is on the [plan](./plan.md).
+
+Calls the port can't perform yet run as documented
+[stand-ins](./docs/astrolabe/stand-ins.md), so the game keeps going. See the
+[game guide](./godot/README.md) and the
+[coverage notes](./notes/implementation-progress.md).
 
 ## How it works
 
@@ -68,11 +61,6 @@ from the local game copy. Downstream remaster projects can own their authored
 assets and depend on the same generated content. The archived C# implementations
 remain research references, independent of the Rust implementation.
 
-The [static port ledger](./notes/static-port-plan-2026-10-04.md) records the
-current survey, completed source translation batches and ordered remaining work.
-Its source-only changes have not yet received the deferred regression and
-gameplay pass. Earlier runtime evidence keeps its original scope.
-
 `port GAME PROJECT` remains the developer command for one selected asset scope:
 it defaults to scene conversion, accepts explicit level/locale selection, and
 supports `--content model`, `menu`, `inventory`, `pause-menu`, `textures` or `audio`.
@@ -80,7 +68,7 @@ supports `--content model`, `menu`, `inventory`, `pause-menu`, `textures` or `au
 To save and inspect Rete, then reconstruct supported source content:
 
 ```sh
-cargo run --release --locked -- import-openspace disk output/rete --level astrolabe --content model
+cargo run --release --locked -- import-openspace disc output/rete --level astrolabe --content model
 cargo run --release --locked -- inspect output/rete --asset level:/models/world/1/0/0 --kind model
 cargo run --release --locked -- export-godot output/rete output/godot-from-rete
 cargo run --release --locked -- export-openspace output/rete output/reconstructed
@@ -89,13 +77,24 @@ cargo run --release --locked -- formats
 
 Use `--content textures` or `--content audio` on `port`/`import-openspace` for standalone media; `--audio-file Gamedata/World/Sound/Achat.apm` selects a focused audio input. Full model reconstruction currently emits a controlled fragment with generated relocations, not a complete loadable level. `formats` and conversion reports describe writer restrictions.
 
-Run selected development checks or the complete release matrix with the repository test supervisor:
+Before merging, run the gate. It takes about five minutes and asks one question: is this still a game?
 
 ```sh
-python3 tools/test.py --local --game disk --offline
+python3 tools/gate.py
 ```
 
-Keep individual tests and active development-area checks bounded; the full release matrix may take longer. Use `python3 tools/test.py --offline` for synthetic checks, `python3 tools/test.py --local --offline` for the complete local corpus and Godot suite, and `python3 tools/test.py --release --offline` for the declared release matrix. Focused selections use `--area`. See [testing](./docs/astrolabe/testing.md) for commands and policy; current coverage and runtime evidence are recorded in [notes](./notes/implementation-progress.md).
+It needs a prepared project and `hype-harness/local`, and never touches the original install: the original runs from a disposable copy. Broader checks use the test supervisor, run when they answer a question. A full local run takes about 51 minutes:
+
+```sh
+python3 tools/test.py --area movement --local --offline
+python3 tools/test.py --local --offline
+```
+
+See [testing](./docs/astrolabe/testing.md) for commands and policy.
+
+## Direction
+
+**Carve out the major systems and placeholders first, then fill them out, approaching game parity.** The big things must work: the frame rate holds, the AI scripts fire, and the game is actually a game. Things that merely don't quite match the original can wait. The [plan](./plan.md) sets out the milestones and what is deliberately waiting.
 
 ## Goals
 
@@ -110,7 +109,7 @@ Keep individual tests and active development-area checks bounded; the full relea
 
 Develop needed converter-owned Godot shaders, components and engine functions alongside the exporter and OpenSpace/Model/Rete parity work, with clear ownership and tested interfaces. Design for a Godot developer in both the committed/dehydrated project and the rehydrated project containing locally converted assets; supported authored consumers can grow with those slices. Most AI engine functions can wait for the GDScript tests that need them, and Godot reverse import stays optional. See [Godot project structure and ownership](./docs/astrolabe/godot-project.md) for the maintained support package, native editing workflow and safe regeneration rules.
 
-Read the [Rust architecture](./docs/astrolabe/rust-architecture.md), [Rete asset design](./docs/rete/rete-design.md), and [ordered implementation plan and format matrix](./plan.md). The historical C# plan is preserved in [`reference/astrolabe-csharp/plan.md`](./reference/astrolabe-csharp/plan.md); the old Rete JSON specification and implementation checklists are research material. Current evidence and remaining limitations are in the [implementation report](./notes/implementation-progress.md).
+Read the [plan](./plan.md), the [Rust architecture](./docs/astrolabe/rust-architecture.md) and the [Rete asset design](./docs/rete/rete-design.md). The earlier plan and format matrix are in [notes/historical](./notes/historical/plan-2026-10.md). The historical C# plan is preserved in [`reference/astrolabe-csharp/plan.md`](./reference/astrolabe-csharp/plan.md); the old Rete JSON specification and implementation checklists are research material. Current evidence and remaining limitations are in the [implementation report](./notes/implementation-progress.md).
 
 ## References
 
@@ -140,7 +139,7 @@ notes/         Dated status, plans, experiments, handoffs, and historical resear
 reference/     Archived Astrolabe versions and third-party submodules
 tools/lzo1x/   Existing standalone C compressor helper
 tmp_probe/     Retained Python investigation scripts
-disk/          Local raw game data (gitignored; any source directory is accepted)
+disc/          Local raw game data (gitignored; any source directory is accepted)
 output/        Converted/exported assets (gitignored)
 ```
 
