@@ -335,10 +335,7 @@ impl ItemDecoder<'_> {
         };
         let answer = s.required(s.required(item, 4)?, 0)?;
         let answer_wire: AnswerWire = wire(s.bytes(answer, 80)?)?;
-        if s.pointer(answer, 24)?.is_some()
-            || answer_wire.branch != 0
-            || answer_wire.icon != -2
-        {
+        if s.pointer(answer, 24)?.is_some() || answer_wire.branch != 0 || answer_wire.icon != -2 {
             return Ok(ItemImport::Unsupported(format!(
                 "{name}: answer text, branching or icon behavior is not represented"
             )));

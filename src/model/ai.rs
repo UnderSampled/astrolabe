@@ -1574,7 +1574,10 @@ impl Script {
                 }
                 Expression::DistanceToPosition { receiver, point } => {
                     if let Some(ActorTarget::Reference(actor)) = receiver {
-                        ensure!(actor.path.member().is_none(), "distance receiver is a member");
+                        ensure!(
+                            actor.path.member().is_none(),
+                            "distance receiver is a member"
+                        );
                     }
                     if let Some(ActorTarget::Variable(variable)) = receiver {
                         ensure!(
@@ -1622,10 +1625,16 @@ impl Script {
                 }
                 Expression::HasCustomBit { actor, bit } => {
                     if let ActorTarget::Variable(variable) = actor {
-                        ensure!(usize::from(*variable) < variables, "custom-bit actor variable out of range");
+                        ensure!(
+                            usize::from(*variable) < variables,
+                            "custom-bit actor variable out of range"
+                        );
                     }
                     if let ActorTarget::Reference(actor) = actor {
-                        ensure!(actor.path.member().is_none(), "custom-bit actor is a member");
+                        ensure!(
+                            actor.path.member().is_none(),
+                            "custom-bit actor is a member"
+                        );
                     }
                     expression(bit, variables, depth + 1, count)?;
                 }
@@ -2078,10 +2087,16 @@ impl Script {
                     }
                     Statement::SetCustomBit { actor, bit, value } => {
                         if let ActorTarget::Variable(variable) = actor {
-                            ensure!(usize::from(*variable) < variables, "custom-bit actor variable out of range");
+                            ensure!(
+                                usize::from(*variable) < variables,
+                                "custom-bit actor variable out of range"
+                            );
                         }
                         if let ActorTarget::Reference(actor) = actor {
-                            ensure!(actor.path.member().is_none(), "custom-bit actor is a member");
+                            ensure!(
+                                actor.path.member().is_none(),
+                                "custom-bit actor is a member"
+                            );
                         }
                         expression(bit, variables, depth + 1, count)?;
                         expression(value, variables, depth + 1, count)?;
@@ -2092,7 +2107,10 @@ impl Script {
                         child,
                         ..
                     } => {
-                        ensure!(*channel <= u32::from(u16::MAX), "attachment channel exceeds source width");
+                        ensure!(
+                            *channel <= u32::from(u16::MAX),
+                            "attachment channel exceeds source width"
+                        );
                         expression(parent, variables, depth + 1, count)?;
                         expression(child, variables, depth + 1, count)?;
                     }
@@ -2106,7 +2124,11 @@ impl Script {
                             expression(value, variables, depth + 1, count)?;
                         }
                     }
-                    Statement::ChangeCameraFocal { actor, selector, value } => {
+                    Statement::ChangeCameraFocal {
+                        actor,
+                        selector,
+                        value,
+                    } => {
                         for value in [actor, selector, value] {
                             expression(value, variables, depth + 1, count)?;
                         }

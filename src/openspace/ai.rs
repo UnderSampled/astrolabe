@@ -1541,12 +1541,10 @@ impl Parser<'_> {
                     Expression::DistanceToPosition {
                         receiver: None,
                         point,
-                    } => {
-                        Expression::DistanceToPosition {
-                            receiver: Some(receiver),
-                            point,
-                        }
-                    }
+                    } => Expression::DistanceToPosition {
+                        receiver: Some(receiver),
+                        point,
+                    },
                     Expression::ActorRelativeZ { target, .. } => {
                         Expression::ActorRelativeZ { receiver, target }
                     }
@@ -2470,7 +2468,11 @@ impl Writer<'_> {
                         self.expression(value, indent + 1)?;
                     }
                 }
-                Statement::ChangeCameraFocal { actor, selector, value } => {
+                Statement::ChangeCameraFocal {
+                    actor,
+                    selector,
+                    value,
+                } => {
                     self.node(4, 158, indent);
                     for value in [actor, selector, value] {
                         self.expression(value, indent + 1)?;
@@ -2538,9 +2540,7 @@ impl Writer<'_> {
                     self.expression(mode, indent + 1)?;
                 }
                 Statement::DisplayVignetteAndReturnToMainMenu {
-                    name,
-                    milliseconds,
-                    ..
+                    name, milliseconds, ..
                 } => {
                     self.node(4, 307, indent);
                     let handle = self
@@ -2935,7 +2935,9 @@ impl Writer<'_> {
                     self.node(2, 24, indent);
                     match receiver {
                         ActorTarget::Keyword(ActorKeyword::SelfActor) => unreachable!(),
-                        ActorTarget::Keyword(ActorKeyword::MainActor) => self.node(0, 5, indent + 1),
+                        ActorTarget::Keyword(ActorKeyword::MainActor) => {
+                            self.node(0, 5, indent + 1)
+                        }
                         ActorTarget::Variable(variable) => {
                             self.node(11, u32::from(*variable), indent + 1)
                         }
@@ -3005,7 +3007,11 @@ impl Writer<'_> {
                 );
             }
             Expression::DistanceToPosition { receiver, point } => {
-                let inner = if receiver.is_some() { indent + 1 } else { indent };
+                let inner = if receiver.is_some() {
+                    indent + 1
+                } else {
+                    indent
+                };
                 if let Some(receiver) = receiver {
                     self.node(2, 24, indent);
                     self.expression(&Expression::Actor(receiver.clone()), inner)?;

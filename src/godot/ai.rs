@@ -72,8 +72,12 @@ pub(super) fn export_program(
     model.validate()?;
     for reference in model.sector_references() {
         let scene_reference = AssetRef::<crate::model::scene::Scene>::new(
-            reference.path.as_str().split_once('#')
-                .context("sector reference lacks its owning scene")?.0,
+            reference
+                .path
+                .as_str()
+                .split_once('#')
+                .context("sector reference lacks its owning scene")?
+                .0,
         )?;
         let scene = source.load(&scene_reference)?;
         scene.validate_reference(&scene_reference.path)?;
@@ -84,7 +88,8 @@ pub(super) fn export_program(
                     && node.sector.is_some()
             }),
             "{} names a missing sector component {}",
-            model.path, reference.path
+            model.path,
+            reference.path
         );
     }
     for variable in &model.variables {
@@ -498,7 +503,10 @@ fn compile_with_bindings(
                 out,
                 "const {} = preload({})",
                 vignette_constant(image),
-                quoted(&format!("res://generated/hype/textures/{}.png", image.path.file()))
+                quoted(&format!(
+                    "res://generated/hype/textures/{}.png",
+                    image.path.file()
+                ))
             )?;
         }
     }
@@ -1126,7 +1134,10 @@ fn raw_scalar_word(
     flow.local += 1;
     let pad = "    ".repeat(depth);
     let exit = flow.exit();
-    let failure = quoted(&format!("{} requires a scalar source DWORD sound operand", model.path));
+    let failure = quoted(&format!(
+        "{} requires a scalar source DWORD sound operand",
+        model.path
+    ));
     writeln!(
         out,
         "{pad}var sound_operand_{id}: Variant = {value}\n{pad}var sound_word_{id}: int\n{pad}if typeof(sound_operand_{id}) == TYPE_FLOAT:\n{pad}    var sound_bytes_{id} := PackedByteArray()\n{pad}    sound_bytes_{id}.resize(4)\n{pad}    sound_bytes_{id}.encode_float(0, sound_operand_{id})\n{pad}    sound_word_{id} = sound_bytes_{id}.decode_u32(0)\n{pad}elif typeof(sound_operand_{id}) in [TYPE_INT, TYPE_BOOL]:\n{pad}    sound_word_{id} = int(sound_operand_{id}) & 0xffffffff\n{pad}else:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
@@ -1156,7 +1167,10 @@ fn guarded_expression(
                 out,
                 "{pad}var {local}: Node3D = character().source_sector_node({})\n{pad}if not is_instance_valid({local}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
                 quoted(reference.path.as_str()),
-                quoted(&format!("{} requires named sector {}", model.path, reference.path))
+                quoted(&format!(
+                    "{} requires named sector {}",
+                    model.path, reference.path
+                ))
             )?;
             local
         }
@@ -1167,7 +1181,10 @@ fn guarded_expression(
             writeln!(
                 out,
                 "{pad}var sector_actor_{id}: Variant = {actor}\n{pad}if typeof(sector_actor_{id}) != TYPE_OBJECT or not is_instance_valid(sector_actor_{id}) or not sector_actor_{id}.has_method(\"source_sector_membership_ready\") or not sector_actor_{id}.source_sector_membership_ready():\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var captured_sector_{id}: Node3D = sector_actor_{id}.source_current_sector()",
-                quoted(&format!("{} SCT_ActorInSector requires the operand actor's bound sector holder", model.path))
+                quoted(&format!(
+                    "{} SCT_ActorInSector requires the operand actor's bound sector holder",
+                    model.path
+                ))
             )?;
             // 00535460 captures holder+4 before the second caller expression.
             // Read the maintained membership; this query performs no crossing.
@@ -1246,7 +1263,10 @@ fn guarded_expression(
             writeln!(
                 out,
                 "{pad}var bit_payload_{id} = {bit}\n{pad}if typeof(bit_payload_{id}) not in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL]:\n{pad}    fail_unsupported({})\n{pad}    {exit}",
-                quoted(&format!("{} requires a scalar custom-bit payload", model.path))
+                quoted(&format!(
+                    "{} requires a scalar custom-bit payload",
+                    model.path
+                ))
             )?;
             format!("bits_actor_{id}.source_has_custom_bit(bit_payload_{id})")
         }
@@ -1282,7 +1302,10 @@ fn guarded_expression(
             writeln!(
                 out,
                 "{pad}var distance_point_{id}: Vector3 = {point}\n{pad}if not (distance_actor_{id} is Node3D) or not is_instance_valid(distance_actor_{id}) or not distance_actor_{id}.is_inside_tree() or not distance_actor_{id}.has_method(\"source_position\") or not distance_point_{id}.is_finite():\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var distance_origin_{id}: Vector3 = distance_actor_{id}.source_position()\n{pad}var distance_value_{id}: float = (distance_point_{id} - distance_origin_{id}).length()\n{pad}if not distance_value_{id} > 0.0: distance_value_{id} = -distance_value_{id}\n{pad}distance_value_{id} = PackedFloat32Array([distance_value_{id}])[0]",
-                quoted(&format!("{} requires a finite actor-origin distance to position", model.path))
+                quoted(&format!(
+                    "{} requires a finite actor-origin distance to position",
+                    model.path
+                ))
             )?;
             format!("distance_value_{id}")
         }
@@ -1938,9 +1961,14 @@ fn guarded_expression(
             writeln!(
                 out,
                 "{pad}var angle_axis_{id} = {axis}\n{pad}if typeof(angle_first_{id}) != TYPE_VECTOR3 or typeof(angle_second_{id}) != TYPE_VECTOR3 or typeof(angle_axis_{id}) not in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL]:\n{pad}    fail_unsupported({})\n{pad}    {exit}",
-                quoted(&format!("{} requires two vectors and a scalar sign selector", model.path))
+                quoted(&format!(
+                    "{} requires two vectors and a scalar sign selector",
+                    model.path
+                ))
             )?;
-            format!("character().source_vector_angle(angle_first_{id}, angle_second_{id}, angle_axis_{id})")
+            format!(
+                "character().source_vector_angle(angle_first_{id}, angle_second_{id}, angle_axis_{id})"
+            )
         }
         Expression::Negate(value) => format!(
             "(-float({}))",
@@ -2314,7 +2342,10 @@ fn blocking(
         writeln!(
             out,
             "{pad}var pursuit_actor_{id}: Variant = {value}\n{pad}if not (pursuit_actor_{id} is Node3D) or not is_instance_valid(pursuit_actor_{id}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
-            quoted(&format!("{} requires a captured native actor for Pursuit", model.path))
+            quoted(&format!(
+                "{} requires a captured native actor for Pursuit",
+                model.path
+            ))
         )?;
         Some(format!("pursuit_actor_{id}"))
     } else {
@@ -2337,7 +2368,10 @@ fn blocking(
         let to = guarded_expression(out, to, model, depth, flow)?;
         writeln!(out, "{pad}var lift_to_{id}: Vector3 = {to}")?;
         let duration = guarded_expression(out, duration_seconds, model, depth, flow)?;
-        writeln!(out, "{pad}var lift_duration_{id}: float = float({duration})")?;
+        writeln!(
+            out,
+            "{pad}var lift_duration_{id}: float = float({duration})"
+        )?;
     }
     let operand = match statement {
         Statement::Wait { milliseconds } => {
@@ -2553,7 +2587,9 @@ fn blocking(
     writeln!(out, "{pad}        await {}", flow.tick())?;
     if matches!(
         statement,
-        Statement::GoToPosition { .. } | Statement::GoToNextWaypoint(_) | Statement::PursueActor { .. }
+        Statement::GoToPosition { .. }
+            | Statement::GoToNextWaypoint(_)
+            | Statement::PursueActor { .. }
     ) {
         // Query the completed request before cancellation clears its state.
         // A later reached unsupported link must stop the compiled caller.
@@ -2998,7 +3034,10 @@ fn statements(
                 writeln!(
                     out,
                     "{pad}var turn_actor_{id}: Variant = {value}\n{pad}if not (turn_actor_{id} is Node3D) or not is_instance_valid(turn_actor_{id}) or not character().source_turn_toward(turn_actor_{id}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
-                    quoted(&format!("{} requires a native actor and mechanics for TurnPerso", model.path))
+                    quoted(&format!(
+                        "{} requires a native actor and mechanics for TurnPerso",
+                        model.path
+                    ))
                 )?;
             }
             Statement::ActivateActorAtPosition { actor, point } => {
@@ -3010,7 +3049,10 @@ fn statements(
                 writeln!(
                     out,
                     "{pad}var activate_point_{id}: Vector3 = {point}\n{pad}if not (activate_actor_{id} is Node3D) or not is_instance_valid(activate_actor_{id}) or not activate_actor_{id}.has_method(\"source_activate_at_position\") or not bool(activate_actor_{id}.call(\"source_activate_at_position\", activate_point_{id})):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
-                    quoted(&format!("{} requires a supported native contact reset and activation", model.path))
+                    quoted(&format!(
+                        "{} requires a supported native contact reset and activation",
+                        model.path
+                    ))
                 )?;
             }
             Statement::SetVectorSpeed(value)
@@ -3070,7 +3112,10 @@ fn statements(
                 writeln!(
                     out,
                     "{pad}if not character().source_kill():\n{pad}    fail_unsupported({})\n{pad}{exit}",
-                    quoted(&format!("{} requires supported actor removal policy", model.path))
+                    quoted(&format!(
+                        "{} requires supported actor removal policy",
+                        model.path
+                    ))
                 )?;
             }
             Statement::PlayerIsDead => {
@@ -3446,7 +3491,10 @@ fn statements(
                     out,
                     "{pad}if not character().source_camera_reset({}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
                     quoted(camera.path.as_str()),
-                    quoted(&format!("{} requires a native camera initial framing reset", model.path))
+                    quoted(&format!(
+                        "{} requires a native camera initial framing reset",
+                        model.path
+                    ))
                 )?;
             }
             Statement::CameraChangeState { camera, state } => {
@@ -3550,7 +3598,10 @@ fn statements(
                 writeln!(
                     out,
                     "{pad}var bit_value_{id} = {value}\n{pad}if typeof(bit_payload_{id}) not in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL] or typeof(bit_value_{id}) not in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL]:\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}bits_actor_{id}.source_change_custom_bit(bits_before_{id}, bit_payload_{id}, bit_value_{id})",
-                    quoted(&format!("{} requires scalar custom-bit operands", model.path))
+                    quoted(&format!(
+                        "{} requires scalar custom-bit operands",
+                        model.path
+                    ))
                 )?;
             }
             Statement::SetChannelParent {
@@ -3567,7 +3618,10 @@ fn statements(
                 writeln!(
                     out,
                     "{pad}var channel_child_{id} = {child}\n{pad}if typeof(channel_parent_{id}) != TYPE_OBJECT or not is_instance_valid(channel_parent_{id}) or not (channel_parent_{id} is Node3D) or typeof(channel_child_{id}) != TYPE_OBJECT or not is_instance_valid(channel_child_{id}) or not channel_child_{id}.has_method(\"source_set_channel_parent\") or not channel_child_{id}.source_set_channel_parent(channel_parent_{id}, {channel}, {attached}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
-                    quoted(&format!("{} requires native child-channel attachment", model.path))
+                    quoted(&format!(
+                        "{} requires native child-channel attachment",
+                        model.path
+                    ))
                 )?;
             }
             Statement::SelectViewportCamera {
@@ -3578,7 +3632,12 @@ fn statements(
             } => {
                 let id = flow.local;
                 flow.local += 1;
-                for (name, value) in [("viewport", viewport), ("previous", previous_policy), ("placement", placement_policy), ("actor", actor)] {
+                for (name, value) in [
+                    ("viewport", viewport),
+                    ("previous", previous_policy),
+                    ("placement", placement_policy),
+                    ("actor", actor),
+                ] {
                     let value = guarded_expression(out, value, model, depth, flow)?;
                     writeln!(out, "{pad}var camera_{name}_{id} = {value}")?;
                 }
@@ -3586,10 +3645,17 @@ fn statements(
                     out,
                     "{pad}if typeof(camera_actor_{id}) != TYPE_OBJECT or not is_instance_valid(camera_actor_{id}) or not (camera_actor_{id} is Node3D):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var selected_camera_{id} = camera_actor_{id}.get_node_or_null(\"SourceCamera\")\n{pad}if selected_camera_{id} == null or not selected_camera_{id}.has_method(\"source_select_primary\") or typeof(camera_viewport_{id}) not in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL] or typeof(camera_previous_{id}) not in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL] or typeof(camera_placement_{id}) not in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL] or not selected_camera_{id}.source_select_primary(camera_viewport_{id}, camera_previous_{id}, camera_placement_{id}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
                     quoted(&format!("{} requires a native camera actor", model.path)),
-                    quoted(&format!("{} requires supported primary-camera selection", model.path))
+                    quoted(&format!(
+                        "{} requires supported primary-camera selection",
+                        model.path
+                    ))
                 )?;
             }
-            Statement::ChangeCameraFocal { actor, selector, value } => {
+            Statement::ChangeCameraFocal {
+                actor,
+                selector,
+                value,
+            } => {
                 let id = flow.local;
                 flow.local += 1;
                 let actor = guarded_expression(out, actor, model, depth, flow)?;
@@ -3598,7 +3664,10 @@ fn statements(
                     "{pad}var focal_actor_{id} = {actor}\n{pad}if typeof(focal_actor_{id}) != TYPE_OBJECT or not is_instance_valid(focal_actor_{id}) or not (focal_actor_{id} is Node3D):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var focal_camera_{id} = focal_actor_{id}.get_node_or_null(\"SourceCamera\")\n{pad}if focal_camera_{id} == null or not focal_camera_{id}.has_method(\"source_focal_registered\"):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var focal_registered_{id} = focal_camera_{id}.source_focal_registered()\n{pad}if focal_registered_{id} == null:\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}if focal_registered_{id}:",
                     quoted(&format!("{} requires a native focal actor", model.path)),
                     quoted(&format!("{} requires a native focal camera", model.path)),
-                    quoted(&format!("{} requires a supported camera focal preset", model.path))
+                    quoted(&format!(
+                        "{} requires a supported camera focal preset",
+                        model.path
+                    ))
                 )?;
                 let selector = guarded_expression(out, selector, model, depth + 1, flow)?;
                 writeln!(out, "{pad}    var focal_selector_{id} = {selector}")?;
@@ -3606,7 +3675,10 @@ fn statements(
                 writeln!(
                     out,
                     "{pad}    var focal_value_{id} = {value}\n{pad}    if typeof(focal_selector_{id}) not in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL] or typeof(focal_value_{id}) not in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL] or not focal_camera_{id}.source_change_focal(focal_selector_{id}, focal_value_{id}):\n{pad}        fail_unsupported({})\n{pad}        {exit}",
-                    quoted(&format!("{} requires supported source focal values", model.path))
+                    quoted(&format!(
+                        "{} requires supported source focal values",
+                        model.path
+                    ))
                 )?;
             }
             Statement::CameraResetVerticalMaximum { actor } => {
@@ -3616,8 +3688,14 @@ fn statements(
                 writeln!(
                     out,
                     "{pad}var bound_actor_{id} = {actor}\n{pad}if typeof(bound_actor_{id}) != TYPE_OBJECT or not is_instance_valid(bound_actor_{id}) or not (bound_actor_{id} is Node3D):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}var bound_camera_{id} = bound_actor_{id}.get_node_or_null(\"SourceCamera\")\n{pad}if bound_camera_{id} == null or not bound_camera_{id}.has_method(\"source_reset_vertical_maximum\") or not bound_camera_{id}.source_reset_vertical_maximum():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
-                    quoted(&format!("{} requires a native camera actor for vertical maximum reset", model.path)),
-                    quoted(&format!("{} requires an actor-owned camera vertical bound", model.path))
+                    quoted(&format!(
+                        "{} requires a native camera actor for vertical maximum reset",
+                        model.path
+                    )),
+                    quoted(&format!(
+                        "{} requires an actor-owned camera vertical bound",
+                        model.path
+                    ))
                 )?;
             }
             Statement::SetSelfAbsolutePosition(position) => {
@@ -4050,7 +4128,10 @@ fn statements(
                 writeln!(
                     out,
                     "{pad}if not sound_set_my_effects_volume({value}):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}if not active_{group}(token): {exit}",
-                    quoted(&format!("{} requires the caller's native effects emitter", model.path))
+                    quoted(&format!(
+                        "{} requires the caller's native effects emitter",
+                        model.path
+                    ))
                 )?;
             }
             Statement::SoundFadeObjectAndStop {
@@ -4063,13 +4144,20 @@ fn statements(
                 let receiver = format!("sound_receiver_{id}");
                 // Ultra selection precedes both caller-context evaluations.
                 // Resolve the emitter only after those operands have run.
-                writeln!(out, "{pad}var {receiver}: Node3D = {}", actor_target_code(actor))?;
+                writeln!(
+                    out,
+                    "{pad}var {receiver}: Node3D = {}",
+                    actor_target_code(actor)
+                )?;
                 let target = raw_scalar_word(out, target, model, depth, flow)?;
                 let duration = raw_scalar_word(out, duration_ms, model, depth, flow)?;
                 writeln!(
                     out,
                     "{pad}if not sound_fade_object_and_stop({receiver}, {target}, {duration}):\n{pad}    fail_unsupported({})\n{pad}    {exit}\n{pad}if not active_{group}(token): {exit}",
-                    quoted(&format!("{} requires a native effects fade receiver and positive signed duration", model.path))
+                    quoted(&format!(
+                        "{} requires a native effects fade receiver and positive signed duration",
+                        model.path
+                    ))
                 )?;
             }
             Statement::SoundFadeInObject {

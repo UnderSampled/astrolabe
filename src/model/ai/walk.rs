@@ -216,9 +216,16 @@ impl<'a> Iterator for AstWalk<'a> {
                     placement_policy,
                     actor,
                 } => {
-                    self.expressions(child_depth, &[viewport, previous_policy, placement_policy, actor]);
+                    self.expressions(
+                        child_depth,
+                        &[viewport, previous_policy, placement_policy, actor],
+                    );
                 }
-                Statement::ChangeCameraFocal { actor, selector, value } => {
+                Statement::ChangeCameraFocal {
+                    actor,
+                    selector,
+                    value,
+                } => {
                     self.expressions(child_depth, &[actor, selector, value]);
                 }
                 Statement::CameraResetVerticalMaximum { actor } => {

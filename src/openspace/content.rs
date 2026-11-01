@@ -387,15 +387,32 @@ fn bind_ai_vignettes(
 ) -> Result<()> {
     use crate::model::ai::{Statement, walk::AstNode};
     let requested = models.iter().any(|model| {
-        [&model.normal, &model.reflex].into_iter().flatten()
+        [&model.normal, &model.reflex]
+            .into_iter()
+            .flatten()
             .flat_map(|set| &set.behaviors)
-            .flat_map(|behavior| behavior.rules.iter().flatten().chain(behavior.schedule.iter()))
+            .flat_map(|behavior| {
+                behavior
+                    .rules
+                    .iter()
+                    .flatten()
+                    .chain(behavior.schedule.iter())
+            })
             .flat_map(|script| script.walk())
-            .any(|(node, _)| matches!(node, AstNode::Statement(Statement::DisplayVignetteAndReturnToMainMenu { .. })))
+            .any(|(node, _)| {
+                matches!(
+                    node,
+                    AstNode::Statement(Statement::DisplayVignetteAndReturnToMainMenu { .. })
+                )
+            })
     });
-    if !requested { return Ok(()); }
-    let archive = codec::Cnt { usage: TextureUsage::Screen }
-        .read(&read(&game.join("Gamedata/Vignette.cnt"))?)?;
+    if !requested {
+        return Ok(());
+    }
+    let archive = codec::Cnt {
+        usage: TextureUsage::Screen,
+    }
+    .read(&read(&game.join("Gamedata/Vignette.cnt"))?)?;
     fn bind(
         statements: &mut [Statement],
         imported: &mut Imported,
@@ -404,20 +421,30 @@ fn bind_ai_vignettes(
     ) -> Result<()> {
         for statement in statements {
             match statement {
-                Statement::If { then, otherwise, .. } => {
+                Statement::If {
+                    then, otherwise, ..
+                } => {
                     bind(then, imported, archive, locale)?;
-                    if let Some(otherwise) = otherwise { bind(otherwise, imported, archive, locale)?; }
+                    if let Some(otherwise) = otherwise {
+                        bind(otherwise, imported, archive, locale)?;
+                    }
                 }
                 Statement::DisplayVignetteAndReturnToMainMenu { name, image, .. } => {
                     // Original vignette loader inserts the selected language
                     // after Multilanguage\\ and replaces the source extension.
                     let normalized = name.replace('\\', "/");
                     let source = if normalized.to_lowercase().starts_with("multilanguage/") {
-                        ensure!(locale == "en", "vignette language binding requires evidenced English locale");
+                        ensure!(
+                            locale == "en",
+                            "vignette language binding requires evidenced English locale"
+                        );
                         format!("MultiLanguage/English/{}", &normalized[14..])
-                    } else { normalized };
+                    } else {
+                        normalized
+                    };
                     let source = Path::new(&source).with_extension("gf");
-                    let entry = archive.find_entry(&source.to_string_lossy())
+                    let entry = archive
+                        .find_entry(&source.to_string_lossy())
                         .with_context(|| format!("required AI vignette absent: {name}"))?;
                     *image = Some(entry.texture.clone());
                     if !imported.assets.contains(&entry.texture.path) {
@@ -432,8 +459,18 @@ fn bind_ai_vignettes(
     for model in models {
         for set in [&mut model.normal, &mut model.reflex].into_iter().flatten() {
             for behavior in &mut set.behaviors {
-                for script in behavior.rules.iter_mut().flatten().chain(behavior.schedule.iter_mut()) {
-                    bind(&mut script.statements, imported, &archive, &selection.locale)?;
+                for script in behavior
+                    .rules
+                    .iter_mut()
+                    .flatten()
+                    .chain(behavior.schedule.iter_mut())
+                {
+                    bind(
+                        &mut script.statements,
+                        imported,
+                        &archive,
+                        &selection.locale,
+                    )?;
                 }
             }
         }

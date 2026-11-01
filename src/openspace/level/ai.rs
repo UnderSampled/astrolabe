@@ -625,7 +625,8 @@ fn decode_set(
                             slot.as_ref()
                                 .map(|script| {
                                     decode_script(
-                                        s, sounds, states, actors, waypoints, sectors, behaviors, script,
+                                        s, sounds, states, actors, waypoints, sectors, behaviors,
+                                        script,
                                     )
                                 })
                                 .transpose()
@@ -635,7 +636,9 @@ fn decode_set(
                         .schedule
                         .as_ref()
                         .map(|script| {
-                            decode_script(s, sounds, states, actors, waypoints, sectors, behaviors, script)
+                            decode_script(
+                                s, sounds, states, actors, waypoints, sectors, behaviors, script,
+                            )
                         })
                         .transpose()?,
                     unknown: b.unknown,
@@ -1055,14 +1058,32 @@ pub(super) fn import(
                 normal: sets[0]
                     .as_ref()
                     .map(|set| {
-                        decode_set(s, &sounds, states, actors, &waypoints, &sectors, &behavior_index, set)
+                        decode_set(
+                            s,
+                            &sounds,
+                            states,
+                            actors,
+                            &waypoints,
+                            &sectors,
+                            &behavior_index,
+                            set,
+                        )
                     })
                     .transpose()
                     .with_context(|| format!("AI model {path} normal behavior set"))?,
                 reflex: sets[1]
                     .as_ref()
                     .map(|set| {
-                        decode_set(s, &sounds, states, actors, &waypoints, &sectors, &behavior_index, set)
+                        decode_set(
+                            s,
+                            &sounds,
+                            states,
+                            actors,
+                            &waypoints,
+                            &sectors,
+                            &behavior_index,
+                            set,
+                        )
                     })
                     .transpose()
                     .with_context(|| format!("AI model {path} reflex behavior set"))?,

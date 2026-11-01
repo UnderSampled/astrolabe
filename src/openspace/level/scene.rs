@@ -108,7 +108,9 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
             let component = session.required(node.address, SuperObjectWire::DATA)?;
             let _: SectorWire = wire(session.bytes(component, 160)?)?;
             ensure!(
-                sector_nodes.insert(node.address, node.path.clone()).is_none(),
+                sector_nodes
+                    .insert(node.address, node.path.clone())
+                    .is_none(),
                 "sector node occurs more than once"
             );
         }
