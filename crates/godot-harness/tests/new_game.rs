@@ -43,7 +43,7 @@ fn menu_new_game_preserves_slot_and_restarts_original_opening() -> Result<()> {
         "generated/astrolabe-manifest.json",
         "generated/hype/levels/manoir/ai/models/154.gd",
         "generated/hype/levels/manoir/ai/models/210.gd",
-        "generated/hype/levels/manoir/ai/models/28.gd",
+        "generated/hype/levels/manoir/ai/models/fix/28.gd",
     ] {
         fs::copy(
             project.join(name),
