@@ -201,7 +201,7 @@ fn unresolved_modulus_calls_remain_preserved_and_guarded() -> Result<()> {
     assert_eq!(reopened, model);
 
     let code = godot::ai::compile(&reopened, &[])?;
-    assert!(code.contains("fail_unsupported("));
+    assert!(code.contains("stand_in("));
     assert!(code.contains(
         "source AI node 6: unsupported AI expression category 3 operation 188 at node 6"
     ));

@@ -1682,7 +1682,12 @@ fn guarded_expression(
                 quoted(&stand_in_id),
                 quoted(&format!(
                     "{} source AI node {}{}: {} [{}: {}]",
-                    model.path, fragment.start, receiver, fragment.reason, stand_in.name, stand_in.guess
+                    model.path,
+                    fragment.start,
+                    receiver,
+                    fragment.reason,
+                    stand_in.name,
+                    stand_in.guess
                 ))
             )?;
             local
@@ -4322,7 +4327,12 @@ fn statements(
                     quoted(&stand_in_id),
                     quoted(&format!(
                         "{} source AI node {}{}: {} [{}: {}]",
-                        model.path, fragment.start, receiver, fragment.reason, stand_in.name, stand_in.guess
+                        model.path,
+                        fragment.start,
+                        receiver,
+                        fragment.reason,
+                        stand_in.name,
+                        stand_in.guess
                     ))
                 )?;
             }

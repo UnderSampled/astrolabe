@@ -966,7 +966,7 @@ fn unsupported_source_script_survives_rete_without_becoming_executable() -> Resu
     );
     let code = godot::ai::compile(&reopened, &[])?;
     assert!(code.contains("normal_0_rule_0"));
-    assert!(code.contains("fail_unsupported"));
+    assert!(code.contains("stand_in("));
     assert!(code.contains("source AI node 3: category 1 operation 99"));
     Ok(())
 }
@@ -1330,7 +1330,7 @@ fn source_laser_pointer_fly_mode_round_trips_and_updates_native_state() -> Resul
     let mut model = model()?;
     model.normal.as_mut().unwrap().behaviors[0].schedule = Some(script);
     let model = rete::decode::<AiModel>(&rete::encode(&model)?)?;
-    assert_eq!(rete::SCHEMA, 63);
+    assert_eq!(rete::SCHEMA, 64);
     let code = godot::ai::compile(&model, &[])?;
     assert!(
         code.contains("source_set_laser_pointer_fly_mode(bool(0))"),

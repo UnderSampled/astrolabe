@@ -224,7 +224,7 @@ mod tests {
         );
         assert_eq!(
             for_reason("unbound absolute waypoint position").1,
-            "generic-untyped"
+            "unbound-waypoint"
         );
         let document = include_str!("../../docs/astrolabe/stand-ins.md");
         assert!(document.contains("`unbound-waypoint`"));
