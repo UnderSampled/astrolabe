@@ -35,6 +35,12 @@ static func to_state(config: ConfigFile, actor: String, global: String) -> Dicti
 			hype["inventory"]["quantities"][key.trim_prefix("item_")] = config.get_value(INVENTORY, key)
 		else:
 			hype["inventory"][key] = config.get_value(INVENTORY, key)
+	# The original inventory records one handle_selected flag per item; an
+	# Object flag selects the HUD/AI Object (Func_Inv_GetObject, 0041d890).
+	for section in config.get_sections():
+		if section.begins_with("player/inventory/Object_") and int(config.get_value(section, "handle_selected", 0)) == 1:
+			hype["inventory"]["selected_object"] = int(section.trim_prefix("player/inventory/Object_"))
+			break
 	var actors := {actor: hype}
 	var world := {}
 	for section in config.get_sections():

@@ -10,6 +10,7 @@ signal locale_fallback(requested: String, selected: String)
 @onready var location_title: Control = $Canvas/LocationTitle
 var active_presentation: Control
 @onready var hud: Control = $Canvas/Hud
+var hud_slots: Control
 @onready var bars: Control = $Canvas/Letterbox
 @onready var fade: ColorRect = $Canvas/Fade
 var widescreen: bool = false
@@ -33,6 +34,8 @@ func _process(_delta: float) -> void:
 
 func _ready() -> void:
     source_level = get_parent()
+    hud_slots = (load("res://addons/astrolabe/ui/hud_slots.gd") as GDScript).new()
+    hud.add_child(hud_slots)
     _authored_items.assign(dialogue_items)
     if adopt_parent_screen:
         var ancestor: Node = get_parent()
@@ -51,7 +54,9 @@ func _ready() -> void:
     get_viewport().size_changed.connect(_layout)
     _register_catalogues()
     _layout()
-    if not actor_path.is_empty(): hud.bind_actor(get_node_or_null(actor_path))
+    if not actor_path.is_empty():
+        hud.bind_actor(get_node_or_null(actor_path))
+        hud_slots.bind_actor(get_node_or_null(actor_path))
 
 func adopt_level(level: Node, items: Array[Resource], actor: Node) -> bool:
     # Authored scene composition chooses one active level. Never steal another
@@ -62,6 +67,7 @@ func adopt_level(level: Node, items: Array[Resource], actor: Node) -> bool:
     dialogue_items.assign(items)
     _register_catalogues()
     hud.bind_actor(actor)
+    hud_slots.bind_actor(actor)
     return true
 
 func release_level(level: Node) -> void:
@@ -71,6 +77,7 @@ func release_level(level: Node) -> void:
     dialogue_items.assign(_authored_items)
     _register_catalogues()
     hud.bind_actor(null)
+    hud_slots.bind_actor(null)
 
 func _register_catalogues() -> void:
     for catalogue in _catalogues: TranslationServer.remove_translation(catalogue)
@@ -85,6 +92,7 @@ func _layout() -> void:
     bars.visible = widescreen
     hud.suppressed = widescreen
     hud.refresh()
+    hud_slots.suppressed = widescreen
     fade.position = Vector2(0, 60 if widescreen else 0)
     fade.size = Vector2(640, 360 if widescreen else 480)
 

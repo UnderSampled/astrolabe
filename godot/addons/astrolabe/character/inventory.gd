@@ -262,9 +262,10 @@ func add_actor_object(target: Node) -> int:
     if stock_bound is bool and stock_bound: return 0
     return _failure("Pickup actor has no native stock binding.")
 
-func restore_legacy(weapon: int, amounts: Dictionary) -> String:
+func restore_legacy(weapon: int, amounts: Dictionary, object: int = -1) -> String:
     if not source_initialized:
         selected_weapon = weapon
+        if object >= 0: selected_object = object
         quantities = amounts.duplicate()
         return ""
     # Sparse ID saves cannot identify distinct members with repeated IDs.
@@ -297,9 +298,14 @@ func restore_legacy(weapon: int, amounts: Dictionary) -> String:
         var value := _definition(weapon)
         if value == null or value.kind != "Weapon" or not amounts.has(weapon):
             return "Saved weapon is outside the owned source inventory."
+    if object >= 0:
+        var selected := _definition(object)
+        if selected == null or selected.kind != "Object" or not amounts.has(object):
+            return "Saved Object is outside the owned source inventory."
     for value: DEFINITION_SCRIPT in definitions:
         value.quantity = int(amounts.get(value.item_id, value.quantity))
         if value.kind == "Weapon": value.selected = value.item_id == weapon
+        if value.kind == "Object" and object >= 0: value.selected = value.item_id == object
     admission_known = unresolved.is_empty()
     legacy_owned_ids.clear()
     if not admission_known:

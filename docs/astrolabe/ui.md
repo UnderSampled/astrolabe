@@ -240,6 +240,22 @@ the source layout or texture join does not validate. Legacy Rete HUD values
 with the former incorrect offsets remain inspection-only and cannot be saved
 or exported. Scene, menu and save imports remain independent.
 
+The selected Object and Weapon slots are drawn by `addons/astrolabe/ui/hud_slots.gd`,
+which `screen.gd` adds under the HUD. `FUN_0040cb50` draws the selected Object's
+inventory image (`FUN_0041d890`, kind "Object") at Fix.sda row 22, (269,404) 48x60,
+and `FUN_0040ca40` the selected Weapon image at row 10, (10,360) 48x48, with its
+count; each is gated by the AI's `Stats_DisplayMainActorSelectedObject` / `...Weapon`
+request. The earlier table above had the two roles swapped. The Load Game
+route requests only the Object slot (the original save selects the Gogoud key,
+`Object_21`), so the key shows and nothing else, as in the original. The legacy
+original-save restore now carries the selected Object flag (`restore_legacy`).
+Documented gaps: the weapon count text offsets (Fix.gpt) are not extracted, so
+the count sits under the image; the stone frame at the bottom of the original
+Object slot is panel descriptor 3 (4 layer records, activated by
+`FUN_0040c150(3)` before the Object draw) and is not yet exported because
+panel layers are not retained by the HUD reader; life/armor/magic images are
+not wired to `hud_slots`.
+
 Final Godot keyed/upload behavior and pixel parity remain unverified. The
 current actor binding does not yet connect enemy bar values or the other
 source HUD indicators (armor, magic, selected object, weapon). No gameplay or

@@ -178,13 +178,15 @@ static func validate(value: Variant) -> String:
     var inventory: Variant = player.get("inventory")
     if not inventory is Dictionary:
         return "Save has invalid inventory selection."
-    var inventory_fields: Array[String] = ["selected_weapon", "quantities", "snapshot"]
+    var inventory_fields: Array[String] = ["selected_weapon", "selected_object", "quantities", "snapshot"]
     if schema == 1: inventory_fields.append("gold")
     if not _only_keys(inventory, inventory_fields):
         return "Save has unsupported inventory state."
     if inventory.has("gold") and (inventory.has("snapshot") or not _integer(inventory["gold"], 0, 32767)):
         return "Save has invalid independently owned gold state."
     if inventory.has("selected_weapon") and not _integer(inventory.get("selected_weapon"), -1, 32767):
+        return "Save has invalid inventory selection."
+    if inventory.has("selected_object") and not _integer(inventory.get("selected_object"), -1, 32767):
         return "Save has invalid inventory selection."
     var quantities: Variant = inventory.get("quantities")
     if not quantities is Dictionary:
@@ -843,7 +845,7 @@ static func _restore_inventory(inventory: Resource, saved: Dictionary) -> String
         if not _integer(gold, 0, 32767) or int(gold) > int(definition.get("maximum")):
             return "Saved gold exceeds the source resource capacity."
     var weapon := int(saved.get("selected_weapon", inventory.get("selected_weapon")))
-    var error: String = inventory.call("restore_legacy", weapon, amounts)
+    var error: String = inventory.call("restore_legacy", weapon, amounts, int(saved.get("selected_object", -1)))
     if not error.is_empty(): return error
     if gold != null: inventory.set("gold", int(gold))
     return ""
