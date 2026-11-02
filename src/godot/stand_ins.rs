@@ -92,7 +92,7 @@ pub(super) const STAND_INS: &[StandIn] = &[
         "4-336",
         "Proc_ActivateSaveGameMotorMode",
         "",
-        "the authored F5 save owns saving",
+        "save the game through the authored save",
     ),
     entry(
         "4-271",
@@ -180,6 +180,14 @@ const WAYPOINT: StandIn = entry(
     "Vector3.ZERO",
     "read the level origin as the waypoint",
 );
+
+/// A stand-in's guess can be an action as well as a skipped call.
+pub(super) fn effect(id: &str) -> Option<&'static str> {
+    match id {
+        "4-336" => Some("source_game_session().call(\"save_game\")"),
+        _ => None,
+    }
+}
 
 const GENERIC: StandIn = entry(
     "generic",

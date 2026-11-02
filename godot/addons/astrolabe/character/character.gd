@@ -178,7 +178,9 @@ func _ready() -> void:
     if source_laser_pointer == null:
         source_laser_pointer = SOURCE_LASER_POINTER.new()
     _bind_source_configuration()
-    if motion_enabled: _configure_motion()
+    if motion_enabled:
+        _configure_motion()
+        _collide_with_actor_zones()
     # Selection only; the saved initial pose is usable without this callback.
     if autoplay and initial_state >= 0:
         select_state(initial_state)
@@ -1281,7 +1283,24 @@ func source_see_perso(receiver: Node3D, target: Node3D) -> bool:
     return get_world_3d().direct_space_state.intersect_ray(query).is_empty()
 
 func source_collide_with_ground() -> bool:
-    return is_on_floor()
+    if is_on_floor(): return true
+    # Resting items have no movement shape, so they never report a native floor.
+    if _has_movement_shape(): return false
+    var from := global_position + Vector3.UP * 0.25
+    var query := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * 1.0, 1)
+    return not get_world_3d().direct_space_state.intersect_ray(query).is_empty()
+
+func _has_movement_shape() -> bool:
+    for child in get_children():
+        if child is CollisionShape3D and not child.disabled: return true
+    return false
+
+## Original actors stop against each other's reaction zones, layer 8, but an
+## actor's own zones must not block it.
+func _collide_with_actor_zones() -> void:
+    collision_mask |= 8
+    var own := get_node_or_null("ZDR")
+    if own is PhysicsBody3D: add_collision_exception_with(own)
 
 ## The mechanics collision path reports a contact result after each movement
 ## step. CharacterBody3D publishes the corresponding native result through its

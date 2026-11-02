@@ -44,7 +44,7 @@ row here. Replace them in order of what blocks play.
 | `4-438` | Magic_SelectNextSpellType | Spell is kept | Cycle the spell type |
 | `4-334` | Proc_ActivateInventoryMotorMode | Authored Tab host owns the screen | Open it from AI |
 | `4-374` | Proc_ActivateMapMotorMode | Map does not open | Native map screen |
-| `4-336` | Proc_ActivateSaveGameMotorMode | Authored F5 save owns saving | Open the source save flow |
+| `4-336` | Proc_ActivateSaveGameMotorMode | Save the game through the authored save | Open the source save flow |
 | `4-271` | Map_vSetDestination | Not recorded | Native map state |
 | `4-272` | Map_vResetDestination | Not recorded | Native map state |
 | `4-153` | Procedure_Camera_ChangeAngle | Keep native camera tuning | Drive source_camera.gd |

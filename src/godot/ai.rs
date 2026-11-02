@@ -4335,6 +4335,9 @@ fn statements(
                         stand_in.guess
                     ))
                 )?;
+                if let Some(effect) = super::stand_ins::effect(&stand_in_id) {
+                    writeln!(out, "{pad}{effect}")?;
+                }
             }
         }
     }

@@ -158,6 +158,8 @@ func _make_variant(material: StandardMaterial3D, material_path: String, diffuse:
 	result.set_shader_parameter("source_uv_offset", Vector2(material.uv1_offset.x, material.uv1_offset.y))
 	var scissor := source_transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
 	result.set_shader_parameter("source_alpha_scissor_threshold", material.alpha_scissor_threshold if scissor else 0.0)
+	# Actor fades read this back; an unset parameter reads as null, not the shader default.
+	result.set_shader_parameter("source_opacity", 1.0)
 	result.set_meta("source_material_path", material_path)
 	result.set_meta("source_material_flags", material.get_meta("source_material_flags", 0))
 	result.set_meta("source_texture_flags", material.get_meta("source_texture_flags", 0))
