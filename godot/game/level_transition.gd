@@ -20,6 +20,7 @@ var _active_entry := ""
 var _session: Node
 var _initial_request := false
 var _session_transition_started := false
+var _load_retried := false
 var _resource_loading := false
 var _saved_loading_max_fps := -1
 
@@ -114,6 +115,14 @@ func _load_and_install(level: String, entry: String, camera_entry: String, path:
 			if not is_equal_approx(observed, last_progress) and not _terminal_sent:
 				last_progress = observed
 				transition_progress.emit(level, observed, "resource_loading")
+		if status == ResourceLoader.THREAD_LOAD_FAILED and not _load_retried and not _cancel_requested:
+			# Threaded script preloads occasionally fail to parse, and the same
+			# files load on a second try. Replace the failed cache entries.
+			_load_retried = true
+			push_warning("Retrying the level load after a threaded load failure.")
+			if ResourceLoader.load_threaded_request(path, "PackedScene", false, ResourceLoader.CACHE_MODE_REPLACE_DEEP) == OK:
+				await get_tree().process_frame
+				continue
 		if status != ResourceLoader.THREAD_LOAD_IN_PROGRESS:
 			_resource_loading = false
 			if status == ResourceLoader.THREAD_LOAD_LOADED:
@@ -180,6 +189,7 @@ func _clear_request() -> void:
 	_initial_request = false
 	_session_transition_started = false
 	_resource_loading = false
+	_load_retried = false
 
 func _current_level(session: Node) -> String:
 	var current: Variant = session.get("level")
