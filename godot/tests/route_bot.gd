@@ -212,6 +212,12 @@ func run() -> void:
 			actor().set("_contact_previous", actor().global_position)
 			game.call("_locate_player_sector")
 			await create_timer(0.3).timeout
+		elif step.has("spell"):
+			actor().get("source_magick").set("selected_spell_code", int(step["spell"]))
+		elif step.has("probe2"):
+			var magick: Resource = actor().get("source_magick")
+			var inventory: Resource = actor().get("source_inventory")
+			print("STATE spell ", magick.get("selected_spell_code"), " mana ", magick.get("current_points"), "/", magick.get("maximum_points"), " weapon ", inventory.get("selected_weapon"), " q ", inventory.get("quantities").keys().filter(func(k): return inventory.get("quantities")[k] > 0).map(func(k): return [k, inventory.get("quantities")[k]]))
 		elif step.has("probe"):
 			var point: Variant = game.get("brain").get("dsg_157")[0]
 			var at: Vector3 = point.call("source_world_position", actor())
