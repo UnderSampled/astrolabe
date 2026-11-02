@@ -113,7 +113,7 @@ fn manor_barrel_templates_keep_actor_stock_and_distinct_source_ownership() -> Re
     let native_project = tempfile::tempdir()?;
     godot::support::initialize(native_project.path())?;
     fs::create_dir_all(native_project.path().join("game"))?;
-    for name in ["inventory_host.gd", "save_state.gd"] {
+    for name in ["inventory_host.gd", "save_file.gd", "save_state.gd"] {
         fs::copy(
             PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .join("godot/game")

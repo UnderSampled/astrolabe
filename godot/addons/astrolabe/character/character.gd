@@ -796,6 +796,8 @@ func source_kill_perso() -> bool:
     if generated:
         var brain := get_node_or_null("Brain")
         if brain != null: brain.call("stop")
+        # The node is freed at frame end; keep it out of contact queries until then.
+        collision_layer = 0
         queue_free()
     # Retained Brains keep their selected behavior and suspended native awaits.
     # The suppression latch prevents ordinary activation after this kill.

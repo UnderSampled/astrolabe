@@ -20,7 +20,7 @@ class FixtureBrain extends Node:
     var dsg_19 := false
     var dsg_20 := 0
     var dsg_21 := 0
-    var dsg_22 := 0
+    var dsg_22: Array = [0, 0, 0, 0]
     var dsg_23 := 0
     var dsg_28 := 0
     var dsg_32 := 0
@@ -211,6 +211,7 @@ func run():
     # Run the imported pickup's unmodified Reflex0, from its settled Normal1.
     var pickup := body(level, "Drop")
     pickup.source_inventory = inventory
+    pickup.set_meta("astrolabe_generated_template", "synthetic/drop")
     var stock := STOCK.new()
     stock.item_key = "potion"
     stock.category_key = "potions"

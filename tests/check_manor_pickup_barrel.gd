@@ -154,6 +154,7 @@ func make_drop(level: Node3D, inventory: Resource, item_key: String) -> Characte
     var actor := CHARACTER.new()
     actor.autoplay = false
     actor.source_inventory = inventory
+    actor.set_meta("astrolabe_generated_template", "synthetic/drop")
     var stock := STOCK.new()
     stock.item_key = item_key
     stock.category_key = "potions"
