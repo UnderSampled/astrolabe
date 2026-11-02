@@ -51,6 +51,10 @@ Astrolabe reads **Hype: The Time Quest** OpenSpace Montreal data into one useful
 
 The original OpenSpace engine and its decompilation are the source of truth, followed by Raymap. **Raymap is usually the first practical reference to consult**, before investigating the engine directly. Keep the C# implementations and historical research notes as valuable regression/research evidence, but do not trust their interpretation fully or copy it without corroboration. Resolve conflicts against the engine/decompilation for the relevant build and record the evidence. See [reference authority and research workflow](./reference/README.md#reference-authority-and-research-workflow).
 
+## Working rule
+
+Work directly on `main`. This is a single-developer project: do not create branches unless Stephen asks, and do not push without being asked. Commit as you go, and run the gate at merge-point-sized steps.
+
 ## Validation and local data
 
 Run `python3 tools/gate.py` before merging. Unsupported source calls get documented [stand-ins](./docs/astrolabe/stand-ins.md), never silent no-ops. Check new AI parser assumptions against live memory through Orrery.
