@@ -73,6 +73,7 @@ func update_microphone_pose() -> bool:
     if not is_instance_valid(microphone_position_actor) or not is_instance_valid(microphone_orientation_actor):
         if is_microphone: call("clear_current")
         return false
+    if not microphone_position_actor.is_inside_tree() or not microphone_orientation_actor.is_inside_tree(): return false
     if microphone_orientation_basis == null: return false
     # The native mixer inverts the current listener transform on every playing 3D
     # voice. A singular basis (an actor scaled to zero, as inactive or hidden
