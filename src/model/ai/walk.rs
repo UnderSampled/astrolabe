@@ -294,6 +294,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::PlayerIsDead
                 | Statement::KillPerso { .. }
                 | Statement::JumpAbsolute
+                | Statement::InventoryUnselectObject
                 | Statement::Jump
                 | Statement::JumpWithoutAddingSpeed
                 | Statement::SetParticleGeneratorEnabled(_)
@@ -412,6 +413,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::VectorPlus(left, right)
                 | Expression::VectorMinus(left, right)
                 | Expression::Minus(left, right)
+                | Expression::Modulus(left, right)
                 | Expression::Divide(left, right)
                 | Expression::And(left, right)
                 | Expression::Or(left, right)

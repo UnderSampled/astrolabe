@@ -33,12 +33,6 @@ const KEEP_CAMERA: &str = "keep the native follow camera's current tuning";
 
 pub(super) const STAND_INS: &[StandIn] = &[
     entry(
-        "3-189",
-        "MTH_Modulus",
-        "1",
-        "report a nonzero remainder, so periodic player life and mana regeneration does not tick",
-    ),
-    entry(
         "1-65",
         "Cond_IsValidWayPoint",
         "false",
@@ -64,12 +58,6 @@ pub(super) const STAND_INS: &[StandIn] = &[
     ),
     entry("3-197", "Func_Inv_RemoveObject", "0", "nothing is removed"),
     entry("3-199", "Func_Inv_AddGold", "0", "no gold is added"),
-    entry(
-        "4-417",
-        "Inv_UnselectSelectedObject",
-        "",
-        "the selected object stays selected",
-    ),
     entry(
         "4-438",
         "Magic_SelectNextSpellType",

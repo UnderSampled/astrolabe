@@ -165,6 +165,12 @@ func select_object_payload(value: Variant) -> int:
     last_failure = ""
     return _failure("Object selection requires an integer or real item payload.")
 
+## Inv_UnselectSelectedObject clears the object selection; quantities stay.
+func unselect_object() -> void:
+    for candidate: DEFINITION_SCRIPT in definitions:
+        if candidate.kind == "Object": candidate.selected = false
+    _changed()
+
 func _select(item: int, kind: String) -> int:
     last_failure = ""
     if not source_initialized: return _failure("Inventory admission is unavailable for selection.")

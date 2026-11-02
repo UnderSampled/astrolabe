@@ -1127,6 +1127,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::Plus(a, b)
         | Expression::VectorPlus(a, b)
         | Expression::Minus(a, b)
+        | Expression::Modulus(a, b)
         | Expression::Divide(a, b)
         | Expression::TimeElapsed {
             start: a,
@@ -1828,6 +1829,11 @@ fn guarded_expression(
                 guarded_expression(out, right, model, depth, flow)?
             )
         }
+        Expression::Modulus(left, right) => format!(
+            "fmod(float({}), float({}))",
+            guarded_expression(out, left, model, depth, flow)?,
+            guarded_expression(out, right, model, depth, flow)?
+        ),
         Expression::VectorPlus(left, right) => format!(
             "({} + {})",
             guarded_expression(out, left, model, depth, flow)?,
@@ -2293,6 +2299,11 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         Expression::ActorFieldRead { .. } | Expression::MainActorFieldRead(_) => {
             anyhow::bail!("actor field reads require guarded compilation")
         }
+        Expression::Modulus(a, b) => format!(
+            "fmod(float({}), float({}))",
+            expression(a, model)?,
+            expression(b, model)?
+        ),
         Expression::Plus(a, b) | Expression::Minus(a, b) | Expression::Divide(a, b) => {
             let operator = match e {
                 Expression::Plus(..) => "+",
@@ -3303,6 +3314,12 @@ fn statements(
                         "{} requires native source fade drawing",
                         model.path
                     ))
+                )?;
+            }
+            Statement::InventoryUnselectObject => {
+                writeln!(
+                    out,
+                    "{pad}if character().source_inventory == null:\n{pad}    fail_unsupported(\"Inventory query needs shared inventory\")\n{pad}    {exit}\n{pad}character().source_inventory.unselect_object()"
                 )?;
             }
             Statement::JumpAbsolute => {

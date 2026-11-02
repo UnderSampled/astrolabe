@@ -399,6 +399,8 @@ pub enum Statement {
     },
     SetImpulse(Expression),
     JumpAbsolute,
+    /// Inv_UnselectSelectedObject (procedure 417).
+    InventoryUnselectObject,
     Jump,
     JumpWithoutAddingSpeed,
     SetParticleGeneratorEnabled(bool),
@@ -914,6 +916,8 @@ pub enum Expression {
     /// Hype Operator_VectorMinusVector (category 2, operation 17).
     VectorMinus(Box<Expression>, Box<Expression>),
     Minus(Box<Expression>, Box<Expression>),
+    /// MTH_Modulus (category 3, operation 189).
+    Modulus(Box<Expression>, Box<Expression>),
     Divide(Box<Expression>, Box<Expression>),
     Negate(Box<Expression>),
     Compare {
@@ -1712,6 +1716,7 @@ impl Script {
                 | Expression::VectorPlus(left, right)
                 | Expression::VectorMinus(left, right)
                 | Expression::Minus(left, right)
+                | Expression::Modulus(left, right)
                 | Expression::Divide(left, right)
                 | Expression::TimeElapsed {
                     start: left,

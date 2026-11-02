@@ -540,6 +540,7 @@ impl Parser<'_> {
                 },
                 (4, 23) => Statement::SetImpulse(self.expression(indent + 1)?),
                 (4, 47) => Statement::JumpAbsolute,
+                (4, 417) => Statement::InventoryUnselectObject,
                 (4, 48) => Statement::JumpWithoutAddingSpeed,
                 (4, 192) => Statement::SetParticleGeneratorEnabled(true),
                 (4, 193) => Statement::SetParticleGeneratorEnabled(false),
@@ -1327,6 +1328,10 @@ impl Parser<'_> {
                 Box::new(self.expression(indent + 1)?),
             ),
             (2, 1) => Expression::Minus(
+                Box::new(self.expression(indent + 1)?),
+                Box::new(self.expression(indent + 1)?),
+            ),
+            (3, 189) => Expression::Modulus(
                 Box::new(self.expression(indent + 1)?),
                 Box::new(self.expression(indent + 1)?),
             ),
@@ -2183,6 +2188,7 @@ impl Writer<'_> {
                     self.expression(value, indent + 1)?;
                 }
                 Statement::JumpAbsolute => self.node(4, 47, indent),
+                Statement::InventoryUnselectObject => self.node(4, 417, indent),
                 Statement::JumpWithoutAddingSpeed => self.node(4, 48, indent),
                 Statement::SetParticleGeneratorEnabled(enabled) => {
                     self.node(4, if *enabled { 192 } else { 193 }, indent)
@@ -3138,6 +3144,11 @@ impl Writer<'_> {
                     },
                     inner + 1,
                 );
+            }
+            Expression::Modulus(a, b) => {
+                self.node(3, 189, indent);
+                self.expression(a, indent + 1)?;
+                self.expression(b, indent + 1)?;
             }
             Expression::Plus(a, b) | Expression::Minus(a, b) | Expression::Divide(a, b) => {
                 self.node(
