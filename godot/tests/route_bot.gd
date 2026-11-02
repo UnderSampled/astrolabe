@@ -53,6 +53,10 @@ func snapshot(note: String) -> void:
 	var brain: Node = game.get("brain")
 	var life: Resource = actor().get("source_hit_points")
 	var row := {"ms": Time.get_ticks_msec() - started, "note": note, "position": [at.x, -at.z, at.y], "action": int(actor().get("current_state")), "normal": int(brain.get("current_normal")), "running": bool(brain.get("running")), "life": int(life.get("current")) if life != null else -1, "gold": actor().get("source_inventory").get("gold")}
+	var camera := get_root().get_viewport().get_camera_3d()
+	if camera != null:
+		row["camera"] = [camera.global_position.x, -camera.global_position.z, camera.global_position.y]
+		row["camera_mode"] = camera.get("motion_mode")
 	log_rows.append(row)
 	print("ROUTE ", JSON.stringify(row))
 
@@ -329,6 +333,11 @@ func run() -> void:
 							print("VOICE ", emitter.get_parent().name, " ", info.event, " db ", snappedf(info.player.volume_db, 0.1), " bus ", info.bus, " dist ", info.get("distance_volume", -1), " at ", snappedf(info.player.get_playback_position(), 0.1))
 		elif step.has("watch"):
 			await watch(float(step["watch"]), step.get("actors", []), step.get("press", ""), step.get("fields", []))
+		elif step.has("shot"):
+			await process_frame
+			RenderingServer.force_draw()
+			var image := get_root().get_texture().get_image()
+			ok = image != null and image.save_png(args[1].get_base_dir().path_join(str(step["shot"]) + ".png")) == OK
 		elif step.has("wait"):
 			await create_timer(step["wait"]).timeout
 		elif step.has("until_normal"):

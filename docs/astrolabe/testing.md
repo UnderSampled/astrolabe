@@ -148,7 +148,7 @@ Tests are evidence for declared behavior. Converter tests should exercise useful
 
 `tools/route_check.py HANDOFF_DIR [route.json ...]` runs the saved routes in
 `tools/routes/` through the real game with `godot/tests/route_bot.gd` (steps go,
-plan, teleport, face, key, wait, until_normal, until_item, watch, census, spell,
+plan, teleport, face, key, wait, shot, until_normal, until_item, watch, census, spell,
 zones). It starts each run from a copy of an F5 handoff save directory, retries
 a route whose `required` step fails, and reports any step marked FAILED or any
 script error. A route takes up to a few minutes, so this is on demand. Routes cover

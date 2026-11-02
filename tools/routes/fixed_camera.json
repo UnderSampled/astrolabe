@@ -1,0 +1,1 @@
+{"start": "original:SaveGame0.cfg", "steps": [{"wait": 3.5, "note": "loaded"}, {"teleport": [-25.0, 149.1, 34.5], "note": "doorway west"}, {"wait": 2, "note": "fixed shot"}, {"shot": "fixed_shot"}, {"teleport": [-24.0, 149.1, 34.5], "note": "doorway east"}, {"wait": 2, "note": "follow again"}, {"shot": "follow_again"}]}
