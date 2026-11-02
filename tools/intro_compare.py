@@ -19,8 +19,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from save_live_check import Mcp  # noqa: E402
 
 SECONDS = 225
+PERIOD = 1.0
 GOGOUD = [27, 35, 80]
-WORLD = [26, 33, 78]
 CAMERA = [2, 2, 2]
 
 
@@ -43,17 +43,22 @@ def capture(args):
     args.work.mkdir(parents=True, exist_ok=True)
     mcp.call('start_game', duration_seconds=SECONDS+90)
     mcp.call('run_sequence', steps=[{'action': 'keys', 'keys': ['Return'], 'hold_ms': 55, 'gap_ms': 800},
-                                    {'action': 'wait_state', 'phase': 9, 'level': 'manoir', 'timeout_ms': 40000}])
+                                    {'action': 'wait_state', 'phase': 9, 'level': 'manoir', 'timeout_ms': 30000}])
     started = time.monotonic()
     samples, next_shot = [], 0
+    next_sample = 0
     while (now := time.monotonic()-started) < SECONDS:
+        # Every read stops the game for a moment, so sampling fast slows the intro.
+        if now < next_sample:
+            time.sleep(next_sample-now)
+            continue
+        next_sample += PERIOD
         row = {'s': round(now, 2)}
         try:
             data = mcp.call('inspect_main_actor', actions=[47], designer_values=[])['observation']
             row['hype'] = {'action': data['actor']['current_action'], 'normal': data['normal']['current'],
                            'reflex': data.get('reflex', {}).get('current', -1), 'position': translation(data['actor'])}
             row['gogoud'] = actor(mcp, GOGOUD)
-            row['world'] = actor(mcp, WORLD)
             camera = mcp.call('inspect_scene_camera', level='manoir', object_types=CAMERA)['observation']['active_camera']
             row['camera'] = {'position': camera['position_source'], 'forward': camera['forward_source'], 'fov': camera['vertical_fov']}
         except RuntimeError as error:
@@ -85,7 +90,7 @@ def compare(args):
     report = json.loads(args.port_report.read_text())
     second = report['samples']
     for name, key in (('hype normal', ('hype', 'normal')), ('hype action', ('hype', 'action')),
-                      ('gogoud normal', ('gogoud', 'normal')), ('world normal', ('world', 'normal'))):
+                      ('gogoud normal', ('gogoud', 'normal'))):
         read = lambda row: row.get(key[0], {}).get(key[1])
         print(name)
         print('  original', changes(first, read))
