@@ -319,6 +319,8 @@ func run() -> void:
 		elif step.has("waypoints"):
 			for point in game.get("brain").get(step["waypoints"]):
 				if is_instance_valid(point): print("WAYPOINT ", point.call("source_world_position", actor()), " r ", point.get("radius"))
+		elif step.has("save_diff"):
+			_save_diff(str(step["save_diff"]))
 		elif step.has("voices"):
 			for emitter in root.find_children("*", "Node3D", true, false):
 				if emitter.has_method("play_voice") or emitter.get("voices") != null:
@@ -351,6 +353,30 @@ func run() -> void:
 	file.store_string(JSON.stringify(log_rows))
 	file.close()
 	quit()
+
+## Saved designer variables that the live Brain does not hold after Load Game.
+func _save_diff(path: String) -> void:
+	var config := ConfigFile.new()
+	config.load(path)
+	var brains: Dictionary = game.get("level").get_meta("source_actor_brains", {})
+	var same := 0
+	var different := 0
+	for section in config.get_sections():
+		var marker := section.find("actor/")
+		if marker < 0: continue
+		var identity := section.substr(marker + 6)
+		if not brains.has(identity): continue
+		var brain: Node = game.get("level").get_node_or_null(brains[identity])
+		for key in config.get_section_keys(section):
+			if not key.begins_with("dsg_"): continue
+			var saved: Variant = config.get_value(section, key)
+			var live: Variant = brain.get(key)
+			if typeof(saved) in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL] and typeof(live) in [TYPE_INT, TYPE_FLOAT, TYPE_BOOL] and absf(float(saved) - float(live)) > 0.0001:
+				different += 1
+				print("DIFF ", identity, " ", str(brain.get_parent().name), " ", key, " saved ", saved, " live ", live)
+			else:
+				same += 1
+	print("DIFFSUM same ", same, " different ", different)
 
 func _census(radius: Variant) -> void:
 	var hype := actor().global_position
