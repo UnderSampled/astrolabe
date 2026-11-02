@@ -75,7 +75,7 @@ func run() -> void:
         if corrupt == null:
             fail("Could not stage corrupt save")
             return
-        corrupt.store_string("{broken")
+        corrupt.store_string("[broken")
         corrupt.close()
     var menu := (load("res://game/bootstrap.tscn") as PackedScene).instantiate()
     root.add_child(menu)
@@ -86,39 +86,38 @@ func run() -> void:
         fail("Game menu did not expose its Load Game operation")
         return
     if stage == "corrupt":
-        var rejection_error := reject_native_choice(menu)
+        var rejection_error: String = await reject_native_choice(menu)
         if not rejection_error.is_empty():
             fail("Corrupt slot: " + rejection_error)
             return
-        var unsupported := FileAccess.open(SAVE_STATE.path(), FileAccess.WRITE)
-        if unsupported == null:
+        var unsupported_state := valid_state.duplicate(true)
+        unsupported_state["schema"] = 99
+        if SAVE_STATE.SAVE_FILE.from_state(unsupported_state, SAVE_STATE.ACTOR).save(SAVE_STATE.path()) != OK:
             fail("Could not stage unsupported save")
             return
-        unsupported.store_string("{\"schema\":99,\"level\":\"manoir\"}")
-        unsupported.close()
         if SAVE_STATE.read()["status"] != "error":
             fail("Unsupported save version was accepted")
             return
         var unsupported_menu := (load("res://game/bootstrap.tscn") as PackedScene).instantiate()
         root.add_child(unsupported_menu)
-        rejection_error = reject_native_choice(unsupported_menu)
+        rejection_error = await reject_native_choice(unsupported_menu)
         if not rejection_error.is_empty():
             fail("Unsupported save: " + rejection_error)
             return
+        # A named-key file cannot carry unknown top-level state; an unknown
+        # actor section is the equivalent extra state the loader must reject.
         var extra_state := valid_state.duplicate(true)
-        extra_state["progression"] = {"quest": 1}
-        var extra_file := FileAccess.open(SAVE_STATE.path(), FileAccess.WRITE)
-        if extra_file == null:
+        extra_state["actors"]["world/0/1/Unknown"] = {"brain": {"health": 1}}
+        var extra_config: ConfigFile = SAVE_STATE.SAVE_FILE.from_state(extra_state, SAVE_STATE.ACTOR)
+        if extra_config.save(SAVE_STATE.path()) != OK:
             fail("Could not stage unsupported extra state")
             return
-        extra_file.store_string(JSON.stringify(extra_state))
-        extra_file.close()
         if SAVE_STATE.read()["status"] != "error":
             fail("Unknown top-level save state was silently accepted")
             return
         var extra_menu := (load("res://game/bootstrap.tscn") as PackedScene).instantiate()
         root.add_child(extra_menu)
-        rejection_error = reject_native_choice(extra_menu)
+        rejection_error = await reject_native_choice(extra_menu)
         if not rejection_error.is_empty():
             fail("Unsupported extra state: " + rejection_error)
             return
@@ -157,12 +156,12 @@ func run() -> void:
     if load_button.disabled:
         fail("Load Game is disabled")
         return
-    var selected_source: String = SAVE_STATE.ORIGINAL_SOURCE if stage == "write" else SAVE_STATE.NATIVE_SOURCE
+    var selected_source: String = SAVE_STATE.ORIGINAL_SOURCE + ":SaveGame0.cfg" if stage == "write" else SAVE_STATE.NATIVE_SOURCE
     var selected := SAVE_STATE.read_for_load(selected_source)
     if selected["status"] != "loaded":
         fail("The fixture's explicit save source is unavailable: " + str(selected.get("message", "missing")))
         return
-    var selection_error := select_save_choice(menu, selected)
+    var selection_error: String = await select_save_choice(menu, selected)
     if not selection_error.is_empty():
         fail(selection_error)
         return
@@ -297,10 +296,17 @@ func run() -> void:
         print("SAVE_PROOF fresh process restored mana=23, inventory=2, optional Global DSG[147] and explicit gold zero; native mana remained usable")
     await shutdown(0)
 
+## The menu fires an action after its short confirmation sound.
+func wait_for_picker(menu: Node) -> void:
+    var deadline := Time.get_ticks_msec() + 3000
+    while menu.get("save_picker") == null and Time.get_ticks_msec() < deadline:
+        await process_frame
+
 func select_save_choice(menu: Node, candidate: Dictionary) -> String:
     var button := menu.find_child("LoadGame", true, false) as Button
     if button == null or button.disabled: return "Load Game does not expose the save picker."
     button.pressed.emit()
+    await wait_for_picker(menu)
     var picker := menu.get("save_picker") as Control
     if picker == null: return "Load Game did not open the actual save picker."
     var rows := picker.get("rows") as VBoxContainer
@@ -319,6 +325,7 @@ func reject_native_choice(menu: Node) -> String:
     var button := menu.find_child("LoadGame", true, false) as Button
     if button == null or button.disabled: return "Load Game hid the invalid candidate's reason."
     button.pressed.emit()
+    await wait_for_picker(menu)
     var picker := menu.get("save_picker") as Control
     if picker == null: return "Load Game omitted the invalid native row."
     var rows := picker.get("rows") as VBoxContainer
@@ -326,7 +333,7 @@ func reject_native_choice(menu: Node) -> String:
     var native_disabled := false
     var reason_visible := false
     var original_visible := false
-    var original := SAVE_STATE.read_for_load(SAVE_STATE.ORIGINAL_SOURCE)
+    var original := SAVE_STATE.read_for_load(SAVE_STATE.ORIGINAL_SOURCE + ":SaveGame0.cfg")
     for row: Node in rows.get_children():
         if row is Label and row.text == candidate["message"]: reason_visible = true
         if not row is Button: continue
@@ -338,6 +345,8 @@ func reject_native_choice(menu: Node) -> String:
     var back := picker.get("back") as Button
     if back == null: return "The actual save picker has no Back control."
     back.pressed.emit()
+    await process_frame
+    await process_frame
     return ""
 
 func legacy_overlay(state: Dictionary) -> Dictionary:

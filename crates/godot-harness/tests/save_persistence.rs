@@ -82,8 +82,8 @@ fn native_manor_save_survives_fresh_process_and_rejects_bad_slots() -> Result<()
             evidence.join(format!("{stage}.log")).display(),
         );
         if stage == "write" {
-            let slot = data.join("godot/app_userdata/Astrolabe/manoir-save-v1.json");
-            fs::copy(&slot, evidence.join("saved-slot.json"))
+            let slot = data.join("godot/app_userdata/Astrolabe/manoir-save.cfg");
+            fs::copy(&slot, evidence.join("saved-slot.cfg"))
                 .with_context(|| format!("preserving native slot {}", slot.display()))?;
         }
     }
@@ -184,7 +184,7 @@ fn classify_stage_log(
 }
 
 fn allowed_error(stage: &str, line: &str) -> bool {
-    known_scene_error(line) || (stage == "corrupt" && line.starts_with("ERROR: Parse JSON failed."))
+    known_scene_error(line) || (stage == "corrupt" && line.starts_with("ERROR: ConfigFile parse error at user://manoir-save.cfg"))
 }
 
 fn known_scene_error(line: &str) -> bool {
@@ -235,7 +235,7 @@ mod tests {
 
     #[test]
     fn accepts_expected_corrupt_slot_diagnostic_only_in_corrupt_stage() {
-        let log = format!("{MARKER}\nERROR: Parse JSON failed.\n");
+        let log = format!("{MARKER}\nERROR: ConfigFile parse error at user://manoir-save.cfg:0: Unexpected EOF while parsing simple tag.\n");
         assert!(classify_stage_log("corrupt", MARKER, &log, true, Some(0)).is_ok());
         assert!(classify_stage_log("write", MARKER, &log, true, Some(0)).is_err());
     }

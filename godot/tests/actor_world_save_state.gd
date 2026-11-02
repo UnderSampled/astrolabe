@@ -37,10 +37,14 @@ func run() -> void:
     var level: Node3D = context["level"]
     var global_brain: Node = context["global_brain"]
     var dummy_brain: Node = context["dummy_brain"]
+    # A fresh fixture actor is not moving; make it explicitly airborne and falling.
+    actor.set("source_airborne", true)
+    actor.velocity = Vector3(0, -5, 0)
     if SAVE_STATE.checkpoint_error(actor, level).is_empty():
         finish("Ungrounded player was admitted as a checkpoint.")
         return
     await FIXTURE.settle(actor, self)
+    actor.set("source_airborne", false)
     var error: String
     if arguments[0] == "write": error = await write_stage(actor, level, global_brain, dummy_brain)
     else: error = await reload_stage(actor, level, global_brain, dummy_brain)
@@ -131,8 +135,8 @@ func reload_stage(actor: CharacterBody3D, level: Node3D, global_brain: Node, dum
         var observed: Resource = level.get_node("ArmorObserver").get("source_armor")
         if observed != armor or observed.selected != 1:
             return "Restore replaced shared armor ownership instead of updating the level's catalogue."
-        # JSON parses numeric scalars as floats; compare both serialized forms.
-        if JSON.parse_string(JSON.stringify(SAVE_STATE.capture(actor, level))) != state:
+        # The slot is a typed ConfigFile now, so a re-capture compares directly.
+        if SAVE_STATE.capture(actor, level) != state:
             return "Repeated production restore/capture changed the slot state."
         if attempt == 0: await process_frame
     if level.get_node_or_null("Barrel1") != null:
@@ -259,11 +263,13 @@ func check_invalid_live_brain(actor: CharacterBody3D, level: Node3D, owner: Stri
 func check_checkpoint_rejections(actor: CharacterBody3D, level: Node3D, prior_slot: String) -> String:
     var brain := actor.get_node("Brain")
     for variation in [
-        [actor, "current_state", 46], [actor, "pending_state", 1],
-        [actor, "source_airborne", true], [actor, "velocity", Vector3(0.1, 0, 0)],
+        # Any settled ground action is a valid checkpoint now (69bc3aa), so a
+        # nonzero current_state is no longer rejected; a pending transition still is.
+        [actor, "pending_state", 1],
+        [actor, "source_airborne", true], [actor, "velocity", Vector3(1, 0, 0)],
         [actor, "external_velocity", Vector3(0.1, 0, 0)],
         [actor, "external_velocity", Vector3(NAN, 0, 0)],
-        [brain, "current_normal", 3], [brain, "current_reflex", 2],
+        # current_normal/current_reflex no longer gate a checkpoint (69bc3aa).
         [brain, "running", false], [brain, "unsupported_failure", "synthetic unsupported"],
         [actor.get("source_hit_points"), "current", 0],
     ]:

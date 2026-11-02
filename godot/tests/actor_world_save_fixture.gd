@@ -102,6 +102,7 @@ static func create(root: Node) -> Dictionary:
     inventory.categories = {"weapons": [0, -1], "objects": [-1]}
     var gold: Resource = ITEM.new()
     gold.source_key = "fix:/inventory/synthetic/gold"
+    gold.item_id = 0
     gold.maximum = 200
     inventory.gold_definition = gold
     inventory.gold_category = "money"

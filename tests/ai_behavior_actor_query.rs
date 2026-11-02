@@ -432,7 +432,8 @@ fn manor_model_334_category24_resolves_through_level_actor_identity_map_and_rete
         ensure!(*actual_index == index as i32);
         ensure!(
             waypoint.path.as_str() == format!("level:/waypoints/17-1/{allocation}"),
-            "model334 DSG157[{index}] Waypoint lost its source identity: {}", waypoint.path
+            "model334 DSG157[{index}] Waypoint lost its source identity: {}",
+            waypoint.path
         );
     }
     for index in 0..3 {

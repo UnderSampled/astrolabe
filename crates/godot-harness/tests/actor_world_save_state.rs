@@ -74,7 +74,7 @@ fn actor_brain_state_survives_fresh_process_reload() -> Result<()> {
             fs::copy(
                 temporary
                     .path()
-                    .join("data/godot/app_userdata/ActorSlotRegression/manoir-save-v1.json"),
+                    .join("data/godot/app_userdata/ActorSlotRegression/manoir-save.cfg"),
                 evidence.join("synthetic-slot.json"),
             )?;
         }

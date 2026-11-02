@@ -120,12 +120,12 @@ fn menu_new_game_preserves_slot_and_restarts_original_opening() -> Result<()> {
         "New Game script failed: {log}"
     );
     ensure!(
-        log.lines()
-            .filter(|line| line.starts_with("ERROR:"))
-            .all(|line| line.starts_with("ERROR: Unsupported compiled behavior:")
+        log.lines().filter(|line| line.starts_with("ERROR:")).all(
+            |line| line.starts_with("ERROR: Unsupported compiled behavior:")
                 // The smoke script stashes new_game.tscn on purpose to prove
                 // the menu recovers from a failed New Game destination.
-                || line.contains("res://game/new_game.tscn")),
+                || line.contains("res://game/new_game.tscn")
+        ),
         "unexpected New Game error: {log}"
     );
     ensure!(
