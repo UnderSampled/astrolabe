@@ -10,6 +10,7 @@ var screen: Node
 var started_ms := 0
 var last_signature := ""
 var next_sample_ms := 0
+var next_shot_s := 0
 var recorder: AudioEffectRecord
 var entry_ms := 0
 
@@ -185,6 +186,10 @@ func run() -> void:
         if state["camera_mode"] == 6 and not mode6_captured:
             mode6_captured = true
             await capture("translation_shot")
+        # ASTROLABE_INTRO_SHOTS: one frame every ten seconds, for visual pairs.
+        if OS.has_environment("ASTROLABE_INTRO_SHOTS") and entry_ms > 0 and Time.get_ticks_msec() - entry_ms >= next_shot_s * 1000:
+            await capture("t%03d" % next_shot_s)
+            next_shot_s += 10
         if state["opening_finished"]: break
         await physics_frame
     var final := observe()

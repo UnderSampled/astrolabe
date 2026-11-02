@@ -319,6 +319,12 @@ func run() -> void:
 		elif step.has("waypoints"):
 			for point in game.get("brain").get(step["waypoints"]):
 				if is_instance_valid(point): print("WAYPOINT ", point.call("source_world_position", actor()), " r ", point.get("radius"))
+		elif step.has("voices"):
+			for emitter in root.find_children("*", "Node3D", true, false):
+				if emitter.has_method("play_voice") or emitter.get("voices") != null:
+					for info in emitter.get("voices"):
+						if is_instance_valid(info.player) and info.player.playing:
+							print("VOICE ", emitter.get_parent().name, " ", info.event, " db ", snappedf(info.player.volume_db, 0.1), " bus ", info.bus, " dist ", info.get("distance_volume", -1), " at ", snappedf(info.player.get_playback_position(), 0.1))
 		elif step.has("watch"):
 			await watch(float(step["watch"]), step.get("actors", []), step.get("press", ""), step.get("fields", []))
 		elif step.has("wait"):
