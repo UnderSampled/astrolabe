@@ -250,11 +250,22 @@ route requests only the Object slot (the original save selects the Gogoud key,
 `Object_21`), so the key shows and nothing else, as in the original. The legacy
 original-save restore now carries the selected Object flag (`restore_legacy`).
 Documented gaps: the weapon count text offsets (Fix.gpt) are not extracted, so
-the count sits under the image; the stone frame at the bottom of the original
-Object slot is panel descriptor 3 (4 layer records, activated by
-`FUN_0040c150(3)` before the Object draw) and is not yet exported because
-panel layers are not retained by the HUD reader; life/armor/magic images are
-not wired to `hud_slots`.
+the count sits under the image; life/armor/magic images are not wired to
+`hud_slots`.
+
+The stone frame at the bottom of the original Object slot is panel descriptor 3,
+activated by `FUN_0040c150(3)` before the Object draw. The reader now decodes
+every panel's layer records regardless of the descriptor's static enabled byte,
+which is only the runtime draw gate. Layer UVs are ordered u0, u1, v0, v1
+(`FUN_0040c270`; an earlier reader had v0/u1 swapped); the draw API puts v=1 at
+the top row, so u0>u1 is a horizontal flip and v0<v1 a vertical one. Each layer
+texture is a Fix GLI object resolved to Textures.cnt (`FixTex/STENCIL/Bordures`).
+Panel 3 has four 31x31 layers (coina, bordb, coinb, coina) spanning x 255-379,
+y 448-499, clipped by the 480 line. All four panels export as hidden
+`Source/Panel0..3` Controls of native TextureRects; `hud_slots.gd` shows Panel3
+with the Object slot. Panels 0-2 (life/enemy frames: 31, 7, 14 layers) are
+exported but not yet shown, because which indicator gates each was not traced
+and the bodies of the activation table at 0x5e6810 were not read.
 
 Final Godot keyed/upload behavior and pixel parity remain unverified. The
 current actor binding does not yet connect enemy bar values or the other

@@ -808,6 +808,23 @@ fn import_hud_assets(
             textures.push((entry.texture.clone(), archive.image(entry)?.clone()));
         }
     }
+    for name in presentation
+        .panels
+        .iter()
+        .flat_map(|panel| &panel.layers)
+        .filter_map(|layer| layer.texture_name.as_deref())
+    {
+        let entry = archive
+            .find_entry(name)
+            .with_context(|| format!("missing HUD panel image {name} in Textures.cnt"))?;
+        if !imported.assets.contains(&entry.texture.path)
+            && !textures
+                .iter()
+                .any(|(seen, _): &(_, _)| seen.path == entry.texture.path)
+        {
+            textures.push((entry.texture.clone(), archive.image(entry)?.clone()));
+        }
+    }
     let font = presentation
         .currency_font
         .as_mut()

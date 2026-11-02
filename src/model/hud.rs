@@ -101,7 +101,7 @@ pub struct HudPanel {
     pub source_unknown_bytes: [u8; 2],
     /// Number of 0x24-byte source layer records.
     pub source_layer_count: u8,
-    /// Decoded only when the source descriptor enables drawing.
+    /// All decoded 0x24-byte layer records; the static enabled flag is only the runtime draw gate.
     pub layers: Vec<HudPanelLayer>,
 }
 
@@ -111,9 +111,21 @@ pub struct HudPanelLayer {
     pub texture: Option<SourceObjectIdentity>,
     /// Reserved for legacy inspection; pointer words are represented by identities.
     pub opaque_texture_word: Option<[u8; 4]>,
-    /// Legacy field with unverified source meaning.
+    /// Exact GLI texture name of the layer, if it has a texture.
+    #[serde(default)]
+    pub texture_name: Option<String>,
+    /// Textures.cnt member for the layer texture.
+    #[serde(default)]
+    pub texture_asset: Option<AssetPath>,
+    /// Logical width/height of the layer's GLI texture.
+    #[serde(default)]
+    pub texture_logical_size: [u32; 2],
+    /// GLI source flags of the layer texture (bit 1 selects the color key, as for HUD artwork).
+    #[serde(default)]
+    pub texture_flags: u32,
+    /// Screen rectangle in 640x480 space, ordered x0, x1, y0, y1 (FUN_0040c270 -> FUN_0047abb0).
     pub destination: [f32; 4],
-    /// Legacy field with unverified source meaning.
+    /// Texture coordinates, ordered u0, u1, v0, v1.
     pub uv: [f32; 4],
 }
 
@@ -151,8 +163,9 @@ impl Content for HudPresentation {
                 && self
                     .panels
                     .iter()
-                    .all(|panel| !panel.enabled && panel.layers.is_empty()),
-            "Fix HUD panel descriptors differ from the verified disabled-panel profile"
+                    .all(|panel| !panel.enabled
+                        && panel.layers.len() == usize::from(panel.source_layer_count)),
+            "Fix HUD panel descriptors differ from the verified profile"
         );
         anyhow::ensure!(
             self.artwork.len() == 6,

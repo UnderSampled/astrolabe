@@ -14,6 +14,9 @@ var _items: Dictionary = {}
 var _object_icon := TextureRect.new()
 var _weapon_icon := TextureRect.new()
 var _weapon_count := Label.new()
+## Fix HUD panel descriptor 3 (4 stone-frame layers), activated by FUN_0040c150(3)
+## immediately before the Object draw in FUN_0040cb50; exported as Source/Panel3.
+var _object_panel: Control
 
 func _ready() -> void:
     mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -37,6 +40,7 @@ func _ready() -> void:
     if counter != null:
         _weapon_count.add_theme_font_override("font", counter.get_theme_font("font"))
     add_child(_weapon_count)
+    _object_panel = get_parent().get_node_or_null("Source/Panel3") as Control
     refresh()
 
 func bind_actor(value: Node) -> void:
@@ -77,3 +81,5 @@ func refresh() -> void:
         var count := int(inventory.call("quantity", weapon_item.item_id))
         _weapon_count.text = str(count)
     _weapon_count.visible = _weapon_icon.visible
+    if _object_panel != null:
+        _object_panel.visible = bool(_requested["selected_object"]) and show

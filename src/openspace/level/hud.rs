@@ -46,8 +46,8 @@ struct LayerWire {
     x1: f32,
     y1: f32,
     u0: f32,
-    u1: f32,
     v0: f32,
+    u1: f32,
     v1: f32,
 }
 
@@ -267,6 +267,7 @@ fn panel(
     session: &SourceSession,
     refs: &BTreeMap<u32, BlockKey>,
     wire_value: PanelWire,
+    archive: &super::super::texture::TextureArchive,
 ) -> Result<HudPanel> {
     ensure!(
         wire_value.enabled <= 1,
@@ -287,7 +288,7 @@ fn panel(
             bytes.len() == expected,
             "Fix HUD layer array extent differs from descriptor"
         );
-        if wire_value.enabled != 0 {
+        {
             for index in 0..wire_value.layer_count as usize {
                 let address = Address {
                     offset: array.offset + index * 0x24,
@@ -304,9 +305,33 @@ fn panel(
                     "Fix HUD layer has non-finite geometry"
                 );
                 let texture = session.pointer(address, 0)?;
+                let (texture_name, texture_asset, texture_size, texture_flags) = match texture {
+                    Some(object) => {
+                        ensure!(
+                            object.key == BlockKey(6, 1),
+                            "Fix HUD layer texture is outside Fix 6:1"
+                        );
+                        let info: TextureInfoWire = wire(session.allocation_bytes(object)?)?;
+                        let name = texture_name(&info)?;
+                        let entry = archive.find_entry(&name).with_context(|| {
+                            format!("Fix HUD layer texture is absent from Textures.cnt: {name}")
+                        })?;
+                        (
+                            Some(name),
+                            Some(entry.texture.path.clone()),
+                            [info.logical_width, info.logical_height],
+                            info.flags,
+                        )
+                    }
+                    None => (None, None, [0, 0], 0),
+                };
                 layers.push(HudPanelLayer {
                     texture: texture.map(|a| session.source_identity(a)).transpose()?,
                     opaque_texture_word: None,
+                    texture_name,
+                    texture_asset,
+                    texture_logical_size: texture_size,
+                    texture_flags,
                     destination: [layer.x0, layer.x1, layer.y0, layer.y1],
                     uv: [layer.u0, layer.u1, layer.v0, layer.v1],
                 });
@@ -370,7 +395,7 @@ pub(crate) fn import(
     for index in 0..4 {
         let descriptor: PanelWire =
             wire(&gpt[gpt_offset + index * 16..gpt_offset + (index + 1) * 16])?;
-        panels.push(panel(&session, &refs, descriptor)?);
+        panels.push(panel(&session, &refs, descriptor, archive)?);
     }
     ensure!(
         panels.iter().all(|value| !value.enabled)
@@ -379,7 +404,7 @@ pub(crate) fn import(
                 .map(|value| value.source_layer_count)
                 .collect::<Vec<_>>()
                 == [31, 7, 14, 4],
-        "Fix HUD panel descriptors differ from the installed disabled-panel profile"
+        "Fix HUD panel descriptors differ from the installed profile"
     );
 
     let slots = gpt_offset + 0x40;

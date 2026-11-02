@@ -18,28 +18,78 @@ fn image(
     source: &mut impl ContentSource,
     artwork: &HudArtwork,
 ) -> Result<String> {
-    let reference = AssetRef::<Texture>::from_path(artwork.texture.clone());
-    let texture = source.load(&reference)?;
-    project.retain_texture_mips(&reference, &texture)?;
-    ensure!(
-        [texture.width(), texture.height()] == artwork.logical_size,
-        "HUD texture {} changed from its verified Fix GLI size",
-        artwork.texture
-    );
-    let mut rgba = texture.rgba8(0)?;
-    if artwork.source_flags & 2 != 0 {
-        rgba = super::material::keyed_rgba(&texture, &rgba);
-    }
     ensure!(
         artwork.sample_flags == 0 && artwork.addressing == 0,
         "unsupported Fix HUD sampler state"
     );
-    let path = disk_path(&project.selection, &artwork.texture, "hud.png");
+    texture_image(
+        project,
+        source,
+        &artwork.texture,
+        artwork.logical_size,
+        artwork.source_flags,
+    )
+}
+
+fn texture_image(
+    project: &mut Project,
+    source: &mut impl ContentSource,
+    asset: &AssetPath,
+    logical_size: [u32; 2],
+    flags: u32,
+) -> Result<String> {
+    let reference = AssetRef::<Texture>::from_path(asset.clone());
+    let texture = source.load(&reference)?;
+    project.retain_texture_mips(&reference, &texture)?;
+    ensure!(
+        [texture.width(), texture.height()] == logical_size,
+        "HUD texture {asset} changed from its verified Fix GLI size"
+    );
+    let mut rgba = texture.rgba8(0)?;
+    if flags & 2 != 0 {
+        rgba = super::material::keyed_rgba(&texture, &rgba);
+    }
+    let path = disk_path(&project.selection, asset, "hud.png");
     project.write(
         path.clone(),
         &super::material::png(texture.width(), texture.height(), &rgba)?,
     )?;
     Ok(format!("res://{path}"))
+}
+
+/// One native TextureRect per Fix panel layer record, under a hidden Control per
+/// panel. The draw API puts v=1 at the top row, so the unflipped image is
+/// u 0..1 with v 1..0; the exporter maps the reversed cases to flip_h / flip_v.
+fn panel_nodes(
+    text: &mut String,
+    value: &HudPresentation,
+    panel_images: &BTreeMap<AssetPath, usize>,
+) -> Result<()> {
+    for (index, panel) in value.panels.iter().enumerate() {
+        writeln!(
+            text,
+            "\n[node name=\"Panel{index}\" type=\"Control\" parent=\"Source\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\nvisible = false\nmetadata/source_panel = {index}"
+        )?;
+        for (layer_index, layer) in panel.layers.iter().enumerate() {
+            let Some(asset) = &layer.texture_asset else {
+                continue;
+            };
+            let [x0, x1, y0, y1] = layer.destination;
+            let [u0, u1, v0, v1] = layer.uv;
+            ensure!(
+                [u0, u1, v0, v1].iter().all(|v| *v == 0.0 || *v == 1.0) && u0 != u1 && v0 != v1,
+                "HUD panel layer UVs are not whole-texture flips"
+            );
+            writeln!(
+                text,
+                "\n[node name=\"Layer{layer_index}\" type=\"TextureRect\" parent=\"Source/Panel{index}\"]\nlayout_mode = 0\noffset_left = {x0:?}\noffset_top = {y0:?}\noffset_right = {x1:?}\noffset_bottom = {y1:?}\nmouse_filter = 2\ntexture = ExtResource(\"panel{}\")\nexpand_mode = 1\nstretch_mode = 0\ntexture_filter = 2\nflip_h = {}\nflip_v = {}",
+                panel_images[asset],
+                u0 > u1,
+                v0 < v1
+            )?;
+        }
+    }
+    Ok(())
 }
 
 fn node(
@@ -101,11 +151,12 @@ fn font_atlas_image(
 fn emit(
     value: &HudPresentation,
     images: &BTreeMap<u8, String>,
+    panel_paths: &[(AssetPath, String)],
     font_path: &str,
     selection: &crate::model::Selection,
 ) -> Result<(String, String)> {
     let script_path = disk_path(selection, &value.path, "gd");
-    let mut scene = String::from("[gd_scene load_steps=9 format=3]\n");
+    let mut scene = String::from("[gd_scene load_steps=24 format=3]\n");
     writeln!(
         scene,
         "[ext_resource type=\"Script\" path={} id=\"script\"]",
@@ -119,6 +170,16 @@ fn emit(
             quoted(&format!("image{}", artwork.slot))
         )?;
     }
+    let mut panel_images = BTreeMap::new();
+    for (index, (asset, path)) in panel_paths.iter().enumerate() {
+        writeln!(
+            scene,
+            "[ext_resource type=\"Texture2D\" path={} id={}]",
+            quoted(path),
+            quoted(&format!("panel{index}"))
+        )?;
+        panel_images.insert(asset.clone(), index);
+    }
     writeln!(
         scene,
         "[ext_resource type=\"FontFile\" path={} id=\"counter_font\"]",
@@ -128,6 +189,8 @@ fn emit(
         scene,
         "\n[node name=\"FixHud\" type=\"Control\"]\nlayout_mode = 3\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\ngrow_horizontal = 2\ngrow_vertical = 2\nmouse_filter = 2\nscript = ExtResource(\"script\")\n\n[node name=\"Source\" type=\"Control\" parent=\".\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\ntexture_filter = 2"
     )?;
+
+    panel_nodes(&mut scene, value, &panel_images)?;
 
     let table = &value.rectangle_tables[1];
     node(
@@ -413,6 +476,21 @@ pub(super) fn export(
     for artwork in &value.artwork {
         images.insert(artwork.slot, image(project, source, artwork)?);
     }
+    let mut panel_paths = Vec::<(AssetPath, String)>::new();
+    for layer in value.panels.iter().flat_map(|panel| &panel.layers) {
+        if let Some(asset) = &layer.texture_asset
+            && !panel_paths.iter().any(|(seen, _)| seen == asset)
+        {
+            let path = texture_image(
+                project,
+                source,
+                asset,
+                layer.texture_logical_size,
+                layer.texture_flags,
+            )?;
+            panel_paths.push((asset.clone(), path));
+        }
+    }
     let font = value
         .currency_font
         .as_ref()
@@ -435,7 +513,7 @@ pub(super) fn export(
             outline: None,
         },
     )?;
-    let (scene, script) = emit(value, &images, &font_path, &project.selection)?;
+    let (scene, script) = emit(value, &images, &panel_paths, &font_path, &project.selection)?;
     project.write(
         disk_path(&project.selection, &value.path, "gd"),
         script.as_bytes(),
