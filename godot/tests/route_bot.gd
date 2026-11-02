@@ -2,7 +2,7 @@ extends SceneTree
 ## Closed-loop route driver through the real game. Args: <route.json> <output.json>
 ## Route steps: {"go": [x, y, tolerance]} steers in source axes, {"key": name,
 ## "hold": s}, {"wait": s}, {"until_normal": n, "timeout": s}, {"until_handoff": true},
-## {"note": text} records a snapshot. tools/route_compare.py drives the original.
+## {"note": text} records a snapshot. "required": true on a step ends the run (exit 3, ROUTE ABORT) if it fails. tools/route_compare.py drives the original.
 const KEYS := {"ArrowLeft": KEY_LEFT, "ArrowRight": KEY_RIGHT, "ArrowUp": KEY_UP, "ArrowDown": KEY_DOWN, "LeftShift": KEY_SHIFT, "LeftControl": KEY_CTRL, "X": KEY_X, "Z": KEY_Z, "Space": KEY_SPACE, "Enter": KEY_ENTER, "F5": KEY_F5}
 var game: Node
 var log_rows: Array = []
@@ -261,6 +261,10 @@ func run() -> void:
 			while not bool(game.get("opening_finished")) and Time.get_ticks_msec() < end: await physics_frame
 			ok = bool(game.get("opening_finished"))
 		snapshot(str(step.get("note", step)) + ("" if ok else " FAILED"))
+		if not ok and step.get("required", false):
+			print("ROUTE ABORT ", step.get("note", step))
+			quit(3)
+			return
 		if step.get("census", false): _census(step.get("census"))
 	var file := FileAccess.open(args[1], FileAccess.WRITE)
 	file.store_string(JSON.stringify(log_rows))

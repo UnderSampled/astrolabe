@@ -16,7 +16,7 @@
 - [ ] Damage, death and fall damage.
 - [x] Training: Gogoud leads Hype to the mannequins, dialogue plays, sword stage completes with the source spin sequence, Gogoud advances.
 - [x] Talking to Gogoud grants the crossbow and 10 bolts, and item messages close.
-- [ ] Crossbow stage: bolts fire and clear too soon to register on the mannequin.
+- [x] Crossbow bolts register on the mannequin: the bolt no longer strikes its own shooter (stand-in `generator-contact`), so the mannequin reacts. The second arm (zone 1) still needs a clean route shot; Gogoud's advance after both arms is not yet seen.
 - [ ] Magic stage, Gogoud's key and the gate.
 - [x] A level exit to an unconverted level returns to the menu with a message. Not reached by play yet.
 

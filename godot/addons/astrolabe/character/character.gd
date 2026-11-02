@@ -115,6 +115,9 @@ var root_motion_displacement: Vector3 = Vector3.ZERO
 ## Native activation gates rendering, decision ticks and actor contact eligibility.
 @export var source_object_active: bool = true
 @export var source_activation_known: bool = false
+## The Perso whose generation call created this object. Its contact queries
+## never select that Perso (stand-in: see docs/astrolabe/stand-ins.md).
+var source_generator: Node3D
 @export var source_return_suppressed: bool = false
 @export var source_kill_resets_components: bool = false
 var restored_configuration: bool = false
@@ -1232,6 +1235,7 @@ func source_execute_action_and_generate_object(template_path: String, action: in
     if generated.has_method("source_contact_sector"):
         generated.set("_contact_sector", source_contact_sector())
     generated.set_meta("astrolabe_generated_template", template_path)
+    if generated.get("source_generator") == null: generated.set("source_generator", self)
     destination.add_child(generated)
     if generated_brain != null:
         generated_brain.set("main_actor_path", generated_brain.get_path_to(generated_brain.get("main_actor")))
@@ -1795,6 +1799,7 @@ func _source_contact_actor(collider: CollisionObject3D) -> Node3D:
 func _source_contact_candidate(actor: Node3D, physical: bool) -> bool:
     if actor == null or actor == self or not actor.source_contact_eligible or not actor.source_object_active:
         return false
+    if actor == source_generator: return false
     if physical and not actor.is_visible_in_tree(): return false
     var own_sector := source_contact_sector()
     var target_sector: Node3D = actor.source_contact_sector()

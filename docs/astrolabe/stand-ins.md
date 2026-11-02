@@ -62,3 +62,4 @@ row here. Replace them in order of what blocks play.
 | `3-55` | Function_Camera_GetDistMax | No maximum distance | Read source_camera.gd |
 | `3-70` | Function_Camera_GetState | Default state | Read source_camera.gd |
 | `3-75` | Function_Camera_GetLookVertex | Origin | Read source_camera.gd |
+| `generator-contact` | Cond28 (zone contact) from a generated Object, e.g. Hype's crossbow bolt | The Object never selects the Perso that generated it. Without this the bolt overlaps Hype's own body zone on its first tick and kills itself, so a bolt could never reach the mannequin | Find how the original keeps a bolt from striking its shooter (spawn offset, zone type or owner test) |

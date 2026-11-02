@@ -42,7 +42,7 @@ static func _integer(value: Variant, low: int, high: int) -> bool:
     return SNAPSHOT.integer(value, low, high)
 
 
-static func _only_keys(value: Dictionary, supported: Array[String]) -> bool:
+static func _only_keys(value: Dictionary, supported: Array) -> bool:
     for key in value:
         if not (key is String) or not supported.has(key):
             return false
@@ -72,11 +72,11 @@ static func _has_boolean_field(brain: Node, property_name: String) -> bool:
     return _has_property(brain, property_name) and brain.get(property_name) is bool
 
 
-static func _has_properties(owner: Object, fields: Array[String]) -> bool:
+static func _has_properties(owner: Object, fields: Array) -> bool:
     return fields.all(func(field): return _has_property(owner, field))
 
 
-static func _has_integer_properties(owner: Object, fields: Array[String]) -> bool:
+static func _has_integer_properties(owner: Object, fields: Array) -> bool:
     return _has_properties(owner, fields) and fields.all(func(field): return owner.get(field) is int)
 
 
@@ -610,10 +610,10 @@ static func _validate_training(value: Variant) -> String:
             if not owners[identity] is Dictionary or not _only_keys(owners[identity], ["removed"]) or owners[identity].get("removed") != true or not owners[identity].get("removed") is bool:
                 return "Training checkpoint has an invalid collected key owner."
             continue
-        var fields: Array[String] = ["brain", "transform"] if identity == TRAINER else ["brain"]
+        var fields: Array = ["brain", "transform"] if identity == TRAINER else ["brain"]
         if not owners[identity] is Dictionary or not _only_keys(owners[identity], fields): return "Training checkpoint has invalid actor state."
         var fields_saved: Variant = owners[identity].get("brain")
-        var expected: Array[String] = ["dsg_0", "dsg_5"] if identity == TRAINER else ATTACK_PERMISSIONS if identity == PLAYER else ["dsg_0", "dsg_1", "dsg_2"]
+        var expected: Array = ["dsg_0", "dsg_5"] if identity == TRAINER else ATTACK_PERMISSIONS if identity == PLAYER else ["dsg_0", "dsg_1", "dsg_2"]
         if not fields_saved is Dictionary or fields_saved.size() != expected.size() or not _only_keys(fields_saved, expected): return "Training checkpoint has invalid Brain fields."
         for field in expected:
             if field == "dsg_0" and identity != PLAYER:
@@ -650,7 +650,7 @@ static func _preflight_training(level: Node3D, value: Dictionary, inventory: Res
                 return "Converted actor has incompatible training Brain fields."
         if identity == PLAYER: continue
         var character := owner.get_parent()
-        if not _has_boolean_field(character, "source_activation_known") or not character.get("source_activation_known") or not _has_boolean_field(character, "source_return_suppressed") or character.get("source_return_suppressed") or not character.has_method("source_set_object_active_state"):
+        if not _has_boolean_field(character, "source_return_suppressed") or character.get("source_return_suppressed") or not character.has_method("source_set_object_active_state"):
             return "Converted training actor has incompatible activation state."
         var state := 23 if identity == TRAINER else 0
         if not character.has_method("select_state") or not _has_property(character, "animation_player") or not _has_property(character, "restored_configuration"):
