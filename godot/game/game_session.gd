@@ -331,6 +331,8 @@ func open_level() -> void:
     if not source_error.is_empty():
         fail(source_error)
         return
+    if str(selected_save["source"]).begins_with(SAVE_STATE.ORIGINAL_SOURCE):
+        MANOIR_START.place(actor, fixture)
     stage("restored", "Preparing to play...")
     # The first physics tick enters the saved world before movement starts.
     # A second tick lets CharacterBody3D update native contact before Brain runs.

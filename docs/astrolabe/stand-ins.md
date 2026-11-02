@@ -31,6 +31,7 @@ row here. Replace them in order of what blocks play.
 
 | Id | Source call | Current guess | Game-accurate follow-up |
 | --- | --- | --- | --- |
+| `load-placement` | Hype's position after loading an original save | Live-measured manor spot, 2 units from the checkpoint, used instead of the saved matrix | Read how the engine places him; generalize beyond this save point |
 | `unbound-waypoint` | Absolute waypoint with no binding | Level origin | Bind the waypoint |
 | `3-189` | MTH_Modulus | Nonzero remainder, so periodic regeneration does not tick | Type both operands and compute the remainder |
 | `1-65` | Cond_IsValidWayPoint | Waypoint is invalid | Check the waypoint reference |

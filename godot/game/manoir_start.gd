@@ -16,6 +16,14 @@ static func source_vector(values: Array) -> Vector3:
     return Vector3(float(values[0]), float(values[2]), -float(values[1]))
 
 
+## The running original puts Hype two units from his checkpoint after a load, not
+## at the matrix in the save file. The mechanism is unread: see stand-ins.md.
+static func place(actor: CharacterBody3D, fixture: Dictionary) -> void:
+    var rows: Array = fixture["source_basis"]
+    var basis := Basis(source_vector(rows[0]), source_vector(rows[2]), -source_vector(rows[1]))
+    actor.global_transform = Transform3D(basis, source_vector(fixture["source_translation"]))
+
+
 static func apply(actor: CharacterBody3D, brain: Node, fixture: Dictionary) -> String:
     if int(fixture.get("schema", 0)) != 1 or str(fixture.get("name", "")) != "supplied-english-save-manoir":
         return "Invalid English save fixture"
