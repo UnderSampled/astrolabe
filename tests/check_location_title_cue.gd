@@ -152,7 +152,8 @@ func check() -> void:
         if selector == 2:
             if not require(title.item == null and title._closing and title.panel.modulate.a == 1.0, "End uses animated style4 close"): return
         else:
-            if not require(screen.dialogue.closing, "unconditional End closes ordinary presentation"): return
+            # The short fade may already have finished; either way the live item is gone.
+            if not require(screen.dialogue.closing or screen.dialogue.item == null, "unconditional End closes ordinary presentation"): return
         scene.level.free()
         if not require(title.is_over() and screen.dialogue.is_over() and screen.source_level == host, "map release immediately cancels both owners"): return
         screen.source_position_dialog(0, 0)
