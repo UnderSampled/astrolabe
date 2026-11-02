@@ -24,6 +24,7 @@ LOAD = [{'action': 'keys', 'keys': ['Down', 'Return', 'Return'], 'hold_ms': 55, 
         {'action': 'wait_state', 'phase': 9, 'level': 'manoir', 'timeout_ms': 25000},
         {'action': 'wait', 'duration_ms': 1500}]
 HELD = {'LeftShift+ArrowUp': ['LeftShift', 'ArrowUp']}
+CAMERA_TYPES = [2, 2, 2]
 
 
 def condense(values):
@@ -38,11 +39,30 @@ def distance(points):
     return sum(math.dist(a, b) for a, b in zip(points, points[1:]))
 
 
+def busy_seconds(samples):
+    """Time from the first sample until the last non-idle sample."""
+    busy = [s['ms'] for s in samples if s['action'] != 47]
+    return round((busy[-1]-samples[0]['ms'])/1000, 2) if busy else 0.0
+
+
+def rise(samples, axis=2):
+    heights = [s['position'][axis] for s in samples] or [0]
+    return round(max(heights)-heights[0], 2)
+
+
+def offset(camera, samples):
+    """Camera distance from Hype and height above him, in source units."""
+    if not camera or not samples:
+        return None
+    a, b = camera['position'], samples[-1]['position']
+    return [round(math.dist(a, b), 2), round(a[2]-b[2], 2)]
+
+
 def observe(mcp):
     data = mcp.call('inspect_main_actor', actions=[47], designer_values=[])['observation']
     transform = data['actor']['global_transform']
     matrix = json.dumps(transform)
-    return {'action': data['actor']['current_action'], 'normal': data['normal']['current'],
+    return {'ms': time.monotonic()*1000, 'action': data['actor']['current_action'], 'normal': data['normal']['current'],
             'position': transform.get('translation') or transform.get('Affine', {}).get('translation') or [0, 0, 0],
             'raw': matrix[:0]}
 
@@ -71,8 +91,12 @@ def original(mcp, scenario):
             samples.append(observe(mcp))
     while time.monotonic()-started < scenario['seconds']:
         samples.append(observe(mcp))
+    camera = mcp.call('inspect_scene_camera', level='manoir', object_types=CAMERA_TYPES)
+    active = camera['observation']['active_camera']
     mcp.call('stop_game')
-    return {'entry': condense(row['action'] for row in entry), 'samples': samples}
+    return {'camera': {'position': active['position_source'], 'forward': active['forward_source'],
+                       'horizontal_fov': active['horizontal_fov'], 'vertical_fov': active['vertical_fov']},
+            'entry': condense(row['action'] for row in entry), 'samples': samples}
 
 
 def port(scenario, directory):
@@ -83,7 +107,10 @@ def port(scenario, directory):
                     '--script', 'res://tests/behavior_probe.gd', '--', str(root/'tools/behaviors/manoir.json'),
                     scenario['name'], str(output)], cwd=root/'godot', env=environment,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return json.loads(output.read_text())['samples'] if output.is_file() else []
+    if not output.is_file():
+        return [], None
+    data = json.loads(output.read_text())
+    return data['samples'], data.get('camera')
 
 
 def main():
@@ -105,8 +132,9 @@ def main():
         else:
             first = original(mcp, scenario)
             source.write_text(json.dumps(first))
+        camera = first.get('camera')
         first = first['samples']
-        second = port(scenario, args.work)
+        second, port_camera = port(scenario, args.work)
         a, b = condense(s['action'] for s in first), condense(s['action'] for s in second)
         n, m = condense(s['normal'] for s in first), condense(s['normal'] for s in second)
         # Orrery cannot sample during a held key, so the original's sequence is
@@ -117,7 +145,11 @@ def main():
                      'original_behaviors': n, 'port_behaviors': m,
                      'original_moved': round(math.dist(first[0]['position'], first[-1]['position']), 2),
                      'port_moved': round(math.dist(second[0]['position'], second[-1]['position']), 2) if second else None,
-                     'port_alive': bool(second) and second[-1]['running']})
+                     'port_alive': bool(second) and second[-1]['running'],
+                     'original_seconds': busy_seconds(first), 'port_seconds': busy_seconds(second),
+                     'original_rise': rise(first), 'port_rise': rise(second),
+                     'camera_offset_original': offset(camera, first), 'camera_offset_port': offset(port_camera, second),
+                     'vertical_fov': [camera and camera['vertical_fov'], port_camera and port_camera['vertical_fov']]})
     (args.work/'report.json').write_text(json.dumps(rows, indent=1)+'\n')
     for row in rows:
         print(json.dumps(row))

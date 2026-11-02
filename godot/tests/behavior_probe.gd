@@ -22,7 +22,7 @@ func key(names: String, pressed: bool) -> void:
 func sample() -> void:
 	var actor: CharacterBody3D = game.get("actor")
 	var brain: Node = game.get("brain")
-	samples.append({"ms": Time.get_ticks_msec() - started, "action": int(actor.get("current_state")), "normal": int(brain.get("current_normal")), "position": [actor.global_position.x, actor.global_position.y, actor.global_position.z], "running": bool(brain.get("running"))})
+	samples.append({"ms": Time.get_ticks_msec() - started, "action": int(actor.get("current_state")), "normal": int(brain.get("current_normal")), "position": [actor.global_position.x, -actor.global_position.z, actor.global_position.y], "running": bool(brain.get("running"))})
 
 func wait(seconds: float) -> void:
 	var end := Time.get_ticks_msec() + int(seconds * 1000.0)
@@ -66,7 +66,13 @@ func run() -> void:
 		key(step["key"], false)
 	var remaining: float = scenario["seconds"] - (Time.get_ticks_msec() - started) / 1000.0
 	if remaining > 0.0: await wait(remaining)
+	var view := root.get_viewport().get_camera_3d()
+	var camera := {}
+	if view != null:
+		# Source axes, so both engines report the same frame: x, -z, y.
+		var at := view.global_position
+		camera = {"position": [at.x, -at.z, at.y], "vertical_fov": view.fov}
 	var file := FileAccess.open(args[2], FileAccess.WRITE)
-	file.store_string(JSON.stringify({"entry": entry, "samples": samples}))
+	file.store_string(JSON.stringify({"entry": entry, "samples": samples, "camera": camera}))
 	file.close()
 	quit()
