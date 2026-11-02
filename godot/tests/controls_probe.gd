@@ -124,17 +124,6 @@ func run() -> void:
 	var walked := start.distance_to(actor().global_position)
 	check("up_walks", walked > 1.0 and alive(), walked)
 
-	# Peak speed, because the save's walled yard can stop a long run.
-	await hold(KEY_LEFT, 0.9)
-	await play(0.3)
-	peak_speed = 0.0
-	key(KEY_SHIFT, true)
-	await hold(KEY_UP, 1.0)
-	key(KEY_SHIFT, false)
-	var run_speed := peak_speed
-	await play(0.5)
-	check("shift_runs_faster", run_speed > walk_speed and alive(), [walk_speed, run_speed])
-
 	var ground := actor().global_position.y
 	var highest: float = await hold(KEY_CTRL, 0.2)
 	highest = maxf(highest, await play(1.5))
@@ -151,6 +140,17 @@ func run() -> void:
 	await play(0.5)
 	var saved := SAVE_STATE.read_for_load(SAVE_STATE.NATIVE_SOURCE)
 	check("f5_saves_a_loadable_game", saved["status"] == "loaded", [str(game.get("status_label").text), saved.get("message", "")])
+
+	# Peak speed, because the save's yard is small and a run can reach a scripted trigger; this comes last.
+	await hold(KEY_LEFT, 0.9)
+	await play(0.3)
+	peak_speed = 0.0
+	key(KEY_SHIFT, true)
+	await hold(KEY_UP, 1.0)
+	key(KEY_SHIFT, false)
+	var run_speed := peak_speed
+	await play(0.5)
+	check("shift_runs_faster", run_speed > walk_speed and alive(), [walk_speed, run_speed])
 
 	deltas.sort()
 	var median := deltas[deltas.size() / 2] * 1000.0
