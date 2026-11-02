@@ -160,11 +160,8 @@ impl Content for HudPresentation {
                 .map(|panel| panel.source_layer_count)
                 .collect::<Vec<_>>()
                 == [31, 7, 14, 4]
-                && self
-                    .panels
-                    .iter()
-                    .all(|panel| !panel.enabled
-                        && panel.layers.len() == usize::from(panel.source_layer_count)),
+                && self.panels.iter().all(|panel| !panel.enabled
+                    && panel.layers.len() == usize::from(panel.source_layer_count)),
             "Fix HUD panel descriptors differ from the verified profile"
         );
         anyhow::ensure!(

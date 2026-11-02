@@ -184,7 +184,9 @@ fn classify_stage_log(
 }
 
 fn allowed_error(stage: &str, line: &str) -> bool {
-    known_scene_error(line) || (stage == "corrupt" && line.starts_with("ERROR: ConfigFile parse error at user://manoir-save.cfg"))
+    known_scene_error(line)
+        || (stage == "corrupt"
+            && line.starts_with("ERROR: ConfigFile parse error at user://manoir-save.cfg"))
 }
 
 fn known_scene_error(line: &str) -> bool {
@@ -235,7 +237,9 @@ mod tests {
 
     #[test]
     fn accepts_expected_corrupt_slot_diagnostic_only_in_corrupt_stage() {
-        let log = format!("{MARKER}\nERROR: ConfigFile parse error at user://manoir-save.cfg:0: Unexpected EOF while parsing simple tag.\n");
+        let log = format!(
+            "{MARKER}\nERROR: ConfigFile parse error at user://manoir-save.cfg:0: Unexpected EOF while parsing simple tag.\n"
+        );
         assert!(classify_stage_log("corrupt", MARKER, &log, true, Some(0)).is_ok());
         assert!(classify_stage_log("write", MARKER, &log, true, Some(0)).is_err());
     }

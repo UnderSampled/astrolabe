@@ -65,7 +65,7 @@ These wait, because none of them makes the game more of a game yet:
 The suite builds and selects again, Cond123 is fixed, Load Game survives a jump,
 the gate exists, and fatal unsupported calls have stand-ins.
 
-### 2. The manor plays on the machine it runs on: nearly done
+### 2. The manor plays on the machine it runs on: done
 
 The player can start, fight and move through the manor at a usable frame rate
 with a default launch, and Load Game loads a real save.
@@ -80,7 +80,8 @@ Done:
 - `tools/behavior_compare.py` and `tools/actor_compare.py` test keys and actors
   against the running original. `docs/astrolabe/manoir-checklist.md` has results.
 
-Left: fight contact, and triage of the remaining test failures.
+Four component tests still fail, listed in notes/test-triage-2026-11-02.md. None
+blocks play, and they carry into milestone 3.
 
 ### 3. The manor is a level
 

@@ -36,3 +36,14 @@ One line per test. Fixed means product code changed; rewritten means the test wa
 
 - Scene walking cue: `select_state(32)` then `advance(26/30)` fired the frame-0 sound cue twice. Commit 2b92e13 (frame-zero cues once) targets this; the scene test has not been rerun since (about 5 minutes).
 - det == 0 engine errors (above).
+
+## After the sound and transform fixes
+
+The `det == 0` errors came from channels keyed to zero scale and are gone. The
+four sound tests and three of the previously blocked tests pass. Still failing:
+
+- imported_gogoud_opening_ai_drives_fourth_camera_cut: camera fixture changed initial mode or target.
+- exported_crossbow_free_flight_expires_and_releases_guards: cleanup did not follow the compiled lifetime counter.
+- source_scene_rete_routes: its fixture lacks the game session and camera state that compiled AI now reaches.
+- menu_new_game_preserves_slot_and_restarts_original_opening: smoke harness, cause not yet read.
+- The seven behavior_godot BDD scenarios stay parked; tools/behavior_compare.py covers them on the real route.
