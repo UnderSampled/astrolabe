@@ -214,7 +214,7 @@ func check():
     if not require(portal.intersect_segment(Vector3(3,0,0),Vector3(3,0,0)).is_empty(), "zero segment reported as crossing"): return
     var query = PhysicsRayQueryParameters3D.create(Vector3(1,0,0),Vector3(5,0,0))
     if not require(scene.get_world_3d().direct_space_state.intersect_ray(query).is_empty(), "sector portal became a physical wall"): return
-    var data = JSON.parse_string(scene.get_node("world/a").get_meta("source_sector"))
+    var data = scene.get_node("world/a")
     if not require(data.graphics[0].level == 3 and data.sound[0].volume == -1200, "routing data lost"): return
     scene.free()
     quit(0)

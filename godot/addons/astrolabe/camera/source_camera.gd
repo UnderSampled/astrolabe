@@ -1485,7 +1485,7 @@ func _source_collision_context() -> Dictionary:
     if not is_instance_valid(sector):
         sector = _source_sector_for(get_parent())
     while is_instance_valid(sector):
-        if sector.has_meta("source_sector") and sector.has_meta("source_sector_id"):
+        if sector.get("activation") != null and sector.has_meta("source_sector_id"):
             var camera_sector := sector
             var camera_reachable := _source_collision_sectors([camera_sector])
             if camera_reachable.is_empty():
@@ -1569,7 +1569,7 @@ func _source_update_sector_history(current_position: Vector3) -> bool:
         if sector == null:
             push_error("Source 004e0020 initial sector binding is missing")
             return false
-        if not sector.has_meta("source_sector"):
+        if sector.get("activation") == null:
             push_error("Source 004e0020 initial sector lacks source collision metadata")
             return false
         _source_active_sector = sector

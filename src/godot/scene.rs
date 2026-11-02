@@ -141,6 +141,60 @@ impl Project {
         Ok(format!("res://{generated_path}"))
     }
 
+    /// The sector's fields on its SourceSector node.
+    fn sector_fields(&mut self, sector: &crate::model::scene::Sector, name: &str) -> Result<()> {
+        fn strings<'a>(values: impl Iterator<Item = &'a str>) -> String {
+            let quoted: Vec<String> = values.map(quoted).collect();
+            format!("PackedStringArray([{}])", quoted.join(", "))
+        }
+        fn visibility(values: &[crate::model::scene::SectorVisibility]) -> String {
+            let rows: Vec<String> = values
+                .iter()
+                .map(|v| {
+                    format!(
+                        "{{\"sector\": {}, \"level\": {}, \"unknown\": {}}}",
+                        quoted(&v.sector),
+                        v.level,
+                        v.unknown
+                    )
+                })
+                .collect();
+            format!("[{}]", rows.join(", "))
+        }
+        let sound: Vec<String> = sector
+            .sound
+            .iter()
+            .map(|v| {
+                format!(
+                    "{{\"sector\": {}, \"volume\": {}}}",
+                    quoted(&v.sector),
+                    v.volume
+                )
+            })
+            .collect();
+        writeln!(
+            self.builder,
+            "    {name}.set_script(load(\"res://addons/astrolabe/scene/source_sector.gd\"))\n    {name}.sector_name = {}\n    {name}.virtual_sector = {}\n    {name}.activation = {}\n    {name}.has_boundary = {}\n    {name}.environments = {}\n    {name}.static_lights = {}\n    {name}.dynamic_lights = {}\n    {name}.persos = {}\n    {name}.graphics.assign({})\n    {name}.optional_graphics.assign({})\n    {name}.collision = {}\n    {name}.activity = {}\n    {name}.sound.assign([{}])\n    {name}.unknown = PackedByteArray([{}, {}, {}])",
+            quoted(&sector.name),
+            sector.virtual_sector,
+            sector.activation,
+            sector.boundary.is_some(),
+            strings(sector.environments.iter().map(|r| r.path.as_str())),
+            strings(sector.static_lights.iter().map(|r| r.path.as_str())),
+            strings(sector.dynamic_lights.iter().map(|r| r.path.as_str())),
+            strings(sector.persos.iter().map(String::as_str)),
+            visibility(&sector.graphics),
+            visibility(&sector.optional_graphics),
+            strings(sector.collision.iter().map(String::as_str)),
+            strings(sector.activity.iter().map(String::as_str)),
+            sound.join(", "),
+            sector.unknown[0],
+            sector.unknown[1],
+            sector.unknown[2],
+        )?;
+        Ok(())
+    }
+
     pub fn write_scene(
         &mut self,
         scene: &Scene,
@@ -350,10 +404,10 @@ impl Project {
                 if let Some(boundary) = &sector.boundary {
                     self.sector_boundary(boundary, &name, &scene_id)?;
                 }
+                self.sector_fields(sector, &name)?;
                 writeln!(
                     self.builder,
-                    "    {name}.set_meta(\"source_sector\", {})\n    {name}.set_meta(\"source_sector_id\", {})",
-                    quoted(&serde_json::to_string(sector)?),
+                    "    {name}.set_meta(\"source_sector_id\", {})",
                     quoted(&node.id)
                 )?;
             }

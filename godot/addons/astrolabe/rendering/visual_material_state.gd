@@ -16,8 +16,9 @@ var _shaders: Dictionary = {}
 var lighting: SectorLighting
 
 func _ready() -> void:
-	lighting = SectorLighting.new()
-	lighting.build(_level_root())
+	if parity_lighting():
+		lighting = SectorLighting.new()
+		lighting.build(_level_root())
 	var tree := get_tree()
 	if not tree.node_added.is_connected(_on_node_added):
 		tree.node_added.connect(_on_node_added)
@@ -203,11 +204,18 @@ func _bind_material(node: GeometryInstance3D, surface: int, material: Material, 
 	if actor != null:
 		actor.call("source_rebind_visual_material_variant", material, replacement)
 
+## The parity shader is one swappable layer. Turn it off with the project setting
+## astrolabe/rendering/parity_lighting, or ASTROLABE_LIGHTING=native for one run.
+static func parity_lighting() -> bool:
+	var chosen := OS.get_environment("ASTROLABE_LIGHTING")
+	if not chosen.is_empty(): return chosen != "native"
+	return bool(ProjectSettings.get_setting("astrolabe/rendering/parity_lighting", true))
+
 ## Dynamic meshes (layer 2) take the source's per-vertex lighting; radiosity
 ## meshes stay prelit. Hardware allows too few instance uniforms for every mesh,
 ## so variants are shared per material and sector row.
 func _bind_source_lighting(node: Node) -> void:
-	if not node is MeshInstance3D or node.layers != 2 or node.mesh == null: return
+	if lighting == null or not node is MeshInstance3D or node.layers != 2 or node.mesh == null: return
 	var actor: Node = node
 	while actor != null and not actor.has_method("source_contact_sector"): actor = actor.get_parent()
 	set_source_lighting_row(node, int(actor.get("source_lighting_row")) if actor != null else 0)

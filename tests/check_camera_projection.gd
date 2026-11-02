@@ -256,7 +256,7 @@ func run() -> void:
     var probe_sector := Node3D.new()
     probe_sector.name = "CameraSectorFinalChild"
     probe_sector.set_meta("source_sector_id", "camera-sector-probe")
-    probe_sector.set_meta("source_sector", JSON.stringify({"virtual_sector": 0, "activation": 4, "collision": [], "unknown": [0,0,0], "boundary": {}}))
+    bind_sector_fields(probe_sector, 0)
     probe_root.add_child(probe_sector)
     var probe_index := Node.new()
     probe_index.name = "SourceSectorIndex"
@@ -509,7 +509,7 @@ func run() -> void:
     if not require(probe_owner.global_position.is_equal_approx(Vector3(0.5,0.5,0)), "source final-child pose publication chose the wrong argument"): return
     var next_sector := Node3D.new()
     next_sector.set_meta("source_sector_id", "camera-sector-next")
-    next_sector.set_meta("source_sector", JSON.stringify({"virtual_sector": 0, "activation": 4, "collision": [], "unknown": [0,0,0], "boundary": {}}))
+    bind_sector_fields(next_sector, 0)
     var next_boundary := floor_boundary.duplicate() as MeshInstance3D
     next_boundary.name = "SectorBoundary"
     next_boundary.position = Vector3(2,0,0)
@@ -520,7 +520,7 @@ func run() -> void:
     if not require(probe_owner.global_position.is_equal_approx(Vector3(2,0.5,0)), "source non-final-sector pose publication chose the wrong argument"): return
     var farther_sector := Node3D.new()
     farther_sector.set_meta("source_sector_id", "camera-sector-farther-boundary")
-    farther_sector.set_meta("source_sector", JSON.stringify({"virtual_sector": 0, "activation": 4, "collision": [], "unknown": [0,0,0], "boundary": {}}))
+    bind_sector_fields(farther_sector, 0)
     probe_root.add_child(farther_sector)
     bind_sector(probe_index, farther_sector)
     var farther_boundary := MeshInstance3D.new()
@@ -537,10 +537,10 @@ func run() -> void:
     gated_child.set_meta("source_node_kind", 1)
     probe_sector.add_child(gated_child)
     bind_visual(probe_index, probe_sector, gated_child)
-    probe_sector.set_meta("source_sector", JSON.stringify({"virtual_sector": 0, "activation": 4, "collision": [], "unknown": [1,0,0], "boundary": {}}))
+    bind_sector_fields(probe_sector, 1)
     resolved_sector = probe_camera.source_resolve_mode_zero_sector(Vector3(0,0.5,0))
     if not require(resolved_sector.get("complete", false), "source 004e0020 traversed sector children when Sector.unknown[0] disables them"): return
-    probe_sector.set_meta("source_sector", JSON.stringify({"virtual_sector": 0, "activation": 4, "collision": [], "unknown": [0,0,0], "boundary": {}}))
+    bind_sector_fields(probe_sector, 0)
     gated_child.free()
     var physical_visual := Node3D.new()
     physical_visual.set_meta("source_node_kind", 13)
@@ -580,3 +580,9 @@ func run() -> void:
     scene.free()
     print("SOURCE_CAMERA_PROJECTION_OK")
     quit()
+
+func bind_sector_fields(sector: Node3D, unknown_first: int) -> void:
+    if sector.get("activation") == null: sector.set_script(load("res://addons/astrolabe/scene/source_sector.gd"))
+    sector.activation = 4
+    sector.has_boundary = true
+    sector.unknown = PackedByteArray([unknown_first, 0, 0])

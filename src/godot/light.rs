@@ -9,10 +9,36 @@ impl Project {
         let name = format!("{parent}_light_{index}");
         writeln!(
             self.builder,
-            "    var {name} = Node3D.new()\n    {name}.name = {}\n    {parent}.add_child({name})\n    {name}.owner = {parent}\n    {name}.transform = {}\n    {name}.set_meta(\"source_light\", {})",
+            "    var {name} = Node3D.new()\n    {name}.name = {}\n    {parent}.add_child({name})\n    {name}.owner = {parent}\n    {name}.transform = {}\n    {name}.set_script(load(\"res://addons/astrolabe/rendering/source_light.gd\"))",
             quoted(&format!("Light_{index}")),
             super::scene::transform(&light.transform),
-            quoted(&serde_json::to_string(light)?)
+        )?;
+        let c = light.color;
+        writeln!(
+            self.builder,
+            "    {name}.source_path = {}\n    {name}.source_name = {}\n    {name}.kind = {}\n    {name}.lit = {}\n    {name}.sends = {}\n    {name}.cast_shadows = {}\n    {name}.creates_shadows = {}\n    {name}.rotating = {}\n    {name}.pulsing = {}\n    {name}.far = {}\n    {name}.near = {}\n    {name}.angles = Vector2({}, {})\n    {name}.rotation_step = {}\n    {name}.pulse_step = {}\n    {name}.source_color = Color({}, {}, {}, {})\n    {name}.painting = {}\n    {name}.intensity_min = {}\n    {name}.unresolved_dimmer = {}",
+            quoted(light.path.as_str()),
+            quoted(&light.name),
+            light.kind,
+            light.on != 0,
+            light.send != 0,
+            light.cast_shadows != 0,
+            light.creates_shadows,
+            light.rotating != 0,
+            light.pulsing != 0,
+            light.far,
+            light.near,
+            light.angles[0],
+            light.angles[1],
+            light.rotation_step,
+            light.pulse_step,
+            c[0],
+            c[1],
+            c[2],
+            c[3],
+            light.painting,
+            light.intensity_min,
+            light.unresolved_dimmer,
         )?;
         let class = match light.kind {
             1 | 5 => "DirectionalLight3D",

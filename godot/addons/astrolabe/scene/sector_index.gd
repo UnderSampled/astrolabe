@@ -22,16 +22,8 @@ func sector_node(sector_id: String) -> Node3D:
 func sector_data(sector: Node) -> Variant:
     if not is_instance_valid(sector): return null
     var sector_id := str(sector.get_meta("source_sector_id", ""))
-    if sector_node(sector_id) != sector: return null
-    # Metadata can be deliberately edited by authored consumers. Parse it once
-    # per value, including failed parses, rather than once per neighbor/query.
-    var text := str(sector.get_meta("source_sector", ""))
-    var cached: Dictionary = _metadata.get(sector_id, {})
-    if cached.get("text") != text:
-        var data: Variant = JSON.parse_string(text)
-        cached = {"text": text, "data": data if data is Dictionary else null}
-        _metadata[sector_id] = cached
-    return cached["data"]
+    if sector_node(sector_id) != sector or sector.get("activation") == null: return null
+    return {"virtual_sector": sector.get("virtual_sector"), "activation": sector.get("activation"), "collision": sector.get("collision"), "unknown": sector.get("unknown"), "boundary": {} if sector.get("has_boundary") else null}
 
 func resolve_position(position: Vector3) -> Dictionary:
     if not position.is_finite(): return {}

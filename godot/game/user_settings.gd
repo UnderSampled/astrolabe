@@ -349,7 +349,7 @@ func _apply_shadow_to_light(light: Light3D) -> void:
 	if not light.has_meta(ORIGINAL_SHADOW_META):
 		var source_shadow_enabled := light.shadow_enabled
 		var source_wrapper := light.get_parent()
-		if source_wrapper != null and source_wrapper.has_meta("source_light") and not light.light_negative:
+		if source_wrapper != null and source_wrapper.get("source_path") != null and not light.light_negative:
 			source_shadow_enabled = true
 		light.set_meta(ORIGINAL_SHADOW_META, source_shadow_enabled)
 	light.shadow_enabled = bool(light.get_meta(ORIGINAL_SHADOW_META))

@@ -34,6 +34,10 @@ import/use_multiple_threads=false
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 
+[astrolabe]
+
+rendering/parity_lighting=true
+
 [shader_globals]
 
 source_sector_lights={

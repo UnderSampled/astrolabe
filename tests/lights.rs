@@ -141,7 +141,8 @@ func _initialize():
     assert(positive.omni_range == 5.0)
     assert(negative.light_color.is_equal_approx(Color(0,0.2,0.0)))
     assert(scene.get_node("Light_0").position.is_equal_approx(Vector3(1,3,-2)))
-    assert(scene.get_node("world").has_meta("source_sector"))
+    assert(scene.get_node("world").get("static_lights") != null)
+    assert(scene.get_node("Light_0").get("source_path") != null)
     scene.free()
     quit(0)
 "#,
