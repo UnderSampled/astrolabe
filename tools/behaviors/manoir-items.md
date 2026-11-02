@@ -11,7 +11,7 @@
 - [x] The save lectern plays its sequence and saves.
 - [x] Walk, run, backstep, turn, jump, sword, crossbow and Fire match the original's sequences.
 - [x] Flask pickup collects its item through compiled AI; saved gold stays collected.
-- [x] Barrels. Fire at iBaril2 runs the barrel chain to iDummy_PourBarils (stage5_barrel.json). The dummy checks distance at the hit: within 3 units Hype takes armored 10 (life 50 to 49) and is knocked back 1.5, proven by triggering it beside the barrel. Hype out of range takes nothing. Not compared with the original: the training yard is too far from the save for placement to hold.
+- [x] Barrels. Fire at iBaril2 runs the barrel chain to iDummy_PourBarils (stage5_barrel.json). The dummy checks distance at the hit: within 3 units Hype takes armored 10 (life 50 to 49) and is knocked back 1.5, proven by triggering it beside the barrel. Hype out of range takes nothing, and a Fire cast protects him: behavior 12 sets his dsg_32 for the cast and the dummy skips damage while it is set. Not run in the original: the yard is too far from the save for placement to hold, and staged placement fell too. Stephen's recorded route can reach it.
 - [x] Sword hits register: the training mannequin reacts and recovers.
 - [x] Fall damage and death. Falling off the bridge matches the original on both branches (fall_bridge, fall_near_pont04): behaviors 93, 94, 16, 96, 4, placement by iManoirAll_Dummy_TombePont1 and life 50 to 49 through Global's armored 10. A lethal fall (fall_death, from life 1) matches through 16, 95, 55 with actions 316, 343, then statue, fade, game over image and the menu. Only rendered runs finish the game over: the image's hold waits for a drawn frame.
 - [x] Training: Gogoud leads Hype to the mannequins, dialogue plays, sword stage completes with the source spin sequence, Gogoud advances.
@@ -29,5 +29,6 @@
 - [x] Actor collision: Hype stops at the save lectern where the original does.
 - [ ] Physics compared with the original: walk and run distance agree within about 3 percent, jump rise within about 6 percent.
 - [ ] Sound mixing compared with the original (tools/intro_loudness.py). Music within 1.5 dB, voices 1.5 to 5 dB quiet at the intro. Camera microphones hold their selected pose, matching the original: an intro line was silent before. Open: between intro lines the background is -51 dB in the port and -42 in the original, and no script ducks it.
+- [ ] Camera procedures: ChangeAngle, ChangeDistance and the getters are real (disassembly of 00547620 and 00546510); follow distance and height match within about 0.1 settled. Lectern and iCadre room behavior not compared with the original.
 - [ ] Visuals compared with the original: all intro camera shots match; camera framing and world match at the Load start; actor lighting and HUD in progress.
 - [ ] Sector AI activation: the original leaves some distant actors idle until nearby; the port runs them all.
