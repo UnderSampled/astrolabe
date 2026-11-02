@@ -346,6 +346,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::ApplyArmoredDamage(value)
                 | Expression::IsInAction(value)
                 | Expression::ActionFinished(Some(value))
+                | Expression::WaypointValuePosition(value)
                 | Expression::Not(value)
                 | Expression::Negate(value)
                 | Expression::InventoryQuantity(value)

@@ -122,7 +122,7 @@ func plan(target: Vector2, step_size := 1.0) -> Array:
 
 ## Logs each change of Hype's and named actors' behavior and of the dialogue.
 ## An optional key is tapped every 2 seconds, to page through dialogue.
-func watch(seconds: float, names: Array, press: String) -> void:
+func watch(seconds: float, names: Array, press: String, fields: Array = []) -> void:
 	var bodies := {}
 	for body in game.get("level").find_children("*", "CharacterBody3D", true, false):
 		if names.has(str(body.get_meta("source_perso_name", ""))): bodies[str(body.get_meta("source_perso_name"))] = body
@@ -133,6 +133,8 @@ func watch(seconds: float, names: Array, press: String) -> void:
 	while Time.get_ticks_msec() < end:
 		await physics_frame
 		var row := {"hype": [int(actor().get("current_state")), int(game.get("brain").get("current_normal"))]}
+		for field in fields: row[field] = game.get("brain").get(field)
+		if fields.size() > 0: row["at"] = [roundi(position().x), roundi(position().y), roundi(actor().global_position.y)]
 		for name in bodies:
 			var brain: Node = bodies[name].get_node_or_null("Brain")
 			row[name] = [int(bodies[name].get("current_state")), int(brain.get("current_normal")) if brain else -1, bodies[name].get("source_object_active")]
@@ -198,8 +200,22 @@ func run() -> void:
 			key("ArrowUp", false)
 			var moved := actor().global_position - before
 			print("CALIBRATE moved ", moved.normalized(), " x ", actor().global_basis.x.normalized(), " y ", actor().global_basis.y.normalized(), " z ", actor().global_basis.z.normalized())
+		elif step.has("teleport"):
+			var to: Array = step["teleport"]
+			actor().global_position = Vector3(to[0], to[2], -to[1])
+			actor().source_contact_sector()
+			game.call("_locate_player_sector")
+			await create_timer(0.3).timeout
+		elif step.has("probe"):
+			var point: Variant = game.get("brain").get("dsg_157")[0]
+			var at: Vector3 = point.call("source_world_position", actor())
+			var angles: Vector2 = actor().source_turn_angles_to_position(at)
+			print("PROBE binding ", actor().get("source_motion_binding_present"), " wp ", at, " angles ", angles, " heading ", heading(), " rot ", actor().global_rotation.y, " basis.z ", actor().global_basis.z)
+		elif step.has("waypoints"):
+			for point in game.get("brain").get(step["waypoints"]):
+				if is_instance_valid(point): print("WAYPOINT ", point.call("source_world_position", actor()), " r ", point.get("radius"))
 		elif step.has("watch"):
-			await watch(float(step["watch"]), step.get("actors", []), step.get("press", ""))
+			await watch(float(step["watch"]), step.get("actors", []), step.get("press", ""), step.get("fields", []))
 		elif step.has("wait"):
 			await create_timer(step["wait"]).timeout
 		elif step.has("until_normal"):

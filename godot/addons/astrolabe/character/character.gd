@@ -181,6 +181,9 @@ func _ready() -> void:
         source_laser_pointer = SOURCE_LASER_POINTER.new()
     _bind_source_configuration()
     if motion_enabled:
+        # The engine allocates dynamics at load, so the file's pointer can be
+        # empty for an actor that moves. Without this Hype ignores scripted turns.
+        source_motion_binding_present = true
         _configure_motion()
         _collide_with_actor_zones()
     # Selection only; the saved initial pose is usable without this callback.

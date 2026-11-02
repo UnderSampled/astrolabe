@@ -694,6 +694,8 @@ pub enum Expression {
     WaypointReference(AssetRef<Waypoint>),
     /// Func_GetWPAbsolutePosition resolves a meaningful shared waypoint asset.
     WaypointPosition(AssetRef<Waypoint>),
+    /// Func_GetWPAbsolutePosition of a waypoint value, such as an array element.
+    WaypointValuePosition(Box<Expression>),
     /// Func_DistanceToWP evaluates a source-space waypoint distance on its
     /// receiver (self unless an enclosing Operator_Ultra selects another actor).
     DistanceToWaypoint {
@@ -1752,6 +1754,7 @@ impl Script {
                 | Expression::Negate(value)
                 | Expression::IsInAction(value)
                 | Expression::ActionFinished(Some(value))
+                | Expression::WaypointValuePosition(value)
                 | Expression::Square(value)
                 | Expression::AbsoluteValue(value)
                 | Expression::ActorDistance(value)

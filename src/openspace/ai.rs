@@ -1837,11 +1837,14 @@ impl Parser<'_> {
             (3, 164) => Expression::SelfSighting,
             (3, 0) => Expression::SelfPosition,
             (3, 3) => {
+                let first = self.at;
                 let (operand, point) = self.take(indent + 1)?;
-                if point.kind == 29
-                    && let Some(reference) = self.codec.waypoints.get(&operand)
-                {
+                let literal = point.kind == 29;
+                if literal && let Some(reference) = self.codec.waypoints.get(&operand) {
                     Expression::WaypointPosition(reference.clone())
+                } else if !literal {
+                    self.at = first;
+                    Expression::WaypointValuePosition(Box::new(self.expression(indent + 1)?))
                 } else {
                     Expression::Unsupported(
                         self.unsupported(at, "unbound absolute waypoint position".into())?,
@@ -3393,6 +3396,10 @@ impl Writer<'_> {
                     .context("missing Waypoint reference handle")?
                     .1;
                 self.node(29, handle, indent);
+            }
+            Expression::WaypointValuePosition(waypoint) => {
+                self.node(3, 3, indent);
+                self.expression(waypoint, indent + 1)?;
             }
             Expression::WaypointPosition(reference) => {
                 let handle = self

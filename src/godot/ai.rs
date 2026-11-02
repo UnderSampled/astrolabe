@@ -957,6 +957,7 @@ fn vector_expression(e: &Expression, model: &AiModel) -> bool {
         | Expression::ActorSighting(_)
         | Expression::SelfPositionField
         | Expression::WaypointPosition(_)
+        | Expression::WaypointValuePosition(_)
         | Expression::SelfSighting
         | Expression::LaserDirection
         | Expression::VectorPlus(_, _)
@@ -1069,6 +1070,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::MagicAddPoints(_)
         | Expression::MagicPointsMaximum
         | Expression::WaypointPosition(_)
+        | Expression::WaypointValuePosition(_)
         | Expression::DistanceToWaypoint { .. }
         | Expression::WaypointSphereContains { .. }
         | Expression::ActorInSector { .. }
@@ -1519,6 +1521,20 @@ fn guarded_expression(
             } else {
                 format!("{armor}.call(\"definition_count\")")
             }
+        }
+        Expression::WaypointValuePosition(waypoint) => {
+            let value = guarded_expression(out, waypoint, model, depth, flow)?;
+            let local = format!("waypoint_value_{}", flow.local);
+            flow.local += 1;
+            writeln!(
+                out,
+                "{pad}var {local}: Variant = {value}\n{pad}if typeof({local}) != TYPE_OBJECT or not is_instance_valid({local}) or not {local}.has_method(\"source_world_position\"):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                quoted(&format!(
+                    "{} requires a resolved waypoint value",
+                    model.path
+                ))
+            )?;
+            format!("{local}.source_world_position(character())")
         }
         Expression::WaypointPosition(reference) => {
             let value = waypoint_constant(reference);
@@ -2082,6 +2098,9 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         Expression::SelfPositionField => "character().source_position()".into(),
         Expression::WaypointReference(reference) => {
             format!("{}()", waypoint_resource_constant(reference))
+        }
+        Expression::WaypointValuePosition(_) => {
+            anyhow::bail!("waypoint value position requires guarded lowering")
         }
         Expression::WaypointPosition(reference) => waypoint_constant(reference),
         Expression::GameTime => "character().source_game_time()".into(),
