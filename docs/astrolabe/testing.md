@@ -10,7 +10,7 @@ two minutes and asks one question: is this still a game?
 | Check | What it shows |
 | --- | --- |
 | Controls probe | Load Game, then turn, walk, run, jump and sword through physical keys, with a median frame time floor on real hardware |
-| Route | Load the save, walk to the level exit and leave the level through the real game |
+| Route | Load the save, walk to the level exit and load Brigand through the real game |
 | Original comparison | Live original data against the parser, on a disposable copy of the prefix |
 
 The game checks start by loading a save, which is far faster than replaying the
@@ -148,7 +148,7 @@ Tests are evidence for declared behavior. Converter tests should exercise useful
 
 `tools/route_check.py HANDOFF_DIR [route.json ...]` runs the saved routes in
 `tools/routes/` through the real game with `godot/tests/route_bot.gd` (steps go,
-plan, teleport, face, key, wait, shot, until_normal, until_item, watch, census, spell,
+plan, teleport, face, key, wait, shot, until_level, until_normal, until_item, watch, census, spell,
 zones). It starts each run from a copy of an F5 handoff save directory, retries
 a route whose `required` step fails, and reports any step marked FAILED or any
 script error. A route takes up to a few minutes, so this is on demand. Routes cover

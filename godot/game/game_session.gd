@@ -4,6 +4,8 @@ extends Node3D
 ## seeds the manor; a native slot restores supported mutable player fields.
 
 const LEVEL := "res://generated/hype/levels/manoir/level.tscn"
+var level_path := LEVEL
+var initial_level_name := "manoir"
 const GATE_ACTOR := "level:/persos/world/0/15"
 const MANOIR_START = preload("res://game/manoir_start.gd")
 const SAVE_STATE = preload("res://game/save_state.gd")
@@ -206,22 +208,27 @@ func request_initial_level() -> void:
     _initial_transition_pending = true
     var transitions := get_node_or_null("/root/LevelTransition")
     if transitions != null:
-        if bool(transitions.call("request_initial_level", "manoir")):
+        if not new_game:
+            var travel: Dictionary = SAVE_STATE.read_for_load(str(get_tree().root.get_meta(SAVE_STATE.LOAD_SOURCE_META, "")))
+            if str(travel.get("source", "")) == SAVE_STATE.TRAVEL_SOURCE and travel["status"] == "loaded":
+                initial_level_name = str(travel["level"])
+                level_path = "res://generated/hype/levels/%s/level.tscn" % initial_level_name
+        if bool(transitions.call("request_initial_level", initial_level_name)):
             return
         fail("The manor loading service could not start the initial load.")
         return
     open_level()
 
 func _on_initial_transition_failed(level_name: String, message: String) -> void:
-    if _initial_transition_pending and level_name == "manoir":
+    if _initial_transition_pending and level_name == initial_level_name:
         fail(message)
 
 func _on_initial_transition_cancelled(level_name: String) -> void:
-    if _initial_transition_pending and level_name == "manoir":
+    if _initial_transition_pending and level_name == initial_level_name:
         _initial_transition_pending = false
 
 func open_level_from_transition(packed: PackedScene, path: String) -> Dictionary:
-    if path != LEVEL or packed == null or level != null or loading:
+    if path != level_path or packed == null or level != null or loading:
         return {"ok": false, "message": "The initial manor request does not match this session."}
     if content_cache != null:
         content_cache.call("retain_level", path, packed)
@@ -254,7 +261,7 @@ func open_level() -> void:
     var restore_message := "Initializing new game..." if new_game else "Restoring saved game..."
     _show_initial_restore_phase(restore_message)
     stage("state_restoration", restore_message)
-    if not ResourceLoader.exists(LEVEL):
+    if not ResourceLoader.exists(level_path):
         fail("The manor has not been generated. See godot/README.md.")
         return
     if not new_game:
@@ -263,7 +270,7 @@ func open_level() -> void:
         if selected_save["status"] != "loaded":
             fail(str(selected_save.get("message", "The selected saved game is unavailable.")))
             return
-    var packed: PackedScene = content_cache.call("get_level", LEVEL) as PackedScene if content_cache != null else null
+    var packed: PackedScene = content_cache.call("get_level", level_path) as PackedScene if content_cache != null else null
     if packed == null:
         stage("resource_loading", "Loading the manor...")
         limit_loading_frames()
@@ -271,24 +278,24 @@ func open_level() -> void:
         # Keep dependency loading in one worker to avoid competing subresource
         # cache registrations, while the session remains responsive.
         var request := ResourceLoader.load_threaded_request(
-            LEVEL, "PackedScene", false, ResourceLoader.CACHE_MODE_REUSE)
+            level_path, "PackedScene", false, ResourceLoader.CACHE_MODE_REUSE)
         if request != OK:
             fail("The manor scene could not begin loading.")
             return
-        while is_inside_tree() and ResourceLoader.load_threaded_get_status(LEVEL) == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+        while is_inside_tree() and ResourceLoader.load_threaded_get_status(level_path) == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
             await get_tree().process_frame
         if not is_inside_tree():
             return
-        if ResourceLoader.load_threaded_get_status(LEVEL) != ResourceLoader.THREAD_LOAD_LOADED:
+        if ResourceLoader.load_threaded_get_status(level_path) != ResourceLoader.THREAD_LOAD_LOADED:
             fail("The manor scene failed to load.")
             return
-        packed = ResourceLoader.load_threaded_get(LEVEL) as PackedScene
+        packed = ResourceLoader.load_threaded_get(level_path) as PackedScene
         restore_frame_limit()
     if packed == null:
         fail("The generated manor scene could not be opened.")
         return
     if content_cache != null:
-        content_cache.call("retain_level", LEVEL, packed)
+        content_cache.call("retain_level", level_path, packed)
     stage("resource_ready", "Preparing the manor...")
     level = packed.instantiate() as Node3D
     if level == null:
@@ -298,6 +305,9 @@ func open_level() -> void:
     stage("instantiated", "Starting the opening..." if new_game else "Restoring saved game...")
     actor = SAVE_STATE.resolve_player(level)
     brain = actor.get_node_or_null("Brain") if actor != null else null
+    if str(selected_save.get("source", "")) == SAVE_STATE.TRAVEL_SOURCE:
+        await _open_travel_save()
+        return
     var source_brains: Variant = level.get_meta("source_actor_brains", {})
     if source_brains is Dictionary and source_brains.has(SAVE_STATE.DUMMY):
         world_brain = level.get_node_or_null(source_brains[SAVE_STATE.DUMMY]) as Node
@@ -396,6 +406,42 @@ func _locate_player_sector() -> void:
     var found: Dictionary = index.call("resolve_position", actor.global_position)
     var sector := index.call("sector_node", str(found.get("sector_id", ""))) as Node3D
     if sector != null: actor.source_refresh_contact_sector(sector)
+
+
+## The outgoing Micro died with its level; a map change selects the main actor.
+func _bind_main_microphone(main: Node3D, owner_brain: Node) -> void:
+    var emitter: GDScript = load("res://addons/astrolabe/audio/emitter.gd")
+    # Stand-in: a main actor without an imported Micro listens along its own axes.
+    var basis: Variant = emitter.call("microphone_basis_for", main)
+    emitter.call("switch_micro_perso", owner_brain, null, main, Basis.IDENTITY if basis == null else basis)
+
+
+## A level outside the manor starts as a fresh arrival, then takes the saved
+## player, Fix Brains and pose.
+func _open_travel_save() -> void:
+    if actor == null or brain == null:
+        fail("The saved level has no main actor.")
+        return
+    add_child(level)
+    _transition_snapshot = selected_save["snapshot"]
+    var error := _apply_transition_state(actor, level)
+    _transition_snapshot = {}
+    if not error.is_empty():
+        fail(error)
+        return
+    actor.global_transform = selected_save["pose"]
+    _locate_player_sector()
+    await get_tree().physics_frame
+    if not is_inside_tree(): return
+    _bind_main_microphone(actor, brain)
+    if not restore_source_camera_presentation(false): return
+    await get_tree().process_frame
+    if not is_inside_tree(): return
+    if not restore_source_camera_presentation(): return
+    ready_to_play = true
+    loading = false
+    stage("playable", "Game loaded")
+    _finish_initial_transition(true, "")
 
 
 func open_new_game() -> void:
@@ -566,6 +612,7 @@ func install_level_transition(destination: Node3D, entry: String, camera_entry: 
     await get_tree().physics_frame
     if not is_inside_tree() or not is_instance_valid(destination):
         return {"ok": false, "message": "The game session ended while preparing the destination."}
+    _bind_main_microphone(new_actor, new_brain)
     new_brain.set("automatic", true)
     if not bool(new_brain.call("start")):
         remove_child(destination)
@@ -838,7 +885,11 @@ func update_opening_status() -> void:
 func save_game() -> void:
     if source_vignette_pending or (new_game and not bool(get("opening_finished"))) or not ready_to_play or not is_instance_valid(actor):
         return
-    var error: String = SAVE_STATE.write(actor, level)
+    var error: String
+    if str(level.get_meta("source_level_name", "")) == "manoir":
+        error = SAVE_STATE.write(actor, level)
+    else:
+        error = SAVE_STATE.write_travel(str(level.get_meta("source_level_name")), _capture_transition_state(), actor.global_transform)
     status_label.text = "Game saved" if error.is_empty() else error
 
 func stage(name: String, message: String) -> void:

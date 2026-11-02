@@ -30,6 +30,10 @@ const ATTACK_PERMISSIONS: Array[String] = ["dsg_0", "dsg_55", "dsg_58"]
 const MANOR_KEY := 21
 const KEY_ACTOR := "level:/persos/world/0/142"
 const NATIVE_SOURCE := "native"
+## Saves outside the manor hold the level transition snapshot and Hype's pose.
+## Stand-in: no per-level world records yet, so a loaded level starts fresh.
+const TRAVEL_SOURCE := "travel"
+const TRAVEL_SLOT := "user://travel-save.cfg"
 const ORIGINAL_SOURCE := "original"
 const LOAD_SOURCE_META := &"astrolabe_load_save_source"
 
@@ -346,6 +350,8 @@ static func _load_candidate(result: Dictionary, source: String) -> Dictionary:
 ## reason. Selecting an original import never deletes or upgrades a native slot.
 static func load_candidates() -> Array[Dictionary]:
     var candidates: Array[Dictionary] = []
+    var travel := read_travel()
+    if travel["status"] != "missing": candidates.append(travel)
     var native := _load_candidate(read(), NATIVE_SOURCE)
     if native["status"] != "missing": candidates.append(native)
     for file_name in original_files():
@@ -353,7 +359,28 @@ static func load_candidates() -> Array[Dictionary]:
     return candidates
 
 
+static func write_travel(level_name: String, snapshot: Dictionary, pose: Transform3D) -> String:
+    var config := ConfigFile.new()
+    config.set_value("save", "level", level_name)
+    config.set_value("save", "snapshot", snapshot)
+    config.set_value("save", "pose", pose)
+    return "" if config.save(TRAVEL_SLOT) == OK else "The game could not be saved."
+
+
+static func read_travel() -> Dictionary:
+    if not FileAccess.file_exists(TRAVEL_SLOT): return {"status": "missing"}
+    var config := ConfigFile.new()
+    if config.load(TRAVEL_SLOT) != OK: return {"status": "error", "message": "The saved game is unreadable.", "source": TRAVEL_SOURCE}
+    var level_name := str(config.get_value("save", "level", ""))
+    var snapshot: Variant = config.get_value("save", "snapshot")
+    var pose: Variant = config.get_value("save", "pose")
+    if level_name.is_empty() or not snapshot is Dictionary or not pose is Transform3D:
+        return {"status": "error", "message": "The saved game is incomplete.", "source": TRAVEL_SOURCE}
+    return {"status": "loaded", "source": TRAVEL_SOURCE, "path": TRAVEL_SLOT, "label": "Godot checkpoint — " + level_name.capitalize(), "level": level_name, "snapshot": snapshot, "pose": pose}
+
+
 static func read_for_load(source: String = "") -> Dictionary:
+    if source == TRAVEL_SOURCE: return read_travel()
     if source == NATIVE_SOURCE: return _load_candidate(read(), source)
     if source.begins_with(ORIGINAL_SOURCE + ":"):
         return _load_candidate(read_original(source.get_slice(":", 1)), source)

@@ -381,6 +381,9 @@ func _defer_voice_completion(info: Dictionary, reason: StringName) -> void:
     info.completion_reason = reason
     # A bound callable compares by value, so two voices with identical info would
     # collide on process_frame. A lambda is unique per request.
+    if not is_inside_tree():
+        complete_voice(info)
+        return
     get_tree().process_frame.connect(func(): complete_voice(info), CONNECT_ONE_SHOT)
 
 func _voice_finished(info: Dictionary) -> void:

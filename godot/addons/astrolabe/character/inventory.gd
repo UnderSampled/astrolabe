@@ -8,6 +8,8 @@ const SNAPSHOT = preload("res://addons/astrolabe/character/snapshot_values.gd")
 
 @export var selected_weapon: int = -1
 @export var quantities: Dictionary = {}
+## Item source key to category key, for the items this level places.
+@export var pickup_categories: Dictionary = {}
 @export var definitions: Array[Resource] = []
 @export var categories: Dictionary = {}
 @export var gold_definition: Resource
@@ -39,6 +41,7 @@ func clone_for_scene() -> Resource:
         cloned.set("gold_definition", special_copy)
     cloned.set("categories", categories.duplicate(true))
     cloned.set("quantities", quantities.duplicate(true))
+    cloned.set("pickup_categories", pickup_categories.duplicate(true))
     cloned.set("legacy_owned_ids", legacy_owned_ids.duplicate())
     return cloned
 
@@ -289,10 +292,11 @@ func restore_legacy(weapon: int, amounts: Dictionary, object: int = -1) -> Strin
     for index in definitions.size():
         var value := _member(index)
         if not amounts.has(value.item_id) or int(amounts[value.item_id]) == 0: continue
-        if value.pickup_category.is_empty() or not restored.has(value.pickup_category):
+        var category: String = value.pickup_category if not value.pickup_category.is_empty() else str(pickup_categories.get(value.source_key, ""))
+        if category.is_empty() or not restored.has(category):
             unresolved = "Saved inventory admission is unknown: item " + str(value.item_id) + " has no typed pickup category."
             break
-        var slots: Array = restored[value.pickup_category]
+        var slots: Array = restored[category]
         var free := slots.find(-1)
         if free < 0:
             unresolved = "Saved inventory admission is unknown: source category slots are insufficient."

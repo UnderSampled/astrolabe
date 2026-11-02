@@ -340,6 +340,13 @@ func run() -> void:
 			ok = image != null and image.save_png(args[1].get_base_dir().path_join(str(step["shot"]) + ".png")) == OK
 		elif step.has("wait"):
 			await create_timer(step["wait"]).timeout
+		elif step.has("until_level"):
+			var end := Time.get_ticks_msec() + int(step.get("timeout", 60.0) * 1000.0)
+			while str(game.get("level").get_meta("source_level_name", "")) != str(step["until_level"]) and Time.get_ticks_msec() < end: await physics_frame
+			ok = str(game.get("level").get_meta("source_level_name", "")) == str(step["until_level"])
+		elif step.has("save"):
+			game.call("save_game")
+			await process_frame
 		elif step.has("until_normal"):
 			var end := Time.get_ticks_msec() + int(step.get("timeout", 30.0) * 1000.0)
 			while int(game.get("brain").get("current_normal")) != int(step["until_normal"]) and Time.get_ticks_msec() < end: await physics_frame

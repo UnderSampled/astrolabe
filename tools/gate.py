@@ -85,7 +85,7 @@ def route(environment):
     code = run('route', command, root/'godot', private, 120)
     log = (work/'route.log').read_text(errors='replace')
     failed = [line for line in log.splitlines() if line.startswith('SCRIPT ERROR') or 'ROUTE ABORT' in line]
-    return {'passed': 'ROUTE SESSION ENDED' in log and not failed, 'detail': f'exit {code}, {failed[:2]}'}
+    return {'passed': '"note":"leaves for brigand"' in log and not failed, 'detail': f'exit {code}, {failed[:2]}'}
 
 
 def original(environment):

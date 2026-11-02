@@ -1692,7 +1692,7 @@ fn guarded_expression(
             let result_local = format!("waypoint_contains_{actor_id}");
             writeln!(
                 out,
-                "{pad}var {result_local}: Variant = character().source_actor_in_waypoint_sphere({actor_local} as Node3D, {waypoint_local} as Resource)\n{pad}if typeof({result_local}) != TYPE_BOOL:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
+                "{pad}var {result_local}: Variant = character().source_actor_in_waypoint_sphere({actor_local} as Node3D, {waypoint_local} as Resource)\n{pad}if typeof({result_local}) != TYPE_BOOL:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}    {result_local} = false"
             )?;
             result_local
         }
@@ -2889,7 +2889,12 @@ fn statements(
                         | DesignerValue::ActorList(_)
                 ) || value_is_native_vector
                 {
-                    value
+                    // A stand-in's number must not reach an object-typed field.
+                    if value.starts_with("partial_expr_") && !value_is_native_vector {
+                        format!("{value} if {value} is Object else null")
+                    } else {
+                        value
+                    }
                 } else {
                     format!("{}({value})", value_type(kind))
                 };

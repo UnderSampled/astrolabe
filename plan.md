@@ -102,6 +102,11 @@ This tests whether Astrolabe is a tool or a manor port. Convert another level,
 list what breaks, and carve out the systems it needs. Level transitions belong
 here.
 
+Brigand now converts beside the manor and plays from the tunnel exit through
+its arrival dialogue to player control. Of 4573 shared files, the only conflict
+was level-owned pickup data in the Fix catalogue. Saves there are a documented
+stand-in; its AI stand-ins are next.
+
 ### 5. The whole game
 
 Remaining levels, cutscenes, UI flows and the remaining systems, then fidelity:

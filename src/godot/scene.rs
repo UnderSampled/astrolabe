@@ -210,6 +210,21 @@ impl Project {
             self.builder,
             "    var {scene_id}_inventory: Resource = {inventory}\n    {scene_id}_inventory.resource_local_to_scene = true\n    {scene_id}.set_meta(\"source_inventory\", {scene_id}_inventory)\n    var {scene_id}_magick: Resource = load(\"res://addons/astrolabe/character/magick.gd\").new()\n    {scene_id}_magick.resource_local_to_scene = true\n    {scene_id}.set_meta(\"source_magick\", {scene_id}_magick)"
         )?;
+        // Pickup membership comes from the persos a level places, so it stays out
+        // of the shared Fix catalogue.
+        if let Some(reference) = &scene.inventory {
+            let catalog = source.load(reference)?;
+            for item in &catalog.items {
+                if let Some(category) = &item.pickup_category {
+                    writeln!(
+                        self.builder,
+                        "    {scene_id}_inventory.pickup_categories[{}] = {}",
+                        quoted(&super::inventory_gameplay::key(&item.source)?),
+                        quoted(&super::inventory_gameplay::key(category)?)
+                    )?;
+                }
+            }
+        }
         if let Some(names) = &scene.map_names {
             writeln!(
                 self.builder,

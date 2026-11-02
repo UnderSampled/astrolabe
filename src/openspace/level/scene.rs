@@ -97,7 +97,7 @@ pub struct SceneImport {
 
 pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
     let mut session = SourceSession::open(game, selection)?;
-    if matches!(selection.level.as_str(), "manoir" | "astrolabe") {
+    if has_dialogue(game, selection) {
         super::dialogue::load_language(&mut session, game, selection)?;
     }
     let tree = session.tree()?;
@@ -405,7 +405,7 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
         &mut result,
         &mut material_ids,
     )?;
-    if matches!(selection.level.as_str(), "manoir" | "astrolabe") {
+    if has_dialogue(game, selection) {
         super::dialogue::import(&session, game, selection, &actor_refs, &mut result)?;
     }
     if selection.level == "manoir" {
@@ -441,4 +441,12 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
     result.inventory_catalog = Some(inventory);
     result.scene.validate()?;
     Ok(result)
+}
+
+/// Every level with a language package has dialogues; the Rete-free test fixtures do not.
+fn has_dialogue(game: &Path, selection: &crate::model::Selection) -> bool {
+    game.join("LangData/English/world/levels")
+        .join(&selection.level)
+        .join(format!("{}.dlg", selection.level))
+        .is_file()
 }

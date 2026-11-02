@@ -6,7 +6,7 @@ use crate::model::{
 use anyhow::{Context, Result};
 use std::{collections::BTreeSet, fmt::Write as _};
 
-fn key(identity: &SourceObjectIdentity) -> Result<String> {
+pub(super) fn key(identity: &SourceObjectIdentity) -> Result<String> {
     // Keys only compare retained identities; Godot never interprets this text.
     Ok(serde_json::to_string(identity)?)
 }
@@ -71,14 +71,7 @@ pub(super) fn export(
             item.selected,
             item.availability,
             item.management,
-            quoted(
-                &item
-                    .pickup_category
-                    .as_ref()
-                    .map(key)
-                    .transpose()?
-                    .unwrap_or_default()
-            )
+            quoted("")
         )?;
     }
     let mut categories = Vec::new();

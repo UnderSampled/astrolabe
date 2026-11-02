@@ -56,3 +56,10 @@ row here. Replace them in order of what blocks play.
 | `4-140` | Procedure_Camera_ShowInfo | Debug text is not shown | None needed if it stays debug-only |
 | `3-75` | Function_Camera_GetLookVertex | Origin | Read source_camera.gd |
 | `generator-contact` | Cond28 (zone contact) from a generated Object, e.g. Hype's crossbow bolt | The Object never selects the Perso that generated it. Without this the bolt overlaps Hype's own body zone on its first tick and kills itself, so a bolt could never reach the mannequin | Find how the original keeps a bolt from striking its shooter (spawn offset, zone type or owner test) |
+
+## Multi-level stand-ins
+
+| Stand-in | Guess | Replaced by |
+| --- | --- | --- |
+| Travel save | A level outside the manor reloads as a fresh arrival, then takes the saved player, Fix Brains and pose | Per-level world records, as `Level%03d.sav` holds them |
+| Micro basis | A main actor with no imported Micro listens along its own axes | The Micro of the destination level |
