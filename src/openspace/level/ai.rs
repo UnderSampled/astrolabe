@@ -893,10 +893,24 @@ pub(super) fn import(
     result: &mut SceneImport,
     material_ids: &mut BTreeMap<Address, AssetPath>,
 ) -> Result<()> {
-    let source_actor_links = source_actor_links(s, actors)?;
+    let mut source_actor_links = source_actor_links(s, actors)?;
     // This Hype category-27 payload is the sector SuperObject, as confirmed
     // by the actual ambient operands and holder+4. Raymap labels it SectorRef.
     let tree = s.tree()?;
+    // Actor-relative waypoints point at the actor's SuperObject, not its Perso
+    // data (Gogoud's scripted walk targets iIcons_Manoir this way).
+    for node in &tree {
+        if u32_at(s.bytes(node.address, 4)?, 0)? != 4 {
+            continue;
+        }
+        let perso = s.required(node.address, SuperObjectWire::DATA)?;
+        if let Some(reference) = actors.get(&perso) {
+            let identity = s.source_identity(node.address)?;
+            if !source_actor_links.iter().any(|(source, _)| source == &identity) {
+                source_actor_links.push((identity, reference.clone()));
+            }
+        }
+    }
     let mut sectors = BTreeMap::new();
     for node in &tree {
         if u32_at(s.bytes(node.address, 4)?, 0)? == 8 {
