@@ -34,5 +34,5 @@ One line per test. Fixed means product code changed; rewritten means the test wa
 
 ## Open
 
-- Scene walking cue: `select_state(32)` then `advance(26/30)` fires the frame-0 sound cue twice. Possibly a double footstep on walk start.
+- Scene walking cue: `select_state(32)` then `advance(26/30)` fired the frame-0 sound cue twice. Commit 2b92e13 (frame-zero cues once) targets this; the scene test has not been rerun since (about 5 minutes).
 - det == 0 engine errors (above).
