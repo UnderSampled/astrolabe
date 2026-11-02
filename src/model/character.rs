@@ -128,6 +128,10 @@ pub struct Perso {
     pub microphone: Option<Microphone>,
     /// Source StandardGame bytes read by the life HUD; actor-local mutable state.
     pub hit_points: Option<HitPoints>,
+    /// Perso3dData shadow fields: SHW_fn_vDrawShadow (004e4e30) reads the kind
+    /// at +0x198 and the scales at +0x190 and +0x194.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shadow: Option<ActorShadow>,
     /// The actor's typed +0x38 StockAction edge, when present in the source.
     /// The identities retain its category and item joins for native pickup calls.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -372,4 +376,11 @@ impl Content for Perso {
         }
         Ok(())
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ActorShadow {
+    /// 0 none, 1 fake blob, 2 realistic, 3 and 4 placed from flagged lights.
+    pub quality: i16,
+    pub scale: [f32; 2],
 }

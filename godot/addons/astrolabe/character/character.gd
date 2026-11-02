@@ -175,6 +175,8 @@ func _exit_tree() -> void:
 
 func _ready() -> void:
     _contact_previous = global_position
+    if source_shadow_quality != 0:
+        DROP_SHADOW.attach(self, source_shadow_quality, source_shadow_scale)
     _source_reset_camera_data3d_history()
     if source_inventory == null:
         source_inventory = SOURCE_INVENTORY.new()
@@ -1766,6 +1768,10 @@ func source_contact_sector() -> Node3D:
     _update_sector_ambient()
     return _contact_sector
 
+const DROP_SHADOW = preload("res://addons/astrolabe/rendering/drop_shadow.gd")
+## Perso3dData shadow kind and scale; see rendering/drop_shadow.gd.
+@export var source_shadow_quality := 0
+@export var source_shadow_scale := Vector2.ONE
 ## The row of the source lighting table for this actor's sector. Dynamic meshes
 ## take the lights of the sector they are drawn in, so each actor needs its own.
 var source_lighting_row := 0

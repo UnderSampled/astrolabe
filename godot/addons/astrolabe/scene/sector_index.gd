@@ -60,7 +60,7 @@ func resolve_position(position: Vector3) -> Dictionary:
                             nearest_distance = distance
                             nearest_sector_id = str(sector_id)
         var unknown: Variant = data.get("unknown")
-        if not unknown is Array or unknown.is_empty():
+        if not unknown is PackedByteArray or unknown.is_empty():
             complete = false
             continue
         if int(unknown[0]) != 0: continue

@@ -62,4 +62,5 @@ row here. Replace them in order of what blocks play.
 | Stand-in | Guess | Replaced by |
 | --- | --- | --- |
 | Travel save | A level outside the manor reloads as a fresh arrival, then takes the saved player, Fix Brains and pose | Per-level world records, as `Level%03d.sav` holds them |
+| Drop shadow | Every kind draws a ground-tilted gradient blob | Fake_Sh textures, projected realistic kind 2, light-placed kinds 3 and 4 |
 | Micro basis | A main actor with no imported Micro listens along its own axes | The Micro of the destination level |

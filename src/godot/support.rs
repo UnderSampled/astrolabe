@@ -5,7 +5,7 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, path::Path};
 
-pub const INTERFACE: u32 = 95;
+pub const INTERFACE: u32 = 96;
 const PACKAGE: &str = "addons/astrolabe";
 const RECEIPT: &str = "addons/astrolabe/installed.json";
 
@@ -144,6 +144,7 @@ const SUPPORT: &[(&str, &[u8])] = assets![
     "addons/astrolabe/rendering/sprite.gd.uid",
     "addons/astrolabe/rendering/sector_lighting.gd",
     "addons/astrolabe/rendering/source_light.gd",
+    "addons/astrolabe/rendering/drop_shadow.gd",
     "addons/astrolabe/scene/source_sector.gd",
     "addons/astrolabe/rendering/visual_material_state.gd",
     "addons/astrolabe/rendering/visual_material_state.gd.uid",

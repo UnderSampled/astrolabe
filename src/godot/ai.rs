@@ -256,6 +256,7 @@ mod tests {
                 camera: None,
                 hit_points: None,
                 inventory_stock: None,
+                shadow: None,
                 motion_binding_present: false,
                 picking_bounds: None,
                 activation: None,

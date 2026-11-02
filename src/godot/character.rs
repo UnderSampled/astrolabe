@@ -648,6 +648,15 @@ pub(super) fn export_perso(
             ))
         )?;
     }
+    if let Some(shadow) = &perso.shadow
+        && shadow.quality != 0
+    {
+        writeln!(
+            project.builder,
+            "    {name}.source_shadow_quality = {}\n    {name}.source_shadow_scale = Vector2({}, {})",
+            shadow.quality, shadow.scale[0], shadow.scale[1]
+        )?;
+    }
     if let Some(points) = perso.hit_points {
         writeln!(
             project.builder,

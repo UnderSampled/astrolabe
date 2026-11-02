@@ -272,6 +272,16 @@ impl<'a> Importer<'a> {
                 state.custom_bits_init
             },
             inventory_stock,
+            shadow: {
+                let bytes = self.session.allocation_bytes(data)?;
+                (bytes.len() >= 0x19a).then(|| crate::model::character::ActorShadow {
+                    quality: i16::from_le_bytes([bytes[0x198], bytes[0x199]]),
+                    scale: [
+                        f32::from_le_bytes(bytes[0x190..0x194].try_into().unwrap()),
+                        f32::from_le_bytes(bytes[0x194..0x198].try_into().unwrap()),
+                    ],
+                })
+            },
             routes: super::way::import_bindings(self.session, perso, &path, types, self.result)?,
             brain: None,
             particles: super::particle::component(self.session, perso)?,
