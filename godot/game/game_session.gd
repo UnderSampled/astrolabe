@@ -333,6 +333,9 @@ func open_level() -> void:
         return
     if str(selected_save["source"]).begins_with(SAVE_STATE.ORIGINAL_SOURCE):
         MANOIR_START.place(actor, fixture)
+        var candidate_path: String = SAVE_STATE.ORIGINAL_SAVES.path_join(str(selected_save["source"]).get_slice(":", 1))
+        selected_save["records"] = SAVE_STATE.apply_source_records(level, candidate_path)
+        print("Save records applied: ", selected_save["records"])
     stage("restored", "Preparing to play...")
     # The first physics tick enters the saved world before movement starts.
     # A second tick lets CharacterBody3D update native contact before Brain runs.
@@ -373,7 +376,7 @@ func _loaded_message() -> String:
     if not str(selected_save["source"]).begins_with(SAVE_STATE.ORIGINAL_SOURCE):
         return "Game loaded"
     var coverage: Dictionary = selected_save.get("coverage", {})
-    return "Original save: %d records, %d understood, %d unknown" % [coverage.get("records", 0), int(coverage.get("verified", 0)) + int(coverage.get("source", 0)), int(coverage.get("unknown", 0)) + int(coverage.get("unmapped", 0))]
+    return "Original save: %d records, %d understood, %d unknown, %d applied" % [coverage.get("records", 0), int(coverage.get("verified", 0)) + int(coverage.get("source", 0)), int(coverage.get("unknown", 0)) + int(coverage.get("unmapped", 0)), selected_save.get("records", {}).get("applied", 0)]
 
 
 func open_new_game() -> void:

@@ -407,6 +407,58 @@ static func _brain_path(level: Node3D, identity: String) -> NodePath:
     return relative
 
 
+## Applies every actor field a converted slot carries: designer values, custom
+## bits and active flags. The player file comes first, then the level's own file.
+## Returns how many fields were applied and how many have no native target yet.
+static func apply_source_records(level: Node3D, path: String) -> Dictionary:
+    var report := {"applied": 0, "skipped": 0}
+    var opened := SAVE_FILE.open(path)
+    if opened["status"] != "loaded": return report
+    var config: ConfigFile = opened["config"]
+    var bodies := {}
+    for body in level.find_children("*", "CharacterBody3D", true, false):
+        if body.has_meta("source_perso"): bodies[str(body.get_meta("source_perso"))] = body
+    var sections := Array(config.get_sections()).filter(func(name: String): return "/actor/" in name)
+    sections.sort_custom(func(a: String, b: String): return a.begins_with("player") and not b.begins_with("player"))
+    for section: String in sections:
+        var identity: String = section.get_slice("/actor/", 1)
+        var body: Node = bodies.get(identity)
+        var brain: Node = _source_brain(level, identity)
+        if brain == null and body != null: brain = body.get_node_or_null("Brain")
+        if body == null and brain != null: body = brain.get_parent()
+        for key: String in config.get_section_keys(section):
+            var value: Variant = config.get_value(section, key)
+            var done := false
+            if key.begins_with("dsg_") and brain != null: done = _apply_designer_field(brain, key, value)
+            elif key == "standard_game_custom_bits_init" and body != null and _has_property(body, "source_custom_bits"):
+                body.set("source_custom_bits", int(value))
+                done = true
+            elif key == "standard_game_active" and body != null and body.has_method("source_set_object_active_state"):
+                # The active flag only removes a NeverBack actor, gated by its latch.
+                var removed: bool = int(value) == 0 and int(config.get_value(section, "standard_game_never_back_latch", 0)) == 1
+                done = bool(body.call("source_set_object_active_state", not removed)) if removed else true
+            report["applied" if done else "skipped"] += 1
+    return report
+
+
+static func _apply_designer_field(brain: Node, key: String, value: Variant) -> bool:
+    match typeof(brain.get(key)):
+        TYPE_BOOL:
+            if not value is int: return false
+            brain.set(key, value != 0)
+        TYPE_INT:
+            if not value is int: return false
+            brain.set(key, value)
+        TYPE_FLOAT:
+            if not value is int: return false
+            var bytes := PackedByteArray([0, 0, 0, 0])
+            bytes.encode_u32(0, value)
+            brain.set(key, bytes.decode_float(0))
+        _:
+            return false
+    return true
+
+
 static func _source_brain(level: Node3D, identity: String) -> Node:
     var path := _brain_path(level, identity)
     if path.is_empty(): return null
@@ -463,15 +515,12 @@ static func _training_checkpoint_error(actor: CharacterBody3D, level: Node3D) ->
     if not _has_integer_properties(trainer, ["dsg_0", "current_normal", "current_reflex"]):
         return "The training Brain has incompatible checkpoint state."
     var stage := int(trainer.get("dsg_0"))
-    # A fresh stage zero can use source startup only while its independent
-    # mannequin fields still match the converted Manor seed.
+    # A real save can hold finished mannequins while the trainer reads stage zero.
     if stage == 0:
         for identity in MANNEQUINS:
             var mannequin := _training_brain(level, identity)
             if not _has_integer_properties(mannequin, ["dsg_0"]) or not _has_boolean_field(mannequin, "dsg_1") or not _has_boolean_field(mannequin, "dsg_2"):
                 return "A mannequin Brain has incompatible checkpoint state."
-            if mannequin.get("dsg_0") != INITIAL_EXERCISES[identity] or mannequin.get("dsg_1") or mannequin.get("dsg_2"):
-                return "The fresh training stage differs from its mannequin progress."
         return ""
     if _has_boolean_field(global_brain, "dsg_219") and global_brain.get("dsg_219"):
         return "Save after the completed training actor's lifecycle has settled."
