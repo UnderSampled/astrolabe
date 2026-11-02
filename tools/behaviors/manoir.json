@@ -1,0 +1,13 @@
+[
+  {"name": "idle", "steps": [], "seconds": 2},
+  {"name": "turn_left", "steps": [{"key": "ArrowLeft", "hold_ms": 600}], "seconds": 2},
+  {"name": "walk", "steps": [{"key": "ArrowLeft", "hold_ms": 700}, {"key": "ArrowUp", "hold_ms": 1500}], "seconds": 3.5},
+  {"name": "run", "steps": [{"key": "ArrowLeft", "hold_ms": 700}, {"key": "LeftShift+ArrowUp", "hold_ms": 1500}], "seconds": 3.5},
+  {"name": "backstep", "steps": [{"key": "ArrowDown", "hold_ms": 800}], "seconds": 2.5},
+  {"name": "jump", "steps": [{"key": "LeftControl", "hold_ms": 150}], "seconds": 3},
+  {"name": "sword_draw", "steps": [{"key": "X", "hold_ms": 150}], "seconds": 3},
+  {"name": "sword_swing", "steps": [{"key": "X", "hold_ms": 150}, {"key": "wait", "hold_ms": 1500}, {"key": "Space", "hold_ms": 150}], "seconds": 4},
+  {"name": "crossbow_select", "steps": [{"key": "Z", "hold_ms": 150}], "seconds": 3},
+  {"name": "crossbow_fire", "steps": [{"key": "Z", "hold_ms": 150}, {"key": "wait", "hold_ms": 1500}, {"key": "Space", "hold_ms": 150}], "seconds": 4},
+  {"name": "fire_cast", "steps": [{"key": "ArrowDown", "hold_ms": 300}, {"key": "wait", "hold_ms": 600}, {"key": "X", "hold_ms": 150}, {"key": "wait", "hold_ms": 1500}, {"key": "Enter", "hold_ms": 150}], "seconds": 5}
+]

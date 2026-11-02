@@ -170,7 +170,7 @@ static func validate(value: Variant) -> String:
         return "Save is missing player magick."
     if not _only_keys(magick, ["current_points", "maximum_points", "selected_spell_code"]):
         return "Save has unsupported magick state."
-    if not _integer(magick.get("current_points"), 0, 32767) or not _integer(magick.get("maximum_points"), 1, 32767) or not _integer(magick.get("selected_spell_code"), 0, 32767):
+    if not _integer(magick.get("current_points"), 0, 32767) or not _integer(magick.get("maximum_points"), 1, 32767) or not _integer(magick.get("selected_spell_code"), -1, 32767):
         return "Save has invalid magick values."
     if int(magick["current_points"]) > int(magick["maximum_points"]):
         return "Save current mana exceeds maximum mana."
