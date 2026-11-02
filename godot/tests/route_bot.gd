@@ -151,6 +151,7 @@ func watch(seconds: float, names: Array, press: String, fields: Array = []) -> v
 	var screen: Node = game.get("level").get_node_or_null("AstrolabeUI")
 	while Time.get_ticks_msec() < end:
 		await physics_frame
+		if not is_instance_valid(game) or not is_instance_valid(actor()): return
 		var row := {"hype": [int(actor().get("current_state")), int(game.get("brain").get("current_normal"))]}
 		for field in fields: row[field] = game.get("brain").get(field)
 		var overseer := brain_of("global")

@@ -108,6 +108,13 @@ def life(mcp):
     return mcp.call('read_memory', address=hex(standard+0x18), type='u8', size=1)['value']
 
 
+def write_life(mcp, value):
+    node = mcp.call('inspect_main_actor', actions=[47], designer_values=[])['observation']['actor']['node']
+    perso = mcp.call('read_memory', address=hex(int(str(node).split(':')[-1], 16)+4), type='u32', size=4)['value']
+    standard = mcp.call('read_memory', address=hex(perso+4), type='u32', size=4)['value']
+    mcp.call('write_memory_batch', writes=[{'address': hex(standard+0x18), 'value': f'{value:02x}', 'expect': '*'}])
+
+
 def position_copies(mcp):
     """Every heap address holding Hype's position, about 15 seconds of reads."""
     here = observe(mcp)['position']
@@ -168,7 +175,9 @@ def original(mcp, scenario):
     copies = position_copies(mcp) if any(step['key'] == 'drop' for step in scenario['steps']) else []
     started = time.monotonic()
     for step in scenario['steps']:
-        if step['key'] == 'drop':
+        if step['key'] == 'life':
+            write_life(mcp, step['value'])
+        elif step['key'] == 'drop':
             write_position(mcp, copies, step['at'])
             samples.append(observe(mcp))
         elif step['key'] == 'wait':
@@ -185,7 +194,10 @@ def original(mcp, scenario):
     while time.monotonic()-started < scenario['seconds']:
         samples.append(observe(mcp))
         if 'life' in scenario:
-            samples[-1]['life'] = life(mcp)
+            try:
+                samples[-1]['life'] = life(mcp)
+            except RuntimeError:
+                pass
     in_menu = samples[-1]['action'] == -2
     watched = {} if in_menu else live_actors(mcp, {'watched': scenario.get('watch_types', {})})
     camera = None if in_menu else mcp.call('inspect_scene_camera', level='manoir', object_types=CAMERA_TYPES)

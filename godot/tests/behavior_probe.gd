@@ -62,6 +62,9 @@ func run() -> void:
 	started = Time.get_ticks_msec()
 	sample()
 	for step in scenario["steps"]:
+		if step["key"] == "life":
+			game.get("actor").get("source_hit_points").set("current", int(step["value"]))
+			continue
 		if step["key"] == "drop":
 			var at: Array = step["at"]
 			game.get("actor").global_position = Vector3(at[0], at[2], -at[1])
