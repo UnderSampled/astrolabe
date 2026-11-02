@@ -54,3 +54,8 @@ The local corpus passes:
 Tests include changed samples/rates/durations, derived bank layout after resizing and inserting sounds, odd-frame APM loop state, malformed bounds, actual Rete envelope persistence, and explicit writer rejection of unsupported semantics. Three real APM fixtures have first-4,096-sample hashes independently produced by the archived C# decoder compiled in a temporary project. A real MPEG voice sample's 233,376 decoded samples were compared with FFmpeg: RMSE `0.0000124733`, maximum difference `0.0000318494` in normalized float amplitude. This is synthesis agreement, not a claim that the original engine or surround mixer was exercised.
 
 The complete audio integration invocation, including all local corpus tests, takes approximately 7 seconds after compilation on this machine; recent rebuild-plus-test invocations took about 14 seconds. The independent Layer-II oracle test takes approximately 0.1 seconds after compilation. Godot resource validity, actual playback, and direct-versus-Rete route evidence are recorded by the application-level validation, not inferred from successful decoding here.
+
+## Godot runtime notes
+
+- Godot mixes an `AudioStreamPlayer3D` only for a viewport that has a `Camera3D`; an `AudioListener3D` alone is silent, so headless audio fixtures need a camera.
+- A bound `Callable` compares by value: two voices with identical info dictionaries collide on `process_frame.connect(f.bind(info))`. Connect a per-request lambda instead.

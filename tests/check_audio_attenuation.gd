@@ -48,6 +48,10 @@ func check() -> void:
     if not require(SpatialGain.distance_word(Vector3(2, 4, -2), Vector3.ZERO) == 360448, "source XY grouping is not Euclidean"): return
     if not require(SpatialGain.distance_word(Vector3(2, 2, -4), Vector3.ZERO) == 393216, "source axis permutation changed pseudo norm"): return
     if not require(SpatialGain.converted_volume(127, 127) == 126 and SpatialGain.converted_volume(127, 63) == 62, "driver mixer-byte product must shift7"): return
+    # Godot mixes a 3D player only for viewports with a Camera3D; an AudioListener3D alone is silent.
+    var camera := Camera3D.new()
+    root.add_child(camera)
+    camera.make_current()
     var actor := Node3D.new()
     root.add_child(actor)
     var emitter := Emitter.new()

@@ -88,7 +88,10 @@ func check() -> void:
     # The exact sentinel restores full preference without a127*127 quantization.
     if not require(dynamic.parameter_volume == 127 and emitter.source_effects_volume_override == null, "exact127 sentinel restoration"): return
     brain.sound_fade_all(0, 40)
-    await create_timer(0.1).timeout
+    # Tweens advance on engine frames; poll rather than race a loaded machine.
+    for _wait in 50:
+        if mixer.source_volume_word(&"music") == 0 and mixer.source_volume_word(&"voice") == 0 and mixer.source_volume_word(&"effects") == 0: break
+        await create_timer(0.1).timeout
     if not require(mixer.source_volume_word(&"music") == 0 and mixer.source_volume_word(&"voice") == 0 and mixer.source_volume_word(&"effects") == 0, "independent all-source fade targets"): return
     if not require(settings.get_volume("Music") == 73 and settings.get_volume("Voices") == 92 and settings.get_volume("Effects") == 127, "source fade mutated user settings"): return
     if not require(starts == 2 and dynamic.player.playing and fixed.player.playing, "gain publication restarted/stopped native playback"): return

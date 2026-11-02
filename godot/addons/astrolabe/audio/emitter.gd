@@ -74,7 +74,15 @@ func update_microphone_pose() -> bool:
         if is_microphone: call("clear_current")
         return false
     if microphone_orientation_basis == null: return false
-    global_transform = Transform3D(microphone_orientation_actor.global_basis * microphone_orientation_basis, microphone_position_actor.global_position)
+    # The native mixer inverts the current listener transform on every playing 3D
+    # voice. A singular basis (an actor scaled to zero, as inactive or hidden
+    # actors can be) logs Basis::invert "det == 0" each mix; the engine's Micro
+    # orientation is a rotation, so keep the last orientation instead.
+    var oriented: Basis = microphone_orientation_actor.global_basis * microphone_orientation_basis
+    if absf(oriented.determinant()) < 1e-9 or not oriented.is_finite():
+        global_position = microphone_position_actor.global_position
+    else:
+        global_transform = Transform3D(oriented, microphone_position_actor.global_position)
     microphone_pose_known = true
     return true
 
@@ -362,7 +370,9 @@ func _defer_voice_completion(info: Dictionary, reason: StringName) -> void:
     if bool(info.get("completion_pending", false)) or bool(info.get("completed", false)): return
     info.completion_pending = true
     info.completion_reason = reason
-    get_tree().process_frame.connect(complete_voice.bind(info), CONNECT_ONE_SHOT)
+    # A bound callable compares by value, so two voices with identical info would
+    # collide on process_frame. A lambda is unique per request.
+    get_tree().process_frame.connect(func(): complete_voice(info), CONNECT_ONE_SHOT)
 
 func _voice_finished(info: Dictionary) -> void:
     if not info.has("completion_reason"): info.completion_reason = &"finished"

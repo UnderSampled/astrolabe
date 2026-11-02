@@ -6,6 +6,10 @@ func require(ok: bool, why: String) -> bool:
         quit(1)
     return ok
 func check():
+    # Godot mixes a 3D player only for viewports with a Camera3D; an AudioListener3D alone is silent.
+    var camera = Camera3D.new()
+    root.add_child(camera)
+    camera.make_current()
     var emitter = Node3D.new()
     emitter.set_script(load("res://addons/astrolabe/audio/emitter.gd"))
     root.add_child(emitter)
