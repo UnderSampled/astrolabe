@@ -204,8 +204,8 @@ is human. Start it from the desktop environment with `WAYLAND_DISPLAY` and
 physical keyboard events delivered to Hype's window through XRecord.
 
 Full recording has a separate continuous-video budget:
-`--video-budget-mib` accepts 64 through 65536 MiB and defaults to 2048 MiB.
-The PNG checkpoint budget stays at 2 GiB; `--frame-ms 1000` reduces checkpoint
+`--video-budget-mib` accepts 64 through 131072 MiB and defaults to 2048 MiB.
+The PNG checkpoint budget is 8 GiB; `--frame-ms 1000` reduces checkpoint
 frequency without changing the lossless 30 Hz video. Choose an explicit budget
 appropriate to the duration and available disk space. Budget exhaustion seals
 the retained prefix with ending `storage_budget`, even when the duration remains.
@@ -273,7 +273,7 @@ physical edges at their literal elapsed-time targets,
 records actual lateness and observed delivery, and captures its own video,
 sparse checkpoints and state. Video and state samples are evidence, not replay targets. Capture
 stamps before the first visible window, dropped frame intervals, and incomplete
-endings remain explicit. Separate 2 GiB video and checkpoint budgets plus a
+endings remain explicit. Separate video and checkpoint budgets plus a
 100,000-checkpoint budget bound one run; reaching any budget produces a
 `storage_budget` ending.
 

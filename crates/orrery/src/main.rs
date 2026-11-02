@@ -120,8 +120,8 @@ enum Commands {
         /// Show a playable Wayland window and forward only this game's audio to speakers.
         #[arg(long)]
         interactive: bool,
-        /// Continuous lossless video budget in MiB (64..65536); PNG checkpoints have a separate 2 GiB limit.
-        #[arg(long, default_value_t = 2048, value_parser = clap::value_parser!(u32).range(64..=65536))]
+        /// Continuous lossless video budget in MiB (64..131072); PNG checkpoints have a separate 8 GiB limit.
+        #[arg(long, default_value_t = 2048, value_parser = clap::value_parser!(u32).range(64..=131072))]
         video_budget_mib: u32,
     },
     /// Replay a frozen session's captured physical edges at literal elapsed times.

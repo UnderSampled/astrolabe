@@ -191,8 +191,11 @@ impl VideoCapture {
     }
 
     pub fn bytes(&mut self) -> Result<u64> {
+        // x11grab ends cleanly when the window changes under it; `ended` lets the
+        // session open the next segment instead of losing the recording.
         if let Some(child) = self.child.as_mut()
             && let Some(status) = child.try_wait()?
+            && !status.success()
         {
             anyhow::bail!("video encoder exited during capture: {status}");
         }
@@ -203,9 +206,21 @@ impl VideoCapture {
         }
     }
 
+    pub fn ended(&mut self) -> Result<bool> {
+        match self.child.as_mut() {
+            Some(child) => Ok(child.try_wait()?.is_some()),
+            None => Ok(true),
+        }
+    }
+
     pub fn finish(mut self) -> Result<VideoSummary> {
         let stop_requested = ClockSample::capture(self.origin)?;
         let mut child = self.child.take().context("video encoder already stopped")?;
+        if let Some(status) = child.try_wait()? {
+            ensure!(status.success(), "video encoder failed: {status}");
+            let end_clock = ClockSample::capture(self.origin)?;
+            return self.index_frames(stop_requested, end_clock, status.code());
+        }
         // FFmpeg finalizes Matroska when interrupted once. It returns 255 for
         // this normal SIGINT path on the pinned local build; probe the output.
         let signaled = unsafe { libc::kill(child.id() as libc::pid_t, libc::SIGINT) } == 0;

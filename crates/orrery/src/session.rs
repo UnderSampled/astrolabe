@@ -32,7 +32,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-const FRAME_BUDGET_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+const FRAME_BUDGET_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 const MAX_FRAMES: usize = 100_000;
 const MAX_PENDING_VIDEO_FINALIZERS: usize = 2;
 
@@ -904,7 +904,7 @@ fn run_loop(
         }
         if now >= next_video_geometry {
             let dimensions = game.window_dimensions(window)?;
-            if dimensions != video_dimensions {
+            if dimensions != video_dimensions || video.ended()? {
                 video_segment += 1;
                 let next = VideoCapture::start(
                     game.display(),
@@ -1489,8 +1489,8 @@ pub fn record(options: RecordOptions<'_>) -> Result<Value> {
         video_budget_mib,
     } = options;
     ensure!(
-        (64..=65_536).contains(&video_budget_mib),
-        "video budget outside 64..65536 MiB"
+        (64..=131_072).contains(&video_budget_mib),
+        "video budget outside 64..131072 MiB"
     );
     let video_budget_bytes = u64::from(video_budget_mib) * 1024 * 1024;
     if interactive {
