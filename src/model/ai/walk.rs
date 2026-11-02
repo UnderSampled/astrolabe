@@ -149,6 +149,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 } => self.expressions(child_depth, &[from, to, duration_seconds]),
                 Statement::SetHitPointsMaximum { actor, value }
                 | Statement::SetInventoryMaximum { item: actor, value }
+                | Statement::SetHitPoints { actor, value }
                 | Statement::AddHitPoints { actor, value }
                 | Statement::SubtractHitPoints { actor, value } => {
                     self.expressions(child_depth, &[actor, value])
@@ -352,6 +353,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::Square(value)
                 | Expression::AbsoluteValue(value)
                 | Expression::IsValidWaypoint(value)
+                | Expression::FightSubtractAndGetHitPoints(value)
                 | Expression::VectorNorm(value)
                 | Expression::VectorNormalize(value)
                 | Expression::ActorDistance(value)
@@ -408,6 +410,13 @@ impl<'a> Iterator for AstWalk<'a> {
                 } => {
                     self.expressions(child_depth, &[first, second, sign_axis]);
                 }
+                Expression::SeePersoWithOffset {
+                    offset,
+                    target,
+                    target_offset,
+                } => {
+                    self.expressions(child_depth, &[offset, target, target_offset]);
+                }
                 Expression::TimeElapsed {
                     start: left,
                     duration: right,
@@ -435,6 +444,10 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::VectorPlus(left, right)
                 | Expression::VectorMinus(left, right)
                 | Expression::VectorScale(left, right)
+                | Expression::SeePositionWithOffset {
+                    target: left,
+                    offset: right,
+                }
                 | Expression::Minus(left, right)
                 | Expression::Modulus(left, right)
                 | Expression::Divide(left, right)
@@ -478,6 +491,8 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::CollideWithGround
                 | Expression::CollideWithNothing
                 | Expression::CollideWithWall
+                | Expression::CollideWithPerso
+                | Expression::CloserRouteWaypoint(_)
                 | Expression::CollidePersoZdeNoWithTypeZde { .. }
                 | Expression::CollideWithSlope
                 | Expression::IsTypeOfGmtCollide(_)

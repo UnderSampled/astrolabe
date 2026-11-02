@@ -194,6 +194,10 @@ impl Parser<'_> {
                     self.at -= 1;
                     Statement::Evaluate(self.expression(indent)?)
                 }
+                (4, 52) => Statement::SetHitPoints {
+                    actor: self.expression(indent + 1)?,
+                    value: self.expression(indent + 1)?,
+                },
                 (4, 55) => Statement::AddHitPoints {
                     actor: self.expression(indent + 1)?, value: self.expression(indent + 1)?
                 },
@@ -1018,6 +1022,13 @@ impl Parser<'_> {
                         Statement::CameraUpdatePosition {
                             preceded_by_return_zero: true,
                         }
+                    } else if return_policy == 1
+                        && self.nodes.get(self.at).is_some_and(|request| {
+                            request.indent == indent && request.kind == 5
+                        })
+                    {
+                        // A compiled meta action already holds the rule until it ends.
+                        continue;
                     } else if return_policy != 1
                         || !self.nodes.get(self.at).is_some_and(|request| {
                             request.indent == indent
@@ -1027,7 +1038,7 @@ impl Parser<'_> {
                     {
                         out.push(Statement::Unsupported(self.unsupported(
                             at,
-                            format!("unsupported action-return policy at node {at}"),
+                            format!("unsupported action-return policy {return_policy} at node {at}"),
                         )?));
                         continue;
                     } else {
@@ -1450,6 +1461,7 @@ impl Parser<'_> {
             (1, 32) => Expression::CollideWithWall,
             (1, 65) => Expression::IsValidWaypoint(Box::new(self.expression(indent + 1)?)),
             (1, 34) => Expression::CollideWithSlope,
+            (1, 37) => Expression::CollideWithPerso,
             (1, 28) => {
                 let (_, actor) = self.take(indent + 1)?;
                 let (actor_kind, actor_parameter) = (actor.kind, actor.parameter);
@@ -1810,6 +1822,41 @@ impl Parser<'_> {
                 actor: Box::new(self.expression(indent + 1)?),
                 value: Box::new(self.expression(indent + 1)?),
             },
+            (3, 225) => Expression::FightSubtractAndGetHitPoints(Box::new(
+                Expression::SubtractAndGetHitPoints {
+                    actor: Box::new(self.expression(indent + 1)?),
+                    value: Box::new(self.expression(indent + 1)?),
+                },
+            )),
+            // Func184's sibling in 005398b0: distance from an actor to a waypoint.
+            (3, 194) => {
+                let actor = self.expression(indent + 1)?;
+                let waypoint = Box::new(self.expression(indent + 1)?);
+                if let Expression::Actor(actor) = actor {
+                    Expression::DistanceToWaypoint { actor, waypoint }
+                } else {
+                    Expression::Unsupported(
+                        self.unsupported(at, "DistanceCaracToWP requires an actor operand".into())?,
+                    )
+                }
+            }
+            // 00534af0 cases 0x4e, 0x4f: a segment against sector geometry, from
+            // the actor's sight point plus offsets.
+            (1, 78) => {
+                let target = Box::new(self.expression(indent + 1)?);
+                let offset = Box::new(self.expression(indent + 1)?);
+                Expression::SeePositionWithOffset { target, offset }
+            }
+            (1, 79) => {
+                let offset = Box::new(self.expression(indent + 1)?);
+                let target = Box::new(self.expression(indent + 1)?);
+                let target_offset = Box::new(self.expression(indent + 1)?);
+                Expression::SeePersoWithOffset {
+                    offset,
+                    target,
+                    target_offset,
+                }
+            }
             (3, getter @ (54 | 55 | 58 | 60 | 70)) => {
                 let selector = Box::new(self.expression(indent + 1)?);
                 let actor = self.expression(indent + 1)?;
@@ -1898,6 +1945,10 @@ impl Parser<'_> {
                 actor: ActorTarget::Keyword(ActorKeyword::SelfActor),
                 waypoint: Box::new(self.expression(indent + 1)?),
             },
+            (3, 12) => {
+                let (_, slot) = self.take(indent + 1)?;
+                Expression::CloserRouteWaypoint(slot.parameter.try_into()?)
+            }
             (3, 41) => Expression::GameTime,
             (3, 195) => Expression::GameState,
             (3, 27) => Expression::RandomInt {
@@ -1958,6 +2009,7 @@ impl Writer<'_> {
                     self.expression(value, indent)?;
                 }
                 Statement::SetHitPointsMaximum { actor, value }
+                | Statement::SetHitPoints { actor, value }
                 | Statement::AddHitPoints { actor, value }
                 | Statement::SubtractHitPoints { actor, value } => {
                     self.node(
@@ -3121,6 +3173,28 @@ impl Writer<'_> {
                 self.node(3, 38, indent);
                 self.expression(actor, indent + 1)?;
             }
+            Expression::FightSubtractAndGetHitPoints(inner) => {
+                self.node(3, 225, indent);
+                if let Expression::SubtractAndGetHitPoints { actor, value } = &**inner {
+                    self.expression(actor, indent + 1)?;
+                    self.expression(value, indent + 1)?;
+                }
+            }
+            Expression::SeePositionWithOffset { target, offset } => {
+                self.node(1, 78, indent);
+                self.expression(target, indent + 1)?;
+                self.expression(offset, indent + 1)?;
+            }
+            Expression::SeePersoWithOffset {
+                offset,
+                target,
+                target_offset,
+            } => {
+                self.node(1, 79, indent);
+                self.expression(offset, indent + 1)?;
+                self.expression(target, indent + 1)?;
+                self.expression(target_offset, indent + 1)?;
+            }
             Expression::SubtractAndGetHitPoints { actor, value } => {
                 self.node(3, 37, indent);
                 self.expression(actor, indent + 1)?;
@@ -3335,6 +3409,11 @@ impl Writer<'_> {
             Expression::CollideWithGround => self.node(1, 31, indent),
             Expression::CollideWithNothing => self.node(1, 33, indent),
             Expression::CollideWithWall => self.node(1, 32, indent),
+            Expression::CollideWithPerso => self.node(1, 37, indent),
+            Expression::CloserRouteWaypoint(slot) => {
+                self.node(3, 12, indent);
+                self.node(23, *slot as u32, indent + 1);
+            }
             Expression::IsValidWaypoint(value) => {
                 self.node(1, 65, indent);
                 self.expression(value, indent + 1)?;

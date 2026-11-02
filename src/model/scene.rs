@@ -371,6 +371,9 @@ pub struct Sector {
     pub environments: Vec<AssetRef<super::environment::Environment>>,
     pub static_lights: Vec<AssetRef<super::light::Light>>,
     pub dynamic_lights: Vec<AssetRef<super::light::Light>>,
+    /// Music requests made when the main actor enters this sector.
+    #[serde(default)]
+    pub sound_events: Vec<SectorSoundEvent>,
     pub boundary: Option<SectorBoundary>,
     pub persos: Vec<String>,
     pub graphics: Vec<SectorVisibility>,
@@ -387,6 +390,14 @@ pub struct SectorVisibility {
     pub sector: String,
     pub level: u16,
     pub unknown: u16,
+}
+/// 004480e0: applies when coming from `from` (any sector when absent), in a game
+/// state matching the mask.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SectorSoundEvent {
+    pub game_state: u8,
+    pub from: Option<String>,
+    pub event: Option<super::audio::SoundEventLink>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SectorSoundPropagation {

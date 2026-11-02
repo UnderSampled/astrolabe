@@ -49,19 +49,19 @@ impl SoundSites {
                 let key = *rts
                     .get(&entry.site)
                     .context("SND site lacks RTS relocation")?;
-                // Promoted animation descriptors and AI node operands consume these
-                // bindings; unrelated domains are not traversed here.
-                if !matches!(key.0, 5 | 17 | 20)
-                    || (key.0 == 20
-                        && session
-                            .blocks
-                            .get(&owner)
-                            .and_then(|b| b.get(&key))
-                            .is_none_or(|b| b.data.is_empty()))
+                // Animation descriptors, AI operands and sector lists consume these
+                // bindings; sites in blocks this session holds no data for are skipped.
+                if session
+                    .blocks
+                    .get(&owner)
+                    .and_then(|b| b.get(&key))
+                    .is_none_or(|b| b.data.is_empty())
                 {
                     continue;
                 }
-                let site = session.resolve(owner, key, entry.site)?;
+                let Ok(site) = session.resolve(owner, key, entry.site) else {
+                    continue;
+                };
                 let event = if entry.event == u32::MAX {
                     None
                 } else {

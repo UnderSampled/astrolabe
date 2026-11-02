@@ -1298,6 +1298,49 @@ func source_see_perso(receiver: Node3D, target: Node3D) -> bool:
     var query := PhysicsRayQueryParameters3D.create(origin, endpoint, 1)
     return get_world_3d().direct_space_state.intersect_ray(query).is_empty()
 
+## 00534af0: the segment meets sector geometry only, so actors never block it.
+func _source_sees(origin: Vector3, endpoint: Vector3) -> bool:
+    if origin.is_equal_approx(endpoint): return true
+    var query := PhysicsRayQueryParameters3D.create(origin, endpoint, 1)
+    return get_world_3d().direct_space_state.intersect_ray(query).is_empty()
+
+static func _source_to_native(value: Vector3) -> Vector3:
+    return Vector3(value.x, value.z, -value.y)
+
+func source_see_position(target: Vector3, offset: Vector3) -> bool:
+    return _source_sees(_source_sight_point(self) + _source_to_native(offset), _source_to_native(target))
+
+func source_see_perso_offset(offset: Vector3, target: Node3D, target_offset: Vector3) -> bool:
+    if not is_instance_valid(target): return false
+    var origin := global_position + global_basis * _source_to_native(offset)
+    return _source_sees(origin, target.global_position + target.global_basis * _source_to_native(target_offset))
+
+## 00538020: nearest point by straight distance. The source loop stops one short
+## of the route's last point.
+func source_closer_route_waypoint(slot: int) -> Resource:
+    if slot < 0 or slot >= source_routes.size() or source_routes[slot] == null: return null
+    var route = source_routes[slot]
+    var best := -1
+    var best_distance := -1.0
+    for i in route.curve.point_count - 1:
+        var distance: float = global_position.distance_to(route.curve.get_point_position(i))
+        if best < 0 or distance < best_distance:
+            best = i
+            best_distance = distance
+    if best < 0: return null
+    var point: Vector3 = route.curve.get_point_position(best)
+    var waypoint: Resource = load("res://addons/astrolabe/character/waypoint.gd").new()
+    waypoint.source_position = Vector3(point.x, -point.z, point.y)
+    waypoint.radius = route.radii[best] if best < route.radii.size() else 0.0
+    waypoint.source_identity = str(route.source_identity, "#", best)
+    waypoint.supported = true
+    return waypoint
+
+func source_collide_with_perso() -> bool:
+    for i in get_slide_collision_count():
+        if get_slide_collision(i).get_collider() is CharacterBody3D: return true
+    return false
+
 const SOURCE_STEP_DOWN := 0.35
 
 func source_collide_with_ground() -> bool:
@@ -1751,6 +1794,19 @@ func source_current_sector() -> Node3D:
         _contact_sector = get_node_or_null(source_contact_sector_path) as Node3D
     return _contact_sector
 
+## 00448070/004480e0: the main actor's sector change requests its new sector's music.
+func _source_sector_music(from_sector: Node3D, to_sector: Node3D) -> void:
+    var brain := get_node_or_null("Brain")
+    if brain == null or brain.get("main_actor") != self: return
+    var session: Node = brain.call("source_game_session")
+    var state: int = int(session.get("source_game_state_mask")) if session != null else 0
+    for entry: Dictionary in to_sector.get("sound_events"):
+        var from: String = entry["from"]
+        if not from.is_empty() and from != str(from_sector.get_meta("source_node_id", "")): continue
+        var mask: int = entry["state"]
+        if mask & state == 0 and not (mask == 0 and state == 0): continue
+        brain.call("send_music", entry["event"])
+
 func source_contact_sector() -> Node3D:
     source_current_sector()
     if _contact_previous == null: _contact_previous = global_position
@@ -1762,6 +1818,7 @@ func source_contact_sector() -> Node3D:
             var hit: Dictionary = boundary.call("first_source_sector_crossing", start, global_position)
             var target: Node3D = hit.get("target") as Node3D
             if not is_instance_valid(target) or target == _contact_sector: break
+            _source_sector_music(_contact_sector, target)
             _contact_sector = target
             start = hit["position"] + start.direction_to(global_position) * 0.00001
     _contact_previous = global_position

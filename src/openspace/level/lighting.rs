@@ -31,7 +31,12 @@ fn light(
     }
     Ok(AssetRef::from_path(values[&a].path.clone()))
 }
-pub(super) fn import(s: &SourceSession, tree: &[RootedNode], out: &mut SceneImport) -> Result<()> {
+pub(super) fn import(
+    s: &SourceSession,
+    tree: &[RootedNode],
+    out: &mut SceneImport,
+    sounds: &super::sound::SoundSites,
+) -> Result<()> {
     let mut lights = BTreeMap::new();
     let mut environments = super::environment::Import::default();
     let nodes: BTreeMap<_, _> = tree.iter().map(|n| (n.address, n.path.clone())).collect();
@@ -89,9 +94,10 @@ pub(super) fn import(s: &SourceSession, tree: &[RootedNode], out: &mut SceneImpo
             collision: super::sector::node_list(s, a, 100, &nodes)?,
             activity: super::sector::node_list(s, a, 112, &nodes)?,
             sound: super::sector::sound(s, a, 124, &nodes)?,
+            sound_events: super::sector::sound_events(s, a, 136, &nodes, sounds)?,
             unknown: h.unknown,
         });
-        let unsupported: Vec<_> = [(1, "surface"), (5, "stream"), (11, "sound event")]
+        let unsupported: Vec<_> = [(1, "surface"), (5, "stream")]
             .into_iter()
             .filter(|&(i, _)| h.lists[i].count > 0)
             .map(|(i, label)| format!("{label}: {}", h.lists[i].count))

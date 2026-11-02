@@ -463,6 +463,7 @@ fn godot_sampled_animation_reparents_switches_hides_and_uses_state_timing() -> R
         unknown: [0; 3],
     };
     let perso = Perso {
+        shadow: None,
         path: AssetPath::new("level:/persos/test")?,
         name: "Test".into(),
         family: AssetRef::from_path(family.path.clone()),

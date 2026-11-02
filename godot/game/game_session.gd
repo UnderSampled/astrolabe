@@ -425,10 +425,13 @@ func _open_travel_save() -> void:
     add_child(level)
     _transition_snapshot = selected_save["snapshot"]
     var error := _apply_transition_state(actor, level)
+    _apply_world_state(level, _transition_snapshot.get("world", {}))
+    var main_normal := int(_transition_snapshot.get("main_normal", -1))
     _transition_snapshot = {}
     if not error.is_empty():
         fail(error)
         return
+    if main_normal >= 0 and brain != null: brain.call("change_normal", main_normal)
     actor.global_transform = selected_save["pose"]
     _locate_player_sector()
     await get_tree().physics_frame
@@ -750,6 +753,7 @@ func _capture_transition_state() -> Dictionary:
         state["player"]["armor"] = armor_catalog.call("capture_snapshot")
         if state["player"]["armor"].is_empty(): state["error"] = "The outgoing armor state is unsupported."
     state["main_brain"] = _capture_brain_state(brain)
+    state["main_normal"] = int(brain.get("current_normal")) if brain != null else -1
     var source_actor_nodes: Variant = level.get_meta("source_actor_nodes", {})
     if source_actor_nodes is Dictionary:
         for identity in source_actor_nodes:
@@ -760,6 +764,65 @@ func _capture_transition_state() -> Dictionary:
             if source_brain != null:
                 state["fix_brains"][str(identity)] = _capture_brain_state(source_brain)
     return state
+
+## Saves outside the manor have no source record table, so each level actor is
+## kept by identity: its designer fields, behavior and pose.
+func _capture_world_state() -> Dictionary:
+    var world: Dictionary = {}
+    var source_actor_nodes: Variant = level.get_meta("source_actor_nodes", {})
+    if not source_actor_nodes is Dictionary: return world
+    for identity in source_actor_nodes:
+        if not str(identity).begins_with("level:/persos/"): continue
+        var node := level.get_node_or_null(source_actor_nodes[identity]) as Node3D
+        var node_brain := node.get_node_or_null("Brain") if node != null else null
+        if node_brain == null or node == actor: continue
+        world[identity] = {"brain": _capture_brain_state(node_brain), "normal": int(node_brain.get("current_normal")), "transform": node.global_transform, "references": _capture_references(node_brain, source_actor_nodes)}
+    return world
+
+## An init rule's waypoints and actor links are not plain values, and a resumed
+## actor never reruns that rule, so they are kept by what they name.
+func _capture_references(source_brain: Node, source_actor_nodes: Dictionary) -> Dictionary:
+    var references: Dictionary = {}
+    for property in source_brain.get_property_list():
+        var property_name := str(property.get("name", ""))
+        if not property_name.begins_with("dsg_"): continue
+        var value: Variant = source_brain.get(property_name)
+        if value is Node:
+            for identity in source_actor_nodes:
+                if level.get_node_or_null(source_actor_nodes[identity]) == value:
+                    references[property_name] = {"actor": str(identity)}
+                    break
+        elif value is Resource and value.get("source_position") != null:
+            references[property_name] = {"position": value.get("source_position"), "radius": value.get("radius"), "identity": value.get("source_identity")}
+    return references
+
+func _apply_references(target_brain: Node, destination: Node3D, references: Dictionary, source_actor_nodes: Dictionary) -> void:
+    for property_name in references:
+        var saved: Dictionary = references[property_name]
+        if saved.has("actor"):
+            if source_actor_nodes.has(saved["actor"]):
+                target_brain.set(property_name, destination.get_node_or_null(source_actor_nodes[saved["actor"]]))
+            continue
+        var waypoint: Resource = load("res://addons/astrolabe/character/waypoint.gd").new()
+        waypoint.source_position = saved["position"]
+        waypoint.radius = saved["radius"]
+        waypoint.source_identity = saved["identity"]
+        waypoint.supported = true
+        target_brain.set(property_name, waypoint)
+
+func _apply_world_state(destination: Node3D, world: Dictionary) -> void:
+    var source_actor_nodes: Variant = destination.get_meta("source_actor_nodes", {})
+    if not source_actor_nodes is Dictionary: return
+    for identity in world:
+        if not source_actor_nodes.has(identity): continue
+        var node := destination.get_node_or_null(source_actor_nodes[identity]) as Node3D
+        var node_brain := node.get_node_or_null("Brain") if node != null else null
+        if node_brain == null: continue
+        var saved: Dictionary = world[identity]
+        _apply_brain_state(node_brain, saved["brain"])
+        _apply_references(node_brain, destination, saved.get("references", {}), source_actor_nodes)
+        node.global_transform = saved["transform"]
+        if int(saved["normal"]) >= 0: node_brain.call("change_normal", int(saved["normal"]))
 
 func _capture_brain_state(source_brain: Node) -> Dictionary:
     var values: Dictionary = {}
@@ -889,7 +952,9 @@ func save_game() -> void:
     if str(level.get_meta("source_level_name", "")) == "manoir":
         error = SAVE_STATE.write(actor, level)
     else:
-        error = SAVE_STATE.write_travel(str(level.get_meta("source_level_name")), _capture_transition_state(), actor.global_transform)
+        var snapshot := _capture_transition_state()
+        snapshot["world"] = _capture_world_state()
+        error = SAVE_STATE.write_travel(str(level.get_meta("source_level_name")), snapshot, actor.global_transform)
     status_label.text = "Game saved" if error.is_empty() else error
 
 func stage(name: String, message: String) -> void:

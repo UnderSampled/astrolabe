@@ -225,6 +225,7 @@ fn compiled_routes_use_native_contact_and_actor_local_progress() -> Result<()> {
         active: Some(0),
     };
     let perso = Perso {
+        shadow: None,
         path: AssetPath::new("level:/persos/walker")?,
         name: "Walker".into(),
         family: AssetRef::from_path(family.path.clone()),
@@ -329,6 +330,7 @@ fn compiled_routes_use_native_contact_and_actor_local_progress() -> Result<()> {
         activation: u32::MAX,
         environments: vec![],
         static_lights: vec![],
+        sound_events: vec![],
         dynamic_lights: vec![],
         boundary: None,
         persos: vec![],

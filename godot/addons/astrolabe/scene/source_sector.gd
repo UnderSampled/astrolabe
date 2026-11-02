@@ -17,4 +17,6 @@ extends Node3D
 @export var activity := PackedStringArray()
 ## Each entry is {"sector", "volume"}.
 @export var sound: Array[Dictionary] = []
+## Music on entry, 004480e0. Each entry is {"state", "from", "event"}.
+@export var sound_events: Array[Dictionary] = []
 @export var unknown := PackedByteArray([0, 0, 0])

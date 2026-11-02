@@ -11,6 +11,11 @@ func set_maximum(value: int) -> void:
 	maximum = value & 255
 	emit_changed()
 
+## Proc52 / 00438ed0 writes the low byte, with no clamp to the maximum.
+func set_points(value: int) -> void:
+	current = value & 255
+	emit_changed()
+
 ## Proc55 / 00460a90 narrows the operand first, then clamps the sum.
 func add_points(value: int) -> void:
 	current = mini(current + (value & 255), maximum)

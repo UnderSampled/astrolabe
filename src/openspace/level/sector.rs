@@ -100,6 +100,35 @@ pub(super) fn sound(
         })
         .collect()
 }
+/// Elements hold the game state mask, the from-sector and the event; next at 0xc.
+pub(super) fn sound_events(
+    s: &SourceSession,
+    a: Address,
+    offset: usize,
+    nodes: &BTreeMap<Address, String>,
+    sounds: &super::sound::SoundSites,
+) -> Result<Vec<SectorSoundEvent>> {
+    entries(s, a, offset, 12)?
+        .into_iter()
+        .map(|entry| {
+            Ok(SectorSoundEvent {
+                game_state: s.bytes(entry, 1)?[0],
+                from: s
+                    .pointer(entry, 4)?
+                    .map(|_| node(s, entry, 4, nodes))
+                    .transpose()?,
+                event: sounds
+                    .events
+                    .get(&Address {
+                        offset: entry.offset + 8,
+                        ..entry
+                    })
+                    .cloned()
+                    .flatten(),
+            })
+        })
+        .collect()
+}
 pub(super) fn boundary(
     s: &SourceSession,
     a: Address,

@@ -23,9 +23,9 @@
 - [x] Exit: reaching the loader dummy at (-79.5, 19) fades out and leaves for the menu (stage6_exit.json by teleport; save_exit.json walks there from the save and is in the gate).
 - [x] A level exit to an unconverted level returns to the menu with a message. Not reached by play yet.
 - [x] Brigand: load the save, walk to the tunnel, the exit fades, the loading screen shows real progress, Brigand's arrival dialogue plays, Hype regains control with the follow camera (to_brigand.json). F5 there saves; Load Game restores the player and Fix Brains at the pose (brigand_load.json).
-- [ ] Saves outside the manor hold the transition snapshot and pose in user://travel-save.cfg. Stand-in: no per-level world records yet, so a loaded level starts fresh and its arrival dialogue replays. Brigand's stand-ins are unfilled: 219 untyped sites, Func_CloserWP (3-12) leaves the boars without routes.
+- [ ] Saves outside the manor keep the transition snapshot, the pose and a world record per level actor (fields, behavior, pose, waypoint and actor links) in user://travel-save.cfg, so Load Game resumes Brigand without replaying its arrival (brigand_load.json). Stand-in: one travel slot, no per-level history when returning to a level. Brigand's AI stand-ins are shrinking; the boars now get routes from Func_CloserWP.
 
-- [x] Save restore: after Load Game 224 of 226 saved numeric designer variables on Brain actors equal the live values (route step save_diff). Global dsg_37 differs correctly: the lectern sets it and clears it after the save. Global dsg_17 (saved 0, live true) is unexplained; camera model 437 reads it. The 573 unknown fields are mostly unnamed, not lost: 221 actor variables, 134 dialogue, 110 map UI, 60 map stars.
+- [x] Save restore: after Load Game 224 of 226 saved numeric designer variables on Brain actors equal the live values (route step save_diff). Global dsg_37 differs correctly: the lectern sets it and clears it after the save. Global dsg_17 (saved 0, live true) is unexplained; camera model 437 reads it. The 248 unknown fields are mostly unnamed, not lost: 110 map UI, 60 map stars, 48 other unjoined block records, 18 actor variables with gameplay readers, 11 actor flag words whose AI-used bits are unexplained (the other 190 flag words and all 134 dialogue references now have source-backed roles).
 
 ## Fidelity
 

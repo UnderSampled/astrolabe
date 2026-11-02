@@ -142,7 +142,12 @@ impl Project {
     }
 
     /// The sector's fields on its SourceSector node.
-    fn sector_fields(&mut self, sector: &crate::model::scene::Sector, name: &str) -> Result<()> {
+    fn sector_fields(
+        &mut self,
+        sector: &crate::model::scene::Sector,
+        name: &str,
+        source: &mut impl crate::model::content::ContentSource,
+    ) -> Result<()> {
         fn strings<'a>(values: impl Iterator<Item = &'a str>) -> String {
             let quoted: Vec<String> = values.map(quoted).collect();
             format!("PackedStringArray([{}])", quoted.join(", "))
@@ -172,9 +177,25 @@ impl Project {
                 )
             })
             .collect();
+        let mut written = std::collections::BTreeSet::new();
+        let mut sound_events = Vec::new();
+        for event in &sector.sound_events {
+            let Some(link) = &event.event else { continue };
+            sound_events.push(format!(
+                "{{\"state\": {}, \"from\": {}, \"event\": load({})}}",
+                event.game_state,
+                quoted(event.from.as_deref().unwrap_or("")),
+                quoted(&super::sound::export_event(
+                    self,
+                    source,
+                    link,
+                    &mut written
+                )?)
+            ));
+        }
         writeln!(
             self.builder,
-            "    {name}.set_script(load(\"res://addons/astrolabe/scene/source_sector.gd\"))\n    {name}.sector_name = {}\n    {name}.virtual_sector = {}\n    {name}.activation = {}\n    {name}.has_boundary = {}\n    {name}.environments = {}\n    {name}.static_lights = {}\n    {name}.dynamic_lights = {}\n    {name}.persos = {}\n    {name}.graphics.assign({})\n    {name}.optional_graphics.assign({})\n    {name}.collision = {}\n    {name}.activity = {}\n    {name}.sound.assign([{}])\n    {name}.unknown = PackedByteArray([{}, {}, {}])",
+            "    {name}.set_script(load(\"res://addons/astrolabe/scene/source_sector.gd\"))\n    {name}.sector_name = {}\n    {name}.virtual_sector = {}\n    {name}.activation = {}\n    {name}.has_boundary = {}\n    {name}.environments = {}\n    {name}.static_lights = {}\n    {name}.dynamic_lights = {}\n    {name}.persos = {}\n    {name}.graphics.assign({})\n    {name}.optional_graphics.assign({})\n    {name}.collision = {}\n    {name}.activity = {}\n    {name}.sound.assign([{}])\n    {name}.sound_events.assign([{}])\n    {name}.unknown = PackedByteArray([{}, {}, {}])",
             quoted(&sector.name),
             sector.virtual_sector,
             sector.activation,
@@ -188,6 +209,7 @@ impl Project {
             strings(sector.collision.iter().map(String::as_str)),
             strings(sector.activity.iter().map(String::as_str)),
             sound.join(", "),
+            sound_events.join(", "),
             sector.unknown[0],
             sector.unknown[1],
             sector.unknown[2],
@@ -404,7 +426,7 @@ impl Project {
                 if let Some(boundary) = &sector.boundary {
                     self.sector_boundary(boundary, &name, &scene_id)?;
                 }
-                self.sector_fields(sector, &name)?;
+                self.sector_fields(sector, &name, source)?;
                 writeln!(
                     self.builder,
                     "    {name}.set_meta(\"source_sector_id\", {})",

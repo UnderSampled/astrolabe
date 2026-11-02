@@ -220,6 +220,7 @@ fn native_motion_survives_rete_and_drives_character_contact() -> Result<()> {
         unknown: [0; 4],
     };
     let perso = Perso {
+        shadow: None,
         path: AssetPath::new("level:/persos/mover")?,
         name: "Mover".into(),
         family: AssetRef::from_path(family.path.clone()),

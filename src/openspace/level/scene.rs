@@ -395,7 +395,8 @@ pub fn import_scene(game: &Path, selection: &Selection) -> Result<SceneImport> {
     for (i, reference) in perso_refs {
         result.scene.nodes[i].perso = Some(reference);
     }
-    super::lighting::import(&session, &tree, &mut result)?;
+    let sounds = super::sound::SoundSites::open(game, selection, &session)?;
+    super::lighting::import(&session, &tree, &mut result, &sounds)?;
     super::ai::import(
         &session,
         game,

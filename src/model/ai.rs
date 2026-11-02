@@ -129,6 +129,11 @@ pub enum Statement {
         actor: Expression,
         value: Expression,
     },
+    /// Proc_SetHitPoints: clamped by the actor's maximum.
+    SetHitPoints {
+        actor: Expression,
+        value: Expression,
+    },
     SubtractHitPoints {
         actor: Expression,
         value: Expression,
@@ -800,6 +805,10 @@ pub enum Expression {
     /// Source Cond_CollideWithNothing reads the actor contact result. The
     /// native contact-category mapping remains under investigation.
     CollideWithNothing,
+    /// Cond_CollideWithPerso: the actor's last move touched another actor.
+    CollideWithPerso,
+    /// Func_CloserWP: the nearest waypoint of an actor-local route slot.
+    CloserRouteWaypoint(u8),
     /// Cond_CollideWithWall: the actor's last move touched a wall.
     CollideWithWall,
     /// Cond_IsValidWayPoint: the operand names a waypoint.
@@ -887,6 +896,19 @@ pub enum Expression {
     ActorHitPoints(Box<Expression>),
     /// Func37 evaluates/captures its actor before its damage operand, then
     /// subtracts low-byte damage with a zero floor and returns remaining life.
+    /// Fight_RemoveAndReadHitPointsEnemy: Func37 and an enemy bar refresh.
+    FightSubtractAndGetHitPoints(Box<Expression>),
+    /// Cond_SeePositionWithOffset: from the sight point plus offset.
+    SeePositionWithOffset {
+        target: Box<Expression>,
+        offset: Box<Expression>,
+    },
+    /// Cond_SeePersoWithOffset: offsets are in each actor's own axes.
+    SeePersoWithOffset {
+        offset: Box<Expression>,
+        target: Box<Expression>,
+        target_offset: Box<Expression>,
+    },
     SubtractAndGetHitPoints {
         actor: Box<Expression>,
         value: Box<Expression>,
@@ -1755,6 +1777,10 @@ impl Script {
                 | Expression::VectorPlus(left, right)
                 | Expression::VectorMinus(left, right)
                 | Expression::VectorScale(left, right)
+                | Expression::SeePositionWithOffset {
+                    target: left,
+                    offset: right,
+                }
                 | Expression::Minus(left, right)
                 | Expression::Modulus(left, right)
                 | Expression::Divide(left, right)
@@ -1786,7 +1812,12 @@ impl Script {
                     expression(left, variables, depth + 1, count)?;
                     expression(right, variables, depth + 1, count)?;
                 }
-                Expression::VectorAngle {
+                Expression::SeePersoWithOffset {
+                    offset: first,
+                    target: second,
+                    target_offset: sign_axis,
+                }
+                | Expression::VectorAngle {
                     first,
                     second,
                     sign_axis,
@@ -1803,6 +1834,7 @@ impl Script {
                 | Expression::Square(value)
                 | Expression::AbsoluteValue(value)
                 | Expression::IsValidWaypoint(value)
+                | Expression::FightSubtractAndGetHitPoints(value)
                 | Expression::VectorNorm(value)
                 | Expression::VectorNormalize(value)
                 | Expression::ActorDistance(value)
@@ -1972,6 +2004,7 @@ impl Script {
                         expression(index, variables, depth + 1, count)?
                     }
                     Statement::SetHitPointsMaximum { actor, value }
+                    | Statement::SetHitPoints { actor, value }
                     | Statement::AddHitPoints { actor, value }
                     | Statement::SubtractHitPoints { actor, value }
                     | Statement::SetInventoryMaximum { item: actor, value } => {

@@ -101,6 +101,7 @@ fn exported_camera_uses_edited_horizontal_fov_and_source_view_axis() -> Result<(
     // The intro manor camera uses -1 to select the bound Perso itself.
     parameters.unknown[100] = 0xff;
     let mut actor = Perso {
+        shadow: None,
         path: AssetPath::new("level:/persos/world/camera")?,
         name: "SourceCameraActor".into(),
         family: AssetRef::from_path(family.path.clone()),

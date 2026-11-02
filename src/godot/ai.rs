@@ -1091,6 +1091,9 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::ActorSighting(_)
         | Expression::HasCustomBit { .. }
         | Expression::VectorAngle { .. }
+        | Expression::SeePositionWithOffset { .. }
+        | Expression::SeePersoWithOffset { .. }
+        | Expression::FightSubtractAndGetHitPoints(_)
         | Expression::CurrentAnimationFrame
         | Expression::ActionFinished(_)
         | Expression::VectorMinus(_, _)
@@ -1347,6 +1350,24 @@ fn guarded_expression(
             )?;
             format!("distance_value_{id}")
         }
+        Expression::FightSubtractAndGetHitPoints(inner) => {
+            guarded_expression(out, inner, model, depth, flow)?
+        }
+        Expression::SeePositionWithOffset { target, offset } => format!(
+            "character().source_see_position(Vector3({}), Vector3({}))",
+            guarded_expression(out, target, model, depth, flow)?,
+            guarded_expression(out, offset, model, depth, flow)?
+        ),
+        Expression::SeePersoWithOffset {
+            offset,
+            target,
+            target_offset,
+        } => format!(
+            "character().source_see_perso_offset(Vector3({}), {}, Vector3({}))",
+            guarded_expression(out, offset, model, depth, flow)?,
+            guarded_expression(out, target, model, depth, flow)?,
+            guarded_expression(out, target_offset, model, depth, flow)?
+        ),
         Expression::SubtractAndGetHitPoints { actor, value } => {
             let actor = guarded_expression(out, actor, model, depth, flow)?;
             let id = flow.local;
@@ -2268,6 +2289,9 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         | Expression::ActorPosition(_)
         | Expression::ActorSighting(_)
         | Expression::HasCustomBit { .. }
+        | Expression::SeePositionWithOffset { .. }
+        | Expression::SeePersoWithOffset { .. }
+        | Expression::FightSubtractAndGetHitPoints(_)
         | Expression::VectorAngle { .. }
         | Expression::ActorDistanceFrom { .. }
         | Expression::DistanceToPosition { .. }
@@ -2331,6 +2355,10 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             format!("is_instance_valid({})", expression(value, model)?)
         }
         Expression::CollideWithWall => "character().is_on_wall()".into(),
+        Expression::CollideWithPerso => "character().source_collide_with_perso()".into(),
+        Expression::CloserRouteWaypoint(slot) => {
+            format!("character().source_closer_route_waypoint({slot})")
+        }
         Expression::VectorNorm(value) => format!("Vector3({}).length()", expression(value, model)?),
         Expression::VectorNormalize(value) => {
             format!("Vector3({}).normalized()", expression(value, model)?)
@@ -2814,6 +2842,7 @@ fn statements(
                 writeln!(out, "{pad}var _discarded_{local} = {value}")?;
             }
             Statement::SetHitPointsMaximum { actor, value }
+            | Statement::SetHitPoints { actor, value }
             | Statement::AddHitPoints { actor, value }
             | Statement::SubtractHitPoints { actor, value } => {
                 let actor = guarded_expression(out, actor, model, depth, flow)?;
@@ -2829,6 +2858,8 @@ fn statements(
                     "add_points"
                 } else if matches!(statement, Statement::SubtractHitPoints { .. }) {
                     "subtract_points"
+                } else if matches!(statement, Statement::SetHitPoints { .. }) {
+                    "set_points"
                 } else {
                     "set_maximum"
                 };
