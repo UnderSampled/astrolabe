@@ -11,6 +11,7 @@ const LOAD_GAME_PICKER = preload("res://game/load_game_picker.gd")
 const SAVE_STATE = preload("res://game/save_state.gd")
 const BEHAVIOR = preload("res://addons/astrolabe/behavior/behavior.gd")
 const INITIAL_ROUTE_ERROR_META := "astrolabe_initial_route_error"
+const LEVEL_END_META := "astrolabe_level_end"
 
 ## Assign an inherited scene saved under game/ to preserve designer improvements.
 @export var menu_scene: PackedScene
@@ -78,6 +79,10 @@ func _ready() -> void:
     if root.has_meta(INITIAL_ROUTE_ERROR_META):
         details.text = "The game could not be opened: " + str(root.get_meta(INITIAL_ROUTE_ERROR_META))
         root.remove_meta(INITIAL_ROUTE_ERROR_META)
+        status.show()
+    if root.has_meta(LEVEL_END_META):
+        details.text = str(root.get_meta(LEVEL_END_META))
+        root.remove_meta(LEVEL_END_META)
         status.show()
 
 func _show_menu_error() -> void:

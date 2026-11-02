@@ -1,7 +1,7 @@
 ## Asset data
 
 - [x] Geometry, textures, collision, sectors, characters, animation and sound convert and load in the real level.
-- [ ] Every record type in the level is named, with opaque fields counted. Not measured yet.
+- [ ] Every record type is named. The Manoir conversion reports 378 source diagnostics. Most are AI gaps counted above. Data gaps: animation morph data in 47 animations, spatial acceleration data in 30 geometries, preserved fields in 6 mechanics kinds, and 6 sector domains without codecs.
 
 ## Play
 
@@ -15,7 +15,7 @@
 - [x] Sword hits register: the training mannequin reacts and recovers.
 - [ ] Damage, death and fall damage.
 - [ ] Gogoud's key and the gate.
-- [ ] Level exit.
+- [x] A level exit to an unconverted level returns to the menu with a message. Not reached by play yet.
 
 ## Fidelity
 

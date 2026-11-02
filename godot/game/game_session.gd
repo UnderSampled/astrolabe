@@ -12,6 +12,7 @@ const NATIVE_AUDIO_EMITTER = preload("res://addons/astrolabe/audio/emitter.gd")
 const SOURCE_CAMERA = preload("res://addons/astrolabe/camera/source_camera.gd")
 const LOADING_SCREEN_PATH := NodePath("/root/LevelTransition/LoadingScreen")
 const INITIAL_ROUTE_ERROR_META := "astrolabe_initial_route_error"
+const LEVEL_END_META := "astrolabe_level_end"
 @export var new_game: bool = false
 
 signal loading_stage_changed(stage: String, elapsed_ms: float)
@@ -964,6 +965,13 @@ func _input(event: InputEvent) -> void:
         return
     if event is InputEventKey or event is InputEventMouseButton or event is InputEventMouseMotion or event is InputEventJoypadButton or event is InputEventJoypadMotion:
         get_viewport().set_input_as_handled()
+
+## A level exit that leads somewhere not yet converted ends the game gracefully.
+func source_level_not_converted(level_name: String) -> bool:
+    get_tree().root.set_meta(LEVEL_END_META, "You reached the end of the converted game: \"%s\" is not converted yet." % level_name)
+    leave_session.call_deferred("res://game/bootstrap.tscn")
+    return true
+
 
 func leave_session(destination: String) -> void:
     if destination == "res://game/game_session.tscn" and not selected_save.is_empty():

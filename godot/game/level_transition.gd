@@ -52,7 +52,8 @@ func request_level_change(level: String, entry: String = "", camera_entry: Strin
 		return true
 	var path := LEVEL_PREFIX + normalized + "/level.tscn"
 	if not ResourceLoader.exists(path, "PackedScene"):
-		return false
+		# Reaching a level exit ends the converted game rather than stranding Hype.
+		return session.has_method("source_level_not_converted") and bool(session.call("source_level_not_converted", normalized))
 	if not bool(session.call("begin_level_transition")):
 		return false
 	return _start_request(session, normalized, _source_name(entry), _source_name(camera_entry), path, false, true)
