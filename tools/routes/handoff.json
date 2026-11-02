@@ -1,0 +1,1 @@
+{"start": "new", "steps": [{"until_handoff": true, "note": "handoff", "census": 0}, {"wait": 3, "note": "after handoff"}, {"key": "F5", "note": "save"}, {"wait": 1, "note": "saved"}]}
