@@ -104,7 +104,7 @@ static func checkpoint_error(actor: CharacterBody3D, level: Node3D) -> String:
     if not _has_properties(actor, ["source_airborne", "external_velocity", "pending_state", "generated_object"]):
         return "Converted player has incompatible checkpoint movement."
     # is_on_floor() flickers for an idle actor with no motion this tick.
-    if actor.get("source_airborne") != false or not actor.velocity.is_finite() or actor.velocity.length_squared() > 0.0001:
+    if actor.get("source_airborne") != false or not actor.velocity.is_finite() or actor.velocity.length_squared() > 0.25:
         return "Save when Hype is standing still on the ground."
     var external: Variant = actor.get("external_velocity")
     if not external is Vector3 or not external.is_finite() or external.length_squared() > 0.0001 or actor.get("pending_state") != -1:
