@@ -182,6 +182,11 @@ func run() -> void:
         await physics_frame
     var final := observe()
     report["handoff"] = final
+    # Keep the timeline going while the camera settles behind Hype, as the original does.
+    var settle := Time.get_ticks_msec() + 12000
+    while Time.get_ticks_msec() < settle:
+        observe()
+        await physics_frame
     if not final["opening_finished"]:
         await capture("timed_out")
         finish(false, "passive authored intro did not hand control to Hype within 300 seconds")

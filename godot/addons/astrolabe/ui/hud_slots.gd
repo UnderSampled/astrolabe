@@ -82,4 +82,5 @@ func refresh() -> void:
         _weapon_count.text = str(count)
     _weapon_count.visible = _weapon_icon.visible
     if _object_panel != null:
-        _object_panel.visible = bool(_requested["selected_object"]) and show
+        # The original shows no frame while nothing is selected (New Game handoff).
+        _object_panel.visible = _object_icon.visible
