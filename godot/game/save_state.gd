@@ -99,8 +99,6 @@ static func checkpoint_error(actor: CharacterBody3D, level: Node3D) -> String:
     var brain := actor.get_node_or_null("Brain")
     if not _has_properties(brain, ["current_normal", "current_reflex", "running", "unsupported_failure"]) or not _has_property(actor, "current_state"):
         return "Converted player has incompatible checkpoint behavior."
-    if brain.get("current_normal") != 4 or brain.get("current_reflex") != 3 or actor.get("current_state") != 47:
-        return "Save when Hype has returned to his supported idle state."
     if brain.get("running") != true or not str(brain.get("unsupported_failure")).is_empty():
         return "A stopped or unsupported behavior cannot be saved as a checkpoint."
     if not _has_properties(actor, ["source_airborne", "external_velocity", "pending_state", "generated_object"]):

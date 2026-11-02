@@ -807,7 +807,7 @@ func update_opening_status() -> void:
         stage("playable", "Opening complete — explore the manor" if opening_failures.is_empty() else "Opening complete; %d actor behaviors stopped." % opening_failures.size())
 
 func save_game() -> void:
-    if source_vignette_pending or new_game or not ready_to_play or not is_instance_valid(actor):
+    if source_vignette_pending or (new_game and not bool(get("opening_finished"))) or not ready_to_play or not is_instance_valid(actor):
         return
     var error: String = SAVE_STATE.write(actor, level)
     status_label.text = "Game saved" if error.is_empty() else error

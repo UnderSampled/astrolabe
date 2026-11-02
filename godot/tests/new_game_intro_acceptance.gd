@@ -186,4 +186,21 @@ func run() -> void:
     if Vector2(displacement.x, displacement.z).length() <= 0.05:
         finish(false, "Hype did not move horizontally after source handoff and physical ArrowUp")
         return
+    await create_timer(1.5).timeout
+    var save_key := InputEventKey.new()
+    save_key.physical_keycode = KEY_F5
+    save_key.pressed = true
+    Input.parse_input_event(save_key)
+    Input.flush_buffered_events()
+    await create_timer(0.3).timeout
+    save_key = InputEventKey.new()
+    save_key.physical_keycode = KEY_F5
+    Input.parse_input_event(save_key)
+    Input.flush_buffered_events()
+    await create_timer(0.5).timeout
+    var saved: Dictionary = load("res://game/save_state.gd").read_for_load("native")
+    report["new_game_save"] = {"status": saved["status"], "message": saved.get("message", ""), "label": str(game.get("status_label").text)}
+    if saved["status"] != "loaded":
+        finish(false, "F5 after the opening did not write a loadable game: " + str(report["new_game_save"]))
+        return
     finish(true, "full passive intro, native camera/letterbox/dialogue handoff and physical movement observed")
