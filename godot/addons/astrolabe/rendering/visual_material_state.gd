@@ -7,9 +7,17 @@ const DYNAMIC_SHADER := preload("res://addons/astrolabe/rendering/source_diffuse
 const PRELIT_SHADER := preload("res://addons/astrolabe/rendering/source_diffuse_prelit.gdshader")
 const SUPPORTED_TARGET_FLAGS := 0x6ddc07ff
 
+const SectorLighting := preload("res://addons/astrolabe/rendering/sector_lighting.gd")
+
 var _diffuse_by_material: Dictionary = {}
+var _lit_variants: Dictionary = {}
+var _lit_base: Dictionary = {}
+var _shaders: Dictionary = {}
+var lighting: SectorLighting
 
 func _ready() -> void:
+	lighting = SectorLighting.new()
+	lighting.build(_level_root())
 	var tree := get_tree()
 	if not tree.node_added.is_connected(_on_node_added):
 		tree.node_added.connect(_on_node_added)
@@ -135,19 +143,20 @@ func _make_variant(material: StandardMaterial3D, material_path: String, diffuse:
 	if cull.is_empty():
 		return null
 	var base_shader := PRELIT_SHADER if source_mode == BaseMaterial3D.SHADING_MODE_UNSHADED else DYNAMIC_SHADER
-	var lighting_mode := "unshaded" if source_mode == BaseMaterial3D.SHADING_MODE_UNSHADED else "vertex_lighting"
 	var blend_mode := "blend_add, " if material.blend_mode == BaseMaterial3D.BLEND_MODE_ADD else ""
-	var render_mode := "render_mode %s, depth_draw_opaque, %s%s;" % [lighting_mode, blend_mode, cull]
-	var old_mode := "render_mode unshaded, depth_draw_opaque, cull_back;" if source_mode == BaseMaterial3D.SHADING_MODE_UNSHADED else "render_mode vertex_lighting, depth_draw_opaque, cull_back;"
-	var shader := Shader.new()
-	shader.code = base_shader.code.replace(old_mode, render_mode)
+	var render_mode := "render_mode unshaded, depth_draw_opaque, %s%s;" % [blend_mode, cull]
 	var source_transparency := int(material.get_meta("source_opacity_base_transparency", material.transparency))
+	var code := base_shader.code.replace("render_mode unshaded, depth_draw_opaque, cull_back;", render_mode)
 	# Writing the scissor built-in selects cutout rendering even at threshold
 	# zero. Preserve alpha/additive materials as blended native variants.
 	if source_transparency == BaseMaterial3D.TRANSPARENCY_ALPHA:
-		shader.code = shader.code.replace("ALPHA_SCISSOR_THRESHOLD = source_alpha_scissor_threshold;", "")
+		code = code.replace("ALPHA_SCISSOR_THRESHOLD = source_alpha_scissor_threshold;", "")
+	if not _shaders.has(code):
+		var compiled := Shader.new()
+		compiled.code = code
+		_shaders[code] = compiled
 	var result := ShaderMaterial.new()
-	result.shader = shader
+	result.shader = _shaders[code]
 	result.set_shader_parameter("source_has_albedo_texture", material.albedo_texture != null)
 	if material.albedo_texture != null:
 		result.set_shader_parameter("source_albedo_texture", material.albedo_texture)
@@ -194,6 +203,38 @@ func _bind_material(node: GeometryInstance3D, surface: int, material: Material, 
 	if actor != null:
 		actor.call("source_rebind_visual_material_variant", material, replacement)
 
+## Dynamic meshes (layer 2) take the source's per-vertex lighting; radiosity
+## meshes stay prelit. Hardware allows too few instance uniforms for every mesh,
+## so variants are shared per material and sector row.
+func _bind_source_lighting(node: Node) -> void:
+	if not node is MeshInstance3D or node.layers != 2 or node.mesh == null: return
+	var actor: Node = node
+	while actor != null and not actor.has_method("source_contact_sector"): actor = actor.get_parent()
+	set_source_lighting_row(node, int(actor.get("source_lighting_row")) if actor != null else 0)
+
+func set_source_lighting_row(mesh_instance: MeshInstance3D, row: int) -> void:
+	if mesh_instance.mesh == null: return
+	for surface in mesh_instance.mesh.get_surface_count():
+		var material := mesh_instance.get_active_material(surface)
+		var base: Variant = _lit_base.get(material, material if material is StandardMaterial3D else null)
+		if base != null:
+			var variant := _lit_variant(base, row)
+			if variant != null: mesh_instance.set_surface_override_material(surface, variant)
+		# Fades and diffuse changes own their material.
+		elif material is ShaderMaterial and material.has_meta("source_visual_material_runtime"):
+			material.set_shader_parameter("source_sector_row", row)
+
+func _lit_variant(base: StandardMaterial3D, row: int) -> ShaderMaterial:
+	var key := [base, row]
+	if not _lit_variants.has(key):
+		var diffuse: Color = base.get_meta("source_visual_diffuse", Color(0.7, 0.7, 0.7, 1.0))
+		var variant := _make_variant(base, _source_path(base), Vector4(diffuse.r, diffuse.g, diffuse.b, diffuse.a))
+		if variant != null:
+			variant.set_shader_parameter("source_sector_row", row)
+			_lit_base[variant] = base
+		_lit_variants[key] = variant
+	return _lit_variants[key]
+
 func _scan_level() -> void:
 	for node in _level_root().find_children("*", "", true, false):
 		_on_node_added(node)
@@ -205,6 +246,7 @@ func _on_node_added(node: Node) -> void:
 		current = current.get_parent()
 	if current != root:
 		return
+	_bind_source_lighting(node)
 	for material_path in _diffuse_by_material:
 		var pending: Array[Dictionary] = []
 		_collect_node_uses(node, material_path, pending)

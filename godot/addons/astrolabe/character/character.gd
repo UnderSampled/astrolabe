@@ -1766,9 +1766,9 @@ func source_contact_sector() -> Node3D:
     _update_sector_ambient()
     return _contact_sector
 
-## Dynamic meshes are lit by the type-4 (ambient) lights of Hype's sector, replacing the level-wide sum; world geometry is prelit. Runs only when the sector changes.
-## Source ambient lights add at twice their colour (matches the original frame).
-static var _ambient_lights: Dictionary = {}
+## The row of the source lighting table for this actor's sector. Dynamic meshes
+## take the lights of the sector they are drawn in, so each actor needs its own.
+var source_lighting_row := 0
 var _ambient_sector: Node3D
 var _ambient_probe := Vector3(INF, INF, INF)
 ## An actor with no contact sector (loaded saves) is placed by position,
@@ -1786,33 +1786,16 @@ func _update_sector_ambient() -> void:
                 var hit: Dictionary = index.call("resolve_position", global_position)
                 sector = index.call("sector_node", str(hit.get("sector_id", ""))) as Node3D
                 if sector == null: sector = _ambient_sector
-    if sector != _ambient_sector: _apply_sector_ambient(sector)
+    if sector != _ambient_sector: _apply_sector_lighting(sector)
 
-func _apply_sector_ambient(sector: Node3D) -> void:
+func _apply_sector_lighting(sector: Node3D) -> void:
     _ambient_sector = sector
-    var ambient := Vector3.ZERO
-    if is_instance_valid(sector):
-        var level := sector.owner
-        if level != null and not _ambient_lights.has(level.get_instance_id()):
-            var table := {}
-            for node in level.get_children():
-                if not node.has_meta("source_light"): continue
-                var light: Variant = JSON.parse_string(str(node.get_meta("source_light")))
-                if light is Dictionary and int(light.get("kind", 0)) == 4 and int(light.get("on", 0)) != 0 and int(light.get("send", 0)) != 0:
-                    var c: Array = light["color"]
-                    table[str(light["path"])] = Vector3(c[0], c[1], c[2]) * 2.0
-            _ambient_lights[level.get_instance_id()] = table
-        var data: Variant = JSON.parse_string(str(sector.get_meta("source_sector", "")))
-        if level != null and data is Dictionary:
-            var table: Dictionary = _ambient_lights[level.get_instance_id()]
-            for path in data.get("static_lights", []) + data.get("dynamic_lights", []):
-                ambient += table.get(str(path), Vector3.ZERO)
-    # Dynamic meshes take Godot's ambient, which is global: follow the hero.
-    if name == "Hype" and is_instance_valid(sector) and sector.owner != null:
-        var env := sector.owner.get_node_or_null("Environment") as WorldEnvironment
-        if env != null and env.environment != null:
-            env.environment.ambient_light_color = Color(clampf(ambient.x, 0.0, 1.0), clampf(ambient.y, 0.0, 1.0), clampf(ambient.z, 0.0, 1.0))
-            env.environment.ambient_light_energy = 1.0
+    if not is_instance_valid(sector) or sector.owner == null: return
+    var state := sector.owner.get_node_or_null("SourceVisualMaterialState")
+    if state == null or state.get("lighting") == null: return
+    source_lighting_row = state.lighting.row(sector)
+    for mesh in find_children("*", "MeshInstance3D", true, false):
+        if mesh.layers == 2: state.set_source_lighting_row(mesh, source_lighting_row)
 
 func _source_contact_actor(collider: CollisionObject3D) -> Node3D:
     var actor: Node = collider
