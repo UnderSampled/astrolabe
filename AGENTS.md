@@ -57,7 +57,7 @@ Work directly on `main`. This is a single-developer project: do not create branc
 
 ## Validation and local data
 
-Run `python3 tools/gate.py` before merging. Unsupported source calls get documented [stand-ins](./docs/astrolabe/stand-ins.md), never silent no-ops. Check new AI parser assumptions against live memory through Orrery.
+Run `python3 tools/gate.py` before merging. Its game checks start from a loaded save; the intro runs with the full route (`tools/route_check.py --full`), and two-engine stage scenarios stay short, on demand and outside the gate. Unsupported source calls get documented [stand-ins](./docs/astrolabe/stand-ins.md), never silent no-ops. Check new AI parser assumptions against live memory through Orrery.
 
 Build with `cargo build --release --locked`. Existing commands are `python3 tools/test.py --offline` for synthetic checks and `python3 tools/test.py --local --offline` for the complete local corpus/Godot suite. The supervisor captures logs in ignored `TestResults/` and cleans child processes. Focused selection (`--area movement --local`), mandatory safeguards and exact release inventory (`--release`) are implemented with pinned nextest; `tools/coverage.py` collects a separate LLVM Rust coverage run. Native runtime, live comparison and BDD work remain in progress under [the dated comparison plan](./notes/realtime-comparison-plan.md). See [the testing guide](./docs/astrolabe/testing.md). `cargo fmt --check` and `cargo clippy --locked --all-targets -- -D warnings` check style/lints. The old .NET commands apply only inside the archived C# references.
 

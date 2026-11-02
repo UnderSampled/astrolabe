@@ -2,7 +2,8 @@
 """The merge gate: run at merge points, not continuously, and keep it small.
 
 It answers one question: is this still a game? Adding a fourth check means
-removing one; broader evidence belongs in tools/test.py. See
+removing one; broader evidence belongs in tools/test.py. Every game check starts
+from a loaded save; the intro runs with the full route in tools/route_check.py. See
 docs/astrolabe/testing.md.
 """
 import json
@@ -70,12 +71,21 @@ def godot_check(name, script, report, environment, limit):
             'checks': data.get('checks', []), 'frames': data.get('frames'), 'stand_ins': data.get('stand_ins', [])}
 
 
-def intro(environment):
-    return godot_check('intro', 'res://tests/new_game_intro_acceptance.gd', work/'intro.json', environment, 300)
-
-
 def controls(environment):
     return godot_check('controls', 'res://tests/controls_probe.gd', work/'controls.json', environment, 120)
+
+
+def route(environment):
+    """Load the save, walk to the level exit and leave it, through the real game."""
+    xdg = work/'xdg/route'
+    xdg.mkdir(parents=True)
+    private = dict(environment, XDG_DATA_HOME=str(xdg), XDG_CONFIG_HOME=str(xdg), XDG_CACHE_HOME=str(xdg))
+    command = [*gpu_prefix(), 'godot', '--path', '.', '--audio-driver', 'Dummy', '--script', 'res://tests/route_bot.gd',
+               '--', str(root/'tools/routes/save_exit.json'), str(work/'route.json')]
+    code = run('route', command, root/'godot', private, 120)
+    log = (work/'route.log').read_text(errors='replace')
+    failed = [line for line in log.splitlines() if line.startswith('SCRIPT ERROR') or 'ROUTE ABORT' in line]
+    return {'passed': 'ROUTE SESSION ENDED' in log and not failed, 'detail': f'exit {code}, {failed[:2]}'}
 
 
 def original(environment):
@@ -101,7 +111,7 @@ def original(environment):
     return {'passed': code == 0, 'detail': f'exit {code}, fields {counts}'}
 
 
-CHECKS = [intro, controls, original]
+CHECKS = [controls, route, original]
 
 
 def main():

@@ -5,13 +5,19 @@ The test supervisor in `tools/test.py` selects declared Rust tests, prepares fix
 ## The merge gate
 
 `python3 tools/gate.py` runs at merge points, not continuously. It takes about
-five minutes and asks one question: is this still a game?
+two minutes and asks one question: is this still a game?
 
 | Check | What it shows |
 | --- | --- |
-| Intro acceptance | The real menu, full New Game opening, dialogue, camera and handoff to physical movement |
 | Controls probe | Load Game, then turn, walk, run, jump and sword through physical keys, with a median frame time floor on real hardware |
+| Route | Load the save, walk to the level exit and leave the level through the real game |
 | Original comparison | Live original data against the parser, on a disposable copy of the prefix |
+
+The game checks start by loading a save, which is far faster than replaying the
+opening. The intro is an important behavior test of the full route instead:
+`python3 tools/route_check.py --full HANDOFF_DIR` plays it before the routes. Stage
+scenarios in `tools/behaviors/manoir.json` compare both engines from fast starts;
+they are short, on demand and outside the gate.
 
 The gate is capped at three checks and ten minutes. Adding a check means removing
 one. It prints every stand-in reached. Godot renders on the discrete GPU through
@@ -138,9 +144,7 @@ Tests are evidence for declared behavior. Converter tests should exercise useful
 `tools/routes/` through the real game with `godot/tests/route_bot.gd` (steps go,
 plan, teleport, face, key, wait, until_normal, until_item, watch, census, spell,
 zones). It starts each run from a copy of an F5 handoff save directory, retries
-a route whose `required` step fails (Hype's scripted walk after the teleport to
-Gogoud's trigger ends in behavior 48 about half of the time), and reports any
-step marked FAILED or any script error. A route takes two to four minutes, so
-this is on demand and not part of the gate. The routes so far cover the sword
-and crossbow training stages; extend them toward the magic stage, Gogoud's key,
-the gates, damage and the level exit.
+a route whose `required` step fails, and reports any step marked FAILED or any
+script error. A route takes up to a few minutes, so this is on demand. Routes cover
+training, the key, the first gate and the exit; `stage*.json` start mid-game with
+bot steps, and `save_exit.json` is the gate's route.

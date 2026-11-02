@@ -27,7 +27,8 @@ Four working rules follow:
    away.
 2. **Keep the gate cheap.** A full behavior suite once took so long and ran so
    constantly that progress stalled. The gate has three checks and a ten-minute
-   cap, and runs at merge points only. A new check replaces an old one. Broader
+   cap, and runs at merge points only. Its game checks start from a loaded save; the
+   intro runs with the full route. A new check replaces an old one. Broader
    evidence lives in `tools/test.py`, which is run when it answers a question.
 3. **Guess in the open.** An unsupported call gets a
    [stand-in](./docs/astrolabe/stand-ins.md): a documented guess at what it

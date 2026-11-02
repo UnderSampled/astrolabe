@@ -1,0 +1,1 @@
+{"start": "original:SaveGame0.cfg", "steps": [{"wait": 6, "note": "entry"}, {"go": [-79.5, 19.0], "tol": 0.8, "note": "walk to exit", "required": true}, {"wait": 12, "note": "leaves level"}]}
