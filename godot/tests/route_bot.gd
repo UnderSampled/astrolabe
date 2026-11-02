@@ -327,6 +327,10 @@ func run() -> void:
 			var end := Time.get_ticks_msec() + 280000
 			while not bool(game.get("opening_finished")) and Time.get_ticks_msec() < end: await physics_frame
 			ok = bool(game.get("opening_finished"))
+		if not is_instance_valid(game) or not is_instance_valid(actor()):
+			print("ROUTE SESSION ENDED at ", step.get("note", step), " scene ", current_scene.name if current_scene != null else "none")
+			quit()
+			return
 		snapshot(str(step.get("note", step)) + ("" if ok else " FAILED"))
 		if not ok and step.get("required", false):
 			print("ROUTE ABORT ", step.get("note", step))

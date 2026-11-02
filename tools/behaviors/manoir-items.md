@@ -11,13 +11,16 @@
 - [x] The save lectern plays its sequence and saves.
 - [x] Walk, run, backstep, turn, jump, sword, crossbow and Fire match the original's sequences.
 - [x] Flask pickup collects its item through compiled AI; saved gold stays collected.
-- [ ] Barrels.
+- [ ] Barrels. Route stage5_barrel.json: Fire at iBaril2 makes the barrels react (normal 2 to 3; iBaril1 then loops states 1 and 7 forever), Hype's life stays 50 at 3 units away. Whether a barrel should explode and hurt is not settled; check against the original.
 - [x] Sword hits register: the training mannequin reacts and recovers.
-- [ ] Damage, death and fall damage.
+- [ ] Damage, death and fall damage. Route stage5_death.json: drops of 18 and 34 units from the Gogoud platform deal no damage, even at life 4, so fall damage is not applied (or is not driven by height alone); death and what follows are not reached. No enemies exist in the Manoir census (176 actors), so damage received needs barrels or falls. Check fall damage in the original.
 - [x] Training: Gogoud leads Hype to the mannequins, dialogue plays, sword stage completes with the source spin sequence, Gogoud advances.
 - [x] Talking to Gogoud grants the crossbow and 10 bolts, and item messages close.
-- [x] Crossbow bolts register on the mannequin: the bolt no longer strikes its own shooter (stand-in `generator-contact`), so the mannequin reacts. The second arm (zone 1) still needs a clean route shot; Gogoud's advance after both arms is not yet seen.
-- [ ] Magic stage, Gogoud's key and the gate.
+- [x] Crossbow bolts register on the mannequin: the bolt no longer strikes its own shooter (stand-in `generator-contact`), so the mannequin reacts. Second arm landed and Gogoud advances (stage1_crossbow.json).
+- [x] Magic stage: Fire hits both mannequin arms (zones at the arm spheres, not the body), mannequin reaches 4, Gogoud advances to the finimannequin dialogue (stage2_magic.json). Needs the sword drawn first (X). Fixed: Hype's scripted walk afterwards used an actor-relative waypoint the converter left unresolved.
+- [x] Gogoud's key: Gogoud activates the key and Hype owns object 21 (stage3_key.json). Fixed: Operator category 2 operation 18 (vector times real, inferred) was unsupported and aborted the key schedule. The key is not auto-selected; select it (route uses select_object) before using it.
+- [x] Gate: with object 21 selected, Space within 1.5 of iSerrure_Manoir1 while facing it and standing on its facing side (north) opens iMGrille_Manoir_Pont; Hype walks through and regains control (stage4_gate.json). Standing on the east side shows the serrure_manoir refusal dialogue. The Caverne gate was not tested.
+- [x] Exit: reaching the loader dummy at (-79.5, 19) fades out and leaves for the menu (stage6_exit.json, by teleport; not reached by walking).
 - [x] A level exit to an unconverted level returns to the menu with a message. Not reached by play yet.
 
 ## Fidelity
