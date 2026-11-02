@@ -242,15 +242,19 @@ fn source_hype_opening_particle_component_and_presentation() -> Result<()> {
             }
         )
     )));
-    let sound_receiver_fragments: Vec<_> = world_normal2
-        .unsupported_fragments()
-        .into_iter()
-        .filter(|fragment| fragment.reason.contains("category 4 operation 413"))
-        .collect();
-    assert!(!sound_receiver_fragments.is_empty());
-    assert!(sound_receiver_fragments.iter().all(|fragment| matches!(
-        fragment.receiver.as_ref(),
-        Some(crate::model::ai::ActorTarget::Reference(_))
+    // Category 4 operation 413 (object sound fade-in) is typed now; it must not
+    // survive as an unsupported fragment.
+    assert!(
+        !world_normal2
+            .unsupported_fragments()
+            .iter()
+            .any(|fragment| fragment.reason.contains("category 4 operation 413"))
+    );
+    assert!(world_normal2.walk().any(|(node, _)| matches!(
+        node,
+        crate::model::ai::walk::AstNode::Statement(
+            crate::model::ai::Statement::SoundFadeInObject { .. }
+        )
     )));
     assert!(
         world_normal2
