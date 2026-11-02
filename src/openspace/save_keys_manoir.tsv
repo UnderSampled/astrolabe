@@ -186,211 +186,211 @@
 0:10:92	inventory/Weapon_81	handle_selected	source	whether this inventory handle is selected
 0:10:94	inventory/Weapon_81	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
 0:10:948	inventory/RestoreHPMP_14	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
-0:17:15416	unknown/actor/level:/persos/world/0/0	dsg_118	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:15417	unknown/actor/level:/persos/world/0/0	dsg_117	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:15416	actor/level:/persos/world/0/0	dsg_118	source	Hype damage value for the projectile spawned when selected weapon DSG[95] is item 81; set per stat tier by iDummy_PourCercles (4/9/14/19/24)
+0:17:15417	actor/level:/persos/world/0/0	dsg_117	source	Hype damage value for the projectile spawned when selected weapon DSG[95] is not item 81; set per stat tier by iDummy_PourCercles (3/5/10/15/19)
 0:17:15419	unknown/actor/level:/persos/world/0/0	dsg_115	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:15514	unknown/actor/level:/persos/world/0/0	dsg_83	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:15514	actor/level:/persos/world/0/0	dsg_83	source	Camera-reset suppression: Hype's return sequence resets the camera to world/0/2 only when 0; checkpoint AI 348 sets 1 or 0
 0:17:15540	unknown/actor/level:/persos/world/0/0	dsg_57	unknown	Hype's own Boolean DSG[57] is set from Global DSG[45] in Normal behavior 0 and independently from Global DSG[73] == 4 in Reflex behavior 7; 121 typed tests of this actor slot gate several behavior paths
 0:17:15586	unknown/actor/level:/persos/world/0/0	dsg_11	unknown	Hype's own Boolean DSG[11] gates six repeated procedure-82 calls and action/channel branches; four identical Reflex rules compare function 205's selected inventory Object item info word to 44, then set or clear this latch alongside Hype DSG[10] under further guards
 0:17:297732	actor/level:/persos/world/0/27	dsg_8	verified	secret manor lever teleport unlock
-0:17:4312	unknown/actor/fix:/persos/15	dsg_6	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4312	actor/fix:/persos/15	dsg_6	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
 0:17:4384	unknown/actor/fix:/persos/15	dsg_29	unknown	the manor checkpoint copies Hype SelfPosition into this Global vector
 0:17:4396	actor/fix:/persos/15	dsg_30	source	checkpoint snapshot of Hype's sighting vector; Hype later uses its negated X/Y components with Z set to zero as input to ChangeSighting
 0:17:4408	unknown/actor/fix:/persos/15	dsg_31	unknown	the manor checkpoint copies its local Variable[1] into this Global vector
 0:17:4420	unknown/actor/fix:/persos/15	dsg_32	unknown	checkpoint-assigned Perso reference, currently targeting the rooted manor checkpoint actor; the checkpoint AI chooses MainActor or Me in opposite arms of an unresolved condition
-0:17:4460	unknown/actor/fix:/persos/15	dsg_237	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4464	unknown/actor/fix:/persos/15	dsg_236	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4473	unknown/actor/fix:/persos/15	dsg_233	unknown	one selects Hype's ActivateMap input branch with unsupported operation 374; IWorld clears it under the DSG[147] zero branch
-0:17:4474	unknown/actor/fix:/persos/15	dsg_232	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4475	unknown/actor/fix:/persos/15	dsg_231	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4476	unknown/actor/fix:/persos/15	dsg_230	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4478	unknown/actor/fix:/persos/15	dsg_228	unknown	Boolean latch read as zero and explicitly assigned one by its authored object-template AI branch
-0:17:4479	unknown/actor/fix:/persos/15	dsg_227	unknown	Boolean latch read as zero and explicitly assigned one by its authored object-template AI branch
-0:17:4480	unknown/actor/fix:/persos/15	dsg_226	unknown	Boolean latch read as zero and explicitly assigned one by its authored object-template AI branch
-0:17:4481	unknown/actor/fix:/persos/15	dsg_225	unknown	Boolean latch read as zero and explicitly assigned one by its authored object-template AI branch
-0:17:4482	unknown/actor/fix:/persos/15	dsg_224	unknown	Boolean latch read as zero and explicitly assigned one by its authored object-template AI branch
-0:17:4483	unknown/actor/fix:/persos/15	dsg_223	unknown	Boolean latch read as zero and explicitly assigned one by its authored object-template AI branch
-0:17:4484	unknown/actor/fix:/persos/15	dsg_222	unknown	Boolean latch read as zero and explicitly assigned one by its authored object-template AI branch
-0:17:4485	unknown/actor/fix:/persos/15	dsg_221	unknown	Boolean latch read as zero and explicitly assigned one by its authored object-template AI branch
-0:17:4486	unknown/actor/fix:/persos/15	dsg_220	unknown	Boolean latch read as zero and explicitly assigned one by its authored object-template AI branch
-0:17:4487	unknown/actor/fix:/persos/15	dsg_219	unknown	IWorld selector 6 sets one; one gates later IWorld branches and i_Gogood_MasterYoda KillSelf
-0:17:4488	unknown/actor/fix:/persos/15	dsg_218	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4489	unknown/actor/fix:/persos/15	dsg_217	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4490	unknown/actor/fix:/persos/15	dsg_216	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4497	unknown/actor/fix:/persos/15	dsg_209	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4498	unknown/actor/fix:/persos/15	dsg_208	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4499	unknown/actor/fix:/persos/15	dsg_207	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4500	unknown/actor/fix:/persos/15	dsg_206	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4501	unknown/actor/fix:/persos/15	dsg_205	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4502	unknown/actor/fix:/persos/15	dsg_204	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4503	unknown/actor/fix:/persos/15	dsg_203	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4504	unknown/actor/fix:/persos/15	dsg_202	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4506	unknown/actor/fix:/persos/15	dsg_200	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4510	unknown/actor/fix:/persos/15	dsg_199	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4511	unknown/actor/fix:/persos/15	dsg_198	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4512	unknown/actor/fix:/persos/15	dsg_197	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4513	unknown/actor/fix:/persos/15	dsg_196	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4514	unknown/actor/fix:/persos/15	dsg_195	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4515	unknown/actor/fix:/persos/15	dsg_194	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4516	unknown/actor/fix:/persos/15	dsg_193	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4517	unknown/actor/fix:/persos/15	dsg_192	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4518	unknown/actor/fix:/persos/15	dsg_191	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4519	unknown/actor/fix:/persos/15	dsg_190	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4523	unknown/actor/fix:/persos/15	dsg_186	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4524	unknown/actor/fix:/persos/15	dsg_185	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4525	unknown/actor/fix:/persos/15	dsg_184	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4526	unknown/actor/fix:/persos/15	dsg_183	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4527	unknown/actor/fix:/persos/15	dsg_182	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4528	unknown/actor/fix:/persos/15	dsg_181	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4529	unknown/actor/fix:/persos/15	dsg_180	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4530	unknown/actor/fix:/persos/15	dsg_179	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4531	unknown/actor/fix:/persos/15	dsg_178	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4532	unknown/actor/fix:/persos/15	dsg_177	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4533	unknown/actor/fix:/persos/15	dsg_176	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4534	unknown/actor/fix:/persos/15	dsg_175	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4535	unknown/actor/fix:/persos/15	dsg_174	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4536	unknown/actor/fix:/persos/15	dsg_173	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4539	unknown/actor/fix:/persos/15	dsg_170	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4540	unknown/actor/fix:/persos/15	dsg_169	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4541	unknown/actor/fix:/persos/15	dsg_168	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4542	unknown/actor/fix:/persos/15	dsg_167	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4543	unknown/actor/fix:/persos/15	dsg_166	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4544	unknown/actor/fix:/persos/15	dsg_165	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4545	unknown/actor/fix:/persos/15	dsg_164	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4546	unknown/actor/fix:/persos/15	dsg_163	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4547	unknown/actor/fix:/persos/15	dsg_162	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4548	unknown/actor/fix:/persos/15	dsg_161	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4549	unknown/actor/fix:/persos/15	dsg_160	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4550	unknown/actor/fix:/persos/15	dsg_159	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4551	unknown/actor/fix:/persos/15	dsg_158	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4552	unknown/actor/fix:/persos/15	dsg_157	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4553	unknown/actor/fix:/persos/15	dsg_156	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4554	unknown/actor/fix:/persos/15	dsg_155	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4555	unknown/actor/fix:/persos/15	dsg_154	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4556	unknown/actor/fix:/persos/15	dsg_153	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4460	actor/fix:/persos/15	dsg_237	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4464	actor/fix:/persos/15	dsg_236	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4473	actor/fix:/persos/15	dsg_233	source	Map available: Button_ActivateMap opens the map screen only when 1, otherwise only plays the refusal sound; IWorld clears it at new game, no compiled AI sets it to 1
+0:17:4474	actor/fix:/persos/15	dsg_232	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4475	actor/fix:/persos/15	dsg_231	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4476	actor/fix:/persos/15	dsg_230	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4478	actor/fix:/persos/15	dsg_228	source	First-pickup latch of the Object_template pickup running fix model 1167, shared with the gold pickup (level model 1144, iGold_ManoirPont): while 0, taking the item bumps the notification counter and sets 1 so it is not counted again
+0:17:4479	actor/fix:/persos/15	dsg_227	source	First-pickup latch of the Object_template pickup running fix model 1196, shared with the object-template pickup with no level model: while 0, taking the item bumps the notification counter and sets 1 so it is not counted again
+0:17:4480	actor/fix:/persos/15	dsg_226	source	First-pickup latch of the Object_template pickup running fix model 935, shared with the object-template pickup with no level model: while 0, taking the item bumps the notification counter and sets 1 so it is not counted again
+0:17:4481	actor/fix:/persos/15	dsg_225	source	First-pickup latch of the Object_template pickup running fix model 964, shared with the object-template pickup with no level model: while 0, taking the item bumps the notification counter and sets 1 so it is not counted again
+0:17:4482	actor/fix:/persos/15	dsg_224	source	First-pickup latch of the Object_template pickup running fix model 1022, shared with the herb pickup (level model 1182): while 0, taking the item bumps the notification counter and sets 1 so it is not counted again
+0:17:4483	actor/fix:/persos/15	dsg_223	source	First-pickup latch of the Object_template pickup running fix model 993, shared with the herb pickup (level model 1182, iHerbe_ManoirPont): while 0, taking the item bumps the notification counter and sets 1 so it is not counted again
+0:17:4484	actor/fix:/persos/15	dsg_222	source	First-pickup latch of the Object_template pickup running fix model 1109, shared with the vial pickup (level model 1106): while 0, taking the item bumps the notification counter and sets 1 so it is not counted again
+0:17:4485	actor/fix:/persos/15	dsg_221	source	First-pickup latch of the Object_template pickup running fix model 1051, shared with the vial pickup (level model 1106): while 0, taking the item bumps the notification counter and sets 1 so it is not counted again
+0:17:4486	actor/fix:/persos/15	dsg_220	source	First-pickup latch of the Object_template pickup running fix model 1080, shared with the iFiole/vial pickup (level model 1106): while 0, taking the item bumps the notification counter and sets 1 so it is not counted again
+0:17:4487	actor/fix:/persos/15	dsg_219	source	Gogood training finished: IWorld selector 6 sets 1; Master Yoda (991) and actor world/0/159 then kill themselves
+0:17:4488	actor/fix:/persos/15	dsg_218	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4489	actor/fix:/persos/15	dsg_217	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4490	actor/fix:/persos/15	dsg_216	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4497	actor/fix:/persos/15	dsg_209	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4498	actor/fix:/persos/15	dsg_208	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4499	actor/fix:/persos/15	dsg_207	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4500	actor/fix:/persos/15	dsg_206	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4501	actor/fix:/persos/15	dsg_205	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4502	actor/fix:/persos/15	dsg_204	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4503	actor/fix:/persos/15	dsg_203	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4504	actor/fix:/persos/15	dsg_202	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4506	actor/fix:/persos/15	dsg_200	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4510	actor/fix:/persos/15	dsg_199	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4511	actor/fix:/persos/15	dsg_198	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4512	actor/fix:/persos/15	dsg_197	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4513	actor/fix:/persos/15	dsg_196	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4514	actor/fix:/persos/15	dsg_195	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4515	actor/fix:/persos/15	dsg_194	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4516	actor/fix:/persos/15	dsg_193	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4517	actor/fix:/persos/15	dsg_192	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4518	actor/fix:/persos/15	dsg_191	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4519	actor/fix:/persos/15	dsg_190	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4523	actor/fix:/persos/15	dsg_186	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4524	actor/fix:/persos/15	dsg_185	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4525	actor/fix:/persos/15	dsg_184	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4526	actor/fix:/persos/15	dsg_183	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4527	actor/fix:/persos/15	dsg_182	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4528	actor/fix:/persos/15	dsg_181	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4529	actor/fix:/persos/15	dsg_180	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4530	actor/fix:/persos/15	dsg_179	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4531	actor/fix:/persos/15	dsg_178	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4532	actor/fix:/persos/15	dsg_177	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4533	actor/fix:/persos/15	dsg_176	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4534	actor/fix:/persos/15	dsg_175	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4535	actor/fix:/persos/15	dsg_174	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4536	actor/fix:/persos/15	dsg_173	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4539	actor/fix:/persos/15	dsg_170	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4540	actor/fix:/persos/15	dsg_169	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4541	actor/fix:/persos/15	dsg_168	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4542	actor/fix:/persos/15	dsg_167	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4543	actor/fix:/persos/15	dsg_166	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4544	actor/fix:/persos/15	dsg_165	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4545	actor/fix:/persos/15	dsg_164	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4546	actor/fix:/persos/15	dsg_163	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4547	actor/fix:/persos/15	dsg_162	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4548	actor/fix:/persos/15	dsg_161	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4549	actor/fix:/persos/15	dsg_160	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4550	actor/fix:/persos/15	dsg_159	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4551	actor/fix:/persos/15	dsg_158	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4552	actor/fix:/persos/15	dsg_157	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4553	actor/fix:/persos/15	dsg_156	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4554	actor/fix:/persos/15	dsg_155	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4555	actor/fix:/persos/15	dsg_154	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4556	actor/fix:/persos/15	dsg_153	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
 0:17:4557	unknown/actor/fix:/persos/15	dsg_152	unknown	zero permits the shared manor mannequin Reflex slot-match path; IWorld selector branches 2-4 clear the flag and branches 5-6 set it, while Yoda behavior 18 also sets it
-0:17:4558	unknown/actor/fix:/persos/15	dsg_151	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4559	unknown/actor/fix:/persos/15	dsg_150	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4558	actor/fix:/persos/15	dsg_151	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4559	actor/fix:/persos/15	dsg_150	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
 0:17:4560	unknown/actor/fix:/persos/15	dsg_149	unknown	Manoir grille/IWorld sequence latch: the grille tests value 1 before a behavior transition and writes 1 in its next behavior; IWorld has guarded set and clear paths
-0:17:4561	unknown/actor/fix:/persos/15	dsg_148	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4562	unknown/actor/fix:/persos/15	dsg_147	unknown	Manoir event flag set after iGogood Action state 36; value 1 triggers iHypeStatue_Manoir_MAD's typed KillSelf branch
+0:17:4561	actor/fix:/persos/15	dsg_148	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4562	actor/fix:/persos/15	dsg_147	source	Opening Gogood event done: 0 until iGogood finishes its intro (set to 1 at 210.gd:1181); while 0 IWorld runs the new-game init (starting inventory objects, map names, max HP 50) and plays the intro music; IWorld selector 1 clears it, 2-6 set it
 0:17:4563	unknown/actor/fix:/persos/15	dsg_146	unknown	shared signal used by two manor fixed-camera actors: they set it to one on branches requesting camera state 3 and clear it on reset/transition branches; one schedules behavior 9 and zero behavior 0
 0:17:4564	actor/fix:/persos/15	dsg_145	source	Manoir time-travel placement preset selector: 1 copies the script's four position vectors 15-18 into active vectors 7-10; 0 selects vectors 11-14; the travel camera also branches on zero for a sound cue
-0:17:4565	unknown/actor/fix:/persos/15	dsg_144	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4566	unknown/actor/fix:/persos/15	dsg_143	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4567	unknown/actor/fix:/persos/15	dsg_142	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4568	unknown/actor/fix:/persos/15	dsg_141	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4569	unknown/actor/fix:/persos/15	dsg_140	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4570	unknown/actor/fix:/persos/15	dsg_139	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4571	unknown/actor/fix:/persos/15	dsg_138	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4572	unknown/actor/fix:/persos/15	dsg_137	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4573	unknown/actor/fix:/persos/15	dsg_136	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4574	unknown/actor/fix:/persos/15	dsg_135	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4575	unknown/actor/fix:/persos/15	dsg_134	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4576	unknown/actor/fix:/persos/15	dsg_133	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4577	unknown/actor/fix:/persos/15	dsg_132	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4578	unknown/actor/fix:/persos/15	dsg_131	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4579	unknown/actor/fix:/persos/15	dsg_130	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4580	unknown/actor/fix:/persos/15	dsg_129	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4581	unknown/actor/fix:/persos/15	dsg_128	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4582	unknown/actor/fix:/persos/15	dsg_127	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4583	unknown/actor/fix:/persos/15	dsg_126	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4584	unknown/actor/fix:/persos/15	dsg_125	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4585	unknown/actor/fix:/persos/15	dsg_124	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4586	unknown/actor/fix:/persos/15	dsg_123	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4587	unknown/actor/fix:/persos/15	dsg_122	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4588	unknown/actor/fix:/persos/15	dsg_121	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4589	unknown/actor/fix:/persos/15	dsg_120	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4590	unknown/actor/fix:/persos/15	dsg_119	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4591	unknown/actor/fix:/persos/15	dsg_118	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4592	unknown/actor/fix:/persos/15	dsg_117	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4593	unknown/actor/fix:/persos/15	dsg_116	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4594	unknown/actor/fix:/persos/15	dsg_115	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4595	unknown/actor/fix:/persos/15	dsg_114	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4596	unknown/actor/fix:/persos/15	dsg_113	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4597	unknown/actor/fix:/persos/15	dsg_112	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4598	unknown/actor/fix:/persos/15	dsg_111	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4599	unknown/actor/fix:/persos/15	dsg_110	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4600	unknown/actor/fix:/persos/15	dsg_109	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4601	unknown/actor/fix:/persos/15	dsg_108	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4602	unknown/actor/fix:/persos/15	dsg_107	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4603	unknown/actor/fix:/persos/15	dsg_106	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4604	unknown/actor/fix:/persos/15	dsg_105	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4605	unknown/actor/fix:/persos/15	dsg_104	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4606	unknown/actor/fix:/persos/15	dsg_103	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4607	unknown/actor/fix:/persos/15	dsg_102	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4608	unknown/actor/fix:/persos/15	dsg_101	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4609	unknown/actor/fix:/persos/15	dsg_100	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4610	unknown/actor/fix:/persos/15	dsg_99	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4611	unknown/actor/fix:/persos/15	dsg_98	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4612	unknown/actor/fix:/persos/15	dsg_97	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4613	unknown/actor/fix:/persos/15	dsg_96	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4614	unknown/actor/fix:/persos/15	dsg_95	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4615	unknown/actor/fix:/persos/15	dsg_94	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4616	unknown/actor/fix:/persos/15	dsg_93	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4617	unknown/actor/fix:/persos/15	dsg_92	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4618	unknown/actor/fix:/persos/15	dsg_91	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4619	unknown/actor/fix:/persos/15	dsg_90	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4620	unknown/actor/fix:/persos/15	dsg_89	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4621	unknown/actor/fix:/persos/15	dsg_88	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4622	unknown/actor/fix:/persos/15	dsg_87	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4623	unknown/actor/fix:/persos/15	dsg_86	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4624	unknown/actor/fix:/persos/15	dsg_85	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4625	unknown/actor/fix:/persos/15	dsg_84	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4630	unknown/actor/fix:/persos/15	dsg_82	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4631	unknown/actor/fix:/persos/15	dsg_81	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4632	unknown/actor/fix:/persos/15	dsg_80	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4633	unknown/actor/fix:/persos/15	dsg_79	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4634	unknown/actor/fix:/persos/15	dsg_78	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4635	unknown/actor/fix:/persos/15	dsg_77	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4636	unknown/actor/fix:/persos/15	dsg_76	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4637	unknown/actor/fix:/persos/15	dsg_75	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4639	unknown/actor/fix:/persos/15	dsg_73	unknown	current configuration tier: iDummy_PourCercles writes 4, 3, 2, 1 or 0 from ordered Global DSG[44], [42], [40], [38] branches; Hype reads == 4 and IWorld can reset it to zero
-0:17:4640	unknown/actor/fix:/persos/15	dsg_72	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4641	unknown/actor/fix:/persos/15	dsg_71	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4642	unknown/actor/fix:/persos/15	dsg_70	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4643	unknown/actor/fix:/persos/15	dsg_69	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4644	unknown/actor/fix:/persos/15	dsg_68	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4645	unknown/actor/fix:/persos/15	dsg_67	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4565	actor/fix:/persos/15	dsg_144	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4566	actor/fix:/persos/15	dsg_143	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4567	actor/fix:/persos/15	dsg_142	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4568	actor/fix:/persos/15	dsg_141	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4569	actor/fix:/persos/15	dsg_140	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4570	actor/fix:/persos/15	dsg_139	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4571	actor/fix:/persos/15	dsg_138	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4572	actor/fix:/persos/15	dsg_137	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4573	actor/fix:/persos/15	dsg_136	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4574	actor/fix:/persos/15	dsg_135	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4575	actor/fix:/persos/15	dsg_134	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4576	actor/fix:/persos/15	dsg_133	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4577	actor/fix:/persos/15	dsg_132	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4578	actor/fix:/persos/15	dsg_131	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4579	actor/fix:/persos/15	dsg_130	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4580	actor/fix:/persos/15	dsg_129	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4581	actor/fix:/persos/15	dsg_128	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4582	actor/fix:/persos/15	dsg_127	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4583	actor/fix:/persos/15	dsg_126	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4584	actor/fix:/persos/15	dsg_125	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4585	actor/fix:/persos/15	dsg_124	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4586	actor/fix:/persos/15	dsg_123	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4587	actor/fix:/persos/15	dsg_122	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4588	actor/fix:/persos/15	dsg_121	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4589	actor/fix:/persos/15	dsg_120	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4590	actor/fix:/persos/15	dsg_119	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4591	actor/fix:/persos/15	dsg_118	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4592	actor/fix:/persos/15	dsg_117	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4593	actor/fix:/persos/15	dsg_116	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4594	actor/fix:/persos/15	dsg_115	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4595	actor/fix:/persos/15	dsg_114	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4596	actor/fix:/persos/15	dsg_113	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4597	actor/fix:/persos/15	dsg_112	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4598	actor/fix:/persos/15	dsg_111	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4599	actor/fix:/persos/15	dsg_110	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4600	actor/fix:/persos/15	dsg_109	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4601	actor/fix:/persos/15	dsg_108	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4602	actor/fix:/persos/15	dsg_107	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4603	actor/fix:/persos/15	dsg_106	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4604	actor/fix:/persos/15	dsg_105	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4605	actor/fix:/persos/15	dsg_104	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4606	actor/fix:/persos/15	dsg_103	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4607	actor/fix:/persos/15	dsg_102	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4608	actor/fix:/persos/15	dsg_101	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4609	actor/fix:/persos/15	dsg_100	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4610	actor/fix:/persos/15	dsg_99	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4611	actor/fix:/persos/15	dsg_98	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4612	actor/fix:/persos/15	dsg_97	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4613	actor/fix:/persos/15	dsg_96	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4614	actor/fix:/persos/15	dsg_95	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4615	actor/fix:/persos/15	dsg_94	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4616	actor/fix:/persos/15	dsg_93	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4617	actor/fix:/persos/15	dsg_92	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4618	actor/fix:/persos/15	dsg_91	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4619	actor/fix:/persos/15	dsg_90	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4620	actor/fix:/persos/15	dsg_89	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4621	actor/fix:/persos/15	dsg_88	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4622	actor/fix:/persos/15	dsg_87	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4623	actor/fix:/persos/15	dsg_86	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4624	actor/fix:/persos/15	dsg_85	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4625	actor/fix:/persos/15	dsg_84	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4630	actor/fix:/persos/15	dsg_82	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4631	actor/fix:/persos/15	dsg_81	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4632	actor/fix:/persos/15	dsg_80	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4633	actor/fix:/persos/15	dsg_79	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4634	actor/fix:/persos/15	dsg_78	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4635	actor/fix:/persos/15	dsg_77	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4636	actor/fix:/persos/15	dsg_76	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4637	actor/fix:/persos/15	dsg_75	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4639	actor/fix:/persos/15	dsg_73	source	Current stat tier 0-4 chosen by the tier flags DSG[38/40/42/44] (0 = base HP 50 / mana 50); 4 also turns on Hype DSG[57] (alternate weapon channels 80/136)
+0:17:4640	actor/fix:/persos/15	dsg_72	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4641	actor/fix:/persos/15	dsg_71	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4642	actor/fix:/persos/15	dsg_70	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4643	actor/fix:/persos/15	dsg_69	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4644	actor/fix:/persos/15	dsg_68	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4645	actor/fix:/persos/15	dsg_67	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
 0:17:4649	unknown/actor/fix:/persos/15	dsg_66	unknown	one selects a Gogood return actor Normal behavior 10 request under IWorld's outer gates, plus separate mannequin-frame and return-script branches
-0:17:4650	unknown/actor/fix:/persos/15	dsg_65	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4651	unknown/actor/fix:/persos/15	dsg_64	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4652	unknown/actor/fix:/persos/15	dsg_63	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4653	unknown/actor/fix:/persos/15	dsg_62	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4654	unknown/actor/fix:/persos/15	dsg_61	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4655	unknown/actor/fix:/persos/15	dsg_60	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4656	unknown/actor/fix:/persos/15	dsg_59	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4657	unknown/actor/fix:/persos/15	dsg_58	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4658	unknown/actor/fix:/persos/15	dsg_57	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4659	unknown/actor/fix:/persos/15	dsg_56	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4660	unknown/actor/fix:/persos/15	dsg_55	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4661	unknown/actor/fix:/persos/15	dsg_54	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4662	unknown/actor/fix:/persos/15	dsg_53	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4663	unknown/actor/fix:/persos/15	dsg_52	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4664	unknown/actor/fix:/persos/15	dsg_51	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4665	unknown/actor/fix:/persos/15	dsg_50	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4666	unknown/actor/fix:/persos/15	dsg_49	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4667	unknown/actor/fix:/persos/15	dsg_48	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4668	unknown/actor/fix:/persos/15	dsg_47	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4669	unknown/actor/fix:/persos/15	dsg_46	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4670	unknown/actor/fix:/persos/15	dsg_45	unknown	Hype copies this Boolean into its own DSG[57] in Normal behavior 0 statement 67; its Reflex behavior 7 also overwrites that actor field from Global DSG[73] == 4
-0:17:4671	unknown/actor/fix:/persos/15	dsg_44	unknown	one selects configuration tier 4 in the first iDummy_PourCercles branch
-0:17:4672	unknown/actor/fix:/persos/15	dsg_43	unknown	zero deactivates level allocation 5460; one can select iDummy_TimeTravel behavior 6 when Func_GetGameState is not 4 and earlier routes fail
-0:17:4673	unknown/actor/fix:/persos/15	dsg_42	unknown	after DSG[44] fails, one selects configuration tier 3 in iDummy_PourCercles
-0:17:4674	unknown/actor/fix:/persos/15	dsg_41	unknown	zero deactivates level allocation 5452; one can select iDummy_TimeTravel behavior 5 when Func_GetGameState is not 3 and other guards pass
-0:17:4675	unknown/actor/fix:/persos/15	dsg_40	unknown	after DSG[44] and DSG[42] fail, one selects configuration tier 2 in iDummy_PourCercles
-0:17:4676	unknown/actor/fix:/persos/15	dsg_39	unknown	IWorld selector value 6 sets one; later one/zero branches pair with Global DSG[0] values 3/2 and request Gogood-return Normal behaviors through procedure 207; iDummy_TimeTravel reads both polarities separately
-0:17:4677	unknown/actor/fix:/persos/15	dsg_38	unknown	after higher flags fail, one selects configuration tier 1 and zero selects fallback tier 0 in iDummy_PourCercles; IWorld also reads it in conditional Gogood behavior selection
-0:17:4678	unknown/actor/fix:/persos/15	dsg_37	unknown	value one gates Hype's ChangeSighting call using negated X/Y components of the checkpoint-saved Global DSG[30] vector; Hype sets and clears this latch around an action sequence
-0:17:4680	unknown/actor/fix:/persos/15	dsg_28	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4684	unknown/actor/fix:/persos/15	dsg_24	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4650	actor/fix:/persos/15	dsg_65	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4651	actor/fix:/persos/15	dsg_64	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4652	actor/fix:/persos/15	dsg_63	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4653	actor/fix:/persos/15	dsg_62	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4654	actor/fix:/persos/15	dsg_61	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4655	actor/fix:/persos/15	dsg_60	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4656	actor/fix:/persos/15	dsg_59	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4657	actor/fix:/persos/15	dsg_58	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4658	actor/fix:/persos/15	dsg_57	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4659	actor/fix:/persos/15	dsg_56	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4660	actor/fix:/persos/15	dsg_55	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4661	actor/fix:/persos/15	dsg_54	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4662	actor/fix:/persos/15	dsg_53	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4663	actor/fix:/persos/15	dsg_52	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4664	actor/fix:/persos/15	dsg_51	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4665	actor/fix:/persos/15	dsg_50	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4666	actor/fix:/persos/15	dsg_49	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4667	actor/fix:/persos/15	dsg_48	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4668	actor/fix:/persos/15	dsg_47	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4669	actor/fix:/persos/15	dsg_46	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4670	actor/fix:/persos/15	dsg_45	source	Copied to Hype DSG[57] at Hype init; 1 selects Hype's alternate weapon channel 80 over channel 28. Hype also sets DSG[57] from DSG[73]==4
+0:17:4671	actor/fix:/persos/15	dsg_44	source	Stat tier 4 (top) reached: max HP 250, max mana 250, armor resistance 4, DSG[73]=4
+0:17:4672	actor/fix:/persos/15	dsg_43	source	Time travel to game state 4 unlocked: while 0 actor world/0/92 is deactivated; 1 allows TimeTravel behavior 6 when game state is not 4
+0:17:4673	actor/fix:/persos/15	dsg_42	source	Stat tier 3 reached: max HP 150, max mana 200, armor resistance 3, DSG[73]=3 (when tier 4 flag is clear)
+0:17:4674	actor/fix:/persos/15	dsg_41	source	Time travel to game state 3 unlocked: while 0 actor world/0/91 is deactivated; 1 allows TimeTravel behavior 5 when game state is not 3
+0:17:4675	actor/fix:/persos/15	dsg_40	source	Stat tier 2 reached: max HP 100, max mana 150, armor resistance 2, DSG[73]=2 (when tier 3-4 flags are clear)
+0:17:4676	actor/fix:/persos/15	dsg_39	source	Time travel enabled: iDummy_TimeTravel only fires its Hype-collision trigger when 1 and hides actors 89/90 while 0; IWorld selector 6 sets 1
+0:17:4677	actor/fix:/persos/15	dsg_38	source	Stat tier 1 reached: iDummy_PourCercles sets max HP 75, max mana 100, armor resistance 1 and tier DSG[73]=1 (no tier 2-4 flag set)
+0:17:4678	actor/fix:/persos/15	dsg_37	source	Save-point sequence active: Hype sets 1 before the fade and save_game call and clears it afterwards; while 1 the max-stat refill rule is skipped and the checkpoint camera path is taken
+0:17:4680	actor/fix:/persos/15	dsg_28	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
+0:17:4684	actor/fix:/persos/15	dsg_24	source	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)
 0:17:4701	actor/fix:/persos/15	dsg_18	source	Boolean gate for manual camera-look mode: 0 permits entry when the input and companion state allow it; 1 blocks entry and causes active camera-look behavior to exit
 0:17:4702	actor/fix:/persos/15	dsg_17	source	Boolean manual camera-look permission: 1 allows BT_Camera_Look to enter its look behavior when pressed and DSG[18] is 0; 0 prevents entry and is an exit condition from active look behavior
-0:17:4713	unknown/actor/fix:/persos/15	dsg_5	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-0:17:4717	unknown/actor/fix:/persos/15	dsg_4	unknown	value one gates Hype and iHypeStatue branches with 35 Raymap-labeled SwapLinkTableObjects calls over matching pairs; Hype also issues material-diffuse calls under this gate
-0:17:4719	unknown/actor/fix:/persos/15	dsg_2	unknown	Hype transition behavior 76 sets 1 while disabling channels, behavior 77 clears it while restoring channels; value 1 suppresses Hype channel 29 and statue channel 16, while value 0 permits several Armor HUD show branches
-0:17:4720	unknown/actor/fix:/persos/15	dsg_1	unknown	Hype uses value 1 to activate channel 73 and to permit weapon-pad/GetCrossbow input branches; Hype transitions set/clear it with other Global fields, while iHypeStatue selects channels 19/14 from it
-0:17:4721	unknown/actor/fix:/persos/15	dsg_0	unknown	channel-72 activation is source-backed, but the channel's authored target and gameplay purpose are unknown
+0:17:4713	actor/fix:/persos/15	dsg_5	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
+0:17:4717	actor/fix:/persos/15	dsg_4	source	Hype is wearing the armor outfit: gates select_armor(1) and the armor body-part swaps 303-316 at Hype init, and armor action variants. Hype sets 1 after swapping the parts, the Global model clears it
+0:17:4719	actor/fix:/persos/15	dsg_2	source	Hype weapons-stowed/armor-2 transition flag: behavior 76 sets 1 (weapon channels off, armor 2 selected), behavior 77 clears it; 1 suppresses Hype channel 29
+0:17:4720	actor/fix:/persos/15	dsg_1	source	Hype carries the crossbow: drawing it with Button_GetCrossbow requires 1. Hype behavior 64 sets 1 while showing channel 73, behavior 60 clears it. IWorld sets it to 1 when it is 0 and DSG[147] is 0
+0:17:4721	actor/fix:/persos/15	dsg_0	source	Hype carries the sword: drawing it with Button_GetSword requires 1. Hype behavior 65 sets 1 while showing channel 72, behavior 59 clears it
 0:21:1032	dialogue/3	entry_count	source	number of references in this dialogue list; one in the supplied manor save
 0:21:10428	unknown/dialogue/13	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
 0:21:10436	dialogue/14	entry_count	source	number of references in this dialogue list; one in the supplied manor save

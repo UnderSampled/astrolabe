@@ -13,6 +13,7 @@ import sys
 root = Path(__file__).resolve().parent.parent
 catalogue = root/'output/savegame-semantic-map/semantic-catalogue.json'
 table = root/'src/openspace/save_keys_manoir.tsv'
+meanings_file = root/'tools/save_meanings_manoir.tsv'
 tiers = {'runtime_corroborated': 'verified', 'source_verified': 'source', 'unknown': 'unknown'}
 
 
@@ -45,7 +46,18 @@ def meaning_of(entry):
     return re.sub(r'\s+', ' ', str(text)).strip()
 
 
+def load_meanings():
+    """Hand-kept gameplay meanings from AI evidence: record id -> meaning."""
+    meanings = {}
+    for line in meanings_file.read_text().splitlines():
+        if line and not line.startswith('#'):
+            record, meaning, _evidence = line.split('\t')
+            meanings[record] = meaning
+    return meanings
+
+
 def main():
+    meanings = load_meanings()
     entries = json.loads(catalogue.read_text())['entries']
     rows, seen = [], set()
     for identity, entry in sorted(entries.items()):
@@ -55,12 +67,17 @@ def main():
         key = slug(field) if field else f'offset_{offset}'
         tier = tiers[entry['meaning_status']]
         section = section_for(owner, f'{block}:{module}')
+        text = meaning_of(entry)
+        if tier == 'unknown' and identity in meanings:
+            tier, text = 'source', meanings.pop(identity)
         if tier == 'unknown':
             section = 'unknown/' + section
         if (section, key) in seen:
             key += f'_{offset}'
         seen.add((section, key))
-        rows.append('\t'.join((identity, section, key, tier, meaning_of(entry))))
+        rows.append('\t'.join((identity, section, key, tier, text)))
+    if meanings:
+        raise SystemExit(f'meanings name records that are not unknown: {sorted(meanings)}')
     table.write_text('\n'.join(rows)+'\n')
     print(f'{len(rows)} keys written to {table.relative_to(root)}')
 

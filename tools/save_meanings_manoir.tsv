@@ -1,0 +1,191 @@
+# record id	meaning	evidence (files under godot/generated/hype/levels/manoir/ai/models/)
+0:17:15416	Hype damage value for the projectile spawned when selected weapon DSG[95] is item 81; set per stat tier by iDummy_PourCercles (4/9/14/19/24)	fix/733.gd:136-152; fix/535.gd
+0:17:15417	Hype damage value for the projectile spawned when selected weapon DSG[95] is not item 81; set per stat tier by iDummy_PourCercles (3/5/10/15/19)	fix/733.gd:172-188; fix/535.gd
+0:17:15514	Camera-reset suppression: Hype's return sequence resets the camera to world/0/2 only when 0; checkpoint AI 348 sets 1 or 0	fix/28.gd:22813; 348.gd:175, 191
+0:17:4312	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4460	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4464	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4473	Map available: Button_ActivateMap opens the map screen only when 1, otherwise only plays the refusal sound; IWorld clears it at new game, no compiled AI sets it to 1	fix/28.gd:26850, 28008, 28993, 29846; 154.gd:2065
+0:17:4474	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4475	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4476	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4478	First-pickup latch of the Object_template pickup running fix model 1167, shared with the gold pickup (level model 1144, iGold_ManoirPont): while 0, taking the item bumps the notification counter and sets 1 so it is not counted again	fix/1167.gd:333-402
+0:17:4479	First-pickup latch of the Object_template pickup running fix model 1196, shared with the object-template pickup with no level model: while 0, taking the item bumps the notification counter and sets 1 so it is not counted again	fix/1196.gd:333-402
+0:17:4480	First-pickup latch of the Object_template pickup running fix model 935, shared with the object-template pickup with no level model: while 0, taking the item bumps the notification counter and sets 1 so it is not counted again	fix/935.gd:333-402
+0:17:4481	First-pickup latch of the Object_template pickup running fix model 964, shared with the object-template pickup with no level model: while 0, taking the item bumps the notification counter and sets 1 so it is not counted again	fix/964.gd:333-402
+0:17:4482	First-pickup latch of the Object_template pickup running fix model 1022, shared with the herb pickup (level model 1182): while 0, taking the item bumps the notification counter and sets 1 so it is not counted again	fix/1022.gd:333-402
+0:17:4483	First-pickup latch of the Object_template pickup running fix model 993, shared with the herb pickup (level model 1182, iHerbe_ManoirPont): while 0, taking the item bumps the notification counter and sets 1 so it is not counted again	fix/993.gd:333-402
+0:17:4484	First-pickup latch of the Object_template pickup running fix model 1109, shared with the vial pickup (level model 1106): while 0, taking the item bumps the notification counter and sets 1 so it is not counted again	fix/1109.gd:333-402
+0:17:4485	First-pickup latch of the Object_template pickup running fix model 1051, shared with the vial pickup (level model 1106): while 0, taking the item bumps the notification counter and sets 1 so it is not counted again	fix/1051.gd:333-402
+0:17:4486	First-pickup latch of the Object_template pickup running fix model 1080, shared with the iFiole/vial pickup (level model 1106): while 0, taking the item bumps the notification counter and sets 1 so it is not counted again	fix/1080.gd:333-402
+0:17:4487	Gogood training finished: IWorld selector 6 sets 1; Master Yoda (991) and actor world/0/159 then kill themselves	154.gd:1165, 1462; 991.gd:143
+0:17:4488	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4489	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4490	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4497	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4498	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4499	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4500	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4501	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4502	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4503	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4504	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4506	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4510	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1516
+0:17:4511	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1508
+0:17:4512	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1500
+0:17:4513	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1484
+0:17:4514	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1476
+0:17:4515	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1460
+0:17:4516	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1452
+0:17:4517	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1444
+0:17:4518	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1436
+0:17:4519	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1428
+0:17:4523	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1420
+0:17:4524	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1412
+0:17:4525	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1404
+0:17:4526	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1396
+0:17:4527	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1388
+0:17:4528	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1380
+0:17:4529	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1372
+0:17:4530	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1364
+0:17:4531	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1356
+0:17:4532	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1348
+0:17:4533	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1340
+0:17:4534	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4535	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1332
+0:17:4536	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1324
+0:17:4539	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1316
+0:17:4540	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1308
+0:17:4541	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1300
+0:17:4542	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1292
+0:17:4543	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1284
+0:17:4544	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1276
+0:17:4545	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1268
+0:17:4546	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1260
+0:17:4547	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1252
+0:17:4548	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1244
+0:17:4549	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1236
+0:17:4550	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1228
+0:17:4551	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1220
+0:17:4552	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1212
+0:17:4553	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1204
+0:17:4554	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1196
+0:17:4555	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1188
+0:17:4556	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1180
+0:17:4558	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4559	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1468
+0:17:4561	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1172
+0:17:4562	Opening Gogood event done: 0 until iGogood finishes its intro (set to 1 at 210.gd:1181); while 0 IWorld runs the new-game init (starting inventory objects, map names, max HP 50) and plays the intro music; IWorld selector 1 clears it, 2-6 set it	154.gd:797-1172, 1479-1625; 210.gd:1181
+0:17:4565	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1140
+0:17:4566	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1132
+0:17:4567	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1124
+0:17:4568	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1116
+0:17:4569	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1108
+0:17:4570	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1100
+0:17:4571	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1092
+0:17:4572	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1084
+0:17:4573	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1076
+0:17:4574	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1068
+0:17:4575	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1060
+0:17:4576	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1052
+0:17:4577	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1044
+0:17:4578	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1036
+0:17:4579	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1028
+0:17:4580	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1020
+0:17:4581	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1012
+0:17:4582	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:1004
+0:17:4583	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:996
+0:17:4584	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:988
+0:17:4585	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:980
+0:17:4586	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:972
+0:17:4587	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:964
+0:17:4588	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:956
+0:17:4589	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:948
+0:17:4590	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:940
+0:17:4591	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:932
+0:17:4592	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:924
+0:17:4593	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:916
+0:17:4594	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:908
+0:17:4595	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:900
+0:17:4596	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:892
+0:17:4597	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:884
+0:17:4598	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:876
+0:17:4599	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:868
+0:17:4600	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:860
+0:17:4601	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:852
+0:17:4602	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:844
+0:17:4603	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:836
+0:17:4604	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:828
+0:17:4605	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:820
+0:17:4606	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:812
+0:17:4607	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:804
+0:17:4608	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:796
+0:17:4609	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:788
+0:17:4610	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:780
+0:17:4611	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:772
+0:17:4612	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:764
+0:17:4613	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:756
+0:17:4614	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:748
+0:17:4615	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:740
+0:17:4616	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:732
+0:17:4617	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:724
+0:17:4618	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:716
+0:17:4619	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:708
+0:17:4620	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:700
+0:17:4621	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:692
+0:17:4622	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:684
+0:17:4623	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:676
+0:17:4624	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:668
+0:17:4625	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:660
+0:17:4630	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:644
+0:17:4631	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:636
+0:17:4632	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:628
+0:17:4633	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:620
+0:17:4634	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:612
+0:17:4635	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:604
+0:17:4636	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:596
+0:17:4637	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:588
+0:17:4639	Current stat tier 0-4 chosen by the tier flags DSG[38/40/42/44] (0 = base HP 50 / mana 50); 4 also turns on Hype DSG[57] (alternate weapon channels 80/136)	fix/535.gd:157-511; fix/28.gd:30010
+0:17:4640	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:572
+0:17:4641	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4642	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4643	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4644	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4645	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:564
+0:17:4650	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:548
+0:17:4651	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:540
+0:17:4652	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:532
+0:17:4653	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:524
+0:17:4654	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:516
+0:17:4655	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:508
+0:17:4656	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:500
+0:17:4657	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:492
+0:17:4658	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:484
+0:17:4659	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:476
+0:17:4660	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:468
+0:17:4661	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:460
+0:17:4662	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:452
+0:17:4663	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:444
+0:17:4664	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:436
+0:17:4665	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:428
+0:17:4666	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:420
+0:17:4667	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:412
+0:17:4668	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:404
+0:17:4669	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:396
+0:17:4670	Copied to Hype DSG[57] at Hype init; 1 selects Hype's alternate weapon channel 80 over channel 28. Hype also sets DSG[57] from DSG[73]==4	fix/28.gd:472; fix/28.gd:30010-30030
+0:17:4671	Stat tier 4 (top) reached: max HP 250, max mana 250, armor resistance 4, DSG[73]=4	fix/535.gd:157-165
+0:17:4672	Time travel to game state 4 unlocked: while 0 actor world/0/92 is deactivated; 1 allows TimeTravel behavior 6 when game state is not 4	586.gd:147, 581
+0:17:4673	Stat tier 3 reached: max HP 150, max mana 200, armor resistance 3, DSG[73]=3 (when tier 4 flag is clear)	fix/535.gd:223-231
+0:17:4674	Time travel to game state 3 unlocked: while 0 actor world/0/91 is deactivated; 1 allows TimeTravel behavior 5 when game state is not 3	586.gd:159, 556
+0:17:4675	Stat tier 2 reached: max HP 100, max mana 150, armor resistance 2, DSG[73]=2 (when tier 3-4 flags are clear)	fix/535.gd:297-305
+0:17:4676	Time travel enabled: iDummy_TimeTravel only fires its Hype-collision trigger when 1 and hides actors 89/90 while 0; IWorld selector 6 sets 1	586.gd:171, 238; 154.gd:1179
+0:17:4677	Stat tier 1 reached: iDummy_PourCercles sets max HP 75, max mana 100, armor resistance 1 and tier DSG[73]=1 (no tier 2-4 flag set)	fix/535.gd:379-445
+0:17:4678	Save-point sequence active: Hype sets 1 before the fade and save_game call and clears it afterwards; while 1 the max-stat refill rule is skipped and the checkpoint camera path is taken	fix/28.gd:21591, 21658, 22810; fix/535.gd:521; fix/1.gd:1219
+0:17:4680	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:275
+0:17:4684	No gameplay reader or writer in Manoir AI: only copied by the IWorld debug cheats (snapshot, restore and set-all-flags)	195.gd:267
+0:17:4713	Declared but never read or written by any compiled Manoir AI, including the debug cheats	none (fix/1.gd declaration only)
+0:17:4717	Hype is wearing the armor outfit: gates select_armor(1) and the armor body-part swaps 303-316 at Hype init, and armor action variants. Hype sets 1 after swapping the parts, the Global model clears it	fix/28.gd:21355-21374, 664; fix/1.gd:458
+0:17:4719	Hype weapons-stowed/armor-2 transition flag: behavior 76 sets 1 (weapon channels off, armor 2 selected), behavior 77 clears it; 1 suppresses Hype channel 29	fix/28.gd:20560-20611, 613
+0:17:4720	Hype carries the crossbow: drawing it with Button_GetCrossbow requires 1. Hype behavior 64 sets 1 while showing channel 73, behavior 60 clears it. IWorld sets it to 1 when it is 0 and DSG[147] is 0	fix/28.gd:2339-2350, 19849; 154.gd:2948-2966
+0:17:4721	Hype carries the sword: drawing it with Button_GetSword requires 1. Hype behavior 65 sets 1 while showing channel 72, behavior 59 clears it	fix/28.gd:2510-2522, 19291, 20604
