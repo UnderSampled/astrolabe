@@ -408,6 +408,10 @@ func open_new_game() -> void:
     opening_camera = camera_actor.get_node_or_null("SourceCamera") as Camera3D if camera_actor != null else null
     add_child(level)
     _locate_player_sector()
+    # The running original starts a new game with spell slot 0, Fire, selected.
+    var magick: Resource = actor.get("source_magick")
+    if magick != null and int(magick.get("selected_spell_code")) < 0:
+        magick.set("selected_spell_code", MANOIR_START.FIRST_SPELL_CODE)
     # The imported viewport registration owns the opening camera. Its native
     # component and compiled AI own every subsequent pose and target change.
     if not is_instance_valid(opening_camera):

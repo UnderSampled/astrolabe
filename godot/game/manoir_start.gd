@@ -2,6 +2,7 @@ extends RefCounted
 ## Restores the measured starting state of the supplied English SaveGame0.
 ## Seeds fields that native save schemas do not represent. General source-save
 ## decoding remains separate from the native checkpoint contract.
+const FIRST_SPELL_CODE := 61
 const SNAPSHOT = preload("res://addons/astrolabe/character/snapshot_values.gd")
 
 static func load_fixture() -> Dictionary:
