@@ -353,6 +353,7 @@ func open_level() -> void:
     if not is_inside_tree():
         return
     stage("physics_ready", "Starting Hype...")
+    _locate_player_sector()
     if not restore_source_camera_presentation(false): return
     startup_error = startup.start_brains()
     if not startup_error.is_empty():
@@ -385,6 +386,17 @@ func _loaded_message() -> String:
     return "Original save: %d records, %d understood, %d unknown, %d applied" % [coverage.get("records", 0), int(coverage.get("verified", 0)) + int(coverage.get("source", 0)), int(coverage.get("unknown", 0)) + int(coverage.get("unmapped", 0)), selected_save.get("records", {}).get("applied", 0)]
 
 
+## The engine searches for an actor's sector, and Hype's saved sector is empty.
+## Without one, fight and pickup contacts against him are rejected. Boundary
+## crossings keep it current after this.
+func _locate_player_sector() -> void:
+    var index := level.get_node_or_null("SourceSectorIndex")
+    if index == null or actor.source_current_sector() != null: return
+    var found: Dictionary = index.call("resolve_position", actor.global_position)
+    var sector := index.call("sector_node", str(found.get("sector_id", ""))) as Node3D
+    if sector != null: actor.source_refresh_contact_sector(sector)
+
+
 func open_new_game() -> void:
     # Use the complete saved scene and its original initial AI. No save fixture,
     # gate lift, AI excerpt, held Brain or authored trigger advances this opening.
@@ -394,6 +406,7 @@ func open_new_game() -> void:
     var camera_actor: Node = level.get_node_or_null(paths["level:/persos/world/0/2"]) if paths.has("level:/persos/world/0/2") else null
     opening_camera = camera_actor.get_node_or_null("SourceCamera") as Camera3D if camera_actor != null else null
     add_child(level)
+    _locate_player_sector()
     # The imported viewport registration owns the opening camera. Its native
     # component and compiled AI own every subsequent pose and target change.
     if not is_instance_valid(opening_camera):
