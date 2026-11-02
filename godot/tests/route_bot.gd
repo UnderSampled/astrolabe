@@ -216,6 +216,13 @@ func run() -> void:
 			var end := Time.get_ticks_msec() + int(step.get("timeout", 30.0) * 1000.0)
 			while int(actor().get("source_inventory").call("quantity", int(step["until_item"]))) <= 0 and Time.get_ticks_msec() < end: await physics_frame
 			ok = int(actor().get("source_inventory").call("quantity", int(step["until_item"]))) > 0
+		elif step.has("dialog_check"):
+			var ui: Node = game.get("level").get_node_or_null("AstrolabeUI")
+			if is_instance_valid(ui.get("adopted_screen")): ui = ui.get("adopted_screen")
+			for value in ui.get("dialogue_items"):
+				if str(value.identity).to_lower() == str(step["dialog_check"]).to_lower():
+					var line: Variant = value.lines[0] if value.lines.size() > 0 else null
+					print("DIALOG ", value.identity, " locale ", value.locale, " box ", value.box, " voice ", value.voice, " pres ", value.presentation, " cont ", value.presentation.continuation if value.presentation else null, " lines ", value.lines.size(), " flags ", line.flags if line else null, " align ", line.alignment if line else null, " off ", line.draw_offset if line else null, " owner ", value.owner_identity, " completion ", value.completion_normal, " can ", ui.get("dialogue").call("can_run", value, 1))
 		elif step.has("spell"):
 			actor().get("source_magick").set("selected_spell_code", int(step["spell"]))
 		elif step.has("probe2"):

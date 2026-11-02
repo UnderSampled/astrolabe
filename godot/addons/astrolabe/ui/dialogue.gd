@@ -48,7 +48,7 @@ func can_run(value: Resource, run_mode: int) -> bool:
     if value.box == 5:
         if value.presentation == null or value.voice != null or value.lines.is_empty() or value.lines.size() > 6: return false
         for line in value.lines:
-            if line.flags != 3 or line.alignment != Vector2i.ZERO or line.draw_offset != Vector2.ZERO or line.end_seconds != SOURCE_UNTIMED_SECONDS: return false
+            if line.flags != 3 or line.alignment != Vector2i.ZERO or line.draw_offset != Vector2.ZERO or line.end_seconds < SOURCE_UNTIMED_SECONDS * 0.99: return false
     if value.presentation != null:
         if value.presentation.continuation == null: return false
         for line in value.lines:
