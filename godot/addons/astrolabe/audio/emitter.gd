@@ -14,6 +14,9 @@ var random := RandomNumberGenerator.new()
 ## Dialogue owns this record independently of ordinary effects/music voices.
 var source_dialogue_record: Resource
 var _dialogue_speech_request: bool = false
+## Godot's panner keeps L^2+R^2 at 1, so a centred source is -3 dB a channel. The
+## source mixes a centred mono sample at its full gain on both.
+const SOURCE_CENTER_GAIN := 1.41421356
 ## Populated by source conversion. Unknown authored Micro data stays unbound.
 @export var microphone_basis: Basis = Basis.IDENTITY
 @export var microphone_basis_known: bool = false
@@ -159,7 +162,8 @@ func _publish_voice_gain(info: Dictionary) -> void:
             info.distance_volume = SpatialGain.distance_volume(info.distance_word)
         byte = SpatialGain.converted_volume(byte, info.distance_volume)
     info.converted_volume = byte
-    info.player.volume_db = linear_to_db(maxf(info.gain * mixer.native_parameter_gain(info.module, byte, info.bus), 0.000001))
+    var compensation := SOURCE_CENTER_GAIN if bool(info.source_parameter_conversion) and bool(info.spatial) else 1.0
+    info.player.volume_db = linear_to_db(maxf(info.gain * compensation * mixer.native_parameter_gain(info.module, byte, info.bus), 0.000001))
 
 ## Music uses the source's shared object-less channel and survives its Brain.
 static func music_channel(requester: Node) -> Node3D:
@@ -335,6 +339,8 @@ func play_voice(voice: Resource, identity: String, pitch_variation: float, stopp
         # distance law once, without inverse distance or a distant low-pass.
         player.attenuation_model = AudioStreamPlayer3D.ATTENUATION_DISABLED
         player.attenuation_filter_cutoff_hz = 20500.0
+        # Live capture: dialogue is equal in both channels across shot cuts.
+        if _dialogue_speech_request: player.panning_strength = 0.0
     if player is Node3D and not dynamic:
         player.top_level = true
         player.global_transform = global_transform

@@ -22,6 +22,10 @@ varying vec3 source_lighting;
 void vertex() {
 	vec3 position = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 	vec3 normal = normalize(mat3(MODEL_MATRIX) * NORMAL);
+	// 00491f70 dots in object space and scales by the largest axis, so a part
+	// squashed along one axis takes more light on the faces along it.
+	mat4 to_object = inverse(MODEL_MATRIX);
+	float max_scale = max(max(length(MODEL_MATRIX[0].xyz), length(MODEL_MATRIX[1].xyz)), length(MODEL_MATRIX[2].xyz));
 	vec4 head = texelFetch(source_sector_lights, ivec2(0, source_sector_row), 0);
 	vec3 sum = head.rgb;
 	int count = int(head.a);
@@ -41,7 +45,8 @@ void vertex() {
 			f = max(dot(normal, axis.xyz), 0.0);
 		} else if (place.w < 2.5) {
 			if (d2 < far2) {
-				f = d2 > 0.0 ? dot(to_light, normal) / sqrt(d2) : 1.0;
+				vec3 object_to_light = (to_object * vec4(place.xyz, 1.0)).xyz - VERTEX;
+				f = d2 > 0.0 ? dot(object_to_light, NORMAL) * max_scale / sqrt(d2) : 1.0;
 				if (d2 > near2) f *= fade;
 			}
 		} else {

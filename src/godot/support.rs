@@ -5,7 +5,7 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, fs, path::Path};
 
-pub const INTERFACE: u32 = 96;
+pub const INTERFACE: u32 = 97;
 const PACKAGE: &str = "addons/astrolabe";
 const RECEIPT: &str = "addons/astrolabe/installed.json";
 
