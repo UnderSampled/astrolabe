@@ -13,6 +13,8 @@ var next_sample_ms := 0
 var next_shot_s := 0
 var recorder: AudioEffectRecord
 var entry_ms := 0
+var pairs: Array = []
+var pair_results: Dictionary = {}
 
 func _initialize() -> void:
     call_deferred("run")
@@ -99,6 +101,38 @@ func capture(label: String) -> void:
         var path := evidence_path.get_base_dir().path_join(label + ".png")
         if image.save_png(path) == OK: report[label + "_image"] = path
 
+## ASTROLABE_INTRO_PAIRS=pairs.json (from tools/still_pairs.py capture): one PNG per
+## accepted entry, taken when Gogoud is in that action with its animation frame in
+## the entry's frame range and the camera is near the original shot's. Action ids are
+## family state indices in both engines (character.current_state).
+func pair_check() -> void:
+    var body := actor_for("level:/persos/world/0/5") as Node3D
+    var camera := root.get_viewport().get_camera_3d()
+    if body == null or camera == null or body.get("current_clip") == null: return
+    var at := camera.global_position
+    var here := Vector3(at.x, -at.z, at.y)
+    for index in pairs.size():
+        var entry: Dictionary = pairs[index]
+        if pair_results.has(str(index)) or not entry.get("accepted", false): continue
+        var frame: int = body.get("frame_index")
+        if int(body.get("current_state")) != int(entry["action"]) or frame < int(entry["frame_lo"]) or frame > int(entry["frame_hi"]): continue
+        var recorded: Array = entry["camera"]
+        var gap := here.distance_to(Vector3(recorded[0], recorded[1], recorded[2]))
+        if gap > 8.0: continue
+        pair_results[str(index)] = {}
+        await capture("pair%03d" % index)
+        var low := Vector2(1e9, 1e9)
+        var high := Vector2(-1e9, -1e9)
+        var feet := body.global_position
+        for corner in [Vector3(-1.2, 0, -1.2), Vector3(1.2, 0, -1.2), Vector3(-1.2, 0, 1.2), Vector3(1.2, 0, 1.2), Vector3(-1.2, 3, -1.2), Vector3(1.2, 3, -1.2), Vector3(-1.2, 3, 1.2), Vector3(1.2, 3, 1.2)]:
+            if camera.is_position_behind(feet + corner): continue
+            var point := camera.unproject_position(feet + corner)
+            low = low.min(point)
+            high = high.max(point)
+        pair_results[str(index)] = {"png": evidence_path.get_base_dir().path_join("pair%03d.png" % index), "action": int(body.get("current_state")), "frame": int(body.get("frame_index")), "camera_gap": gap, "actor_box": [low.x, low.y, high.x, high.y], "s": (Time.get_ticks_msec() - entry_ms) / 1000.0}
+        var file := FileAccess.open(evidence_path.get_base_dir().path_join("still_pairs.json"), FileAccess.WRITE)
+        file.store_string(JSON.stringify(pair_results, "\t"))
+
 func key_up(pressed: bool) -> void:
     var event := InputEventKey.new()
     event.physical_keycode = KEY_UP
@@ -171,6 +205,8 @@ func run() -> void:
         AudioServer.add_bus_effect(0, recorder)
         recorder.set_recording_active(true)
     report["scene"] = game.scene_file_path
+    if OS.has_environment("ASTROLABE_INTRO_PAIRS"):
+        pairs = JSON.parse_string(FileAccess.get_file_as_string(OS.get_environment("ASTROLABE_INTRO_PAIRS")))
     await capture("opening")
     var deadline := Time.get_ticks_msec() + 300000
     var mode6_captured := false
@@ -190,6 +226,7 @@ func run() -> void:
         if OS.has_environment("ASTROLABE_INTRO_SHOTS") and entry_ms > 0 and Time.get_ticks_msec() - entry_ms >= next_shot_s * 1000:
             await capture("t%03d" % next_shot_s)
             next_shot_s += 10
+        if not pairs.is_empty() and entry_ms > 0: await pair_check()
         if state["opening_finished"]: break
         await physics_frame
     var final := observe()

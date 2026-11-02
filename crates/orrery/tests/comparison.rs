@@ -101,6 +101,7 @@ fn fixture() -> Result<(Scene, Perso, Family, ActorObservation)> {
         initial_action: None,
         current_action: None,
         secondary_action: None,
+        current_frame: None,
         global_transform: Default::default(),
     };
     Ok((scene, actor, family, observed))

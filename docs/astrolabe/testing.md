@@ -144,6 +144,14 @@ Use `cargo fmt --all --check` and `cargo clippy --workspace --locked --all-targe
 
 Tests are evidence for declared behavior. Converter tests should exercise useful values through OpenSpace import, Rete persistence, edits, reconstruction, and Godot output as relevant. Process-supervisor safeguards establish ownership and cleanup behavior. Neither structural conversion checks nor a selected original-game observation alone establish complete gameplay, cross-engine parity, or acceptance of rebuilt packages. See the [comparison evidence model](../orrery/comparison-model.md) and [historical checkpoint ledger](../../notes/testing-history.md).
 
+## Pose-paired stills
+
+`tools/still_pairs.py capture` reads Gogoud's action and animation frame through
+Orrery's `find_scene_actor` (`current_frame`, Perso3dData+0x78 low half) around each
+original screenshot and saves `pairs.json`. The port captures at the same action and
+frame with `ASTROLABE_INTRO_PAIRS=pairs.json` in `new_game_intro_acceptance.gd`;
+`compare` prints fitted scale/shift, RMSE, colour ratio and sharpness.
+
 ## Route checks
 
 `tools/route_check.py HANDOFF_DIR [route.json ...]` runs the saved routes in

@@ -152,6 +152,7 @@ fn synthetic_actor(action: u32, translation: [f32; 3], heading: f32) -> ActorObs
         initial_action: Some(47),
         current_action: Some(action),
         secondary_action: None,
+        current_frame: None,
         global_transform: TransformValue::Affine(transform),
     }
 }

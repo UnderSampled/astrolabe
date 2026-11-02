@@ -2215,6 +2215,12 @@ pub struct ActorObservation {
     pub initial_action: Option<u32>,
     pub current_action: Option<u32>,
     pub secondary_action: Option<u32>,
+    /// Animation frame of the current action: the low 16 bits of the word at
+    /// Perso3dData+0x78 (the high half holds another value).
+    /// Verified live only (it advances while an animation plays); None when
+    /// the record is too short to hold it.
+    #[serde(default)]
+    pub current_frame: Option<u32>,
     pub global_transform: TransformValue,
 }
 
@@ -2479,6 +2485,11 @@ fn actor_at_node<S: RecordSource>(
     let initial_action = source_view::optional_member(source, data3d, 0, &members)?;
     let current_action = source_view::optional_member(source, data3d, 4, &members)?;
     let secondary_action = source_view::optional_member(source, data3d, 8, &members)?;
+    let current_frame = source
+        .add(data3d, 0x78)
+        .and_then(|site| source.bytes(site, 4).and_then(|b| u32_at(&b, 0)))
+        .map(|word| word & 0xffff)
+        .ok();
     let transform = source.required(node, 36)?;
     let global_transform = source_view::transform(source, transform)?;
     Ok(ActorObservation {
@@ -2493,6 +2504,7 @@ fn actor_at_node<S: RecordSource>(
         initial_action,
         current_action,
         secondary_action,
+        current_frame,
         global_transform,
     })
 }
