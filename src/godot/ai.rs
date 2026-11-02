@@ -3933,7 +3933,7 @@ fn statements(
                     let index = guarded_expression(out, index, model, depth, flow)?;
                     writeln!(
                         out,
-                        "{pad}var shared_index_{id}: int = int({index})\n{pad}if not shared_array_{id} is Array or shared_index_{id} < 0 or shared_index_{id} >= shared_array_{id}.size():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
+                        "{pad}var shared_index_{id}: int = int({index})\n{pad}if typeof(shared_array_{id}) < TYPE_ARRAY or shared_index_{id} < 0 or shared_index_{id} >= shared_array_{id}.size():\n{pad}    fail_unsupported({})\n{pad}    {exit}",
                         quoted(&format!(
                             "{} requires a bound actor designer array and valid index",
                             model.path
