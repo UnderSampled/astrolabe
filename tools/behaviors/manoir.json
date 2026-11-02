@@ -10,6 +10,7 @@
   {"name": "crossbow_select", "steps": [{"key": "Z", "hold_ms": 150}], "seconds": 3},
   {"name": "crossbow_fire", "steps": [{"key": "Z", "hold_ms": 150}, {"key": "wait", "hold_ms": 1500}, {"key": "Space", "hold_ms": 150}], "seconds": 4},
   {"name": "fire_cast", "steps": [{"key": "ArrowDown", "hold_ms": 300}, {"key": "wait", "hold_ms": 600}, {"key": "X", "hold_ms": 150}, {"key": "wait", "hold_ms": 1500}, {"key": "Enter", "hold_ms": 150}], "seconds": 5},
+  {"name": "training_walk", "place": [-40.5, 144.9, 25.6], "steps": [{"key": "ArrowUp", "hold_ms": 1500}], "seconds": 4},
   {"name": "fire_repeat", "steps": [{"key": "ArrowDown", "hold_ms": 300}, {"key": "wait", "hold_ms": 600}, {"key": "X", "hold_ms": 150}, {"key": "wait", "hold_ms": 1500}, {"key": "Enter", "hold_ms": 150}, {"key": "wait", "hold_ms": 2500}, {"key": "Enter", "hold_ms": 150}, {"key": "wait", "hold_ms": 2500}, {"key": "Enter", "hold_ms": 150}], "seconds": 11},
   {"name": "lectern", "steps": [{"key": "ArrowUp", "hold_ms": 150}, {"key": "wait", "hold_ms": 700}, {"key": "Space", "hold_ms": 150}], "seconds": 6, "watch": ["level:/persos/world/0/35"]},
   {"name": "through_gate", "steps": [{"key": "ArrowUp", "hold_ms": 5000}], "seconds": 7, "watch": ["level:/persos/world/0/5"]},

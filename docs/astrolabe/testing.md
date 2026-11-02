@@ -18,6 +18,12 @@ opening. The intro is an important behavior test of the full route instead:
 `python3 tools/route_check.py --full HANDOFF_DIR` plays it before the routes. Stage
 scenarios in `tools/behaviors/manoir.json` compare both engines from fast starts;
 they are short, on demand and outside the gate.
+A scenario's `place` starts both engines at a source position. In the original,
+`behavior_compare.py` scans the heap for the position's 26 copies and rewrites
+them inside one pause with Orrery's `write_memory_batch`. A far target's floor is
+not active yet, so Hype falls, the game's own recovery (behavior 16) returns him
+nearby, and a second placement holds. Placement moves position only: heading and
+story flags stay as the save left them, so set them before trusting a stage.
 
 The gate is capped at three checks and ten minutes. Adding a check means removing
 one. It prints every stand-in reached. Godot renders on the discrete GPU through

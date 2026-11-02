@@ -357,6 +357,10 @@ impl Pause<'_> {
             started: Instant::now(),
         })
     }
+    /// Bytes as they stand while the process is stopped.
+    pub fn read_stopped(&self, address: usize, size: usize) -> Result<Vec<u8>> {
+        self.process.read_running(address, size)
+    }
     /// Compare and replace bytes while every thread of the exact owned process
     /// remains stopped. A mismatch performs no write; a successful write is
     /// read back before the pause guard can resume the process.

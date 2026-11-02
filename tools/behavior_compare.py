@@ -4,6 +4,7 @@
 The original runs from a disposable prefix through a private Orrery server. Each
 engine reports the sequence of actions and behaviors, without repeats, plus total
 distance. Sampling differs between engines, so timing is not judged here.
+A scenario's "place" [x, y, z] starts both engines at that source position.
 Distance is a hint only: the original stalls under Wine at scenario start and on
 its first Fire cast, and loses root motion during the stall.
 Writes docs/astrolabe/manoir-behaviors.md.
@@ -11,6 +12,7 @@ Writes docs/astrolabe/manoir-behaviors.md.
 import argparse
 import json
 import math
+import struct
 import os
 from pathlib import Path
 import subprocess
@@ -25,6 +27,9 @@ scenarios = json.loads((root/'tools/behaviors/manoir.json').read_text())
 LOAD = [{'action': 'keys', 'keys': ['Down', 'Return', 'Return'], 'hold_ms': 55, 'gap_ms': 800},
         {'action': 'wait_state', 'phase': 9, 'level': 'manoir', 'timeout_ms': 25000},
         {'action': 'wait', 'duration_ms': 1500}]
+PLACE_HOP = 5.0
+PLACE_RECOVERY = 4.0
+PLACE_SETTLE = 0.1
 HELD = {'LeftShift+ArrowUp': ['LeftShift', 'ArrowUp']}
 CAMERA_TYPES = [2, 2, 2]
 WATCH_TYPES = {}
@@ -93,6 +98,34 @@ def live_actors(mcp, port_state):
     return out
 
 
+def place(mcp, position):
+    """Move Hype by rewriting every copy of his position inside one pause."""
+    here = observe(mcp)['position']
+    found = []
+    for row in mcp.call('memory_maps')['maps']:
+        start, end = (int(value, 16) for value in row['range'].split('-'))
+        if 'w' not in row['permissions'] or row.get('path') not in ('', '[heap]') or end-start > 1 << 26 or start >= 0x7fff0000:
+            continue
+        for at in range(start, end, 65536):
+            try:
+                data = bytes.fromhex(mcp.call('read_memory', address=hex(at), type='hex', size=min(65536, end-at))['hex'])
+            except RuntimeError:
+                continue
+            for offset in range(0, len(data)-12, 4):
+                triple = struct.unpack_from('<3f', data, offset)
+                if all(abs(a-b) < 0.02 for a, b in zip(triple, here)):
+                    found.append(at+offset)
+    # A long jump lands where sectors are not active yet and Hype falls through,
+    # so hop there and let the engine follow.
+    distance = math.dist(here, position)
+    hops = max(1, math.ceil(distance/PLACE_HOP))
+    for hop in range(1, hops+1):
+        point = [a+(b-a)*hop/hops for a, b in zip(here, position)]
+        writes = [{'address': hex(at), 'value': struct.pack('<3f', *point).hex(), 'expect': '*'} for at in found[:32]]
+        mcp.call('write_memory_batch', writes=writes)
+        time.sleep(PLACE_SETTLE)
+
+
 def original(mcp, scenario):
     mcp.call('start_game', duration_seconds=120)
     mcp.call('run_sequence', steps=LOAD)
@@ -100,6 +133,15 @@ def original(mcp, scenario):
     entry = [observe(mcp)]
     deadline = time.monotonic()+20
     while entry[-1]['action'] != 47 and time.monotonic() < deadline:
+        entry.append(observe(mcp))
+    if 'place' in scenario:
+        place(mcp, scenario['place'])
+        # A far target's floor is not active yet: Hype falls and the game's own
+        # recovery brings him back nearby, where a second placement holds.
+        time.sleep(PLACE_RECOVERY)
+        if math.dist(observe(mcp)['position'], scenario['place']) > 2:
+            place(mcp, scenario['place'])
+        time.sleep(1.5)
         entry.append(observe(mcp))
     samples = [entry[-1]]
     started = time.monotonic()

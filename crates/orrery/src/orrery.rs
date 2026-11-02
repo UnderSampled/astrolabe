@@ -1309,6 +1309,28 @@ impl GameSession {
             .guarded_write(address, &value, &expected)
     }
 
+    /// Guarded writes that all land inside one pause, for state the engine keeps
+    /// in several copies and would otherwise reconcile between writes.
+    pub fn write_memory_batch(&self, writes: &[(usize, String, String)]) -> Result<Value> {
+        self.check()?;
+        let pause = self.process.pause(Duration::from_secs(1))?;
+        let results = writes
+            .iter()
+            .map(|(address, value, expected)| {
+                let value = unhex(value)?;
+                // "*" accepts what the stopped process holds, for state that
+                // moves every frame and has no stable old value.
+                let expected = if expected == "*" {
+                    pause.read_stopped(*address, value.len())?
+                } else {
+                    unhex(expected)?
+                };
+                pause.guarded_write(*address, &value, &expected)
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok(json!({ "writes": results }))
+    }
+
     fn live_transform_evidence(memory: &mut impl ReadMemory, address: u32) -> Result<Value> {
         if address == 0 {
             return Ok(Value::Null);

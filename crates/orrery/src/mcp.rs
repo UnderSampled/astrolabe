@@ -189,7 +189,14 @@ fn write_schema() -> Value {
     )
 }
 
-const TOOLS: [ToolSpec; 23] = [
+fn write_batch_schema() -> Value {
+    object(
+        json!({"writes":{"type":"array","minItems":1,"maxItems":32,"items":write_schema()}}),
+        &["writes"],
+    )
+}
+
+const TOOLS: [ToolSpec; 24] = [
     ToolSpec {
         name: "status",
         description: "Report the Orrery MCP service and exact owned game status without opening a game window.",
@@ -329,6 +336,13 @@ const TOOLS: [ToolSpec; 23] = [
         read_only: false,
         destructive: true,
         schema: write_schema,
+    },
+    ToolSpec {
+        name: "write_memory_batch",
+        description: "Guarded hex writes to the exact owned game that all land inside one pause, for state the engine keeps in several copies.",
+        read_only: false,
+        destructive: true,
+        schema: write_batch_schema,
     },
     ToolSpec {
         name: "memory_maps",
@@ -1267,6 +1281,23 @@ fn call_tool(
             action["action"] = json!("write");
             single_action(controller, action)
         }
+        "write_memory_batch" => {
+            allowed(map, &["writes"])?;
+            let writes = map
+                .get("writes")
+                .and_then(Value::as_array)
+                .context("writes must be an array")?
+                .iter()
+                .map(|row| {
+                    Ok((
+                        address(string(row.as_object().context("write row")?, "address")?)?,
+                        string(row.as_object().context("write row")?, "value")?.to_owned(),
+                        string(row.as_object().context("write row")?, "expect")?.to_owned(),
+                    ))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            Ok(ToolOutput::ok(controller.game()?.write_memory_batch(&writes)?))
+        }
         "memory_maps" => {
             allowed(map, &[])?;
             Ok(ToolOutput::ok(
@@ -1564,6 +1595,7 @@ mod tests {
                 "find_scene_actor",
                 "read_memory",
                 "write_memory",
+                "write_memory_batch",
                 "memory_maps",
                 "memory_probe",
                 "navigate_level"
@@ -1574,6 +1606,7 @@ mod tests {
             "run_sequence",
             "prepare_crossbow_quantity",
             "write_memory",
+            "write_memory_batch",
             "memory_probe",
             "navigate_level"
         ]));

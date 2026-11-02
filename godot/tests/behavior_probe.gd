@@ -53,6 +53,10 @@ func run() -> void:
 	while int(game.get("actor").get("current_state")) != 47 and Time.get_ticks_msec() < settle:
 		await wait(0.1)
 	await wait(0.3)
+	if scenario.has("place"):
+		var to: Array = scenario["place"]
+		game.get("actor").global_position = Vector3(to[0], to[2], -to[1])
+		await wait(1.5)
 	var entry := samples.duplicate()
 	samples.clear()
 	started = Time.get_ticks_msec()
