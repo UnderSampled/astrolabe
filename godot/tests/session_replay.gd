@@ -18,6 +18,14 @@ var next_frame_us := 0
 var next_state_us := 0
 var duration_us := 0
 var previous_iteration_us := -1
+## Loading takes different times in each engine, so inputs replay against two
+## anchors: menu inputs from the menu being ready, the rest from manoir entry.
+const MENU_SETTLE_US := 1000000
+const ENTRY_DEADLINE_US := 120000000
+var source_entry_us := -1
+var source_first_input_us := -1
+var menu_ready_us := -1
+var entry_us := -1
 
 func _initialize() -> void:
     call_deferred("run")
@@ -82,6 +90,10 @@ func load_source() -> bool:
         if not value is Dictionary:
             push_error("Malformed source session event")
             return false
+        if str(value.get("kind", "")) == "state" and source_entry_us < 0:
+            var sampled: Dictionary = value.get("data", {}).get("state", {})
+            if int(sampled.get("phase", -1)) == 9 and str(sampled.get("level", "")) == "manoir":
+                source_entry_us = int(value.get("elapsed_micros", 0))
         if str(value.get("kind", "")) == "input":
             var data: Dictionary = value.get("data", {})
             source_inputs.append({
@@ -92,7 +104,29 @@ func load_source() -> bool:
                 "repeat": bool(data.get("repeat", false)),
             })
     file.close()
+    if source_entry_us < 0:
+        push_error("Source session has no manoir entry state; replay needs a full recording")
+        return false
+    source_inputs.sort_custom(func(a, b): return a["at_micros"] < b["at_micros"])
+    if not source_inputs.is_empty(): source_first_input_us = int(source_inputs[0]["at_micros"])
     return true
+
+## The port's time for one input, or -1 until its anchor has been reached.
+func scheduled_us(input: Dictionary) -> int:
+    var at := int(input["at_micros"])
+    if at >= source_entry_us:
+        return entry_us + at - source_entry_us if entry_us >= 0 else -1
+    # A menu input whose anchor has passed still goes out, in recorded order.
+    return menu_ready_us + MENU_SETTLE_US + at - source_first_input_us if menu_ready_us >= 0 else -1
+
+func track_anchors(now: int) -> void:
+    var scene := current_scene
+    if menu_ready_us < 0 and scene is Control and scene.get("menu") != null:
+        menu_ready_us = now
+        append_event("replay_anchor", {"anchor": "menu_ready", "port_micros": now, "source_first_input_micros": source_first_input_us})
+    if entry_us < 0 and scene is Node3D and bool(scene.get("ready_to_play")):
+        entry_us = now
+        append_event("replay_anchor", {"anchor": "manoir_entry", "port_micros": now, "source_micros": source_entry_us})
 
 func current_state() -> Dictionary:
     var scene := current_scene
@@ -146,7 +180,8 @@ func dispatch_input(input: Dictionary) -> void:
     Input.flush_buffered_events()
     append_event("input_dispatch", {
         "source_elapsed_micros": int(input["at_micros"]),
-        "late_micros": max(0, elapsed_us() - int(input["at_micros"])),
+        "scheduled_micros": scheduled_us(input),
+        "late_micros": max(0, elapsed_us() - scheduled_us(input)),
         "source_code": int(input["source_code"]),
         "source_keysym": int(input["keysym"]),
         "physical_keycode": code,
@@ -212,8 +247,11 @@ func run() -> void:
         quit(1)
         return
     append_event("scene_change", {"scene": "res://game/bootstrap.tscn"})
-    while elapsed_us() < duration_us:
+    while true:
         await process_frame
+        track_anchors(elapsed_us())
+        if entry_us >= 0 and elapsed_us() >= entry_us + duration_us - source_entry_us: break
+        if entry_us < 0 and elapsed_us() >= ENTRY_DEADLINE_US: break
         var now := elapsed_us()
         if previous_iteration_us >= 0 and now - previous_iteration_us > 500000:
             append_event("capture_gap", {
@@ -221,7 +259,9 @@ func run() -> void:
                 "start_micros": previous_iteration_us, "end_micros": now,
             })
         previous_iteration_us = now
-        while next_input < source_inputs.size() and int(source_inputs[next_input]["at_micros"]) <= now:
+        while next_input < source_inputs.size():
+            var due := scheduled_us(source_inputs[next_input])
+            if due < 0 or due > now: break
             dispatch_input(source_inputs[next_input])
             next_input += 1
         if now >= next_state_us:
@@ -233,7 +273,8 @@ func run() -> void:
             if now >= next_frame_us + frame_interval_us:
                 append_event("frame_gap", {"reason":"capture exceeded selected interval", "skipped_intervals":(now - next_frame_us) / frame_interval_us})
             next_frame_us = now + frame_interval_us
-    var ending := "deadline_overrun" if elapsed_us() > duration_us + 500000 else "completed"
+    var ending := "completed" if entry_us >= 0 else "no_manoir_entry"
+    if entry_us >= 0 and elapsed_us() > entry_us + duration_us - source_entry_us + 500000: ending = "deadline_overrun"
     if next_input != source_inputs.size(): ending = "inputs_not_dispatched"
     append_event("session_end", {"ending": ending, "undispatched_inputs": source_inputs.size() - next_input})
     var total := elapsed_us()
@@ -247,11 +288,11 @@ func run() -> void:
     # after this script has closed events.jsonl. Keep the window alive until
     # the parent publishes that it has sealed the segment.
     var marker_path := output_dir.path_join("video-finalized")
-    var marker_deadline := Time.get_ticks_msec() + 30000
+    var marker_deadline := Time.get_ticks_msec() + 180000
     while not FileAccess.file_exists(marker_path) and Time.get_ticks_msec() < marker_deadline:
         await create_timer(0.05).timeout
     if not FileAccess.file_exists(marker_path):
-        push_error("Parent did not finalize continuous video within 30 seconds")
+        push_error("Parent did not finalize continuous video within 180 seconds")
         quit(1)
         return
     quit(0)

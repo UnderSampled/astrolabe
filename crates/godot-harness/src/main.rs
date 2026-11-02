@@ -407,7 +407,7 @@ fn run(cli: Cli) -> Result<Value> {
     let mut capture = Some(capture);
     let deadline = Instant::now()
         + Duration::from_micros(
-            u64::try_from(source_manifest.elapsed_micros)?.saturating_add(90_000_000),
+            u64::try_from(source_manifest.elapsed_micros)?.saturating_add(300_000_000),
         );
     let summary_path = run_recording.join("summary.json");
     let marker_path = run_recording.join("video-finalized");

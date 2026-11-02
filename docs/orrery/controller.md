@@ -160,6 +160,14 @@ before launching the game. For an absent or empty starting save root,
 video, checkpoints, state and save evidence in its new output run. Its manifest
 references the source recording hash. The source recording remains unchanged.
 
+`godot-harness` replays a recording in the port through
+`godot/tests/session_replay.gd`. Loading takes different times in each engine, so
+menu inputs run from the port's menu being ready and later inputs from manoir
+entry, taken from the recording's first phase 9 state. That needs a full
+recording: an input-only one has no state samples and is refused. The port's
+menu must then land where the original's did; check the first state samples of
+both runs before reading further differences as gameplay.
+
 Input-only replay dispatches recorded press/release state changes. X11
 auto-repeat presses marked while a key was already held remain in its input
 timeline but are not injected as replay commands. Recapture checks the
