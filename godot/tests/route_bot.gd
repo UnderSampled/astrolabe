@@ -212,6 +212,10 @@ func run() -> void:
 			actor().set("_contact_previous", actor().global_position)
 			game.call("_locate_player_sector")
 			await create_timer(0.3).timeout
+		elif step.has("until_item"):
+			var end := Time.get_ticks_msec() + int(step.get("timeout", 30.0) * 1000.0)
+			while int(actor().get("source_inventory").call("quantity", int(step["until_item"]))) <= 0 and Time.get_ticks_msec() < end: await physics_frame
+			ok = int(actor().get("source_inventory").call("quantity", int(step["until_item"]))) > 0
 		elif step.has("spell"):
 			actor().get("source_magick").set("selected_spell_code", int(step["spell"]))
 		elif step.has("probe2"):
