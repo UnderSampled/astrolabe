@@ -32,8 +32,9 @@ the existing publication protections.
 Press **F5**, then choose **New Game** for the opening or **Load Game** for the
 saved start. New Game plays the full converted opening with compiled AI and hands
 control to Hype. The player can then walk, run, jump, draw and swing the sword,
-and open the inventory. Fight outcomes, progression and the rest of the manor are
-not finished.
+fire the crossbow, cast Fire, collect pickups, save at the lectern or with F5, and
+open the inventory. These match the original's action sequences. Fight outcomes,
+progression and the rest of the manor are not finished. F1 shows a developer panel.
 
 Load Game restores a real original slot after `astrolabe import-save` converts it
 to a named-key Godot file, and reports how many records it understands. See

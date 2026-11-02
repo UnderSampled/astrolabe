@@ -65,24 +65,22 @@ These wait, because none of them makes the game more of a game yet:
 The suite builds and selects again, Cond123 is fixed, Load Game survives a jump,
 the gate exists, and fatal unsupported calls have stand-ins.
 
-### 2. The manor plays on the machine it runs on
+### 2. The manor plays on the machine it runs on: nearly done
 
-The next milestone. The player can start, fight and move through the manor at a
-usable frame rate with a default launch, and Load Game loads a real save.
+The player can start, fight and move through the manor at a usable frame rate
+with a default launch, and Load Game loads a real save.
 
-- **Default launch performance.** A default launch uses the Intel GPU, which
-  measured a 16.6 ms median on both routes on 2026-11-01, so the reported
-  seconds per frame did not reproduce. Hitches remain: 60 ms at p95 and a worst
-  frame of 847 ms. Find them, and retest in a real window under the editor.
-- **Load actually loads.** Load Game must read the savegame file. Today it reads
-  a fixture and a small JSON made ahead of time by `astrolabe import-save`. It
-  should accept a real `SaveGameN` slot, with inventory, position, progression
-  and world state, and report what it can't restore.
-- **Save.** New Game cannot save yet, and the native slot records too little.
-- **Controls.** Add crossbow and Fire to the controls probe.
-- **Failing tests.** Triage the failures in `tools/test.py --local`: fix, rewrite
-  or delete each one, with a reason. Most look like tests left behind by static
-  changes.
+Done:
+
+- A default launch uses the Intel GPU and holds 60 fps. The stall on every action
+  change is gone. Occasional long frames remain.
+- `astrolabe import-save` converts a real `SaveGameN` slot to a named-key Godot
+  file, and Load Game restores from it, including every actor field it can apply.
+- F5 and the save lectern save, including from New Game after the opening.
+- `tools/behavior_compare.py` and `tools/actor_compare.py` test keys and actors
+  against the running original. `docs/astrolabe/manoir-checklist.md` has results.
+
+Left: fight contact, and triage of the remaining test failures.
 
 ### 3. The manor is a level
 
@@ -91,9 +89,10 @@ through compiled AI and native systems. Replace stand-ins in order of what block
 play, starting with camera, inventory and regeneration calls.
 
 Compare with the original through targeted Orrery state checks, one per question:
-the same key press in both engines, then the action and behavior sequence. Two
-small Orrery additions would help most: a live AI-tree dump through the shared
-codec, to diff against the disc parse, and a read of particle state.
+the same key press in both engines, then the action and behavior sequence. A live
+AI-tree dump through the shared codec, to diff against the disc parse, would help
+most. The original only runs AI for actors near the player, in active sectors,
+while the port runs them all; add that when it starts to matter.
 
 ### 4. A second level
 
