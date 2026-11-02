@@ -170,7 +170,13 @@ func source_get_game_state() -> Variant:
         128: return 8
     return null
 
+## The session panel is a developer aid; F1 shows it over the game.
+func _toggle_session_panel() -> void:
+    $Hud/Panel.visible = not $Hud/Panel.visible
+
+
 func _ready() -> void:
+    $Hud/Panel.visible = OS.has_environment("ASTROLABE_SESSION_PANEL")
     # Lock the incoming session before its deferred initial request starts.
     # The resource loader is active before open_level begins restoration.
     _initial_transition_pending = true
@@ -908,7 +914,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
         if key.physical_keycode == KEY_ESCAPE:
             leave_session("res://game/bootstrap.tscn")
         return
-    if key.physical_keycode == KEY_F5:
+    if key.physical_keycode == KEY_F1:
+        get_viewport().set_input_as_handled()
+        _toggle_session_panel()
+    elif key.physical_keycode == KEY_F5:
         get_viewport().set_input_as_handled()
         save_game()
     elif key.physical_keycode == KEY_R:
