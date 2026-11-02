@@ -189,6 +189,8 @@ func _ready() -> void:
         source_motion_binding_present = true
         _configure_motion()
         _collide_with_actor_zones()
+        # Walking down stairs must keep ground contact, or the fall reflex fires mid-step.
+        floor_snap_length = SOURCE_STEP_DOWN
     # Selection only; the saved initial pose is usable without this callback.
     if autoplay and initial_state >= 0:
         select_state(initial_state)
@@ -1291,6 +1293,8 @@ func source_see_perso(receiver: Node3D, target: Node3D) -> bool:
     if origin.is_equal_approx(endpoint): return true
     var query := PhysicsRayQueryParameters3D.create(origin, endpoint, 1)
     return get_world_3d().direct_space_state.intersect_ray(query).is_empty()
+
+const SOURCE_STEP_DOWN := 0.35
 
 func source_collide_with_ground() -> bool:
     if is_on_floor(): return true
