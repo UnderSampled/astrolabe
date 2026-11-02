@@ -4,11 +4,13 @@ extends SceneTree
 const CRITICAL := ["fix:/persos/15", "level:/persos/world/0/0", "level:/persos/world/0/2", "level:/persos/world/0/3", "level:/persos/world/0/5", "level:/persos/world/0/28", "level:/persos/world/0/45"]
 const DIALOGUES := ["gogood_texte1_manoir", "gogood_texte1a_manoir", "gogood_texte1b_manoir", "gogood_texte1c_manoir", "gogood_texte2_manoir", "gogood_texte2a_manoir", "hype_texte1_manoir", "hype_texte2_manoir"]
 var evidence_path := ""
-var report: Dictionary = {"outcome": "running", "scope": "actual root game bootstrap/New Game, unchanged passive intro, physical movement after handoff", "intro_input_events": 0, "snapshots": [], "dialogues": [], "camera_modes": [], "letterbox_on": false, "letterbox_off": false}
+var report: Dictionary = {"outcome": "running", "samples": [], "scope": "actual root game bootstrap/New Game, unchanged passive intro, physical movement after handoff", "intro_input_events": 0, "snapshots": [], "dialogues": [], "camera_modes": [], "letterbox_on": false, "letterbox_off": false}
 var game: Node
 var screen: Node
 var started_ms := 0
 var last_signature := ""
+var next_sample_ms := 0
+var entry_ms := 0
 
 func _initialize() -> void:
     call_deferred("run")
@@ -51,9 +53,26 @@ func snapshot() -> Dictionary:
             failures.append({"path": str(brain.get_path()), "model": str(brain.get("source_model_path")), "failure": str(brain.get("unsupported_failure"))})
     return {"ms": Time.get_ticks_msec() - started_ms, "actors": actors, "dialogue": str(item.get("identity")) if item != null else "", "widescreen": bool(screen.get("widescreen")), "camera_mode": int(camera.get("motion_mode")) if camera != null else -99, "camera_current": camera.current if camera != null else false, "camera_target": str(target.get_path()) if is_instance_valid(target) else "", "first_visit_complete": bool(global_brain.get("dsg_147")) if global_brain != null else false, "opening_finished": bool(game.get("opening_finished")), "other_failures": failures}
 
+## Dense timeline for tools/intro_compare.py, in source axes from manoir entry.
+func source_row(body: Node3D) -> Dictionary:
+    var at := body.global_position
+    var brain := body.get_node_or_null("Brain")
+    return {"action": int(body.get("current_state")), "normal": int(brain.get("current_normal")), "reflex": int(brain.get("current_reflex")), "position": [at.x, -at.z, at.y]}
+
+func sample_timeline(dialogue: String) -> void:
+    var now := Time.get_ticks_msec()
+    if now < next_sample_ms: return
+    next_sample_ms = now + 200
+    if entry_ms == 0: entry_ms = now
+    var camera := root.get_viewport().get_camera_3d()
+    var at := camera.global_position
+    var forward := -camera.global_basis.z
+    report["samples"].append({"s": (now - entry_ms) / 1000.0, "dialogue": dialogue, "hype": source_row(actor_for("level:/persos/world/0/0")), "gogoud": source_row(actor_for("level:/persos/world/0/5")), "world": source_row(actor_for("level:/persos/world/0/3")), "camera": {"position": [at.x, -at.z, at.y], "forward": [forward.x, -forward.z, forward.y], "fov": camera.fov}})
+
 func observe() -> Dictionary:
     var state := snapshot()
     var identity: String = state["dialogue"]
+    sample_timeline(identity)
     if not identity.is_empty() and not report["dialogues"].has(identity): report["dialogues"].append(identity)
     var mode: int = state["camera_mode"]
     if not report["camera_modes"].has(mode): report["camera_modes"].append(mode)
