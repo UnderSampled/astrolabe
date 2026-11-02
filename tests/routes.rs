@@ -508,9 +508,14 @@ fn exported_gogoud_opening_walk_reaches_native_action_sequence() -> Result<()> {
         .iter()
         .position(|s| matches!(s, Statement::AddWind(_)))
         .context("source wind not typed")?;
+    // The source initialization after AddWind is now fully typed: the particle
+    // generator binding comes first and nothing is left as an unsupported gate.
     ensure!(
-        matches!(&init.statements[wind+1], Statement::Unsupported(f) if f.start == 14),
-        "next initialization gate was hidden"
+        matches!(
+            &init.statements[wind + 1],
+            Statement::SetParticleGenerator(_)
+        ) && init.unsupported_fragments().is_empty(),
+        "initialization after AddWind lost its typed particle generator or gained an unsupported gate"
     );
     let rete_root = temp.path().join("rete");
     astrolabe::app::save_rete(&mut imported, &rete_root)?;

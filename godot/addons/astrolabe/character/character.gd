@@ -1824,11 +1824,16 @@ func restore_configuration() -> bool:
 func _bind_source_configuration() -> void:
     var ancestor := get_parent()
     var shared: Dictionary = {}
-    while ancestor != null:
+    # The table lives on the topmost scene ancestor (below the Window) so every
+    # actor of the level binds the same configuration objects.
+    var table_owner: Node = null
+    while ancestor != null and not ancestor is Window:
+        table_owner = ancestor
         if ancestor.has_meta("source_configurations"):
             shared = ancestor.get_meta("source_configurations")
             break
         ancestor = ancestor.get_parent()
+    ancestor = table_owner
     for index in source_configuration_choices.size():
         var choice: Resource = source_configuration_choices[index]
         var identity: String = str(choice.get("source_id"))
@@ -1952,7 +1957,7 @@ func _apply_source_configuration() -> bool:
                 return _configuration_failure("Selected native payload cannot inherit actor material state.")
             anchor.call("attach_payload", payload)
     if restored_configuration != restored:
-        var time := animation_player.current_animation_position
+        var time := animation_player.current_animation_position if current_state >= 0 and animation_player.current_animation != "" else 0.0
         var was_playing := playing
         restored_configuration = restored
         if current_state >= 0:

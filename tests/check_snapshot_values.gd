@@ -18,7 +18,9 @@ func _initialize() -> void:
 		push_error("integer range validation differs")
 		quit(1)
 		return
-	if SNAPSHOT.integer(1.0, 0, 2) or SNAPSHOT.integer(true, 0, 1):
+	# JSON fixtures (english_save_manoir.json) parse integral values as floats, so
+	# integral floats are accepted; fractions, non-finite numbers and bools are not.
+	if not SNAPSHOT.integer(1.0, 0, 2) or SNAPSHOT.integer(1.5, 0, 2) or SNAPSHOT.integer(NAN, 0, 2) or SNAPSHOT.integer(INF, 0, 2) or SNAPSHOT.integer(true, 0, 1):
 		push_error("non-integer snapshot value was accepted")
 		quit(1)
 		return

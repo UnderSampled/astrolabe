@@ -24,7 +24,7 @@ func session_fixture() -> Node3D:
     var camera := Camera3D.new()
     camera.name = "DemoCamera"
     host.add_child(camera)
-    for name in ["InventoryHost", "PauseHost"]:
+    for name in ["InventoryHost", "PauseHost", "VignetteHost"]:
         var child := Node.new()
         child.name = name
         host.add_child(child)
