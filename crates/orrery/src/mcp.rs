@@ -189,7 +189,7 @@ fn write_schema() -> Value {
     )
 }
 
-const TOOLS: [ToolSpec; 22] = [
+const TOOLS: [ToolSpec; 23] = [
     ToolSpec {
         name: "status",
         description: "Report the Orrery MCP service and exact owned game status without opening a game window.",
@@ -310,6 +310,13 @@ const TOOLS: [ToolSpec; 22] = [
         schema: inspect_scene_camera_schema,
     },
     ToolSpec {
+        name: "find_scene_actor",
+        description: "Pause the owned game and inspect the live actor with these object types, wherever runtime reparenting has moved it.",
+        read_only: true,
+        destructive: false,
+        schema: inspect_scene_camera_schema,
+    },
+    ToolSpec {
         name: "read_memory",
         description: "Read at most 64 KiB from readable mappings of the exact owned 32-bit game.",
         read_only: true,
@@ -371,6 +378,7 @@ fn tool_models() -> Vec<Tool> {
                             | "inspect_scene_tail"
                             | "inspect_scene_actor"
                             | "inspect_scene_camera"
+                            | "find_scene_actor"
                             | "read_memory"
                             | "memory_maps"
                     ))
@@ -768,7 +776,7 @@ fn validate_steps(raw: &Value) -> Result<Vec<Step>> {
                 );
                 budget += 2_500;
             }
-            "inspect_scene_camera" => {
+            "find_scene_actor" | "inspect_scene_camera" => {
                 allowed(
                     map,
                     &[
@@ -1032,6 +1040,11 @@ fn execute_step(controller: &mut NativeController, step: &Step) -> Result<Value>
                     .unwrap_or(false),
             )
         }
+        "find_scene_actor" => {
+            let (level, object_types) = scene_camera_selector(map)?;
+            let designer_values = inspect_designer_values(map)?.unwrap_or_default();
+            game.inspect_scene_actor_by_types(&level, object_types, &[], &designer_values)
+        }
         "inspect_scene_camera" => {
             let (level, object_types) = scene_camera_selector(map)?;
             let designer_values = inspect_designer_values(map)?.unwrap_or_default();
@@ -1211,6 +1224,17 @@ fn call_tool(
                         .unwrap_or(false),
                 )?,
             ))
+        }
+        "find_scene_actor" => {
+            allowed(map, &["level", "object_types", "designer_values"])?;
+            let (level, object_types) = scene_camera_selector(map)?;
+            let designer_values = inspect_designer_values(map)?.unwrap_or_default();
+            Ok(ToolOutput::ok(controller.game()?.inspect_scene_actor_by_types(
+                &level,
+                object_types,
+                &[],
+                &designer_values,
+            )?))
         }
         "inspect_scene_camera" => {
             allowed(map, &["level", "object_types", "designer_values"])?;
@@ -1535,6 +1559,7 @@ mod tests {
                 "inspect_scene_tail",
                 "inspect_scene_actor",
                 "inspect_scene_camera",
+                "find_scene_actor",
                 "read_memory",
                 "write_memory",
                 "memory_maps",
