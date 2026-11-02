@@ -412,6 +412,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::Plus(left, right)
                 | Expression::VectorPlus(left, right)
                 | Expression::VectorMinus(left, right)
+                | Expression::VectorScale(left, right)
                 | Expression::Minus(left, right)
                 | Expression::Modulus(left, right)
                 | Expression::Divide(left, right)

@@ -1351,6 +1351,10 @@ impl Parser<'_> {
                 Box::new(self.expression(indent + 1)?),
                 Box::new(self.expression(indent + 1)?),
             ),
+            (2, 18) => Expression::VectorScale(
+                Box::new(self.expression(indent + 1)?),
+                Box::new(self.expression(indent + 1)?),
+            ),
             (2, 12) => {
                 let actor_at = self.at;
                 if self.nodes.get(actor_at + 1).is_some_and(|field| {
@@ -3173,6 +3177,11 @@ impl Writer<'_> {
                     },
                     indent,
                 );
+                self.expression(a, indent + 1)?;
+                self.expression(b, indent + 1)?;
+            }
+            Expression::VectorScale(a, b) => {
+                self.node(2, 18, indent);
                 self.expression(a, indent + 1)?;
                 self.expression(b, indent + 1)?;
             }

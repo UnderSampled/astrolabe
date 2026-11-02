@@ -273,6 +273,9 @@ func run() -> void:
 		elif step.has("defs"):
 			for definition in actor().get("source_inventory").get("definitions"):
 				print("DEF ", definition.get("item_id"), " ", definition.get("kind"), " q ", definition.get("quantity"), " max ", definition.get("maximum"), " avail ", definition.get("availability"), " ", definition.get("source_key"))
+		elif step.has("owned"):
+			var inventory: Resource = actor().get("source_inventory")
+			print("OWNED ", inventory.call("presentation_quantities"), " object ", inventory.get("selected_object"), " life ", actor().get("source_hit_points").get("current"))
 		elif step.has("hurt"):
 			var life: Resource = actor().get("source_hit_points")
 			life.set("current", int(step["hurt"]))

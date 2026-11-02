@@ -915,6 +915,10 @@ pub enum Expression {
     VectorPlus(Box<Expression>, Box<Expression>),
     /// Hype Operator_VectorMinusVector (category 2, operation 17).
     VectorMinus(Box<Expression>, Box<Expression>),
+    /// Hype Operator_VectorTimesReal (category 2, operation 18): a vector scaled
+    /// by a real. Operation inferred from the order of 16/17 and from Gogoud's
+    /// key placement (Hype's sighting scaled by 0.1); not yet checked in the original.
+    VectorScale(Box<Expression>, Box<Expression>),
     Minus(Box<Expression>, Box<Expression>),
     /// MTH_Modulus (category 3, operation 189).
     Modulus(Box<Expression>, Box<Expression>),
@@ -1715,6 +1719,7 @@ impl Script {
                 | Expression::Plus(left, right)
                 | Expression::VectorPlus(left, right)
                 | Expression::VectorMinus(left, right)
+                | Expression::VectorScale(left, right)
                 | Expression::Minus(left, right)
                 | Expression::Modulus(left, right)
                 | Expression::Divide(left, right)

@@ -961,7 +961,8 @@ fn vector_expression(e: &Expression, model: &AiModel) -> bool {
         | Expression::SelfSighting
         | Expression::LaserDirection
         | Expression::VectorPlus(_, _)
-        | Expression::VectorMinus(_, _) => true,
+        | Expression::VectorMinus(_, _)
+        | Expression::VectorScale(_, _) => true,
         Expression::Variable(index) | Expression::SelfFieldRead(index) => matches!(
             model
                 .variables
@@ -1091,6 +1092,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::CurrentAnimationFrame
         | Expression::ActionFinished(_)
         | Expression::VectorMinus(_, _)
+        | Expression::VectorScale(_, _)
         | Expression::MagicRemovePoints(_)
         | Expression::Square(_)
         | Expression::AbsoluteValue(_)
@@ -1839,6 +1841,14 @@ fn guarded_expression(
             guarded_expression(out, left, model, depth, flow)?,
             guarded_expression(out, right, model, depth, flow)?
         ),
+        Expression::VectorScale(left, right) => {
+            let id = flow.local;
+            flow.local += 1;
+            let left = guarded_expression(out, left, model, depth, flow)?;
+            writeln!(out, "{pad}var vector_scale_{id}: Vector3 = {left}")?;
+            let right = guarded_expression(out, right, model, depth, flow)?;
+            format!("(vector_scale_{id} * float({right}))")
+        }
         Expression::VectorMinus(left, right) => {
             // 00524d70 evaluates/captures the left before evaluating the right.
             // Right-side guards may call gameplay APIs, so emit the left store
@@ -2316,6 +2326,11 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
                 expression(b, model)?
             )
         }
+        Expression::VectorScale(a, b) => format!(
+            "({} * float({}))",
+            expression(a, model)?,
+            expression(b, model)?
+        ),
         Expression::VectorPlus(a, b) | Expression::VectorMinus(a, b) => {
             let operator = if matches!(e, Expression::VectorPlus(..)) {
                 "+"
