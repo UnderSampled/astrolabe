@@ -117,7 +117,7 @@ func plan(target: Vector2, step_size := 1.0) -> Array:
 	print("PLAN cells ", parents.size(), " left ", snappedf(best_distance, 0.1), " length ", path.size())
 	var thin: Array = []
 	for index in path.size():
-		if index % 4 == 3 or index == path.size() - 1: thin.append(path[index])
+		if index % 2 == 1 or index == path.size() - 1: thin.append(path[index])
 	return thin
 
 ## Logs each change of Hype's and named actors' behavior and of the dialogue.
@@ -174,13 +174,19 @@ func run() -> void:
 	for step: Dictionary in route["steps"]:
 		var ok := true
 		if step.has("plan"):
-			var points := plan(Vector2(step["plan"][0], step["plan"][1]))
-			print("WAYPOINTS ", JSON.stringify(points))
-			for point in points:
-				ok = await go(Vector2(point[0], point[1]), 1.2, 12.0)
-				if not ok: break
+			var target := Vector2(step["plan"][0], step["plan"][1])
+			ok = false
+			for attempt in 8:
+				var failed := false
+				for point in plan(target):
+					if not await go(Vector2(point[0], point[1]), 0.9, 8.0):
+						failed = true
+						break
+				if not failed or position().distance_to(target) < 2.5:
+					ok = true
+					break
 		elif step.has("go"):
-			ok = await go(Vector2(step["go"][0], step["go"][1]), step["go"][2], step.get("timeout", 40.0))
+			ok = await go(Vector2(step["go"][0], step["go"][1]), step.get("tol", step["go"][2] if step["go"].size() > 2 else 1.5), step.get("timeout", 40.0))
 		elif step.has("key"):
 			key(step["key"], true)
 			await create_timer(step.get("hold", 0.15)).timeout
