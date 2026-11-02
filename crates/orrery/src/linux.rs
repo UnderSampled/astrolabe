@@ -671,7 +671,7 @@ impl Owner {
                 return Ok(());
             }
             ensure!(
-                started.elapsed() < Duration::from_secs(4),
+                started.elapsed() < Duration::from_secs(30),
                 "owned process cleanup deadline exceeded"
             );
             thread::sleep(Duration::from_millis(10));

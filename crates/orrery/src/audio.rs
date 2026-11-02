@@ -57,9 +57,17 @@ fn private_command(program: &str, runtime: &Path, server: &str) -> Command {
         .env("XDG_RUNTIME_DIR", runtime)
         .env("PIPEWIRE_RUNTIME_DIR", runtime)
         .env("PULSE_SERVER", server)
+        .env("XDG_CONFIG_HOME", runtime)
+        .env("XDG_STATE_HOME", runtime)
+        .env("DBUS_SYSTEM_BUS_ADDRESS", "unix:path=/nonexistent")
         .env_remove("DBUS_SESSION_BUS_ADDRESS");
     command
 }
+
+/// The private graph holds only a null sink. Without this its session manager
+/// also runs the ALSA and Bluetooth monitors against the real hardware, which
+/// takes the desktop's speakers and Bluetooth endpoints away from it.
+const WIREPLUMBER_NO_HARDWARE: &str = "wireplumber.profiles = {\n  main = {\n    hardware.audio = disabled\n    hardware.bluetooth = disabled\n    hardware.video-capture = disabled\n  }\n}\n";
 
 impl AudioRoute {
     pub fn start(run: &Path, capture_path: Option<&Path>) -> Result<Self> {
@@ -92,6 +100,9 @@ impl AudioRoute {
                 return Err(error).context("start private PulseAudio-compatible server");
             }
         };
+        let manager_config = runtime.join("wireplumber/wireplumber.conf.d");
+        fs::create_dir_all(&manager_config)?;
+        fs::write(manager_config.join("orrery.conf"), WIREPLUMBER_NO_HARDWARE)?;
         let manager = match private_command("wireplumber", &runtime, &server)
             .stdout(Stdio::from(manager_log.try_clone()?))
             .stderr(Stdio::from(manager_log))
@@ -174,6 +185,13 @@ impl AudioRoute {
             self.playback.is_none(),
             "game audio playback already started"
         );
+        // A desktop with no real output would swallow the game silently.
+        let default_sink = Command::new("pactl").arg("get-default-sink").output()?;
+        ensure!(
+            default_sink.status.success()
+                && !String::from_utf8_lossy(&default_sink.stdout).contains("auto_null"),
+            "the desktop has no audio output; fix it before recording"
+        );
         let source_log = File::create_new(run.join("audio-playback-source.log"))?;
         let speaker_log = File::create_new(run.join("audio-playback-speaker.log"))?;
         let source = private_command("parec", &self.runtime, &self.server)
@@ -184,7 +202,7 @@ impl AudioRoute {
                 "--rate=48000",
                 "--channels=2",
                 "--device=orrery_game.monitor",
-                "--latency-msec=50",
+                "--latency-msec=20",
             ])
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -208,7 +226,7 @@ impl AudioRoute {
                     "--format=s16le",
                     "--rate=48000",
                     "--channels=2",
-                    "--latency-msec=100",
+                    "--latency-msec=40",
                     "--client-name=Orrery",
                     "--stream-name=Hype interactive game audio",
                 ])
