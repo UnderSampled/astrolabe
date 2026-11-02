@@ -4,6 +4,8 @@
 The original runs from a disposable prefix through a private Orrery server. Each
 engine reports the sequence of actions and behaviors, without repeats, plus total
 distance. Sampling differs between engines, so timing is not judged here.
+Distance is a hint only: the original stalls under Wine at scenario start and on
+its first Fire cast, and loses root motion during the stall.
 Writes docs/astrolabe/manoir-behaviors.md.
 """
 import argparse
