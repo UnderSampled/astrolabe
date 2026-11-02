@@ -50,7 +50,12 @@ def observe(mcp):
 def original(mcp, scenario):
     mcp.call('start_game', duration_seconds=120)
     mcp.call('run_sequence', steps=LOAD)
-    samples = [observe(mcp)]
+    # The original plays an entry sequence after loading and ignores keys during it.
+    entry = [observe(mcp)]
+    deadline = time.monotonic()+20
+    while entry[-1]['action'] != 47 and time.monotonic() < deadline:
+        entry.append(observe(mcp))
+    samples = [entry[-1]]
     started = time.monotonic()
     for step in scenario['steps']:
         if step['key'] == 'wait':
@@ -67,7 +72,7 @@ def original(mcp, scenario):
     while time.monotonic()-started < scenario['seconds']:
         samples.append(observe(mcp))
     mcp.call('stop_game')
-    return samples
+    return {'entry': condense(row['action'] for row in entry), 'samples': samples}
 
 
 def port(scenario, directory):
@@ -78,7 +83,7 @@ def port(scenario, directory):
                     '--script', 'res://tests/behavior_probe.gd', '--', str(root/'tools/behaviors/manoir.json'),
                     scenario['name'], str(output)], cwd=root/'godot', env=environment,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return json.loads(output.read_text()) if output.is_file() else []
+    return json.loads(output.read_text())['samples'] if output.is_file() else []
 
 
 def main():
@@ -100,14 +105,18 @@ def main():
         else:
             first = original(mcp, scenario)
             source.write_text(json.dumps(first))
+        first = first['samples']
         second = port(scenario, args.work)
         a, b = condense(s['action'] for s in first), condense(s['action'] for s in second)
         n, m = condense(s['normal'] for s in first), condense(s['normal'] for s in second)
-        state = 'match' if a == b else 'partial' if set(a) & set(b) else 'differs'
+        # Orrery cannot sample during a held key, so the original's sequence is
+        # coarser. Every state it saw must appear in order in the port's.
+        remaining = iter(b)
+        state = 'match' if all(action in remaining for action in a) else 'partial' if set(a) & set(b) else 'differs'
         rows.append({'name': scenario['name'], 'state': state, 'original_actions': a, 'port_actions': b,
                      'original_behaviors': n, 'port_behaviors': m,
-                     'original_distance': round(distance([s['position'] for s in first]), 2),
-                     'port_distance': round(distance([s['position'] for s in second]), 2),
+                     'original_moved': round(math.dist(first[0]['position'], first[-1]['position']), 2),
+                     'port_moved': round(math.dist(second[0]['position'], second[-1]['position']), 2) if second else None,
                      'port_alive': bool(second) and second[-1]['running']})
     (args.work/'report.json').write_text(json.dumps(rows, indent=1)+'\n')
     for row in rows:

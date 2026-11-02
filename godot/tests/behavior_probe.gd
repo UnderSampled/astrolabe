@@ -46,7 +46,15 @@ func run() -> void:
 	while (current_scene == null or current_scene == menu or not bool(current_scene.get("ready_to_play"))) and Time.get_ticks_msec() < deadline:
 		await process_frame
 	game = current_scene
-	await create_timer(1.5).timeout
+	# Like the original, Hype plays an entry sequence before answering keys.
+	started = Time.get_ticks_msec()
+	sample()
+	var settle := Time.get_ticks_msec() + 20000
+	while int(game.get("actor").get("current_state")) != 47 and Time.get_ticks_msec() < settle:
+		await wait(0.1)
+	await wait(0.3)
+	var entry := samples.duplicate()
+	samples.clear()
 	started = Time.get_ticks_msec()
 	sample()
 	for step in scenario["steps"]:
@@ -59,6 +67,6 @@ func run() -> void:
 	var remaining: float = scenario["seconds"] - (Time.get_ticks_msec() - started) / 1000.0
 	if remaining > 0.0: await wait(remaining)
 	var file := FileAccess.open(args[2], FileAccess.WRITE)
-	file.store_string(JSON.stringify(samples))
+	file.store_string(JSON.stringify({"entry": entry, "samples": samples}))
 	file.close()
 	quit()

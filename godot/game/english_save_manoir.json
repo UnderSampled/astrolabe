@@ -10,7 +10,7 @@
     [0.0, 0.0, 1.0]
   ],
   "expected_action": 47,
-  "normal_behavior": 4,
+  "normal_behavior": 91,
   "reflex_behavior": 3,
   "deactivated_channels": [28, 71, 80],
   "inventory": {
