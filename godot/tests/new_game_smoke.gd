@@ -2,7 +2,8 @@ extends SceneTree
 ## Actual menu/session path. Run only with an isolated XDG_DATA_HOME; the
 ## slot below is test-owned. Full generated AI remains unmodified and unheld.
 const SAVE_STATE = preload("res://game/save_state.gd")
-const ORIGINAL_IMPORT_PATH := "res://game/original_save_import.json"
+const ORIGINAL_IMPORT_FILE := "SaveGame0.cfg"
+const ORIGINAL_IMPORT_PATH := "res://game/saves/SaveGame0.cfg"
 const NEW_GAME_SCENE_PATH := "res://game/new_game.tscn"
 const FLOAT32_EPSILON := 0.00000011920928955078125
 const FLOAT32_ROUNDTRIP_EPSILONS := 2.0
@@ -317,6 +318,26 @@ func _stash_new_game_route_scene() -> bool:
         return false
     return true
 
+## Menu actions fire after a short confirmation sound; poll until it settles.
+func _wait_frames_until(condition: Callable, timeout_ms: int) -> void:
+    var deadline := Time.get_ticks_msec() + timeout_ms
+    while not condition.call() and Time.get_ticks_msec() < deadline:
+        await process_frame
+
+## Load Game opens a picker listing every save; choose the row at index.
+func _choose_load_source(menu: Node, load_button: Button, index: int) -> void:
+    await click_gui(load_button, true)
+    await _wait_frames_until(func(): return menu.get("save_picker") != null and is_instance_valid(menu.get("save_picker")), 3000)
+    var picker: Control = menu.get("save_picker")
+    if picker == null or not is_instance_valid(picker):
+        push_error("Load Game did not open the save picker")
+        return
+    var buttons: Array = picker.get_node("Panel/Margin/Rows/Saves").get_children().filter(func(node): return node is Button)
+    if index >= buttons.size():
+        push_error("Load Game picker has no row %d" % index)
+        return
+    await click_gui(buttons[index] as Button, true)
+
 func _remove_test_slot() -> bool:
     if not FileAccess.file_exists(SAVE_STATE.path()):
         return true
@@ -612,11 +633,13 @@ func run() -> void:
     if not require(not FileAccess.file_exists(SAVE_STATE.path()),"isolated slot must begin absent"): return
     original_import_backup = FileAccess.get_file_as_string(ORIGINAL_IMPORT_PATH) if FileAccess.file_exists(ORIGINAL_IMPORT_PATH) else ""
     original_import_sha256 = FileAccess.get_sha256(ProjectSettings.globalize_path(ORIGINAL_IMPORT_PATH)) if not original_import_backup.is_empty() else ""
-    var imported_fixture: Dictionary = SAVE_STATE.read_original_import()
+    var imported_fixture: Dictionary = SAVE_STATE.read_original(ORIGINAL_IMPORT_FILE)
     if not require(not original_import_backup.is_empty() and imported_fixture.get("status") == "loaded", "the preserved original-save import fixture is unavailable or invalid"): return
     if not require(_connect_transition_observers(), "persistent LevelTransition service is missing its lifecycle signals"): return
-    var import_document: Variant = JSON.parse_string(original_import_backup)
-    report["original_import_fixture"] = {"present":true,"valid":true,"profile":import_document.get("profile", "") if import_document is Dictionary else "",
+    var import_document := {"godot_state": imported_fixture["state"]}
+    var import_config := ConfigFile.new()
+    import_config.load(ORIGINAL_IMPORT_PATH)
+    report["original_import_fixture"] = {"present":true,"valid":true,"profile":str(import_config.get_value("meta", "profile", "")),
         "sha256_before":original_import_sha256}
     var scene_replacement_probe_ok: bool = await _check_scene_replacement_wait_helpers()
     if not scene_replacement_probe_ok: return
@@ -629,10 +652,13 @@ func run() -> void:
     current_scene = menu
     var load_button := menu.find_child("LoadGame",true,false) as Button
     var new_button := menu.find_child("NewGame",true,false) as Button
-    if not require(load_button != null and new_button != null and load_button.disabled and not new_button.disabled,"bad slot should block Load Game while leaving New Game available"): return
+    if not require(load_button != null and new_button != null and not load_button.disabled and not new_button.disabled,"menu should list a bad slot as a failing Load Game source while leaving New Game available"): return
+    var bad_candidates: Array = SAVE_STATE.load_candidates()
+    if not require(bad_candidates.size() > 0 and bad_candidates[0].get("status") == "error","bad native slot was not listed first with its error"): return
     if not require(_stash_new_game_route_scene(), "could not stage the New Game route failure check in the isolated project"): return
     var menu_instance_id := menu.get_instance_id()
     await click_gui(new_button, true)
+    await _wait_frames_until(func(): return menu.get_node("Status").visible, 3000)
     if not require(current_scene == menu and not new_button.disabled and not bool(menu.get("opening_game")) and menu.get_node("Status").visible, "a failed New Game destination did not leave the menu usable"): return
     report["new_game_route_failure"] = {"menu_recovered":true,"button_reenabled":not new_button.disabled,"status":menu.get_node("Status/Details").text}
     _restore_test_fixtures()
@@ -689,7 +715,9 @@ func run() -> void:
     if not require(first["global_data_brains"].size() == 1 and first["global_data_brains"][0]["model"] == "fix:/ai/models/1" and not first["global_data_brains"][0]["automatic"],"exported global-data role changed"): return
     if not require(first["automatic_brains"] == first["brain_count"] and first["brain_count"] > 0,"opening held generated Brains"): return
     if not require(absf(float(first["gate_height"])) < 0.1 and first["gate_automatic"],"New Game used the saved-game gate workaround"): return
-    if not require(Vector3(first["position"][0],first["position"][2],-first["position"][1]).distance_to(Vector3(-13.548369,32.932507,-158.19508)) < 1.0,"New Game restored the manor save instead of original starting pose"): return
+    # Original live reading of the initial stationary Hype (notes/manor-intro-reference-2026-10-03.md);
+    # native placement settles about one unit lower on the floor.
+    if not require(Vector3(first["position"][0],first["position"][2],-first["position"][1]).distance_to(Vector3(-2.052923,33.953423,-147.631805)) < 1.5,"New Game restored the manor save instead of original starting pose"): return
     var level := game.get("level") as Node3D
     var source_ui := level.get_node_or_null("AstrolabeUI")
     if not require(source_ui != null,"normal generated level lacks maintained UI"): return
@@ -697,7 +725,9 @@ func run() -> void:
     for item in source_ui.get("dialogue_items"): dialogue_names.append(str(item.get("identity")))
     dialogue_names.sort()
     report["dialogue_items"] = dialogue_names
-    if not require(dialogue_names == ["gogood_master_whatif01","gogood_texte1_manoir","gogood_texte1a_manoir","gogood_texte1b_manoir","gogood_texte1c_manoir","gogood_texte2_manoir","gogood_texte2a_manoir","hype_texte1_manoir","hype_texte2_manoir"],"normal New Game lacks the nine integrated dialogue resources"): return
+    # The catalogue now carries every Manor dialogue; the nine opening ones must be among them.
+    for opening_dialogue in ["gogood_master_whatif01","gogood_texte1_manoir","gogood_texte1a_manoir","gogood_texte1b_manoir","gogood_texte1c_manoir","gogood_texte2_manoir","gogood_texte2a_manoir","hype_texte1_manoir","hype_texte2_manoir"]:
+        if not require(dialogue_names.has(opening_dialogue),"normal New Game lacks the integrated dialogue resource " + opening_dialogue): return
     var paths: Dictionary = level.get_meta("source_actor_nodes")
     var gogoud := level.get_node(paths["level:/persos/world/0/5"]) as CharacterBody3D
     var turn_target := level.get_node(paths["level:/persos/world/0/28"]) as Node3D
@@ -813,7 +843,9 @@ func run() -> void:
     var import_player: Dictionary = import_state["actors"]["world/0/0/Hype"]
     var import_mana := int(import_player["magick"]["current_points"])
     var import_position_values: Array = import_player["transform"]["position"]
-    var import_position := Vector3(float(import_position_values[0]), float(import_position_values[1]), float(import_position_values[2]))
+    # An original save places Hype at the live-measured spot, not the saved matrix (stand-in load-placement).
+    var placement_fixture: Dictionary = preload("res://game/manoir_start.gd").load_fixture()
+    var import_position: Vector3 = preload("res://game/manoir_start.gd").source_vector(placement_fixture["source_translation"])
     var import_contract_actors: Dictionary = import_document.get("godot_state", {}).get("actors", {})
     var import_global_state: Dictionary = import_contract_actors.get("fix:/persos/15", {})
     var import_global_brain: Dictionary = import_global_state.get("brain", {})
@@ -839,7 +871,7 @@ func run() -> void:
     if not require(import_load_button != null and not import_load_button.disabled, "Load Game was unavailable for the preserved original import"): return
     var import_transition_start := transition_events.size()
     var import_menu_instance_id := import_menu.get_instance_id()
-    await click_gui(import_load_button, true)
+    await _choose_load_source(import_menu, import_load_button, 0)
     var imported_session: Node = await wait_session(import_menu_instance_id)
     if not require(imported_session != null and not bool(imported_session.get("new_game")), "Load Game did not open the saved-game session"): return
     var import_lifecycle_ok: bool = await _check_route_lifecycle("load_original_import", import_transition_start, import_mana, import_position)
@@ -875,10 +907,8 @@ func run() -> void:
     native_player["transform"]["position"] = native_position_values
     var native_validation := str(SAVE_STATE.validate(native_state))
     if not require(native_validation.is_empty(), "native schema-1 precedence fixture is invalid: " + native_validation): return
-    var native_file := FileAccess.open(SAVE_STATE.path(), FileAccess.WRITE)
-    if not require(native_file != null, "isolated native slot could not be created"): return
-    native_file.store_string(JSON.stringify(native_state) + "\n")
-    native_file.close()
+    var native_config: ConfigFile = SAVE_STATE.SAVE_FILE.from_state(native_state, SAVE_STATE.ACTOR)
+    if not require(native_config.save(SAVE_STATE.path()) == OK, "isolated native slot could not be created"): return
     if not require(SAVE_STATE.read().get("status") == "loaded", "schema-1 native slot was not accepted"): return
     var native_menu := await return_to_menu(imported_session)
     if not require(native_menu != null, "could not return to the menu after original import Load Game"): return
@@ -886,7 +916,7 @@ func run() -> void:
     if not require(native_load_button != null and not native_load_button.disabled, "valid native schema-1 slot did not enable Load Game"): return
     var native_transition_start := transition_events.size()
     var native_menu_instance_id := native_menu.get_instance_id()
-    await click_gui(native_load_button, true)
+    await _choose_load_source(native_menu, native_load_button, 0)
     var native_session: Node = await wait_session(native_menu_instance_id)
     if not require(native_session != null and not bool(native_session.get("new_game")), "Load Game did not open the native-slot session"): return
     var native_expected_position := Vector3(float(native_position_values[0]), float(native_position_values[1]), float(native_position_values[2]))
@@ -928,30 +958,23 @@ func run() -> void:
     corrupt_import.close()
     var failure_button := error_menu.find_child("LoadGame", true, false) as Button
     if not require(failure_button != null and not failure_button.disabled, "Load Game was not offered for the isolated failure check"): return
-    var failure_transition_start := transition_events.size()
-    await click_gui(failure_button)
-    var failed_event: Dictionary = await _wait_transition_event("failed", failure_transition_start, 30000)
-    if not require(not failed_event.is_empty(), "Load Game failure did not emit transition_failed"): return
-    var presenter := _loading_screen()
-    var dismiss := presenter.get_node_or_null("Viewport/Center/Content/Dismiss") as Button if presenter != null else null
-    var dismiss_deadline := Time.get_ticks_msec() + 5000
-    while (dismiss == null or not dismiss.visible) and Time.get_ticks_msec() < dismiss_deadline:
-        await process_frame
-        presenter = _loading_screen()
-        dismiss = presenter.get_node_or_null("Viewport/Center/Content/Dismiss") as Button if presenter != null else null
-    if not require(presenter != null and presenter.visible and dismiss != null and dismiss.visible, "Load Game failure did not leave a dismissible loading error visible"): return
-    report["load_failure"] = {"failed":failed_event,"presenter_visible":presenter.visible,"dismiss_visible":dismiss.visible}
-    var failure_session_instance_id := current_scene.get_instance_id()
-    await click_gui(dismiss)
-    var recovered_menu: Node = await wait_menu(failure_session_instance_id, 15000)
-    if not require(recovered_menu != null, "dismissing the Load Game error did not recover to the menu"): return
-    var recovery_status := recovered_menu.get_node("Status/Details") as Label
-    if not require(recovery_status.text.contains("The game could not be opened"), "recovered menu did not report the Load Game failure"): return
+    var failure_candidates: Array = SAVE_STATE.load_candidates()
+    if not require(failure_candidates.size() == 1 and failure_candidates[0].get("status") == "error" and not str(failure_candidates[0].get("message", "")).is_empty(), "a corrupt original save was not listed with its reason"): return
+    await click_gui(failure_button, true)
+    await _wait_frames_until(func(): return error_menu.get("save_picker") != null and is_instance_valid(error_menu.get("save_picker")), 3000)
+    var failure_picker: Control = error_menu.get("save_picker")
+    if not require(failure_picker != null and is_instance_valid(failure_picker), "Load Game did not open the save picker for the corrupt save"): return
+    var failure_rows := failure_picker.get_node("Panel/Margin/Rows/Saves").get_children()
+    if not require(failure_rows.size() == 2 and (failure_rows[0] as Button).disabled and failure_rows[1] is Label, "the unusable save was not shown disabled with its reason"): return
+    report["load_failure"] = {"candidate":failure_candidates[0].get("message", ""),"button_disabled":true}
+    await click_gui(failure_picker.get_node("Panel/Margin/Rows/Back") as Button, true)
+    await process_frame
+    if not require(error_menu.get("save_picker") == null or not is_instance_valid(error_menu.get("save_picker")), "closing the picker did not return to the main menu"): return
     _restore_test_fixtures()
     var restored_import_sha256 := FileAccess.get_sha256(ProjectSettings.globalize_path(ORIGINAL_IMPORT_PATH)) if FileAccess.file_exists(ORIGINAL_IMPORT_PATH) else ""
     report["original_import_fixture"]["sha256_after"] = restored_import_sha256
     report["original_import_fixture"]["restored_exactly"] = FileAccess.get_file_as_string(ORIGINAL_IMPORT_PATH) == original_import_backup and restored_import_sha256 == original_import_sha256
-    if not require(report["original_import_fixture"]["restored_exactly"] and SAVE_STATE.read_original_import().get("status") == "loaded", "the staged original import was not restored byte-for-byte after the isolated failure check"): return
+    if not require(report["original_import_fixture"]["restored_exactly"] and SAVE_STATE.read_original(ORIGINAL_IMPORT_FILE).get("status") == "loaded", "the staged original import was not restored byte-for-byte after the isolated failure check"): return
     if not require(_remove_test_slot(), "test-owned native slot could not be removed at the end of acceptance"): return
     report["save_preserved"] = true
     report["gogoud_semantic_follow_up"] = {"status":"deferred_until_main_accepts_f7d01209",
