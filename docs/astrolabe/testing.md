@@ -131,3 +131,16 @@ a game window on the desktop. Run the focused save selection with
 Use `cargo fmt --all --check` and `cargo clippy --workspace --locked --all-targets -- -D warnings` when changing the workspace. Rust test coverage is collected separately with `tools/coverage.py`; synthetic and local-inclusive reports remain separate. Install the pinned optional tools with `python3 tools/install-test-tools.py nextest llvm-cov` when needed.
 
 Tests are evidence for declared behavior. Converter tests should exercise useful values through OpenSpace import, Rete persistence, edits, reconstruction, and Godot output as relevant. Process-supervisor safeguards establish ownership and cleanup behavior. Neither structural conversion checks nor a selected original-game observation alone establish complete gameplay, cross-engine parity, or acceptance of rebuilt packages. See the [comparison evidence model](../orrery/comparison-model.md) and [historical checkpoint ledger](../../notes/testing-history.md).
+
+## Route checks
+
+`tools/route_check.py HANDOFF_DIR [route.json ...]` runs the saved routes in
+`tools/routes/` through the real game with `godot/tests/route_bot.gd` (steps go,
+plan, teleport, face, key, wait, until_normal, until_item, watch, census, spell,
+zones). It starts each run from a copy of an F5 handoff save directory, retries
+a route whose `required` step fails (Hype's scripted walk after the teleport to
+Gogoud's trigger ends in behavior 48 about half of the time), and reports any
+step marked FAILED or any script error. A route takes two to four minutes, so
+this is on demand and not part of the gate. The routes so far cover the sword
+and crossbow training stages; extend them toward the magic stage, Gogoud's key,
+the gates, damage and the level exit.
