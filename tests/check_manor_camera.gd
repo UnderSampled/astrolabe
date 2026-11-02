@@ -44,6 +44,8 @@ func check() -> void:
     var hype := scene.get_node(paths["level:/persos/world/0/0"]) as Node3D
     hype.set("motion_enabled", false)
     var camera = actor.get_node("SourceCamera")
+    # The game session binds one controller state per level; this bounded check supplies it.
+    camera.controller_state = load("res://addons/astrolabe/camera/source_controller_state.gd").new()
     var brain := actor.get_node("Brain")
     root.add_child(scene)
     root.size = Vector2i(640,480)
@@ -109,7 +111,7 @@ func check() -> void:
     var rotated_point := target.global_position + Vector3(-0.4,2.0,-0.3)
     if not require(bool(brain.call("normal_0_rule_0", brain.normal_revision)) and (-camera.global_basis.z.normalized()).distance_to((rotated_point - actor.global_position).normalized()) < 0.00001, "rotated target offsets were scaled or lost"): return
     var before := actor.global_transform
-    camera.motion_mode = 0
+    camera.motion_mode = 1 # modes 0, 3 and 6 are implemented
     if not require(not bool(actor.call("source_camera_update_position")) and actor.global_transform == before, "unsupported mode changed the camera"): return
     camera.motion_mode = 3
     camera.targeted_actor = null
