@@ -15,6 +15,7 @@ mod publication;
 mod resources;
 mod route;
 pub mod save_import;
+pub mod save_keys;
 mod scene;
 mod stand_ins;
 pub mod support;

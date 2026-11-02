@@ -124,7 +124,8 @@ enum Command {
         game: PathBuf,
         #[arg(long, value_enum)]
         profile: SaveProfile,
-        #[arg(long, default_value = "godot/game/original_save_import.json")]
+        /// Directory receiving SaveGameN.cfg.
+        #[arg(long, default_value = "godot/game/saves")]
         output: PathBuf,
     },
     Lzo {
@@ -356,6 +357,7 @@ pub fn run() -> Result<()> {
                     "slot": report["slot"],
                     "current_level": report["current_level"],
                     "godot_state_available": !report["godot_state"].is_null(),
+                    "coverage": report["coverage"],
                     "restored_fields": report["restored_fields"],
                     "not_restored": report["not_restored"],
                 })

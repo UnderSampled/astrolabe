@@ -29,6 +29,15 @@ def gpu_prefix():
     return ['xvfb-run', '-a', '-s', '-screen 0 1024x768x24']
 
 
+def prepare_save():
+    """Load Game restores a real slot, so the gate converts one."""
+    slot = work/'slot/SaveGame0'
+    slot.mkdir(parents=True)
+    subprocess.run(['unzip', '-qjo', str(root/'reference/Savefile_EN.zip'), '*.sav', '-d', str(slot)], check=True)
+    subprocess.run([str(root/'target/release/astrolabe'), 'import-save', str(slot), '--game', str(root/'disc'),
+                    '--profile', 'hype-pc-english-supplied-save'], cwd=root, check=True, stdout=subprocess.DEVNULL)
+
+
 def run(name, command, cwd, environment, limit):
     log = work/f'{name}.log'
     with log.open('wb') as output:
@@ -96,6 +105,7 @@ CHECKS = [intro, controls, original]
 
 
 def main():
+    only = sys.argv[1:]
     if len(CHECKS) > MAX_CHECKS:
         sys.exit(f'the gate is capped at {MAX_CHECKS} checks; remove one before adding another')
     started = time.monotonic()
@@ -107,8 +117,11 @@ def main():
         sys.exit('generated content is missing or stale: run target/release/astrolabe prepare-game disc godot')
     shutil.rmtree(work, ignore_errors=True)
     (work/'tmp').mkdir(parents=True)
+    prepare_save()
     results = {}
     for check in CHECKS:
+        if only and check.__name__ not in only:
+            continue
         begun = time.monotonic()
         results[check.__name__] = check(environment)
         results[check.__name__]['seconds'] = round(time.monotonic() - begun, 1)

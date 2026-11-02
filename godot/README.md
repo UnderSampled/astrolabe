@@ -25,7 +25,7 @@ Open `project.godot` in the Godot editor, wait for texture and sound imports to
 finish, press **F5**, and select **Load Game**. Running the project player
 before that first editor import leaves generated textures unavailable. Load
 Game first uses a native Godot slot if one exists; otherwise it reads the
-imported original slot from `game/original_save_import.json`. If neither is
+imported original slot from `game/saves/SaveGame0.cfg`. If neither is
 available, it uses the measured English manor seed. The normal generated
 `manoir/level.tscn` and compiled Hype Brains make gameplay decisions. Authored
 game code provides the camera, control guide, mana display, save operation and
@@ -62,7 +62,7 @@ target/release/astrolabe import-save /path/to/SaveGame0 \
   --game disc --profile hype-pc-english-supplied-save
 ```
 
-The command writes `game/original_save_import.json`, which is ignored local
+The command writes `game/saves/SaveGame0.cfg`, which is ignored local
 game data; the original files are read without modification. If no native
 Godot slot exists, **Load Game** reads Hype's saved position and recoverable
 orientation, mana, selected magic slot, supported inventory numbers, manor

@@ -35,9 +35,9 @@ control to Hype. The player can then walk, run, jump, draw and swing the sword,
 and open the inventory. Fight outcomes, progression and the rest of the manor are
 not finished.
 
-Load Game does not read an original savegame yet. It applies a measured fixture
-plus either the native slot or a small JSON written ahead of time by
-`astrolabe import-save`. Reading real save files is on the [plan](./plan.md).
+Load Game restores a real original slot after `astrolabe import-save` converts it
+to a named-key Godot file, and reports how many records it understands. See
+[save games](./docs/openspace/save-games.md).
 
 Calls the port can't perform yet run as documented
 [stand-ins](./docs/astrolabe/stand-ins.md), so the game keeps going. See the

@@ -362,9 +362,17 @@ func open_level() -> void:
         return
     ready_to_play = true
     loading = false
-    var loaded_message := "Original save loaded (supported fields only)" if selected_save["source"] == SAVE_STATE.ORIGINAL_SOURCE else "Saved game loaded"
+    var loaded_message := _loaded_message()
     stage("playable", loaded_message)
     _finish_initial_transition(true, "")
+
+## Says what was restored and what was not, rather than implying a whole save.
+func _loaded_message() -> String:
+    if not str(selected_save["source"]).begins_with(SAVE_STATE.ORIGINAL_SOURCE):
+        return "Game loaded"
+    var coverage: Dictionary = selected_save.get("coverage", {})
+    return "Original save: %d records, %d understood, %d unknown" % [coverage.get("records", 0), int(coverage.get("verified", 0)) + int(coverage.get("source", 0)), int(coverage.get("unknown", 0)) + int(coverage.get("unmapped", 0))]
+
 
 func open_new_game() -> void:
     # Use the complete saved scene and its original initial AI. No save fixture,

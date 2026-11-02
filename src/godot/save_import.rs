@@ -17,7 +17,7 @@ use crate::openspace::{
 };
 use anyhow::{Context, Result, ensure};
 use serde_json::{Value, json};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 pub const HYPE_PC_ENGLISH_PROFILE: &str = "hype-pc-english-supplied-save";
 
@@ -101,14 +101,6 @@ fn supported_inventory_state(save: &SaveSlot, item_zero: SavedInventoryItem) -> 
         }
     }
     Ok(json!({"gold": item_zero.quantity, "quantities": quantities}))
-}
-
-fn source_diagnostics_path(output: &Path) -> PathBuf {
-    let stem = output
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .unwrap_or("original_save_import");
-    output.with_file_name(format!("{stem}.source-diagnostics.json"))
 }
 
 fn source_position_prefix(save: &SaveSlot) -> Result<&[u8]> {
@@ -430,15 +422,25 @@ pub fn import_original_slot(
     if !has_godot_state {
         report["godot_state"] = Value::Null;
     }
-    let bytes = serde_json::to_vec_pretty(&report)?;
-    crate::files::write_atomic(output, &bytes)?;
-    let diagnostics = serde_json::to_vec_pretty(&json!({
-        "schema": 1,
-        "format": "astrolabe-openspace-save-source-diagnostics",
-        "profile": profile,
-        "source_save": save,
-    }))?;
-    crate::files::write_atomic(&source_diagnostics_path(output), &diagnostics)?;
+    let not_restored: Vec<&str> = report["not_restored"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect();
+    let converted = super::save_keys::convert(
+        &save,
+        profile,
+        report["godot_state"]
+            .as_object()
+            .map(|_| &report["godot_state"]),
+        &not_restored,
+    )?;
+    crate::files::write_atomic(
+        &output.join(format!("{}.cfg", save.slot)),
+        converted.text.as_bytes(),
+    )?;
+    report["coverage"] = json!({"records": converted.records, "tiers": converted.tiers});
     Ok(report)
 }
 

@@ -9,6 +9,7 @@ full-disk
 *.glb
 output/
 /godot/game/original_save_import.json
+/godot/game/saves/
 
 # .NET build artifacts
 bin/
@@ -42,3 +43,4 @@ __pycache__/
 
 # Rust build artifacts
 /target/
+/godot/game/original_save_import.source-diagnostics.json

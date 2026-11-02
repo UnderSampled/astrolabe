@@ -2,8 +2,9 @@ extends RefCounted
 ## Versioned native game state for the currently supported manor player slice.
 ## Source save addresses and raw SAI records never enter this file.
 
-const SLOT := "user://manoir-save-v1.json"
-const ORIGINAL_IMPORT := "res://game/original_save_import.json"
+const SAVE_FILE = preload("res://game/save_file.gd")
+const SLOT := "user://manoir-save.cfg"
+const ORIGINAL_SAVES := "res://game/saves"
 const ACTOR := "world/0/0/Hype"
 const PLAYER := "level:/persos/world/0/0"
 # Native checkpoints add independently validated life and level-owned armor.
@@ -264,35 +265,41 @@ static func validate(value: Variant) -> String:
 
 
 static func read() -> Dictionary:
-    if not FileAccess.file_exists(SLOT):
-        return {"status": "missing"}
-    var file := FileAccess.open(SLOT, FileAccess.READ)
-    if file == null:
-        return {"status": "error", "message": "Save cannot be opened."}
-    if file.get_length() > 1048576:
-        return {"status": "error", "message": "Save exceeds the supported size."}
-    var parsed: Variant = JSON.parse_string(file.get_as_text())
-    file.close()
-    var error := validate(parsed)
+    var opened := SAVE_FILE.open(SLOT)
+    if opened["status"] != "loaded": return opened
+    var state := SAVE_FILE.to_state(opened["config"], ACTOR, GLOBAL)
+    var error := validate(state)
     if not error.is_empty():
         return {"status": "error", "message": error}
-    return {"status": "loaded", "state": parsed}
+    return {"status": "loaded", "state": state}
 
 
-static func read_original_import() -> Dictionary:
-    if not FileAccess.file_exists(ORIGINAL_IMPORT):
-        return {"status": "missing"}
-    var file := FileAccess.open(ORIGINAL_IMPORT, FileAccess.READ)
-    if file == null:
-        return {"status": "error", "message": "Imported original save cannot be opened."}
-    if file.get_length() > 33554432:
-        return {"status": "error", "message": "Imported original save exceeds the supported size."}
-    var parsed: Variant = JSON.parse_string(file.get_as_text())
-    file.close()
+## Each converted SaveGameN slot, in name order.
+static func original_files() -> PackedStringArray:
+    var files := PackedStringArray()
+    for name in DirAccess.get_files_at(ORIGINAL_SAVES):
+        if name.ends_with(".cfg"): files.append(name)
+    files.sort()
+    return files
+
+
+static func read_original(file_name: String) -> Dictionary:
+    var opened := SAVE_FILE.open(ORIGINAL_SAVES.path_join(file_name))
+    if opened["status"] != "loaded": return opened
+    var config: ConfigFile = opened["config"]
+    var parsed := {
+        "schema": config.get_value("meta", "schema"),
+        "format": "astrolabe-godot-original-save-import",
+        "profile": config.get_value("meta", "profile", ""),
+        "current_level": config.get_value("meta", "level", ""),
+        "godot_state": SAVE_FILE.to_state(config, ACTOR, GLOBAL),
+    }
     var error := validate_original_import(parsed)
     if not error.is_empty():
         return {"status": "error", "message": error}
-    return {"status": "loaded", "state": parsed["godot_state"], "slot": str(parsed.get("slot", "")), "display_name": str(parsed.get("display_name", ""))}
+    var coverage := {}
+    for key in config.get_section_keys("coverage"): coverage[key] = config.get_value("coverage", key)
+    return {"status": "loaded", "state": parsed["godot_state"], "slot": str(config.get_value("meta", "slot", "")), "display_name": str(config.get_value("meta", "title", "")), "coverage": coverage}
 
 
 ## An overlay can be valid for component restoration without being a complete
@@ -321,9 +328,9 @@ static func validate_load(value: Variant) -> String:
 static func _load_candidate(result: Dictionary, source: String) -> Dictionary:
     var candidate := result.duplicate(true)
     candidate["source"] = source
-    candidate["path"] = SLOT if source == NATIVE_SOURCE else ORIGINAL_IMPORT
+    candidate["path"] = SLOT if source == NATIVE_SOURCE else ORIGINAL_SAVES.path_join(source.get_slice(":", 1))
     candidate["label"] = "Godot checkpoint — Manoir" if source == NATIVE_SOURCE else "Original Hype — " + str(candidate.get("display_name", "Manoir"))
-    if source == ORIGINAL_SOURCE and not str(candidate.get("slot", "")).is_empty():
+    if source.begins_with(ORIGINAL_SOURCE) and not str(candidate.get("slot", "")).is_empty():
         candidate["label"] += " (" + str(candidate["slot"]) + ")"
     if candidate["status"] == "loaded":
         var error := validate_load(candidate["state"])
@@ -338,23 +345,24 @@ static func _load_candidate(result: Dictionary, source: String) -> Dictionary:
 ## reason. Selecting an original import never deletes or upgrades a native slot.
 static func load_candidates() -> Array[Dictionary]:
     var candidates: Array[Dictionary] = []
-    for candidate in [_load_candidate(read(), NATIVE_SOURCE), _load_candidate(read_original_import(), ORIGINAL_SOURCE)]:
-        if candidate["status"] != "missing": candidates.append(candidate)
+    var native := _load_candidate(read(), NATIVE_SOURCE)
+    if native["status"] != "missing": candidates.append(native)
+    for file_name in original_files():
+        candidates.append(_load_candidate(read_original(file_name), ORIGINAL_SOURCE + ":" + file_name))
     return candidates
 
 
 static func read_for_load(source: String = "") -> Dictionary:
     if source == NATIVE_SOURCE: return _load_candidate(read(), source)
-    if source == ORIGINAL_SOURCE: return _load_candidate(read_original_import(), source)
+    if source.begins_with(ORIGINAL_SOURCE + ":"):
+        return _load_candidate(read_original(source.get_slice(":", 1)), source)
     if not source.is_empty():
         return {"status": "error", "message": "The selected save source is unsupported."}
     # Direct session entry retains explicit native precedence. A broken or
     # incomplete native slot is an error, never a silent switch of save identity.
-    var native := _load_candidate(read(), NATIVE_SOURCE)
-    if native["status"] != "missing": return native
-    var original := _load_candidate(read_original_import(), ORIGINAL_SOURCE)
-    if original["status"] != "missing": return original
-    return {"status": "error", "message": "No saved game is available. Choose New Game or import an original save."}
+    var candidates := load_candidates()
+    if not candidates.is_empty(): return candidates[0]
+    return {"status": "error", "message": "No saved game is available. Choose New Game or import an original Hype save."}
 
 
 static func validate_original_import(value: Variant) -> String:
@@ -753,18 +761,12 @@ static func write(actor: CharacterBody3D, level: Node3D) -> String:
     error = armor.call("validate_snapshot", state["actors"][ACTOR]["armor"])
     if not error.is_empty(): return error
     var temporary := SLOT + "." + str(Time.get_ticks_usec()) + ".tmp"
-    var file := FileAccess.open(temporary, FileAccess.WRITE)
-    if file == null:
+    if SAVE_FILE.from_state(state, ACTOR).save(temporary) != OK:
         return "Save cannot be written."
-    file.store_string(JSON.stringify(state) + "\n")
-    file.flush()
-    error = "" if file.get_error() == OK else "Save write failed."
-    file.close()
-    if error.is_empty() and DirAccess.rename_absolute(ProjectSettings.globalize_path(temporary), ProjectSettings.globalize_path(SLOT)) != OK:
-        error = "Save could not replace the previous slot."
-    if not error.is_empty():
+    if DirAccess.rename_absolute(ProjectSettings.globalize_path(temporary), ProjectSettings.globalize_path(SLOT)) != OK:
         DirAccess.remove_absolute(ProjectSettings.globalize_path(temporary))
-    return error
+        return "Save could not replace the previous slot."
+    return ""
 
 
 ## Original import used to put source item 0 in the ordinary quantities map.

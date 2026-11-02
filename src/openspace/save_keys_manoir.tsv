@@ -1,0 +1,1271 @@
+0:10:1032	inventory/MagicIce_51	handle_selected	source	whether this inventory handle is selected
+0:10:1034	inventory/MagicIce_51	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:1096	inventory/MagicIce_51	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:1208	inventory/MagicIce_53	handle_selected	source	whether this inventory handle is selected
+0:10:1210	inventory/MagicIce_53	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:1272	inventory/MagicIce_53	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:132	inventory/Weapon_81	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:1384	inventory/MagicIce_52	handle_selected	source	whether this inventory handle is selected
+0:10:1386	inventory/MagicIce_52	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:1448	inventory/MagicIce_52	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:1560	inventory/MagicIce_54	handle_selected	verified	selected
+0:10:1562	inventory/MagicIce_54	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:1624	inventory/MagicIce_54	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:1736	inventory/MagicFire_61	handle_selected	source	whether this inventory handle is selected
+0:10:1738	inventory/MagicFire_61	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:1800	inventory/MagicFire_61	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:1912	inventory/MagicFire_63	handle_selected	source	whether this inventory handle is selected
+0:10:1914	inventory/MagicFire_63	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:1976	inventory/MagicFire_63	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:2088	inventory/MagicFire_62	handle_selected	source	whether this inventory handle is selected
+0:10:2090	inventory/MagicFire_62	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:212	inventory/Weapon_80	handle_selected	source	whether this inventory handle is selected
+0:10:214	inventory/Weapon_80	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:2152	inventory/MagicFire_62	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:2264	inventory/MagicFire_64	handle_selected	source	whether this inventory handle is selected
+0:10:2266	inventory/MagicFire_64	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:2328	inventory/MagicFire_64	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:2440	inventory/MagicLightning_73	handle_selected	source	whether this inventory handle is selected
+0:10:2442	inventory/MagicLightning_73	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:2504	inventory/MagicLightning_73	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:252	inventory/Weapon_80	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:2620	inventory/MagicLightning_72	handle_selected	source	whether this inventory handle is selected
+0:10:2622	inventory/MagicLightning_72	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:2684	inventory/MagicLightning_72	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:2800	inventory/MagicLightning_74	handle_selected	verified	selected
+0:10:2802	inventory/MagicLightning_74	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:2864	inventory/MagicLightning_74	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:2980	inventory/MagicLightning_71	handle_selected	source	whether this inventory handle is selected
+0:10:2982	inventory/MagicLightning_71	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:3044	inventory/MagicLightning_71	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:3160	inventory/Object_31	handle_selected	source	whether this inventory handle is selected
+0:10:3162	inventory/Object_31	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:3200	inventory/Object_31	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:3280	inventory/Object_32	handle_selected	source	whether this inventory handle is selected
+0:10:3282	inventory/Object_32	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:3320	inventory/Object_32	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:3400	inventory/Object_30	handle_selected	source	whether this inventory handle is selected
+0:10:3402	inventory/Object_30	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:3440	inventory/Object_30	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:3520	inventory/Object_22	handle_selected	source	whether this inventory handle is selected
+0:10:3522	inventory/Object_22	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:3560	inventory/Object_22	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:3640	inventory/Object_86	handle_selected	source	whether this inventory handle is selected
+0:10:3642	inventory/Object_86	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:3680	inventory/Object_86	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:3760	inventory/Object_41	handle_selected	source	whether this inventory handle is selected
+0:10:3762	inventory/Object_41	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:3800	inventory/Object_41	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:3880	inventory/Object_23	handle_selected	source	whether this inventory handle is selected
+0:10:3882	inventory/Object_23	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:3920	inventory/Object_23	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:4000	inventory/Object_40	handle_selected	source	whether this inventory handle is selected
+0:10:4002	inventory/Object_40	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:4040	inventory/Object_40	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:412	inventory/RestoreMP_11	handle_selected	source	whether this inventory handle is selected
+0:10:4120	inventory/Object_44	handle_selected	source	whether this inventory handle is selected
+0:10:4122	inventory/Object_44	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:414	inventory/RestoreMP_11	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:4160	inventory/Object_44	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:4240	inventory/Object_21	handle_selected	source	whether this inventory handle is selected
+0:10:4242	inventory/Object_21	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:4280	inventory/Object_21	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:4360	inventory/Object_33	handle_selected	source	whether this inventory handle is selected
+0:10:4362	inventory/Object_33	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:4400	inventory/Object_33	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:4480	inventory/Object_20	handle_selected	source	whether this inventory handle is selected
+0:10:4482	inventory/Object_20	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:452	inventory/RestoreMP_11	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:4520	inventory/Object_20	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:4600	inventory/Object_88	handle_selected	source	whether this inventory handle is selected
+0:10:4602	inventory/Object_88	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:4640	inventory/Object_88	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:4720	inventory/Object_87	handle_selected	source	whether this inventory handle is selected
+0:10:4722	inventory/Object_87	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:4760	inventory/Object_87	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:4840	inventory/Object_45	handle_selected	source	whether this inventory handle is selected
+0:10:4842	inventory/Object_45	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:4880	inventory/Object_45	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:4960	inventory/Object_90	handle_selected	source	whether this inventory handle is selected
+0:10:4962	inventory/Object_90	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:5000	inventory/Object_90	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:5152	inventory/Object_42	handle_selected	source	whether this inventory handle is selected
+0:10:5154	inventory/Object_42	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:5192	inventory/Object_42	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:5272	inventory/Object_24	handle_selected	source	whether this inventory handle is selected
+0:10:5274	inventory/Object_24	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:5312	inventory/Object_24	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:536	inventory/RestoreMP_10	handle_selected	source	whether this inventory handle is selected
+0:10:538	inventory/RestoreMP_10	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:5392	inventory/Object_43	handle_selected	source	whether this inventory handle is selected
+0:10:5394	inventory/Object_43	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:5432	inventory/Object_43	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:5512	inventory/Object_85	handle_selected	source	whether this inventory handle is selected
+0:10:5514	inventory/Object_85	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:5552	inventory/Object_85	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:5632	inventory/Object_25	handle_selected	source	whether this inventory handle is selected
+0:10:5634	inventory/Object_25	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:5672	inventory/Object_25	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:576	inventory/RestoreMP_10	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:5790	inventory/special_resource_handle	handle_current_element_balance	source	current amount of a separately rooted inventory resource, displayed in the stats panel and added or spent by inventory effects; its linked item's maximum element capacity clamps additions
+0:10:5828	inventory/item	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:5852	inventory/NotFound_50	handle_selected	source	whether this inventory handle is selected
+0:10:5854	inventory/NotFound_50	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:5892	inventory/NotFound_50	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:5976	inventory/NotFound_50	handle_selected_5976	source	whether this inventory handle is selected
+0:10:5978	inventory/NotFound_50	handle_at_0x0a_5978	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:6016	inventory/NotFound_50	item_max_element_capacity_6016	source	maximum element capacity used to clamp inventory item additions
+0:10:6056	inventory/NotFound_50	handle_selected_6056	source	whether this inventory handle is selected
+0:10:6058	inventory/NotFound_50	handle_at_0x0a_6058	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:6096	inventory/NotFound_50	item_max_element_capacity_6096	source	maximum element capacity used to clamp inventory item additions
+0:10:6136	inventory/NotFound_50	handle_selected_6136	source	whether this inventory handle is selected
+0:10:6138	inventory/NotFound_50	handle_at_0x0a_6138	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:6176	inventory/NotFound_50	item_max_element_capacity_6176	source	maximum element capacity used to clamp inventory item additions
+0:10:6216	inventory/NotFound_50	handle_selected_6216	source	whether this inventory handle is selected
+0:10:6218	inventory/NotFound_50	handle_at_0x0a_6218	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:6256	inventory/NotFound_50	item_max_element_capacity_6256	source	maximum element capacity used to clamp inventory item additions
+0:10:6296	inventory/NotFound_50	handle_selected_6296	source	whether this inventory handle is selected
+0:10:6298	inventory/NotFound_50	handle_at_0x0a_6298	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:6336	inventory/NotFound_50	item_max_element_capacity_6336	source	maximum element capacity used to clamp inventory item additions
+0:10:6376	inventory/NotFound_50	handle_selected_6376	source	whether this inventory handle is selected
+0:10:6378	inventory/NotFound_50	handle_at_0x0a_6378	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:6416	inventory/NotFound_50	item_max_element_capacity_6416	source	maximum element capacity used to clamp inventory item additions
+0:10:6456	inventory/NotFound_50	handle_selected_6456	source	whether this inventory handle is selected
+0:10:6458	inventory/NotFound_50	handle_at_0x0a_6458	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:6496	inventory/NotFound_50	item_max_element_capacity_6496	source	maximum element capacity used to clamp inventory item additions
+0:10:6536	inventory/NotFound_50	handle_selected_6536	source	whether this inventory handle is selected
+0:10:6538	inventory/NotFound_50	handle_at_0x0a_6538	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:6576	inventory/NotFound_50	item_max_element_capacity_6576	source	maximum element capacity used to clamp inventory item additions
+0:10:660	inventory/RestoreHP_12	handle_selected	source	whether this inventory handle is selected
+0:10:6616	inventory/NotFound_50	handle_selected_6616	source	whether this inventory handle is selected
+0:10:6618	inventory/NotFound_50	handle_at_0x0a_6618	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:662	inventory/RestoreHP_12	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:6656	inventory/NotFound_50	item_max_element_capacity_6656	source	maximum element capacity used to clamp inventory item additions
+0:10:6696	inventory/NotFound_50	handle_selected_6696	source	whether this inventory handle is selected
+0:10:6698	inventory/NotFound_50	handle_at_0x0a_6698	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:6736	inventory/NotFound_50	item_max_element_capacity_6736	source	maximum element capacity used to clamp inventory item additions
+0:10:6776	inventory/NotFound_50	handle_selected_6776	source	whether this inventory handle is selected
+0:10:6778	inventory/NotFound_50	handle_at_0x0a_6778	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:6816	inventory/NotFound_50	item_max_element_capacity_6816	source	maximum element capacity used to clamp inventory item additions
+0:10:6856	inventory/RestoreHPMP_15	handle_selected	source	whether this inventory handle is selected
+0:10:6858	inventory/RestoreHPMP_15	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:6896	inventory/RestoreHPMP_15	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:6980	inventory/RestoreHPMP_99	handle_selected	source	whether this inventory handle is selected
+0:10:6982	inventory/RestoreHPMP_99	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:700	inventory/RestoreHP_12	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:7020	inventory/RestoreHPMP_99	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:7104	inventory/RestoreHPMP_100	handle_selected	source	whether this inventory handle is selected
+0:10:7106	inventory/RestoreHPMP_100	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:7144	inventory/RestoreHPMP_100	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:7228	inventory/RestoreHPMP_101	handle_selected	source	whether this inventory handle is selected
+0:10:7230	inventory/RestoreHPMP_101	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:7268	inventory/RestoreHPMP_101	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:7352	inventory/Object_91	handle_selected	source	whether this inventory handle is selected
+0:10:7354	inventory/Object_91	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:7392	inventory/Object_91	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:7544	inventory/Object_92	handle_selected	source	whether this inventory handle is selected
+0:10:7546	inventory/Object_92	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:7584	inventory/Object_92	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:7736	inventory/Object_93	handle_selected	source	whether this inventory handle is selected
+0:10:7738	inventory/Object_93	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:7776	inventory/Object_93	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:784	inventory/RestoreHP_13	handle_selected	source	whether this inventory handle is selected
+0:10:7856	inventory/Object_94	handle_selected	source	whether this inventory handle is selected
+0:10:7858	inventory/Object_94	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:786	inventory/RestoreHP_13	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:7896	inventory/Object_94	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:7976	inventory/Object_95	handle_selected	source	whether this inventory handle is selected
+0:10:7978	inventory/Object_95	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:8016	inventory/Object_95	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:8096	inventory/Object_96	handle_selected	source	whether this inventory handle is selected
+0:10:8098	inventory/Object_96	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:8136	inventory/Object_96	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:824	inventory/RestoreHP_13	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:10:908	inventory/RestoreHPMP_14	handle_selected	source	whether this inventory handle is selected
+0:10:910	inventory/RestoreHPMP_14	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:92	inventory/Weapon_81	handle_selected	source	whether this inventory handle is selected
+0:10:94	inventory/Weapon_81	handle_at_0x0a	source	signed 16-bit instantiated item quantity/number on the main inventory-list handle; negative values have special handling
+0:10:948	inventory/RestoreHPMP_14	item_max_element_capacity	source	maximum element capacity used to clamp inventory item additions
+0:17:15416	unknown/actor/level:/persos/world/0/0	dsg_118	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:15417	unknown/actor/level:/persos/world/0/0	dsg_117	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:15419	unknown/actor/level:/persos/world/0/0	dsg_115	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:15514	unknown/actor/level:/persos/world/0/0	dsg_83	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:15540	unknown/actor/level:/persos/world/0/0	dsg_57	unknown	Hype's own Boolean DSG[57] is set from Global DSG[45] in Normal behavior 0 and independently from Global DSG[73] == 4 in Reflex behavior 7; 121 typed tests of this actor slot gate several behavior paths
+0:17:15586	unknown/actor/level:/persos/world/0/0	dsg_11	unknown	Hype's own Boolean DSG[11] gates six repeated procedure-82 calls and action/channel branches; four identical Reflex rules compare function 205's selected inventory Object item info word to 44, then set or clear this latch alongside Hype DSG[10] under further guards
+0:17:297732	actor/level:/persos/world/0/27	dsg_8	verified	secret manor lever teleport unlock
+0:17:4312	unknown/actor/fix:/persos/15	dsg_6	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4384	unknown/actor/fix:/persos/15	dsg_29	unknown	the manor checkpoint copies Hype SelfPosition into this Global vector
+0:17:4396	actor/fix:/persos/15	dsg_30	source	checkpoint snapshot of Hype's sighting vector; Hype later uses its negated X/Y components with Z set to zero as input to ChangeSighting
+0:17:4408	unknown/actor/fix:/persos/15	dsg_31	unknown	the manor checkpoint copies its local Variable[1] into this Global vector
+0:17:4420	unknown/actor/fix:/persos/15	dsg_32	unknown	checkpoint-assigned Perso reference, currently targeting the rooted manor checkpoint actor; the checkpoint AI chooses MainActor or Me in opposite arms of an unresolved condition
+0:17:4460	unknown/actor/fix:/persos/15	dsg_237	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4464	unknown/actor/fix:/persos/15	dsg_236	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4473	unknown/actor/fix:/persos/15	dsg_233	unknown	one selects Hype's ActivateMap input branch with unsupported operation 374; IWorld clears it under the DSG[147] zero branch
+0:17:4474	unknown/actor/fix:/persos/15	dsg_232	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4475	unknown/actor/fix:/persos/15	dsg_231	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4476	unknown/actor/fix:/persos/15	dsg_230	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4478	unknown/actor/fix:/persos/15	dsg_228	unknown	Boolean latch read as zero and explicitly assigned one by its authored object-template AI branch
+0:17:4479	unknown/actor/fix:/persos/15	dsg_227	unknown	Boolean latch read as zero and explicitly assigned one by its authored object-template AI branch
+0:17:4480	unknown/actor/fix:/persos/15	dsg_226	unknown	Boolean latch read as zero and explicitly assigned one by its authored object-template AI branch
+0:17:4481	unknown/actor/fix:/persos/15	dsg_225	unknown	Boolean latch read as zero and explicitly assigned one by its authored object-template AI branch
+0:17:4482	unknown/actor/fix:/persos/15	dsg_224	unknown	Boolean latch read as zero and explicitly assigned one by its authored object-template AI branch
+0:17:4483	unknown/actor/fix:/persos/15	dsg_223	unknown	Boolean latch read as zero and explicitly assigned one by its authored object-template AI branch
+0:17:4484	unknown/actor/fix:/persos/15	dsg_222	unknown	Boolean latch read as zero and explicitly assigned one by its authored object-template AI branch
+0:17:4485	unknown/actor/fix:/persos/15	dsg_221	unknown	Boolean latch read as zero and explicitly assigned one by its authored object-template AI branch
+0:17:4486	unknown/actor/fix:/persos/15	dsg_220	unknown	Boolean latch read as zero and explicitly assigned one by its authored object-template AI branch
+0:17:4487	unknown/actor/fix:/persos/15	dsg_219	unknown	IWorld selector 6 sets one; one gates later IWorld branches and i_Gogood_MasterYoda KillSelf
+0:17:4488	unknown/actor/fix:/persos/15	dsg_218	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4489	unknown/actor/fix:/persos/15	dsg_217	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4490	unknown/actor/fix:/persos/15	dsg_216	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4497	unknown/actor/fix:/persos/15	dsg_209	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4498	unknown/actor/fix:/persos/15	dsg_208	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4499	unknown/actor/fix:/persos/15	dsg_207	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4500	unknown/actor/fix:/persos/15	dsg_206	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4501	unknown/actor/fix:/persos/15	dsg_205	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4502	unknown/actor/fix:/persos/15	dsg_204	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4503	unknown/actor/fix:/persos/15	dsg_203	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4504	unknown/actor/fix:/persos/15	dsg_202	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4506	unknown/actor/fix:/persos/15	dsg_200	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4510	unknown/actor/fix:/persos/15	dsg_199	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4511	unknown/actor/fix:/persos/15	dsg_198	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4512	unknown/actor/fix:/persos/15	dsg_197	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4513	unknown/actor/fix:/persos/15	dsg_196	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4514	unknown/actor/fix:/persos/15	dsg_195	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4515	unknown/actor/fix:/persos/15	dsg_194	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4516	unknown/actor/fix:/persos/15	dsg_193	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4517	unknown/actor/fix:/persos/15	dsg_192	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4518	unknown/actor/fix:/persos/15	dsg_191	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4519	unknown/actor/fix:/persos/15	dsg_190	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4523	unknown/actor/fix:/persos/15	dsg_186	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4524	unknown/actor/fix:/persos/15	dsg_185	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4525	unknown/actor/fix:/persos/15	dsg_184	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4526	unknown/actor/fix:/persos/15	dsg_183	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4527	unknown/actor/fix:/persos/15	dsg_182	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4528	unknown/actor/fix:/persos/15	dsg_181	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4529	unknown/actor/fix:/persos/15	dsg_180	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4530	unknown/actor/fix:/persos/15	dsg_179	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4531	unknown/actor/fix:/persos/15	dsg_178	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4532	unknown/actor/fix:/persos/15	dsg_177	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4533	unknown/actor/fix:/persos/15	dsg_176	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4534	unknown/actor/fix:/persos/15	dsg_175	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4535	unknown/actor/fix:/persos/15	dsg_174	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4536	unknown/actor/fix:/persos/15	dsg_173	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4539	unknown/actor/fix:/persos/15	dsg_170	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4540	unknown/actor/fix:/persos/15	dsg_169	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4541	unknown/actor/fix:/persos/15	dsg_168	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4542	unknown/actor/fix:/persos/15	dsg_167	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4543	unknown/actor/fix:/persos/15	dsg_166	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4544	unknown/actor/fix:/persos/15	dsg_165	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4545	unknown/actor/fix:/persos/15	dsg_164	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4546	unknown/actor/fix:/persos/15	dsg_163	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4547	unknown/actor/fix:/persos/15	dsg_162	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4548	unknown/actor/fix:/persos/15	dsg_161	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4549	unknown/actor/fix:/persos/15	dsg_160	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4550	unknown/actor/fix:/persos/15	dsg_159	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4551	unknown/actor/fix:/persos/15	dsg_158	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4552	unknown/actor/fix:/persos/15	dsg_157	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4553	unknown/actor/fix:/persos/15	dsg_156	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4554	unknown/actor/fix:/persos/15	dsg_155	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4555	unknown/actor/fix:/persos/15	dsg_154	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4556	unknown/actor/fix:/persos/15	dsg_153	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4557	unknown/actor/fix:/persos/15	dsg_152	unknown	zero permits the shared manor mannequin Reflex slot-match path; IWorld selector branches 2-4 clear the flag and branches 5-6 set it, while Yoda behavior 18 also sets it
+0:17:4558	unknown/actor/fix:/persos/15	dsg_151	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4559	unknown/actor/fix:/persos/15	dsg_150	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4560	unknown/actor/fix:/persos/15	dsg_149	unknown	Manoir grille/IWorld sequence latch: the grille tests value 1 before a behavior transition and writes 1 in its next behavior; IWorld has guarded set and clear paths
+0:17:4561	unknown/actor/fix:/persos/15	dsg_148	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4562	unknown/actor/fix:/persos/15	dsg_147	unknown	Manoir event flag set after iGogood Action state 36; value 1 triggers iHypeStatue_Manoir_MAD's typed KillSelf branch
+0:17:4563	unknown/actor/fix:/persos/15	dsg_146	unknown	shared signal used by two manor fixed-camera actors: they set it to one on branches requesting camera state 3 and clear it on reset/transition branches; one schedules behavior 9 and zero behavior 0
+0:17:4564	actor/fix:/persos/15	dsg_145	source	Manoir time-travel placement preset selector: 1 copies the script's four position vectors 15-18 into active vectors 7-10; 0 selects vectors 11-14; the travel camera also branches on zero for a sound cue
+0:17:4565	unknown/actor/fix:/persos/15	dsg_144	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4566	unknown/actor/fix:/persos/15	dsg_143	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4567	unknown/actor/fix:/persos/15	dsg_142	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4568	unknown/actor/fix:/persos/15	dsg_141	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4569	unknown/actor/fix:/persos/15	dsg_140	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4570	unknown/actor/fix:/persos/15	dsg_139	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4571	unknown/actor/fix:/persos/15	dsg_138	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4572	unknown/actor/fix:/persos/15	dsg_137	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4573	unknown/actor/fix:/persos/15	dsg_136	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4574	unknown/actor/fix:/persos/15	dsg_135	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4575	unknown/actor/fix:/persos/15	dsg_134	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4576	unknown/actor/fix:/persos/15	dsg_133	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4577	unknown/actor/fix:/persos/15	dsg_132	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4578	unknown/actor/fix:/persos/15	dsg_131	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4579	unknown/actor/fix:/persos/15	dsg_130	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4580	unknown/actor/fix:/persos/15	dsg_129	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4581	unknown/actor/fix:/persos/15	dsg_128	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4582	unknown/actor/fix:/persos/15	dsg_127	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4583	unknown/actor/fix:/persos/15	dsg_126	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4584	unknown/actor/fix:/persos/15	dsg_125	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4585	unknown/actor/fix:/persos/15	dsg_124	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4586	unknown/actor/fix:/persos/15	dsg_123	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4587	unknown/actor/fix:/persos/15	dsg_122	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4588	unknown/actor/fix:/persos/15	dsg_121	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4589	unknown/actor/fix:/persos/15	dsg_120	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4590	unknown/actor/fix:/persos/15	dsg_119	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4591	unknown/actor/fix:/persos/15	dsg_118	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4592	unknown/actor/fix:/persos/15	dsg_117	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4593	unknown/actor/fix:/persos/15	dsg_116	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4594	unknown/actor/fix:/persos/15	dsg_115	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4595	unknown/actor/fix:/persos/15	dsg_114	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4596	unknown/actor/fix:/persos/15	dsg_113	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4597	unknown/actor/fix:/persos/15	dsg_112	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4598	unknown/actor/fix:/persos/15	dsg_111	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4599	unknown/actor/fix:/persos/15	dsg_110	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4600	unknown/actor/fix:/persos/15	dsg_109	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4601	unknown/actor/fix:/persos/15	dsg_108	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4602	unknown/actor/fix:/persos/15	dsg_107	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4603	unknown/actor/fix:/persos/15	dsg_106	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4604	unknown/actor/fix:/persos/15	dsg_105	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4605	unknown/actor/fix:/persos/15	dsg_104	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4606	unknown/actor/fix:/persos/15	dsg_103	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4607	unknown/actor/fix:/persos/15	dsg_102	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4608	unknown/actor/fix:/persos/15	dsg_101	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4609	unknown/actor/fix:/persos/15	dsg_100	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4610	unknown/actor/fix:/persos/15	dsg_99	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4611	unknown/actor/fix:/persos/15	dsg_98	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4612	unknown/actor/fix:/persos/15	dsg_97	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4613	unknown/actor/fix:/persos/15	dsg_96	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4614	unknown/actor/fix:/persos/15	dsg_95	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4615	unknown/actor/fix:/persos/15	dsg_94	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4616	unknown/actor/fix:/persos/15	dsg_93	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4617	unknown/actor/fix:/persos/15	dsg_92	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4618	unknown/actor/fix:/persos/15	dsg_91	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4619	unknown/actor/fix:/persos/15	dsg_90	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4620	unknown/actor/fix:/persos/15	dsg_89	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4621	unknown/actor/fix:/persos/15	dsg_88	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4622	unknown/actor/fix:/persos/15	dsg_87	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4623	unknown/actor/fix:/persos/15	dsg_86	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4624	unknown/actor/fix:/persos/15	dsg_85	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4625	unknown/actor/fix:/persos/15	dsg_84	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4630	unknown/actor/fix:/persos/15	dsg_82	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4631	unknown/actor/fix:/persos/15	dsg_81	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4632	unknown/actor/fix:/persos/15	dsg_80	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4633	unknown/actor/fix:/persos/15	dsg_79	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4634	unknown/actor/fix:/persos/15	dsg_78	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4635	unknown/actor/fix:/persos/15	dsg_77	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4636	unknown/actor/fix:/persos/15	dsg_76	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4637	unknown/actor/fix:/persos/15	dsg_75	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4639	unknown/actor/fix:/persos/15	dsg_73	unknown	current configuration tier: iDummy_PourCercles writes 4, 3, 2, 1 or 0 from ordered Global DSG[44], [42], [40], [38] branches; Hype reads == 4 and IWorld can reset it to zero
+0:17:4640	unknown/actor/fix:/persos/15	dsg_72	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4641	unknown/actor/fix:/persos/15	dsg_71	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4642	unknown/actor/fix:/persos/15	dsg_70	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4643	unknown/actor/fix:/persos/15	dsg_69	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4644	unknown/actor/fix:/persos/15	dsg_68	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4645	unknown/actor/fix:/persos/15	dsg_67	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4649	unknown/actor/fix:/persos/15	dsg_66	unknown	one selects a Gogood return actor Normal behavior 10 request under IWorld's outer gates, plus separate mannequin-frame and return-script branches
+0:17:4650	unknown/actor/fix:/persos/15	dsg_65	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4651	unknown/actor/fix:/persos/15	dsg_64	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4652	unknown/actor/fix:/persos/15	dsg_63	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4653	unknown/actor/fix:/persos/15	dsg_62	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4654	unknown/actor/fix:/persos/15	dsg_61	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4655	unknown/actor/fix:/persos/15	dsg_60	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4656	unknown/actor/fix:/persos/15	dsg_59	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4657	unknown/actor/fix:/persos/15	dsg_58	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4658	unknown/actor/fix:/persos/15	dsg_57	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4659	unknown/actor/fix:/persos/15	dsg_56	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4660	unknown/actor/fix:/persos/15	dsg_55	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4661	unknown/actor/fix:/persos/15	dsg_54	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4662	unknown/actor/fix:/persos/15	dsg_53	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4663	unknown/actor/fix:/persos/15	dsg_52	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4664	unknown/actor/fix:/persos/15	dsg_51	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4665	unknown/actor/fix:/persos/15	dsg_50	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4666	unknown/actor/fix:/persos/15	dsg_49	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4667	unknown/actor/fix:/persos/15	dsg_48	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4668	unknown/actor/fix:/persos/15	dsg_47	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4669	unknown/actor/fix:/persos/15	dsg_46	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4670	unknown/actor/fix:/persos/15	dsg_45	unknown	Hype copies this Boolean into its own DSG[57] in Normal behavior 0 statement 67; its Reflex behavior 7 also overwrites that actor field from Global DSG[73] == 4
+0:17:4671	unknown/actor/fix:/persos/15	dsg_44	unknown	one selects configuration tier 4 in the first iDummy_PourCercles branch
+0:17:4672	unknown/actor/fix:/persos/15	dsg_43	unknown	zero deactivates level allocation 5460; one can select iDummy_TimeTravel behavior 6 when Func_GetGameState is not 4 and earlier routes fail
+0:17:4673	unknown/actor/fix:/persos/15	dsg_42	unknown	after DSG[44] fails, one selects configuration tier 3 in iDummy_PourCercles
+0:17:4674	unknown/actor/fix:/persos/15	dsg_41	unknown	zero deactivates level allocation 5452; one can select iDummy_TimeTravel behavior 5 when Func_GetGameState is not 3 and other guards pass
+0:17:4675	unknown/actor/fix:/persos/15	dsg_40	unknown	after DSG[44] and DSG[42] fail, one selects configuration tier 2 in iDummy_PourCercles
+0:17:4676	unknown/actor/fix:/persos/15	dsg_39	unknown	IWorld selector value 6 sets one; later one/zero branches pair with Global DSG[0] values 3/2 and request Gogood-return Normal behaviors through procedure 207; iDummy_TimeTravel reads both polarities separately
+0:17:4677	unknown/actor/fix:/persos/15	dsg_38	unknown	after higher flags fail, one selects configuration tier 1 and zero selects fallback tier 0 in iDummy_PourCercles; IWorld also reads it in conditional Gogood behavior selection
+0:17:4678	unknown/actor/fix:/persos/15	dsg_37	unknown	value one gates Hype's ChangeSighting call using negated X/Y components of the checkpoint-saved Global DSG[30] vector; Hype sets and clears this latch around an action sequence
+0:17:4680	unknown/actor/fix:/persos/15	dsg_28	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4684	unknown/actor/fix:/persos/15	dsg_24	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4701	actor/fix:/persos/15	dsg_18	source	Boolean gate for manual camera-look mode: 0 permits entry when the input and companion state allow it; 1 blocks entry and causes active camera-look behavior to exit
+0:17:4702	actor/fix:/persos/15	dsg_17	source	Boolean manual camera-look permission: 1 allows BT_Camera_Look to enter its look behavior when pressed and DSG[18] is 0; 0 prevents entry and is an exit condition from active look behavior
+0:17:4713	unknown/actor/fix:/persos/15	dsg_5	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+0:17:4717	unknown/actor/fix:/persos/15	dsg_4	unknown	value one gates Hype and iHypeStatue branches with 35 Raymap-labeled SwapLinkTableObjects calls over matching pairs; Hype also issues material-diffuse calls under this gate
+0:17:4719	unknown/actor/fix:/persos/15	dsg_2	unknown	Hype transition behavior 76 sets 1 while disabling channels, behavior 77 clears it while restoring channels; value 1 suppresses Hype channel 29 and statue channel 16, while value 0 permits several Armor HUD show branches
+0:17:4720	unknown/actor/fix:/persos/15	dsg_1	unknown	Hype uses value 1 to activate channel 73 and to permit weapon-pad/GetCrossbow input branches; Hype transitions set/clear it with other Global fields, while iHypeStatue selects channels 19/14 from it
+0:17:4721	unknown/actor/fix:/persos/15	dsg_0	unknown	channel-72 activation is source-backed, but the channel's authored target and gameplay purpose are unknown
+0:21:1032	dialogue/3	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:10428	unknown/dialogue/13	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:10436	dialogue/14	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:10516	unknown/dialogue/15	list_reference	unknown	counted dialogue list
+0:21:10984	unknown/dialogue/14	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:10992	dialogue/15	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:11072	unknown/dialogue/16	list_reference	unknown	counted dialogue list
+0:21:112	unknown/dialogue/2	list_reference	unknown	counted dialogue list
+0:21:1124	unknown/dialogue/4	list_reference	unknown	counted dialogue list
+0:21:11876	unknown/dialogue/15	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:11884	dialogue/16	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:11976	unknown/dialogue/17	list_reference	unknown	counted dialogue list
+0:21:12	unknown/dialogue/1	list_reference	unknown	counted dialogue list
+0:21:12416	unknown/dialogue/16	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:12424	dialogue/17	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:12512	unknown/dialogue/18	list_reference	unknown	counted dialogue list
+0:21:12844	unknown/dialogue/17	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:12852	dialogue/18	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:12932	unknown/dialogue/19	list_reference	unknown	counted dialogue list
+0:21:13552	unknown/dialogue/18	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:13560	dialogue/19	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:13648	unknown/dialogue/20	list_reference	unknown	counted dialogue list
+0:21:13812	unknown/dialogue/19	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:13932	dialogue/20	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:14020	unknown/dialogue/21	list_reference	unknown	counted dialogue list
+0:21:14824	unknown/dialogue/20	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:14944	dialogue/21	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:15024	unknown/dialogue/22	list_reference	unknown	counted dialogue list
+0:21:15228	unknown/dialogue/21	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:15336	dialogue/22	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:1536	unknown/dialogue/3	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:15416	unknown/dialogue/23	list_reference	unknown	counted dialogue list
+0:21:15620	unknown/dialogue/22	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:15628	dialogue/23	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:15708	unknown/dialogue/24	list_reference	unknown	counted dialogue list
+0:21:15912	unknown/dialogue/23	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:15920	dialogue/24	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:16000	unknown/dialogue/25	list_reference	unknown	counted dialogue list
+0:21:16204	unknown/dialogue/24	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:16212	dialogue/25	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:16296	unknown/dialogue/26	list_reference	unknown	counted dialogue list
+0:21:1660	dialogue/4	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:16792	unknown/dialogue/25	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:16900	dialogue/26	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:16984	unknown/dialogue/27	list_reference	unknown	counted dialogue list
+0:21:17444	unknown/dialogue/26	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:17452	dialogue/27	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:1752	unknown/dialogue/5	list_reference	unknown	counted dialogue list
+0:21:17540	unknown/dialogue/28	list_reference	unknown	counted dialogue list
+0:21:18012	unknown/dialogue/27	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:18020	dialogue/28	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:18108	unknown/dialogue/29	list_reference	unknown	counted dialogue list
+0:21:18576	unknown/dialogue/28	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:18584	dialogue/29	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:18672	unknown/dialogue/30	list_reference	unknown	counted dialogue list
+0:21:19092	unknown/dialogue/29	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:19100	dialogue/30	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:19188	unknown/dialogue/31	list_reference	unknown	counted dialogue list
+0:21:19596	unknown/dialogue/30	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:19604	dialogue/31	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:19692	unknown/dialogue/32	list_reference	unknown	counted dialogue list
+0:21:20	dialogue/1	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:20112	unknown/dialogue/31	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:20220	dialogue/32	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:20308	unknown/dialogue/33	list_reference	unknown	counted dialogue list
+0:21:20728	unknown/dialogue/32	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:20736	dialogue/33	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:20824	unknown/dialogue/34	list_reference	unknown	counted dialogue list
+0:21:2092	unknown/dialogue/4	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:21244	unknown/dialogue/33	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:21252	dialogue/34	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:21340	unknown/dialogue/35	list_reference	unknown	counted dialogue list
+0:21:21760	unknown/dialogue/34	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:21768	dialogue/35	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:21856	unknown/dialogue/36	list_reference	unknown	counted dialogue list
+0:21:2216	dialogue/5	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:22276	unknown/dialogue/35	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:22284	dialogue/36	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:22372	unknown/dialogue/37	list_reference	unknown	counted dialogue list
+0:21:22728	unknown/dialogue/36	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:22736	dialogue/37	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:22824	unknown/dialogue/38	list_reference	unknown	counted dialogue list
+0:21:2308	unknown/dialogue/6	list_reference	unknown	counted dialogue list
+0:21:23244	unknown/dialogue/37	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:23252	dialogue/38	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:23340	unknown/dialogue/39	list_reference	unknown	counted dialogue list
+0:21:23760	unknown/dialogue/38	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:23768	dialogue/39	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:23864	unknown/dialogue/40	list_reference	unknown	counted dialogue list
+0:21:24292	unknown/dialogue/39	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:24300	dialogue/40	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:24396	unknown/dialogue/41	list_reference	unknown	counted dialogue list
+0:21:24824	unknown/dialogue/40	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:24832	dialogue/41	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:24928	unknown/dialogue/42	list_reference	unknown	counted dialogue list
+0:21:25356	unknown/dialogue/41	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:25364	dialogue/42	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:25460	unknown/dialogue/43	list_reference	unknown	counted dialogue list
+0:21:25888	unknown/dialogue/42	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:25896	dialogue/43	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:25980	unknown/dialogue/44	list_reference	unknown	counted dialogue list
+0:21:26420	unknown/dialogue/43	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:26528	dialogue/44	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:26612	unknown/dialogue/45	list_reference	unknown	counted dialogue list
+0:21:27052	unknown/dialogue/44	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:27060	dialogue/45	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:27144	unknown/dialogue/46	list_reference	unknown	counted dialogue list
+0:21:2744	unknown/dialogue/5	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:27552	unknown/dialogue/45	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:27560	dialogue/46	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:27644	unknown/dialogue/47	list_reference	unknown	counted dialogue list
+0:21:28084	unknown/dialogue/46	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:28092	dialogue/47	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:28176	unknown/dialogue/48	list_reference	unknown	counted dialogue list
+0:21:2868	dialogue/6	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:28832	unknown/dialogue/47	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:28840	dialogue/48	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:28924	unknown/dialogue/49	list_reference	unknown	counted dialogue list
+0:21:29360	unknown/dialogue/48	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:29368	dialogue/49	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:29464	unknown/dialogue/50	list_reference	unknown	counted dialogue list
+0:21:2960	unknown/dialogue/7	list_reference	unknown	counted dialogue list
+0:21:31316	unknown/dialogue/49	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:31424	dialogue/50	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:31520	unknown/dialogue/51	list_reference	unknown	counted dialogue list
+0:21:33632	unknown/dialogue/50	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:33740	dialogue/51	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:33836	unknown/dialogue/52	list_reference	unknown	counted dialogue list
+0:21:34820	unknown/dialogue/51	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:34928	dialogue/52	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:35028	unknown/dialogue/53	list_reference	unknown	counted dialogue list
+0:21:35920	unknown/dialogue/52	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:36028	dialogue/53	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:36120	unknown/dialogue/54	list_reference	unknown	counted dialogue list
+0:21:38192	unknown/dialogue/53	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:38304	dialogue/54	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:38396	unknown/dialogue/55	list_reference	unknown	counted dialogue list
+0:21:392	unknown/dialogue/1	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:3956	unknown/dialogue/6	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:40568	unknown/dialogue/54	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:40680	dialogue/55	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:40772	unknown/dialogue/56	list_reference	unknown	counted dialogue list
+0:21:4080	dialogue/7	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:4164	unknown/dialogue/8	list_reference	unknown	counted dialogue list
+0:21:42036	unknown/dialogue/55	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:42148	dialogue/56	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:42244	unknown/dialogue/57	list_reference	unknown	counted dialogue list
+0:21:43472	unknown/dialogue/56	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:43588	dialogue/57	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:43680	unknown/dialogue/58	list_reference	unknown	counted dialogue list
+0:21:44664	unknown/dialogue/57	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:44776	dialogue/58	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:44872	unknown/dialogue/59	list_reference	unknown	counted dialogue list
+0:21:47136	unknown/dialogue/58	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:47256	dialogue/59	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:47352	unknown/dialogue/60	list_reference	unknown	counted dialogue list
+0:21:48264	unknown/dialogue/59	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:48380	dialogue/60	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:48472	unknown/dialogue/61	list_reference	unknown	counted dialogue list
+0:21:50500	unknown/dialogue/60	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:50612	dialogue/61	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:5068	unknown/dialogue/7	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:50700	unknown/dialogue/62	list_reference	unknown	counted dialogue list
+0:21:516	dialogue/2	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:5176	dialogue/8	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:52180	unknown/dialogue/61	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:52292	dialogue/62	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:52388	unknown/dialogue/63	list_reference	unknown	counted dialogue list
+0:21:5260	unknown/dialogue/9	list_reference	unknown	counted dialogue list
+0:21:56512	unknown/dialogue/62	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:56520	dialogue/63	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:56612	unknown/dialogue/64	list_reference	unknown	counted dialogue list
+0:21:57756	unknown/dialogue/63	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:57764	dialogue/64	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:57856	unknown/dialogue/65	list_reference	unknown	counted dialogue list
+0:21:608	unknown/dialogue/3	list_reference	unknown	counted dialogue list
+0:21:61196	unknown/dialogue/64	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:61204	dialogue/65	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:61296	unknown/dialogue/66	list_reference	unknown	counted dialogue list
+0:21:6184	unknown/dialogue/8	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:6192	dialogue/9	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:6276	unknown/dialogue/10	list_reference	unknown	counted dialogue list
+0:21:64024	unknown/dialogue/65	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:64032	dialogue/66	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:64124	unknown/dialogue/0	list_reference	unknown	counted dialogue list
+0:21:64860	unknown/dialogue/66	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:64868	dialogue/0	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:65300	unknown/dialogue/0	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:7284	unknown/dialogue/9	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:7292	dialogue/10	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:7372	unknown/dialogue/11	list_reference	unknown	counted dialogue list
+0:21:7984	unknown/dialogue/10	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:7992	dialogue/11	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:8072	unknown/dialogue/12	list_reference	unknown	counted dialogue list
+0:21:8996	unknown/dialogue/11	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:9004	dialogue/12	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:908	unknown/dialogue/2	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:9088	unknown/dialogue/13	list_reference	unknown	counted dialogue list
+0:21:9424	unknown/dialogue/12	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:9432	dialogue/13	entry_count	source	number of references in this dialogue list; one in the supplied manor save
+0:21:9516	unknown/dialogue/14	list_reference	unknown	counted dialogue list
+0:5:1340	actor/fix:/persos/15	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+0:5:1341	actor/fix:/persos/15	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+0:5:1342	actor/fix:/persos/15	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+0:5:1343	actor/fix:/persos/15	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+0:5:1344	actor/fix:/persos/15	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+0:5:1360	unknown/actor/fix:/persos/15	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:1632	actor/fix:/persos/15	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:24236	actor/level:/persos/world/0/0	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+0:5:24237	actor/level:/persos/world/0/0	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+0:5:24238	actor/level:/persos/world/0/0	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+0:5:24239	actor/level:/persos/world/0/0	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+0:5:24240	actor/level:/persos/world/0/0	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+0:5:24256	unknown/actor/level:/persos/world/0/0	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4	game/hype_game_clock	elapsed_time_ms	source	elapsed game-clock milliseconds sampled before saving; after player-mode load, the reset running timer is set forward to the saved value when lower
+0:5:4309552	actor/level:/persos/world/0/0	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/5
+0:5:4310208	unknown/actor/level:/persos/world/0/2	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4313752	actor/level:/persos/world/0/2	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/5
+0:5:4314448	unknown/actor/level:/persos/world/0/162	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4315396	actor/level:/persos/world/0/162	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4316020	unknown/actor/level:/persos/world/0/38	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4316408	actor/level:/persos/world/0/38	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4317028	unknown/actor/level:/persos/world/0/39	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4317100	actor/level:/persos/world/0/39	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4317720	unknown/actor/level:/persos/world/0/37	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4317792	actor/level:/persos/world/0/37	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4318412	unknown/actor/level:/persos/world/0/40	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4318484	actor/level:/persos/world/0/40	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4319104	unknown/actor/level:/persos/world/0/42	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4319176	actor/level:/persos/world/0/42	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4319796	unknown/actor/level:/persos/world/0/36	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4319868	actor/level:/persos/world/0/36	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4320488	unknown/actor/level:/persos/world/0/41	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4320560	actor/level:/persos/world/0/41	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4321180	unknown/actor/level:/persos/world/0/78	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4321260	actor/level:/persos/world/0/78	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4321880	unknown/actor/level:/persos/world/0/84	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4321960	actor/level:/persos/world/0/84	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4322580	unknown/actor/level:/persos/world/0/85	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4322660	actor/level:/persos/world/0/85	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4323280	unknown/actor/level:/persos/world/0/79	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4323360	actor/level:/persos/world/0/79	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4323980	unknown/actor/level:/persos/world/0/82	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4324060	actor/level:/persos/world/0/82	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4324680	unknown/actor/level:/persos/world/0/81	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4324760	actor/level:/persos/world/0/81	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4325380	unknown/actor/level:/persos/world/0/80	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4325460	actor/level:/persos/world/0/80	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4326080	unknown/actor/level:/persos/world/0/87	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4326160	actor/level:/persos/world/0/87	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4326780	unknown/actor/level:/persos/world/0/86	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4326860	actor/level:/persos/world/0/86	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4327480	unknown/actor/level:/persos/world/0/83	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4327560	actor/level:/persos/world/0/83	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4328180	unknown/actor/level:/persos/world/0/77	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4328260	actor/level:/persos/world/0/77	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4328880	unknown/actor/level:/persos/world/0/88	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4328960	actor/level:/persos/world/0/88	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4329580	unknown/actor/level:/persos/world/0/116	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4329660	actor/level:/persos/world/0/116	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4330280	unknown/actor/level:/persos/world/0/115	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4330364	actor/level:/persos/world/0/115	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4330984	unknown/actor/level:/persos/world/0/117	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4331068	actor/level:/persos/world/0/117	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4331688	unknown/actor/level:/persos/world/0/121	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4331768	actor/level:/persos/world/0/121	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4332388	unknown/actor/level:/persos/world/0/103	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4332464	actor/level:/persos/world/0/103	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4333084	unknown/actor/level:/persos/world/0/111	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4333160	actor/level:/persos/world/0/111	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4333780	unknown/actor/level:/persos/world/0/120	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4333856	actor/level:/persos/world/0/120	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4334476	unknown/actor/level:/persos/world/0/112	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4334556	actor/level:/persos/world/0/112	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4335176	unknown/actor/level:/persos/world/0/107	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4335256	actor/level:/persos/world/0/107	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4335876	unknown/actor/level:/persos/world/0/122	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4335952	actor/level:/persos/world/0/122	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4336572	unknown/actor/level:/persos/world/0/113	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4336648	actor/level:/persos/world/0/113	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4337268	unknown/actor/level:/persos/world/0/124	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4337344	actor/level:/persos/world/0/124	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4337964	unknown/actor/level:/persos/world/0/101	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4338040	actor/level:/persos/world/0/101	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4338660	unknown/actor/level:/persos/world/0/102	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4338736	actor/level:/persos/world/0/102	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4339356	unknown/actor/level:/persos/world/0/106	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4339444	actor/level:/persos/world/0/106	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4340064	unknown/actor/level:/persos/world/0/123	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4340140	actor/level:/persos/world/0/123	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4340760	unknown/actor/level:/persos/world/0/108	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4340836	actor/level:/persos/world/0/108	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4341456	unknown/actor/level:/persos/world/0/99	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4341536	actor/level:/persos/world/0/99	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4342156	unknown/actor/level:/persos/world/0/104	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4342232	actor/level:/persos/world/0/104	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4342852	unknown/actor/level:/persos/world/0/118	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4342928	actor/level:/persos/world/0/118	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4343548	unknown/actor/level:/persos/world/0/100	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4343624	actor/level:/persos/world/0/100	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4344244	unknown/actor/level:/persos/world/0/114	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4344320	actor/level:/persos/world/0/114	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4344940	unknown/actor/level:/persos/world/0/110	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4345020	actor/level:/persos/world/0/110	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4345640	unknown/actor/level:/persos/world/0/119	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4345720	actor/level:/persos/world/0/119	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4346340	unknown/actor/level:/persos/world/0/109	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4346416	actor/level:/persos/world/0/109	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4347036	unknown/actor/level:/persos/world/0/105	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4347112	actor/level:/persos/world/0/105	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4347732	unknown/actor/level:/persos/world/0/98	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4347812	actor/level:/persos/world/0/98	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4348432	unknown/actor/level:/persos/world/0/27	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4350524	actor/level:/persos/world/0/27	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4351140	unknown/actor/level:/persos/world/0/76	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4351268	actor/level:/persos/world/0/76	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
+0:5:4371908	unknown/actor/level:/persos/world/0/16	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4542804	actor/level:/persos/world/0/16	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/5
+0:5:4543492	unknown/actor/fix:/persos/5-0-24465	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4551780	unknown/actor/fix:/persos/5-0-24656	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4557032	unknown/actor/fix:/persos/5-0-24728	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4563032	unknown/actor/fix:/persos/5-0-24807	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4575140	unknown/actor/fix:/persos/5-0-24938	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4606416	unknown/actor/fix:/persos/5-0-25179	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4614524	unknown/actor/fix:/persos/5-0-25278	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4643796	unknown/actor/fix:/persos/5-0-25549	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4659836	unknown/actor/fix:/persos/5-0-25625	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4740328	unknown/actor/fix:/persos/5-0-25801	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4750024	unknown/actor/fix:/persos/5-0-25941	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4777600	unknown/actor/fix:/persos/5-0-26153	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4787620	unknown/actor/fix:/persos/5-0-26238	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4797892	unknown/actor/fix:/persos/5-0-26364	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4921796	unknown/actor/fix:/persos/5-0-26670	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4942752	unknown/actor/fix:/persos/5-0-26867	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4949752	unknown/actor/fix:/persos/5-0-26985	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4952608	unknown/actor/fix:/persos/5-0-27000	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4959132	unknown/actor/fix:/persos/5-0-27162	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4962000	unknown/actor/fix:/persos/5-0-27177	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4966604	unknown/actor/fix:/persos/5-0-27239	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4969388	unknown/actor/fix:/persos/5-0-27254	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4972224	unknown/actor/fix:/persos/5-0-27269	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4976120	unknown/actor/fix:/persos/5-0-27315	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4979180	unknown/actor/fix:/persos/5-0-27330	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4985156	game/fix_gauge_root_0_source_list_order	gauge_root_next_root	source	link to the next gauge panel root in source list order
+0:5:4985186	game/fix_gauge_root_0_source_list_order	gauge_root_completed_children	source	number of gauge child items completed for this panel
+0:5:4985187	unknown/game/fix_gauge_root_0_source_list_order	gauge_root_threshold_selector	unknown	indexes a threshold byte in the gauge root's +0x18..+0x1b range
+0:5:4985384	game/fix_gauge_root_0_item_0_source_list_order	gauge_child_visual_phase	source	per-item visual phase selected for rendering; advances when progress passes the selected threshold
+0:5:4985385	game/fix_gauge_root_0_item_0_source_list_order	gauge_child_progress_tick	source	per-item progress tick incremented while visual phase is zero and compared with the selected threshold
+0:5:4985412	game/fix_gauge_root_0_item_1_source_list_order	gauge_child_visual_phase	source	per-item visual phase selected for rendering; advances when progress passes the selected threshold
+0:5:4985413	game/fix_gauge_root_0_item_1_source_list_order	gauge_child_progress_tick	source	per-item progress tick incremented while visual phase is zero and compared with the selected threshold
+0:5:4985440	game/fix_gauge_root_0_item_2_source_list_order	gauge_child_visual_phase	source	per-item visual phase selected for rendering; advances when progress passes the selected threshold
+0:5:4985441	game/fix_gauge_root_0_item_2_source_list_order	gauge_child_progress_tick	source	per-item progress tick incremented while visual phase is zero and compared with the selected threshold
+0:5:4985468	game/fix_gauge_root_0_item_3_source_list_order	gauge_child_visual_phase	source	per-item visual phase selected for rendering; advances when progress passes the selected threshold
+0:5:4985469	game/fix_gauge_root_0_item_3_source_list_order	gauge_child_progress_tick	source	per-item progress tick incremented while visual phase is zero and compared with the selected threshold
+0:5:4985496	game/fix_gauge_root_0_item_4_source_list_order	gauge_child_visual_phase	source	per-item visual phase selected for rendering; advances when progress passes the selected threshold
+0:5:4985497	game/fix_gauge_root_0_item_4_source_list_order	gauge_child_progress_tick	source	per-item progress tick incremented while visual phase is zero and compared with the selected threshold
+0:5:4985524	game/fix_gauge_root_0_item_5_source_list_order	gauge_child_visual_phase	source	per-item visual phase selected for rendering; advances when progress passes the selected threshold
+0:5:4985525	game/fix_gauge_root_0_item_5_source_list_order	gauge_child_progress_tick	source	per-item progress tick incremented while visual phase is zero and compared with the selected threshold
+0:5:4985552	game/fix_gauge_root_0_item_6_source_list_order	gauge_child_visual_phase	source	per-item visual phase selected for rendering; advances when progress passes the selected threshold
+0:5:4985553	game/fix_gauge_root_0_item_6_source_list_order	gauge_child_progress_tick	source	per-item progress tick incremented while visual phase is zero and compared with the selected threshold
+0:5:4985590	game/fix_gauge_root_1_source_list_order	gauge_root_completed_children	source	number of gauge child items completed for this panel
+0:5:4985591	unknown/game/fix_gauge_root_1_source_list_order	gauge_root_threshold_selector	unknown	indexes a threshold byte in the gauge root's +0x18..+0x1b range
+0:5:4985748	game/fix_gauge_root_1_item_0_source_list_order	gauge_child_visual_phase	source	per-item visual phase selected for rendering; advances when progress passes the selected threshold
+0:5:4985749	game/fix_gauge_root_1_item_0_source_list_order	gauge_child_progress_tick	source	per-item progress tick incremented while visual phase is zero and compared with the selected threshold
+0:5:4985776	game/fix_gauge_root_1_item_1_source_list_order	gauge_child_visual_phase	source	per-item visual phase selected for rendering; advances when progress passes the selected threshold
+0:5:4985777	game/fix_gauge_root_1_item_1_source_list_order	gauge_child_progress_tick	source	per-item progress tick incremented while visual phase is zero and compared with the selected threshold
+0:5:4985804	game/fix_gauge_root_1_item_2_source_list_order	gauge_child_visual_phase	source	per-item visual phase selected for rendering; advances when progress passes the selected threshold
+0:5:4985805	game/fix_gauge_root_1_item_2_source_list_order	gauge_child_progress_tick	source	per-item progress tick incremented while visual phase is zero and compared with the selected threshold
+0:5:4985832	game/fix_gauge_root_1_item_3_source_list_order	gauge_child_visual_phase	source	per-item visual phase selected for rendering; advances when progress passes the selected threshold
+0:5:4985833	game/fix_gauge_root_1_item_3_source_list_order	gauge_child_progress_tick	source	per-item progress tick incremented while visual phase is zero and compared with the selected threshold
+0:5:4985860	game/fix_gauge_root_1_item_4_source_list_order	gauge_child_visual_phase	source	per-item visual phase selected for rendering; advances when progress passes the selected threshold
+0:5:4985861	game/fix_gauge_root_1_item_4_source_list_order	gauge_child_progress_tick	source	per-item progress tick incremented while visual phase is zero and compared with the selected threshold
+0:5:4985898	game/fix_gauge_root_2_source_list_order	gauge_root_completed_children	source	number of gauge child items completed for this panel
+0:5:4985899	unknown/game/fix_gauge_root_2_source_list_order	gauge_root_threshold_selector	unknown	indexes a threshold byte in the gauge root's +0x18..+0x1b range
+0:5:4986056	game/fix_gauge_root_2_item_0_source_list_order	gauge_child_visual_phase	source	per-item visual phase selected for rendering; advances when progress passes the selected threshold
+0:5:4986057	game/fix_gauge_root_2_item_0_source_list_order	gauge_child_progress_tick	source	per-item progress tick incremented while visual phase is zero and compared with the selected threshold
+0:5:4986084	game/fix_gauge_root_2_item_1_source_list_order	gauge_child_visual_phase	source	per-item visual phase selected for rendering; advances when progress passes the selected threshold
+0:5:4986085	game/fix_gauge_root_2_item_1_source_list_order	gauge_child_progress_tick	source	per-item progress tick incremented while visual phase is zero and compared with the selected threshold
+0:5:4986112	game/fix_gauge_root_2_item_2_source_list_order	gauge_child_visual_phase	source	per-item visual phase selected for rendering; advances when progress passes the selected threshold
+0:5:4986113	game/fix_gauge_root_2_item_2_source_list_order	gauge_child_progress_tick	source	per-item progress tick incremented while visual phase is zero and compared with the selected threshold
+0:5:4986140	game/fix_gauge_root_2_item_3_source_list_order	gauge_child_visual_phase	source	per-item visual phase selected for rendering; advances when progress passes the selected threshold
+0:5:4986141	game/fix_gauge_root_2_item_3_source_list_order	gauge_child_progress_tick	source	per-item progress tick incremented while visual phase is zero and compared with the selected threshold
+0:5:4986168	game/fix_gauge_root_2_item_4_source_list_order	gauge_child_visual_phase	source	per-item visual phase selected for rendering; advances when progress passes the selected threshold
+0:5:4986169	game/fix_gauge_root_2_item_4_source_list_order	gauge_child_progress_tick	source	per-item progress tick incremented while visual phase is zero and compared with the selected threshold
+0:5:4986210	game/hype_magick_state	default_starting_points	source	configured starting magic points, capped by configured maximum and used to initialize current points
+0:5:4986212	game/hype_magick	current_points	verified	current_points
+0:5:4986214	game/hype_magick	maximum_points	verified	maximum_points
+0:5:4986216	unknown/block_0_5	offset_4986216	unknown	source owner, field meaning and restoration behavior not yet joined
+0:5:4986280	unknown/block_0_5	offset_4986280	unknown	low 16-bit snapshot of the +0x98 dword on the nested object reached through ToolCam slot 1; read before save and written after player load
+0:5:4986340	game/hype_inventory_state	main_list_full	source	inventory list full flag, set when no free slot remains or the last slot is filled and cleared after item removal or consumption
+0:5:4986348	unknown/game/hype_map_ui_runtime_state_array_dat_00750ac4	word_0	unknown	the slot's gameplay role, value domain and restoration behavior remain unknown
+0:5:4986352	unknown/game/hype_map_ui_runtime_state_array_dat_00750ac4	word_1	unknown	the slot's gameplay role, value domain and restoration behavior remain unknown
+0:5:4986356	unknown/game/hype_map_ui_runtime_state_array_dat_00750ac4	word_2	unknown	the slot's gameplay role, value domain and restoration behavior remain unknown
+0:5:4986360	unknown/game/hype_map_ui_runtime_state_array_dat_00750ac4	word_3	unknown	the slot's gameplay role, value domain and restoration behavior remain unknown
+0:5:4986364	unknown/game/hype_map_ui_runtime_state_array_dat_00750ac4	word_4	unknown	the slot's gameplay role, value domain and restoration behavior remain unknown
+0:5:4986368	unknown/game/hype_map_ui_runtime_state_array_dat_00750ac4	word_5	unknown	the slot's gameplay role, value domain and restoration behavior remain unknown
+0:5:4986372	unknown/game/hype_map_ui_runtime_state_array_dat_00750ac4	word_6	unknown	the slot's gameplay role, value domain and restoration behavior remain unknown
+0:5:4986376	unknown/game/hype_map_ui_runtime_state_array_dat_00750ac4	word_7	unknown	the slot's gameplay role, value domain and restoration behavior remain unknown
+0:5:4986380	unknown/game/hype_map_ui_runtime_state_array_dat_00750ac4	word_8	unknown	the slot's gameplay role, value domain and restoration behavior remain unknown
+0:5:4986384	unknown/game/hype_map_ui_runtime_state_array_dat_00750ac4	word_9	unknown	the slot's gameplay role, value domain and restoration behavior remain unknown
+0:5:4986392	game/hype_map_ui	selectable_epoch_slot_0	source	nonzero lets map navigation select this epoch slot; zero makes cycling skip it
+0:5:4986396	game/hype_map_ui	selectable_epoch_slot_1	source	nonzero lets map navigation select this epoch slot; zero makes cycling skip it
+0:5:4986400	game/hype_map_ui	selectable_epoch_slot_2	source	nonzero lets map navigation select this epoch slot; zero makes cycling skip it
+0:5:4986404	game/hype_map_ui	selectable_epoch_slot_3	source	nonzero lets map navigation select this epoch slot; zero makes cycling skip it
+0:5:4986460	unknown/game/hype_map_ui_runtime_entry_table	entry_0__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4986536	unknown/game/hype_map_ui_runtime_entry_table	entry_1__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4986612	unknown/game/hype_map_ui_runtime_entry_table	entry_2__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4986688	unknown/game/hype_map_ui_runtime_entry_table	entry_3__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4986764	unknown/game/hype_map_ui_runtime_entry_table	entry_4__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4986840	unknown/game/hype_map_ui_runtime_entry_table	entry_5__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4986916	unknown/game/hype_map_ui_runtime_entry_table	entry_6__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4986992	unknown/game/hype_map_ui_runtime_entry_table	entry_7__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4987068	unknown/game/hype_map_ui_runtime_entry_table	entry_8__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4987144	unknown/game/hype_map_ui_runtime_entry_table	entry_9__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4987220	unknown/game/hype_map_ui_runtime_entry_table	entry_10__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4987296	unknown/game/hype_map_ui_runtime_entry_table	entry_11__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4987372	unknown/game/hype_map_ui_runtime_entry_table	entry_12__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4987448	unknown/game/hype_map_ui_runtime_entry_table	entry_13__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4987524	unknown/game/hype_map_ui_runtime_entry_table	entry_14__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4987600	unknown/game/hype_map_ui_runtime_entry_table	entry_15__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4987676	unknown/game/hype_map_ui_runtime_entry_table	entry_16__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4987752	unknown/game/hype_map_ui_runtime_entry_table	entry_17__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4987828	unknown/game/hype_map_ui_runtime_entry_table	entry_18__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4987904	unknown/game/hype_map_ui_runtime_entry_table	entry_19__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4987980	unknown/game/hype_map_ui_runtime_entry_table	entry_20__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4988056	unknown/game/hype_map_ui_runtime_entry_table	entry_21__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4988132	unknown/game/hype_map_ui_runtime_entry_table	entry_22__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4988208	unknown/game/hype_map_ui_runtime_entry_table	entry_23__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4988284	unknown/game/hype_map_ui_runtime_entry_table	entry_24__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4988360	unknown/game/hype_map_ui_runtime_entry_table	entry_25__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4988436	unknown/game/hype_map_ui_runtime_entry_table	entry_26__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4988512	unknown/game/hype_map_ui_runtime_entry_table	entry_27__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4988588	unknown/game/hype_map_ui_runtime_entry_table	entry_28__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4988664	unknown/game/hype_map_ui_runtime_entry_table	entry_29__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4988740	unknown/game/hype_map_ui_runtime_entry_table	entry_30__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4988816	unknown/game/hype_map_ui_runtime_entry_table	entry_31__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4988892	unknown/game/hype_map_ui_runtime_entry_table	entry_32__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4988968	unknown/game/hype_map_ui_runtime_entry_table	entry_33__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4989044	unknown/game/hype_map_ui_runtime_entry_table	entry_34__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4989120	unknown/game/hype_map_ui_runtime_entry_table	entry_35__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4989196	unknown/game/hype_map_ui_runtime_entry_table	entry_36__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4989272	unknown/game/hype_map_ui_runtime_entry_table	entry_37__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4989348	unknown/game/hype_map_ui_runtime_entry_table	entry_38__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4989424	unknown/game/hype_map_ui_runtime_entry_table	entry_39__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4989500	unknown/game/hype_map_ui_runtime_entry_table	entry_40__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4989576	unknown/game/hype_map_ui_runtime_entry_table	entry_41__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4989652	unknown/game/hype_map_ui_runtime_entry_table	entry_42__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4989728	unknown/game/hype_map_ui_runtime_entry_table	entry_43__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4989804	unknown/game/hype_map_ui_runtime_entry_table	entry_44__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4989880	unknown/game/hype_map_ui_runtime_entry_table	entry_45__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4989956	unknown/game/hype_map_ui_runtime_entry_table	entry_46__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4990032	unknown/game/hype_map_ui_runtime_entry_table	entry_47__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4990108	unknown/game/hype_map_ui_runtime_entry_table	entry_48__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4990184	unknown/game/hype_map_ui_runtime_entry_table	entry_49__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4990260	unknown/game/hype_map_ui_runtime_entry_table	entry_50__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4990336	unknown/game/hype_map_ui_runtime_entry_table	entry_51__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4990412	unknown/game/hype_map_ui_runtime_entry_table	entry_52__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4990488	unknown/game/hype_map_ui_runtime_entry_table	entry_53__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4990564	unknown/game/hype_map_ui_runtime_entry_table	entry_54__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4990640	unknown/game/hype_map_ui_runtime_entry_table	entry_55__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4990716	unknown/game/hype_map_ui_runtime_entry_table	entry_56__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4990792	unknown/game/hype_map_ui_runtime_entry_table	entry_57__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4990868	unknown/game/hype_map_ui_runtime_entry_table	entry_58__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4990944	unknown/game/hype_map_ui_runtime_entry_table	entry_59__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4991020	unknown/game/hype_map_ui_runtime_entry_table	entry_60__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4991096	unknown/game/hype_map_ui_runtime_entry_table	entry_61__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4991172	unknown/game/hype_map_ui_runtime_entry_table	entry_62__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4991248	unknown/game/hype_map_ui_runtime_entry_table	entry_63__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4991324	unknown/game/hype_map_ui_runtime_entry_table	entry_64__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4991400	unknown/game/hype_map_ui_runtime_entry_table	entry_65__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4991476	unknown/game/hype_map_ui_runtime_entry_table	entry_66__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4991552	unknown/game/hype_map_ui_runtime_entry_table	entry_67__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4991628	unknown/game/hype_map_ui_runtime_entry_table	entry_68__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4991704	unknown/game/hype_map_ui_runtime_entry_table	entry_69__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4991780	unknown/game/hype_map_ui_runtime_entry_table	entry_70__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4991856	unknown/game/hype_map_ui_runtime_entry_table	entry_71__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4991932	unknown/game/hype_map_ui_runtime_entry_table	entry_72__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4992008	unknown/game/hype_map_ui_runtime_entry_table	entry_73__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4992084	unknown/game/hype_map_ui_runtime_entry_table	entry_74__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4992160	unknown/game/hype_map_ui_runtime_entry_table	entry_75__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4992236	unknown/game/hype_map_ui_runtime_entry_table	entry_76__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4992312	unknown/game/hype_map_ui_runtime_entry_table	entry_77__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4992388	unknown/game/hype_map_ui_runtime_entry_table	entry_78__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4992464	unknown/game/hype_map_ui_runtime_entry_table	entry_79__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4992540	unknown/game/hype_map_ui_runtime_entry_table	entry_80__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4992616	unknown/game/hype_map_ui_runtime_entry_table	entry_81__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4992692	unknown/game/hype_map_ui_runtime_entry_table	entry_82__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4992768	unknown/game/hype_map_ui_runtime_entry_table	entry_83__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4992844	unknown/game/hype_map_ui_runtime_entry_table	entry_84__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4992920	unknown/game/hype_map_ui_runtime_entry_table	entry_85__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4992996	unknown/game/hype_map_ui_runtime_entry_table	entry_86__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4993072	unknown/game/hype_map_ui_runtime_entry_table	entry_87__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4993148	unknown/game/hype_map_ui_runtime_entry_table	entry_88__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4993224	unknown/game/hype_map_ui_runtime_entry_table	entry_89__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4993300	unknown/game/hype_map_ui_runtime_entry_table	entry_90__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4993376	unknown/game/hype_map_ui_runtime_entry_table	entry_91__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4993452	unknown/game/hype_map_ui_runtime_entry_table	entry_92__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4993528	unknown/game/hype_map_ui_runtime_entry_table	entry_93__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4993604	unknown/game/hype_map_ui_runtime_entry_table	entry_94__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4993680	unknown/game/hype_map_ui_runtime_entry_table	entry_95__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4993756	unknown/game/hype_map_ui_runtime_entry_table	entry_96__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4993832	unknown/game/hype_map_ui_runtime_entry_table	entry_97__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4993908	unknown/game/hype_map_ui_runtime_entry_table	entry_98__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+0:5:4993984	unknown/game/hype_map_ui_runtime_entry_table	entry_99__at_0x30	unknown	the authored setting row, gameplay purpose, value domain and restoration behavior remain unknown
+1:10:1248	unknown/map_star/0	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:1312	unknown/map_star/1	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:1376	unknown/map_star/2	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:1440	unknown/map_star/3	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:1504	unknown/map_star/4	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:1568	unknown/map_star/5	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:1632	unknown/map_star/6	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:1696	unknown/map_star/7	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:1760	unknown/map_star/8	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:1824	unknown/map_star/9	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:1888	unknown/map_star/10	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:1952	unknown/map_star/11	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:2016	unknown/map_star/12	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:2080	unknown/map_star/13	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:2144	unknown/map_star/14	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:2208	unknown/map_star/15	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:2272	unknown/map_star/16	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:2336	unknown/map_star/17	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:2400	unknown/map_star/18	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:2464	unknown/map_star/19	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:2528	unknown/map_star/20	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:2592	unknown/map_star/21	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:2656	unknown/map_star/22	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:2720	unknown/map_star/23	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:2784	unknown/map_star/24	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:2848	unknown/map_star/25	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:2912	unknown/map_star/26	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:2976	unknown/map_star/27	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:3040	unknown/map_star/28	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:3104	unknown/map_star/29	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:3168	unknown/map_star/30	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:3232	unknown/map_star/31	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:3296	unknown/map_star/32	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:3360	unknown/map_star/33	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:3424	unknown/map_star/34	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:3488	unknown/map_star/35	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:3552	unknown/map_star/36	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:3616	unknown/map_star/37	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:3680	unknown/map_star/38	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:3744	unknown/map_star/39	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:3808	unknown/map_star/40	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:3872	unknown/map_star/41	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:3936	unknown/map_star/42	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:4000	unknown/map_star/43	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:4064	unknown/map_star/44	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:4128	unknown/map_star/45	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:4192	unknown/map_star/46	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:4256	unknown/map_star/47	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:4320	unknown/map_star/48	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:4384	unknown/map_star/49	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:4448	unknown/map_star/50	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:4512	unknown/map_star/51	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:4576	unknown/map_star/52	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:4640	unknown/map_star/53	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:4704	unknown/map_star/54	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:4768	unknown/map_star/55	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:4832	unknown/map_star/56	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:4896	unknown/map_star/57	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:4960	unknown/map_star/58	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:10:5024	unknown/map_star/59	record_at_0x38	unknown	the gameplay purpose and value domain of this star-entry word remain unknown
+1:17:127660	unknown/actor/level:/persos/world/0/152	dsg_2	unknown	the field's writer conditions are known, but no consuming role is verified
+1:17:127661	actor/level:/persos/world/0/152	dsg_1	source	Boolean permission for this mannequin to change its stage code to 4 after the matching slot/MainActor condition; the world clears it on slot assignments and can set it for Magie in a later branch
+1:17:127662	actor/level:/persos/world/0/152	dsg_0	source	per-mannequin stage code: world assigns 1/2/3 to sword/crossbow/magic mannequins, the actor sets 4 after its matching MainActor condition when DSG[1] is 1, and MasterYoda requires 4 for a follow-on action; Magie can also receive 5
+1:17:131192	unknown/actor/level:/persos/world/0/153	dsg_2	unknown	the field's writer conditions are known, but no consuming role is verified
+1:17:131193	actor/level:/persos/world/0/153	dsg_1	source	Boolean permission for this mannequin to change its stage code to 4 after the matching slot/MainActor condition; the world clears it on slot assignments and can set it for Magie in a later branch
+1:17:131194	actor/level:/persos/world/0/153	dsg_0	source	per-mannequin stage code: world assigns 1/2/3 to sword/crossbow/magic mannequins, the actor sets 4 after its matching MainActor condition when DSG[1] is 1, and MasterYoda requires 4 for a follow-on action; Magie can also receive 5
+1:17:132112	unknown/actor/level:/persos/world/0/154	dsg_2	unknown	the field's writer conditions are known, but no consuming role is verified
+1:17:132113	actor/level:/persos/world/0/154	dsg_1	source	Boolean permission for this mannequin to change its stage code to 4 after the matching slot/MainActor condition; the world clears it on slot assignments and can set it for Magie in a later branch
+1:17:132114	actor/level:/persos/world/0/154	dsg_0	source	per-mannequin stage code: world assigns 1/2/3 to sword/crossbow/magic mannequins, the actor sets 4 after its matching MainActor condition when DSG[1] is 1, and MasterYoda requires 4 for a follow-on action; Magie can also receive 5
+1:17:171448	unknown/actor/level:/persos/world/0/161	dsg_0	unknown	Gogood's own DSG[0] receives 1, 3 or 2 from Button_Hit-guarded Normal behaviors 3, 5 or 8; behavior 1 reads 1/2/3 to select Normal behavior 6/7/9, and IWorld reads the same actor field in conditional behavior requests
+1:17:187070	unknown/actor/level:/persos/world/0/174	dsg_3	unknown	the lever actor's own DSG[3] selects one of two AI action-state maps in Normal behavior 2 when DSG[2] is nonzero; DSG[4] selects within the map. Normal behavior 3 sets DSG[3] to one when DSG[5] differs from one, and Normal behavior 5 clears it after an action-state choice
+1:17:187072	actor/level:/persos/world/0/174	dsg_1	source	persistent Boolean phase for alternating lever actions and steady poses; the AI flips it after either action
+1:17:73944	unknown/actor/level:/persos/world/0/71	dsg_8	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+1:17:82360	unknown/actor/level:/persos/world/0/72	dsg_8	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+1:17:83312	unknown/actor/level:/persos/world/0/73	dsg_8	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+1:17:84264	unknown/actor/level:/persos/world/0/74	dsg_8	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
+1:5:1036428	unknown/actor/level:/persos/world/0/147	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1040088	unknown/actor/level:/persos/world/0/148	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1041140	actor/level:/persos/world/0/149	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:1041141	actor/level:/persos/world/0/149	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:1041142	actor/level:/persos/world/0/149	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:1041143	actor/level:/persos/world/0/149	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:1041144	actor/level:/persos/world/0/149	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:1041160	unknown/actor/level:/persos/world/0/149	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1070916	unknown/actor/level:/persos/world/0/150	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1072140	unknown/actor/level:/persos/world/0/151	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1077036	unknown/actor/level:/persos/world/0/152	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1122932	unknown/actor/level:/persos/world/0/153	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1125648	unknown/actor/level:/persos/world/0/154	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1128344	actor/level:/persos/world/0/155	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:1128345	actor/level:/persos/world/0/155	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:1128346	actor/level:/persos/world/0/155	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:1128347	actor/level:/persos/world/0/155	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:1128348	actor/level:/persos/world/0/155	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:1128364	unknown/actor/level:/persos/world/0/155	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1131108	actor/level:/persos/world/0/156	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:1131109	actor/level:/persos/world/0/156	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:1131110	actor/level:/persos/world/0/156	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:1131111	actor/level:/persos/world/0/156	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:1131112	actor/level:/persos/world/0/156	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:1131128	unknown/actor/level:/persos/world/0/156	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1133864	actor/level:/persos/world/0/157	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:1133865	actor/level:/persos/world/0/157	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:1133866	actor/level:/persos/world/0/157	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:1133867	actor/level:/persos/world/0/157	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:1133868	actor/level:/persos/world/0/157	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:1133884	unknown/actor/level:/persos/world/0/157	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1136620	actor/level:/persos/world/0/158	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:1136621	actor/level:/persos/world/0/158	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:1136622	actor/level:/persos/world/0/158	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:1136623	actor/level:/persos/world/0/158	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:1136624	actor/level:/persos/world/0/158	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:1136640	unknown/actor/level:/persos/world/0/158	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1139428	actor/level:/persos/world/0/159	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:1139429	actor/level:/persos/world/0/159	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:1139430	actor/level:/persos/world/0/159	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:1139431	actor/level:/persos/world/0/159	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:1139432	actor/level:/persos/world/0/159	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:1139448	unknown/actor/level:/persos/world/0/159	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1142776	actor/level:/persos/world/0/160	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:1142777	actor/level:/persos/world/0/160	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:1142778	actor/level:/persos/world/0/160	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:1142779	actor/level:/persos/world/0/160	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:1142780	actor/level:/persos/world/0/160	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:1142796	unknown/actor/level:/persos/world/0/160	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1143548	unknown/actor/level:/persos/world/0/161	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1146320	unknown/actor/level:/persos/world/0/163	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1147092	unknown/actor/level:/persos/world/0/164	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1147792	unknown/actor/level:/persos/world/0/165	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1148512	unknown/actor/level:/persos/world/0/166	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1149248	unknown/actor/level:/persos/world/0/167	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1149940	unknown/actor/level:/persos/world/0/168	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1150632	unknown/actor/level:/persos/world/0/169	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1151324	unknown/actor/level:/persos/world/0/170	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1152020	unknown/actor/level:/persos/world/0/171	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1152756	unknown/actor/level:/persos/world/0/172	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1153496	unknown/actor/level:/persos/world/0/173	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1155136	unknown/actor/level:/persos/world/0/174	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1202588	actor/level:/persos/world/0/175	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:1202589	actor/level:/persos/world/0/175	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:1202590	actor/level:/persos/world/0/175	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:1202591	actor/level:/persos/world/0/175	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:1202592	actor/level:/persos/world/0/175	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:1202608	unknown/actor/level:/persos/world/0/175	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1205048	game/hype_level_game_state	sound_event_game_state_filter_mask	source	current game-state mask used to filter sector sound events; a matching bit or both zero admits an event
+1:5:1632	actor/level:/persos/world/0/3	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:1633	actor/level:/persos/world/0/3	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:1634	actor/level:/persos/world/0/3	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:1635	actor/level:/persos/world/0/3	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:1636	actor/level:/persos/world/0/3	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:1652	unknown/actor/level:/persos/world/0/3	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:18492	actor/level:/persos/world/0/5	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:18493	actor/level:/persos/world/0/5	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:18494	actor/level:/persos/world/0/5	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:18495	actor/level:/persos/world/0/5	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:18496	actor/level:/persos/world/0/5	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:18512	unknown/actor/level:/persos/world/0/5	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:4576	actor/level:/persos/world/0/4	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:4577	actor/level:/persos/world/0/4	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:4578	actor/level:/persos/world/0/4	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:4579	actor/level:/persos/world/0/4	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:4580	actor/level:/persos/world/0/4	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:4596	unknown/actor/level:/persos/world/0/4	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:703808	unknown/actor/level:/persos/world/0/6	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:704532	unknown/actor/level:/persos/world/0/7	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:705200	unknown/actor/level:/persos/world/0/8	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:705880	unknown/actor/level:/persos/world/0/9	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:706548	unknown/actor/level:/persos/world/0/10	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:707228	unknown/actor/level:/persos/world/0/11	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:707904	unknown/actor/level:/persos/world/0/12	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:708580	unknown/actor/level:/persos/world/0/13	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:709256	unknown/actor/level:/persos/world/0/14	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:710064	actor/level:/persos/world/0/15	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:710065	actor/level:/persos/world/0/15	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:710066	actor/level:/persos/world/0/15	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:710067	actor/level:/persos/world/0/15	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:710068	actor/level:/persos/world/0/15	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:710084	unknown/actor/level:/persos/world/0/15	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:713328	unknown/actor/level:/persos/world/0/17	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:716048	unknown/actor/level:/persos/world/0/18	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:716764	unknown/actor/level:/persos/world/0/19	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:717432	unknown/actor/level:/persos/world/0/20	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:718100	unknown/actor/level:/persos/world/0/21	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:718768	unknown/actor/level:/persos/world/0/22	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:719436	unknown/actor/level:/persos/world/0/23	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:720104	unknown/actor/level:/persos/world/0/24	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:720772	unknown/actor/level:/persos/world/0/25	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:721440	unknown/actor/level:/persos/world/0/26	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:722108	actor/level:/persos/world/0/28	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:722109	actor/level:/persos/world/0/28	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:722110	actor/level:/persos/world/0/28	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:722111	actor/level:/persos/world/0/28	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:722112	actor/level:/persos/world/0/28	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:722128	unknown/actor/level:/persos/world/0/28	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:722880	unknown/actor/level:/persos/world/0/29	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:723548	unknown/actor/level:/persos/world/0/30	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:724216	unknown/actor/level:/persos/world/0/31	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:724884	unknown/actor/level:/persos/world/0/32	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:725552	unknown/actor/level:/persos/world/0/33	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:726220	unknown/actor/level:/persos/world/0/34	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:727144	unknown/actor/level:/persos/world/0/35	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:732320	unknown/actor/level:/persos/world/0/43	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:732988	unknown/actor/level:/persos/world/0/44	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:733636	actor/level:/persos/world/0/45	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:733637	actor/level:/persos/world/0/45	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:733638	actor/level:/persos/world/0/45	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:733639	actor/level:/persos/world/0/45	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:733640	actor/level:/persos/world/0/45	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:733656	unknown/actor/level:/persos/world/0/45	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:736384	unknown/actor/level:/persos/world/0/46	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:737052	unknown/actor/level:/persos/world/0/47	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:737720	unknown/actor/level:/persos/world/0/48	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:738388	unknown/actor/level:/persos/world/0/49	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:739148	unknown/actor/level:/persos/world/0/50	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:743804	unknown/actor/level:/persos/world/0/51	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:744472	unknown/actor/level:/persos/world/0/52	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:745240	unknown/actor/level:/persos/world/0/53	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:745908	unknown/actor/level:/persos/world/0/54	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:746576	unknown/actor/level:/persos/world/0/55	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:747244	unknown/actor/level:/persos/world/0/56	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:747912	unknown/actor/level:/persos/world/0/57	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:748580	unknown/actor/level:/persos/world/0/58	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:749248	unknown/actor/level:/persos/world/0/59	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:749916	unknown/actor/level:/persos/world/0/60	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:750584	unknown/actor/level:/persos/world/0/61	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:751252	unknown/actor/level:/persos/world/0/62	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:751920	unknown/actor/level:/persos/world/0/63	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:752588	unknown/actor/level:/persos/world/0/64	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:753256	unknown/actor/level:/persos/world/0/65	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:753924	unknown/actor/level:/persos/world/0/66	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:754572	actor/level:/persos/world/0/67	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:754573	actor/level:/persos/world/0/67	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:754574	actor/level:/persos/world/0/67	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:754575	actor/level:/persos/world/0/67	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:754576	actor/level:/persos/world/0/67	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:754592	unknown/actor/level:/persos/world/0/67	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:755292	unknown/actor/level:/persos/world/0/68	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:755960	unknown/actor/level:/persos/world/0/69	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:756624	unknown/actor/level:/persos/world/0/70	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:757864	actor/level:/persos/world/0/71	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:757865	actor/level:/persos/world/0/71	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:757866	actor/level:/persos/world/0/71	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:757867	actor/level:/persos/world/0/71	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:757868	actor/level:/persos/world/0/71	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:757884	unknown/actor/level:/persos/world/0/71	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:787448	actor/level:/persos/world/0/72	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:787449	actor/level:/persos/world/0/72	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:787450	actor/level:/persos/world/0/72	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:787451	actor/level:/persos/world/0/72	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:787452	actor/level:/persos/world/0/72	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:787468	unknown/actor/level:/persos/world/0/72	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:790192	actor/level:/persos/world/0/73	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:790193	actor/level:/persos/world/0/73	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:790194	actor/level:/persos/world/0/73	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:790195	actor/level:/persos/world/0/73	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:790196	actor/level:/persos/world/0/73	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:790212	unknown/actor/level:/persos/world/0/73	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:792936	actor/level:/persos/world/0/74	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:792937	actor/level:/persos/world/0/74	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:792938	actor/level:/persos/world/0/74	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:792939	actor/level:/persos/world/0/74	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:792940	actor/level:/persos/world/0/74	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:792956	unknown/actor/level:/persos/world/0/74	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:795700	unknown/actor/level:/persos/world/0/75	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:798000	actor/level:/persos/world/0/89	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:798001	actor/level:/persos/world/0/89	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:798002	actor/level:/persos/world/0/89	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:798003	actor/level:/persos/world/0/89	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:798004	actor/level:/persos/world/0/89	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:798020	unknown/actor/level:/persos/world/0/89	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:815768	actor/level:/persos/world/0/90	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:815769	actor/level:/persos/world/0/90	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:815770	actor/level:/persos/world/0/90	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:815771	actor/level:/persos/world/0/90	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:815772	actor/level:/persos/world/0/90	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:815788	unknown/actor/level:/persos/world/0/90	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:816464	actor/level:/persos/world/0/91	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:816465	actor/level:/persos/world/0/91	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:816466	actor/level:/persos/world/0/91	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:816467	actor/level:/persos/world/0/91	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:816468	actor/level:/persos/world/0/91	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:816484	unknown/actor/level:/persos/world/0/91	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:817160	actor/level:/persos/world/0/92	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:817161	actor/level:/persos/world/0/92	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:817162	actor/level:/persos/world/0/92	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:817163	actor/level:/persos/world/0/92	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:817164	actor/level:/persos/world/0/92	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:817180	unknown/actor/level:/persos/world/0/92	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:817856	actor/level:/persos/world/0/93	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:817857	actor/level:/persos/world/0/93	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:817858	actor/level:/persos/world/0/93	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:817859	actor/level:/persos/world/0/93	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:817860	actor/level:/persos/world/0/93	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:817876	unknown/actor/level:/persos/world/0/93	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:818820	unknown/actor/level:/persos/world/0/94	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:819556	unknown/actor/level:/persos/world/0/95	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:820288	unknown/actor/level:/persos/world/0/96	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:822048	unknown/actor/level:/persos/world/0/97	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:830672	unknown/actor/level:/persos/world/0/125	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:831360	unknown/actor/level:/persos/world/0/126	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:832028	unknown/actor/level:/persos/world/0/127	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:832696	unknown/actor/level:/persos/world/0/128	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:833344	actor/level:/persos/world/0/129	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:833345	actor/level:/persos/world/0/129	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:833346	actor/level:/persos/world/0/129	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:833347	actor/level:/persos/world/0/129	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:833348	actor/level:/persos/world/0/129	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:833364	unknown/actor/level:/persos/world/0/129	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:834108	unknown/actor/level:/persos/world/0/130	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:834808	unknown/actor/level:/persos/world/0/131	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:835508	unknown/actor/level:/persos/world/0/132	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:836208	unknown/actor/level:/persos/world/0/133	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:836908	unknown/actor/level:/persos/world/0/134	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:837608	unknown/actor/level:/persos/world/0/135	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:838308	unknown/actor/level:/persos/world/0/136	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:839008	unknown/actor/level:/persos/world/0/137	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:839708	unknown/actor/level:/persos/world/0/138	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:840408	unknown/actor/level:/persos/world/0/139	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:841108	unknown/actor/level:/persos/world/0/140	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:841808	unknown/actor/level:/persos/world/0/141	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:842720	actor/level:/persos/world/0/142	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
+1:5:842721	actor/level:/persos/world/0/142	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
+1:5:842722	actor/level:/persos/world/0/142	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
+1:5:842723	actor/level:/persos/world/0/142	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
+1:5:842724	actor/level:/persos/world/0/142	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
+1:5:842740	unknown/actor/level:/persos/world/0/142	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:857880	unknown/actor/level:/persos/world/0/143	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:858616	unknown/actor/level:/persos/world/0/144	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:864308	unknown/actor/level:/persos/world/0/145	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:954956	unknown/actor/level:/persos/world/0/146	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:6:4437852	unknown/block_1_6	offset_4437852	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:4438104	unknown/block_1_6	offset_4438104	unknown	instantiated-item target is known, but source field and gameplay/restoration semantics are not
+1:6:4438356	unknown/block_1_6	offset_4438356	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:4438860	unknown/block_1_6	offset_4438860	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:4439112	unknown/block_1_6	offset_4439112	unknown	instantiated-item target is known, but source field and gameplay/restoration semantics are not
+1:6:4439364	unknown/block_1_6	offset_4439364	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:4439616	unknown/block_1_6	offset_4439616	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:4439868	unknown/block_1_6	offset_4439868	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:4440120	unknown/block_1_6	offset_4440120	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:4440372	unknown/block_1_6	offset_4440372	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:4441380	unknown/block_1_6	offset_4441380	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:4441632	unknown/block_1_6	offset_4441632	unknown	instantiated-item target is known, but source field and gameplay/restoration semantics are not
+1:6:4441884	unknown/block_1_6	offset_4441884	unknown	instantiated-item target is known, but source field and gameplay/restoration semantics are not
+1:6:4442136	unknown/block_1_6	offset_4442136	unknown	instantiated-item target is known, but source field and gameplay/restoration semantics are not
+1:6:4442388	unknown/block_1_6	offset_4442388	unknown	instantiated-item target is known, but source field and gameplay/restoration semantics are not
+1:6:4442892	unknown/block_1_6	offset_4442892	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:4443144	unknown/block_1_6	offset_4443144	unknown	instantiated-item target is known, but source field and gameplay/restoration semantics are not
+1:6:4443396	unknown/block_1_6	offset_4443396	unknown	instantiated-item target is known, but source field and gameplay/restoration semantics are not
+1:6:4443648	unknown/block_1_6	offset_4443648	unknown	instantiated-item target is known, but source field and gameplay/restoration semantics are not
+1:6:4443900	unknown/block_1_6	offset_4443900	unknown	instantiated-item target is known, but source field and gameplay/restoration semantics are not
+1:6:4444404	unknown/block_1_6	offset_4444404	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:4444656	unknown/block_1_6	offset_4444656	unknown	instantiated-item target is known, but source field and gameplay/restoration semantics are not
+1:6:4444908	unknown/block_1_6	offset_4444908	unknown	instantiated-item target is known, but source field and gameplay/restoration semantics are not
+1:6:4445160	unknown/block_1_6	offset_4445160	unknown	instantiated-item target is known, but source field and gameplay/restoration semantics are not
+1:6:4445412	unknown/block_1_6	offset_4445412	unknown	instantiated-item target is known, but source field and gameplay/restoration semantics are not
+1:6:4447540	unknown/block_1_6	offset_4447540	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:4447792	unknown/block_1_6	offset_4447792	unknown	instantiated-item target is known, but source field and gameplay/restoration semantics are not
+1:6:4448044	unknown/block_1_6	offset_4448044	unknown	instantiated-item target is known, but source field and gameplay/restoration semantics are not
+1:6:4448296	unknown/block_1_6	offset_4448296	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:4448548	unknown/block_1_6	offset_4448548	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:4448800	unknown/block_1_6	offset_4448800	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:4449304	unknown/block_1_6	offset_4449304	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:4449556	unknown/block_1_6	offset_4449556	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:4449808	unknown/block_1_6	offset_4449808	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:4450060	unknown/block_1_6	offset_4450060	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:4450312	unknown/block_1_6	offset_4450312	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:4450564	unknown/block_1_6	offset_4450564	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:4450816	unknown/block_1_6	offset_4450816	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:5322192	unknown/block_1_6	offset_5322192	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:5322536	unknown/block_1_6	offset_5322536	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:5322880	unknown/block_1_6	offset_5322880	unknown	source owner, field meaning and restoration behavior not yet joined
+1:6:5323224	unknown/block_1_6	offset_5323224	unknown	source owner, field meaning and restoration behavior not yet joined
+2:6:1463692	unknown/actor/level:/persos/world/0/0	position_matrix_prefix	unknown	Hype main-actor POS prefix used for post-load repositioning
+2:6:1464196	unknown/block_2_6	offset_1464196	unknown	POS prefix of the first qualifying scene Perso, source-order candidate StdCamer, used for post-load camera repositioning

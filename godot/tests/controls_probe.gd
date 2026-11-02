@@ -3,6 +3,7 @@ extends SceneTree
 ## Asserts the things that make this a game: the player answers the controls,
 ## keeps a running Brain, and the frame rate holds on real hardware.
 const BEHAVIOR = preload("res://addons/astrolabe/behavior/behavior.gd")
+const SAVE_STATE = preload("res://game/save_state.gd")
 var report: Dictionary = {"outcome": "running", "checks": []}
 var evidence_path := ""
 var game: Node
@@ -144,6 +145,12 @@ func run() -> void:
 	await hold(KEY_SPACE, 0.2)
 	await play(1.0)
 	check("sword_keeps_control", alive(), str(game.get("brain").get("unsupported_failure")))
+
+	await play(2.0)
+	await hold(KEY_F5, 0.2)
+	await play(0.5)
+	var saved := SAVE_STATE.read_for_load(SAVE_STATE.NATIVE_SOURCE)
+	check("f5_saves_a_loadable_game", saved["status"] == "loaded", [str(game.get("status_label").text), saved.get("message", "")])
 
 	deltas.sort()
 	var median := deltas[deltas.size() / 2] * 1000.0
