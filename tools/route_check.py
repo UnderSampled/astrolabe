@@ -5,8 +5,7 @@ Not part of the gate: a route takes minutes. Usage:
   tools/route_check.py HANDOFF_DIR [route ...]
 HANDOFF_DIR is a pristine XDG data directory holding the New Game handoff save
 (user://manoir-save.cfg). Each run starts from a fresh copy. A route whose
-"required" step fails is retried (Hype's scripted walk sometimes ends in behavior
-48; see the training notes). Each route also needs a pass check: the final STATE
+"required" step fails is retried. Each route also needs a pass check: the final STATE
 line is printed and any SCRIPT ERROR or ROUTE ABORT fails the run.
 """
 import os, shutil, subprocess, sys, tempfile
