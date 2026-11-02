@@ -43,7 +43,7 @@ fn exported_crossbow_free_flight_expires_and_releases_guards() -> Result<()> {
             Ok((path
                 .extension()
                 .is_some_and(|extension| extension == "tscn")
-                && fs::read_to_string(&path)?.contains("/ai/models/733.gd"))
+                && fs::read_to_string(&path)?.contains("/ai/models/fix/733.gd"))
             .then_some(path))
         })
         .collect::<Result<Vec<_>>>()?

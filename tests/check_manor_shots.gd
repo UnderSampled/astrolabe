@@ -40,7 +40,7 @@ func check() -> void:
     root.add_child(scene)
     root.size = Vector2i(640,480)
     if not require(world.get("current_normal") == 2 and world.has_method("normal_2_schedule"), "source World initial behavior differs"): return
-    if not require(camera.motion_mode == 0 and camera.initial_motion_mode == 0 and camera.targeted_actor == null, "camera fixture changed initial mode/target"): return
+    if not require(camera.motion_mode == 0 and camera.initial_motion_mode == 0 and camera.targeted_actor == hype, "camera fixture changed initial mode/target (source initial target is Hype)"): return
     var mesh_count := scene.find_children("*", "MeshInstance3D", true, false).size()
     if not require(mesh_count > 0, "exported manor geometry missing"): return
     camera.make_current() # Viewport activation remains declared harness setup.
