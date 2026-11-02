@@ -46,8 +46,6 @@ row here. Replace them in order of what blocks play.
 | `4-336` | Proc_ActivateSaveGameMotorMode | Save the game through the authored save | Open the source save flow |
 | `4-271` | Map_vSetDestination | Not recorded | Native map state |
 | `4-272` | Map_vResetDestination | Not recorded | Native map state |
-| `4-153` | Procedure_Camera_ChangeAngle | Keep native camera tuning | Drive source_camera.gd |
-| `4-143` | Procedure_Camera_ChangeDistance | Keep native camera tuning | Drive source_camera.gd |
 | `4-154` | Procedure_Camera_Move | Keep native camera tuning | Drive source_camera.gd |
 | `4-150` | Procedure_Camera_MoveTarget | Keep native camera tuning | Drive source_camera.gd |
 | `4-152` | Procedure_Camera_MoveShift | Keep native camera tuning | Drive source_camera.gd |
@@ -56,10 +54,5 @@ row here. Replace them in order of what blocks play.
 | `4-148` | Procedure_Camera_ChangeCamAngularInertia | Keep native camera tuning | Drive source_camera.gd |
 | `4-146` | Procedure_Camera_ChangeCamLinearInertia | Keep native camera tuning | Drive source_camera.gd |
 | `4-140` | Procedure_Camera_ShowInfo | Debug text is not shown | None needed if it stays debug-only |
-| `3-60` | Function_Camera_GetTeta | Level camera | Read source_camera.gd |
-| `3-58` | Function_Camera_GetAlpha | Level camera | Read source_camera.gd |
-| `3-54` | Function_Camera_GetDistMin | No minimum distance | Read source_camera.gd |
-| `3-55` | Function_Camera_GetDistMax | No maximum distance | Read source_camera.gd |
-| `3-70` | Function_Camera_GetState | Default state | Read source_camera.gd |
 | `3-75` | Function_Camera_GetLookVertex | Origin | Read source_camera.gd |
 | `generator-contact` | Cond28 (zone contact) from a generated Object, e.g. Hype's crossbow bolt | The Object never selects the Perso that generated it. Without this the bolt overlaps Hype's own body zone on its first tick and kills itself, so a bolt could never reach the mannequin | Find how the original keeps a bolt from striking its shooter (spawn offset, zone type or owner test) |

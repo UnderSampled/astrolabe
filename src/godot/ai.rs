@@ -1118,6 +1118,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::ApplyArmoredDamage(_)
         | Expression::ArmorResistance
         | Expression::ArmorCount
+        | Expression::CameraValue { .. }
         | Expression::CameraShiftAlpha { .. }
         | Expression::CameraShiftTeta { .. } => true,
         Expression::IsInBehavior { .. } => true,
@@ -1575,6 +1576,35 @@ fn guarded_expression(
             writeln!(
                 out,
                 "{pad}var {waypoint_local}: Variant = {value}\n{pad}if typeof({waypoint_local}) != TYPE_OBJECT or not is_instance_valid({waypoint_local}) or not {waypoint_local}.has_method(\"source_world_position\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {point_local}: Variant = {waypoint_local}.call(\"source_world_position\", character())\n{pad}if typeof({point_local}) != TYPE_VECTOR3 or not {point_local}.is_finite():\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {value_local}: float = character().source_distance_to_waypoint({receiver_local}, {point_local})"
+            )?;
+            value_local
+        }
+        Expression::CameraValue {
+            getter,
+            selector,
+            receiver,
+        } => {
+            let selector = guarded_expression(out, selector, model, depth, flow)?;
+            let receiver = match receiver {
+                ActorTarget::Keyword(ActorKeyword::SelfActor) => "character()".to_owned(),
+                ActorTarget::Keyword(ActorKeyword::MainActor) => "main_actor".to_owned(),
+                ActorTarget::Variable(index) => format!("dsg_{index}"),
+                ActorTarget::Reference(actor) => format!(
+                    "character().source_actor_node({})",
+                    quoted(actor.path.as_str())
+                ),
+            };
+            let id = flow.local;
+            flow.local += 1;
+            let value_local = format!("camera_value_{id}");
+            let failure = quoted(&format!(
+                "{} Function_Camera_Get {getter} requires a bound Perso with SourceCamera",
+                model.path
+            ));
+            writeln!(
+                out,
+                "{pad}var {value_local}: Variant = character().source_camera_value({receiver}, {getter}, int({selector}))\n{pad}if {value_local} == null:\n{pad}    fail_unsupported({failure})\n{pad}    {}\n{pad}    {value_local} = 0.0",
+                flow.exit()
             )?;
             value_local
         }
@@ -2242,6 +2272,7 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         | Expression::IsValidActor(_)
         | Expression::ApplyArmoredDamage(_)
         | Expression::DistanceToWaypoint { .. }
+        | Expression::CameraValue { .. }
         | Expression::CameraShiftAlpha { .. }
         | Expression::CameraShiftTeta { .. }
         | Expression::WaypointSphereContains { .. } => {
@@ -3764,6 +3795,40 @@ fn statements(
                         "{} requires supported source focal values",
                         model.path
                     ))
+                )?;
+            }
+            Statement::ChangeCameraAngle {
+                actor,
+                field,
+                mode,
+                value,
+            } => {
+                let actor = guarded_expression(out, actor, model, depth, flow)?;
+                let field = guarded_expression(out, field, model, depth, flow)?;
+                let mode = guarded_expression(out, mode, model, depth, flow)?;
+                let value = guarded_expression(out, value, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if not character().source_camera_change_angle({actor}, int({field}), int({mode}), float({value})):\n{pad}    fail_unsupported({})\n{pad}    {}",
+                    quoted(&format!("{} requires a bound SourceCamera angle", model.path)),
+                    flow.exit()
+                )?;
+            }
+            Statement::ChangeCameraDistance {
+                actor,
+                mode,
+                minimum,
+                maximum,
+            } => {
+                let actor = guarded_expression(out, actor, model, depth, flow)?;
+                let mode = guarded_expression(out, mode, model, depth, flow)?;
+                let minimum = guarded_expression(out, minimum, model, depth, flow)?;
+                let maximum = guarded_expression(out, maximum, model, depth, flow)?;
+                writeln!(
+                    out,
+                    "{pad}if not character().source_camera_change_distance({actor}, int({mode}), float({minimum}), float({maximum})):\n{pad}    fail_unsupported({})\n{pad}    {}",
+                    quoted(&format!("{} requires a bound SourceCamera distance", model.path)),
+                    flow.exit()
                 )?;
             }
             Statement::CameraResetVerticalMaximum { actor } => {

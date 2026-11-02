@@ -228,6 +228,22 @@ impl<'a> Iterator for AstWalk<'a> {
                 } => {
                     self.expressions(child_depth, &[actor, selector, value]);
                 }
+                Statement::ChangeCameraAngle {
+                    actor,
+                    field,
+                    mode,
+                    value,
+                } => {
+                    self.expressions(child_depth, &[actor, field, mode, value]);
+                }
+                Statement::ChangeCameraDistance {
+                    actor,
+                    mode,
+                    minimum,
+                    maximum,
+                } => {
+                    self.expressions(child_depth, &[actor, mode, minimum, maximum]);
+                }
                 Statement::CameraResetVerticalMaximum { actor } => {
                     self.expressions(child_depth, &[actor]);
                 }
@@ -353,6 +369,9 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::InventoryQuantity(value)
                 | Expression::MagicRemovePoints(value)
                 | Expression::ActorListContains { actor: value, .. }
+                | Expression::CameraValue {
+                    selector: value, ..
+                }
                 | Expression::CameraShiftAlpha {
                     selector: value, ..
                 }

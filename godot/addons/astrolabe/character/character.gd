@@ -1441,6 +1441,25 @@ func source_activate_map_name(name_id: int, active: int) -> bool:
 
 ## Function_Camera_GetShiftAlpha reads the selected Perso camera's raw +0x44.
 ## Null signals an unsupported selector or missing native camera component.
+## Proc153: `actor` is the camera Perso; the receiver only reaches the API.
+func source_camera_change_angle(actor: Variant, field: int, mode: int, value: float) -> bool:
+    var camera: Node = _source_camera_of(actor)
+    return camera != null and bool(camera.call("source_change_angle", field, mode, value))
+
+## Proc143 changes the same camera's distance window.
+func source_camera_change_distance(actor: Variant, mode: int, minimum: float, maximum: float) -> bool:
+    var camera: Node = _source_camera_of(actor)
+    return camera != null and bool(camera.call("source_change_distance", mode, minimum, maximum))
+
+## Function_Camera_Get* for the ids carried by Expression::CameraValue.
+func source_camera_value(actor: Variant, getter: int, selector: int) -> Variant:
+    var camera: Node = _source_camera_of(actor)
+    return camera.call("source_value", getter, selector) if camera != null else null
+
+func _source_camera_of(actor: Variant) -> Node:
+    if typeof(actor) != TYPE_OBJECT or not is_instance_valid(actor) or not actor is Node: return null
+    return actor.get_node_or_null("SourceCamera")
+
 func source_camera_get_shift_alpha(selector: int) -> Variant:
     var camera := get_node_or_null("SourceCamera")
     if camera == null or not camera.has_method("source_get_shift_alpha"):

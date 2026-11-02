@@ -581,6 +581,18 @@ impl Parser<'_> {
                     selector: self.expression(indent + 1)?,
                     value: self.expression(indent + 1)?,
                 },
+                (4, 153) => Statement::ChangeCameraAngle {
+                    actor: self.expression(indent + 1)?,
+                    field: self.expression(indent + 1)?,
+                    mode: self.expression(indent + 1)?,
+                    value: self.expression(indent + 1)?,
+                },
+                (4, 143) => Statement::ChangeCameraDistance {
+                    actor: self.expression(indent + 1)?,
+                    mode: self.expression(indent + 1)?,
+                    minimum: self.expression(indent + 1)?,
+                    maximum: self.expression(indent + 1)?,
+                },
                 (4, 171) => Statement::CameraResetVerticalMaximum {
                     actor: self.expression(indent + 1)?,
                 },
@@ -1794,6 +1806,22 @@ impl Parser<'_> {
                 actor: Box::new(self.expression(indent + 1)?),
                 value: Box::new(self.expression(indent + 1)?),
             },
+            (3, getter @ (54 | 55 | 58 | 60 | 70)) => {
+                let selector = Box::new(self.expression(indent + 1)?);
+                let actor = self.expression(indent + 1)?;
+                if let Expression::Actor(receiver) = actor {
+                    Expression::CameraValue {
+                        getter,
+                        selector,
+                        receiver,
+                    }
+                } else {
+                    Expression::Unsupported(self.unsupported(
+                        at,
+                        "Function_Camera_Get* requires a Perso receiver".into(),
+                    )?)
+                }
+            }
             (3, 59) => {
                 let selector = Box::new(self.expression(indent + 1)?);
                 let actor = self.expression(indent + 1)?;
@@ -2497,6 +2525,28 @@ impl Writer<'_> {
                         self.expression(value, indent + 1)?;
                     }
                 }
+                Statement::ChangeCameraAngle {
+                    actor,
+                    field,
+                    mode,
+                    value,
+                } => {
+                    self.node(4, 153, indent);
+                    for value in [actor, field, mode, value] {
+                        self.expression(value, indent + 1)?;
+                    }
+                }
+                Statement::ChangeCameraDistance {
+                    actor,
+                    mode,
+                    minimum,
+                    maximum,
+                } => {
+                    self.node(4, 143, indent);
+                    for value in [actor, mode, minimum, maximum] {
+                        self.expression(value, indent + 1)?;
+                    }
+                }
                 Statement::CameraResetVerticalMaximum { actor } => {
                     self.node(4, 171, indent);
                     self.expression(actor, indent + 1)?;
@@ -3092,6 +3142,22 @@ impl Writer<'_> {
                 } else {
                     self.node(3, 1, indent);
                     self.expression(target, indent + 1)?;
+                }
+            }
+            Expression::CameraValue {
+                getter,
+                selector,
+                receiver,
+            } => {
+                self.node(3, *getter, indent);
+                self.expression(selector, indent + 1)?;
+                match receiver {
+                    ActorTarget::Keyword(ActorKeyword::SelfActor) => self.node(0, 4, indent + 1),
+                    ActorTarget::Keyword(ActorKeyword::MainActor) => self.node(0, 5, indent + 1),
+                    ActorTarget::Variable(variable) => {
+                        self.node(11, u32::from(*variable), indent + 1)
+                    }
+                    ActorTarget::Reference(actor) => self.actor_node(actor, indent + 1)?,
                 }
             }
             Expression::CameraShiftAlpha { selector, receiver } => {

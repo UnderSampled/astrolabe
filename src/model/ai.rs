@@ -364,6 +364,23 @@ pub enum Statement {
         selector: Expression,
         value: Expression,
     },
+    /// Proc153 (00547620) writes one camera angle. `field` 0/1 are alpha and
+    /// teta, 2..4 the view orientation, 5/6 their shifts. `mode` -1 restores
+    /// the initial value, 0 sets and 1 adds; 9 and 10 are those for this frame.
+    ChangeCameraAngle {
+        actor: Expression,
+        field: Expression,
+        mode: Expression,
+        value: Expression,
+    },
+    /// Proc143 (00546510) writes the camera distance window. `mode` -3..6
+    /// selects which bound changes; the result is clamped to 0 <= min <= max.
+    ChangeCameraDistance {
+        actor: Expression,
+        mode: Expression,
+        minimum: Expression,
+        maximum: Expression,
+    },
     /// Proc171 evaluates one actor and resets only its camera's vertical maximum.
     CameraResetVerticalMaximum {
         actor: Expression,
@@ -703,6 +720,14 @@ pub enum Expression {
     DistanceToWaypoint {
         actor: ActorTarget,
         waypoint: Box<Expression>,
+    },
+    /// Function_Camera_Get* (category 3, native 0x0053d300): `getter` is the
+    /// source id, 54 DistMin, 55 DistMax, 58 Alpha, 60 Teta or 70 State. A zero
+    /// selector reads the initial parameters, nonzero the current ones.
+    CameraValue {
+        getter: u32,
+        selector: Box<Expression>,
+        receiver: ActorTarget,
     },
     /// Function_Camera_GetShiftAlpha (category 3/id 59, native 0x0053d300)
     /// takes a typed integer selector and a Perso receiver. The observed
@@ -1652,6 +1677,9 @@ impl Script {
                     expression(bit, variables, depth + 1, count)?;
                 }
                 Expression::CameraShiftAlpha { selector, receiver }
+                | Expression::CameraValue {
+                    selector, receiver, ..
+                }
                 | Expression::CameraShiftTeta { selector, receiver } => {
                     if let ActorTarget::Reference(actor) = receiver {
                         ensure!(actor.path.member().is_none(), "camera receiver is a member");
@@ -2146,6 +2174,26 @@ impl Script {
                         value,
                     } => {
                         for value in [actor, selector, value] {
+                            expression(value, variables, depth + 1, count)?;
+                        }
+                    }
+                    Statement::ChangeCameraAngle {
+                        actor,
+                        field,
+                        mode,
+                        value,
+                    } => {
+                        for value in [actor, field, mode, value] {
+                            expression(value, variables, depth + 1, count)?;
+                        }
+                    }
+                    Statement::ChangeCameraDistance {
+                        actor,
+                        mode,
+                        minimum,
+                        maximum,
+                    } => {
+                        for value in [actor, mode, minimum, maximum] {
                             expression(value, variables, depth + 1, count)?;
                         }
                     }

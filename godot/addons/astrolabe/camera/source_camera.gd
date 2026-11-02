@@ -34,6 +34,8 @@ const SOURCE_PRIMARY_CAMERA_OWNER := &"astrolabe_source_primary_camera"
 ## 00440070 initializes this source float to zero; the angular consumer applies
 ## its own radians-window rules after this raw getter returns.
 @export var source_shift_alpha: float = 0.0
+## Fields under a frame-only Proc153, with the value to restore after the update.
+var _source_frame_angles: Dictionary = {}
 @export var mode_zero_pitch_limits: Vector2 = Vector2.ZERO
 @export var mode_zero_parameter_flags: int = 0
 ## Camera parameter controls consumed by native follow motion. Zero defaults
@@ -101,7 +103,7 @@ var _source_camera_collision_guard := false
 func source_get_shift_alpha(selector: int) -> Variant:
     if selector not in [0, 1]:
         return null
-    return source_shift_alpha
+    return _source_angle_field(5, selector != 0)
 
 ## 0x0053d300 dispatches Function_Camera_GetShiftTeta (selector L, Perso P)
 ## to 00440c30, which reads the unmodified float at parameter +0x4c. The
@@ -109,7 +111,99 @@ func source_get_shift_alpha(selector: int) -> Variant:
 func source_get_shift_teta(selector: int) -> Variant:
     if selector not in [0, 1]:
         return null
-    return mode_zero_pitch_limits.y
+    return _source_angle_field(6, selector != 0)
+
+## Parameter offsets +40 alpha, +48 teta, +50..58 orientation, +44/+4c shifts.
+func _source_angle_field(field: int, current: bool) -> float:
+    var yaw: Vector2 = mode_zero_yaw_limits if current or initial_framing == null else initial_framing.yaw_limits
+    var pitch: Vector2 = mode_zero_pitch_limits if current or initial_framing == null else initial_framing.pitch_limits
+    var view: Vector3 = follow_view_angles if current or initial_framing == null else initial_framing.follow_view_angles
+    match field:
+        0: return yaw.x
+        1: return pitch.x
+        2: return view.x
+        3: return view.y
+        4: return view.z
+        5: return yaw.y
+        6: return pitch.y
+    return 0.0
+
+func _source_set_angle_field(field: int, value: float) -> void:
+    match field:
+        0: mode_zero_yaw_limits.x = value
+        1: mode_zero_pitch_limits.x = value
+        2: follow_view_angles.x = value
+        3: follow_view_angles.y = value
+        4: follow_view_angles.z = value
+        5:
+            mode_zero_yaw_limits.y = value
+            source_shift_alpha = value
+        6: mode_zero_pitch_limits.y = value
+
+## Proc153 (00547620). Field 5/6 clamp to 0..PI, the others wrap once into
+## 0..TAU. Modes above 1 write the frame override, which ends with this update.
+func source_change_angle(field: int, mode: int, value: float) -> bool:
+    if field < 0 or field > 6: return false
+    var transient := mode > 1
+    if transient:
+        mode -= 10
+        if not _source_frame_angles.has(field): _source_frame_angles[field] = _source_angle_field(field, true)
+    var next: float
+    match mode:
+        -1: next = _source_angle_field(field, false)
+        0: next = value
+        1: next = value + _source_angle_field(field, true)
+        _: next = _source_angle_field(field, true)
+    if field >= 5:
+        if next > PI: next = PI
+        if next < 0.0: next = 0.0
+    else:
+        if next > TAU: next -= TAU
+        if next < 0.0: next += TAU
+    _source_set_angle_field(field, next)
+    return true
+
+## Proc143 (00546510). Modes -3..-1 restore bounds, 0 sets, 1 adds, 2/3 set one
+## bound, 4/5 copy one to the other, 6 moves min to the midpoint.
+func source_change_distance(mode: int, minimum: float, maximum: float) -> bool:
+    var near := mode_zero_distance.x
+    var far := mode_zero_distance.y
+    var initial: Vector2 = initial_framing.distance if initial_framing != null else mode_zero_distance
+    match mode:
+        -3: near = initial.x
+        -2: far = initial.y
+        -1:
+            near = initial.x
+            far = initial.y
+        0:
+            near = minimum
+            far = maximum
+        1:
+            near += minimum
+            far += maximum
+        2: near = minimum
+        3: far = maximum
+        4: near = far
+        5: far = near
+        6: near = (near + far) * 0.5
+        _: return true
+    near = maxf(near, 0.0)
+    far = maxf(far, 0.0)
+    if near > far: near = far
+    mode_zero_distance = Vector2(near, far)
+    return true
+
+## Function_Camera_Get* (0053d300): selector zero reads the initial parameters.
+func source_value(getter: int, selector: int) -> Variant:
+    var current := selector != 0
+    var window: Vector2 = mode_zero_distance if current or initial_framing == null else initial_framing.distance
+    match getter:
+        54: return window.x
+        55: return window.y
+        58: return _source_angle_field(0, current)
+        60: return _source_angle_field(1, current)
+        70: return motion_mode if current or initial_framing == null else int(initial_framing.motion_mode)
+    return null
 
 func _ready() -> void:
     source_viewport_registered = initially_registered
@@ -406,6 +500,9 @@ func source_update_position() -> bool:
         result = _source_update_mode_three()
     elif motion_mode == 6:
         result = _source_update_mode_six()
+    for field in _source_frame_angles:
+        _source_set_angle_field(field, _source_frame_angles[field])
+    _source_frame_angles.clear()
     if not result:
         if owner_motion_binding_present:
             source_mode_zero_action_flags = saved_action_flags
