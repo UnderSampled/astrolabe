@@ -134,7 +134,7 @@ var _configuration_bound: bool = false
 var source_configuration_error: String = ""
 
 var animation_player: AnimationPlayer:
-    get: return get_node("AnimationPlayer")
+    get: return get_node_or_null("AnimationPlayer")
 var current_clip: Animation:
     get: return animation_player.get_animation(animation_player.assigned_animation) if animation_player.assigned_animation != &"" else null
 var sample_rate: float:
@@ -142,8 +142,10 @@ var sample_rate: float:
 var frame_index: int:
     get: return int(floor(animation_player.current_animation_position * sample_rate + 0.000001)) if current_clip != null else 0
 var playing: bool:
-    get: return animation_player.is_playing()
+    # Camera-only actors have no AnimationPlayer; they never play.
+    get: return animation_player != null and animation_player.is_playing()
     set(value):
+        if animation_player == null: return
         if value: animation_player.play()
         else: animation_player.pause()
 
