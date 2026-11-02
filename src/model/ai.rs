@@ -692,6 +692,9 @@ pub enum Expression {
     /// Func_Square and Func_AbsoluteValue return a rounded source real.
     Square(Box<Expression>),
     AbsoluteValue(Box<Expression>),
+    /// Func_GetVectorNorm and Func_MTH_NormalizeVector.
+    VectorNorm(Box<Expression>),
+    VectorNormalize(Box<Expression>),
     /// Source vector literal (category 16); components remain source-space.
     Vector(Box<[Expression; 3]>),
     /// Current actor's world position in source coordinates.
@@ -797,6 +800,10 @@ pub enum Expression {
     /// Source Cond_CollideWithNothing reads the actor contact result. The
     /// native contact-category mapping remains under investigation.
     CollideWithNothing,
+    /// Cond_CollideWithWall: the actor's last move touched a wall.
+    CollideWithWall,
+    /// Cond_IsValidWayPoint: the operand names a waypoint.
+    IsValidWaypoint(Box<Expression>),
     /// Cond28 tests actual contact against all specified low16 material bits.
     /// The source output limit is independently one, not the third operand.
     CollidePersoZdeNoWithTypeZde {
@@ -1795,6 +1802,9 @@ impl Script {
                 | Expression::WaypointValuePosition(value)
                 | Expression::Square(value)
                 | Expression::AbsoluteValue(value)
+                | Expression::IsValidWaypoint(value)
+                | Expression::VectorNorm(value)
+                | Expression::VectorNormalize(value)
                 | Expression::ActorDistance(value)
                 | Expression::ActorHitPointsMaximum(value)
                 | Expression::ActorHitPoints(value)

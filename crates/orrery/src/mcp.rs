@@ -1296,7 +1296,9 @@ fn call_tool(
                     ))
                 })
                 .collect::<Result<Vec<_>>>()?;
-            Ok(ToolOutput::ok(controller.game()?.write_memory_batch(&writes)?))
+            Ok(ToolOutput::ok(
+                controller.game()?.write_memory_batch(&writes)?,
+            ))
         }
         "memory_maps" => {
             allowed(map, &[])?;

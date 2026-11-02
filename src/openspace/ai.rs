@@ -1447,6 +1447,8 @@ impl Parser<'_> {
             ),
             (1, 31) => Expression::CollideWithGround,
             (1, 33) => Expression::CollideWithNothing,
+            (1, 32) => Expression::CollideWithWall,
+            (1, 65) => Expression::IsValidWaypoint(Box::new(self.expression(indent + 1)?)),
             (1, 34) => Expression::CollideWithSlope,
             (1, 28) => {
                 let (_, actor) = self.take(indent + 1)?;
@@ -1776,6 +1778,8 @@ impl Parser<'_> {
             (3, 25) => Expression::Square(Box::new(self.expression(indent + 1)?)),
             (3, 22) => Expression::IntegerCast(Box::new(self.expression(indent + 1)?)),
             (3, 33) => Expression::AbsoluteValue(Box::new(self.expression(indent + 1)?)),
+            (3, 88) => Expression::VectorNorm(Box::new(self.expression(indent + 1)?)),
+            (3, 158) => Expression::VectorNormalize(Box::new(self.expression(indent + 1)?)),
             (3, 224) => Expression::ApplyArmoredDamage(Box::new(self.expression(indent + 1)?)),
             (3, 226) => Expression::ArmorResistance,
             (3, 227) => Expression::ArmorCount,
@@ -1816,10 +1820,12 @@ impl Parser<'_> {
                         receiver,
                     }
                 } else {
-                    Expression::Unsupported(self.unsupported(
-                        at,
-                        "Function_Camera_Get* requires a Perso receiver".into(),
-                    )?)
+                    Expression::Unsupported(
+                        self.unsupported(
+                            at,
+                            "Function_Camera_Get* requires a Perso receiver".into(),
+                        )?,
+                    )
                 }
             }
             (3, 59) => {
@@ -2977,6 +2983,14 @@ impl Writer<'_> {
                 self.node(3, 33, indent);
                 self.expression(value, indent + 1)?;
             }
+            Expression::VectorNorm(value) => {
+                self.node(3, 88, indent);
+                self.expression(value, indent + 1)?;
+            }
+            Expression::VectorNormalize(value) => {
+                self.node(3, 158, indent);
+                self.expression(value, indent + 1)?;
+            }
             Expression::IsValidActor(value) => {
                 self.node(1, 64, indent);
                 self.expression(value, indent + 1)?;
@@ -3320,6 +3334,11 @@ impl Writer<'_> {
             }
             Expression::CollideWithGround => self.node(1, 31, indent),
             Expression::CollideWithNothing => self.node(1, 33, indent),
+            Expression::CollideWithWall => self.node(1, 32, indent),
+            Expression::IsValidWaypoint(value) => {
+                self.node(1, 65, indent);
+                self.expression(value, indent + 1)?;
+            }
             Expression::CollidePersoZdeNoWithTypeZde {
                 zone,
                 material_mask,

@@ -963,7 +963,8 @@ fn vector_expression(e: &Expression, model: &AiModel) -> bool {
         | Expression::LaserDirection
         | Expression::VectorPlus(_, _)
         | Expression::VectorMinus(_, _)
-        | Expression::VectorScale(_, _) => true,
+        | Expression::VectorScale(_, _)
+        | Expression::VectorNormalize(_) => true,
         Expression::Variable(index) | Expression::SelfFieldRead(index) => matches!(
             model
                 .variables
@@ -1147,6 +1148,9 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
             needs_guard(left, model) || needs_guard(right, model)
         }
         Expression::Negate(value)
+        | Expression::IsValidWaypoint(value)
+        | Expression::VectorNorm(value)
+        | Expression::VectorNormalize(value)
         | Expression::IsInAction(value)
         | Expression::Not(value)
         | Expression::InventoryQuantity(value)
@@ -2036,6 +2040,18 @@ fn guarded_expression(
             )?;
             "character().source_laser_pointer_direction()".into()
         }
+        Expression::IsValidWaypoint(value) => format!(
+            "is_instance_valid({})",
+            guarded_expression(out, value, model, depth, flow)?
+        ),
+        Expression::VectorNorm(value) => format!(
+            "Vector3({}).length()",
+            guarded_expression(out, value, model, depth, flow)?
+        ),
+        Expression::VectorNormalize(value) => format!(
+            "Vector3({}).normalized()",
+            guarded_expression(out, value, model, depth, flow)?
+        ),
         Expression::VectorCos(a, b) => format!(
             "character().source_vector_cos({}, {})",
             guarded_expression(out, a, model, depth, flow)?,
@@ -2310,6 +2326,14 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         ),
         Expression::LaserDirection => {
             anyhow::bail!("laser direction requires guarded compilation")
+        }
+        Expression::IsValidWaypoint(value) => {
+            format!("is_instance_valid({})", expression(value, model)?)
+        }
+        Expression::CollideWithWall => "character().is_on_wall()".into(),
+        Expression::VectorNorm(value) => format!("Vector3({}).length()", expression(value, model)?),
+        Expression::VectorNormalize(value) => {
+            format!("Vector3({}).normalized()", expression(value, model)?)
         }
         Expression::VectorCos(a, b) => format!(
             "character().source_vector_cos({}, {})",
@@ -3816,7 +3840,10 @@ fn statements(
                 writeln!(
                     out,
                     "{pad}if not character().source_camera_change_angle({actor}, int({field}), int({mode}), float({value})):\n{pad}    fail_unsupported({})\n{pad}    {}",
-                    quoted(&format!("{} requires a bound SourceCamera angle", model.path)),
+                    quoted(&format!(
+                        "{} requires a bound SourceCamera angle",
+                        model.path
+                    )),
                     flow.exit()
                 )?;
             }
@@ -3833,7 +3860,10 @@ fn statements(
                 writeln!(
                     out,
                     "{pad}if not character().source_camera_change_distance({actor}, int({mode}), float({minimum}), float({maximum})):\n{pad}    fail_unsupported({})\n{pad}    {}",
-                    quoted(&format!("{} requires a bound SourceCamera distance", model.path)),
+                    quoted(&format!(
+                        "{} requires a bound SourceCamera distance",
+                        model.path
+                    )),
                     flow.exit()
                 )?;
             }

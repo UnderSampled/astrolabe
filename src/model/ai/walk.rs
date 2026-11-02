@@ -351,6 +351,9 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::IntegerCast(value)
                 | Expression::Square(value)
                 | Expression::AbsoluteValue(value)
+                | Expression::IsValidWaypoint(value)
+                | Expression::VectorNorm(value)
+                | Expression::VectorNormalize(value)
                 | Expression::ActorDistance(value)
                 | Expression::ActorHitPointsMaximum(value)
                 | Expression::ActorHitPoints(value)
@@ -474,6 +477,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Expression::DialogIsOverAndChangeBehavior
                 | Expression::CollideWithGround
                 | Expression::CollideWithNothing
+                | Expression::CollideWithWall
                 | Expression::CollidePersoZdeNoWithTypeZde { .. }
                 | Expression::CollideWithSlope
                 | Expression::IsTypeOfGmtCollide(_)

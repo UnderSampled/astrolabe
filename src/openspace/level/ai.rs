@@ -906,7 +906,10 @@ pub(super) fn import(
         let perso = s.required(node.address, SuperObjectWire::DATA)?;
         if let Some(reference) = actors.get(&perso) {
             let identity = s.source_identity(node.address)?;
-            if !source_actor_links.iter().any(|(source, _)| source == &identity) {
+            if !source_actor_links
+                .iter()
+                .any(|(source, _)| source == &identity)
+            {
                 source_actor_links.push((identity, reference.clone()));
             }
         }

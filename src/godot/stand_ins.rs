@@ -33,12 +33,6 @@ const KEEP_CAMERA: &str = "keep the native follow camera's current tuning";
 
 pub(super) const STAND_INS: &[StandIn] = &[
     entry(
-        "1-65",
-        "Cond_IsValidWayPoint",
-        "false",
-        "treat the waypoint as invalid",
-    ),
-    entry(
         "1-118",
         "Cond_Inv_InventoryIsFull",
         "false",
@@ -49,12 +43,6 @@ pub(super) const STAND_INS: &[StandIn] = &[
         "Cond_Inv_FindObject",
         "false",
         "the object is not carried",
-    ),
-    entry(
-        "1-32",
-        "Cond_CollideWithWall",
-        "false",
-        "no wall contact is reported to the script",
     ),
     entry("3-197", "Func_Inv_RemoveObject", "0", "nothing is removed"),
     entry("3-199", "Func_Inv_AddGold", "0", "no gold is added"),

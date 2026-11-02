@@ -34,10 +34,8 @@ row here. Replace them in order of what blocks play.
 | --- | --- | --- | --- |
 | `load-placement` | Hype's position after loading an original save | Live-measured manor spot, 2 units from the checkpoint, used instead of the saved matrix | Read how the engine places him; generalize beyond this save point |
 | `unbound-waypoint` | Absolute waypoint with no binding | Level origin | Bind the waypoint |
-| `1-65` | Cond_IsValidWayPoint | Waypoint is invalid | Check the waypoint reference |
 | `1-118` | Cond_Inv_InventoryIsFull | Always has room | Ask the inventory Resource |
 | `1-119` | Cond_Inv_FindObject | Object is not carried | Ask the inventory Resource |
-| `1-32` | Cond_CollideWithWall | No wall contact reported | Read native contact |
 | `3-197` | Func_Inv_RemoveObject | Nothing is removed | Inventory removal |
 | `3-199` | Func_Inv_AddGold | No gold is added | Gold through inventory |
 | `4-438` | Magic_SelectNextSpellType | Spell is kept | Cycle the spell type |
