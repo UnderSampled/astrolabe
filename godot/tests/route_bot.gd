@@ -273,6 +273,17 @@ func run() -> void:
 		elif step.has("defs"):
 			for definition in actor().get("source_inventory").get("definitions"):
 				print("DEF ", definition.get("item_id"), " ", definition.get("kind"), " q ", definition.get("quantity"), " max ", definition.get("maximum"), " avail ", definition.get("availability"), " ", definition.get("source_key"))
+		elif step.has("until_owned"):
+			var end := Time.get_ticks_msec() + int(step.get("timeout", 60.0) * 1000.0)
+			var wanted := int(step["until_owned"])
+			while not actor().get("source_inventory").call("presentation_quantities").has(wanted) and Time.get_ticks_msec() < end:
+				await physics_frame
+			ok = actor().get("source_inventory").call("presentation_quantities").has(wanted)
+		elif step.has("object"):
+			print("OBJECT ", actor().get("source_inventory").call("select_object", int(step["object"])))
+		elif step.has("basis"):
+			var body := body_of(step["basis"])
+			print("BASIS ", step["basis"], " forward ", body.global_basis.z, " at ", body.global_position, " hype ", actor().global_position)
 		elif step.has("owned"):
 			var inventory: Resource = actor().get("source_inventory")
 			print("OWNED ", inventory.call("presentation_quantities"), " object ", inventory.get("selected_object"), " life ", actor().get("source_hit_points").get("current"))
@@ -334,4 +345,4 @@ func _census(radius: Variant) -> void:
 		var distance: float = (body as Node3D).global_position.distance_to(hype)
 		var brain: Node = body.get_node_or_null("Brain")
 		if brain != null and (float(radius) <= 0.0 or distance < float(radius)):
-			print("CENSUS ", int(distance), " ", body.get_meta("source_perso_name", ""), " ", body.get_meta("source_perso"), " n", brain.get("current_normal"), " st", body.get("current_state"), " at ", [snappedf(body.global_position.x, 0.1), snappedf(-body.global_position.z, 0.1), snappedf(body.global_position.y, 0.1)], " ", "on" if body.get("source_object_active") else "off")
+			print("CENSUS ", int(distance), " ", body.get_meta("source_perso_name", ""), " ", body.get_meta("source_perso"), " model ", brain.get("source_model_path"), " n", brain.get("current_normal"), " st", body.get("current_state"), " at ", [snappedf(body.global_position.x, 0.1), snappedf(-body.global_position.z, 0.1), snappedf(body.global_position.y, 0.1)], " ", "on" if body.get("source_object_active") else "off")
