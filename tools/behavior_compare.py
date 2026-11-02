@@ -42,6 +42,9 @@ def distance(points):
     return sum(math.dist(a, b) for a, b in zip(points, points[1:]))
 
 
+LAST_POSITION = [[0, 0, 0]]
+
+
 def busy_seconds(samples):
     """Time from the first sample until the last non-idle sample."""
     busy = [s['ms'] for s in samples if s['action'] != 47]
@@ -62,8 +65,15 @@ def offset(camera, samples):
 
 
 def observe(mcp):
-    data = mcp.call('inspect_main_actor', actions=[47], designer_values=[])['observation']
+    try:
+        data = mcp.call('inspect_main_actor', actions=[47], designer_values=[])['observation']
+    except RuntimeError as error:
+        # The save lectern leaves the gameplay phase while its menu is open.
+        if 'gameplay phase' not in str(error):
+            raise
+        return {'ms': time.monotonic()*1000, 'action': -2, 'normal': -2, 'position': LAST_POSITION[0]}
     transform = data['actor']['global_transform']
+    LAST_POSITION[0] = transform.get('translation') or transform.get('Affine', {}).get('translation') or [0, 0, 0]
     matrix = json.dumps(transform)
     return {'ms': time.monotonic()*1000, 'action': data['actor']['current_action'], 'normal': data['normal']['current'],
             'position': transform.get('translation') or transform.get('Affine', {}).get('translation') or [0, 0, 0],
@@ -105,12 +115,13 @@ def original(mcp, scenario):
             samples.append(observe(mcp))
     while time.monotonic()-started < scenario['seconds']:
         samples.append(observe(mcp))
-    watched = live_actors(mcp, {'watched': scenario.get('watch_types', {})})
-    camera = mcp.call('inspect_scene_camera', level='manoir', object_types=CAMERA_TYPES)
-    active = camera['observation']['active_camera']
+    in_menu = samples[-1]['action'] == -2
+    watched = {} if in_menu else live_actors(mcp, {'watched': scenario.get('watch_types', {})})
+    camera = None if in_menu else mcp.call('inspect_scene_camera', level='manoir', object_types=CAMERA_TYPES)
+    active = camera['observation']['active_camera'] if camera else None
     mcp.call('stop_game')
-    return {'watched': watched, 'camera': {'position': active['position_source'], 'forward': active['forward_source'],
-                       'horizontal_fov': active['horizontal_fov'], 'vertical_fov': active['vertical_fov']},
+    return {'watched': watched, 'camera': active and {'position': active['position_source'], 'forward': active['forward_source'],
+                                  'horizontal_fov': active['horizontal_fov'], 'vertical_fov': active['vertical_fov']},
             'entry': condense(row['action'] for row in entry), 'samples': samples}
 
 
