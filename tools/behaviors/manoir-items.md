@@ -12,7 +12,7 @@
 - [x] Walk, run, backstep, turn, jump, sword, crossbow and Fire match the original's sequences.
 - [x] Flask pickup collects its item through compiled AI; saved gold stays collected.
 - [ ] Barrels.
-- [ ] Training dummy reactions.
+- [x] Sword hits register: the training mannequin reacts and recovers.
 - [ ] Damage, death and fall damage.
 - [ ] Gogoud's key and the gate.
 - [ ] Level exit.

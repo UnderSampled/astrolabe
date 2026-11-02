@@ -1606,7 +1606,7 @@ func _select_state(id: int) -> bool:
     # stop() clears the mixer's track cache, and rebuilding it for a thousand
     # tracks stalled every action change by about 60 ms.
     animation_player.play(clip)
-    animation_player.seek(0.0, true, false)
+    animation_player.seek(0.0, true, true)
     advance_native(0.0)
     _state_movement_collision(current_state)
     if sample_rate <= 0.0: animation_player.pause()
