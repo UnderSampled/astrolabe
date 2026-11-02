@@ -584,8 +584,9 @@ pub(super) fn export_perso(
         };
         writeln!(
             project.builder,
-            "    {name}.get_node(\"SoundEmitter\").microphone_basis = ({}).basis\n    {name}.get_node(\"SoundEmitter\").microphone_basis_known = true",
-            super::scene::transform(&rotation)
+            "    {name}.get_node(\"SoundEmitter\").microphone_basis = ({}).basis\n    {name}.get_node(\"SoundEmitter\").microphone_basis_known = true\n    {name}.get_node(\"SoundEmitter\").microphone_tracks = {}",
+            super::scene::transform(&rotation),
+            microphone.eligible != 0
         )?;
     }
     let controller = format!(

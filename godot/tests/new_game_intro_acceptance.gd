@@ -10,6 +10,7 @@ var screen: Node
 var started_ms := 0
 var last_signature := ""
 var next_sample_ms := 0
+var recorder: AudioEffectRecord
 var entry_ms := 0
 
 func _initialize() -> void:
@@ -162,6 +163,12 @@ func run() -> void:
     var adopted: Node = screen.get("adopted_screen")
     if is_instance_valid(adopted): screen = adopted
     report["load_ms"] = Time.get_ticks_msec() - started_ms
+    # ASTROLABE_INTRO_WAV keeps the master bus for tools/intro_compare.py loudness.
+    if OS.has_environment("ASTROLABE_INTRO_WAV"):
+        recorder = AudioEffectRecord.new()
+        recorder.format = AudioStreamWAV.FORMAT_16_BITS
+        AudioServer.add_bus_effect(0, recorder)
+        recorder.set_recording_active(true)
     report["scene"] = game.scene_file_path
     await capture("opening")
     var deadline := Time.get_ticks_msec() + 300000
@@ -182,6 +189,9 @@ func run() -> void:
         await physics_frame
     var final := observe()
     report["handoff"] = final
+    if recorder != null:
+        recorder.set_recording_active(false)
+        recorder.get_recording().save_to_wav(OS.get_environment("ASTROLABE_INTRO_WAV"))
     # Keep the timeline going while the camera settles behind Hype, as the original does.
     var settle := Time.get_ticks_msec() + 12000
     while Time.get_ticks_msec() < settle:

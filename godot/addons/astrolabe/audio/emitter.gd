@@ -17,6 +17,10 @@ var _dialogue_speech_request: bool = false
 ## Populated by source conversion. Unknown authored Micro data stays unbound.
 @export var microphone_basis: Basis = Basis.IDENTITY
 @export var microphone_basis_known: bool = false
+## A Micro whose eligible byte is clear stays where it was selected. Live intro:
+## the camera's Micro has it clear, and speech holds its level across shot cuts.
+@export var microphone_tracks: bool = true
+var microphone_held := false
 var microphone_position_actor: Node3D
 var microphone_orientation_actor: Node3D
 var microphone_orientation_basis: Variant = null
@@ -52,9 +56,12 @@ static func switch_micro_perso(requester: Node, selected: Node3D, default_main: 
     listener.microphone_position_actor = actor
     listener.microphone_orientation_actor = actor
     listener.microphone_orientation_basis = local_basis
+    listener.microphone_held = false
     # The source setter accepts an actor with null Micro. Record that selection
     # without inventing an orientation; publication for this case is unproven.
     if listener.update_microphone_pose(): listener.make_current()
+    var component: Node = actor.get_node_or_null("SoundEmitter")
+    listener.microphone_held = component != null and not bool(component.get("microphone_tracks"))
     return true
 
 ## Proc404 changes the orientation source while keeping the position source.
@@ -69,6 +76,7 @@ static func switch_old_micro_perso(requester: Node, actor: Node3D, local_basis: 
     return true
 
 func update_microphone_pose() -> bool:
+    if microphone_held: return microphone_pose_known
     microphone_pose_known = false
     if not is_instance_valid(microphone_position_actor) or not is_instance_valid(microphone_orientation_actor):
         if is_microphone: call("clear_current")

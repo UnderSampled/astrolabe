@@ -28,6 +28,6 @@
 - [ ] Timing compared with the original. Intro compared by tools/intro_compare.py: Hype, Gogoud and action sequences, every camera shot, end camera and end positions match. The port finishes about 10s sooner because voice-tied waits run about 1.1 times longer in the original under Wine; the port plays each clip at its true length, and non-voice intervals agree. Whether the stretch also happens on real Windows is unsettled.
 - [x] Actor collision: Hype stops at the save lectern where the original does.
 - [ ] Physics compared with the original: walk and run distance agree within about 3 percent, jump rise within about 6 percent.
-- [ ] Sound mixing compared with the original.
-- [ ] Visuals compared with the original: camera framing and world match at the Load start; actor lighting and HUD in progress.
+- [ ] Sound mixing compared with the original (tools/intro_loudness.py). Music within 1.5 dB, voices 1.5 to 5 dB quiet at the intro. Camera microphones hold their selected pose, matching the original: an intro line was silent before. Open: between intro lines the background is -51 dB in the port and -42 in the original, and no script ducks it.
+- [ ] Visuals compared with the original: all intro camera shots match; camera framing and world match at the Load start; actor lighting and HUD in progress.
 - [ ] Sector AI activation: the original leaves some distant actors idle until nearby; the port runs them all.
