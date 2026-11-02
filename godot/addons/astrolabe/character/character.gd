@@ -183,10 +183,12 @@ func _ready() -> void:
     if source_laser_pointer == null:
         source_laser_pointer = SOURCE_LASER_POINTER.new()
     _bind_source_configuration()
-    if motion_enabled:
-        # The engine allocates dynamics at load, so the file's pointer can be
-        # empty for an actor that moves. Without this Hype ignores scripted turns.
+    # The engine allocates dynamics at load, so the file's pointer can be empty
+    # for an actor that moves. Without this Hype ignores scripted turns and
+    # Gogoud's scripted walks finish at once.
+    if motion_enabled or current_mechanics != null:
         source_motion_binding_present = true
+    if motion_enabled:
         _configure_motion()
         _collide_with_actor_zones()
         # Walking down stairs must keep ground contact, or the fall reflex fires mid-step.
