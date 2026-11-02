@@ -153,6 +153,9 @@ func watch(seconds: float, names: Array, press: String, fields: Array = []) -> v
 		await physics_frame
 		var row := {"hype": [int(actor().get("current_state")), int(game.get("brain").get("current_normal"))]}
 		for field in fields: row[field] = game.get("brain").get(field)
+		var overseer := brain_of("global")
+		if overseer != null: row["global"] = [int(overseer.get("current_normal")), overseer.get("dsg_201")]
+		row["life"] = int(actor().get("source_hit_points").get("current"))
 		if fields.size() > 0: row["at"] = [roundi(position().x), roundi(position().y), roundi(actor().global_position.y)]
 		for name in bodies:
 			var brain: Node = bodies[name].get_node_or_null("Brain")

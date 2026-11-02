@@ -22,7 +22,7 @@ func key(names: String, pressed: bool) -> void:
 func sample() -> void:
 	var actor: CharacterBody3D = game.get("actor")
 	var brain: Node = game.get("brain")
-	samples.append({"ms": Time.get_ticks_msec() - started, "action": int(actor.get("current_state")), "normal": int(brain.get("current_normal")), "position": [actor.global_position.x, -actor.global_position.z, actor.global_position.y], "running": bool(brain.get("running"))})
+	samples.append({"ms": Time.get_ticks_msec() - started, "action": int(actor.get("current_state")), "normal": int(brain.get("current_normal")), "position": [actor.global_position.x, -actor.global_position.z, actor.global_position.y], "running": bool(brain.get("running")), "life": int(actor.get("source_hit_points").get("current"))})
 
 func wait(seconds: float) -> void:
 	var end := Time.get_ticks_msec() + int(seconds * 1000.0)
@@ -62,6 +62,10 @@ func run() -> void:
 	started = Time.get_ticks_msec()
 	sample()
 	for step in scenario["steps"]:
+		if step["key"] == "drop":
+			var at: Array = step["at"]
+			game.get("actor").global_position = Vector3(at[0], at[2], -at[1])
+			continue
 		if step["key"] == "wait":
 			await wait(step["hold_ms"] / 1000.0)
 			continue

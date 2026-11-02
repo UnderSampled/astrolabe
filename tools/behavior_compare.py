@@ -4,7 +4,9 @@
 The original runs from a disposable prefix through a private Orrery server. Each
 engine reports the sequence of actions and behaviors, without repeats, plus total
 distance. Sampling differs between engines, so timing is not judged here.
-A scenario's "place" [x, y, z] starts both engines at that source position.
+A scenario's "place" [x, y, z] starts both engines at that source position. A
+{"key": "drop", "at": [x, y, z]} step moves Hype there at once; "life": true
+samples his hit points in the original too.
 Distance is a hint only: the original stalls under Wine at scenario start and on
 its first Fire cast, and loses root motion during the stall.
 Writes docs/astrolabe/manoir-behaviors.md.
@@ -98,8 +100,16 @@ def live_actors(mcp, port_state):
     return out
 
 
-def place(mcp, position):
-    """Move Hype by rewriting every copy of his position inside one pause."""
+def life(mcp):
+    """Hype's current hit points: SuperObject+4 is the Perso, Perso+4 StandardGame, +0x18 life."""
+    node = mcp.call('inspect_main_actor', actions=[47], designer_values=[])['observation']['actor']['node']
+    perso = mcp.call('read_memory', address=hex(int(str(node).split(':')[-1], 16)+4), type='u32', size=4)['value']
+    standard = mcp.call('read_memory', address=hex(perso+4), type='u32', size=4)['value']
+    return mcp.call('read_memory', address=hex(standard+0x18), type='u8', size=1)['value']
+
+
+def position_copies(mcp):
+    """Every heap address holding Hype's position, about 15 seconds of reads."""
     here = observe(mcp)['position']
     found = []
     for row in mcp.call('memory_maps')['maps']:
@@ -115,14 +125,25 @@ def place(mcp, position):
                 triple = struct.unpack_from('<3f', data, offset)
                 if all(abs(a-b) < 0.02 for a, b in zip(triple, here)):
                     found.append(at+offset)
+    return found[:32]
+
+
+def write_position(mcp, found, point):
+    writes = [{'address': hex(at), 'value': struct.pack('<3f', *point).hex(), 'expect': '*'} for at in found]
+    mcp.call('write_memory_batch', writes=writes)
+
+
+def place(mcp, position):
+    """Move Hype by rewriting every copy of his position inside one pause."""
+    here = observe(mcp)['position']
+    found = position_copies(mcp)
     # A long jump lands where sectors are not active yet and Hype falls through,
     # so hop there and let the engine follow.
     distance = math.dist(here, position)
     hops = max(1, math.ceil(distance/PLACE_HOP))
     for hop in range(1, hops+1):
         point = [a+(b-a)*hop/hops for a, b in zip(here, position)]
-        writes = [{'address': hex(at), 'value': struct.pack('<3f', *point).hex(), 'expect': '*'} for at in found[:32]]
-        mcp.call('write_memory_batch', writes=writes)
+        write_position(mcp, found, point)
         time.sleep(PLACE_SETTLE)
 
 
@@ -144,9 +165,13 @@ def original(mcp, scenario):
         time.sleep(1.5)
         entry.append(observe(mcp))
     samples = [entry[-1]]
+    copies = position_copies(mcp) if any(step['key'] == 'drop' for step in scenario['steps']) else []
     started = time.monotonic()
     for step in scenario['steps']:
-        if step['key'] == 'wait':
+        if step['key'] == 'drop':
+            write_position(mcp, copies, step['at'])
+            samples.append(observe(mcp))
+        elif step['key'] == 'wait':
             end = time.monotonic()+step['hold_ms']/1000
             while time.monotonic() < end:
                 samples.append(observe(mcp))
@@ -159,6 +184,8 @@ def original(mcp, scenario):
             samples.append(observe(mcp))
     while time.monotonic()-started < scenario['seconds']:
         samples.append(observe(mcp))
+        if 'life' in scenario:
+            samples[-1]['life'] = life(mcp)
     in_menu = samples[-1]['action'] == -2
     watched = {} if in_menu else live_actors(mcp, {'watched': scenario.get('watch_types', {})})
     camera = None if in_menu else mcp.call('inspect_scene_camera', level='manoir', object_types=CAMERA_TYPES)
@@ -218,6 +245,8 @@ def main():
                      'original_moved': round(math.dist(first[0]['position'], first[-1]['position']), 2),
                      'port_moved': round(math.dist(second[0]['position'], second[-1]['position']), 2) if second else None,
                      'original_watched': live_watched, 'port_watched': port_state.get('watched'), 'port_gold': port_state.get('gold'),
+                     'original_life': condense(s['life'] for s in first if 'life' in s),
+                     'port_life': condense(s['life'] for s in second),
                      'original_end': [round(v, 1) for v in first[-1]['position']] if first else None,
                      'port_end': [round(v, 1) for v in second[-1]['position']] if second else None,
                      'port_alive': bool(second) and second[-1]['running'],

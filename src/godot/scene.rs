@@ -401,7 +401,7 @@ impl Project {
                 let name = format!("{scene_id}_global_{i}");
                 writeln!(
                     self.builder,
-                    "    var {name} = Node3D.new()\n    {name}.name = {}\n    {globals}.add_child({name})\n    {name}.owner = {scene_id}",
+                    "    var {name} = CharacterBody3D.new()\n    {name}.set_script(native_resource(\"res://addons/astrolabe/character/character.gd\"))\n    {name}.name = {}\n    {name}.collision_layer = 0\n    {name}.collision_mask = 0\n    {globals}.add_child({name})\n    {name}.owner = {scene_id}\n    var {name}_sound = Node3D.new()\n    {name}_sound.name = \"SoundEmitter\"\n    {name}_sound.set_script(native_resource(\"res://addons/astrolabe/audio/emitter.gd\"))\n    {name}.add_child({name}_sound)\n    {name}_sound.owner = {scene_id}",
                     quoted(&actor.name)
                 )?;
                 let mut written = std::collections::BTreeSet::new();
@@ -414,7 +414,7 @@ impl Project {
                 )?;
                 writeln!(
                     self.builder,
-                    "    {name}.get_node(\"Brain\").owner = {scene_id}\n    {name}.get_node(\"Brain\").set(\"automatic\", false)"
+                    "    {name}.get_node(\"Brain\").owner = {scene_id}"
                 )?;
                 global_names.insert(global.perso.path.clone(), name);
             }
@@ -715,6 +715,12 @@ impl Project {
                 writeln!(
                     self.builder,
                     "    {scene_id}.set_editable_instance({character}, true)\n    {character}.get_node(\"Brain\").main_actor_path = {character}.get_node(\"Brain\").get_path_to({main})"
+                )?;
+            }
+            for name in global_names.values() {
+                writeln!(
+                    self.builder,
+                    "    {name}.get_node(\"Brain\").main_actor_path = {name}.get_node(\"Brain\").get_path_to({main})"
                 )?;
             }
         }

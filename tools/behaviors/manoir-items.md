@@ -13,7 +13,7 @@
 - [x] Flask pickup collects its item through compiled AI; saved gold stays collected.
 - [ ] Barrels. Route stage5_barrel.json: Fire at iBaril2 makes the barrels react (normal 2 to 3; iBaril1 then loops states 1 and 7 forever), Hype's life stays 50 at 3 units away. Whether a barrel should explode and hurt is not settled; check against the original.
 - [x] Sword hits register: the training mannequin reacts and recovers.
-- [ ] Damage, death and fall damage: no compiled Manoir script lowers Hype's life, kills him or reads life at zero, and the Manoir has no enemies, so the level has no death path in AI. Falls of 18 and 34 units deal no damage in the port (stage5_death.json). Whether the original applies engine fall damage here is unchecked. Falling out of the world recovers Hype to the same spot in both engines, about (-46.6, 122.5, 16.6).
+- [ ] Damage and death. Falling off the bridge matches the original on both branches (fall_bridge, fall_near_pont04): behaviors 93, 94, 16, 96, 4, placement by iManoirAll_Dummy_TombePont1 and life 50 to 49 through Global's armored 10. Global's AI never ran in the port until it became a real actor. Barrel damage (fix model 671) and death at zero life (behaviors 24, 95, statue, game over) exist in compiled AI and are not yet proven.
 - [x] Training: Gogoud leads Hype to the mannequins, dialogue plays, sword stage completes with the source spin sequence, Gogoud advances.
 - [x] Talking to Gogoud grants the crossbow and 10 bolts, and item messages close.
 - [x] Crossbow bolts register on the mannequin: the bolt no longer strikes its own shooter (stand-in `generator-contact`), so the mannequin reacts. Second arm landed and Gogoud advances (stage1_crossbow.json).
