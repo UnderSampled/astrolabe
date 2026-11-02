@@ -17,8 +17,9 @@ guard stops the Brain with `unsupported_failure`. `game/bootstrap.gd` turns that
 off for the game. `ASTROLABE_STRICT_BEHAVIOR=1` keeps it on.
 
 Runtime guards (`fail_unsupported`) have one shared stand-in, recorded under the
-id `guard`: abandon the current pass. A rule retries on the next tick, while a
-schedule ends until its behavior is entered again. Calls with no table entry use
+id `guard`: skip the call and continue, so a schedule can't strand its actor. If
+the rest of the code needs what was missing, that coroutine ends with a script
+error, which is logged. Calls with no table entry use
 the `generic` stand-in, which skips the call and reads as zero.
 
 Stand-ins most reached in the gate are the squirrel (model 816) and pigeons

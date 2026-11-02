@@ -337,6 +337,24 @@ pub fn compile_for_family(
 ) -> Result<String> {
     compile_with_templates(model, events, family, &[], &[], &[])
 }
+/// A guard stops a strict Brain. In the game it records the gap and continues,
+/// because returning would end a behavior's schedule and strand its actor.
+fn continue_past_guards(code: &str) -> String {
+    let mut out = String::with_capacity(code.len() + code.len() / 16);
+    let mut guarded = false;
+    for line in code.lines() {
+        let body = line.trim_start();
+        if guarded && body.starts_with("return") {
+            let indent = &line[..line.len() - body.len()];
+            writeln!(out, "{indent}if strict_unsupported: {body}").expect("string write");
+        } else {
+            out.push_str(line);
+            out.push('\n');
+        }
+        guarded = body.starts_with("fail_unsupported(");
+    }
+    out
+}
 fn compile_with_templates(
     model: &AiModel,
     events: &[(crate::model::audio::SoundEventLink, String)],
@@ -680,7 +698,7 @@ fn compile_with_bindings(
             }
         }
     }
-    Ok(out)
+    Ok(continue_past_guards(&out))
 }
 fn value_type(v: &DesignerValue) -> &'static str {
     match v {
