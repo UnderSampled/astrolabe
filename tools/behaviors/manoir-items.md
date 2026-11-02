@@ -11,7 +11,7 @@
 - [x] The save lectern plays its sequence and saves.
 - [x] Walk, run, backstep, turn, jump, sword, crossbow and Fire match the original's sequences.
 - [x] Flask pickup collects its item through compiled AI; saved gold stays collected.
-- [ ] Barrels. Route stage5_barrel.json: Fire at iBaril2 makes the barrels react (normal 2 to 3; iBaril1 then loops states 1 and 7 forever), Hype's life stays 50 at 3 units away. Whether a barrel should explode and hurt is not settled; check against the original.
+- [x] Barrels. Fire at iBaril2 runs the barrel chain to iDummy_PourBarils (stage5_barrel.json). The dummy checks distance at the hit: within 3 units Hype takes armored 10 (life 50 to 49) and is knocked back 1.5, proven by triggering it beside the barrel. Hype out of range takes nothing. Not compared with the original: the training yard is too far from the save for placement to hold.
 - [x] Sword hits register: the training mannequin reacts and recovers.
 - [x] Fall damage and death. Falling off the bridge matches the original on both branches (fall_bridge, fall_near_pont04): behaviors 93, 94, 16, 96, 4, placement by iManoirAll_Dummy_TombePont1 and life 50 to 49 through Global's armored 10. A lethal fall (fall_death, from life 1) matches through 16, 95, 55 with actions 316, 343, then statue, fade, game over image and the menu. Only rendered runs finish the game over: the image's hold waits for a drawn frame.
 - [x] Training: Gogoud leads Hype to the mannequins, dialogue plays, sword stage completes with the source spin sequence, Gogoud advances.
