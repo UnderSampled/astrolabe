@@ -94,7 +94,7 @@ fn raw207_roundtrips_and_dispatches_to_the_bound_target_brain() -> Result<()> {
             .contains("str(change_brain_0.get(\"source_model_path\")) != \"fix:/ai/models/28\"")
     );
     assert!(generated.contains("change_brain_0.call(\"change_normal\", 50, false)"));
-    assert!(generated.contains("same-actor status semantics are unresolved"));
+    assert!(generated.contains("source control-status semantics are unresolved"));
     assert!(!generated.contains("unsupported AI statement category 4 operation 207"));
     Ok(())
 }
@@ -184,7 +184,7 @@ fn raw207_does_not_accept_the_separate_reflex_behavior_form() -> Result<()> {
     let Statement::Unsupported(fragment) = &parsed.statements[0] else {
         anyhow::bail!("raw207 incorrectly accepted a Reflex behavior reference")
     };
-    assert!(fragment.reason.contains("target is not a Normal behavior"));
+    assert!(fragment.reason.contains("request/owning group differs"));
     assert!(codec.write(&parsed).is_err());
     Ok(())
 }
@@ -198,7 +198,7 @@ fn self_target_raw207_stays_typed_but_codegen_fails_closed() -> Result<()> {
     let compiled = godot::ai::compile(&model(statement)?, &[])?;
     assert!(compiled.contains("if change_actor_0 == character():"));
     assert!(compiled.contains("fail_unsupported("));
-    assert!(compiled.contains("same-actor status semantics are unresolved"));
+    assert!(compiled.contains("source control-status semantics are unresolved"));
     assert!(compiled.contains("change_brain_0.call(\"change_normal\", 50, false)"));
     Ok(())
 }

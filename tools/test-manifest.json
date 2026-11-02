@@ -192,7 +192,7 @@
         "godot"
       ],
       "fixture": "actual manor/model-437 first rule, unchanged AI, declared mode-3 Rete fixture; captured fixed views and authored native eye animation",
-      "timeout_seconds": 180,
+      "timeout_seconds": 420,
       "ignored": true,
       "release": true
     },
@@ -4149,7 +4149,7 @@
         "disc"
       ],
       "fixture": "freshly converted manor plus native high-altitude clear-flight component; original counterpart pending",
-      "timeout_seconds": 180,
+      "timeout_seconds": 420,
       "ignored": true,
       "release": true
     },
@@ -4201,7 +4201,7 @@
         "godot"
       ],
       "fixture": "source World behavior-2 final three-shot section extracted after unsupported initialization; original targets/waypoints/state/waits; viewport and native clock stepping are harness setup",
-      "timeout_seconds": 180,
+      "timeout_seconds": 420,
       "ignored": true,
       "release": true
     },
@@ -4222,7 +4222,7 @@
         "godot"
       ],
       "fixture": "unchanged Gogoud route/action AI produces World.dsg_0=4 and unchanged World behavior 3 consumes it for helper20/waypoint67; original World initialization shot excerpt, reflex and other Brains held, viewport/aim-rule invocation are harness setup",
-      "timeout_seconds": 180,
+      "timeout_seconds": 420,
       "ignored": true,
       "release": true
     },

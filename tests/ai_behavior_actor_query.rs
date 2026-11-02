@@ -381,35 +381,20 @@ fn manor_model_334_category24_resolves_through_level_actor_identity_map_and_rete
     // Keep the camera operation in its owner's scope. The installed PE row for
     // category5/raw49 is Action_Camera_GoToWP (signature PW); raw207 is the
     // source-traced cross-actor Normal behavior switch.
-    let Statement::Unsupported(camera_waypoint_action) = &then[2] else {
-        anyhow::bail!("model334 camera waypoint action unexpectedly became typed")
+    let Statement::CameraGoToWaypoint { camera, waypoint } = &then[2] else {
+        anyhow::bail!("model334 camera waypoint action is no longer a typed GoToWP")
     };
     ensure!(
-        camera_waypoint_action
-            .reason
-            .contains("category 5 operation 49")
-            && camera_waypoint_action.nodes.len() == 3,
-        "model334 camera waypoint action source extent changed"
+        matches!(camera, Expression::Actor(ActorTarget::Reference(_))),
+        "Action_Camera_GoToWP Perso operand lost its actor identity: {camera:?}"
     );
-    let PreservedAiOperand::Source(Some(camera_actor_source)) =
-        &camera_waypoint_action.nodes[1].operand
-    else {
-        anyhow::bail!("Action_Camera_GoToWP Perso operand lost its source identity")
-    };
     ensure!(
-        camera_actor_source.role == SourceRole::Fix
-            && camera_actor_source.block == [5, 0]
-            && camera_actor_source.allocation == 23322
-    );
-    let PreservedAiOperand::Source(Some(camera_waypoint_source)) =
-        &camera_waypoint_action.nodes[2].operand
-    else {
-        anyhow::bail!("Action_Camera_GoToWP Waypoint operand lost its source identity")
-    };
-    ensure!(
-        camera_waypoint_source.role == SourceRole::Level
-            && camera_waypoint_source.block == [17, 1]
-            && camera_waypoint_source.allocation == 55
+        matches!(
+            waypoint,
+            Expression::WaypointReference(reference)
+                if reference.path.as_str() == "level:/waypoints/17-1/55"
+        ),
+        "Action_Camera_GoToWP Waypoint operand lost its source identity: {waypoint:?}"
     );
     ensure!(
         matches!(
@@ -439,24 +424,15 @@ fn manor_model_334_category24_resolves_through_level_actor_identity_map_and_rete
         let Statement::ArrayAssign {
             array: Expression::MainActorFieldRead(157),
             index: Expression::Integer(actual_index),
-            value: Expression::Unsupported(waypoint_value),
+            value: Expression::WaypointReference(waypoint),
         } = &then[6 + index]
         else {
             anyhow::bail!("model334 MainActor Waypoint array assignment {index} changed")
         };
         ensure!(*actual_index == index as i32);
         ensure!(
-            waypoint_value.reason.contains("category 29 operation")
-                && waypoint_value.nodes.len() == 1
-        );
-        let PreservedAiOperand::Source(Some(waypoint_source)) = &waypoint_value.nodes[0].operand
-        else {
-            anyhow::bail!("model334 DSG157[{index}] Waypoint lost its source identity")
-        };
-        ensure!(
-            waypoint_source.role == SourceRole::Level
-                && waypoint_source.block == [17, 1]
-                && waypoint_source.allocation == allocation
+            waypoint.path.as_str() == format!("level:/waypoints/17-1/{allocation}"),
+            "model334 DSG157[{index}] Waypoint lost its source identity: {}", waypoint.path
         );
     }
     for index in 0..3 {

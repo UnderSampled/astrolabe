@@ -229,7 +229,7 @@ fn real_rooted_model_survives_rete_edit_and_source_free_reconstruction() -> Resu
     let vm = changed
         .ranges
         .iter()
-        .find(|r| r.name.ends_with("materials/0/visual"))
+        .find(|r| r.name == format!("materials/{}/visual", materials[0].path.file()))
         .unwrap();
     assert_eq!(
         &changed.bytes[vm.offset + 52..vm.offset + 56],

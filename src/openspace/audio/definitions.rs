@@ -300,20 +300,37 @@ fn resource_data(block: &Block, disk: Option<&Block>) -> Result<SoundResourceDat
                     })
                 })
                 .collect::<Result<Vec<_>>>()?;
-            let count: usize = value(disk, "SetNumberOfElements")
-                .context("theme lacks part count")?
-                .parse()?;
+            // Older sound banks (disc/Sound/themes.csb) declare a theme as
+            // SetParameters(part count, main loops) with the loop entry marked
+            // on a part instead of SetNumberOfElements/SetStartLoop/SetNbMainLoop.
+            // The second parameter is read as the main loop count (a guess).
+            let legacy: Option<Vec<&str>> =
+                value(disk, "SetParameters").map(|v| v.split(',').map(str::trim).collect());
+            let count: usize = match (value(disk, "SetNumberOfElements"), &legacy) {
+                (Some(n), _) => n.parse()?,
+                (None, Some(p)) if p.len() == 2 => p[0].parse()?,
+                _ => return Err(anyhow::anyhow!("theme lacks part count")),
+            };
             ensure!(
                 count == parts.len(),
                 "theme part count differs from declaration"
             );
+            let (start_loop, main_loops) = match (value(disk, "SetStartLoop"), &legacy) {
+                (Some(start), _) => (
+                    start.parse()?,
+                    value(disk, "SetNbMainLoop")
+                        .context("theme lacks main loop count")?
+                        .parse()?,
+                ),
+                (None, Some(p)) if p.len() == 2 => (
+                    parts.iter().position(|p| p.start_loop).unwrap_or(0) as _,
+                    p[1].parse()?,
+                ),
+                _ => return Err(anyhow::anyhow!("theme lacks loop entry")),
+            };
             SoundResourceData::Theme {
-                start_loop: value(disk, "SetStartLoop")
-                    .context("theme lacks loop entry")?
-                    .parse()?,
-                main_loops: value(disk, "SetNbMainLoop")
-                    .context("theme lacks main loop count")?
-                    .parse()?,
+                start_loop,
+                main_loops,
                 parts,
             }
         }

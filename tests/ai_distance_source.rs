@@ -107,13 +107,7 @@ fn installed_id_8_preserves_source_bytes_and_lowers_the_handler_formula() -> Res
 
     let code = godot::ai::compile(&reopened, &[])?;
     assert!(
-        code.contains("global_transform.affine_inverse() * character().global_position"),
-        "{code}"
-    );
-    assert!(
-        code.contains("Vector2(local_xy_distance_delta_")
-            && code.contains(".x, local_xy_distance_delta_")
-            && code.contains(".z).length()"),
+        code.contains("NativeContactPickup.distance_xy(spatial_receiver_0, spatial_target_0)"),
         "{code}"
     );
     assert!(

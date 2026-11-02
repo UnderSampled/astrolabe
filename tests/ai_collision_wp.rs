@@ -369,6 +369,7 @@ fn manor_waypoint_array_and_direct_category29_values_resolve_to_shared_assets() 
     assert_eq!(
         direct_waypoints,
         [
+            "level:/waypoints/17-1/55".to_owned(),
             "level:/waypoints/17-1/56".to_owned(),
             "level:/waypoints/17-1/57".to_owned(),
             "level:/waypoints/17-1/58".to_owned(),
@@ -377,7 +378,7 @@ fn manor_waypoint_array_and_direct_category29_values_resolve_to_shared_assets() 
     );
     let writer_reopened = rete::decode::<AiModel>(&rete::encode(writer.as_ref())?)?;
     assert_eq!(writer_reopened, *writer);
-    for identity in 56..=58 {
+    for identity in 55..=58 {
         let waypoint: Arc<Waypoint> =
             imported.load(&AssetRef::new(format!("level:/waypoints/17-1/{identity}"))?)?;
         assert_eq!(waypoint.source, source_identity(identity));
