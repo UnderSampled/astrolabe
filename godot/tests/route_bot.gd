@@ -29,6 +29,25 @@ func heading() -> float:
 	var forward := actor().global_basis.z
 	return atan2(-forward.z, forward.x)
 
+
+## Debug-jump helpers. A brain owner is "hype", "global" (fix:/persos/15, through
+## Gogoud's brain link) or a source_perso_name.
+func brain_of(name: String) -> Node:
+	if name == "hype": return game.get("brain")
+	if name == "global":
+		var gogoud := brain_of("i_Gogood_MasterYoda")
+		var linked: Node = gogoud.get("actor_brain_0")
+		if not is_instance_valid(linked) and not gogoud.get("actor_brain_0_path").is_empty(): linked = gogoud.get_node_or_null(gogoud.get("actor_brain_0_path"))
+		return linked
+	for body in game.get("level").find_children("*", "CharacterBody3D", true, false):
+		if str(body.get_meta("source_perso_name", "")) == name: return body.get_node_or_null("Brain")
+	return null
+
+func body_of(name: String) -> Node3D:
+	if name == "hype": return actor()
+	var brain := brain_of(name)
+	return brain.get_parent() as Node3D if brain != null else null
+
 func snapshot(note: String) -> void:
 	var at := actor().global_position
 	var brain: Node = game.get("brain")
@@ -223,6 +242,37 @@ func run() -> void:
 				if str(value.identity).to_lower() == str(step["dialog_check"]).to_lower():
 					var line: Variant = value.lines[0] if value.lines.size() > 0 else null
 					print("DIALOG ", value.identity, " locale ", value.locale, " box ", value.box, " voice ", value.voice, " pres ", value.presentation, " cont ", value.presentation.continuation if value.presentation else null, " lines ", value.lines.size(), " flags ", line.flags if line else null, " align ", line.alignment if line else null, " off ", line.draw_offset if line else null, " owner ", value.owner_identity, " completion ", value.completion_normal, " can ", ui.get("dialogue").call("can_run", value, 1))
+		elif step.has("set"):
+			var target := brain_of(step["set"][0])
+			ok = target != null
+			if ok: target.set(step["set"][1], step["set"][2])
+		elif step.has("get"):
+			var target := brain_of(step["get"][0])
+			print("GET ", step["get"], " = ", target.get(step["get"][1]) if target != null else "no brain")
+		elif step.has("normal"):
+			var target := brain_of(step["normal"][0])
+			ok = target != null and target.call("change_normal", int(step["normal"][1]), false)
+		elif step.has("give"):
+			var inventory: Resource = actor().get("source_inventory")
+			var definition: Variant = inventory.call("_definition", int(step["give"][0]))
+			ok = definition != null
+			if ok:
+				definition.quantity = int(step["give"][1])
+				inventory.call("_changed")
+				var index: int = inventory.get("definitions").find(definition)
+				if definition.get("kind") == "Weapon":
+					for slots: Array in inventory.get("categories").values():
+						if slots.size() == 2 and not slots.has(index):
+							var free := slots.find(-1)
+							if free >= 0: slots[free] = index
+							break
+				inventory.call("_changed")
+				print("GIVE ", step["give"], " now ", inventory.call("quantity", int(step["give"][0])))
+		elif step.has("weapon"):
+			print("WEAPON ", actor().get("source_inventory").call("change_weapon", int(step["weapon"])))
+		elif step.has("hurt"):
+			var life: Resource = actor().get("source_hit_points")
+			life.set("current", int(step["hurt"]))
 		elif step.has("spell"):
 			actor().get("source_magick").set("selected_spell_code", int(step["spell"]))
 		elif step.has("probe2"):

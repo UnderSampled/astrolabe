@@ -880,6 +880,10 @@ func _process(delta: float) -> void:
         if Input.is_action_pressed("BT_Camera_LookDown"): crossbow_aim_pitch = maxf(crossbow_aim_pitch - 45.0 * delta, -35.0)
         demo_camera.crossbow_aim_pitch_degrees = crossbow_aim_pitch
         update_crossbow_aim_target()
+    elif inventory != null and int(inventory.get("selected_weapon")) == 80:
+        # Not aiming: the pointer still needs a target for the bolt's guard; point it
+        # straight ahead of Hype at his own height so the bolt keeps his sighting.
+        actor.call("source_set_laser_pointer_target", actor.global_position + actor.global_basis.z * 30.0)
     var failure := str(brain.get("unsupported_failure"))
     if not failure.is_empty():
         status_label.text = "This behavior is not supported yet. Press R to reload."
