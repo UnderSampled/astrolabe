@@ -1229,12 +1229,14 @@ fn call_tool(
             allowed(map, &["level", "object_types", "designer_values"])?;
             let (level, object_types) = scene_camera_selector(map)?;
             let designer_values = inspect_designer_values(map)?.unwrap_or_default();
-            Ok(ToolOutput::ok(controller.game()?.inspect_scene_actor_by_types(
-                &level,
-                object_types,
-                &[],
-                &designer_values,
-            )?))
+            Ok(ToolOutput::ok(
+                controller.game()?.inspect_scene_actor_by_types(
+                    &level,
+                    object_types,
+                    &[],
+                    &designer_values,
+                )?,
+            ))
         }
         "inspect_scene_camera" => {
             allowed(map, &["level", "object_types", "designer_values"])?;
