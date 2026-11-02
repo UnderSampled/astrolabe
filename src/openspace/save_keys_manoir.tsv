@@ -197,7 +197,7 @@
 0:17:4384	unknown/actor/fix:/persos/15	dsg_29	unknown	the manor checkpoint copies Hype SelfPosition into this Global vector
 0:17:4396	actor/fix:/persos/15	dsg_30	source	checkpoint snapshot of Hype's sighting vector; Hype later uses its negated X/Y components with Z set to zero as input to ChangeSighting
 0:17:4408	unknown/actor/fix:/persos/15	dsg_31	unknown	the manor checkpoint copies its local Variable[1] into this Global vector
-0:17:4420	unknown/actor/fix:/persos/15	dsg_32	unknown	checkpoint-assigned Perso reference, currently targeting the rooted manor checkpoint actor; the checkpoint AI chooses MainActor or Me in opposite arms of an unresolved condition
+0:17:4420	actor/fix:/persos/15	dsg_32	source	Written by compiled AI but read by no compiled Manoir AI except the IWorld debug cheats: no gameplay effect
 0:17:4460	actor/fix:/persos/15	dsg_237	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
 0:17:4464	actor/fix:/persos/15	dsg_236	source	Declared but never read or written by any compiled Manoir AI, including the debug cheats
 0:17:4473	actor/fix:/persos/15	dsg_233	source	Map available: Button_ActivateMap opens the map screen only when 1, otherwise only plays the refusal sound; IWorld clears it at new game, no compiled AI sets it to 1
@@ -392,212 +392,212 @@
 0:17:4720	actor/fix:/persos/15	dsg_1	source	Hype carries the crossbow: drawing it with Button_GetCrossbow requires 1. Hype behavior 64 sets 1 while showing channel 73, behavior 60 clears it. IWorld sets it to 1 when it is 0 and DSG[147] is 0
 0:17:4721	actor/fix:/persos/15	dsg_0	source	Hype carries the sword: drawing it with Button_GetSword requires 1. Hype behavior 65 sets 1 while showing channel 72, behavior 59 clears it
 0:21:1032	dialogue/3	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:10428	unknown/dialogue/13	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:10428	dialogue/13	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:10436	dialogue/14	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:10516	unknown/dialogue/15	list_reference	unknown	counted dialogue list
-0:21:10984	unknown/dialogue/14	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:10516	dialogue/15	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:10984	dialogue/14	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:10992	dialogue/15	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:11072	unknown/dialogue/16	list_reference	unknown	counted dialogue list
-0:21:112	unknown/dialogue/2	list_reference	unknown	counted dialogue list
-0:21:1124	unknown/dialogue/4	list_reference	unknown	counted dialogue list
-0:21:11876	unknown/dialogue/15	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:11072	dialogue/16	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:112	dialogue/2	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:1124	dialogue/4	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:11876	dialogue/15	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:11884	dialogue/16	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:11976	unknown/dialogue/17	list_reference	unknown	counted dialogue list
-0:21:12	unknown/dialogue/1	list_reference	unknown	counted dialogue list
-0:21:12416	unknown/dialogue/16	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:11976	dialogue/17	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:12	dialogue/1	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:12416	dialogue/16	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:12424	dialogue/17	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:12512	unknown/dialogue/18	list_reference	unknown	counted dialogue list
-0:21:12844	unknown/dialogue/17	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:12512	dialogue/18	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:12844	dialogue/17	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:12852	dialogue/18	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:12932	unknown/dialogue/19	list_reference	unknown	counted dialogue list
-0:21:13552	unknown/dialogue/18	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:12932	dialogue/19	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:13552	dialogue/18	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:13560	dialogue/19	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:13648	unknown/dialogue/20	list_reference	unknown	counted dialogue list
-0:21:13812	unknown/dialogue/19	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:13648	dialogue/20	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:13812	dialogue/19	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:13932	dialogue/20	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:14020	unknown/dialogue/21	list_reference	unknown	counted dialogue list
-0:21:14824	unknown/dialogue/20	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:14020	dialogue/21	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:14824	dialogue/20	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:14944	dialogue/21	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:15024	unknown/dialogue/22	list_reference	unknown	counted dialogue list
-0:21:15228	unknown/dialogue/21	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:15024	dialogue/22	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:15228	dialogue/21	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:15336	dialogue/22	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:1536	unknown/dialogue/3	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
-0:21:15416	unknown/dialogue/23	list_reference	unknown	counted dialogue list
-0:21:15620	unknown/dialogue/22	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:1536	dialogue/3	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
+0:21:15416	dialogue/23	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:15620	dialogue/22	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:15628	dialogue/23	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:15708	unknown/dialogue/24	list_reference	unknown	counted dialogue list
-0:21:15912	unknown/dialogue/23	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:15708	dialogue/24	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:15912	dialogue/23	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:15920	dialogue/24	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:16000	unknown/dialogue/25	list_reference	unknown	counted dialogue list
-0:21:16204	unknown/dialogue/24	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:16000	dialogue/25	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:16204	dialogue/24	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:16212	dialogue/25	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:16296	unknown/dialogue/26	list_reference	unknown	counted dialogue list
+0:21:16296	dialogue/26	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
 0:21:1660	dialogue/4	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:16792	unknown/dialogue/25	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:16792	dialogue/25	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:16900	dialogue/26	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:16984	unknown/dialogue/27	list_reference	unknown	counted dialogue list
-0:21:17444	unknown/dialogue/26	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:16984	dialogue/27	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:17444	dialogue/26	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:17452	dialogue/27	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:1752	unknown/dialogue/5	list_reference	unknown	counted dialogue list
-0:21:17540	unknown/dialogue/28	list_reference	unknown	counted dialogue list
-0:21:18012	unknown/dialogue/27	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:1752	dialogue/5	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:17540	dialogue/28	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:18012	dialogue/27	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:18020	dialogue/28	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:18108	unknown/dialogue/29	list_reference	unknown	counted dialogue list
-0:21:18576	unknown/dialogue/28	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:18108	dialogue/29	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:18576	dialogue/28	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:18584	dialogue/29	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:18672	unknown/dialogue/30	list_reference	unknown	counted dialogue list
-0:21:19092	unknown/dialogue/29	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:18672	dialogue/30	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:19092	dialogue/29	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:19100	dialogue/30	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:19188	unknown/dialogue/31	list_reference	unknown	counted dialogue list
-0:21:19596	unknown/dialogue/30	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:19188	dialogue/31	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:19596	dialogue/30	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:19604	dialogue/31	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:19692	unknown/dialogue/32	list_reference	unknown	counted dialogue list
+0:21:19692	dialogue/32	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
 0:21:20	dialogue/1	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:20112	unknown/dialogue/31	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:20112	dialogue/31	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:20220	dialogue/32	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:20308	unknown/dialogue/33	list_reference	unknown	counted dialogue list
-0:21:20728	unknown/dialogue/32	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:20308	dialogue/33	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:20728	dialogue/32	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:20736	dialogue/33	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:20824	unknown/dialogue/34	list_reference	unknown	counted dialogue list
-0:21:2092	unknown/dialogue/4	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
-0:21:21244	unknown/dialogue/33	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:20824	dialogue/34	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:2092	dialogue/4	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
+0:21:21244	dialogue/33	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:21252	dialogue/34	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:21340	unknown/dialogue/35	list_reference	unknown	counted dialogue list
-0:21:21760	unknown/dialogue/34	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:21340	dialogue/35	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:21760	dialogue/34	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:21768	dialogue/35	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:21856	unknown/dialogue/36	list_reference	unknown	counted dialogue list
+0:21:21856	dialogue/36	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
 0:21:2216	dialogue/5	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:22276	unknown/dialogue/35	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:22276	dialogue/35	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:22284	dialogue/36	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:22372	unknown/dialogue/37	list_reference	unknown	counted dialogue list
-0:21:22728	unknown/dialogue/36	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:22372	dialogue/37	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:22728	dialogue/36	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:22736	dialogue/37	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:22824	unknown/dialogue/38	list_reference	unknown	counted dialogue list
-0:21:2308	unknown/dialogue/6	list_reference	unknown	counted dialogue list
-0:21:23244	unknown/dialogue/37	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:22824	dialogue/38	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:2308	dialogue/6	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:23244	dialogue/37	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:23252	dialogue/38	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:23340	unknown/dialogue/39	list_reference	unknown	counted dialogue list
-0:21:23760	unknown/dialogue/38	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:23340	dialogue/39	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:23760	dialogue/38	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:23768	dialogue/39	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:23864	unknown/dialogue/40	list_reference	unknown	counted dialogue list
-0:21:24292	unknown/dialogue/39	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:23864	dialogue/40	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:24292	dialogue/39	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:24300	dialogue/40	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:24396	unknown/dialogue/41	list_reference	unknown	counted dialogue list
-0:21:24824	unknown/dialogue/40	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:24396	dialogue/41	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:24824	dialogue/40	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:24832	dialogue/41	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:24928	unknown/dialogue/42	list_reference	unknown	counted dialogue list
-0:21:25356	unknown/dialogue/41	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:24928	dialogue/42	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:25356	dialogue/41	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:25364	dialogue/42	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:25460	unknown/dialogue/43	list_reference	unknown	counted dialogue list
-0:21:25888	unknown/dialogue/42	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:25460	dialogue/43	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:25888	dialogue/42	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:25896	dialogue/43	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:25980	unknown/dialogue/44	list_reference	unknown	counted dialogue list
-0:21:26420	unknown/dialogue/43	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:25980	dialogue/44	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:26420	dialogue/43	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:26528	dialogue/44	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:26612	unknown/dialogue/45	list_reference	unknown	counted dialogue list
-0:21:27052	unknown/dialogue/44	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:26612	dialogue/45	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:27052	dialogue/44	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:27060	dialogue/45	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:27144	unknown/dialogue/46	list_reference	unknown	counted dialogue list
-0:21:2744	unknown/dialogue/5	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
-0:21:27552	unknown/dialogue/45	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:27144	dialogue/46	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:2744	dialogue/5	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
+0:21:27552	dialogue/45	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:27560	dialogue/46	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:27644	unknown/dialogue/47	list_reference	unknown	counted dialogue list
-0:21:28084	unknown/dialogue/46	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:27644	dialogue/47	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:28084	dialogue/46	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:28092	dialogue/47	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:28176	unknown/dialogue/48	list_reference	unknown	counted dialogue list
+0:21:28176	dialogue/48	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
 0:21:2868	dialogue/6	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:28832	unknown/dialogue/47	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:28832	dialogue/47	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:28840	dialogue/48	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:28924	unknown/dialogue/49	list_reference	unknown	counted dialogue list
-0:21:29360	unknown/dialogue/48	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:28924	dialogue/49	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:29360	dialogue/48	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:29368	dialogue/49	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:29464	unknown/dialogue/50	list_reference	unknown	counted dialogue list
-0:21:2960	unknown/dialogue/7	list_reference	unknown	counted dialogue list
-0:21:31316	unknown/dialogue/49	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:29464	dialogue/50	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:2960	dialogue/7	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:31316	dialogue/49	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:31424	dialogue/50	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:31520	unknown/dialogue/51	list_reference	unknown	counted dialogue list
-0:21:33632	unknown/dialogue/50	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:31520	dialogue/51	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:33632	dialogue/50	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:33740	dialogue/51	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:33836	unknown/dialogue/52	list_reference	unknown	counted dialogue list
-0:21:34820	unknown/dialogue/51	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:33836	dialogue/52	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:34820	dialogue/51	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:34928	dialogue/52	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:35028	unknown/dialogue/53	list_reference	unknown	counted dialogue list
-0:21:35920	unknown/dialogue/52	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:35028	dialogue/53	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:35920	dialogue/52	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:36028	dialogue/53	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:36120	unknown/dialogue/54	list_reference	unknown	counted dialogue list
-0:21:38192	unknown/dialogue/53	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:36120	dialogue/54	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:38192	dialogue/53	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:38304	dialogue/54	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:38396	unknown/dialogue/55	list_reference	unknown	counted dialogue list
-0:21:392	unknown/dialogue/1	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
-0:21:3956	unknown/dialogue/6	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
-0:21:40568	unknown/dialogue/54	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:38396	dialogue/55	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:392	dialogue/1	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
+0:21:3956	dialogue/6	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
+0:21:40568	dialogue/54	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:40680	dialogue/55	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:40772	unknown/dialogue/56	list_reference	unknown	counted dialogue list
+0:21:40772	dialogue/56	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
 0:21:4080	dialogue/7	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:4164	unknown/dialogue/8	list_reference	unknown	counted dialogue list
-0:21:42036	unknown/dialogue/55	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:4164	dialogue/8	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:42036	dialogue/55	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:42148	dialogue/56	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:42244	unknown/dialogue/57	list_reference	unknown	counted dialogue list
-0:21:43472	unknown/dialogue/56	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:42244	dialogue/57	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:43472	dialogue/56	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:43588	dialogue/57	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:43680	unknown/dialogue/58	list_reference	unknown	counted dialogue list
-0:21:44664	unknown/dialogue/57	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:43680	dialogue/58	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:44664	dialogue/57	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:44776	dialogue/58	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:44872	unknown/dialogue/59	list_reference	unknown	counted dialogue list
-0:21:47136	unknown/dialogue/58	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:44872	dialogue/59	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:47136	dialogue/58	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:47256	dialogue/59	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:47352	unknown/dialogue/60	list_reference	unknown	counted dialogue list
-0:21:48264	unknown/dialogue/59	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:47352	dialogue/60	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:48264	dialogue/59	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:48380	dialogue/60	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:48472	unknown/dialogue/61	list_reference	unknown	counted dialogue list
-0:21:50500	unknown/dialogue/60	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:48472	dialogue/61	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:50500	dialogue/60	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:50612	dialogue/61	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:5068	unknown/dialogue/7	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
-0:21:50700	unknown/dialogue/62	list_reference	unknown	counted dialogue list
+0:21:5068	dialogue/7	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
+0:21:50700	dialogue/62	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
 0:21:516	dialogue/2	entry_count	source	number of references in this dialogue list; one in the supplied manor save
 0:21:5176	dialogue/8	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:52180	unknown/dialogue/61	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:52180	dialogue/61	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:52292	dialogue/62	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:52388	unknown/dialogue/63	list_reference	unknown	counted dialogue list
-0:21:5260	unknown/dialogue/9	list_reference	unknown	counted dialogue list
-0:21:56512	unknown/dialogue/62	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:52388	dialogue/63	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:5260	dialogue/9	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:56512	dialogue/62	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:56520	dialogue/63	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:56612	unknown/dialogue/64	list_reference	unknown	counted dialogue list
-0:21:57756	unknown/dialogue/63	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:56612	dialogue/64	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:57756	dialogue/63	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:57764	dialogue/64	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:57856	unknown/dialogue/65	list_reference	unknown	counted dialogue list
-0:21:608	unknown/dialogue/3	list_reference	unknown	counted dialogue list
-0:21:61196	unknown/dialogue/64	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:57856	dialogue/65	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:608	dialogue/3	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:61196	dialogue/64	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:61204	dialogue/65	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:61296	unknown/dialogue/66	list_reference	unknown	counted dialogue list
-0:21:6184	unknown/dialogue/8	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:61296	dialogue/66	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:6184	dialogue/8	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:6192	dialogue/9	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:6276	unknown/dialogue/10	list_reference	unknown	counted dialogue list
-0:21:64024	unknown/dialogue/65	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:6276	dialogue/10	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:64024	dialogue/65	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:64032	dialogue/66	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:64124	unknown/dialogue/0	list_reference	unknown	counted dialogue list
-0:21:64860	unknown/dialogue/66	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:64124	dialogue/0	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:64860	dialogue/66	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:64868	dialogue/0	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:65300	unknown/dialogue/0	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
-0:21:7284	unknown/dialogue/9	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:65300	dialogue/0	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
+0:21:7284	dialogue/9	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:7292	dialogue/10	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:7372	unknown/dialogue/11	list_reference	unknown	counted dialogue list
-0:21:7984	unknown/dialogue/10	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:7372	dialogue/11	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:7984	dialogue/10	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:7992	dialogue/11	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:8072	unknown/dialogue/12	list_reference	unknown	counted dialogue list
-0:21:8996	unknown/dialogue/11	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:8072	dialogue/12	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:8996	dialogue/11	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:9004	dialogue/12	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:908	unknown/dialogue/2	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
-0:21:9088	unknown/dialogue/13	list_reference	unknown	counted dialogue list
-0:21:9424	unknown/dialogue/12	entry_reference_0	unknown	parsed DialogAnswer_<n> object in the ItemAnswer array
+0:21:908	dialogue/2	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
+0:21:9088	dialogue/13	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
+0:21:9424	dialogue/12	entry_reference_0	source	Reference to a parsed DialogAnswer_<n> answer-section object in this list item's ItemAnswer array, dereferenced when the player picks an answer; which authored answer it is stays unresolved (runtime heap pointer, shared by several lists)
 0:21:9432	dialogue/13	entry_count	source	number of references in this dialogue list; one in the supplied manor save
-0:21:9516	unknown/dialogue/14	list_reference	unknown	counted dialogue list
+0:21:9516	dialogue/14	list_reference	source	Reference from this dialogue list to its own one-byte member-count field (registered by DLG_fn_vLoadDialog); structural link, no gameplay value
 0:5:1340	actor/fix:/persos/15	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 0:5:1341	actor/fix:/persos/15	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 0:5:1342	actor/fix:/persos/15	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 0:5:1343	actor/fix:/persos/15	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 0:5:1344	actor/fix:/persos/15	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
-0:5:1360	unknown/actor/fix:/persos/15	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:1360	actor/fix:/persos/15	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:1632	actor/fix:/persos/15	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
 0:5:24236	actor/level:/persos/world/0/0	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 0:5:24237	actor/level:/persos/world/0/0	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
@@ -607,132 +607,132 @@
 0:5:24256	unknown/actor/level:/persos/world/0/0	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
 0:5:4	game/hype_game_clock	elapsed_time_ms	source	elapsed game-clock milliseconds sampled before saving; after player-mode load, the reset running timer is set forward to the saved value when lower
 0:5:4309552	actor/level:/persos/world/0/0	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/5
-0:5:4310208	unknown/actor/level:/persos/world/0/2	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4310208	actor/level:/persos/world/0/2	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4313752	actor/level:/persos/world/0/2	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/5
-0:5:4314448	unknown/actor/level:/persos/world/0/162	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4314448	actor/level:/persos/world/0/162	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4315396	actor/level:/persos/world/0/162	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4316020	unknown/actor/level:/persos/world/0/38	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4316020	actor/level:/persos/world/0/38	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4316408	actor/level:/persos/world/0/38	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4317028	unknown/actor/level:/persos/world/0/39	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4317028	actor/level:/persos/world/0/39	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4317100	actor/level:/persos/world/0/39	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4317720	unknown/actor/level:/persos/world/0/37	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4317720	actor/level:/persos/world/0/37	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4317792	actor/level:/persos/world/0/37	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4318412	unknown/actor/level:/persos/world/0/40	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4318412	actor/level:/persos/world/0/40	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4318484	actor/level:/persos/world/0/40	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4319104	unknown/actor/level:/persos/world/0/42	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4319104	actor/level:/persos/world/0/42	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4319176	actor/level:/persos/world/0/42	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4319796	unknown/actor/level:/persos/world/0/36	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4319796	actor/level:/persos/world/0/36	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4319868	actor/level:/persos/world/0/36	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4320488	unknown/actor/level:/persos/world/0/41	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4320488	actor/level:/persos/world/0/41	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4320560	actor/level:/persos/world/0/41	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4321180	unknown/actor/level:/persos/world/0/78	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4321180	actor/level:/persos/world/0/78	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4321260	actor/level:/persos/world/0/78	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4321880	unknown/actor/level:/persos/world/0/84	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4321880	actor/level:/persos/world/0/84	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4321960	actor/level:/persos/world/0/84	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4322580	unknown/actor/level:/persos/world/0/85	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4322580	actor/level:/persos/world/0/85	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4322660	actor/level:/persos/world/0/85	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4323280	unknown/actor/level:/persos/world/0/79	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4323280	actor/level:/persos/world/0/79	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4323360	actor/level:/persos/world/0/79	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4323980	unknown/actor/level:/persos/world/0/82	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4323980	actor/level:/persos/world/0/82	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4324060	actor/level:/persos/world/0/82	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4324680	unknown/actor/level:/persos/world/0/81	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4324680	actor/level:/persos/world/0/81	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4324760	actor/level:/persos/world/0/81	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4325380	unknown/actor/level:/persos/world/0/80	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4325380	actor/level:/persos/world/0/80	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4325460	actor/level:/persos/world/0/80	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4326080	unknown/actor/level:/persos/world/0/87	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4326080	actor/level:/persos/world/0/87	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4326160	actor/level:/persos/world/0/87	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4326780	unknown/actor/level:/persos/world/0/86	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4326780	actor/level:/persos/world/0/86	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4326860	actor/level:/persos/world/0/86	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4327480	unknown/actor/level:/persos/world/0/83	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4327480	actor/level:/persos/world/0/83	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4327560	actor/level:/persos/world/0/83	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4328180	unknown/actor/level:/persos/world/0/77	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4328180	actor/level:/persos/world/0/77	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4328260	actor/level:/persos/world/0/77	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4328880	unknown/actor/level:/persos/world/0/88	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4328880	actor/level:/persos/world/0/88	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4328960	actor/level:/persos/world/0/88	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4329580	unknown/actor/level:/persos/world/0/116	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4329580	actor/level:/persos/world/0/116	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4329660	actor/level:/persos/world/0/116	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4330280	unknown/actor/level:/persos/world/0/115	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4330280	actor/level:/persos/world/0/115	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4330364	actor/level:/persos/world/0/115	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4330984	unknown/actor/level:/persos/world/0/117	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4330984	actor/level:/persos/world/0/117	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4331068	actor/level:/persos/world/0/117	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4331688	unknown/actor/level:/persos/world/0/121	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4331688	actor/level:/persos/world/0/121	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4331768	actor/level:/persos/world/0/121	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4332388	unknown/actor/level:/persos/world/0/103	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4332388	actor/level:/persos/world/0/103	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4332464	actor/level:/persos/world/0/103	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4333084	unknown/actor/level:/persos/world/0/111	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4333084	actor/level:/persos/world/0/111	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4333160	actor/level:/persos/world/0/111	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4333780	unknown/actor/level:/persos/world/0/120	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4333780	actor/level:/persos/world/0/120	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4333856	actor/level:/persos/world/0/120	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4334476	unknown/actor/level:/persos/world/0/112	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4334476	actor/level:/persos/world/0/112	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4334556	actor/level:/persos/world/0/112	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4335176	unknown/actor/level:/persos/world/0/107	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4335176	actor/level:/persos/world/0/107	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4335256	actor/level:/persos/world/0/107	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4335876	unknown/actor/level:/persos/world/0/122	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4335876	actor/level:/persos/world/0/122	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4335952	actor/level:/persos/world/0/122	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4336572	unknown/actor/level:/persos/world/0/113	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4336572	actor/level:/persos/world/0/113	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4336648	actor/level:/persos/world/0/113	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4337268	unknown/actor/level:/persos/world/0/124	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4337268	actor/level:/persos/world/0/124	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4337344	actor/level:/persos/world/0/124	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4337964	unknown/actor/level:/persos/world/0/101	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4337964	actor/level:/persos/world/0/101	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4338040	actor/level:/persos/world/0/101	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4338660	unknown/actor/level:/persos/world/0/102	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4338660	actor/level:/persos/world/0/102	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4338736	actor/level:/persos/world/0/102	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4339356	unknown/actor/level:/persos/world/0/106	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4339356	actor/level:/persos/world/0/106	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4339444	actor/level:/persos/world/0/106	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4340064	unknown/actor/level:/persos/world/0/123	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4340064	actor/level:/persos/world/0/123	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4340140	actor/level:/persos/world/0/123	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4340760	unknown/actor/level:/persos/world/0/108	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4340760	actor/level:/persos/world/0/108	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4340836	actor/level:/persos/world/0/108	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4341456	unknown/actor/level:/persos/world/0/99	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4341456	actor/level:/persos/world/0/99	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4341536	actor/level:/persos/world/0/99	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4342156	unknown/actor/level:/persos/world/0/104	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4342156	actor/level:/persos/world/0/104	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4342232	actor/level:/persos/world/0/104	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4342852	unknown/actor/level:/persos/world/0/118	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4342852	actor/level:/persos/world/0/118	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4342928	actor/level:/persos/world/0/118	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4343548	unknown/actor/level:/persos/world/0/100	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4343548	actor/level:/persos/world/0/100	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4343624	actor/level:/persos/world/0/100	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4344244	unknown/actor/level:/persos/world/0/114	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4344244	actor/level:/persos/world/0/114	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4344320	actor/level:/persos/world/0/114	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4344940	unknown/actor/level:/persos/world/0/110	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4344940	actor/level:/persos/world/0/110	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4345020	actor/level:/persos/world/0/110	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4345640	unknown/actor/level:/persos/world/0/119	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4345640	actor/level:/persos/world/0/119	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4345720	actor/level:/persos/world/0/119	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4346340	unknown/actor/level:/persos/world/0/109	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4346340	actor/level:/persos/world/0/109	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4346416	actor/level:/persos/world/0/109	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4347036	unknown/actor/level:/persos/world/0/105	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4347036	actor/level:/persos/world/0/105	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4347112	actor/level:/persos/world/0/105	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4347732	unknown/actor/level:/persos/world/0/98	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4347732	actor/level:/persos/world/0/98	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4347812	actor/level:/persos/world/0/98	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4348432	unknown/actor/level:/persos/world/0/27	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4348432	actor/level:/persos/world/0/27	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4350524	actor/level:/persos/world/0/27	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4351140	unknown/actor/level:/persos/world/0/76	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4351140	actor/level:/persos/world/0/76	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4351268	actor/level:/persos/world/0/76	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/28
-0:5:4371908	unknown/actor/level:/persos/world/0/16	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4371908	actor/level:/persos/world/0/16	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4542804	actor/level:/persos/world/0/16	sector_character_list_sector_link	source	actor's assigned sector-list element resolves to level:/scene/world/1/5
-0:5:4543492	unknown/actor/fix:/persos/5-0-24465	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4551780	unknown/actor/fix:/persos/5-0-24656	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4557032	unknown/actor/fix:/persos/5-0-24728	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4563032	unknown/actor/fix:/persos/5-0-24807	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4575140	unknown/actor/fix:/persos/5-0-24938	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4606416	unknown/actor/fix:/persos/5-0-25179	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4614524	unknown/actor/fix:/persos/5-0-25278	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4643796	unknown/actor/fix:/persos/5-0-25549	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4659836	unknown/actor/fix:/persos/5-0-25625	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4740328	unknown/actor/fix:/persos/5-0-25801	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4750024	unknown/actor/fix:/persos/5-0-25941	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4777600	unknown/actor/fix:/persos/5-0-26153	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4787620	unknown/actor/fix:/persos/5-0-26238	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4797892	unknown/actor/fix:/persos/5-0-26364	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4921796	unknown/actor/fix:/persos/5-0-26670	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4942752	unknown/actor/fix:/persos/5-0-26867	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4949752	unknown/actor/fix:/persos/5-0-26985	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4952608	unknown/actor/fix:/persos/5-0-27000	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4959132	unknown/actor/fix:/persos/5-0-27162	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4962000	unknown/actor/fix:/persos/5-0-27177	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4966604	unknown/actor/fix:/persos/5-0-27239	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4969388	unknown/actor/fix:/persos/5-0-27254	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4972224	unknown/actor/fix:/persos/5-0-27269	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-0:5:4976120	unknown/actor/fix:/persos/5-0-27315	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+0:5:4543492	actor/fix:/persos/5-0-24465	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4551780	actor/fix:/persos/5-0-24656	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4557032	actor/fix:/persos/5-0-24728	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4563032	actor/fix:/persos/5-0-24807	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4575140	actor/fix:/persos/5-0-24938	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4606416	actor/fix:/persos/5-0-25179	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4614524	actor/fix:/persos/5-0-25278	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4643796	actor/fix:/persos/5-0-25549	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4659836	actor/fix:/persos/5-0-25625	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4740328	actor/fix:/persos/5-0-25801	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4750024	actor/fix:/persos/5-0-25941	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4777600	actor/fix:/persos/5-0-26153	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4787620	actor/fix:/persos/5-0-26238	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4797892	actor/fix:/persos/5-0-26364	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4921796	actor/fix:/persos/5-0-26670	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4942752	actor/fix:/persos/5-0-26867	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4949752	actor/fix:/persos/5-0-26985	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4952608	actor/fix:/persos/5-0-27000	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4959132	actor/fix:/persos/5-0-27162	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4962000	actor/fix:/persos/5-0-27177	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4966604	actor/fix:/persos/5-0-27239	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4969388	actor/fix:/persos/5-0-27254	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4972224	actor/fix:/persos/5-0-27269	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+0:5:4976120	actor/fix:/persos/5-0-27315	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 0:5:4979180	unknown/actor/fix:/persos/5-0-27330	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
 0:5:4985156	game/fix_gauge_root_0_source_list_order	gauge_root_next_root	source	link to the next gauge panel root in source list order
 0:5:4985186	game/fix_gauge_root_0_source_list_order	gauge_root_completed_children	source	number of gauge child items completed for this panel
@@ -971,8 +971,8 @@
 1:17:82360	unknown/actor/level:/persos/world/0/72	dsg_8	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
 1:17:83312	unknown/actor/level:/persos/world/0/73	dsg_8	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
 1:17:84264	unknown/actor/level:/persos/world/0/74	dsg_8	unknown	source owner and field are joined; gameplay meaning, value domain and restoration behavior remain unresolved
-1:5:1036428	unknown/actor/level:/persos/world/0/147	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:1040088	unknown/actor/level:/persos/world/0/148	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1036428	actor/level:/persos/world/0/147	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:1040088	actor/level:/persos/world/0/148	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:1041140	actor/level:/persos/world/0/149	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:1041141	actor/level:/persos/world/0/149	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 1:5:1041142	actor/level:/persos/world/0/149	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
@@ -980,16 +980,16 @@
 1:5:1041144	actor/level:/persos/world/0/149	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
 1:5:1041160	unknown/actor/level:/persos/world/0/149	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
 1:5:1070916	unknown/actor/level:/persos/world/0/150	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:1072140	unknown/actor/level:/persos/world/0/151	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:1077036	unknown/actor/level:/persos/world/0/152	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:1122932	unknown/actor/level:/persos/world/0/153	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:1125648	unknown/actor/level:/persos/world/0/154	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1072140	actor/level:/persos/world/0/151	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:1077036	actor/level:/persos/world/0/152	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:1122932	actor/level:/persos/world/0/153	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:1125648	actor/level:/persos/world/0/154	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:1128344	actor/level:/persos/world/0/155	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:1128345	actor/level:/persos/world/0/155	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 1:5:1128346	actor/level:/persos/world/0/155	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 1:5:1128347	actor/level:/persos/world/0/155	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 1:5:1128348	actor/level:/persos/world/0/155	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
-1:5:1128364	unknown/actor/level:/persos/world/0/155	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1128364	actor/level:/persos/world/0/155	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:1131108	actor/level:/persos/world/0/156	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:1131109	actor/level:/persos/world/0/156	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 1:5:1131110	actor/level:/persos/world/0/156	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
@@ -1013,25 +1013,25 @@
 1:5:1139430	actor/level:/persos/world/0/159	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 1:5:1139431	actor/level:/persos/world/0/159	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 1:5:1139432	actor/level:/persos/world/0/159	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
-1:5:1139448	unknown/actor/level:/persos/world/0/159	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1139448	actor/level:/persos/world/0/159	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:1142776	actor/level:/persos/world/0/160	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:1142777	actor/level:/persos/world/0/160	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 1:5:1142778	actor/level:/persos/world/0/160	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 1:5:1142779	actor/level:/persos/world/0/160	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 1:5:1142780	actor/level:/persos/world/0/160	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
-1:5:1142796	unknown/actor/level:/persos/world/0/160	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:1143548	unknown/actor/level:/persos/world/0/161	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:1146320	unknown/actor/level:/persos/world/0/163	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:1147092	unknown/actor/level:/persos/world/0/164	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:1147792	unknown/actor/level:/persos/world/0/165	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:1148512	unknown/actor/level:/persos/world/0/166	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:1149248	unknown/actor/level:/persos/world/0/167	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:1149940	unknown/actor/level:/persos/world/0/168	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:1150632	unknown/actor/level:/persos/world/0/169	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:1151324	unknown/actor/level:/persos/world/0/170	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:1152020	unknown/actor/level:/persos/world/0/171	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:1152756	unknown/actor/level:/persos/world/0/172	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:1153496	unknown/actor/level:/persos/world/0/173	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1142796	actor/level:/persos/world/0/160	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:1143548	actor/level:/persos/world/0/161	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:1146320	actor/level:/persos/world/0/163	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:1147092	actor/level:/persos/world/0/164	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:1147792	actor/level:/persos/world/0/165	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:1148512	actor/level:/persos/world/0/166	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:1149248	actor/level:/persos/world/0/167	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:1149940	actor/level:/persos/world/0/168	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:1150632	actor/level:/persos/world/0/169	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:1151324	actor/level:/persos/world/0/170	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:1152020	actor/level:/persos/world/0/171	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:1152756	actor/level:/persos/world/0/172	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:1153496	actor/level:/persos/world/0/173	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:1155136	unknown/actor/level:/persos/world/0/174	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
 1:5:1202588	actor/level:/persos/world/0/175	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:1202589	actor/level:/persos/world/0/175	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
@@ -1045,186 +1045,186 @@
 1:5:1634	actor/level:/persos/world/0/3	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 1:5:1635	actor/level:/persos/world/0/3	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 1:5:1636	actor/level:/persos/world/0/3	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
-1:5:1652	unknown/actor/level:/persos/world/0/3	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:1652	actor/level:/persos/world/0/3	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:18492	actor/level:/persos/world/0/5	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:18493	actor/level:/persos/world/0/5	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 1:5:18494	actor/level:/persos/world/0/5	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 1:5:18495	actor/level:/persos/world/0/5	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 1:5:18496	actor/level:/persos/world/0/5	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
-1:5:18512	unknown/actor/level:/persos/world/0/5	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:18512	actor/level:/persos/world/0/5	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:4576	actor/level:/persos/world/0/4	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:4577	actor/level:/persos/world/0/4	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 1:5:4578	actor/level:/persos/world/0/4	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 1:5:4579	actor/level:/persos/world/0/4	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 1:5:4580	actor/level:/persos/world/0/4	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
-1:5:4596	unknown/actor/level:/persos/world/0/4	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:703808	unknown/actor/level:/persos/world/0/6	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:704532	unknown/actor/level:/persos/world/0/7	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:705200	unknown/actor/level:/persos/world/0/8	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:705880	unknown/actor/level:/persos/world/0/9	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:706548	unknown/actor/level:/persos/world/0/10	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:707228	unknown/actor/level:/persos/world/0/11	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:707904	unknown/actor/level:/persos/world/0/12	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:708580	unknown/actor/level:/persos/world/0/13	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:709256	unknown/actor/level:/persos/world/0/14	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:4596	actor/level:/persos/world/0/4	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:703808	actor/level:/persos/world/0/6	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:704532	actor/level:/persos/world/0/7	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:705200	actor/level:/persos/world/0/8	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:705880	actor/level:/persos/world/0/9	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:706548	actor/level:/persos/world/0/10	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:707228	actor/level:/persos/world/0/11	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:707904	actor/level:/persos/world/0/12	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:708580	actor/level:/persos/world/0/13	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:709256	actor/level:/persos/world/0/14	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:710064	actor/level:/persos/world/0/15	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:710065	actor/level:/persos/world/0/15	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 1:5:710066	actor/level:/persos/world/0/15	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 1:5:710067	actor/level:/persos/world/0/15	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 1:5:710068	actor/level:/persos/world/0/15	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
-1:5:710084	unknown/actor/level:/persos/world/0/15	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:713328	unknown/actor/level:/persos/world/0/17	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:716048	unknown/actor/level:/persos/world/0/18	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:716764	unknown/actor/level:/persos/world/0/19	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:717432	unknown/actor/level:/persos/world/0/20	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:718100	unknown/actor/level:/persos/world/0/21	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:718768	unknown/actor/level:/persos/world/0/22	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:719436	unknown/actor/level:/persos/world/0/23	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:720104	unknown/actor/level:/persos/world/0/24	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:720772	unknown/actor/level:/persos/world/0/25	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:721440	unknown/actor/level:/persos/world/0/26	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:710084	actor/level:/persos/world/0/15	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:713328	actor/level:/persos/world/0/17	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:716048	actor/level:/persos/world/0/18	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:716764	actor/level:/persos/world/0/19	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:717432	actor/level:/persos/world/0/20	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:718100	actor/level:/persos/world/0/21	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:718768	actor/level:/persos/world/0/22	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:719436	actor/level:/persos/world/0/23	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:720104	actor/level:/persos/world/0/24	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:720772	actor/level:/persos/world/0/25	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:721440	actor/level:/persos/world/0/26	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:722108	actor/level:/persos/world/0/28	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:722109	actor/level:/persos/world/0/28	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 1:5:722110	actor/level:/persos/world/0/28	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 1:5:722111	actor/level:/persos/world/0/28	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 1:5:722112	actor/level:/persos/world/0/28	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
-1:5:722128	unknown/actor/level:/persos/world/0/28	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:722880	unknown/actor/level:/persos/world/0/29	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:723548	unknown/actor/level:/persos/world/0/30	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:724216	unknown/actor/level:/persos/world/0/31	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:724884	unknown/actor/level:/persos/world/0/32	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:725552	unknown/actor/level:/persos/world/0/33	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:726220	unknown/actor/level:/persos/world/0/34	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:722128	actor/level:/persos/world/0/28	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:722880	actor/level:/persos/world/0/29	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:723548	actor/level:/persos/world/0/30	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:724216	actor/level:/persos/world/0/31	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:724884	actor/level:/persos/world/0/32	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:725552	actor/level:/persos/world/0/33	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:726220	actor/level:/persos/world/0/34	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:727144	unknown/actor/level:/persos/world/0/35	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:732320	unknown/actor/level:/persos/world/0/43	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:732988	unknown/actor/level:/persos/world/0/44	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:732320	actor/level:/persos/world/0/43	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:732988	actor/level:/persos/world/0/44	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:733636	actor/level:/persos/world/0/45	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:733637	actor/level:/persos/world/0/45	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 1:5:733638	actor/level:/persos/world/0/45	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 1:5:733639	actor/level:/persos/world/0/45	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 1:5:733640	actor/level:/persos/world/0/45	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
-1:5:733656	unknown/actor/level:/persos/world/0/45	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:736384	unknown/actor/level:/persos/world/0/46	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:737052	unknown/actor/level:/persos/world/0/47	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:737720	unknown/actor/level:/persos/world/0/48	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:738388	unknown/actor/level:/persos/world/0/49	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:739148	unknown/actor/level:/persos/world/0/50	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:743804	unknown/actor/level:/persos/world/0/51	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:744472	unknown/actor/level:/persos/world/0/52	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:745240	unknown/actor/level:/persos/world/0/53	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:745908	unknown/actor/level:/persos/world/0/54	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:746576	unknown/actor/level:/persos/world/0/55	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:747244	unknown/actor/level:/persos/world/0/56	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:747912	unknown/actor/level:/persos/world/0/57	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:748580	unknown/actor/level:/persos/world/0/58	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:749248	unknown/actor/level:/persos/world/0/59	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:749916	unknown/actor/level:/persos/world/0/60	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:750584	unknown/actor/level:/persos/world/0/61	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:751252	unknown/actor/level:/persos/world/0/62	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:751920	unknown/actor/level:/persos/world/0/63	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:752588	unknown/actor/level:/persos/world/0/64	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:753256	unknown/actor/level:/persos/world/0/65	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:753924	unknown/actor/level:/persos/world/0/66	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:733656	actor/level:/persos/world/0/45	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:736384	actor/level:/persos/world/0/46	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:737052	actor/level:/persos/world/0/47	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:737720	actor/level:/persos/world/0/48	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:738388	actor/level:/persos/world/0/49	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:739148	actor/level:/persos/world/0/50	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:743804	actor/level:/persos/world/0/51	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:744472	actor/level:/persos/world/0/52	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:745240	actor/level:/persos/world/0/53	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:745908	actor/level:/persos/world/0/54	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:746576	actor/level:/persos/world/0/55	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:747244	actor/level:/persos/world/0/56	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:747912	actor/level:/persos/world/0/57	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:748580	actor/level:/persos/world/0/58	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:749248	actor/level:/persos/world/0/59	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:749916	actor/level:/persos/world/0/60	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:750584	actor/level:/persos/world/0/61	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:751252	actor/level:/persos/world/0/62	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:751920	actor/level:/persos/world/0/63	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:752588	actor/level:/persos/world/0/64	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:753256	actor/level:/persos/world/0/65	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:753924	actor/level:/persos/world/0/66	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:754572	actor/level:/persos/world/0/67	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:754573	actor/level:/persos/world/0/67	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 1:5:754574	actor/level:/persos/world/0/67	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 1:5:754575	actor/level:/persos/world/0/67	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 1:5:754576	actor/level:/persos/world/0/67	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
-1:5:754592	unknown/actor/level:/persos/world/0/67	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:755292	unknown/actor/level:/persos/world/0/68	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:755960	unknown/actor/level:/persos/world/0/69	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:756624	unknown/actor/level:/persos/world/0/70	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:754592	actor/level:/persos/world/0/67	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:755292	actor/level:/persos/world/0/68	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:755960	actor/level:/persos/world/0/69	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:756624	actor/level:/persos/world/0/70	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:757864	actor/level:/persos/world/0/71	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:757865	actor/level:/persos/world/0/71	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 1:5:757866	actor/level:/persos/world/0/71	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 1:5:757867	actor/level:/persos/world/0/71	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 1:5:757868	actor/level:/persos/world/0/71	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
-1:5:757884	unknown/actor/level:/persos/world/0/71	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:757884	actor/level:/persos/world/0/71	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:787448	actor/level:/persos/world/0/72	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:787449	actor/level:/persos/world/0/72	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 1:5:787450	actor/level:/persos/world/0/72	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 1:5:787451	actor/level:/persos/world/0/72	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 1:5:787452	actor/level:/persos/world/0/72	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
-1:5:787468	unknown/actor/level:/persos/world/0/72	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:787468	actor/level:/persos/world/0/72	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:790192	actor/level:/persos/world/0/73	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:790193	actor/level:/persos/world/0/73	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 1:5:790194	actor/level:/persos/world/0/73	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 1:5:790195	actor/level:/persos/world/0/73	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 1:5:790196	actor/level:/persos/world/0/73	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
-1:5:790212	unknown/actor/level:/persos/world/0/73	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:790212	actor/level:/persos/world/0/73	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:792936	actor/level:/persos/world/0/74	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:792937	actor/level:/persos/world/0/74	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 1:5:792938	actor/level:/persos/world/0/74	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 1:5:792939	actor/level:/persos/world/0/74	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 1:5:792940	actor/level:/persos/world/0/74	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
-1:5:792956	unknown/actor/level:/persos/world/0/74	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:795700	unknown/actor/level:/persos/world/0/75	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:792956	actor/level:/persos/world/0/74	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:795700	actor/level:/persos/world/0/75	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:798000	actor/level:/persos/world/0/89	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:798001	actor/level:/persos/world/0/89	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 1:5:798002	actor/level:/persos/world/0/89	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 1:5:798003	actor/level:/persos/world/0/89	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 1:5:798004	actor/level:/persos/world/0/89	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
-1:5:798020	unknown/actor/level:/persos/world/0/89	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:798020	actor/level:/persos/world/0/89	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:815768	actor/level:/persos/world/0/90	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:815769	actor/level:/persos/world/0/90	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 1:5:815770	actor/level:/persos/world/0/90	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 1:5:815771	actor/level:/persos/world/0/90	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 1:5:815772	actor/level:/persos/world/0/90	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
-1:5:815788	unknown/actor/level:/persos/world/0/90	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:815788	actor/level:/persos/world/0/90	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:816464	actor/level:/persos/world/0/91	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:816465	actor/level:/persos/world/0/91	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 1:5:816466	actor/level:/persos/world/0/91	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 1:5:816467	actor/level:/persos/world/0/91	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 1:5:816468	actor/level:/persos/world/0/91	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
-1:5:816484	unknown/actor/level:/persos/world/0/91	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:816484	actor/level:/persos/world/0/91	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:817160	actor/level:/persos/world/0/92	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:817161	actor/level:/persos/world/0/92	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 1:5:817162	actor/level:/persos/world/0/92	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 1:5:817163	actor/level:/persos/world/0/92	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 1:5:817164	actor/level:/persos/world/0/92	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
-1:5:817180	unknown/actor/level:/persos/world/0/92	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:817180	actor/level:/persos/world/0/92	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:817856	actor/level:/persos/world/0/93	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:817857	actor/level:/persos/world/0/93	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 1:5:817858	actor/level:/persos/world/0/93	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 1:5:817859	actor/level:/persos/world/0/93	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 1:5:817860	actor/level:/persos/world/0/93	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
-1:5:817876	unknown/actor/level:/persos/world/0/93	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:818820	unknown/actor/level:/persos/world/0/94	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:819556	unknown/actor/level:/persos/world/0/95	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:820288	unknown/actor/level:/persos/world/0/96	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:822048	unknown/actor/level:/persos/world/0/97	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:830672	unknown/actor/level:/persos/world/0/125	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:831360	unknown/actor/level:/persos/world/0/126	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:832028	unknown/actor/level:/persos/world/0/127	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:832696	unknown/actor/level:/persos/world/0/128	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:817876	actor/level:/persos/world/0/93	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:818820	actor/level:/persos/world/0/94	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:819556	actor/level:/persos/world/0/95	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:820288	actor/level:/persos/world/0/96	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:822048	actor/level:/persos/world/0/97	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:830672	actor/level:/persos/world/0/125	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:831360	actor/level:/persos/world/0/126	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:832028	actor/level:/persos/world/0/127	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:832696	actor/level:/persos/world/0/128	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:833344	actor/level:/persos/world/0/129	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:833345	actor/level:/persos/world/0/129	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 1:5:833346	actor/level:/persos/world/0/129	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 1:5:833347	actor/level:/persos/world/0/129	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 1:5:833348	actor/level:/persos/world/0/129	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
-1:5:833364	unknown/actor/level:/persos/world/0/129	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:834108	unknown/actor/level:/persos/world/0/130	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:834808	unknown/actor/level:/persos/world/0/131	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:835508	unknown/actor/level:/persos/world/0/132	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:836208	unknown/actor/level:/persos/world/0/133	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:836908	unknown/actor/level:/persos/world/0/134	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:837608	unknown/actor/level:/persos/world/0/135	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:838308	unknown/actor/level:/persos/world/0/136	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:839008	unknown/actor/level:/persos/world/0/137	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:839708	unknown/actor/level:/persos/world/0/138	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:840408	unknown/actor/level:/persos/world/0/139	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:841108	unknown/actor/level:/persos/world/0/140	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:841808	unknown/actor/level:/persos/world/0/141	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:833364	actor/level:/persos/world/0/129	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:834108	actor/level:/persos/world/0/130	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:834808	actor/level:/persos/world/0/131	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:835508	actor/level:/persos/world/0/132	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:836208	actor/level:/persos/world/0/133	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:836908	actor/level:/persos/world/0/134	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:837608	actor/level:/persos/world/0/135	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:838308	actor/level:/persos/world/0/136	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:839008	actor/level:/persos/world/0/137	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:839708	actor/level:/persos/world/0/138	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:840408	actor/level:/persos/world/0/139	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:841108	actor/level:/persos/world/0/140	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:841808	actor/level:/persos/world/0/141	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:5:842720	actor/level:/persos/world/0/142	standard_game_hit_points_init	source	script-authored initial hit points value; runtime current-HP byte
 1:5:842721	actor/level:/persos/world/0/142	standard_game_hit_points_max_init	source	script-authored initial maximum; runtime mutable HP ceiling
 1:5:842722	actor/level:/persos/world/0/142	standard_game_hit_points_max_max	source	script-authored hard maximum for the runtime HP ceiling
 1:5:842723	actor/level:/persos/world/0/142	standard_game_never_back_latch	source	nonzero suppresses this NeverBack actor's return and forces its active byte to zero
 1:5:842724	actor/level:/persos/world/0/142	standard_game_active	source	active state for this NeverBack actor, gated by its suppression latch
 1:5:842740	unknown/actor/level:/persos/world/0/142	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:857880	unknown/actor/level:/persos/world/0/143	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:858616	unknown/actor/level:/persos/world/0/144	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:864308	unknown/actor/level:/persos/world/0/145	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
-1:5:954956	unknown/actor/level:/persos/world/0/146	standard_game_custom_bits_init	unknown	remaining CustomBitsInit bit meanings and restoration effects are unverified
+1:5:857880	actor/level:/persos/world/0/143	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:858616	actor/level:/persos/world/0/144	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:864308	actor/level:/persos/world/0/145	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
+1:5:954956	actor/level:/persos/world/0/146	standard_game_custom_bits_init	source	CustomBitsInit flag word (StandardGame+0x2c, the Cond107/Proc273 operand): bit 0 makes the actor a camera and nearby-character target candidate, bit 7 skips segment-world collision in one action; no compiled Manoir AI tests or changes any bit of this actor
 1:6:4437852	unknown/block_1_6	offset_4437852	unknown	source owner, field meaning and restoration behavior not yet joined
 1:6:4438104	unknown/block_1_6	offset_4438104	unknown	instantiated-item target is known, but source field and gameplay/restoration semantics are not
 1:6:4438356	unknown/block_1_6	offset_4438356	unknown	source owner, field meaning and restoration behavior not yet joined
