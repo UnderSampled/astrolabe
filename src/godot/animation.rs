@@ -109,11 +109,21 @@ fn compose(a: &SourceTransform, b: &SourceTransform) -> SourceTransform {
     }
 }
 pub(super) fn affine(t: &SourceTransform) -> String {
-    let basis = [
+    let mut basis = [
         vector(t.basis[0]),
         vector(t.basis[2]),
         vector(t.basis[1]).map(|v| -v),
     ];
+    // Source samples hide a channel with zero scale. Godot needs an invertible
+    // basis for its global transforms, so these become imperceptibly small.
+    let determinant = basis[0][0] * (basis[1][1] * basis[2][2] - basis[1][2] * basis[2][1])
+        - basis[0][1] * (basis[1][0] * basis[2][2] - basis[1][2] * basis[2][0])
+        + basis[0][2] * (basis[1][0] * basis[2][1] - basis[1][1] * basis[2][0]);
+    if determinant == 0.0 {
+        for (axis, column) in basis.iter_mut().enumerate() {
+            column[axis] += 0.001;
+        }
+    }
     // The text resource Variant syntax lists matrix rows. Basis(Vector3, ...)
     // in GDScript instead takes columns; do not transpose shear/rotation keys.
     let values = (0..3)
