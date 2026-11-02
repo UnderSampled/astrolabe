@@ -9,5 +9,9 @@
   {"name": "sword_swing", "steps": [{"key": "X", "hold_ms": 150}, {"key": "wait", "hold_ms": 1500}, {"key": "Space", "hold_ms": 150}], "seconds": 4},
   {"name": "crossbow_select", "steps": [{"key": "Z", "hold_ms": 150}], "seconds": 3},
   {"name": "crossbow_fire", "steps": [{"key": "Z", "hold_ms": 150}, {"key": "wait", "hold_ms": 1500}, {"key": "Space", "hold_ms": 150}], "seconds": 4},
-  {"name": "fire_cast", "steps": [{"key": "ArrowDown", "hold_ms": 300}, {"key": "wait", "hold_ms": 600}, {"key": "X", "hold_ms": 150}, {"key": "wait", "hold_ms": 1500}, {"key": "Enter", "hold_ms": 150}], "seconds": 5}
+  {"name": "fire_cast", "steps": [{"key": "ArrowDown", "hold_ms": 300}, {"key": "wait", "hold_ms": 600}, {"key": "X", "hold_ms": 150}, {"key": "wait", "hold_ms": 1500}, {"key": "Enter", "hold_ms": 150}], "seconds": 5},
+  {"name": "lectern", "steps": [{"key": "ArrowUp", "hold_ms": 150}, {"key": "wait", "hold_ms": 700}, {"key": "Space", "hold_ms": 150}], "seconds": 6, "watch": ["level:/persos/world/0/35"]},
+  {"name": "through_gate", "steps": [{"key": "ArrowUp", "hold_ms": 5000}], "seconds": 7, "watch": ["level:/persos/world/0/5"]},
+  {"name": "gold_bridge", "steps": [{"key": "LeftShift+ArrowUp", "hold_ms": 7000}], "seconds": 9, "watch": []},
+  {"name": "flask", "steps": [{"key": "ArrowRight", "hold_ms": 1000}, {"key": "wait", "hold_ms": 200}, {"key": "LeftShift+ArrowUp", "hold_ms": 2000}], "seconds": 6, "watch": ["level:/persos/world/0/175"]}
 ]

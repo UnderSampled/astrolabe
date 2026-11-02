@@ -1,0 +1,1586 @@
+[
+{
+"asset": "level:/persos/world/0/0",
+"name": "Hype",
+"object_types": [
+1,
+1,
+1
+]
+},
+{
+"asset": "level:/persos/world/0/1",
+"name": "Global",
+"object_types": [
+0,
+0,
+0
+]
+},
+{
+"asset": "level:/persos/world/0/2",
+"name": "StdCamer",
+"object_types": [
+2,
+2,
+2
+]
+},
+{
+"asset": "level:/persos/world/0/3",
+"name": "IWorld_Manoir",
+"object_types": [
+26,
+33,
+78
+]
+},
+{
+"asset": "level:/persos/world/0/4",
+"name": "iDummy_SaveTesteurs",
+"object_types": [
+4,
+34,
+79
+]
+},
+{
+"asset": "level:/persos/world/0/5",
+"name": "iGogood_manoir",
+"object_types": [
+27,
+35,
+80
+]
+},
+{
+"asset": "level:/persos/world/0/6",
+"name": "iDummy_Manoir_Echelle",
+"object_types": [
+4,
+36,
+81
+]
+},
+{
+"asset": "level:/persos/world/0/7",
+"name": "iDummy_Manoir_Pont04",
+"object_types": [
+4,
+36,
+82
+]
+},
+{
+"asset": "level:/persos/world/0/8",
+"name": "iDummy_Manoir_pont03",
+"object_types": [
+4,
+36,
+83
+]
+},
+{
+"asset": "level:/persos/world/0/9",
+"name": "iDummy_Manoir_Pont02",
+"object_types": [
+4,
+36,
+84
+]
+},
+{
+"asset": "level:/persos/world/0/10",
+"name": "iDummy_Manoir_pont01",
+"object_types": [
+4,
+36,
+85
+]
+},
+{
+"asset": "level:/persos/world/0/11",
+"name": "iDummy_Manoir_Pont5",
+"object_types": [
+4,
+36,
+86
+]
+},
+{
+"asset": "level:/persos/world/0/12",
+"name": "iDummy_Manoir_Pont6",
+"object_types": [
+4,
+36,
+87
+]
+},
+{
+"asset": "level:/persos/world/0/13",
+"name": "iDummy_Manoir_Pont7",
+"object_types": [
+4,
+36,
+88
+]
+},
+{
+"asset": "level:/persos/world/0/14",
+"name": "iDummy_InventoryObjects_Manoir_GogoodKey",
+"object_types": [
+4,
+37,
+89
+]
+},
+{
+"asset": "level:/persos/world/0/15",
+"name": "iMGrille_Manoir_Pont",
+"object_types": [
+28,
+38,
+90
+]
+},
+{
+"asset": "level:/persos/world/0/16",
+"name": "iHypeStatue",
+"object_types": [
+5,
+7,
+52
+]
+},
+{
+"asset": "level:/persos/world/0/17",
+"name": "iMGrille_Manoir_Caverne",
+"object_types": [
+28,
+38,
+91
+]
+},
+{
+"asset": "level:/persos/world/0/18",
+"name": "iDummy1_Intro_Manoir",
+"object_types": [
+4,
+39,
+92
+]
+},
+{
+"asset": "level:/persos/world/0/19",
+"name": "iDummy2_Intro_Manoir",
+"object_types": [
+4,
+39,
+93
+]
+},
+{
+"asset": "level:/persos/world/0/20",
+"name": "iDummy3_Intro_Manoir",
+"object_types": [
+4,
+39,
+94
+]
+},
+{
+"asset": "level:/persos/world/0/21",
+"name": "iDummy4_Intro_Manoir",
+"object_types": [
+4,
+39,
+95
+]
+},
+{
+"asset": "level:/persos/world/0/22",
+"name": "iDummy5_Intro_Manoir",
+"object_types": [
+4,
+39,
+96
+]
+},
+{
+"asset": "level:/persos/world/0/23",
+"name": "iDummy6_Intro_Manoir",
+"object_types": [
+4,
+39,
+97
+]
+},
+{
+"asset": "level:/persos/world/0/24",
+"name": "iDummy7_Intro_Manoir",
+"object_types": [
+4,
+39,
+98
+]
+},
+{
+"asset": "level:/persos/world/0/25",
+"name": "iDummy8_Intro_Manoir",
+"object_types": [
+4,
+39,
+99
+]
+},
+{
+"asset": "level:/persos/world/0/26",
+"name": "iDummy9_Intro_Manoir",
+"object_types": [
+4,
+39,
+100
+]
+},
+{
+"asset": "level:/persos/world/0/27",
+"name": "iDummy_PourCercles",
+"object_types": [
+4,
+5,
+50
+]
+},
+{
+"asset": "level:/persos/world/0/28",
+"name": "iHypeStatue_Manoir_MAD",
+"object_types": [
+5,
+40,
+101
+]
+},
+{
+"asset": "level:/persos/world/0/29",
+"name": "iDummy10_Intro_Manoir",
+"object_types": [
+4,
+39,
+102
+]
+},
+{
+"asset": "level:/persos/world/0/30",
+"name": "iDummy11_Intro_Manoir",
+"object_types": [
+4,
+39,
+103
+]
+},
+{
+"asset": "level:/persos/world/0/31",
+"name": "iDummy12_Intro_Manoir",
+"object_types": [
+4,
+39,
+104
+]
+},
+{
+"asset": "level:/persos/world/0/32",
+"name": "iDummy13_Intro_Manoir",
+"object_types": [
+4,
+39,
+105
+]
+},
+{
+"asset": "level:/persos/world/0/33",
+"name": "iDummy14_Intro_Manoir",
+"object_types": [
+4,
+39,
+106
+]
+},
+{
+"asset": "level:/persos/world/0/34",
+"name": "iDummy_Load_Manoir_MAD",
+"object_types": [
+4,
+41,
+107
+]
+},
+{
+"asset": "level:/persos/world/0/35",
+"name": "iCheckPoint_Manoir_MAD",
+"object_types": [
+29,
+42,
+108
+]
+},
+{
+"asset": "level:/persos/world/0/36",
+"name": "iDummy_CheatInv_PotionR",
+"object_types": [
+4,
+4,
+9
+]
+},
+{
+"asset": "level:/persos/world/0/37",
+"name": "iDummy_CheatInv_HerbeJ",
+"object_types": [
+4,
+4,
+6
+]
+},
+{
+"asset": "level:/persos/world/0/38",
+"name": "iDummy_CheatInv_FlecheR",
+"object_types": [
+4,
+4,
+4
+]
+},
+{
+"asset": "level:/persos/world/0/39",
+"name": "iDummy_CheatInv_FlecheB",
+"object_types": [
+4,
+4,
+5
+]
+},
+{
+"asset": "level:/persos/world/0/40",
+"name": "iDummy_CheatInv_HerbeV",
+"object_types": [
+4,
+4,
+7
+]
+},
+{
+"asset": "level:/persos/world/0/41",
+"name": "iDummy_CheatInv_PotionM",
+"object_types": [
+4,
+4,
+10
+]
+},
+{
+"asset": "level:/persos/world/0/42",
+"name": "iDummy_CheatInv_PotionB",
+"object_types": [
+4,
+4,
+8
+]
+},
+{
+"asset": "level:/persos/world/0/43",
+"name": "iDummy15_Intro_Manoir",
+"object_types": [
+4,
+39,
+109
+]
+},
+{
+"asset": "level:/persos/world/0/44",
+"name": "iDummy16_Intro_Manoir",
+"object_types": [
+4,
+39,
+110
+]
+},
+{
+"asset": "level:/persos/world/0/45",
+"name": "iDummy1_Dummy_Traveling_Manoir_MAD",
+"object_types": [
+4,
+43,
+111
+]
+},
+{
+"asset": "level:/persos/world/0/46",
+"name": "iDummy17_Intro_Manoir",
+"object_types": [
+4,
+39,
+112
+]
+},
+{
+"asset": "level:/persos/world/0/47",
+"name": "iDummy18_Intro_Manoir",
+"object_types": [
+4,
+39,
+113
+]
+},
+{
+"asset": "level:/persos/world/0/48",
+"name": "iDummy19_Intro_Manoir",
+"object_types": [
+4,
+39,
+114
+]
+},
+{
+"asset": "level:/persos/world/0/49",
+"name": "iDummy20_Intro_Manoir",
+"object_types": [
+4,
+39,
+115
+]
+},
+{
+"asset": "level:/persos/world/0/50",
+"name": "iBulles_LaboGogood_Manoir_MAD",
+"object_types": [
+30,
+44,
+116
+]
+},
+{
+"asset": "level:/persos/world/0/51",
+"name": "iDummy21_Intro_Manoir",
+"object_types": [
+4,
+39,
+117
+]
+},
+{
+"asset": "level:/persos/world/0/52",
+"name": "iDummy_CameraFixe_Manoir_MAD",
+"object_types": [
+4,
+45,
+118
+]
+},
+{
+"asset": "level:/persos/world/0/53",
+"name": "iDummy22_Intro_Manoir",
+"object_types": [
+4,
+39,
+119
+]
+},
+{
+"asset": "level:/persos/world/0/54",
+"name": "iDummy23_Intro_Manoir",
+"object_types": [
+4,
+39,
+120
+]
+},
+{
+"asset": "level:/persos/world/0/55",
+"name": "iDummy24_Intro_Manoir",
+"object_types": [
+4,
+39,
+121
+]
+},
+{
+"asset": "level:/persos/world/0/56",
+"name": "iDummy25_Intro_Manoir",
+"object_types": [
+4,
+39,
+122
+]
+},
+{
+"asset": "level:/persos/world/0/57",
+"name": "iDummy26_Intro_Manoir",
+"object_types": [
+4,
+39,
+123
+]
+},
+{
+"asset": "level:/persos/world/0/58",
+"name": "iDummy27_Intro_Manoir",
+"object_types": [
+4,
+39,
+124
+]
+},
+{
+"asset": "level:/persos/world/0/59",
+"name": "iDummy28_Intro_Manoir",
+"object_types": [
+4,
+39,
+125
+]
+},
+{
+"asset": "level:/persos/world/0/60",
+"name": "iDummy29_Intro_Manoir",
+"object_types": [
+4,
+39,
+126
+]
+},
+{
+"asset": "level:/persos/world/0/61",
+"name": "iDummy30_Intro_Manoir",
+"object_types": [
+4,
+39,
+127
+]
+},
+{
+"asset": "level:/persos/world/0/62",
+"name": "iDummy32_Intro_Manoir",
+"object_types": [
+4,
+39,
+128
+]
+},
+{
+"asset": "level:/persos/world/0/63",
+"name": "iDummy33_Intro_Manoir",
+"object_types": [
+4,
+39,
+129
+]
+},
+{
+"asset": "level:/persos/world/0/64",
+"name": "iDummy34_Intro_Manoir",
+"object_types": [
+4,
+39,
+130
+]
+},
+{
+"asset": "level:/persos/world/0/65",
+"name": "iDummy35_Intro_Manoir",
+"object_types": [
+4,
+39,
+131
+]
+},
+{
+"asset": "level:/persos/world/0/66",
+"name": "iDummy36_Intro_Manoir",
+"object_types": [
+4,
+39,
+132
+]
+},
+{
+"asset": "level:/persos/world/0/67",
+"name": "iDummy_CheatInv_ClefGogood_MAD",
+"object_types": [
+4,
+4,
+133
+]
+},
+{
+"asset": "level:/persos/world/0/68",
+"name": "iDummy_Manoir1_Camera",
+"object_types": [
+4,
+39,
+134
+]
+},
+{
+"asset": "level:/persos/world/0/69",
+"name": "iDummy_Manoir1_Hype",
+"object_types": [
+4,
+39,
+135
+]
+},
+{
+"asset": "level:/persos/world/0/70",
+"name": "iDummy37_Intro_Manoir",
+"object_types": [
+4,
+39,
+136
+]
+},
+{
+"asset": "level:/persos/world/0/71",
+"name": "iBaril2_Manoir_Mad",
+"object_types": [
+31,
+46,
+137
+]
+},
+{
+"asset": "level:/persos/world/0/72",
+"name": "iBaril1_Manoir_Mad",
+"object_types": [
+31,
+46,
+138
+]
+},
+{
+"asset": "level:/persos/world/0/73",
+"name": "iBaril3_Manoir_Mad",
+"object_types": [
+31,
+46,
+139
+]
+},
+{
+"asset": "level:/persos/world/0/74",
+"name": "iBaril8_Manoir_Mad",
+"object_types": [
+31,
+46,
+140
+]
+},
+{
+"asset": "level:/persos/world/0/75",
+"name": "iDummy_CheatInv_Donnermagie_Manoir",
+"object_types": [
+4,
+4,
+141
+]
+},
+{
+"asset": "level:/persos/world/0/76",
+"name": "iDummy_PourBarils",
+"object_types": [
+4,
+6,
+51
+]
+},
+{
+"asset": "level:/persos/world/0/77",
+"name": "iDymmy_CheatInv_Donnermagie_K",
+"object_types": [
+4,
+4,
+21
+]
+},
+{
+"asset": "level:/persos/world/0/78",
+"name": "iDummy_CheatInv_Donnermagie_A",
+"object_types": [
+4,
+4,
+11
+]
+},
+{
+"asset": "level:/persos/world/0/79",
+"name": "iDymmy_CheatInv_Donnermagie_D",
+"object_types": [
+4,
+4,
+14
+]
+},
+{
+"asset": "level:/persos/world/0/80",
+"name": "iDymmy_CheatInv_Donnermagie_G",
+"object_types": [
+4,
+4,
+17
+]
+},
+{
+"asset": "level:/persos/world/0/81",
+"name": "iDymmy_CheatInv_Donnermagie_F",
+"object_types": [
+4,
+4,
+16
+]
+},
+{
+"asset": "level:/persos/world/0/82",
+"name": "iDymmy_CheatInv_Donnermagie_E",
+"object_types": [
+4,
+4,
+15
+]
+},
+{
+"asset": "level:/persos/world/0/83",
+"name": "iDymmy_CheatInv_Donnermagie_J",
+"object_types": [
+4,
+4,
+20
+]
+},
+{
+"asset": "level:/persos/world/0/84",
+"name": "iDymmy_CheatInv_Donnermagie_B",
+"object_types": [
+4,
+4,
+12
+]
+},
+{
+"asset": "level:/persos/world/0/85",
+"name": "iDymmy_CheatInv_Donnermagie_C",
+"object_types": [
+4,
+4,
+13
+]
+},
+{
+"asset": "level:/persos/world/0/86",
+"name": "iDymmy_CheatInv_Donnermagie_I",
+"object_types": [
+4,
+4,
+19
+]
+},
+{
+"asset": "level:/persos/world/0/87",
+"name": "iDymmy_CheatInv_Donnermagie_H",
+"object_types": [
+4,
+4,
+18
+]
+},
+{
+"asset": "level:/persos/world/0/88",
+"name": "iDymmy_CheatInv_Donnermagie_L",
+"object_types": [
+4,
+4,
+22
+]
+},
+{
+"asset": "level:/persos/world/0/89",
+"name": "I_Teleporter_Time1",
+"object_types": [
+32,
+47,
+142
+]
+},
+{
+"asset": "level:/persos/world/0/90",
+"name": "I_Teleporter_Time2",
+"object_types": [
+32,
+47,
+143
+]
+},
+{
+"asset": "level:/persos/world/0/91",
+"name": "I_Teleporter_Time3",
+"object_types": [
+32,
+47,
+144
+]
+},
+{
+"asset": "level:/persos/world/0/92",
+"name": "I_Teleporter_Time4",
+"object_types": [
+32,
+47,
+145
+]
+},
+{
+"asset": "level:/persos/world/0/93",
+"name": "iDummy_TimeTravel",
+"object_types": [
+4,
+48,
+146
+]
+},
+{
+"asset": "level:/persos/world/0/94",
+"name": "I_Dummy_TimeTravel_Camera",
+"object_types": [
+4,
+49,
+147
+]
+},
+{
+"asset": "level:/persos/world/0/95",
+"name": "I_Dummy_Manoir_TimeTravel_Hype1",
+"object_types": [
+4,
+50,
+148
+]
+},
+{
+"asset": "level:/persos/world/0/96",
+"name": "I_Dummy_Manoir_TimeTravel_Cam1",
+"object_types": [
+4,
+50,
+149
+]
+},
+{
+"asset": "level:/persos/world/0/97",
+"name": "I_Cadran_Time_Travel",
+"object_types": [
+33,
+51,
+150
+]
+},
+{
+"asset": "level:/persos/world/0/98",
+"name": "iDummy_CheatInv_Monastere_Key",
+"object_types": [
+4,
+4,
+49
+]
+},
+{
+"asset": "level:/persos/world/0/99",
+"name": "iDummy_CheatInv_Symbol_1_2_3",
+"object_types": [
+4,
+4,
+40
+]
+},
+{
+"asset": "level:/persos/world/0/100",
+"name": "iDummy_CheatInv_Symbol_2_3",
+"object_types": [
+4,
+4,
+43
+]
+},
+{
+"asset": "level:/persos/world/0/101",
+"name": "iDummy_CheatInv_Purple_flag",
+"object_types": [
+4,
+4,
+35
+]
+},
+{
+"asset": "level:/persos/world/0/102",
+"name": "iDummy_CheatInv_Red_Flag",
+"object_types": [
+4,
+4,
+36
+]
+},
+{
+"asset": "level:/persos/world/0/103",
+"name": "iDummy_CheatInv_Blue_Flag",
+"object_types": [
+4,
+4,
+27
+]
+},
+{
+"asset": "level:/persos/world/0/104",
+"name": "iDummy_CheatInv_Symbol_1_3",
+"object_types": [
+4,
+4,
+41
+]
+},
+{
+"asset": "level:/persos/world/0/105",
+"name": "iDummy_CheatInv_Yellow_Flag",
+"object_types": [
+4,
+4,
+48
+]
+},
+{
+"asset": "level:/persos/world/0/106",
+"name": "iDummy_CheatInv_Senekal_Hammer_Helmet",
+"object_types": [
+4,
+4,
+37
+]
+},
+{
+"asset": "level:/persos/world/0/107",
+"name": "iDummy_CheatInv_Galarneau_Ad",
+"object_types": [
+4,
+4,
+31
+]
+},
+{
+"asset": "level:/persos/world/0/108",
+"name": "iDummy_CheatInv_Symbol_1_2",
+"object_types": [
+4,
+4,
+39
+]
+},
+{
+"asset": "level:/persos/world/0/109",
+"name": "iDummy_CheatInv_VIP_Card",
+"object_types": [
+4,
+4,
+47
+]
+},
+{
+"asset": "level:/persos/world/0/110",
+"name": "iDummy_CheatInv_Thieves_Badge",
+"object_types": [
+4,
+4,
+45
+]
+},
+{
+"asset": "level:/persos/world/0/111",
+"name": "iDummy_CheatInv_Bracelet",
+"object_types": [
+4,
+4,
+28
+]
+},
+{
+"asset": "level:/persos/world/0/112",
+"name": "iDummy_CheatInv_Collier_Zatila",
+"object_types": [
+4,
+4,
+30
+]
+},
+{
+"asset": "level:/persos/world/0/113",
+"name": "iDummy_CheatInv_Grimoire",
+"object_types": [
+4,
+4,
+33
+]
+},
+{
+"asset": "level:/persos/world/0/114",
+"name": "iDummy_CheatInv_Symbol_3",
+"object_types": [
+4,
+4,
+44
+]
+},
+{
+"asset": "level:/persos/world/0/115",
+"name": "iDummy_CheatInv_Almanach_Laboratory",
+"object_types": [
+4,
+4,
+24
+]
+},
+{
+"asset": "level:/persos/world/0/116",
+"name": "iDummy_CheatInv_Almanach_Enost",
+"object_types": [
+4,
+4,
+23
+]
+},
+{
+"asset": "level:/persos/world/0/117",
+"name": "iDummy_CheatInv_Almanach_Monastere",
+"object_types": [
+4,
+4,
+25
+]
+},
+{
+"asset": "level:/persos/world/0/118",
+"name": "iDummy_CheatInv_Symbol_2",
+"object_types": [
+4,
+4,
+42
+]
+},
+{
+"asset": "level:/persos/world/0/119",
+"name": "iDummy_CheatInv_Treasure_Key",
+"object_types": [
+4,
+4,
+46
+]
+},
+{
+"asset": "level:/persos/world/0/120",
+"name": "iDummy_CheatInv_Chest_Key",
+"object_types": [
+4,
+4,
+29
+]
+},
+{
+"asset": "level:/persos/world/0/121",
+"name": "iDummy_CheatInv_BlackTower_Key",
+"object_types": [
+4,
+4,
+26
+]
+},
+{
+"asset": "level:/persos/world/0/122",
+"name": "iDummy_CheatInv_Gogoud_Key",
+"object_types": [
+4,
+4,
+32
+]
+},
+{
+"asset": "level:/persos/world/0/123",
+"name": "iDummy_CheatInv_Symbol_1",
+"object_types": [
+4,
+4,
+38
+]
+},
+{
+"asset": "level:/persos/world/0/124",
+"name": "iDummy_CheatInv_Prison_Key",
+"object_types": [
+4,
+4,
+34
+]
+},
+{
+"asset": "level:/persos/world/0/125",
+"name": "iDummy2_CameraFixe_Manoir_MAD",
+"object_types": [
+4,
+45,
+151
+]
+},
+{
+"asset": "level:/persos/world/0/126",
+"name": "iDummy38_Intro_Manoir",
+"object_types": [
+4,
+39,
+152
+]
+},
+{
+"asset": "level:/persos/world/0/127",
+"name": "iDummy40_Intro_Manoir",
+"object_types": [
+4,
+39,
+153
+]
+},
+{
+"asset": "level:/persos/world/0/128",
+"name": "iDummy39_Intro_Manoir",
+"object_types": [
+4,
+39,
+154
+]
+},
+{
+"asset": "level:/persos/world/0/129",
+"name": "iDummy_Manoir_Texte",
+"object_types": [
+4,
+52,
+155
+]
+},
+{
+"asset": "level:/persos/world/0/130",
+"name": "iDymmy_EmptySlot_Donnermagie_H",
+"object_types": [
+4,
+4,
+156
+]
+},
+{
+"asset": "level:/persos/world/0/131",
+"name": "iDymmy_EmptySlot_Donnermagie_L",
+"object_types": [
+4,
+4,
+157
+]
+},
+{
+"asset": "level:/persos/world/0/132",
+"name": "iDymmy_EmptySlot_Donnermagie_F",
+"object_types": [
+4,
+4,
+158
+]
+},
+{
+"asset": "level:/persos/world/0/133",
+"name": "iDymmy_EmptySlot_Donnermagie_C",
+"object_types": [
+4,
+4,
+159
+]
+},
+{
+"asset": "level:/persos/world/0/134",
+"name": "iDymmy_EmptySlot_Donnermagie_G",
+"object_types": [
+4,
+4,
+160
+]
+},
+{
+"asset": "level:/persos/world/0/135",
+"name": "iDymmy_EmptySlot_Donnermagie_K",
+"object_types": [
+4,
+4,
+161
+]
+},
+{
+"asset": "level:/persos/world/0/136",
+"name": "iDymmy_EmptySlot_Donnermagie_D",
+"object_types": [
+4,
+4,
+162
+]
+},
+{
+"asset": "level:/persos/world/0/137",
+"name": "iDymmy_EmptySlot_Donnermagie_E",
+"object_types": [
+4,
+4,
+163
+]
+},
+{
+"asset": "level:/persos/world/0/138",
+"name": "iDymmy_EmptySlot_Donnermagie_J",
+"object_types": [
+4,
+4,
+164
+]
+},
+{
+"asset": "level:/persos/world/0/139",
+"name": "iDymmy_EmptySlot_Donnermagie_B",
+"object_types": [
+4,
+4,
+165
+]
+},
+{
+"asset": "level:/persos/world/0/140",
+"name": "iDymmy_EmptySlot_Donnermagie_A",
+"object_types": [
+4,
+4,
+166
+]
+},
+{
+"asset": "level:/persos/world/0/141",
+"name": "iDymmy_EmptySlot_Donnermagie_I",
+"object_types": [
+4,
+4,
+167
+]
+},
+{
+"asset": "level:/persos/world/0/142",
+"name": "iKeys_Manoir_A",
+"object_types": [
+34,
+53,
+168
+]
+},
+{
+"asset": "level:/persos/world/0/143",
+"name": "iCadre_Manoir_VersMannequins",
+"object_types": [
+4,
+54,
+169
+]
+},
+{
+"asset": "level:/persos/world/0/144",
+"name": "iTombe_Falaise",
+"object_types": [
+4,
+55,
+170
+]
+},
+{
+"asset": "level:/persos/world/0/145",
+"name": "iPigeonPP1_Manoir1",
+"object_types": [
+35,
+56,
+171
+]
+},
+{
+"asset": "level:/persos/world/0/146",
+"name": "iEcureuil_Manoir1",
+"object_types": [
+36,
+57,
+172
+]
+},
+{
+"asset": "level:/persos/world/0/147",
+"name": "iCamera_HypePrendObjet",
+"object_types": [
+2,
+58,
+173
+]
+},
+{
+"asset": "level:/persos/world/0/148",
+"name": "iManoirAll_Dummy_TombePont1",
+"object_types": [
+4,
+59,
+174
+]
+},
+{
+"asset": "level:/persos/world/0/149",
+"name": "iIcons_Manoir",
+"object_types": [
+37,
+60,
+175
+]
+},
+{
+"asset": "level:/persos/world/0/150",
+"name": "iSerrure_Manoir1",
+"object_types": [
+38,
+61,
+176
+]
+},
+{
+"asset": "level:/persos/world/0/151",
+"name": "iPigeonPP2_Manoir1",
+"object_types": [
+35,
+56,
+177
+]
+},
+{
+"asset": "level:/persos/world/0/152",
+"name": "i_Mannequin_Arbalete",
+"object_types": [
+39,
+62,
+178
+]
+},
+{
+"asset": "level:/persos/world/0/153",
+"name": "i_Mannequin_Epee",
+"object_types": [
+39,
+62,
+179
+]
+},
+{
+"asset": "level:/persos/world/0/154",
+"name": "i_Mannequin_Magie",
+"object_types": [
+39,
+62,
+180
+]
+},
+{
+"asset": "level:/persos/world/0/155",
+"name": "i_Gogood_MasterYoda",
+"object_types": [
+27,
+63,
+181
+]
+},
+{
+"asset": "level:/persos/world/0/156",
+"name": "iFiole_Pont",
+"object_types": [
+23,
+64,
+182
+]
+},
+{
+"asset": "level:/persos/world/0/157",
+"name": "iGold_ManoirPont",
+"object_types": [
+24,
+65,
+183
+]
+},
+{
+"asset": "level:/persos/world/0/158",
+"name": "iHerbe_ManoirPont",
+"object_types": [
+22,
+66,
+184
+]
+},
+{
+"asset": "level:/persos/world/0/159",
+"name": "i_Grille_Entree_Manoir1",
+"object_types": [
+40,
+67,
+185
+]
+},
+{
+"asset": "level:/persos/world/0/160",
+"name": "i_Event_Fleches",
+"object_types": [
+3,
+68,
+186
+]
+},
+{
+"asset": "level:/persos/world/0/161",
+"name": "i_Gogood_RetourManoir",
+"object_types": [
+27,
+69,
+187
+]
+},
+{
+"asset": "level:/persos/world/0/162",
+"name": "iEventPourHype",
+"object_types": [
+3,
+3,
+3
+]
+},
+{
+"asset": "level:/persos/world/0/163",
+"name": "i_DummyAmbSonManoir1_B",
+"object_types": [
+4,
+70,
+188
+]
+},
+{
+"asset": "level:/persos/world/0/164",
+"name": "i_DummyAmbSonManoir1_A",
+"object_types": [
+4,
+70,
+189
+]
+},
+{
+"asset": "level:/persos/world/0/165",
+"name": "i_DummyAmbSonManoir1",
+"object_types": [
+4,
+70,
+190
+]
+},
+{
+"asset": "level:/persos/world/0/166",
+"name": "i_Biblio01",
+"object_types": [
+4,
+71,
+191
+]
+},
+{
+"asset": "level:/persos/world/0/167",
+"name": "i_BiblioEsca02",
+"object_types": [
+4,
+71,
+192
+]
+},
+{
+"asset": "level:/persos/world/0/168",
+"name": "i_BiblioEsca01",
+"object_types": [
+4,
+71,
+193
+]
+},
+{
+"asset": "level:/persos/world/0/169",
+"name": "i_ChambreGogood",
+"object_types": [
+4,
+71,
+194
+]
+},
+{
+"asset": "level:/persos/world/0/170",
+"name": "i_ChambreGogood2",
+"object_types": [
+4,
+71,
+195
+]
+},
+{
+"asset": "level:/persos/world/0/171",
+"name": "i_SonMouette",
+"object_types": [
+4,
+72,
+196
+]
+},
+{
+"asset": "level:/persos/world/0/172",
+"name": "i_1Oiseau_ArbreCour",
+"object_types": [
+4,
+73,
+197
+]
+},
+{
+"asset": "level:/persos/world/0/173",
+"name": "i_5Oiseau_ArbreCadran",
+"object_types": [
+4,
+73,
+198
+]
+},
+{
+"asset": "level:/persos/world/0/174",
+"name": "iLevierSecretManoir",
+"object_types": [
+41,
+74,
+199
+]
+},
+{
+"asset": "level:/persos/world/0/175",
+"name": "iFioleBleue_NearBrigand",
+"object_types": [
+23,
+64,
+200
+]
+}
+]

@@ -25,6 +25,9 @@ LOAD = [{'action': 'keys', 'keys': ['Down', 'Return', 'Return'], 'hold_ms': 55, 
         {'action': 'wait', 'duration_ms': 1500}]
 HELD = {'LeftShift+ArrowUp': ['LeftShift', 'ArrowUp']}
 CAMERA_TYPES = [2, 2, 2]
+WATCH_TYPES = {}
+for row in json.loads((root/'tools/behaviors/manoir-actors.json').read_text()):
+    WATCH_TYPES[row['asset']] = row['object_types']
 
 
 def condense(values):
@@ -67,6 +70,17 @@ def observe(mcp):
             'raw': matrix[:0]}
 
 
+def live_actors(mcp, port_state):
+    out = {}
+    for asset, row in port_state.get('watched', {}).items():
+        try:
+            found = mcp.call('find_scene_actor', level='manoir', object_types=row['object_types'])['observation']
+            out[asset] = {'action': found['actor']['current_action'], 'normal': (found.get('normal') or {}).get('current', -1)}
+        except RuntimeError as error:
+            out[asset] = {'error': str(error)[:90]}
+    return out
+
+
 def original(mcp, scenario):
     mcp.call('start_game', duration_seconds=120)
     mcp.call('run_sequence', steps=LOAD)
@@ -91,10 +105,11 @@ def original(mcp, scenario):
             samples.append(observe(mcp))
     while time.monotonic()-started < scenario['seconds']:
         samples.append(observe(mcp))
+    watched = live_actors(mcp, {'watched': scenario.get('watch_types', {})})
     camera = mcp.call('inspect_scene_camera', level='manoir', object_types=CAMERA_TYPES)
     active = camera['observation']['active_camera']
     mcp.call('stop_game')
-    return {'camera': {'position': active['position_source'], 'forward': active['forward_source'],
+    return {'watched': watched, 'camera': {'position': active['position_source'], 'forward': active['forward_source'],
                        'horizontal_fov': active['horizontal_fov'], 'vertical_fov': active['vertical_fov']},
             'entry': condense(row['action'] for row in entry), 'samples': samples}
 
@@ -108,9 +123,9 @@ def port(scenario, directory):
                     scenario['name'], str(output)], cwd=root/'godot', env=environment,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if not output.is_file():
-        return [], None
+        return [], None, {}
     data = json.loads(output.read_text())
-    return data['samples'], data.get('camera')
+    return data['samples'], data.get('camera'), {'watched': data.get('watched', {}), 'gold': data.get('gold')}
 
 
 def main():
@@ -127,14 +142,16 @@ def main():
         if args.only and scenario['name'] not in args.only:
             continue
         source = args.work/f'{scenario["name"]}.original.json'
+        scenario['watch_types'] = {asset: {'object_types': WATCH_TYPES[asset]} for asset in scenario.get('watch', [])}
         if source.is_file():
             first = json.loads(source.read_text())
         else:
             first = original(mcp, scenario)
             source.write_text(json.dumps(first))
         camera = first.get('camera')
+        live_watched = first.get('watched', {})
         first = first['samples']
-        second, port_camera = port(scenario, args.work)
+        second, port_camera, port_state = port(scenario, args.work)
         a, b = condense(s['action'] for s in first), condense(s['action'] for s in second)
         n, m = condense(s['normal'] for s in first), condense(s['normal'] for s in second)
         # Orrery cannot sample during a held key, so the original's sequence is
@@ -145,6 +162,9 @@ def main():
                      'original_behaviors': n, 'port_behaviors': m,
                      'original_moved': round(math.dist(first[0]['position'], first[-1]['position']), 2),
                      'port_moved': round(math.dist(second[0]['position'], second[-1]['position']), 2) if second else None,
+                     'original_watched': live_watched, 'port_watched': port_state.get('watched'), 'port_gold': port_state.get('gold'),
+                     'original_end': [round(v, 1) for v in first[-1]['position']] if first else None,
+                     'port_end': [round(v, 1) for v in second[-1]['position']] if second else None,
                      'port_alive': bool(second) and second[-1]['running'],
                      'original_seconds': busy_seconds(first), 'port_seconds': busy_seconds(second),
                      'original_rise': rise(first), 'port_rise': rise(second),

@@ -66,6 +66,13 @@ func run() -> void:
 		key(step["key"], false)
 	var remaining: float = scenario["seconds"] - (Time.get_ticks_msec() - started) / 1000.0
 	if remaining > 0.0: await wait(remaining)
+	var watched := {}
+	var level: Node = game.get("level")
+	for body in level.find_children("*", "CharacterBody3D", true, false):
+		if body.has_meta("source_perso") and scenario.get("watch", []).has(str(body.get_meta("source_perso"))):
+			var watched_brain := body.get_node_or_null("Brain")
+			watched[str(body.get_meta("source_perso"))] = {"object_types": Array(body.get_meta("source_object_types")), "action": int(body.get("current_state")), "normal": int(watched_brain.get("current_normal")) if watched_brain != null else -1, "active": bool(body.get("source_object_active"))}
+	var inventory: Resource = game.get("actor").get("source_inventory")
 	var view := root.get_viewport().get_camera_3d()
 	var camera := {}
 	if view != null:
@@ -73,6 +80,6 @@ func run() -> void:
 		var at := view.global_position
 		camera = {"position": [at.x, -at.z, at.y], "vertical_fov": view.fov}
 	var file := FileAccess.open(args[2], FileAccess.WRITE)
-	file.store_string(JSON.stringify({"entry": entry, "samples": samples, "camera": camera}))
+	file.store_string(JSON.stringify({"entry": entry, "samples": samples, "camera": camera, "watched": watched, "gold": inventory.get("gold")}))
 	file.close()
 	quit()
