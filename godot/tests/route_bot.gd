@@ -137,7 +137,7 @@ func watch(seconds: float, names: Array, press: String, fields: Array = []) -> v
 		if fields.size() > 0: row["at"] = [roundi(position().x), roundi(position().y), roundi(actor().global_position.y)]
 		for name in bodies:
 			var brain: Node = bodies[name].get_node_or_null("Brain")
-			row[name] = [int(bodies[name].get("current_state")), int(brain.get("current_normal")) if brain else -1, bodies[name].get("source_object_active")]
+			row[name] = [int(bodies[name].get("current_state")), int(brain.get("current_normal")) if brain else -1, brain.get("dsg_0"), brain.get("dsg_1"), brain.get("dsg_2")]
 		if screen != null:
 			var adopted: Node = screen.get("adopted_screen")
 			var active: Node = adopted if is_instance_valid(adopted) else screen
@@ -200,10 +200,16 @@ func run() -> void:
 			key("ArrowUp", false)
 			var moved := actor().global_position - before
 			print("CALIBRATE moved ", moved.normalized(), " x ", actor().global_basis.x.normalized(), " y ", actor().global_basis.y.normalized(), " z ", actor().global_basis.z.normalized())
+		elif step.has("face"):
+			var to := Vector2(step["face"][0], step["face"][1]) - position()
+			actor().source_turn_to_heading(atan2(to.x, -to.y))
+			await physics_frame
 		elif step.has("teleport"):
 			var to: Array = step["teleport"]
 			actor().global_position = Vector3(to[0], to[2], -to[1])
-			actor().source_contact_sector()
+			actor().set("_contact_sector", null)
+			actor().set("source_contact_sector_path", NodePath(""))
+			actor().set("_contact_previous", actor().global_position)
 			game.call("_locate_player_sector")
 			await create_timer(0.3).timeout
 		elif step.has("probe"):
@@ -211,6 +217,17 @@ func run() -> void:
 			var at: Vector3 = point.call("source_world_position", actor())
 			var angles: Vector2 = actor().source_turn_angles_to_position(at)
 			print("PROBE binding ", actor().get("source_motion_binding_present"), " wp ", at, " angles ", angles, " heading ", heading(), " rot ", actor().global_rotation.y, " basis.z ", actor().global_basis.z)
+		elif step.has("zones"):
+			var target: Node = null
+			for body in game.get("level").find_children("*", "CharacterBody3D", true, false):
+				if str(body.get_meta("source_perso_name", "")) == step["zones"]: target = body
+			var area: Node = target.get_node_or_null("ZDE")
+			print("ZONES forward ", target.global_basis.z, " at ", target.global_position)
+			for shape in area.find_children("*", "CollisionShape3D", true, false):
+				print("ZONE ", shape.get_meta("source_zone", -1), " ", shape.global_position, " r ", shape.shape.radius if shape.shape is SphereShape3D else 0.0)
+			var hz: Node = actor().get_node_or_null("ZDE")
+			for shape in hz.find_children("*", "CollisionShape3D", true, false):
+				print("HYPEZONE ", shape.get_meta("source_zone", -1), " off ", shape.global_position - actor().global_position, " dis ", shape.disabled, " r ", shape.shape.radius if shape.shape is SphereShape3D else 0.0, " ", shape.get_parent().name)
 		elif step.has("waypoints"):
 			for point in game.get("brain").get(step["waypoints"]):
 				if is_instance_valid(point): print("WAYPOINT ", point.call("source_world_position", actor()), " r ", point.get("radius"))
