@@ -516,6 +516,11 @@ func quantity_source(item: int) -> int:
         _failure("Inventory catalogue is unavailable for quantity queries.")
         return -1
     var value := _definition(_signed32(item))
+    if value == null:
+        # Source item 0 is the special gold resource, not an ordinary member
+        # (see SaveState inventory restoration); the HUD cash counter reads it.
+        var special := gold_definition as DEFINITION_SCRIPT
+        if special != null and special.item_id == _signed32(item) and _gold_ready(): return gold
     return value.quantity if value != null else -1
 
 func remove_source(item: int, count: int) -> int:

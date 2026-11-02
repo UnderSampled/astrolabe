@@ -283,6 +283,9 @@ func _run() -> void:
     hit_points.set("maximum", 100)
     actor.set("source_inventory", inventory)
     actor.set("source_hit_points", hit_points)
+    if not _check(int(inventory.call("quantity", 0)) == -1, "uninitialized currency was not the missing sentinel"):
+        return
+    inventory.set("quantities", {0: 0})
     if not _check(int(inventory.call("quantity", 0)) == 0, "source currency default was not zero"):
         return
     if not _check(int(inventory.call("quantity", 21)) == -1, "ordinary missing item sentinel changed"):

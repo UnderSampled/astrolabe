@@ -161,7 +161,7 @@ fn imported_hype_particle_selection_survives_rete_and_uses_native_emitter() -> R
         project.join("fixture.json"),
         serde_json::to_vec(&serde_json::json!({
             "generator_scene":scene_path,"generator_uri":generator.path,
-            "brain_script":"res://generated/hype/levels/manoir/ai/models/28.gd"
+            "brain_script":"res://generated/hype/levels/manoir/ai/models/fix/28.gd"
         }))?,
     )?;
     fs::write(
