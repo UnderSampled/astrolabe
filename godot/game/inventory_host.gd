@@ -97,8 +97,44 @@ func _item_requested(item_id: int, kind: String) -> void:
             return
         view.report("")
         view.refresh()
+    elif kind in ["RestoreHP", "RestoreMP", "RestoreHPMP", "Poison"]:
+        # 0041d010 confirms a consumable through 0041cd60, then takes one off.
+        if not _use_consumable(item_id, kind):
+            view.report("")
+            return
+        view.inventory.call("remove_source", item_id, 1)
+        view.report("")
+        view.refresh()
     else:
         view.report("Using this item is not implemented yet.")
+
+## 0041cd60: the item's availability value is the amount. Refused (false) when
+## the stat it restores is already full, or life is already zero for Poison.
+func _use_consumable(item_id: int, kind: String) -> bool:
+    var actor := get_parent().get("actor") as Node
+    if actor == null: return false
+    var definition: Resource = view.inventory.call("_definition", item_id)
+    if definition == null: return false
+    var amount := int(definition.get("availability")) & 0xff
+    var life: Resource = actor.get("source_hit_points")
+    var magick: Resource = actor.get("source_magick")
+    var life_full := life == null or int(life.current) == int(life.maximum)
+    var mana_full := magick == null or int(magick.current_points) == int(magick.maximum_points)
+    match kind:
+        "RestoreHP":
+            if life_full: return false
+            life.current = mini(int(life.current) + amount, int(life.maximum))
+        "RestoreMP":
+            if mana_full: return false
+            magick.current_points = mini(int(magick.current_points) + amount, int(magick.maximum_points))
+        "RestoreHPMP":
+            if life_full and mana_full: return false
+            if life != null: life.current = mini(int(life.current) + amount, int(life.maximum))
+            if magick != null: magick.current_points = mini(int(magick.current_points) + amount, int(magick.maximum_points))
+        "Poison":
+            if life == null or int(life.current) == 0: return false
+            life.current = maxi(int(life.current) - amount, 0)
+    return true
 
 func _input(event: InputEvent) -> void:
     var key := event as InputEventKey
