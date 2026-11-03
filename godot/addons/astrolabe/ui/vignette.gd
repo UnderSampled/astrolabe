@@ -4,9 +4,9 @@ extends CanvasLayer
 signal completed
 @onready var picture: TextureRect = $Screen/Picture
 var _generation := 0
-var _started_ms := 0
 var _duration_ms := 0
 var _holding := false
+var _held_ms := 0.0
 
 func _ready() -> void:
     hide()
@@ -28,12 +28,15 @@ func _begin_hold(generation: int) -> void:
     # this frame has presented the full-screen image.
     await RenderingServer.frame_post_draw
     if generation != _generation or not is_inside_tree(): return
-    _started_ms = Time.get_ticks_msec()
+    _held_ms = 0.0
     _holding = true
     set_process(true)
 
-func _process(_delta: float) -> void:
-    if not _holding or Time.get_ticks_msec() - _started_ms < _duration_ms: return
+func _process(delta: float) -> void:
+    # Game time, so the hold follows pauses and fixed-step capture.
+    if not _holding: return
+    _held_ms += delta * 1000.0
+    if _held_ms < _duration_ms: return
     _holding = false
     set_process(false)
     hide()

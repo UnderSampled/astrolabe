@@ -163,6 +163,44 @@ script error. A route takes up to a few minutes, so this is on demand. Routes co
 training, the key, the first gate and the exit; `stage*.json` start mid-game with
 bot steps, and `save_exit.json` is the gate's route.
 
+## Side-by-side videos
+
+`tools/video/` makes an original-versus-port video from a take and a route-bot
+run over it. All three steps cut by landmarks: frame or time, the first hard
+cut or black run after or before another landmark, or a take's key press or
+epoch (`videolib.py` lists them; `compose.py --timeline FILE START SECONDS`
+prints the luma timeline to check them).
+
+1. `original_span.py TAKE OUT.mkv --start LM --end LM` cuts the take's own FFV1
+   capture by frame index (via `frames.jsonl`) to constant 30 fps FFV1. `--check`
+   prints the capture's frame-interval statistics.
+2. `port_capture.py ROUTE.json OUT_DIR` runs `route_bot.gd` under Movie Maker
+   (`--write-movie`, fixed 30 fps, PNG and WAV) in a headless Gamescope, then
+   converts the result to `port.mkv` (FFV1 and FLAC). The bot's clock is wall time,
+   so the bot runs from a copy whose `Time.get_ticks_msec()` reads the fixed-step
+   clock (`--clock wall` turns this off). `--gentle` runs at low priority on four
+   cores, at no more than real time, for use beside another run.
+3. `compose.py LEFT RIGHT OUT.mkv` stacks them with labels, starting both sides
+   at their start landmarks and holding the shorter side's last frame. It keeps
+   the right side's audio (`--loudnorm` brings it to -16 LUFS) and encodes
+   hevc_nvenc main10 at CQ 20 (or `--encoder x265`).
+
+Manoir, from the intro to the fade-out before Brigand, sync on the intro's
+first frame after each side's loading screen, since the port's development
+loading screen is longer and looks different:
+
+    T=TestResults/stephen-linear-brigand-20261102 O=TestResults/side-by-side-manoir-$(date +%Y%m%d)
+    tools/video/original_span.py $T $O/original.mkv --start 'scene-after:scene-after:key:65293@20' --end 'black-before:epoch:brigand:5'
+    tools/take_route.py $T $O/route.json --until 330
+    tools/video/port_capture.py $O/route.json $O/port
+    tools/video/compose.py $O/original.mkv $O/port/port.mkv $O/manoir.mkv --right-start scene-after:start --right-end 'black-before:t:LOAD' --loudnorm
+
+Here `LOAD` is a time just after the port's fade-out to Brigand; check it with
+`--timeline`. Encoded against a lossless 4:4:4 reference, a 27 s test gave
+luma PSNR 54.7 dB with NVENC (3.3 Mb/s) and 52.7 dB with libx265 slow CRF 18.
+Under Movie Maker, game code that reads `Time.get_ticks_msec()` (the enemy
+meter timeout, vignette holds) still runs on wall time.
+
 ## Byte coverage of the original files
 
 A signal of which source bytes the parser understands, never a gate and never

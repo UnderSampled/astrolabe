@@ -33,10 +33,13 @@ var _select_press_claimed: bool = false
 const ENEMY_METER_ROWS := 3
 const ENEMY_METER_TIMEOUT_MS := 5000
 var _enemy_rows: Array[Dictionary] = []
+var _game_ms := 0.0
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+    # Enemy rows expire on game time (pauses and fixed-step capture included).
+    _game_ms += delta * 1000.0
     if not _enemy_rows.is_empty():
-        var now := Time.get_ticks_msec()
+        var now := int(_game_ms)
         var kept: Array[Dictionary] = []
         for row in _enemy_rows:
             if now - int(row["at"]) <= ENEMY_METER_TIMEOUT_MS: kept.append(row)
@@ -359,11 +362,11 @@ func source_enemy_meter_hit(target: Node) -> void:
     for row in _enemy_rows:
         if row["actor"] == target:
             row["fraction"] = fraction
-            row["at"] = Time.get_ticks_msec()
+            row["at"] = int(_game_ms)
             _show_enemy_rows()
             return
     if _enemy_rows.size() == ENEMY_METER_ROWS: _enemy_rows.pop_front()
-    _enemy_rows.append({"actor": target, "fraction": fraction, "at": Time.get_ticks_msec()})
+    _enemy_rows.append({"actor": target, "fraction": fraction, "at": int(_game_ms)})
     _show_enemy_rows()
 
 func _show_enemy_rows() -> void:
