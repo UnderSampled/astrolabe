@@ -200,7 +200,8 @@ func perf_monitor() -> void:
 			"primitives": Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME),
 			"physics_active": Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS),
 			"collision_pairs": Performance.get_monitor(Performance.PHYSICS_3D_COLLISION_PAIRS)}
-		if tick % 10 == 0:
+		# Walking the tree while a level loads on a thread broke that load.
+		if tick % 10 == 0 and current_scene != null and bool(current_scene.get("ready_to_play")) and not bool(current_scene.get("loading")):
 			var census := {}
 			for node in root.find_children("*", "", true, false):
 				var key: String = node.get_class() + ("/" + node.get_script().resource_path.get_file() if node.get_script() != null else "")
