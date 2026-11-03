@@ -29,13 +29,21 @@ in that take.
   samples, and enemy actors are not sampled at all.
 - [ ] Wild boars A and B (I_Wild_Boar_A/B): routes from Func_CloserWP, charge, death. Boar A
   dies after three sword hits (normal 9). Charge timing not compared.
-- [ ] Wolves (I_Brigand_PJ_Wolf1/2): in the port wolf 1 hits Hype once, then stays in normal 6
-  and Hype's swings never register (no bar). Model 1203 has 12 untyped stand-ins (behavior
-  queries and Proc_ChangeComport on unresolved actors), Cond30 and statements 4-432, 4-53,
-  4-215, 5-1. The original shows two enemy bars in the wolf fight at 366 s.
+- [ ] Wolves (I_Brigand_PJ_Wolf1/2): each wolf's dsg_34 (its partner) is stored as a
+  SuperObject and was left null, so the hit rule and the circling behavior crashed on it.
+  Resolved: a sword hit now takes wolf 1 from 15 to 10 (Hype's base damage dsg_115 = 5,
+  copied to dsg_114 by the swing object fix/708), and it alternates circling and
+  attacking (normals 6 and 10). Death and bars not yet run to the end; not compared with
+  the take's wolf fight at 366 s.
+- [x] Action-return policy 1 before Proc_Turn (100 sites, guards 927 and thieves 1060) and
+  before other-actor comport changes: compiled as a rule hold
+  (docs/astrolabe/action-return-policies.md). Brigand stand-in sites 344 to 225.
+- [ ] Route harness: the `near` step teleports Hype beside a target and he often lands in
+  a fall (normals 93, 23, 92), so Space is swallowed. Thief, bat and guard checks need a
+  walking approach before their hits can be judged.
 - [ ] Bats (I_Brigand_Bat_1 to 6, I_Dummy_Brigand_Bats): bat 1 flies above sword reach in
   the port route (normals 2, 1); no hits either way. Not compared.
-- [ ] Dagger thief (I_Brigand_Thief_Dagger_1): approaching starts its camera (Hype normals
+- [ ] Dagger thief: the take's thief is iThievesCommun_Brigand_01 (model 1060, same spot as the scripted runner I_Brigand_Thief_Dagger_1). Earlier: approaching starts its camera (Hype normals
   48, 28, letterbox); swings did not register afterwards. The original takes thief hits at 474 s.
 - [x] Enemy health bars: Fight_RemoveAndReadHitPointsEnemy (boars, bats, guards, thieves)
   refreshes the HUD rows as 0040c4a0/0040c8a0 do: up to three rows, oldest dropped, fill is
