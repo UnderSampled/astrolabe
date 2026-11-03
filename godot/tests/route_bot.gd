@@ -394,6 +394,14 @@ func run() -> void:
 				var to_chased := Vector2(chased.global_position.x, -chased.global_position.z) - position()
 				actor().source_turn_to_heading(atan2(to_chased.x, -to_chased.y))
 				await physics_frame
+		elif step.has("magic_state"):
+			# HUD magic inputs: display requests, magick and the spell handles.
+			var inv: Resource = actor().get("source_inventory")
+			var spells := []
+			for d in inv.get("definitions"):
+				if d != null and str(d.kind).begins_with("Magic"): spells.append([d.item_id, d.kind, d.selected, d.quantity])
+			var mk: Resource = actor().get("source_magick")
+			print("MAGIC ", JSON.stringify({"display": actor().get("source_hud_display"), "points": [mk.get("current_points"), mk.get("maximum_points"), mk.get("selected_spell_code")] if mk != null else null, "spells": spells}))
 		elif step.has("go"):
 			ok = await go(Vector2(step["go"][0], step["go"][1]), step.get("tol", step["go"][2] if step["go"].size() > 2 else 1.5), step.get("timeout", 40.0))
 		elif step.has("key"):

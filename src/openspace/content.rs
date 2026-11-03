@@ -792,7 +792,11 @@ fn import_hud_assets(
 ) -> Result<AssetRef<crate::model::hud::HudPresentation>> {
     let mut presentation = level::import_hud_presentation(game, selection, archive)?;
     let mut textures = Vec::with_capacity(presentation.artwork.len() + 1);
-    for artwork in &presentation.artwork {
+    let magic_artwork = presentation
+        .magic
+        .iter()
+        .flat_map(|magic| [&magic.slot_overlay, &magic.points_arc]);
+    for artwork in presentation.artwork.iter().chain(magic_artwork) {
         let entry = archive.find_entry(&artwork.source_name).with_context(|| {
             format!("missing HUD image {} in Textures.cnt", artwork.source_name)
         })?;

@@ -24,6 +24,10 @@ var _cash_panel: Control
 ## FUN_0043ab40 draws each piece of the selected armor at Fix.sda rectangle 2.
 const ARMOR_RECT := Rect2(10, 420, 48, 48)
 var _armor := Control.new()
+## Spell slots and magic-points arc (0043a450, 0043a6a0/00439e50), drawn from
+## the HUD Source node's metadata and the actor's magick and inventory.
+var _magic := Control.new()
+var _source: Control
 var _armor_state := ""
 
 func _ready() -> void:
@@ -56,6 +60,10 @@ func _ready() -> void:
     _cash_panel = get_parent().get_node_or_null("Source/Panel2") as Control
     _armor.mouse_filter = Control.MOUSE_FILTER_IGNORE
     add_child(_armor)
+    _source = get_parent().get_node_or_null("Source") as Control
+    _magic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    _magic.draw.connect(_draw_magic)
+    add_child(_magic)
     refresh()
 
 func bind_actor(value: Node) -> void:
@@ -119,6 +127,8 @@ func _refresh_armor(show: bool) -> void:
         _armor.add_child(rect)
 
 func refresh() -> void:
+    _magic.visible = not suppressed and bool(_requested["magic"])
+    _magic.queue_redraw()
     var frame_on: bool = not suppressed and (_requested["life"] or _requested["armor"] or _requested["magic"] or _requested["weapon"])
     if _frame_panel != null: _frame_panel.visible = frame_on
     if _cash_panel != null: _cash_panel.visible = not suppressed and not frame_on and bool(_requested["cash"])
@@ -138,3 +148,75 @@ func refresh() -> void:
     if _object_panel != null:
         # The original shows no frame while nothing is selected (New Game handoff).
         _object_panel.visible = _object_icon.visible
+
+func _row(index: int) -> Rect2:
+    # Active Fix.sda rows: x0, y0, x1, y1, width, height.
+    var table: PackedFloat32Array = _source.get_meta("source_rectangles")
+    var at := index * 6
+    return Rect2(table[at], table[at + 1], table[at + 4], table[at + 5])
+
+func _spell_item(kind: String) -> Resource:
+    # 0041d660: the selected inventory handle whose kind is "Magic" + suffix.
+    var inventory: Resource = actor.get("source_inventory") if is_instance_valid(actor) else null
+    if inventory == null: return null
+    for definition in inventory.get("definitions"):
+        if definition != null and str(definition.kind) == kind and bool(definition.selected):
+            return _item(int(definition.item_id))
+    return null
+
+func _draw_magic() -> void:
+    if _source == null or not _source.has_meta("magic_slot_kinds") or not is_instance_valid(actor): return
+    var magick: Resource = actor.get("source_magick")
+    if magick == null: return
+    var kinds: PackedStringArray = _source.get_meta("magic_slot_kinds")
+    var rows: PackedInt32Array = _source.get_meta("magic_slot_rows")
+    var selected_rect := Rect2()
+    var selected_found := false
+    for slot in kinds.size():
+        var item := _spell_item(kinds[slot])
+        if item == null or item.textures.size() < 2: continue
+        var row := _row(rows[slot])
+        if int(item.item_id) == int(magick.get("selected_spell_code")):
+            var big := _row(4)
+            # 0043a450 draws to x + w - 1, y + h - 1.
+            selected_rect = Rect2(row.position + big.position, big.size - Vector2.ONE)
+            selected_found = true
+            _magic.draw_texture_rect(item.textures[0], selected_rect, false)
+            var small := _row(9)
+            _magic.draw_texture_rect(item.textures[1], Rect2(row.position + big.position + small.position, small.size), false)
+        else:
+            _magic.draw_texture_rect(item.textures[0], row, false)
+            var small := _row(8)
+            _magic.draw_texture_rect(item.textures[1], Rect2(row.position + small.position, small.size), false)
+            _magic.draw_texture_rect(_source.get_meta("magic_slot_overlay"), row, false)
+    if selected_found: _draw_points_arc(selected_rect, magick)
+
+## 00439e50: a fan from the slot centre that starts at the top-left corner and
+## runs down the left edge, along the bottom, up the right and back along the
+## top; the end vertex moves linearly along its edge. Texture v runs up.
+func _draw_points_arc(rect: Rect2, magick: Resource) -> void:
+    var maximum := int(magick.get("maximum_points"))
+    var fraction := float(int(magick.get("current_points"))) / float(maximum) if maximum > 0 else 0.0
+    if fraction <= 0.0: return
+    fraction = minf(fraction, 1.0)
+    var l := rect.position.x
+    var t := rect.position.y
+    var r := rect.end.x
+    var b := rect.end.y
+    var uv := func(p: Vector2) -> Vector2: return Vector2((p.x - l) / (r - l), (p.y - t) / (b - t))
+    # Corners in sweep order, with the fraction at which the sweep reaches each.
+    var path := [[Vector2(l, t), 0.0], [Vector2(l, b), 0.25], [Vector2(r, b), 0.5], [Vector2(r, t), 0.75], [Vector2(l, t), 1.0]]
+    var points := PackedVector2Array([rect.get_center(), Vector2(l, t)])
+    for i in range(1, path.size()):
+        var start: Vector2 = path[i - 1][0]
+        var finish: Vector2 = path[i][0]
+        var from: float = path[i - 1][1]
+        var to: float = path[i][1]
+        if fraction >= to:
+            points.append(finish)
+        else:
+            points.append(start.lerp(finish, (fraction - from) / (to - from)))
+            break
+    var uvs := PackedVector2Array()
+    for p in points: uvs.append(uv.call(p))
+    _magic.draw_colored_polygon(points, Color.WHITE, uvs, _source.get_meta("magic_points_arc"))

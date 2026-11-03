@@ -471,6 +471,26 @@ static func apply_source_records(level: Node3D, path: String) -> Dictionary:
     return report
 
 
+## Spell handles carry their own selected flag (0041d660 draws a HUD spell slot
+## only for a selected handle). Weapons and Objects are selected by the legacy
+## restore, which also arbitrates the slot's conflicting flags.
+static func apply_spell_handles(actor: Node, path: String) -> int:
+    var opened := SAVE_FILE.open(path)
+    if opened["status"] != "loaded" or not is_instance_valid(actor): return 0
+    var inventory: Resource = actor.get("source_inventory")
+    if inventory == null: return 0
+    var config: ConfigFile = opened["config"]
+    var applied := 0
+    for section: String in config.get_sections():
+        if not section.begins_with("player/inventory/Magic"): continue
+        var item := int(section.get_slice("_", section.get_slice_count("_") - 1))
+        for definition in inventory.get("definitions"):
+            if definition != null and int(definition.item_id) == item and str(definition.kind).begins_with("Magic"):
+                definition.selected = int(config.get_value(section, "handle_selected", 0)) != 0
+                applied += 1
+    return applied
+
+
 static func _apply_designer_field(brain: Node, key: String, value: Variant) -> bool:
     match typeof(brain.get(key)):
         TYPE_BOOL:

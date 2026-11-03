@@ -370,6 +370,7 @@ func open_level() -> void:
         MANOIR_START.place(actor, fixture)
         var candidate_path: String = SAVE_STATE.ORIGINAL_SAVES.path_join(str(selected_save["source"]).get_slice(":", 1))
         selected_save["records"] = SAVE_STATE.apply_source_records(level, candidate_path)
+        SAVE_STATE.apply_spell_handles(actor, candidate_path)
         print("Save records applied: ", selected_save["records"])
     stage("restored", "Preparing to play...")
     # The first physics tick enters the saved world before movement starts.

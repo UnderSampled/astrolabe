@@ -170,6 +170,16 @@ fn emit(
             quoted(&format!("image{}", artwork.slot))
         )?;
     }
+    if let Some(magic) = &value.magic {
+        for artwork in [&magic.slot_overlay, &magic.points_arc] {
+            writeln!(
+                scene,
+                "[ext_resource type=\"Texture2D\" path={} id={}]",
+                quoted(&images[&artwork.slot]),
+                quoted(&format!("image{}", artwork.slot))
+            )?;
+        }
+    }
     let mut panel_images = BTreeMap::new();
     for (index, (asset, path)) in panel_paths.iter().enumerate() {
         writeln!(
@@ -189,6 +199,24 @@ fn emit(
         scene,
         "\n[node name=\"FixHud\" type=\"Control\"]\nlayout_mode = 3\nanchors_preset = 15\nanchor_right = 1.0\nanchor_bottom = 1.0\ngrow_horizontal = 2\ngrow_vertical = 2\nmouse_filter = 2\nscript = ExtResource(\"script\")\n\n[node name=\"Source\" type=\"Control\" parent=\".\"]\nlayout_mode = 0\noffset_right = 640.0\noffset_bottom = 480.0\nmouse_filter = 2\ntexture_filter = 2"
     )?;
+    // Spell slots and the magic-points arc (0043a450, 00439e50) are drawn by
+    // hud_slots.gd from these source inputs and the active rectangle table.
+    if let Some(magic) = &value.magic {
+        let rows: Vec<String> = value.rectangle_tables[1]
+            .iter()
+            .flatten()
+            .map(|v| format!("{v:?}"))
+            .collect();
+        writeln!(
+            scene,
+            "metadata/source_rectangles = PackedFloat32Array({})\nmetadata/magic_slot_kinds = PackedStringArray({})\nmetadata/magic_slot_rows = PackedInt32Array({})\nmetadata/magic_slot_overlay = ExtResource({})\nmetadata/magic_points_arc = ExtResource({})",
+            rows.join(", "),
+            magic.slot_kinds.iter().map(|k| quoted(k)).collect::<Vec<_>>().join(", "),
+            magic.slot_rows.iter().map(|r| r.to_string()).collect::<Vec<_>>().join(", "),
+            quoted(&format!("image{}", magic.slot_overlay.slot)),
+            quoted(&format!("image{}", magic.points_arc.slot)),
+        )?;
+    }
 
     panel_nodes(&mut scene, value, &panel_images)?;
 
@@ -490,6 +518,11 @@ pub(super) fn export(
     let mut images = BTreeMap::<u8, String>::new();
     for artwork in &value.artwork {
         images.insert(artwork.slot, image(project, source, artwork)?);
+    }
+    if let Some(magic) = &value.magic {
+        for artwork in [&magic.slot_overlay, &magic.points_arc] {
+            images.insert(artwork.slot, image(project, source, artwork)?);
+        }
     }
     let mut panel_paths = Vec::<(AssetPath, String)>::new();
     for layer in value.panels.iter().flat_map(|panel| &panel.layers) {

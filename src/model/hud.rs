@@ -24,6 +24,8 @@ pub struct HudPresentation {
     /// GLI texture object. Empty in legacy Rete values.
     #[serde(default)]
     pub artwork: Vec<HudArtwork>,
+    #[serde(default)]
+    pub magic: Option<HudMagic>,
     /// The dedicated Fix inventory object read by FUN_0041d400.
     #[serde(default)]
     pub currency_source_object: Option<SourceObjectIdentity>,
@@ -62,6 +64,21 @@ pub enum HudTextureRole {
     PlayerLifeRemainder,
     PlayerLifeFill,
     CurrencyIcon,
+    /// Fix.gpt HUD +0x70 (DAT_00610b8c): overlay drawn over unselected spell slots.
+    MagicSlotOverlay,
+    /// Fix.gpt HUD +0x78 (DAT_00610b84): texture of the magic-points arc object.
+    MagicPointsArc,
+}
+
+/// Spell slots and magic-points arc (0043a450, 0043a6a0, 00439e50).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HudMagic {
+    pub slot_overlay: HudArtwork,
+    pub points_arc: HudArtwork,
+    /// Inventory item kinds of the three slots ("Magic" + the b98 suffix).
+    pub slot_kinds: [String; 3],
+    /// Fix.sda active-table rows of the three slots (b98 +0x1e..+0x20).
+    pub slot_rows: [u8; 3],
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

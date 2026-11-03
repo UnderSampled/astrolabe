@@ -410,8 +410,8 @@ pub(crate) fn import(
     let slots = gpt_offset + 0x40;
     let mut source_textures = Vec::with_capacity(6);
     let mut artwork = Vec::with_capacity(6);
-    for slot in 0..6 {
-        let value = u32_at(&gpt, slots + slot * 4)?;
+    // One GLI texture slot of the Fix.gpt HUD record.
+    let gli = |value: u32, slot: u8, role: HudTextureRole| -> Result<HudArtwork> {
         let object = fix_pointer(&session, &refs, value)?
             .with_context(|| format!("Fix HUD texture slot {slot} is null"))?;
         ensure!(
@@ -447,12 +447,10 @@ pub(crate) fn import(
             info.stored_width > 0 && info.stored_height > 0,
             "Fix HUD GLI has zero stored dimensions"
         );
-        let source_object = session.source_identity(object)?;
-        source_textures.push(Some(source_object.clone()));
-        artwork.push(HudArtwork {
-            slot: u8::try_from(slot)?,
-            role: artwork_role(slot),
-            source_object,
+        Ok(HudArtwork {
+            slot,
+            role,
+            source_object: session.source_identity(object)?,
             fix_ptx_index: index,
             source_name,
             texture: entry.texture.path.clone(),
@@ -461,7 +459,13 @@ pub(crate) fn import(
             source_flags: info.flags,
             sample_flags: info.sample_flags,
             addressing: info.addressing,
-        });
+        })
+    };
+    for slot in 0..6 {
+        let value = u32_at(&gpt, slots + slot * 4)?;
+        let art = gli(value, u8::try_from(slot)?, artwork_role(slot))?;
+        source_textures.push(Some(art.source_object.clone()));
+        artwork.push(art);
     }
     ensure!(
         artwork.iter().map(|a| a.fix_ptx_index).collect::<Vec<_>>() == [22, 23, 13, 11, 12, 30],
@@ -540,6 +544,26 @@ pub(crate) fn import(
             entries: vec![23],
         },
     ];
+    // 004396e0 reads, after the counter font (+0x58): materials, the arc
+    // object (+0x6c), the slot overlay GLI (+0x70), the arc's texture (+0x78),
+    // two element ids and the spell struct b98 (+0x88): three 10-byte kind
+    // suffixes, then the slots' Fix.sda rows at +0x1e.
+    let magic = {
+        let spells = fix_pointer(&session, &refs, u32_at(&gpt, gpt_offset + 0x88)?)?
+            .context("Fix HUD spell struct is null")?;
+        let bytes = session.bytes(spells, 0x2a)?;
+        let suffix = |at: usize| -> Result<String> {
+            let raw = &bytes[at..at + 10];
+            let end = raw.iter().position(|b| *b == 0).unwrap_or(10);
+            Ok(format!("Magic{}", std::str::from_utf8(&raw[..end])?))
+        };
+        crate::model::hud::HudMagic {
+            slot_overlay: gli(u32_at(&gpt, gpt_offset + 0x70)?, 12, HudTextureRole::MagicSlotOverlay)?,
+            points_arc: gli(u32_at(&gpt, gpt_offset + 0x78)?, 14, HudTextureRole::MagicPointsArc)?,
+            slot_kinds: [suffix(0)?, suffix(10)?, suffix(20)?],
+            slot_rows: [bytes[0x1e], bytes[0x1f], bytes[0x20]],
+        }
+    };
     let value = HudPresentation {
         path: AssetPath::new("fix:/hud/en")?,
         canvas_size: [640, 480],
@@ -547,6 +571,7 @@ pub(crate) fn import(
         panels,
         source_textures,
         artwork,
+        magic: Some(magic),
         currency_source_object: Some(session.source_identity(currency_source)?),
         currency_item_id: Some(currency_item_id),
         currency_font: Some(currency_font),
