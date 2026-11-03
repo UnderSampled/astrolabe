@@ -91,6 +91,56 @@ pub(super) fn bake(
     }
     Ok(frames)
 }
+/// A source row-major rotation (acting on column vectors) as a Godot
+/// quaternion [x, y, z, w]. Source (x, y, z) is Godot (x, z, -y).
+fn godot_quaternion(m: &[[f64; 3]; 3]) -> [f64; 4] {
+    // C maps source axes to Godot axes; the Godot rotation is C m C^T.
+    let c = [[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]];
+    let g: [[f64; 3]; 3] = std::array::from_fn(|r| {
+        std::array::from_fn(|col| {
+            (0..3)
+                .flat_map(|i| (0..3).map(move |j| (i, j)))
+                .map(|(i, j)| c[r][i] * m[i][j] * c[col][j])
+                .sum()
+        })
+    });
+    let trace = g[0][0] + g[1][1] + g[2][2];
+    let q = if trace > 0.0 {
+        let s = (trace + 1.0).sqrt() * 2.0;
+        [
+            (g[2][1] - g[1][2]) / s,
+            (g[0][2] - g[2][0]) / s,
+            (g[1][0] - g[0][1]) / s,
+            0.25 * s,
+        ]
+    } else if g[0][0] > g[1][1] && g[0][0] > g[2][2] {
+        let s = (1.0 + g[0][0] - g[1][1] - g[2][2]).sqrt() * 2.0;
+        [
+            0.25 * s,
+            (g[0][1] + g[1][0]) / s,
+            (g[0][2] + g[2][0]) / s,
+            (g[2][1] - g[1][2]) / s,
+        ]
+    } else if g[1][1] > g[2][2] {
+        let s = (1.0 + g[1][1] - g[0][0] - g[2][2]).sqrt() * 2.0;
+        [
+            (g[0][1] + g[1][0]) / s,
+            0.25 * s,
+            (g[1][2] + g[2][1]) / s,
+            (g[0][2] - g[2][0]) / s,
+        ]
+    } else {
+        let s = (1.0 + g[2][2] - g[0][0] - g[1][1]).sqrt() * 2.0;
+        [
+            (g[0][2] + g[2][0]) / s,
+            (g[1][2] + g[2][1]) / s,
+            0.25 * s,
+            (g[1][0] - g[0][1]) / s,
+        ]
+    };
+    let n = q.iter().map(|v| v * v).sum::<f64>().sqrt();
+    q.map(|v| v / n)
+}
 fn compose(a: &SourceTransform, b: &SourceTransform) -> SourceTransform {
     let mul = |left: [[f32; 3]; 3], right: [[f32; 3]; 3]| {
         std::array::from_fn(|c| {
@@ -228,6 +278,42 @@ impl NativeAnimation {
         writeln!(
             self.text,
             "tracks/{i}/type = \"position_3d\"\ntracks/{i}/path = NodePath(\"RootMotion\")\ntracks/{i}/interp = 1\ntracks/{i}/loop_wrap = false\ntracks/{i}/keys = PackedFloat32Array({})",
+            keys.join(",")
+        )?;
+        Ok(())
+    }
+    /// 004436c0 also composes the frame-local root rotations since the last
+    /// frame (00435db0, each frame's matrix on the left) and hands the actor
+    /// their angle over the tick as an angular speed. Bake the running product
+    /// as RootMotion rotation keys; clips without root rotation get no track.
+    pub fn root_rotation(&mut self, clip: &AnimationClip, fps: u8) -> Result<()> {
+        if clip
+            .frames
+            .iter()
+            .all(|frame| frame.motion_rotation.is_none())
+        {
+            return Ok(());
+        }
+        let mut product = [[1.0f64, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
+        let mut keys = vec!["0,1,0,0,0,1".to_string()];
+        for (index, frame) in clip.frames.iter().enumerate() {
+            if let Some(rows) = frame.motion_rotation {
+                let rows = rows.map(|row| row.map(f64::from));
+                product = std::array::from_fn(|r| {
+                    std::array::from_fn(|c| (0..3).map(|k| rows[r][k] * product[k][c]).sum())
+                });
+            }
+            let [x, y, z, w] = godot_quaternion(&product);
+            keys.push(format!(
+                "{},1,{x},{y},{z},{w}",
+                (index + 1) as f64 / f64::from(fps.max(1))
+            ));
+        }
+        let i = self.tracks;
+        self.tracks += 1;
+        writeln!(
+            self.text,
+            "tracks/{i}/type = \"rotation_3d\"\ntracks/{i}/path = NodePath(\"RootMotion\")\ntracks/{i}/interp = 1\ntracks/{i}/loop_wrap = false\ntracks/{i}/keys = PackedFloat32Array({})",
             keys.join(",")
         )?;
         Ok(())

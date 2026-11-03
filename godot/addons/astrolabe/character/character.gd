@@ -112,6 +112,12 @@ var generated_object: Node3D
 var source_hud_display: Dictionary = {}
 ## Last evaluated local displacement, including every native substep and loop.
 var root_motion_displacement: Vector3 = Vector3.ZERO
+## Root rotation this tick: 004436c0 hands the frames' composed motion rotation
+## to the mechanics as an angular speed. An AI turn this tick writes the same
+## speed and takes precedence: Hype's standing turn measures the AI's 160 deg/s
+## in the original, without its clip's 30 degrees per loop.
+var root_motion_turn: Quaternion = Quaternion.IDENTITY
+var source_turned_this_tick := false
 ## Native activation gates rendering, decision ticks and actor contact eligibility.
 @export var source_object_active: bool = true
 @export var source_activation_known: bool = false
@@ -247,6 +253,9 @@ func _physics_step(delta: float) -> void:
     advance(delta)
     # The animation never changes this body's position. Apply its local motion
     # once, through native contact resolution. Forces/impulses persist independently.
+    if not source_turned_this_tick and not root_motion_turn.is_equal_approx(Quaternion.IDENTITY):
+        basis = basis * Basis(root_motion_turn)
+    source_turned_this_tick = false
     var motion := global_basis.orthonormalized() * root_motion_displacement / delta
     if source_point_active or source_point_holds_motion:
         motion = _source_point_motion(delta)
@@ -409,6 +418,7 @@ func turn(degrees_per_second: float, seconds: float) -> void:
     # to Godot +Y; the native transform composes the rotation around that axis.
     assert(is_finite(degrees_per_second) and is_finite(seconds) and seconds >= 0.0)
     rotate_object_local(Vector3.UP, deg_to_rad(degrees_per_second) * seconds)
+    source_turned_this_tick = true
 
 ## Action_IncrementalTurnPerso captures a horizontal target once. Its compiled
 ## coroutine owns the frame count and cancellation; Godot owns the transform.
@@ -440,6 +450,7 @@ func _source_turn_angles_to_world_position(point: Vector3) -> Vector2:
 func source_turn_to_heading(heading: float) -> void:
     assert(is_finite(heading))
     global_rotation.y = heading
+    source_turned_this_tick = true
 
 ## Proc217 writes an absolute heading about source +Z to its mechanics request.
 ## Reuse the native facing transform; no engine event queue is reconstructed.
@@ -1675,6 +1686,7 @@ func advance(seconds: float) -> void:
     # These are native Animation keys, not source samples or a second evaluator.
     assert(is_finite(seconds) and seconds >= 0.0)
     root_motion_displacement = Vector3.ZERO
+    root_motion_turn = Quaternion.IDENTITY
     if seconds > 0.0 and not action_complete: animation_complete = false
     var revision := playback_revision
     while seconds > 0.00000001 and playing and current_clip != null:
@@ -1987,6 +1999,7 @@ func advance_native(seconds: float) -> void:
     animation_player.advance(seconds)
     if seconds > 0.0:
         root_motion_displacement += animation_player.get_root_motion_position()
+        root_motion_turn = root_motion_turn * animation_player.get_root_motion_rotation()
     advancing = false
     if pending_state >= 0:
         var state := pending_state

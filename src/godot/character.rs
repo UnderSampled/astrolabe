@@ -1268,6 +1268,7 @@ fn export_animation(
     }
     if let Some(clip) = &state.clip {
         anim.root_translation(clip, fps)?;
+        anim.root_rotation(clip, fps)?;
         writeln!(
             anim.text,
             "metadata/source_animation = {}\nmetadata/source_state_next = {}",
