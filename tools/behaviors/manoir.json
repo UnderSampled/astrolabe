@@ -18,5 +18,6 @@
   {"name": "fall_bridge", "life": true, "steps": [{"key": "drop", "at": [-62.0, 80.0, 2.0]}], "seconds": 14},
   {"name": "fall_near_pont04", "life": true, "steps": [{"key": "drop", "at": [-77.5, 34.0, 6.5]}, {"key": "wait", "hold_ms": 1500}, {"key": "drop", "at": [-62.0, 80.0, 2.0]}], "seconds": 16},
   {"name": "fall_death", "life": true, "steps": [{"key": "life", "value": 1}, {"key": "drop", "at": [-62.0, 80.0, 2.0]}], "seconds": 32},
-  {"name": "flask", "steps": [{"key": "ArrowRight", "hold_ms": 1000}, {"key": "wait", "hold_ms": 200}, {"key": "LeftShift+ArrowUp", "hold_ms": 2000}], "seconds": 6, "watch": ["level:/persos/world/0/175"]}
+  {"name": "flask", "steps": [{"key": "ArrowRight", "hold_ms": 1000}, {"key": "wait", "hold_ms": 200}, {"key": "LeftShift+ArrowUp", "hold_ms": 2000}], "seconds": 6, "watch": ["level:/persos/world/0/175"]},
+  {"name": "flask_scene", "steps": [{"key": "ArrowRight", "hold_ms": 1000}, {"key": "wait", "hold_ms": 200}, {"key": "LeftShift+ArrowUp", "hold_ms": 2000}], "seconds": 25, "watch": ["level:/persos/world/0/175"]}
 ]

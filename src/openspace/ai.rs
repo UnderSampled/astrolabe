@@ -1029,6 +1029,12 @@ impl Parser<'_> {
                     {
                         // A compiled meta action already holds the rule until it ends.
                         continue;
+                    } else if return_policy == 0 {
+                        // 0053fc30 stores the policy; 00522750 then ORs it into
+                        // the next node's control after masking 0x1c, so policy
+                        // 0 clears that node's end-of-rule bits and execution
+                        // continues to the following statement: plain sequence.
+                        continue;
                     } else if return_policy != 1
                         || !self.nodes.get(self.at).is_some_and(|request| {
                             request.indent == indent
