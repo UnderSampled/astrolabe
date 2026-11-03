@@ -20,18 +20,29 @@ in that take.
 
 ## Enemies and combat
 
-- [ ] Wild boars A and B (I_Wild_Boar_A/B): routes from Func_CloserWP, charge, damage, death.
-  In the port boar A reacts to sword hits (normals 7, 1) and dies after three (normal 9);
-  it did not damage Hype in that run. Not compared with the original.
-- [ ] Wolves (I_Brigand_PJ_Wolf1/2): run in the port; together about 180 ms of AI per 2 s, the
-  largest cost in Brigand. Fights not compared.
-- [ ] Bats (I_Brigand_Bat_1 to 6, I_Dummy_Brigand_Bats). Not checked.
-- [ ] Dagger thief (I_Brigand_Thief_Dagger_1) and its camera (I_Brigand_Camera_Theif_Cam). Not checked.
+- [x] Enemies damage Hype: Cond24..27 (zone-type collision, 0042f980) was a stand-in reading 0,
+  so the boar, guard, thief and bat AIs never reached their damage branch. Ported. Boar A
+  standing next to Hype: life 50 to 37 in 16 s, hits of 1 to 3 with hit reactions (normal 15)
+  and the blue flash. The take's sword bar (1 fps frames, about 2.4 px per life point) shows
+  boar and thief hits of 1 to 3 at 368, 400, 474 and 556 to 563 s; the 712 s drop (9) spans
+  several hits between frames. Per-hit damage is not comparable exactly: no life in the take's
+  samples, and enemy actors are not sampled at all.
+- [ ] Wild boars A and B (I_Wild_Boar_A/B): routes from Func_CloserWP, charge, death. Boar A
+  dies after three sword hits (normal 9). Charge timing not compared.
+- [ ] Wolves (I_Brigand_PJ_Wolf1/2): in the port wolf 1 hits Hype once, then stays in normal 6
+  and Hype's swings never register (no bar). Model 1203 has 12 untyped stand-ins (behavior
+  queries and Proc_ChangeComport on unresolved actors), Cond30 and statements 4-432, 4-53,
+  4-215, 5-1. The original shows two enemy bars in the wolf fight at 366 s.
+- [ ] Bats (I_Brigand_Bat_1 to 6, I_Dummy_Brigand_Bats): bat 1 flies above sword reach in
+  the port route (normals 2, 1); no hits either way. Not compared.
+- [ ] Dagger thief (I_Brigand_Thief_Dagger_1): approaching starts its camera (Hype normals
+  48, 28, letterbox); swings did not register afterwards. The original takes thief hits at 474 s.
 - [x] Enemy health bars: Fight_RemoveAndReadHitPointsEnemy (boars, bats, guards, thieves)
   refreshes the HUD rows as 0040c4a0/0040c8a0 do: up to three rows, oldest dropped, fill is
-  life over maximum, a row expires 5 s after its last hit. Wild boar A, three sword hits:
-  fill 77, 51, 25, 0 px, death (normal 9), bar gone 5.0 s later. Not compared with the
-  original's pixels.
+  life over maximum, a row expires 5 s after its last hit (both source timeouts are 5000 ms).
+  Wild boar A, three sword hits: fill 77, 51, 25, 0 px, death (normal 9), bar gone 5.0 s later.
+  Against the take (frame 469): bar size, colours and place match within 2 px; the right-edge
+  frame (Fix panel 1) was missing and now shows while any row is active.
 - [ ] Respawn: leaving through the toras door and coming back reloads Brigand and respawns the
   mobs (650 to 660 s). Port: travel back into Brigand restores world records, so killed mobs may
   stay dead; needs the source rule.
