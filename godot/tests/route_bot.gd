@@ -385,6 +385,9 @@ func run() -> void:
 				if not failed or position().distance_to(target) < 2.5:
 					ok = true
 					break
+		elif step.has("follow"):
+			args_out_dir = str(OS.get_cmdline_user_args()[1]).get_base_dir()
+			ok = await follow(step["follow"])
 		elif step.has("chase"):
 			# Walk to a moving actor with the real controls: {"chase": ["iThievesCommun_Brigand_01", 1.3], "timeout": 10}
 			var chased := body_of(str(step["chase"][0]))
@@ -748,3 +751,142 @@ func _linked_field(brain: Node, field: String) -> Variant:
 	var path: NodePath = brain.get("actor_brain_0_path")
 	var linked := brain.get_node_or_null(path) if not path.is_empty() else null
 	return linked.get(field) if linked != null else "none"
+
+## Closed-loop take follower (tools/take_route.py): steer along the take's
+## position track with the real controls, fire its action keys on the take's
+## clock, and re-anchor that clock when a level finishes loading.
+var args_out_dir := ""
+func follow(plan: Dictionary) -> bool:
+	var track: Array = plan["track"]
+	var keys: Array = plan["keys"]
+	var landmarks: Array = plan["landmarks"]
+	var until: float = float(plan["until"])
+	# Port time zero is New Game; the take reached the Manoir at take_zero.
+	var shift: float = float(plan["take_zero"]) + 1.0
+	var origin := Time.get_ticks_msec()
+	var next_key := 0
+	var cursor := 0
+	var held := {}
+	var level := str(game.get("level").get_meta("source_level_name", "")) if game.get("level") != null else ""
+	var loading := false
+	var load_began := 0.0
+	var next_report := 0.0
+	var clock := 0.0
+	while clock < until:
+		await physics_frame
+		var now := (Time.get_ticks_msec() - origin) / 1000.0
+		if bool(game.get("loading")) or game.get("level") == null:
+			if not loading:
+				loading = true
+				load_began = now
+				for code in held.keys(): _follow_key(code, false)
+				held.clear()
+			continue
+		if loading:
+			loading = false
+			var arrived := str(game.get("level").get_meta("source_level_name", ""))
+			if arrived != level:
+				level = arrived
+				# The take's first playable frame in this level is the anchor.
+				for mark in landmarks:
+					if str(mark.get("level", "")) == level and int(mark.get("phase", -1)) == 9:
+						var before := clock
+						shift = float(mark["t"]) - now
+						print("LANDMARK ", JSON.stringify({"level": level, "port": snappedf(now, 0.1), "take": mark["t"], "drift": snappedf(before - float(mark["t"]), 0.1), "load_s": snappedf(now - load_began, 0.1)}))
+						break
+				if level == "toras" or level.is_empty(): break
+		clock = now + shift
+		# Action keys at their take times. An action press waits (holding the
+		# take clock, up to 4 s) until Hype is on the take's track, so attacks
+		# and casts land where the original's did.
+		while next_key < keys.size() and float(keys[next_key][0]) <= clock:
+			var row: Array = keys[next_key]
+			if bool(row[2]) and int(row[1]) in ACTION_KEYS and _follow_gap > 1.0 and _follow_hold < 4.0:
+				_follow_hold += 1.0 / Engine.physics_ticks_per_second
+				shift -= 1.0 / Engine.physics_ticks_per_second
+				break
+			_follow_hold = 0.0
+			if int(row[1]) == KEY_SHIFT:
+				_follow_take_shift = bool(row[2])
+				next_key += 1
+				continue
+			_follow_key(int(row[1]), bool(row[2]))
+			if bool(row[2]): held[int(row[1])] = true
+			else: held.erase(int(row[1]))
+			next_key += 1
+		# Path pursuit: follow the take's track by proximity (so a lagging Hype
+		# goes round corners instead of cutting them), never past its clock.
+		var here := position()
+		var horizon := clock + 0.5
+		while cursor + 1 < track.size() and float(track[cursor][0]) < clock - 3.0: cursor += 1
+		var best := cursor
+		var best_distance := INF
+		var probe := cursor
+		while probe < track.size() and probe < cursor + 20 and float(track[probe][0]) <= horizon:
+			if str(track[probe][5]) == level:
+				var d := _track_point(track[probe]).distance_to(here)
+				if d <= best_distance:
+					best_distance = d
+					best = probe
+			probe += 1
+		cursor = best
+		var ahead := cursor
+		while ahead + 1 < track.size() and float(track[ahead + 1][0]) <= horizon and str(track[ahead + 1][5]) == level and _track_point(track[ahead]).distance_to(here) < 1.5:
+			ahead += 1
+		var sample: Array = track[ahead]
+		var playable := str(sample[5]) == level
+		var target := _track_point(sample)
+		var to := target - position()
+		var error := wrapf(to.angle() - heading(), -PI, PI)
+		# Stand still where the take stood (stand attacks stay stand attacks).
+		var take_still := _track_moved(track, cursor, clock) < 0.3
+		var moving := playable and to.length() > (1.5 if take_still else 0.7)
+		_follow_gap = to.length() if playable else 0.0
+		_follow_steer("ArrowUp", moving and absf(error) < 0.5)
+		# Run to catch up when behind; otherwise the take's own Shift edges rule.
+		var run := _follow_take_shift or (moving and to.length() > 2.0)
+		if run != bool(_steer_state.get("run", false)):
+			_steer_state["run"] = run
+			_follow_key(KEY_SHIFT, run)
+		_follow_steer("ArrowLeft", moving and error > 0.12)
+		_follow_steer("ArrowRight", moving and error < -0.12)
+		var shots: Array = plan.get("shots", [])
+		if not shots.is_empty() and clock >= float(shots[0]):
+			RenderingServer.force_draw()
+			get_root().get_texture().get_image().save_png(args_out_dir.path_join("follow_%d.png" % int(float(shots[0]))))
+			shots.pop_front()
+		if clock >= next_report:
+			next_report = clock + float(plan.get("report", 5.0))
+			print("FOLLOW ", JSON.stringify({"take": snappedf(clock, 0.1), "level": level, "gap": snappedf(to.length(), 0.1), "pos": [snappedf(position().x, 0.1), snappedf(position().y, 0.1)], "target": [snappedf(target.x, 0.1), snappedf(target.y, 0.1)], "err": snappedf(rad_to_deg(error), 1), "normal": brain_of("hype").get("current_normal") if brain_of("hype") != null else -1, "take_normal": sample[4], "life": int(actor().get("source_hit_points").get("current")) if actor().get("source_hit_points") != null else -1}))
+	for code in held.keys(): _follow_key(code, false)
+	_follow_key(KEY_SHIFT, false)
+	for name in ["ArrowUp", "ArrowLeft", "ArrowRight"]: _follow_steer(name, false)
+	return true
+
+func _track_moved(track: Array, cursor: int, clock: float) -> float:
+	var lo := cursor
+	while lo > 0 and float(track[lo][0]) > clock - 0.5: lo -= 1
+	var hi := cursor
+	while hi + 1 < track.size() and float(track[hi][0]) < clock + 0.5: hi += 1
+	return _track_point(track[lo]).distance_to(_track_point(track[hi]))
+
+func _track_point(row: Array) -> Vector2:
+	return Vector2(float(row[1]), float(row[2]))
+
+const ACTION_KEYS := [KEY_SPACE, KEY_CTRL, KEY_ENTER, KEY_Z]
+var _follow_gap := 0.0
+var _follow_take_shift := false
+var _follow_hold := 0.0
+var _steer_state := {}
+func _follow_steer(name: String, pressed: bool) -> void:
+	if bool(_steer_state.get(name, false)) == pressed: return
+	_steer_state[name] = pressed
+	key(name, pressed)
+
+func _follow_key(code: int, pressed: bool) -> void:
+	var event := InputEventKey.new()
+	event.keycode = code
+	event.physical_keycode = code
+	event.pressed = pressed
+	Input.parse_input_event(event)
+	Input.flush_buffered_events()
