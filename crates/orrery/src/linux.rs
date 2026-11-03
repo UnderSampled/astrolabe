@@ -195,6 +195,11 @@ impl Process {
     pub fn read_running(&self, address: usize, size: usize) -> Result<Vec<u8>> {
         self.check()?;
         self.readable(address, size)?;
+        self.read_unvalidated(address, size)
+    }
+    /// One syscall and no procfs parsing. The kernel still rejects an unmapped
+    /// range, so a stale pointer is an error here, never a crash.
+    pub fn read_unvalidated(&self, address: usize, size: usize) -> Result<Vec<u8>> {
         let mut bytes = vec![0; size];
         let local = libc::iovec {
             iov_base: bytes.as_mut_ptr().cast(),
@@ -214,7 +219,6 @@ impl Process {
             count as usize == size,
             "partial memory transfer {count}/{size}"
         );
-        self.check()?;
         Ok(bytes)
     }
     /// List mappings for this exact owned process. The identity is checked both
@@ -682,6 +686,43 @@ impl Drop for Owner {
     fn drop(&mut self) {
         let _ = self.close();
         OWNER_ACTIVE.store(false, Ordering::SeqCst);
+    }
+}
+
+/// Reads the live process without stopping it, for samples taken often enough
+/// that a stop would be heard. Each page is copied once, so one sample sees each
+/// page at a single moment, but pages can differ by a few microseconds.
+pub struct RunningRead<'a> {
+    process: &'a Process,
+    pages: BTreeMap<usize, Vec<u8>>,
+}
+impl<'a> RunningRead<'a> {
+    pub fn new(process: &'a Process) -> Self {
+        Self {
+            process,
+            pages: BTreeMap::new(),
+        }
+    }
+}
+impl astrolabe::openspace::level::live::ReadMemory for RunningRead<'_> {
+    fn read(&mut self, address: u32, size: usize) -> Result<Vec<u8>> {
+        const PAGE: usize = 4096;
+        ensure!((1..=MAX_READ).contains(&size), "invalid read size");
+        let (address, end) = (address as usize, address as usize + size);
+        let mut bytes = Vec::with_capacity(size);
+        let mut position = address;
+        while position < end {
+            let page = position & !(PAGE - 1);
+            if !self.pages.contains_key(&page) {
+                ensure!(self.pages.len() < 4096, "running read exceeds 16 MiB");
+                let data = self.process.read_unvalidated(page, PAGE)?;
+                self.pages.insert(page, data);
+            }
+            let stop = end.min(page + PAGE);
+            bytes.extend_from_slice(&self.pages[&page][position - page..stop - page]);
+            position = stop;
+        }
+        Ok(bytes)
     }
 }
 

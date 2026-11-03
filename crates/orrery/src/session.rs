@@ -1053,8 +1053,8 @@ fn run_loop(
                                 "normal_behavior":sample.normal,
                                 "reflex_behavior":sample.reflex,
                                 "ai_evidence":"sampled_selection_only; transient transitions unobserved",
-                                "consistency":"stopped_bytes", "completed_update":false,
-                                "pause_micros":pause.as_micros(),
+                                "consistency":"running_non_atomic", "completed_update":false,
+                                "read_micros":pause.as_micros(),
                             }))?;
                             }
                             Err(error) => {

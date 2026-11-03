@@ -1047,16 +1047,21 @@ impl GameSession {
 
     /// A coherent selected-actor AI snapshot. It can reveal the current
     /// normal/reflex choice but cannot establish transitions between samples.
+    /// The game keeps running: a recording stops for nothing. A pointer chase
+    /// that tears on a changing structure is read again, up to three times.
     pub fn observe_main_actor_with_ai_timed(&self) -> Result<(ActorAiObservation, Duration)> {
         self.check()?;
         let build = HypeBuild::verified(&self.config.exe_sha256)?;
-        let pause = self.process.pause(Duration::from_secs(1))?;
-        let paused_at = Instant::now();
-        let mut capture = pause.capture()?;
-        let actor = build.actor_with_ai(&mut capture, &[47], &[])?;
-        capture.finish()?;
-        drop(pause);
-        Ok((actor, paused_at.elapsed()))
+        let started = Instant::now();
+        let mut failure = None;
+        for _ in 0..3 {
+            let mut memory = crate::linux::RunningRead::new(&self.process);
+            match build.actor_with_ai(&mut memory, &[47], &[]) {
+                Ok(actor) => return Ok((actor, started.elapsed())),
+                Err(error) => failure = Some(error),
+            }
+        }
+        Err(failure.context("no read attempted")?)
     }
 
     /// Focus once before a functional input schedule. Gameplay events use the

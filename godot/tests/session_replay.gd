@@ -13,7 +13,7 @@ var source_inputs: Array = []
 var next_input := 0
 var frames := 0
 var states := 0
-var frame_interval_us := 250000
+var frame_interval_us := int(OS.get_environment("ASTROLABE_REPLAY_FRAME_US")) if OS.has_environment("ASTROLABE_REPLAY_FRAME_US") else 250000
 var next_frame_us := 0
 var next_state_us := 0
 var duration_us := 0
@@ -26,6 +26,11 @@ var source_entry_us := -1
 var source_first_input_us := -1
 var menu_ready_us := -1
 var entry_us := -1
+## After manoir entry the engines drift: the intro's length differs and a level
+## takes its own time to load. Each anchor restarts input timing at a moment both
+## engines reach. Entries are {"source_us", "kind", "level", "port_us"}.
+var anchors: Array = []
+const ANCHOR_GRACE_US := 40000000
 
 func _initialize() -> void:
     call_deferred("run")
@@ -68,6 +73,13 @@ func x_keysym_to_godot(keysym: int) -> int:
         0x20: return KEY_SPACE
         0x78, 0x58: return KEY_X
         0x7a, 0x5a: return KEY_Z
+        0x63, 0x43: return KEY_C
+        # Stephen's take rebinds the aim key to v at 586 s; Insert is its default.
+        0x76, 0x56: return KEY_INSERT
+        0xffe2: return KEY_SHIFT
+        0xffe5: return KEY_CAPSLOCK
+        0xffff: return KEY_DELETE
+        0xff57: return KEY_END
         _: return 0
 
 func load_source() -> bool:
@@ -108,6 +120,23 @@ func load_source() -> bool:
         push_error("Source session has no manoir entry state; replay needs a full recording")
         return false
     source_inputs.sort_custom(func(a, b): return a["at_micros"] < b["at_micros"])
+    var seen_level := ""
+    var file2 := FileAccess.open(source_dir.path_join("events.jsonl"), FileAccess.READ)
+    while not file2.eof_reached():
+        var line := file2.get_line()
+        # Control returns at the first normal 4 past the opening's own first minute.
+        if anchors.is_empty() and line.contains('"kind":"actor"'):
+            var sample: Dictionary = JSON.parse_string(line)
+            if int(sample["elapsed_micros"]) > source_entry_us + 60000000 and int(sample["data"]["normal_behavior"]["current"]) == 4:
+                anchors.append({"source_us": int(sample["elapsed_micros"]), "kind": "control", "level": "", "port_us": -1})
+        if not line.contains('"kind":"epoch"'): continue
+        var data: Dictionary = JSON.parse_string(line).get("data", {})
+        if int(data.get("phase", 0)) != 9: continue
+        var level := str(data.get("level", ""))
+        if not seen_level.is_empty() and level != seen_level:
+            anchors.append({"source_us": int(JSON.parse_string(line).get("elapsed_micros", 0)), "kind": "level", "level": level, "port_us": -1})
+        seen_level = level
+    file2.close()
     if not source_inputs.is_empty(): source_first_input_us = int(source_inputs[0]["at_micros"])
     return true
 
@@ -115,7 +144,13 @@ func load_source() -> bool:
 func scheduled_us(input: Dictionary) -> int:
     var at := int(input["at_micros"])
     if at >= source_entry_us:
-        return entry_us + at - source_entry_us if entry_us >= 0 else -1
+        if entry_us < 0: return -1
+        var scheduled := entry_us + at - source_entry_us
+        for anchor in anchors:
+            if at < int(anchor["source_us"]): break
+            if int(anchor["port_us"]) < 0: return -1
+            scheduled = int(anchor["port_us"]) + at - int(anchor["source_us"])
+        return scheduled
     # A menu input whose anchor has passed still goes out, in recorded order.
     return menu_ready_us + MENU_SETTLE_US + at - source_first_input_us if menu_ready_us >= 0 else -1
 
@@ -128,6 +163,29 @@ func track_anchors(now: int) -> void:
         entry_us = now
         append_event("replay_anchor", {"anchor": "manoir_entry", "port_micros": now, "source_micros": source_entry_us})
 
+func port_level() -> String:
+    var scene := current_scene
+    var level = scene.get("level") if scene is Node3D else null
+    return str(level.get_meta("source_level_name", "")) if is_instance_valid(level) else ""
+
+func track_replay_anchors(now: int) -> void:
+    var scene := current_scene
+    for i in anchors.size():
+        var anchor: Dictionary = anchors[i]
+        if int(anchor["port_us"]) >= 0: continue
+        var reached := false
+        if scene is Node3D and bool(scene.get("ready_to_play")):
+            if anchor["kind"] == "control": reached = bool(scene.get("opening_finished")) or not bool(scene.get("new_game"))
+            else: reached = port_level() == anchor["level"]
+        # Past the grace the port is not coming: keep replaying and record that.
+        var previous: int = entry_us if i == 0 else int(anchors[i - 1]["port_us"])
+        var source_previous: int = source_entry_us if i == 0 else int(anchors[i - 1]["source_us"])
+        var overdue: bool = entry_us >= 0 and now > previous + int(anchor["source_us"]) - source_previous + ANCHOR_GRACE_US
+        if reached or overdue:
+            anchor["port_us"] = now
+            append_event("replay_anchor", {"anchor": anchor["kind"], "level": anchor["level"], "port_micros": now, "source_micros": anchor["source_us"], "reached": reached})
+        break
+
 func current_state() -> Dictionary:
     var scene := current_scene
     if scene == null:
@@ -136,7 +194,7 @@ func current_state() -> Dictionary:
         return {"phase": "menu", "level": "", "scene": str(scene.scene_file_path), "physics_frames": Engine.get_physics_frames(), "render_frames": Engine.get_frames_drawn()}
     var result := {
         "phase": "loading",
-        "level": "manoir",
+        "level": port_level(),
         "scene": str(scene.scene_file_path),
         "physics_frames": Engine.get_physics_frames(),
         "render_frames": Engine.get_frames_drawn(),
@@ -228,6 +286,7 @@ func run() -> void:
     if not load_source():
         quit(1)
         return
+    DirAccess.make_dir_recursive_absolute(output_dir.path_join("frames"))
     stream = FileAccess.open(output_dir.path_join("events.jsonl"), FileAccess.WRITE)
     if stream == null:
         push_error("Cannot open Godot session stream")
@@ -250,7 +309,8 @@ func run() -> void:
     while true:
         await process_frame
         track_anchors(elapsed_us())
-        if entry_us >= 0 and elapsed_us() >= entry_us + duration_us - source_entry_us: break
+        track_replay_anchors(elapsed_us())
+        if next_input >= source_inputs.size() and anchors.back()["port_us"] >= 0: break
         if entry_us < 0 and elapsed_us() >= ENTRY_DEADLINE_US: break
         var now := elapsed_us()
         if previous_iteration_us >= 0 and now - previous_iteration_us > 500000:
