@@ -351,6 +351,8 @@ func run() -> void:
 	var args := OS.get_cmdline_user_args()
 	var route: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(args[0]))
 	root.size = Vector2i(1024, 768)
+	# {"seed": n} fixes Godot's global RNG, which all game randomness uses.
+	if route.has("seed"): seed(int(route["seed"]))
 	var menu := (load("res://game/bootstrap.tscn") as PackedScene).instantiate()
 	root.add_child(menu)
 	current_scene = menu
@@ -475,7 +477,7 @@ func run() -> void:
 			if target_body == null: ok = false
 			while ok and Time.get_ticks_msec() < sample_end:
 				await physics_frame
-				print("SAMPLE ", JSON.stringify({"ms": Time.get_ticks_msec(), "dsg_17": hype_brain.get("dsg_17") if hype_brain != null else null, "dsg_114": hype_brain.get("dsg_114") if hype_brain != null else null, "dsg_55": hype_brain.get("dsg_55") if hype_brain != null else null, "ref0_dsg_26": _linked_field(target_brain, "dsg_26"), "nothing": target_body.call("source_collide_with_nothing") if target_body.has_method("source_collide_with_nothing") else null, "z": snappedf(target_body.global_position.y, 0.01), "floor": target_body.is_on_floor() if target_body is CharacterBody3D else null, "hype_normal": hype_brain.get("current_normal") if hype_brain != null else null,
+				print("SAMPLE ", JSON.stringify({"ms": Time.get_ticks_msec(), "dsg_17": hype_brain.get("dsg_17") if hype_brain != null else null, "dsg_114": hype_brain.get("dsg_114") if hype_brain != null else null, "dsg_55": hype_brain.get("dsg_55") if hype_brain != null else null, "dsg_56": hype_brain.get("dsg_56") if hype_brain != null else null, "dsg_48": hype_brain.get("dsg_48") if hype_brain != null else null, "dsg_70": hype_brain.get("dsg_70") if hype_brain != null else null, "ref0_dsg_26": _linked_field(target_brain, "dsg_26"), "nothing": target_body.call("source_collide_with_nothing") if target_body.has_method("source_collide_with_nothing") else null, "z": snappedf(target_body.global_position.y, 0.01), "floor": target_body.is_on_floor() if target_body is CharacterBody3D else null, "hype_normal": hype_brain.get("current_normal") if hype_brain != null else null,
 					"zone1": target_body.call("source_collide_perso_zde_no_with_type_zde", 1, 2), "zone2": target_body.call("source_collide_perso_zde_no_with_type_zde", 2, 2),
 					"normal": target_brain.get("current_normal") if target_brain != null else null, "reflex": target_brain.get("current_reflex") if target_brain != null else null, "claimed": target_brain.get("reflex_rule_claimed") if target_brain != null else null, "dsg_0": target_brain.get("dsg_0") if target_brain != null else null, "clock": int(target_brain.get("clock_milliseconds")) if target_brain != null else null, "hp": int(target_body.get("source_hit_points").get("current")) if target_body.get("source_hit_points") != null else -1, "distance": snappedf(actor().global_position.distance_to(target_body.global_position), 0.01)}))
 		elif step.has("get"):
@@ -878,6 +880,10 @@ func follow(plan: Dictionary) -> bool:
 			_follow_key(KEY_SHIFT, run)
 		_follow_steer("ArrowLeft", moving and error > 0.12)
 		_follow_steer("ArrowRight", moving and error < -0.12)
+		var hype_brain := brain_of("hype")
+		if hype_brain != null and int(hype_brain.get("current_normal")) != _follow_last_normal:
+			print("NORMAL ", JSON.stringify({"take": snappedf(clock, 0.01), "from": _follow_last_normal, "to": int(hype_brain.get("current_normal")), "dsg_56": hype_brain.get("dsg_56"), "action": actor().get("current_state"), "pos": [snappedf(position().x, 0.1), snappedf(position().y, 0.1)]}))
+			_follow_last_normal = int(hype_brain.get("current_normal"))
 		var shots: Array = plan.get("shots", [])
 		if not shots.is_empty() and clock >= float(shots[0]):
 			RenderingServer.force_draw()
@@ -918,6 +924,7 @@ func _track_point(row: Array) -> Vector2:
 const ACTION_KEYS := [KEY_SPACE, KEY_CTRL, KEY_ENTER, KEY_Z]
 const DIALOGUE_NORMALS := [28, 48]
 var _follow_linger := 0.0
+var _follow_last_normal := -1
 var _follow_space_release := 0.0
 
 func _take_mode(track: Array, landmarks: Array, t: float) -> String:

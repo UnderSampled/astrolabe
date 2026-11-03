@@ -22,7 +22,6 @@ var main_actor: Node3D
 var sound_emitter: Node3D
 var running: bool = false
 var unsupported_failure: String = ""
-var random_source := RandomNumberGenerator.new()
 var revision: int = 0
 var clock_milliseconds: float = 0.0
 var frame_seconds: float = 0.0
@@ -270,9 +269,6 @@ func distance_to_main_actor() -> float:
 	assert(is_instance_valid(main_actor))
 	return global_position.distance_to(main_actor.global_position)
 
-func random_int(lower: int, upper: int) -> int:
-	assert(upper > lower)
-	return random_source.randi_range(lower, upper - 1)
 
 func send_sound(event: Resource) -> void:
 	if event == null: return

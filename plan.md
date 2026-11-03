@@ -40,6 +40,12 @@ Four working rules follow:
    a live run before relying on it. "If you don't know how a bit is used, you're
    just guessing."
 
+Gameplay aims for behavioral parity, not exact simulation parity. A player should see the
+same rules, odds, timings and collision outcomes, verified against the original through
+Orrery, takes and resync, while gameplay uses native Godot RNG (with the original's
+distribution), physics and numbers. Exact simulation parity would be a separate target,
+not a toggle ([variants](docs/astrolabe/variants.md)).
+
 ## What stays and what waits
 
 These stay: the Rust converter, its OpenSpace, Rete and Godot adapters around
@@ -108,6 +114,9 @@ was level-owned pickup data in the Fix catalogue. Saves there are a documented
 stand-in; its AI stand-ins are next.
 
 ### 5. The whole game
+
+Variants (parity, presentation, control schemes, modernization) follow
+[docs/astrolabe/variants.md](docs/astrolabe/variants.md).
 
 Remaining levels, cutscenes, UI flows and the remaining systems, then fidelity:
 the discrepancies that matter, visual parity, and timing. Recording and replay

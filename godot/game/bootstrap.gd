@@ -31,6 +31,9 @@ var save_picker: LOAD_GAME_PICKER
 func _ready() -> void:
     # Play on through documented stand-ins unless a check asks for strict Brains.
     BEHAVIOR.strict_unsupported = OS.get_environment("ASTROLABE_STRICT_BEHAVIOR") == "1"
+    # Game randomness is Godot's global RNG; replays and checks can fix its seed.
+    if OS.get_environment("ASTROLABE_SEED").is_valid_int():
+        seed(int(OS.get_environment("ASTROLABE_SEED")))
     if menu_scene == null and ResourceLoader.exists(MENU_SCENE):
         menu_scene = load(MENU_SCENE) as PackedScene
     if menu_scene == null:

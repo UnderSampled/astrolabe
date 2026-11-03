@@ -8,7 +8,6 @@ const SNAPSHOT = preload("res://addons/astrolabe/character/snapshot_values.gd")
 @export var selected: int = -1
 ## Native randomness belongs to this shared armor state, independently of AI
 ## callers. Source table/index machinery and its exact sequence are not ported.
-var random_source := RandomNumberGenerator.new()
 
 ## One mutable graph per active scene; callers in that scene share this copy.
 ## Artwork remains shared Texture2D content. Explicit array traversal makes
@@ -92,7 +91,7 @@ func damage(value: int) -> int:
         if not unbroken.has(current_piece):
             # Rejection sampling over all pieces in the source selects uniformly
             # among intact pieces. Native RNG preserves that choice distribution.
-            current_piece = unbroken[random_source.randi_range(0, unbroken.size() - 1)]
+            current_piece = unbroken[randi_range(0, unbroken.size() - 1)]
         var piece: Resource = definition.pieces[current_piece]
         var strikes := (int(piece.get("strikes")) + 1) & 255
         piece.set("strikes", strikes)

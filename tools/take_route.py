@@ -76,6 +76,7 @@ def main():
             keys.append([round(t, 3), code, data['edge'] == 'press'])
     route = {
         'start': 'new',
+        'seed': 1,
         'steps': [{'follow': {'take_zero': zero, 'track': track, 'keys': keys, 'landmarks': landmarks,
                               'until': args.until}}],
     }

@@ -110,6 +110,12 @@ going through `Call`/`Get`/`Set`. It is not merged. If anyone asks to add Unity 
 this project, start there: a C# emitter from the typed AI model could serve both Godot C#
 and Unity.
 
+## Variants
+
+The converter's output is a faithful, Godot-native base. Gameplay is one native
+implementation matched behaviorally to the original; presentation variants are runtime
+modules and modernization is an override layer. See [docs/astrolabe/variants.md](docs/astrolabe/variants.md).
+
 ## Goals
 
 - Repeatably convert a mounted or extracted game directory into a runnable Godot project, with stable resource paths, scene/node identities, and animation names that authored content can depend on.

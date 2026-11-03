@@ -1085,6 +1085,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::DistanceToWaypoint { .. }
         | Expression::WaypointSphereContains { .. }
         | Expression::CollidePersoTypeZdeWithPersoTypeZde { .. }
+        | Expression::RandomInt { .. }
         | Expression::ActorInSector { .. }
         | Expression::SectorReference(Some(_))
         | Expression::CollideWithNothing
@@ -1150,7 +1151,6 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
             start: a,
             duration: b,
         }
-        | Expression::RandomInt { lower: a, upper: b }
         | Expression::InventoryRemove { item: a, count: b }
         | Expression::VectorCos(a, b)
         | Expression::ArrayElement { array: a, index: b }
@@ -1956,11 +1956,21 @@ fn guarded_expression(
                 guarded_expression(out, value, model, depth, flow)?
             )
         }
-        Expression::RandomInt { lower, upper } => format!(
-            "random_int(int({}), int({}))",
-            guarded_expression(out, lower, model, depth, flow)?,
-            guarded_expression(out, upper, model, depth, flow)?
-        ),
+        Expression::RandomInt { lower, upper } => {
+            let lower = guarded_expression(out, lower, model, depth, flow)?;
+            let upper = guarded_expression(out, upper, model, depth, flow)?;
+            let id = flow.local;
+            flow.local += 1;
+            writeln!(
+                out,
+                "{pad}var random_lower_{id} := int({lower})\n{pad}var random_upper_{id} := int({upper})"
+            )?;
+            // Native RNG with the original's distribution. 005383e0 truncates real
+            // operands toward zero (_ftol); 004c58c0 returns lower + table[i] *
+            // (upper - lower) / MAX with table values below MAX and a truncating
+            // division: [lower, upper), lower when equal, (upper, lower] reversed.
+            format!("(random_lower_{id} + int(randf() * float(random_upper_{id} - random_lower_{id})))")
+        }
         Expression::InventoryQuantity(item) => format!(
             "character().source_inventory_quantity(int({}))",
             guarded_expression(out, item, model, depth, flow)?
@@ -2408,11 +2418,9 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
             )
         }
         Expression::SelfSighting => "character().source_sighting()".into(),
-        Expression::RandomInt { lower, upper } => format!(
-            "random_int(int({}), int({}))",
-            expression(lower, model)?,
-            expression(upper, model)?
-        ),
+        Expression::RandomInt { .. } => {
+            anyhow::bail!("Func_RandomInt binds its operands and requires guarded compilation")
+        }
         Expression::Multiply(a, b) => format!(
             "(float({}) * float({}))",
             expression(a, model)?,

@@ -59,8 +59,8 @@ through bindings and sprite lookups.
   at text_position offset 76) are printed through 00419610 in InventoryFont. The left
   socket is either the magic arc or the Joyaux sprites (00419540); not settled.
 - [ ] Armor in the inventory and on the HUD: geometry, artwork and damage arithmetic
-  match the source (0043aa70, 0043ab40). Differences: piece choice uses Godot's RNG, not
-  the seeded handle DAT_00610ba8; repair touches only the active armor; the port saves
+  match the source (0043aa70, 0043ab40). Differences: piece choice uses Godot's global RNG,
+  not the original's seeded handle DAT_00610ba8 (by decision, see variants.md); repair touches only the active armor; the port saves
   the current piece (+0x24), which the original does not.
 - [ ] Map screen (map names in 10:1 are read; the 1,188 bytes before them are not).
 

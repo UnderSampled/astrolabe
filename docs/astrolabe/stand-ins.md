@@ -65,3 +65,9 @@ row here. Replace them in order of what blocks play.
 | Micro basis | A main actor with no imported Micro listens along its own axes | The Micro of the destination level |
 | Speech gain | Dialogue plays non-positional at 0.7 times resource gain, fitted to measured lines | Read the speech event's own volume |
 | Kill without reset | An actor whose activation was not converted, or whose kill resets components, is deactivated and its AI stopped; the reset its revival performs is not done | Convert activation flags and implement the component reset |
+
+## Randomness
+
+Func_RandomInt and hand-written choices (armor pieces) use Godot's global RNG, seedable
+with `ASTROLABE_SEED` or a route's `"seed"`. It follows the original's distribution (bounds and truncation,
+[variants.md](variants.md)); the original's generator itself is not reproduced, by decision.
