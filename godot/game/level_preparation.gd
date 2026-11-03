@@ -2,6 +2,7 @@ extends Node
 ## Prepares one immutable native level resource. Session state is instantiated
 ## and restored by the game, never by this resource-loading component.
 signal loading_started
+const SCRIPT_WARMUP = preload("res://game/script_warmup.gd")
 var failure := ""
 var saved_max_fps := -1
 var revision := 0
@@ -20,6 +21,13 @@ func prepare(path: String, cache: Node) -> PackedScene:
         limit_frames()
         # Dependencies share native subresources. One worker avoids competing
         # cache registrations while leaving the session responsive.
+        var warmup = SCRIPT_WARMUP.new()
+        warmup.start(path)
+        while not warmup.finished():
+            await get_tree().process_frame
+        warmup.complete()
+        if not is_inside_tree() or current_revision != revision:
+            return null
         var request := ResourceLoader.load_threaded_request(path, "PackedScene", false, ResourceLoader.CACHE_MODE_REUSE)
         if request != OK:
             return _failed("The manor scene could not begin loading.")
@@ -30,6 +38,7 @@ func prepare(path: String, cache: Node) -> PackedScene:
         if ResourceLoader.load_threaded_get_status(path) != ResourceLoader.THREAD_LOAD_LOADED:
             return _failed("The manor scene failed to load.")
         packed = ResourceLoader.load_threaded_get(path) as PackedScene
+        warmup.release()
         restore_frames()
     if packed == null:
         return _failed("The generated manor scene could not be opened.")

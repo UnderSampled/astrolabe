@@ -12,6 +12,7 @@ const SAVE_STATE = preload("res://game/save_state.gd")
 const SAVE_STARTUP = preload("res://game/save_startup.gd")
 const NATIVE_AUDIO_EMITTER = preload("res://addons/astrolabe/audio/emitter.gd")
 const SOURCE_CAMERA = preload("res://addons/astrolabe/camera/source_camera.gd")
+const SCRIPT_WARMUP = preload("res://game/script_warmup.gd")
 const LOADING_SCREEN_PATH := NodePath("/root/LevelTransition/LoadingScreen")
 const INITIAL_ROUTE_ERROR_META := "astrolabe_initial_route_error"
 const LEVEL_END_META := "astrolabe_level_end"
@@ -277,6 +278,13 @@ func open_level() -> void:
         # The manor reaches the same meshes through level and instance scenes.
         # Keep dependency loading in one worker to avoid competing subresource
         # cache registrations, while the session remains responsive.
+        var warmup = SCRIPT_WARMUP.new()
+        warmup.start(level_path)
+        while not warmup.finished():
+            await get_tree().process_frame
+        warmup.complete()
+        if not is_inside_tree():
+            return
         var request := ResourceLoader.load_threaded_request(
             level_path, "PackedScene", false, ResourceLoader.CACHE_MODE_REUSE)
         if request != OK:
@@ -299,6 +307,7 @@ func open_level() -> void:
             fail("The manor scene failed to load.")
             return
         packed = ResourceLoader.load_threaded_get(level_path) as PackedScene
+        warmup.release()
         restore_frame_limit()
     if packed == null:
         fail("The generated manor scene could not be opened.")

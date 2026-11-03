@@ -359,8 +359,12 @@ func run() -> void:
 		root.set_meta(load("res://game/save_state.gd").LOAD_SOURCE_META, route["start"])
 		menu.call("open_game", "res://game/game_session.tscn", menu.get("load_game"))
 	var opened := Time.get_ticks_msec()
-	var deadline := Time.get_ticks_msec() + 60000
+	var deadline := Time.get_ticks_msec() + int(float(route.get("start_timeout", 60.0)) * 1000.0)
+	var next_report := Time.get_ticks_msec() + 5000
 	while (current_scene == null or current_scene == menu or not bool(current_scene.get("ready_to_play"))) and Time.get_ticks_msec() < deadline:
+		if Time.get_ticks_msec() >= next_report:
+			next_report += 5000
+			_report_load_progress(str(current_scene.get("level_path")) if current_scene != null and current_scene != menu else "")
 		await process_frame
 	game = current_scene
 	started = Time.get_ticks_msec()
@@ -627,8 +631,12 @@ func run() -> void:
 		elif step.has("until_level"):
 			var end := Time.get_ticks_msec() + int(step.get("timeout", 60.0) * 1000.0)
 			var load_began := -1
+			var travel_report := Time.get_ticks_msec() + 5000
 			while (str(game.get("level").get_meta("source_level_name", "")) != str(step["until_level"]) or not bool(game.get("ready_to_play"))) and Time.get_ticks_msec() < end:
 				if load_began < 0 and bool(game.get("loading")): load_began = Time.get_ticks_msec()
+				if load_began >= 0 and Time.get_ticks_msec() >= travel_report:
+					travel_report = Time.get_ticks_msec() + 5000
+					_report_load_progress("res://generated/hype/levels/%s/level.tscn" % step["until_level"])
 				await physics_frame
 			ok = str(game.get("level").get_meta("source_level_name", "")) == str(step["until_level"])
 			# From the session's loading flag to play in the new level: the exit fade and the load.
@@ -695,3 +703,10 @@ func _census(radius: Variant) -> void:
 		var brain: Node = body.get_node_or_null("Brain")
 		if brain != null and (float(radius) <= 0.0 or distance < float(radius)):
 			print("CENSUS ", int(distance), " ", body.get_meta("source_perso_name", ""), " ", body.get_meta("source_perso"), " model ", brain.get("source_model_path"), " n", brain.get("current_normal"), " st", body.get("current_state"), " at ", [snappedf(body.global_position.x, 0.1), snappedf(-body.global_position.z, 0.1), snappedf(body.global_position.y, 0.1)], " ", "on" if body.get("source_object_active") else "off")
+
+## A stalled fraction tells a hung threaded load from a slow one.
+func _report_load_progress(path: String) -> void:
+	if path.is_empty(): return
+	var fraction: Array = []
+	var status := ResourceLoader.load_threaded_get_status(path, fraction)
+	print("LOADPROGRESS ", JSON.stringify({"path": path.get_file(), "status": status, "fraction": fraction[0] if not fraction.is_empty() else -1.0, "ms": Time.get_ticks_msec()}))

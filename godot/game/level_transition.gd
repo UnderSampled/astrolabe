@@ -10,6 +10,7 @@ signal transition_cancelled(level: String)
 
 const LEVEL_PREFIX := "res://generated/hype/levels/"
 const PRESENTER := "res://addons/astrolabe/ui/loading/screen.tscn"
+const SCRIPT_WARMUP = preload("res://game/script_warmup.gd")
 
 var _busy := false
 var _cancel_requested := false
@@ -85,13 +86,25 @@ func _start_request(session: Node, normalized: String, entry: String, camera_ent
 	_resource_loading = true
 	_limit_loading_frames()
 	transition_started.emit(_current_level(session), normalized, _active_entry)
+	_warm_and_load(normalized, camera_entry, path, session, initial)
+	return true
+
+func _warm_and_load(normalized: String, camera_entry: String, path: String, session: Node, initial: bool) -> void:
+	var warmup = SCRIPT_WARMUP.new()
+	warmup.start(path)
+	while not warmup.finished():
+		await get_tree().process_frame
+	warmup.complete()
+	if _cancel_requested or not is_inside_tree():
+		_clear_request()
+		return
 	var request_error := ResourceLoader.load_threaded_request(path, "PackedScene", false, ResourceLoader.CACHE_MODE_REUSE)
 	if request_error != OK:
 		_fail("The destination scene could not begin loading.")
 		_clear_request()
-		return true
-	_load_and_install(normalized, _active_entry, camera_entry, path, session, initial)
-	return true
+		return
+	await _load_and_install(normalized, _active_entry, camera_entry, path, session, initial)
+	warmup.release()
 
 func cancel_current_transition() -> bool:
 	if not _busy or _terminal_sent or not _resource_loading:
