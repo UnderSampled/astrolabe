@@ -1076,6 +1076,7 @@ fn needs_guard(e: &Expression, model: &AiModel) -> bool {
         | Expression::WaypointValuePosition(_)
         | Expression::DistanceToWaypoint { .. }
         | Expression::WaypointSphereContains { .. }
+        | Expression::CollidePersoTypeZdeWithPersoTypeZde { .. }
         | Expression::ActorInSector { .. }
         | Expression::SectorReference(Some(_))
         | Expression::CollideWithNothing
@@ -1688,6 +1689,19 @@ fn guarded_expression(
                 "{pad}var {actor_local} = {receiver}\n{pad}if typeof({actor_local}) != TYPE_OBJECT or not is_instance_valid({actor_local}) or not ({actor_local} is Node3D) or not {actor_local}.has_method(\"source_camera_get_shift_teta\"):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var {value_local} = {actor_local}.call(\"source_camera_get_shift_teta\", int({selector}))\n{pad}if typeof({value_local}) != TYPE_FLOAT:\n{pad}    fail_unsupported({failure})\n{pad}    {exit}"
             )?;
             value_local
+        }
+        Expression::CollidePersoTypeZdeWithPersoTypeZde {
+            first,
+            first_mask,
+            second,
+            second_mask,
+            ..
+        } => {
+            let first = guarded_expression(out, first, model, depth, flow)?;
+            let second = guarded_expression(out, second, model, depth, flow)?;
+            format!(
+                "character().source_collide_perso_type_zde({first}, {first_mask}, {second}, {second_mask})"
+            )
         }
         Expression::WaypointSphereContains { actor, waypoint } => {
             let actor_value = guarded_expression(out, actor, model, depth, flow)?;
@@ -2321,7 +2335,8 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         | Expression::CameraValue { .. }
         | Expression::CameraShiftAlpha { .. }
         | Expression::CameraShiftTeta { .. }
-        | Expression::WaypointSphereContains { .. } => {
+        | Expression::WaypointSphereContains { .. }
+        | Expression::CollidePersoTypeZdeWithPersoTypeZde { .. } => {
             anyhow::bail!("actor or numeric expression requires guarded compilation")
         }
         Expression::ArmorResistance | Expression::ArmorCount => {

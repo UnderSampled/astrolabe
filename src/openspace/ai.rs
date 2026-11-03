@@ -1488,6 +1488,32 @@ impl Parser<'_> {
                     )?)),
                 }
             }
+            (1, opcode @ 24..=27) => {
+                let first = self.expression(indent + 1)?;
+                let mut masks = [0u32; 2];
+                let mut mask = |parser: &mut Self, slot: usize| -> Result<bool> {
+                    let (_, node) = parser.take(indent + 1)?;
+                    masks[slot] = node.parameter;
+                    Ok(node.kind == 17)
+                };
+                let first_ok = !matches!(opcode, 24 | 26) || mask(self, 0)?;
+                let second = self.expression(indent + 1)?;
+                let second_ok = !matches!(opcode, 24 | 27) || mask(self, 1)?;
+                if !first_ok || !second_ok {
+                    return Ok(Expression::Unsupported(self.unsupported_range(
+                        at,
+                        end,
+                        format!("Cond{opcode} material mask is not a constant at node {at}"),
+                    )?));
+                }
+                Expression::CollidePersoTypeZdeWithPersoTypeZde {
+                    opcode,
+                    first: Box::new(first),
+                    first_mask: masks[0],
+                    second: Box::new(second),
+                    second_mask: masks[1],
+                }
+            }
             (1, 60) => {
                 let (_, material_type) = self.take(indent + 1)?;
                 ensure!(
@@ -3630,6 +3656,23 @@ impl Writer<'_> {
                 };
                 self.node(3, 11, function_indent);
                 self.expression(waypoint, waypoint_indent)?;
+            }
+            Expression::CollidePersoTypeZdeWithPersoTypeZde {
+                opcode,
+                first,
+                first_mask,
+                second,
+                second_mask,
+            } => {
+                self.node(1, *opcode, indent);
+                self.expression(first, indent + 1)?;
+                if matches!(opcode, 24 | 26) {
+                    self.node(17, *first_mask, indent + 1);
+                }
+                self.expression(second, indent + 1)?;
+                if matches!(opcode, 24 | 27) {
+                    self.node(17, *second_mask, indent + 1);
+                }
             }
             Expression::WaypointSphereContains { actor, waypoint } => {
                 self.node(1, 108, indent);

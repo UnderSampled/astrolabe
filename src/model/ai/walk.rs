@@ -457,6 +457,11 @@ impl<'a> Iterator for AstWalk<'a> {
                     actor: left,
                     waypoint: right,
                 }
+                | Expression::CollidePersoTypeZdeWithPersoTypeZde {
+                    first: left,
+                    second: right,
+                    ..
+                }
                 | Expression::ActorInSector {
                     actor: left,
                     sector: right,

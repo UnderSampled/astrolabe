@@ -819,6 +819,17 @@ pub enum Expression {
         zone: u32,
         material_mask: u32,
     },
+    /// Cond24..27 (005338a0 -> 0042f980): some ZDE or physical collide set of
+    /// `first` holding a `first_mask` material intersects an element of
+    /// `second` whose material carries every `second_mask` bit. Opcodes 25..27
+    /// omit one or both masks; an omitted mask is zero.
+    CollidePersoTypeZdeWithPersoTypeZde {
+        opcode: u32,
+        first: Box<Expression>,
+        first_mask: u32,
+        second: Box<Expression>,
+        second_mask: u32,
+    },
     /// Source collision-category bit 0x4; Godot currently maps it to native
     /// inclined floor contact while the full source classification is studied.
     CollideWithSlope,
@@ -1804,6 +1815,11 @@ impl Script {
                 | Expression::WaypointSphereContains {
                     actor: left,
                     waypoint: right,
+                }
+                | Expression::CollidePersoTypeZdeWithPersoTypeZde {
+                    first: left,
+                    second: right,
+                    ..
                 }
                 | Expression::ActorInSector {
                     actor: left,

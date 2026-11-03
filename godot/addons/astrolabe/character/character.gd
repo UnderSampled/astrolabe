@@ -1990,6 +1990,58 @@ func source_collide_perso_zde_no_with_type_zde(zone_number: int, material_mask: 
                 return true
     return false
 
+## Cond24..27 (0042f980 -> 0042f4e0). A first-side set (an active ZDE zone or
+## a visible physical collide set) qualifies when any of its elements carries
+## every first_mask bit; it then collides when it intersects an element of
+## `second` (ZDE or physical) whose own material carries every second_mask
+## bit. No sector filter: the source intersects the geometry directly.
+func source_collide_perso_type_zde(first: Variant, first_mask: int, second: Variant, second_mask: int) -> bool:
+    if typeof(first) != TYPE_OBJECT or typeof(second) != TYPE_OBJECT: return false
+    if not is_instance_valid(first) or not is_instance_valid(second): return false
+    if not (first is Node3D) or not (second is Node3D) or not first.is_inside_tree(): return false
+    var sets: Array = []
+    var zde := first.get_node_or_null("ZDE") as Area3D
+    if zde != null:
+        var zones := {}
+        for value in zde.find_children("*", "CollisionShape3D", true, false):
+            var shape := value as CollisionShape3D
+            if shape.disabled or shape.shape == null: continue
+            var zone := int(shape.get_meta("source_zone", -1))
+            if not zones.has(zone): zones[zone] = []
+            zones[zone].append(shape)
+        for zone in zones: sets.append(zones[zone])
+    for value in first.find_children("PhysicalContact", "Area3D", true, false):
+        var area := value as Area3D
+        if _source_contact_actor(area) != first or not area.is_visible_in_tree(): continue
+        var shapes: Array = []
+        for shape in area.find_children("*", "CollisionShape3D", true, false):
+            if not shape.disabled and shape.shape != null: shapes.append(shape)
+        sets.append(shapes)
+    var space := get_world_3d().direct_space_state
+    for shapes in sets:
+        var qualifies := false
+        for shape in shapes:
+            if bool(shape.get_meta("source_contact_material_present", true)) and shape.has_meta("source_collision_identifier") \
+                    and CONTACT_MATERIAL.material_matches(int(shape.get_meta("source_collision_identifier")), first_mask):
+                qualifies = true
+                break
+        if not qualifies: continue
+        for shape in shapes:
+            var parameters := PhysicsShapeQueryParameters3D.new()
+            parameters.shape = shape.shape
+            parameters.transform = shape.global_transform
+            parameters.collision_mask = 4 | 16
+            parameters.collide_with_areas = true
+            parameters.collide_with_bodies = false
+            parameters.margin = 0.0
+            for hit in space.intersect_shape(parameters, SOURCE_COLLISION_QUERY_MAX_RESULTS):
+                var collider := hit.get("collider") as CollisionObject3D
+                if collider == null or _source_contact_actor(collider) != second: continue
+                if bool(collider.get_meta("physical_object_contact", false)) and not collider.is_visible_in_tree(): continue
+                if CONTACT_MATERIAL.contact_material_matches(collider, int(hit.get("shape", -1)), second_mask):
+                    return true
+    return false
+
 func _set_movement_shape_active(shape: CollisionShape3D, active: bool) -> void:
     shape.disabled = not active or (int(shape.get_meta("source_collision_identifier", 0)) & 0x8000) != 0
 
