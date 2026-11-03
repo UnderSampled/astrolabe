@@ -253,6 +253,9 @@ func current_state() -> Dictionary:
             "velocity": [actor.velocity.x, actor.velocity.y, actor.velocity.z],
             "on_floor": actor.is_on_floor(),
         }
+        if actor.get("source_inventory") != null:
+            result["actor"]["weapon"] = actor.source_inventory_weapon()
+            result["actor"]["bolts"] = actor.source_inventory_quantity(80)
     if brain != null:
         result["brain"] = {
             "running": bool(brain.get("running")),
@@ -260,6 +263,16 @@ func current_state() -> Dictionary:
             "reflex_behavior": int(brain.get("current_reflex")),
             "failure": str(brain.get("unsupported_failure")),
         }
+    # Watched actors' behavior, by source name: ASTROLABE_REPLAY_WATCH=a,b
+    var level = scene.get("level")
+    if OS.has_environment("ASTROLABE_REPLAY_WATCH") and level is Node:
+        var watched := {}
+        for body in (level as Node).find_children("*", "CharacterBody3D", true, false):
+            var name := str(body.get_meta("source_perso_name", ""))
+            if name in OS.get_environment("ASTROLABE_REPLAY_WATCH").split(","):
+                var watched_brain: Node = body.get_node_or_null("Brain")
+                watched[name] = [int(body.get("current_state")), int(watched_brain.get("current_normal")) if watched_brain else -1]
+        result["watched"] = watched
     return result
 
 func dispatch_input(input: Dictionary) -> void:
