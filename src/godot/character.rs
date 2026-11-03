@@ -1253,12 +1253,9 @@ fn export_animation(
         };
         anim.values(
             &format!("Channels/channel_{channel}:active_part"),
-            frames.iter().map(|f| {
-                format!(
-                    "&{}",
-                    quoted(&active(f).map_or(String::new(), |a| a.0))
-                )
-            }),
+            frames
+                .iter()
+                .map(|f| format!("&{}", quoted(&active(f).map_or(String::new(), |a| a.0)))),
             fps,
         )?;
         anim.values(

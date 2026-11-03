@@ -3,6 +3,7 @@
 mod collision;
 mod collision_export;
 mod container;
+pub mod coverage;
 mod fix_bindings;
 mod fragment;
 mod geometry;

@@ -273,9 +273,13 @@ pub fn run() -> Result<()> {
             content,
             audio_file,
         } => {
+            let level_name = level.clone();
             let mut imported =
                 import(&game, Selection::hype(level, locale)?, content, &audio_file)?;
             save_rete(&mut imported, &output)?;
+            if let Some(summary) = openspace::level::coverage::write_report(&level_name)? {
+                eprint!("{summary}");
+            }
             println!(
                 "{}",
                 serde_json::json!({

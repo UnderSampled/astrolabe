@@ -143,10 +143,29 @@ impl SourceSession {
             ptx: file(files.path(8))?,
             rtt,
         };
+        for (&owner, blocks) in &session.blocks {
+            for (&key, block) in blocks {
+                super::coverage::register(owner, key, block.data.len());
+            }
+        }
         session.bind_fix_persos()?;
         Ok((session, files))
     }
+    /// Direct block access; byte coverage lists these callers per block.
+    #[track_caller]
     pub(super) fn block(&self, a: Address) -> Result<&Block> {
+        super::coverage::record_block(a, std::panic::Location::caller());
+        self.block_untracked(a)
+    }
+    /// A resolved target must exist; checking that is not reading it.
+    fn in_bounds(&self, a: Address) -> Result<()> {
+        anyhow::ensure!(
+            a.offset < self.block_untracked(a)?.data.len(),
+            "read beyond block {a:?} length 1"
+        );
+        Ok(())
+    }
+    fn block_untracked(&self, a: Address) -> Result<&Block> {
         self.blocks
             .get(&a.owner)
             .and_then(|b| b.get(&a.key))
@@ -164,8 +183,11 @@ impl SourceSession {
             .copied()
             .ok_or_else(|| anyhow!("reference is not an allocation start: {a:?}"))
     }
+    #[track_caller]
     pub(super) fn bytes(&self, a: Address, n: usize) -> Result<&[u8]> {
-        self.block(a)?
+        let block = self.block_untracked(a)?;
+        super::coverage::record(a, n, block.data.len(), std::panic::Location::caller());
+        block
             .data
             .get(
                 a.offset
@@ -177,6 +199,7 @@ impl SourceSession {
     }
     /// Read one whole MMG allocation, excluding its source-only size header.
     /// Typed consumers use this to validate record boundaries before traversal.
+    #[track_caller]
     pub(super) fn allocation_bytes(&self, a: Address) -> Result<&[u8]> {
         self.allocation_index(a)?;
         let header = Address {
@@ -204,7 +227,7 @@ impl SourceSession {
             .checked_sub(local.base)
             .ok_or_else(|| anyhow!("pointer below block base"))? as usize;
         let a = Address { owner, key, offset };
-        self.bytes(a, 1)?;
+        self.in_bounds(a)?;
         Ok(a)
     }
     /// Resolve a pointer against the explicitly named package's own SNA block.
@@ -220,9 +243,10 @@ impl SourceSession {
             .ok_or_else(|| anyhow!("pointer below {owner:?} block base"))?
             as usize;
         let address = Address { owner, key, offset };
-        self.bytes(address, 1)?;
+        self.in_bounds(address)?;
         Ok(address)
     }
+    #[track_caller]
     pub(super) fn pointer(&self, a: Address, offset: usize) -> Result<Option<Address>> {
         let site = Address {
             offset: a
@@ -239,7 +263,7 @@ impl SourceSession {
             return Ok(None);
         }
         let address = self
-            .block(a)?
+            .block_untracked(a)?
             .base
             .checked_add(site.offset.try_into()?)
             .ok_or_else(|| anyhow!("site overflow"))?;
@@ -254,6 +278,7 @@ impl SourceSession {
     }
     /// Whether this word is declared as a pointer by source relocation data.
     /// Unknown AI operands use this before retaining any nonpointer bits.
+    #[track_caller]
     pub(super) fn relocated(&self, site: Address) -> Result<bool> {
         if self.fix_bindings.pointers.contains_key(&site) {
             return Ok(true);
@@ -276,6 +301,7 @@ impl SourceSession {
                 value >= start && value < end
             })
     }
+    #[track_caller]
     pub(super) fn source_identity(&self, a: Address) -> Result<SourceObjectIdentity> {
         Ok(SourceObjectIdentity {
             role: match a.owner {
@@ -286,6 +312,7 @@ impl SourceSession {
             allocation: self.allocation_index(a)?,
         })
     }
+    #[track_caller]
     pub(super) fn required(&self, a: Address, offset: usize) -> Result<Address> {
         self.pointer(a, offset)?
             .ok_or_else(|| anyhow!("required null reference at {a:?}+{offset:x}"))
@@ -353,6 +380,7 @@ impl SourceSession {
             .ok_or_else(|| anyhow!("GPT root lacks RTP entry"))?;
         self.resolve(Owner::Level, key, value)
     }
+    #[track_caller]
     pub(super) fn label(&self, a: Address) -> Result<String> {
         Ok(format!(
             "{:?}:{:02x}:{:02x}+0x{:x} (VM 0x{:08x})",
@@ -367,6 +395,7 @@ impl SourceSession {
     // This lint was added after Rust 1.96; keep its narrow exception compatible
     // with older Clippy while const-generic arithmetic remains unavailable.
     #[allow(unknown_lints, clippy::chunks_exact_to_as_chunks)]
+    #[track_caller]
     pub(super) fn floats<const N: usize>(&self, a: Address, count: usize) -> Result<Vec<[f32; N]>> {
         let data = self.bytes(
             a,
@@ -386,6 +415,7 @@ impl SourceSession {
     }
     // Stable Rust cannot use N * 2 as an as_chunks const argument.
     #[allow(unknown_lints, clippy::chunks_exact_to_as_chunks)]
+    #[track_caller]
     pub(super) fn short_arrays<const N: usize>(
         &self,
         a: Address,
@@ -407,6 +437,7 @@ impl SourceSession {
             })
             .collect()
     }
+    #[track_caller]
     pub(super) fn transform(&self, address: Address) -> Result<SourceTransform> {
         if let Some(value) = self.fix_bindings.transforms.get(&address) {
             return Ok(value.clone());

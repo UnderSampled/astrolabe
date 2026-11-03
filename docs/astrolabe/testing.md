@@ -162,3 +162,24 @@ a route whose `required` step fails, and reports any step marked FAILED or any
 script error. A route takes up to a few minutes, so this is on demand. Routes cover
 training, the key, the first gate and the exit; `stage*.json` start mid-game with
 bot steps, and `save_exit.json` is the gate's route.
+
+## Byte coverage of the original files
+
+A signal of which source bytes the parser understands, never a gate and never
+used to rebuild anything:
+
+```sh
+ASTROLABE_BYTE_COVERAGE=output/byte-coverage \
+  target/release/astrolabe import-openspace disc /tmp/rete-manoir --level manoir
+```
+
+It takes about the time of the import (7 s for Manoir, 10 s for Brigand) and writes
+`output/byte-coverage/<level>.txt` and `.json`: for each Fix and level SNA block, the
+share of bytes interpreted, read but kept opaque, and never touched, with the largest
+untouched gaps and the parsing sites read just before and after each. Every read goes
+through `SourceSession::bytes` and its helpers, which carry `#[track_caller]`, so a
+range is tagged with the parser line that read it. A read counts as uninterpreted when
+that line keeps bytes opaque (it mentions unknown, preserved, opaque or raw). Sites that
+slice a whole block directly are listed per block rather than attributed per byte, so
+those blocks report some read bytes as untouched. Without the variable the parser
+records nothing.
