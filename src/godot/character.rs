@@ -1178,7 +1178,7 @@ fn export_animation(
     state: &State,
     channels: &BTreeSet<u16>,
     sampled_slots: &BTreeMap<u16, BTreeSet<u16>>,
-    has_restored: bool,
+    _has_restored: bool,
     restored: bool,
     input: &str,
     written: &mut BTreeSet<AssetPath>,
@@ -1237,45 +1237,37 @@ fn export_animation(
             fps,
         )?;
     }
-    // Stable sampled anchors must exist even if every initial payload at a
-    // slot is absent: a later swap can bring saved content into that slot.
-    for (&channel, slots) in sampled_slots {
-        for anchor_restored in [false, true] {
-            // Normal libraries hide reset anchors and restored libraries hide
-            // normal anchors, without rebuilding content on selection changes.
-            if anchor_restored && !has_restored {
-                continue;
-            }
-            for &slot in slots {
-                let node = format!(
-                    "Channels/channel_{channel}/{}part_{slot}",
-                    if anchor_restored { "reset_" } else { "" }
-                );
-                let active = |f: &BTreeMap<u16, Pose>| {
-                    f.get(&channel)
-                        .filter(|s| restored == anchor_restored && s.object == Some(slot))
-                        // Channel visibility owns the sampled default and AI
-                        // override. The anchor only selects the current part.
-                        .map(|s| (s.opacity > 0, s.opacity))
-                };
-                anim.values(
-                    &format!("{node}:visible"),
-                    frames
-                        .iter()
-                        .map(|f| active(f).is_some_and(|s| s.0).to_string()),
-                    fps,
-                )?;
-                anim.values(
-                    &format!("{node}:transparency"),
-                    frames.iter().map(|f| {
-                        active(f)
-                            .map_or(0., |s| 1. - f32::from(s.1) / 255.)
-                            .to_string()
-                    }),
-                    fps,
-                )?;
-            }
-        }
+    // One active-part key pair per channel selects among its sampled anchors.
+    // Normal libraries select plain anchors and restored libraries reset_
+    // anchors, without rebuilding content on selection changes.
+    for &channel in sampled_slots.keys() {
+        let active = |f: &BTreeMap<u16, Pose>| {
+            f.get(&channel).and_then(|s| {
+                s.object.map(|slot| {
+                    (
+                        format!("{}part_{slot}", if restored { "reset_" } else { "" }),
+                        s.opacity,
+                    )
+                })
+            })
+        };
+        anim.values(
+            &format!("Channels/channel_{channel}:active_part"),
+            frames.iter().map(|f| {
+                format!(
+                    "&{}",
+                    quoted(&active(f).map_or(String::new(), |a| a.0))
+                )
+            }),
+            fps,
+        )?;
+        anim.values(
+            &format!("Channels/channel_{channel}:active_opacity"),
+            frames
+                .iter()
+                .map(|f| active(f).map_or(0, |a| i32::from(a.1)).to_string()),
+            fps,
+        )?;
     }
     if let Some(clip) = &state.clip {
         anim.root_translation(clip, fps)?;

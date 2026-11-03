@@ -35,6 +35,7 @@ fn fixture() -> Result<(Scene, Perso, Family, ActorObservation)> {
         unknown: [0; 3],
     };
     let actor = Perso {
+        shadow: None,
         path: AssetPath::new("level:/persos/player")?,
         name: "a different display name".into(),
         family: AssetRef::from_path(family.path.clone()),
