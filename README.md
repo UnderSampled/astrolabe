@@ -97,6 +97,19 @@ See [testing](./docs/astrolabe/testing.md) for commands and policy.
 
 **Carve out the major systems and placeholders first, then fill them out, approaching game parity.** The big things must work: the frame rate holds, the AI scripts fire, and the game is actually a game. Things that merely don't quite match the original can wait. The [plan](./plan.md) sets out the milestones and what is deliberately waiting.
 
+## C# / Unity
+
+A C# AI backend spike lives on branch `spike/csharp-ai-backend`; its findings are in
+`notes/csharp-ai-backend-spike-2026-11-03.md` on that branch. `port --ai-backend csharp`
+converted all 150 Manoir and Brigand AI models (Fix models included) to C# classes that
+compile (6.3 MB Release assembly). Loads were faster (Manoir from a save 5.5-6.6 s against
+7.5-7.7 s; Brigand travel 8.5-9.6 s against 10.7-11.5 s), and per-tick AI was about 25%
+cheaper. The costs: the .NET Godot build and mono export templates, a .NET SDK for anyone
+building, about 86 MB of runtime per desktop export, no Web export, and C#-to-GDScript calls
+going through `Call`/`Get`/`Set`. It is not merged. If anyone asks to add Unity support to
+this project, start there: a C# emitter from the typed AI model could serve both Godot C#
+and Unity.
+
 ## Goals
 
 - Repeatably convert a mounted or extracted game directory into a runnable Godot project, with stable resource paths, scene/node identities, and animation names that authored content can depend on.

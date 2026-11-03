@@ -801,6 +801,13 @@ func follow(plan: Dictionary) -> bool:
 		# and casts land where the original's did.
 		while next_key < keys.size() and float(keys[next_key][0]) <= clock:
 			var row: Array = keys[next_key]
+			# Modal keys wait for the port to be in the take's state (dialogue,
+			# inventory, menu): dialogue and load lengths differ slightly.
+			var wanted := _take_mode(track, landmarks, float(row[0]))
+			if bool(row[2]) and wanted != "play" and _port_mode() != wanted and _follow_hold < 6.0:
+				_follow_hold += 1.0 / Engine.physics_ticks_per_second
+				shift -= 1.0 / Engine.physics_ticks_per_second
+				break
 			if bool(row[2]) and int(row[1]) in ACTION_KEYS and _follow_gap > 1.0 and _follow_hold < 4.0:
 				_follow_hold += 1.0 / Engine.physics_ticks_per_second
 				shift -= 1.0 / Engine.physics_ticks_per_second
@@ -814,6 +821,18 @@ func follow(plan: Dictionary) -> bool:
 			if bool(row[2]): held[int(row[1])] = true
 			else: held.erase(int(row[1]))
 			next_key += 1
+		# A dialogue the take has already left is advanced with Space.
+		if _port_mode() == "dialogue" and _take_mode(track, landmarks, clock) == "play":
+			_follow_linger += 1.0 / Engine.physics_ticks_per_second
+			if _follow_linger > 0.6:
+				_follow_linger = 0.0
+				_follow_key(KEY_SPACE, true)
+				_follow_space_release = 0.1
+		if _follow_space_release > 0.0:
+			_follow_space_release -= 1.0 / Engine.physics_ticks_per_second
+			if _follow_space_release <= 0.0: _follow_key(KEY_SPACE, false)
+		else:
+			_follow_linger = 0.0
 		# Path pursuit: follow the take's track by proximity (so a lagging Hype
 		# goes round corners instead of cutting them), never past its clock.
 		var here := position()
@@ -836,6 +855,15 @@ func follow(plan: Dictionary) -> bool:
 		var sample: Array = track[ahead]
 		var playable := str(sample[5]) == level
 		var target := _track_point(sample)
+		# The take already left this level: head for its last point here (the
+		# exit) and hold the take clock until this level is left too.
+		if not playable and _track_level_ahead(track, ahead, level) < 0:
+			var last := _track_last_in(track, level)
+			if last >= 0:
+				sample = track[last]
+				target = _track_point(sample)
+				playable = true
+				shift -= 1.0 / Engine.physics_ticks_per_second
 		var to := target - position()
 		var error := wrapf(to.angle() - heading(), -PI, PI)
 		# Stand still where the take stood (stand attacks stay stand attacks).
@@ -857,7 +885,7 @@ func follow(plan: Dictionary) -> bool:
 			shots.pop_front()
 		if clock >= next_report:
 			next_report = clock + float(plan.get("report", 5.0))
-			print("FOLLOW ", JSON.stringify({"take": snappedf(clock, 0.1), "level": level, "gap": snappedf(to.length(), 0.1), "pos": [snappedf(position().x, 0.1), snappedf(position().y, 0.1)], "target": [snappedf(target.x, 0.1), snappedf(target.y, 0.1)], "err": snappedf(rad_to_deg(error), 1), "normal": brain_of("hype").get("current_normal") if brain_of("hype") != null else -1, "take_normal": sample[4], "life": int(actor().get("source_hit_points").get("current")) if actor().get("source_hit_points") != null else -1}))
+			print("FOLLOW ", JSON.stringify({"take": snappedf(clock, 0.1), "level": level, "gap": snappedf(to.length(), 0.1), "pos": [snappedf(position().x, 0.1), snappedf(position().y, 0.1)], "target": [snappedf(target.x, 0.1), snappedf(target.y, 0.1)], "err": snappedf(rad_to_deg(error), 1), "state": actor().get("current_state"), "action": actor().get("requested_action_state"), "complete": actor().get("action_complete"), "normal": brain_of("hype").get("current_normal") if brain_of("hype") != null else -1, "take_normal": sample[4], "life": int(actor().get("source_hit_points").get("current")) if actor().get("source_hit_points") != null else -1}))
 	for code in held.keys(): _follow_key(code, false)
 	_follow_key(KEY_SHIFT, false)
 	for name in ["ArrowUp", "ArrowLeft", "ArrowRight"]: _follow_steer(name, false)
@@ -870,10 +898,51 @@ func _track_moved(track: Array, cursor: int, clock: float) -> float:
 	while hi + 1 < track.size() and float(track[hi][0]) < clock + 0.5: hi += 1
 	return _track_point(track[lo]).distance_to(_track_point(track[hi]))
 
+func _track_level_ahead(track: Array, from: int, level: String) -> int:
+	for i in range(from, track.size()):
+		if str(track[i][5]) == level: return i
+	return -1
+
+var _last_in_cache := {}
+func _track_last_in(track: Array, level: String) -> int:
+	if not _last_in_cache.has(level):
+		var found := -1
+		for i in track.size():
+			if str(track[i][5]) == level: found = i
+		_last_in_cache[level] = found
+	return int(_last_in_cache[level])
+
 func _track_point(row: Array) -> Vector2:
 	return Vector2(float(row[1]), float(row[2]))
 
 const ACTION_KEYS := [KEY_SPACE, KEY_CTRL, KEY_ENTER, KEY_Z]
+const DIALOGUE_NORMALS := [28, 48]
+var _follow_linger := 0.0
+var _follow_space_release := 0.0
+
+func _take_mode(track: Array, landmarks: Array, t: float) -> String:
+	var phase := 9
+	for mark in landmarks:
+		if float(mark["t"]) > t: break
+		if mark.has("phase"): phase = int(mark["phase"])
+	if phase == 41: return "inventory"
+	if phase in [37, 38]: return "menu"
+	var lo := 0
+	var hi := track.size() - 1
+	while lo < hi:
+		var mid := (lo + hi + 1) / 2
+		if float(track[mid][0]) <= t: lo = mid
+		else: hi = mid - 1
+	return "dialogue" if int(track[lo][4]) in DIALOGUE_NORMALS else "play"
+
+func _port_mode() -> String:
+	var inventory_host: Node = game.get("inventory_host")
+	if inventory_host != null and is_instance_valid(inventory_host.get("view")) and inventory_host.get("view").visible: return "inventory"
+	var pause_host: Node = game.get("pause_host")
+	if pause_host != null and bool(pause_host.get("owns_pause")): return "menu"
+	var brain := brain_of("hype")
+	return "dialogue" if brain != null and int(brain.get("current_normal")) in DIALOGUE_NORMALS else "play"
+
 var _follow_gap := 0.0
 var _follow_take_shift := false
 var _follow_hold := 0.0
