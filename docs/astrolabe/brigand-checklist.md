@@ -38,9 +38,19 @@ in that take.
 - [x] Action-return policy 1 before Proc_Turn (100 sites, guards 927 and thieves 1060) and
   before other-actor comport changes: compiled as a rule hold
   (docs/astrolabe/action-return-policies.md). Brigand stand-in sites 344 to 225.
-- [ ] Route harness: the `near` step teleports Hype beside a target and he often lands in
-  a fall (normals 93, 23, 92), so Space is swallowed. Thief, bat and guard checks need a
-  walking approach before their hits can be judged.
+- [x] Route harness: a `chase` step walks to a moving actor with the real controls
+  (the `near` teleport left Hype falling, so Space was swallowed).
+- [x] Wolf 1 to its death on foot: 15, 10, 5, 0 at Hype's base damage 5, then its death
+  behaviors (normals 8, 11, 14). Its bite took Hype 50 to 49 once. Bars and damage against
+  the take's 366 s fight not compared frame by frame.
+- [x] Common thief (iThievesCommun_Brigand_01, the take's dagger thief): Cond collide-
+  with-nothing answered true for an actor the port does not simulate, so its normal 7
+  rule held forever and it never entered reflex 1. Fixed (00533d20 answers false without
+  a contact report): hits 15, 10, 5, 0 and death.
+- [ ] Guard (iGardeCommun_Brigand_01): the sword touches its zone 1, but Hype's attack
+  flag (dsg_17, set by the swing object fix/708) never turns on there, so no damage; the
+  guard stays in normal 1. Open.
+- [ ] Bats: bat 1 stays about 5.7 m away and above reach; its dive is not reproduced. Open.
 - [ ] Bats (I_Brigand_Bat_1 to 6, I_Dummy_Brigand_Bats): bat 1 flies above sword reach in
   the port route (normals 2, 1); no hits either way. Not compared.
 - [ ] Dagger thief: the take's thief is iThievesCommun_Brigand_01 (model 1060, same spot as the scripted runner I_Brigand_Thief_Dagger_1). Earlier: approaching starts its camera (Hype normals

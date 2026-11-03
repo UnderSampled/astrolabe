@@ -45,6 +45,14 @@ through bindings and sprite lookups.
   0041cd60 applies them (capped, refused when full), one taken off the count
   (tools/routes/use_flask.json).
 - [ ] Menu motion (category slide) timing compared with the original.
+- [x] The HUD is hidden while the inventory is open, as in the original (take frame 284).
+- [ ] The inventory's own stone panel meters: in the original (take frame 284) it shows a
+  gold sword life gauge, the gold count, a game timer (00:04), the selected armor in the
+  right socket and a ring in the left socket. The port draws the panel empty.
+- [ ] Armor in the inventory and on the HUD: geometry, artwork and damage arithmetic
+  match the source (0043aa70, 0043ab40). Differences: piece choice uses Godot's RNG, not
+  the seeded handle DAT_00610ba8; repair touches only the active armor; the port saves
+  the current piece (+0x24), which the original does not.
 - [ ] Map screen (map names in 10:1 are read; the 1,188 bytes before them are not).
 
 ## Dialogue presentation
