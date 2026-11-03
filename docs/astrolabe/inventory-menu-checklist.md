@@ -41,8 +41,9 @@ through bindings and sprite lookups.
 - [ ] Item records: 88 to 104 untouched bytes in each block 10:0 record and a
   1,060-byte run at 0x22c4. Likely per-item presentation (description text,
   sound, sort order); not read.
-- [ ] Use item from the menu (potions, herbs): "Using this item is not
-  implemented yet."
+- [x] Use item from the menu: RestoreHP, RestoreMP, RestoreHPMP and Poison as
+  0041cd60 applies them (capped, refused when full), one taken off the count
+  (tools/routes/use_flask.json).
 - [ ] Menu motion (category slide) timing compared with the original.
 - [ ] Map screen (map names in 10:1 are read; the 1,188 bytes before them are not).
 
@@ -54,8 +55,11 @@ through bindings and sprite lookups.
   1024x768: bar heights, name and text lines, continuation arrow. Fixed: text
   started half a glyph left (x 8 to 10 instead of 22); box 3 now starts at its
   anchor like the style5 chain.
-- [ ] Framed dialogue boxes (box 1, e.g. the Focus Magicum message) and fade and
-  page timing not compared yet.
+- [x] Framed boxes: box 1 frame geometry matches (rows 25 to 313, columns 497
+  to 990 of 1024) and its text now starts at the anchor; box 5 (Focus Magicum,
+  lock messages) panel is 461x256 with a 30 px inset in both. Fade: +0.1 alpha
+  per drawn frame after 10 ms, text at full opacity, about 0.13 s in the video.
+- [ ] Box 1 text after the anchor fix not re-captured; page timing not compared.
 - [ ] The 520 and 508-byte gaps between font/frame records in 19:1: probably
   frame or box parameters we have not mapped.
 - [ ] Branching answers, item icons and channel effects in dialogue items:
