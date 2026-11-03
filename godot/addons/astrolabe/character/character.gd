@@ -1242,12 +1242,15 @@ func source_execute_action_and_generate_object(template_path: String, action: in
         # A held object remains inactive until its authored release cue.
         generated.set("source_return_suppressed", false)
         generated.set("source_object_active", not waits_for_release)
-        generated.set("motion_enabled", true)
+        # Only objects with a mechanics card have dynamics. A card-less one, such
+        # as Hype's Fire effect (model 817), stays where it was generated; with
+        # gravity it sank, and its fireball hit the mannequin's body, not the arm.
+        generated.set("motion_enabled", generated.get("current_mechanics") != null)
         # Stand-in "item point contact": dropped items (families 21 to 25) carry
         # no movement zone, yet bounce and rest on the floor in the source.
         # A small sphere at the origin stops them falling through the world.
         var item_mechanics: Resource = generated.get("current_mechanics")
-        if not generated.call("_has_movement_shape") and (item_mechanics == null or int(item_mechanics.mode) != 11):
+        if item_mechanics != null and not generated.call("_has_movement_shape") and int(item_mechanics.mode) != 11:
             var point := CollisionShape3D.new()
             point.name = "ItemPointContact"
             var sphere := SphereShape3D.new()

@@ -529,6 +529,20 @@ func run() -> void:
 			print("MENU_OBJECT ", wanted, " selected_object=", actor().get("source_inventory").get("selected_object"), " ok=", ok)
 			key("Tab", true); await process_frame; key("Tab", false)
 			for i in 10: await process_frame
+		elif step.has("zone_trace"):
+			# Every physics frame, the world position of each ZDE shape of bodies
+			# whose name starts with the given prefix: {"zone_trace": "Object_template", "seconds": 1.5}
+			var zone_end := Time.get_ticks_msec() + int(step.get("seconds", 1.5) * 1000.0)
+			while Time.get_ticks_msec() < zone_end:
+				for body in game.get("level").find_children(str(step["zone_trace"]) + "*", "CharacterBody3D", true, false):
+					var zone_area: Node = body.get_node_or_null("ZDE")
+					if zone_area == null: continue
+					var rows := []
+					for shape in zone_area.find_children("*", "CollisionShape3D", true, false):
+						var p: Vector3 = shape.global_position
+						rows.append([int(shape.get_meta("source_zone", -1)), snappedf(p.x, 0.01), snappedf(-p.z, 0.01), snappedf(p.y, 0.01), snappedf(shape.shape.get("radius") if shape.shape is SphereShape3D else -1.0, 0.01), shape.disabled])
+					print("ZONES ", Time.get_ticks_msec() - started, " ", body.name, " ", JSON.stringify(rows))
+				await physics_frame
 		elif step.has("drops"):
 			# Generated objects of a family over time: {"drops": "fix:/families/23", "seconds": 6}.
 			var drop_end := Time.get_ticks_msec() + int(step.get("seconds", 6.0) * 1000.0)
