@@ -113,6 +113,18 @@ Remaining levels, cutscenes, UI flows and the remaining systems, then fidelity:
 the discrepancies that matter, visual parity, and timing. Recording and replay
 return here if they are worth their cost.
 
+Side-by-side video milestone (Stephen, 2026-11-03). Span: Stephen's linear take
+`stephen-linear-brigand-20261102` from New Game to the toras (level 3) load at
+about 650 s; the return to Brigand, the respawn farming and the race are out of
+scope. Method: a closed-loop route bot drives the port along the take's path and
+actions (position waypoints, facing, attacks, jumps, menu actions, dialogue skips,
+timed to the original), not raw key replay and not teleport resync. Ready when that
+bot gets from New Game to the toras load without teleports or stalls. Then: an
+H.265 MKV of the original over that span (the take's own capture if publish
+quality, otherwise a fresh replay into a disposable original), an H.265 MKV of
+the port driven by the bot, composited side by side, synced and labeled, with the
+port's audio only. Building the bot is the next round after 2026-11-03's.
+
 First step (Stephen, scheduled after the 2026-11-03 round): convert every level,
 then build a full-game priority checklist that ranks unsupported or stand-in AI
 entries, record types, byte-coverage gaps and systems by how many levels and
