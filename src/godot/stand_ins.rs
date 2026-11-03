@@ -82,8 +82,6 @@ pub(super) const STAND_INS: &[StandIn] = &[
         "",
         "the map destination is not recorded",
     ),
-    entry("4-153", "Procedure_Camera_ChangeAngle", "", KEEP_CAMERA),
-    entry("4-143", "Procedure_Camera_ChangeDistance", "", KEEP_CAMERA),
     entry("4-154", "Procedure_Camera_Move", "", KEEP_CAMERA),
     entry("4-150", "Procedure_Camera_MoveTarget", "", KEEP_CAMERA),
     entry("4-152", "Procedure_Camera_MoveShift", "", KEEP_CAMERA),
@@ -111,36 +109,6 @@ pub(super) const STAND_INS: &[StandIn] = &[
         "Procedure_Camera_ShowInfo",
         "",
         "debug camera text is not shown",
-    ),
-    entry(
-        "3-60",
-        "Function_Camera_GetTeta",
-        "0.0",
-        "report a level camera",
-    ),
-    entry(
-        "3-58",
-        "Function_Camera_GetAlpha",
-        "0.0",
-        "report a level camera",
-    ),
-    entry(
-        "3-54",
-        "Function_Camera_GetDistMin",
-        "0.0",
-        "report no minimum distance",
-    ),
-    entry(
-        "3-55",
-        "Function_Camera_GetDistMax",
-        "0.0",
-        "report no maximum distance",
-    ),
-    entry(
-        "3-70",
-        "Function_Camera_GetState",
-        "0",
-        "report the default camera state",
     ),
     entry(
         "3-75",
@@ -174,7 +142,9 @@ const GENERIC: StandIn = entry(
 
 /// The entry for a decoder reason, and the id compiled code records.
 pub(super) fn for_reason(reason: &str) -> (&'static StandIn, String) {
-    let operation = reason.split_once("category ").and_then(|(_, tail)| {
+    // The last "category" names the operation: Ultra reasons also name the
+    // receiver's category first.
+    let operation = reason.rsplit_once("category ").and_then(|(_, tail)| {
         let (category, tail) = tail.split_once(" operation ")?;
         let digits = tail.split(|c: char| !c.is_ascii_digit()).next()?;
         Some(format!("{category}-{digits}"))
@@ -197,14 +167,18 @@ mod tests {
 
     #[test]
     fn stand_ins_are_found_by_decoder_reason_and_documented() {
-        let (entry, id) = for_reason("unsupported AI statement category 4 operation 153 at node 9");
+        let (entry, id) = for_reason("unsupported AI statement category 4 operation 154 at node 9");
         assert_eq!(
             (entry.name, id.as_str()),
-            ("Procedure_Camera_ChangeAngle", "4-153")
+            ("Procedure_Camera_Move", "4-154")
         );
         assert_eq!(
             for_reason("unsupported AI statement category 5 operation 7 at node 1").1,
             "generic-5-7"
+        );
+        assert_eq!(
+            for_reason("Ultra receiver/category 0 does not support category 4 operation 217").1,
+            "generic-4-217"
         );
         assert_eq!(
             for_reason("unbound absolute waypoint position").1,

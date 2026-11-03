@@ -770,7 +770,21 @@ fn values(
                         })
                         .transpose()
                 },
-                |target| Ok(target.and_then(|target| actors.get(&target).cloned())),
+                |target| {
+                    let Some(target) = target else { return Ok(None) };
+                    if let Some(actor) = actors.get(&target) {
+                        return Ok(Some(actor.clone()));
+                    }
+                    // Level designer actor values may hold the actor's
+                    // SuperObject rather than its Perso (e.g. a Brigand wolf's
+                    // partner): a type-4 SuperObject links its Perso at +4.
+                    if s.bytes(target, 4)?.as_ref() == 4u32.to_le_bytes().as_slice()
+                        && let Some(perso) = s.pointer(target, 4)?
+                    {
+                        return Ok(actors.get(&perso).cloned());
+                    }
+                    Ok(None)
+                },
                 |target| {
                     target
                         .map(|target| import_waypoint_asset(s, target, result))
