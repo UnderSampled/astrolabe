@@ -9,7 +9,7 @@ const OBJECT_RECT := Rect2(269, 404, 48, 60)
 const WEAPON_RECT := Rect2(10, 360, 48, 48)
 @export var actor: Node
 var suppressed: bool = false
-var _requested := {"selected_object": false, "weapon": false}
+var _requested := {"selected_object": false, "weapon": false, "life": false, "armor": false, "magic": false, "cash": false}
 var _items: Dictionary = {}
 var _object_icon := TextureRect.new()
 var _weapon_icon := TextureRect.new()
@@ -17,6 +17,13 @@ var _weapon_count := Label.new()
 ## Fix HUD panel descriptor 3 (4 stone-frame layers), activated by FUN_0040c150(3)
 ## immediately before the Object draw in FUN_0040cb50; exported as Source/Panel3.
 var _object_panel: Control
+## Fix HUD panel descriptors 0 (stone frames) and 2, drawn first by FUN_0040c270.
+var _frame_panel: Control
+var _cash_panel: Control
+## FUN_0043ab40 draws each piece of the selected armor at Fix.sda rectangle 2.
+const ARMOR_RECT := Rect2(10, 420, 48, 48)
+var _armor := Control.new()
+var _armor_state := ""
 
 func _ready() -> void:
     mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -41,6 +48,10 @@ func _ready() -> void:
         _weapon_count.add_theme_font_override("font", counter.get_theme_font("font"))
     add_child(_weapon_count)
     _object_panel = get_parent().get_node_or_null("Source/Panel3") as Control
+    _frame_panel = get_parent().get_node_or_null("Source/Panel0") as Control
+    _cash_panel = get_parent().get_node_or_null("Source/Panel2") as Control
+    _armor.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    add_child(_armor)
     refresh()
 
 func bind_actor(value: Node) -> void:
@@ -68,7 +79,46 @@ func _item(item_id: int) -> Resource:
 func _process(_delta: float) -> void:
     refresh()
 
+func _armor_catalog() -> Resource:
+    var node: Node = actor
+    while is_instance_valid(node):
+        if node.has_meta("source_armor_catalog"): return node.get_meta("source_armor_catalog") as Resource
+        node = node.get_parent()
+    return null
+
+func _refresh_armor(show: bool) -> void:
+    var catalog := _armor_catalog() if show else null
+    var definition: Resource = catalog.call("active") if catalog != null else null
+    var state := ""
+    if definition != null:
+        for piece in definition.pieces: state += str(piece.source_key, ":", piece.broken, ",")
+    if state == _armor_state: return
+    _armor_state = state
+    for child in _armor.get_children(): child.queue_free()
+    if definition == null: return
+    var artwork: Array = [definition.intact_artwork, definition.broken_artwork, definition.background_artwork]
+    for piece in definition.pieces:
+        var image: Texture2D = artwork[clampi(piece.broken, 0, 2)]
+        if image == null: continue
+        # Corners are u0, u1, v_top, v_bottom with v up; the image row is 1 - v.
+        var r: Vector4 = piece.rectangle
+        var atlas := AtlasTexture.new()
+        atlas.atlas = image
+        atlas.region = Rect2(r.x * image.get_width(), (1.0 - r.z) * image.get_height(), (r.y - r.x) * image.get_width(), (r.z - r.w) * image.get_height())
+        var rect := TextureRect.new()
+        rect.texture = atlas
+        rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+        rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+        rect.stretch_mode = TextureRect.STRETCH_SCALE
+        rect.position = ARMOR_RECT.position + Vector2(r.x, 1.0 - r.z) * ARMOR_RECT.size
+        rect.size = Vector2(r.y - r.x, r.z - r.w) * ARMOR_RECT.size
+        _armor.add_child(rect)
+
 func refresh() -> void:
+    var frame_on: bool = not suppressed and (_requested["life"] or _requested["armor"] or _requested["magic"] or _requested["weapon"])
+    if _frame_panel != null: _frame_panel.visible = frame_on
+    if _cash_panel != null: _cash_panel.visible = not suppressed and not frame_on and bool(_requested["cash"])
+    _refresh_armor(not suppressed and bool(_requested["armor"]))
     var inventory: Resource = actor.get("source_inventory") as Resource if is_instance_valid(actor) else null
     var show := not suppressed and inventory != null
     var object_item: Resource = _item(int(inventory.get("selected_object"))) if show else null

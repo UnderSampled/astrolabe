@@ -31,6 +31,10 @@ var entry_us := -1
 ## engines reach. Entries are {"source_us", "kind", "level", "port_us"}.
 var anchors: Array = []
 const ANCHOR_GRACE_US := 40000000
+## ASTROLABE_REPLAY_RESYNC_US: open-loop input drifts within seconds. Each interval
+## the port records how far Hype drifted, then is put back on the source pose.
+var resyncs: Array = []
+var next_resync := 0
 
 func _initialize() -> void:
     call_deferred("run")
@@ -129,6 +133,14 @@ func load_source() -> bool:
             var sample: Dictionary = JSON.parse_string(line)
             if int(sample["elapsed_micros"]) > source_entry_us + 60000000 and int(sample["data"]["normal_behavior"]["current"]) == 4:
                 anchors.append({"source_us": int(sample["elapsed_micros"]), "kind": "control", "level": "", "port_us": -1})
+        if OS.has_environment("ASTROLABE_REPLAY_RESYNC_US") and line.contains('"kind":"actor"'):
+            var sample: Dictionary = JSON.parse_string(line)
+            var at := int(sample["elapsed_micros"])
+            var interval := int(OS.get_environment("ASTROLABE_REPLAY_RESYNC_US"))
+            if not anchors.is_empty() and at > int(anchors[0]["source_us"]) and (resyncs.is_empty() or at - int(resyncs.back()["at_micros"]) >= interval):
+                var form: Dictionary = sample["data"]["actor"]["global_transform"]
+                form = form.get("Affine", form)
+                resyncs.append({"at_micros": at, "translation": form["translation"], "basis": form["basis"], "normal": sample["data"]["normal_behavior"]["current"], "action": sample["data"]["actor"]["current_action"]})
         if not line.contains('"kind":"epoch"'): continue
         var data: Dictionary = JSON.parse_string(line).get("data", {})
         if int(data.get("phase", 0)) != 9: continue
@@ -186,6 +198,31 @@ func track_replay_anchors(now: int) -> void:
             append_event("replay_anchor", {"anchor": anchor["kind"], "level": anchor["level"], "port_micros": now, "source_micros": anchor["source_us"], "reached": reached})
         break
 
+func source_to_native(value: Array) -> Vector3:
+    return Vector3(value[0], value[2], -value[1])
+
+func apply_resync(now: int) -> void:
+    while next_resync < resyncs.size():
+        var mark: Dictionary = resyncs[next_resync]
+        var due := scheduled_us(mark)
+        if due < 0 or now < due: return
+        next_resync += 1
+        var scene := current_scene
+        var actor = scene.get("actor") as CharacterBody3D if scene is Node3D else null
+        if actor == null: continue
+        var want := source_to_native(mark["translation"])
+        var state := current_state()
+        append_event("resync", {"source_micros": mark["at_micros"], "gap": actor.global_position.distance_to(want), "source": mark["translation"], "port": state.get("actor", {}).get("translation"), "port_level": state.get("level"), "source_normal": mark["normal"], "port_normal": state.get("brain", {}).get("normal_behavior"), "source_action": mark["action"], "port_action": state.get("actor", {}).get("current_state")})
+        var rows: Array = mark["basis"]
+        var axes := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
+        var pose := Basis(Vector3(rows[0][0], rows[0][1], rows[0][2]), Vector3(rows[1][0], rows[1][1], rows[1][2]), Vector3(rows[2][0], rows[2][1], rows[2][2]))
+        actor.global_transform = Transform3D(axes * pose * axes.inverse(), want)
+        actor.velocity = Vector3.ZERO
+        actor.set("_contact_sector", null)
+        actor.set("source_contact_sector_path", NodePath(""))
+        actor.set("_contact_previous", want)
+        scene.call("_locate_player_sector")
+
 func current_state() -> Dictionary:
     var scene := current_scene
     if scene == null:
@@ -211,6 +248,7 @@ func current_state() -> Dictionary:
         var position: Vector3 = actor.global_position
         result["actor"] = {
             "translation": [position.x, -position.z, position.y],
+            "forward": [actor.global_basis.z.x, -actor.global_basis.z.z, actor.global_basis.z.y],
             "current_state": int(actor.get("current_state")),
             "velocity": [actor.velocity.x, actor.velocity.y, actor.velocity.z],
             "on_floor": actor.is_on_floor(),
@@ -310,6 +348,7 @@ func run() -> void:
         await process_frame
         track_anchors(elapsed_us())
         track_replay_anchors(elapsed_us())
+        apply_resync(elapsed_us())
         if next_input >= source_inputs.size() and anchors.back()["port_us"] >= 0: break
         if entry_us < 0 and elapsed_us() >= ENTRY_DEADLINE_US: break
         var now := elapsed_us()

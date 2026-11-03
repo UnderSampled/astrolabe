@@ -129,6 +129,16 @@ func _can_bind_material(material: Material) -> bool:
 		return false
 	return true
 
+## A ShaderMaterial has no billboard field: the variant faces the camera itself,
+## with the transform BaseMaterial3D generates. 00491f70 lights a sprite element
+## with no cosine term, so omni lights reach it at full strength.
+func _billboard_code(code: String, keep_scale: bool) -> String:
+	var face := "void vertex() {\n\tMODELVIEW_MATRIX = VIEW_MATRIX * mat4(INV_VIEW_MATRIX[0], INV_VIEW_MATRIX[1], INV_VIEW_MATRIX[2], MODEL_MATRIX[3]);\n"
+	if keep_scale:
+		face += "\tMODELVIEW_MATRIX = MODELVIEW_MATRIX * mat4(vec4(length(MODEL_MATRIX[0].xyz), 0.0, 0.0, 0.0), vec4(0.0, length(MODEL_MATRIX[1].xyz), 0.0, 0.0), vec4(0.0, 0.0, length(MODEL_MATRIX[2].xyz), 0.0), vec4(0.0, 0.0, 0.0, 1.0));\n"
+	face += "\tMODELVIEW_NORMAL_MATRIX = mat3(MODELVIEW_MATRIX);\n"
+	return code.replace("void vertex() {", face).replace("mat3(MODEL_MATRIX) * NORMAL", "mat3(INV_VIEW_MATRIX) * NORMAL").replace("dot(object_to_light, NORMAL) * max_scale / sqrt(d2)", "1.0")
+
 func _cull_render_mode(cull_mode: int) -> String:
 	match cull_mode:
 		BaseMaterial3D.CULL_BACK: return "cull_back"
@@ -152,6 +162,8 @@ func _make_variant(material: StandardMaterial3D, material_path: String, diffuse:
 	# zero. Preserve alpha/additive materials as blended native variants.
 	if source_transparency == BaseMaterial3D.TRANSPARENCY_ALPHA:
 		code = code.replace("ALPHA_SCISSOR_THRESHOLD = source_alpha_scissor_threshold;", "")
+	if material.billboard_mode != BaseMaterial3D.BILLBOARD_DISABLED:
+		code = _billboard_code(code, material.billboard_keep_scale)
 	if not _shaders.has(code):
 		var compiled := Shader.new()
 		compiled.code = code

@@ -17,6 +17,9 @@ var _dialogue_speech_request: bool = false
 ## Godot's panner keeps L^2+R^2 at 1, so a centred source is -3 dB a channel. The
 ## source mixes a centred mono sample at its full gain on both.
 const SOURCE_CENTER_GAIN := 1.41421356
+## Stand-in: fitted to lines measured in the original, about 5 dB under their
+## resource gain before the port's bus mix. The speech event's volume is not read.
+const SOURCE_SPEECH_GAIN := 0.7
 ## Populated by source conversion. Unknown authored Micro data stays unbound.
 @export var microphone_basis: Basis = Basis.IDENTITY
 @export var microphone_basis_known: bool = false
@@ -327,7 +330,9 @@ func play_voice(voice: Resource, identity: String, pitch_variation: float, stopp
                 return
             music_failure = "Switching active music themes requires the source audio-driver transition contract"
             return
-    var spatial: bool = (voice.source_parameter_conversion or voice.spatial) and not is_music
+    # Live capture: every dialogue line is equal in both channels at one level,
+    # wherever the speaker stands, so speech skips the distance law and pan.
+    var spatial: bool = (voice.source_parameter_conversion or voice.spatial) and not is_music and not _dialogue_speech_request
     _audio_mixer()
     var player: Node = AudioStreamPlayer3D.new() if spatial else AudioStreamPlayer.new()
     player.bus = &"Astrolabe Voice" if _dialogue_speech_request else voice_bus
@@ -339,12 +344,10 @@ func play_voice(voice: Resource, identity: String, pitch_variation: float, stopp
         # distance law once, without inverse distance or a distant low-pass.
         player.attenuation_model = AudioStreamPlayer3D.ATTENUATION_DISABLED
         player.attenuation_filter_cutoff_hz = 20500.0
-        # Live capture: dialogue is equal in both channels across shot cuts.
-        if _dialogue_speech_request: player.panning_strength = 0.0
     if player is Node3D and not dynamic:
         player.top_level = true
         player.global_transform = global_transform
-    var info := {"event": identity, "stream": voice.stream.resource_path, "sample": voice.source_sample, "pitch": player.pitch_scale, "gain": voice.gain, "choices": voice.trace, "spatial": spatial, "source_parameter_conversion": voice.source_parameter_conversion, "stoppable": stoppable, "dynamic": dynamic, "player": player, "theme": voice.theme_identity, "uses_object_volume": not _dialogue_speech_request, "module": _request_module(), "bus": player.bus}
+    var info := {"event": identity, "stream": voice.stream.resource_path, "sample": voice.source_sample, "pitch": player.pitch_scale, "gain": voice.gain * SOURCE_SPEECH_GAIN if _dialogue_speech_request else voice.gain, "choices": voice.trace, "spatial": spatial, "source_parameter_conversion": voice.source_parameter_conversion, "stoppable": stoppable, "dynamic": dynamic, "player": player, "theme": voice.theme_identity, "uses_object_volume": not _dialogue_speech_request, "module": _request_module(), "bus": player.bus}
     _publish_voice_gain(info)
     if spatial and voice.source_parameter_conversion and info.source_spatial_state == &"unbound_microphone":
         push_warning("Source sound has no bound Micro pose: " + identity)

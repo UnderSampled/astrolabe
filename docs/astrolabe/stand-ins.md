@@ -62,3 +62,4 @@ row here. Replace them in order of what blocks play.
 | Travel save | One slot outside the manor; each level actor keeps its fields, behavior, pose and links, not the source record table | Source per-level records and level history |
 | Drop shadow | Every kind draws a ground-tilted gradient blob | Fake_Sh textures, projected realistic kind 2, light-placed kinds 3 and 4 |
 | Micro basis | A main actor with no imported Micro listens along its own axes | The Micro of the destination level |
+| Speech gain | Dialogue plays non-positional at 0.7 times resource gain, fitted to measured lines | Read the speech event's own volume |
