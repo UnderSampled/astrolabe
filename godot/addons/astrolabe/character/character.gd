@@ -1,5 +1,4 @@
 extends CharacterBody3D
-const BEHAVIOR := preload("res://addons/astrolabe/behavior/behavior.gd")
 ## Native character controls. Every part and pose already exists in the PackedScene.
 ## No frame tables, transform pools or object configurations are consumed here.
 signal cue_triggered(action: Resource, frame: int, channel: int, configuration_slot: int)
@@ -227,12 +226,12 @@ func _process(delta: float) -> void:
         source_camera_data3d_step(delta)
 
 func _physics_process(delta: float) -> void:
-    if not BEHAVIOR.PROFILED:
+    if not PROFILED:
         _physics_step(delta)
         return
     var started := Time.get_ticks_usec()
     _physics_step(delta)
-    BEHAVIOR.profile_add(self, "motion", Time.get_ticks_usec() - started)
+    profile_add(self, "motion", Time.get_ticks_usec() - started)
 
 func _physics_step(delta: float) -> void:
     _update_sector_ambient()
@@ -814,6 +813,25 @@ func source_initialize_motion(value: Vector3) -> void:
 func source_go_relative() -> void:
     source_relative_motion = true
 
+## ASTROLABE_PERF=1: time spent per actor and stage, summed in an Engine meta
+## dictionary that tests/route_bot.gd prints. Kept here rather than preloaded
+## from the Brain script, which preloads this one: the cycle broke threaded loads.
+static var PROFILED := OS.get_environment("ASTROLABE_PERF") == "1"
+static func profile_add(node: Node, stage: String, usec: int) -> void:
+    var table: Dictionary = Engine.get_meta(&"astrolabe_perf", {})
+    var key := str(node.name) + "/" + stage
+    table[key] = int(table.get(key, 0)) + usec
+    Engine.set_meta(&"astrolabe_perf", table)
+
+## Godot's resource cache holds loaded scenes weakly. A template dropped after
+## instancing was freed and parsed again, about 0.3 s, on every generation, so
+## loaded templates stay referenced here for the session.
+static var _templates: Dictionary = {}
+static func _source_template(path: String) -> PackedScene:
+    if not _templates.has(path):
+        _templates[path] = load(path) as PackedScene
+    return _templates[path]
+
 func source_kill() -> bool:
     return source_kill_perso()
 
@@ -1182,7 +1200,7 @@ func source_execute_action_and_generate_object(template_path: String, action: in
     if template_path.is_empty():
         push_error("Action/object request has no converted Perso template path")
         return -1
-    var template := load(template_path) as PackedScene
+    var template := _source_template(template_path)
     if template == null:
         push_error("Action/object request has no converted Perso template")
         return -1

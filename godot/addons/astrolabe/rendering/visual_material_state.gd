@@ -35,25 +35,48 @@ func can_set_visual_diffuse_coef(material_path: String) -> bool:
 		return false
 	if int(source_material.get_meta("source_material_flags", -1)) != SUPPORTED_TARGET_FLAGS:
 		return false
-	var pending: Array[Dictionary] = []
-	for node in _level_root().find_children("*", "", true, false):
-		_collect_node_uses(node, material_path, pending)
-	for entry in pending:
+	for entry in _material_uses(material_path):
 		if not _can_bind_material_use(entry.material):
 			return false
 	return true
+
+## Which meshes use a material, indexed per path. Walking the whole level for
+## each call cost about 0.3 s, three times per hit flash. The level scan at load
+## fills the index, and geometry added later is appended as it enters the tree.
+var _uses_by_material: Dictionary = {}
+func _material_uses(material_path: String) -> Array[Dictionary]:
+	var current: Array[Dictionary] = []
+	for slot in _uses_by_material.get(material_path, []):
+		var node := slot.node as GeometryInstance3D
+		if not is_instance_valid(node) or not node.is_inside_tree(): continue
+		var surface: int = slot.surface
+		var material: Material = node.material_override if surface < 0 else (node as MeshInstance3D).get_active_material(surface)
+		if material != null and _source_path(material) == material_path:
+			current.append({"node": node, "surface": surface, "material": material})
+	return current
 
 func set_visual_diffuse_coef(material_path: String, packed_rgba: int) -> bool:
 	if not can_set_visual_diffuse_coef(material_path):
 		return false
 	var diffuse := _decode_packed_rgba(packed_rgba)
-	var pending: Array[Dictionary] = []
-	for node in _level_root().find_children("*", "", true, false):
-		_collect_node_uses(node, material_path, pending)
 	_diffuse_by_material[material_path] = diffuse
-	for entry in pending:
+	for entry in _material_uses(material_path):
 		_bind_material(entry.node, entry.surface, entry.material, material_path, diffuse)
 	return true
+
+func _index_material_uses(node: GeometryInstance3D) -> void:
+	var slots: Array = []
+	if node.material_override != null:
+		slots.append([-1, node.material_override])
+	elif node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+		for surface in (node as MeshInstance3D).mesh.get_surface_count():
+			slots.append([surface, (node as MeshInstance3D).get_active_material(surface)])
+	for slot in slots:
+		if slot[1] == null: continue
+		var path := _source_path(slot[1])
+		if path.is_empty(): continue
+		if not _uses_by_material.has(path): _uses_by_material[path] = []
+		_uses_by_material[path].append({"node": node, "surface": slot[0]})
 
 func _decode_packed_rgba(value: int) -> Vector4:
 	return Vector4(
@@ -267,6 +290,7 @@ func _on_node_added(node: Node) -> void:
 	if current != root:
 		return
 	_bind_source_lighting(node)
+	if node is GeometryInstance3D: _index_material_uses(node as GeometryInstance3D)
 	for material_path in _diffuse_by_material:
 		var pending: Array[Dictionary] = []
 		_collect_node_uses(node, material_path, pending)

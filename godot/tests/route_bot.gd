@@ -222,7 +222,7 @@ func perf_monitor() -> void:
 				total += int(table[key])
 			top.sort_custom(func(a, b): return a[0] > b[0])
 			row["spent_usec_2s"] = total
-			row["top"] = top.slice(0, 8)
+			row["top"] = top.slice(0, 14)
 			Engine.set_meta(&"astrolabe_perf", {})
 		print("PERF ", JSON.stringify(row))
 
