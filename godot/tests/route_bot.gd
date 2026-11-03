@@ -36,6 +36,7 @@ func brain_of(name: String) -> Node:
 	if name == "hype": return game.get("brain")
 	if name == "global":
 		var gogoud := brain_of("i_Gogood_MasterYoda")
+		if gogoud == null: return null
 		var linked: Node = gogoud.get("actor_brain_0")
 		if not is_instance_valid(linked) and not gogoud.get("actor_brain_0_path").is_empty(): linked = gogoud.get_node_or_null(gogoud.get("actor_brain_0_path"))
 		return linked
@@ -403,6 +404,26 @@ func run() -> void:
 			actor().set("_contact_previous", actor().global_position)
 			game.call("_locate_player_sector")
 			await create_timer(0.3).timeout
+		elif step.has("near"):
+			# {"near": ["I_Wild_Boar_A", 1.4]}: stand that far from the actor's
+			# current position, facing it.
+			var target_body: Node3D = null
+			for body in game.get("level").find_children("*", "CharacterBody3D", true, false):
+				if str(body.get_meta("source_perso_name", "")) == str(step["near"][0]): target_body = body
+			ok = target_body != null
+			if ok:
+				var offset := (actor().global_position - target_body.global_position)
+				offset.y = 0.0
+				if offset.length() < 0.01: offset = Vector3.RIGHT
+				actor().global_position = target_body.global_position + offset.normalized() * float(step["near"][1]) + Vector3.UP * 0.3
+				actor().set("_contact_sector", null)
+				actor().set("source_contact_sector_path", NodePath(""))
+				actor().set("_contact_previous", actor().global_position)
+				game.call("_locate_player_sector")
+				await physics_frame
+				var to := Vector2(target_body.global_position.x, -target_body.global_position.z) - position()
+				actor().source_turn_to_heading(atan2(to.x, -to.y))
+				await physics_frame
 		elif step.has("until_item"):
 			var end := Time.get_ticks_msec() + int(step.get("timeout", 30.0) * 1000.0)
 			while int(actor().get("source_inventory").call("quantity", int(step["until_item"]))) <= 0 and Time.get_ticks_msec() < end: await physics_frame
@@ -563,6 +584,27 @@ func run() -> void:
 			stock.item_key = stock_definition.source_key
 			stock.count = int(step["pickup"][1])
 			print("PICKUP ", step["pickup"], " -> ", stock_inventory.call("add_object", stock), " ", stock_inventory.get("last_failure"))
+		elif step.has("travel"):
+			# {"travel": "brigand", "entry": ""}: the level change service, as a loader would call it.
+			ok = bool(root.get_node("/root/LevelTransition").call("request_level_change", str(step["travel"]), str(step.get("entry", "")), str(step.get("camera_entry", ""))))
+			print("TRAVEL ", step["travel"], " requested=", ok)
+		elif step.has("meters"):
+			# Enemy health bar rows over time: {"meters": 6} seconds.
+			var meter_end := Time.get_ticks_msec() + int(float(step["meters"]) * 1000.0)
+			var last := ""
+			while Time.get_ticks_msec() < meter_end:
+				var screen_node: Node = game.get("level").get_node_or_null("AstrolabeUI")
+				var hud_node: Node = screen_node.get("hud") if screen_node != null else null
+				var rows := []
+				for slot in 3:
+					var fill: TextureRect = hud_node.get_node_or_null("Source/EnemyMeter%dFill" % slot) if hud_node != null else null
+					var back: TextureRect = hud_node.get_node_or_null("Source/EnemyMeter%dBackground" % slot) if hud_node != null else null
+					rows.append([back != null and back.visible, fill != null and fill.visible, snappedf(fill.size.x, 0.1) if fill != null else -1.0])
+				var text := JSON.stringify(rows)
+				if text != last:
+					last = text
+					print("METERS ", Time.get_ticks_msec() - started, " ", text)
+				await physics_frame
 		elif step.has("drops"):
 			# Generated objects of a family over time: {"drops": "fix:/families/23", "seconds": 6}.
 			var drop_end := Time.get_ticks_msec() + int(step.get("seconds", 6.0) * 1000.0)
