@@ -137,7 +137,7 @@ func load_source() -> bool:
             var sample: Dictionary = JSON.parse_string(line)
             var at := int(sample["elapsed_micros"])
             var interval := int(OS.get_environment("ASTROLABE_REPLAY_RESYNC_US"))
-            if not anchors.is_empty() and at > int(anchors[0]["source_us"]) and (resyncs.is_empty() or at - int(resyncs.back()["at_micros"]) >= interval):
+            if (OS.has_environment("ASTROLABE_REPLAY_FROM_US") or (not anchors.is_empty() and at > int(anchors[0]["source_us"]))) and (resyncs.is_empty() or at - int(resyncs.back()["at_micros"]) >= interval):
                 var form: Dictionary = sample["data"]["actor"]["global_transform"]
                 form = form.get("Affine", form)
                 resyncs.append({"at_micros": at, "translation": form["translation"], "basis": form["basis"], "normal": sample["data"]["normal_behavior"]["current"], "action": sample["data"]["actor"]["current_action"]})
@@ -149,6 +149,13 @@ func load_source() -> bool:
             anchors.append({"source_us": int(JSON.parse_string(line).get("elapsed_micros", 0)), "kind": "level", "level": level, "port_us": -1})
         seen_level = level
     file2.close()
+    if OS.has_environment("ASTROLABE_REPLAY_FROM_US"):
+        # Segment replay: start from a save written at this take time.
+        # Earlier inputs and anchors are dropped; resyncs start here.
+        source_entry_us = int(OS.get_environment("ASTROLABE_REPLAY_FROM_US"))
+        source_inputs = source_inputs.filter(func(input): return int(input["at_micros"]) >= source_entry_us)
+        anchors = anchors.filter(func(anchor): return anchor["kind"] == "level" and int(anchor["source_us"]) > source_entry_us)
+        resyncs = resyncs.filter(func(mark): return int(mark["at_micros"]) > source_entry_us)
     if not source_inputs.is_empty(): source_first_input_us = int(source_inputs[0]["at_micros"])
     return true
 
@@ -171,6 +178,10 @@ func track_anchors(now: int) -> void:
     if menu_ready_us < 0 and scene is Control and scene.get("menu") != null:
         menu_ready_us = now
         append_event("replay_anchor", {"anchor": "menu_ready", "port_micros": now, "source_first_input_micros": source_first_input_us})
+        if OS.has_environment("ASTROLABE_REPLAY_SAVE"):
+            # ASTROLABE_REPLAY_SAVE=original:SaveGame1.cfg (in game/saves) opens Load Game directly.
+            root.set_meta(load("res://game/save_state.gd").LOAD_SOURCE_META, OS.get_environment("ASTROLABE_REPLAY_SAVE"))
+            scene.call("open_game", "res://game/game_session.tscn", scene.get("load_game"))
     if entry_us < 0 and scene is Node3D and bool(scene.get("ready_to_play")):
         entry_us = now
         append_event("replay_anchor", {"anchor": "manoir_entry", "port_micros": now, "source_micros": source_entry_us})
