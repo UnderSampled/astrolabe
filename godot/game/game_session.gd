@@ -286,6 +286,15 @@ func open_level() -> void:
             await get_tree().process_frame
         if not is_inside_tree():
             return
+        if ResourceLoader.load_threaded_get_status(level_path) == ResourceLoader.THREAD_LOAD_FAILED:
+            # As in level_transition: a threaded script preload occasionally
+            # fails to parse and loads on a second try with fresh cache entries.
+            push_warning("Retrying the level load after a threaded load failure.")
+            if ResourceLoader.load_threaded_request(level_path, "PackedScene", false, ResourceLoader.CACHE_MODE_REPLACE_DEEP) == OK:
+                while is_inside_tree() and ResourceLoader.load_threaded_get_status(level_path) == ResourceLoader.THREAD_LOAD_IN_PROGRESS:
+                    await get_tree().process_frame
+                if not is_inside_tree():
+                    return
         if ResourceLoader.load_threaded_get_status(level_path) != ResourceLoader.THREAD_LOAD_LOADED:
             fail("The manor scene failed to load.")
             return
