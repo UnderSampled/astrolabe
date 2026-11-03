@@ -3,7 +3,7 @@ extends SceneTree
 ## Route steps: {"go": [x, y, tolerance]} steers in source axes, {"key": name,
 ## "hold": s}, {"wait": s}, {"until_normal": n, "timeout": s}, {"until_handoff": true},
 ## {"note": text} records a snapshot. "required": true on a step ends the run (exit 3, ROUTE ABORT) if it fails. tools/route_compare.py drives the original.
-const KEYS := {"ArrowLeft": KEY_LEFT, "ArrowRight": KEY_RIGHT, "ArrowUp": KEY_UP, "ArrowDown": KEY_DOWN, "LeftShift": KEY_SHIFT, "LeftControl": KEY_CTRL, "X": KEY_X, "Z": KEY_Z, "Space": KEY_SPACE, "Enter": KEY_ENTER, "F5": KEY_F5}
+const KEYS := {"ArrowLeft": KEY_LEFT, "ArrowRight": KEY_RIGHT, "ArrowUp": KEY_UP, "ArrowDown": KEY_DOWN, "LeftShift": KEY_SHIFT, "LeftControl": KEY_CTRL, "X": KEY_X, "Z": KEY_Z, "Space": KEY_SPACE, "Enter": KEY_ENTER, "F5": KEY_F5, "Tab": KEY_TAB}
 var game: Node
 var log_rows: Array = []
 var started := 0
@@ -52,7 +52,7 @@ func snapshot(note: String) -> void:
 	var at := actor().global_position
 	var brain: Node = game.get("brain")
 	var life: Resource = actor().get("source_hit_points")
-	var row := {"ms": Time.get_ticks_msec() - started, "note": note, "position": [at.x, -at.z, at.y], "action": int(actor().get("current_state")), "normal": int(brain.get("current_normal")), "running": bool(brain.get("running")), "life": int(life.get("current")) if life != null else -1, "gold": actor().get("source_inventory").get("gold")}
+	var row := {"ms": Time.get_ticks_msec() - started, "note": note, "yaw": snappedf(rad_to_deg(heading()), 0.1), "position": [at.x, -at.z, at.y], "action": int(actor().get("current_state")), "normal": int(brain.get("current_normal")), "running": bool(brain.get("running")), "life": int(life.get("current")) if life != null else -1, "gold": actor().get("source_inventory").get("gold")}
 	var camera := get_root().get_viewport().get_camera_3d()
 	if camera != null:
 		row["camera"] = [camera.global_position.x, -camera.global_position.z, camera.global_position.y]
@@ -495,6 +495,40 @@ func run() -> void:
 					for info in emitter.get("voices"):
 						if is_instance_valid(info.player) and info.player.playing:
 							print("VOICE ", emitter.get_parent().name, " ", info.event, " db ", snappedf(info.player.volume_db, 0.1), " bus ", info.bus, " dist ", info.get("distance_volume", -1), " at ", snappedf(info.player.get_playback_position(), 0.1))
+		elif step.has("menu_object"):
+			# Through the real inventory UI: Tab opens it, the item's category is
+			# chosen, its slot takes focus and Enter (ui_accept) confirms; Tab closes.
+			var wanted := int(step["menu_object"])
+			key("Tab", true); await process_frame; key("Tab", false)
+			for i in 30: await process_frame
+			var view: Control = game.get_node("InventoryHost").get("view")
+			ok = view != null and view.visible
+			if ok:
+				var target: Resource = null
+				for value in view.get("items"):
+					if int(value.item_id) == wanted: target = value
+				ok = target != null
+				if ok:
+					view.call("select_category", target.category)
+					await process_frame
+					var slot: Control = null
+					for candidate in view.get("slot_views"):
+						if candidate.get("item") == target: slot = candidate
+					ok = slot != null
+					if ok:
+						slot.grab_focus()
+						await process_frame
+						var accept := InputEventAction.new()
+						accept.action = &"ui_accept"
+						accept.pressed = true
+						Input.parse_input_event(accept)
+						await process_frame
+						accept.pressed = false
+						Input.parse_input_event(accept)
+						for i in 5: await process_frame
+			print("MENU_OBJECT ", wanted, " selected_object=", actor().get("source_inventory").get("selected_object"), " ok=", ok)
+			key("Tab", true); await process_frame; key("Tab", false)
+			for i in 10: await process_frame
 		elif step.has("drops"):
 			# Generated objects of a family over time: {"drops": "fix:/families/23", "seconds": 6}.
 			var drop_end := Time.get_ticks_msec() + int(step.get("seconds", 6.0) * 1000.0)

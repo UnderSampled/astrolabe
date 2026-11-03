@@ -84,6 +84,13 @@ func _item_requested(item_id: int, kind: String) -> void:
         view.report("")
         view.refresh()
     elif kind == "Object":
+        # 0041d010: confirming the selected Object clears it (unequip); any
+        # other Object replaces the selection (0041dd70). Weapons stay selected.
+        if int(view.inventory.get("selected_object")) == item_id:
+            view.inventory.call("unselect_object")
+            view.report("")
+            view.refresh()
+            return
         if int(view.inventory.call("select_object", item_id)) != 1:
             var failure := str(view.inventory.get("last_failure"))
             view.report(failure if not failure.is_empty() else "This object is not admitted to the inventory.")

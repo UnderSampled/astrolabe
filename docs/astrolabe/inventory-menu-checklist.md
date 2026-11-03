@@ -33,11 +33,11 @@ through bindings and sprite lookups.
 - [x] Weapon selection through the screen (`change_weapon`), with the source
   admission check and a message when an item is not admitted.
 - [x] Object selection through the screen (`select_object`), e.g. the key (21).
-- [ ] Unequip: selecting the selected object again. The port keeps it selected;
-  the original's menu behavior is not reconstructed (`Inv_UnselectSelectedObject`
-  exists for the AI only). Needs a live check in the original.
-- [ ] Key through the real UI end to end: Tab, Objects, key, select, close, then
-  the gate opens (stage4_gate.json selects it with a route step instead).
+- [x] Unequip: confirming the selected Object clears it, as the original's
+  inventory confirm handler 0041d010 does; another Object replaces it (0041dd70);
+  a selected Weapon or Magic stays selected (tools/routes/key_menu.json).
+- [x] Key through the real UI end to end: Tab, the key's slot, Enter, Tab; the
+  gate opens and Hype walks through (tools/routes/stage4_gate_ui.json).
 - [ ] Item records: 88 to 104 untouched bytes in each block 10:0 record and a
   1,060-byte run at 0x22c4. Likely per-item presentation (description text,
   sound, sort order); not read.
@@ -50,8 +50,12 @@ through bindings and sprite lookups.
 
 - [x] Frames, fonts and two-line/six-line boxes from block 19:1; voice-timed pages.
 - [x] Space (Button_Hit) advances a page through Hype's AI (Proc_SelectDialog).
-- [ ] Gogoud's in-game dialogue matched to the original: position, frame,
-  fade pacing and page timing. Not compared yet.
+- [x] Gogoud's letterbox dialogue (box 3) matches the original frame for frame at
+  1024x768: bar heights, name and text lines, continuation arrow. Fixed: text
+  started half a glyph left (x 8 to 10 instead of 22); box 3 now starts at its
+  anchor like the style5 chain.
+- [ ] Framed dialogue boxes (box 1, e.g. the Focus Magicum message) and fade and
+  page timing not compared yet.
 - [ ] The 520 and 508-byte gaps between font/frame records in 19:1: probably
   frame or box parameters we have not mapped.
 - [ ] Branching answers, item icons and channel effects in dialogue items:
