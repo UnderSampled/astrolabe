@@ -68,6 +68,7 @@ impl<'a> Iterator for AstWalk<'a> {
                         .push((AstNode::Expression(condition), child_depth));
                 }
                 Statement::Evaluate(value)
+                | Statement::FightSubHitPointsEnemy(value)
                 | Statement::SoundSetMyEffectsVolume(value)
                 | Statement::SetMagicPointsMaximum(value)
                 | Statement::Assign { value, .. }
@@ -309,6 +310,7 @@ impl<'a> Iterator for AstWalk<'a> {
                 | Statement::GoRelative
                 | Statement::KillSelf
                 | Statement::PlayerIsDead
+                | Statement::HoldAfterPrevious
                 | Statement::KillPerso { .. }
                 | Statement::JumpAbsolute
                 | Statement::InventoryUnselectObject

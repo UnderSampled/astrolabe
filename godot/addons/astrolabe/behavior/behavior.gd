@@ -33,6 +33,10 @@ var normal_action_revision: int = 0
 var reflex_action_revision: int = 0
 var normal_rule_claimed: bool = false
 var reflex_rule_claimed: bool = false
+## A rule that held (Proc_SetActionReturn 1, bit 1 in 00522840) is where the
+## next pass starts; earlier rules are skipped once (source storage+7).
+var normal_resume_rule: int = 0
+var reflex_resume_rule: int = 0
 var reflex_controls_tick: bool = false
 var _normal_pending: bool = false
 var _reflex_pending: bool = false
@@ -368,6 +372,7 @@ func change_normal(target: int, defer_entry: bool = false) -> bool:
 	if current_normal == target: return false
 	current_normal = target
 	normal_revision += 1
+	normal_resume_rule = 0
 	_normal_pending = true
 	_normal_deferred = defer_entry
 	# Release the old coroutine even when the new behavior has no schedule.
@@ -402,6 +407,7 @@ func change_reflex(target: int, defer_entry: bool = false) -> bool:
 	if current_reflex == target: return false
 	current_reflex = target
 	reflex_revision += 1
+	reflex_resume_rule = 0
 	_reflex_pending = true
 	_reflex_deferred = defer_entry
 	reflex_tick.emit()

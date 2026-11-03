@@ -639,6 +639,12 @@ fn compile_with_bindings(
                 out,
                 "\nfunc {group}_{id}(token: int) -> void:\n    var schedule_started := false\n    while active_{group}(token):\n        var continue_rules := true"
             )?;
+            if behavior.rules.iter().any(Option::is_some) {
+                writeln!(
+                    out,
+                    "        var first_rule := {group}_resume_rule\n        {group}_resume_rule = 0"
+                )?;
+            }
             for (rule, _) in behavior
                 .rules
                 .iter()
@@ -647,7 +653,7 @@ fn compile_with_bindings(
             {
                 writeln!(
                     out,
-                    "        if continue_rules:\n            continue_rules = await {group}_{id}_rule_{rule}(token)\n            if not active_{group}(token): return"
+                    "        if continue_rules and first_rule <= {rule}:\n            continue_rules = await {group}_{id}_rule_{rule}(token)\n            if not active_{group}(token): return"
                 )?;
             }
             if behavior.schedule.is_some() {
@@ -673,6 +679,7 @@ fn compile_with_bindings(
                     &mut Flow {
                         group,
                         rule: true,
+                        rule_index: rule,
                         local: 0,
                     },
                 )?;
@@ -692,6 +699,7 @@ fn compile_with_bindings(
                     &mut Flow {
                         group,
                         rule: false,
+                        rule_index: 0,
                         local: 0,
                     },
                 )?;
@@ -2488,6 +2496,8 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
 struct Flow {
     group: &'static str,
     rule: bool,
+    /// The rule being compiled, for a hold that resumes at it next frame.
+    rule_index: usize,
     local: usize,
 }
 fn group_name(group: BehaviorGroup) -> &'static str {
@@ -2855,7 +2865,7 @@ fn statements(
             continue;
         }
         match statement {
-            Statement::Evaluate(value) => {
+            Statement::Evaluate(value) | Statement::FightSubHitPointsEnemy(value) => {
                 let value = guarded_expression(out, value, model, depth, flow)?;
                 let local = flow.local;
                 flow.local += 1;
@@ -4535,6 +4545,23 @@ fn statements(
                 )?;
             }
             Statement::Sound { event: None } | Statement::Noop => writeln!(out, "{pad}pass")?,
+            Statement::HoldAfterPrevious => {
+                let group = flow.group;
+                if flow.rule {
+                    writeln!(
+                        out,
+                        "{pad}{group}_rule_claimed = true\n{pad}{group}_resume_rule = {}\n{pad}return false",
+                        flow.rule_index
+                    )?;
+                } else {
+                    writeln!(
+                        out,
+                        "{pad}await {}\n{pad}if not active_{group}(token): {}",
+                        flow.tick(),
+                        flow.exit()
+                    )?;
+                }
+            }
             Statement::Unsupported(fragment) => {
                 let receiver = fragment
                     .receiver

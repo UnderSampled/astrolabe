@@ -179,7 +179,9 @@ impl Parser<'_> {
     fn block(&mut self, indent: u8) -> Result<Vec<Statement>> {
         ensure!(indent <= 64, "AI tree too deep");
         let mut out = Vec::new();
+        let mut hold_pending = false;
         while self.nodes.get(self.at).is_some_and(|n| n.indent >= indent) {
+            let hold_after = std::mem::take(&mut hold_pending);
             let (at, node) = self.take(indent)?;
             let (kind, id) = (node.kind, node.parameter);
             if node.reserved != [0; 2] {
@@ -999,6 +1001,12 @@ impl Parser<'_> {
                 (5, 68) => Statement::WaitFrames(self.expression(indent + 1)?),
                 (4, 207 | 208) => self.change_actor_behavior(id, indent, at)?,
                 (4, 209 | 210) => self.change_behavior(id, indent, false, at)?,
+                (4, 432) => Statement::FightSubHitPointsEnemy(Expression::FightSubtractAndGetHitPoints(
+                    Box::new(Expression::SubtractAndGetHitPoints {
+                        actor: Box::new(self.expression(indent + 1)?),
+                        value: Box::new(self.expression(indent + 1)?),
+                    }),
+                )),
                 (4, 6) => {
                     // The observed return-zero/camera-update pair proceeds to
                     // the camera handler. Locomotion's return-one/behavior
@@ -1034,6 +1042,17 @@ impl Parser<'_> {
                         // the next node's control after masking 0x1c, so policy
                         // 0 clears that node's end-of-rule bits and execution
                         // continues to the following statement: plain sequence.
+                        continue;
+                    } else if return_policy == 1
+                        && self.nodes.get(self.at).is_some_and(|request| {
+                            request.indent == indent
+                                && request.kind == 4
+                                && !matches!(request.parameter, 209 | 210)
+                        })
+                    {
+                        // Policy 1 before a procedure (e.g. Proc_Turn): the
+                        // procedure runs, then its control is forced to hold.
+                        hold_pending = true;
                         continue;
                     } else if return_policy != 1
                         || !self.nodes.get(self.at).is_some_and(|request| {
@@ -1166,6 +1185,9 @@ impl Parser<'_> {
                     format!("unsupported AI statement category {kind} operation {id} at node {at}"),
                 )?),
             });
+            if hold_after {
+                out.push(Statement::HoldAfterPrevious);
+            }
             ensure!(
                 self.nodes.get(self.at).is_none_or(|n| n.indent <= indent),
                 "unexpected AI statement child at node {}",
@@ -1233,6 +1255,8 @@ impl Parser<'_> {
     fn change_actor_behavior(&mut self, id: u32, indent: u8, start: usize) -> Result<Statement> {
         let actor = match self.expression(indent + 1)? {
             Expression::Actor(actor) => actor,
+            // A designer variable holding the actor, e.g. a wolf's partner.
+            Expression::Variable(index) => ActorTarget::Variable(index),
             _ => {
                 return Ok(Statement::Unsupported(self.unsupported_range(
                     start,
@@ -1662,6 +1686,7 @@ impl Parser<'_> {
                 let actor = match (actor.kind, actor.parameter) {
                     (0, 4) => ActorTarget::Keyword(ActorKeyword::SelfActor),
                     (0, 5) => ActorTarget::Keyword(ActorKeyword::MainActor),
+                    (11, variable) => ActorTarget::Variable(variable.try_into()?),
                     (24, _) if id == 56 => match self.codec.actors.get(&actor_at) {
                         Some(actor) => ActorTarget::Reference(actor.clone()),
                         None => {
@@ -2026,8 +2051,22 @@ impl Writer<'_> {
     }
     fn block(&mut self, values: &[Statement], indent: u8) -> Result<()> {
         ensure!(indent <= 64, "AI tree too deep to encode");
-        for s in values {
+        for (index, s) in values.iter().enumerate() {
+            if matches!(values.get(index + 1), Some(Statement::HoldAfterPrevious)) {
+                self.node(4, 6, indent);
+                self.node(12, 1, indent + 1);
+            }
             match s {
+                Statement::HoldAfterPrevious => {}
+                Statement::FightSubHitPointsEnemy(Expression::FightSubtractAndGetHitPoints(inner)) => {
+                    let Expression::SubtractAndGetHitPoints { actor, value } = &**inner else {
+                        bail!("Fight_SubHitPointsEnemy lacks its actor and value");
+                    };
+                    self.node(4, 432, indent);
+                    self.expression(actor, indent + 1)?;
+                    self.expression(value, indent + 1)?;
+                }
+                Statement::FightSubHitPointsEnemy(_) => bail!("malformed Fight_SubHitPointsEnemy"),
                 Statement::Evaluate(value) => {
                     ensure!(
                         matches!(

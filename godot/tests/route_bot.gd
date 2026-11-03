@@ -443,6 +443,19 @@ func run() -> void:
 			var target := brain_of(step["set"][0])
 			ok = target != null
 			if ok: target.set(step["set"][1], step["set"][2])
+		elif step.has("sample"):
+			# Combat probe: Hype's attack flag (dsg_17) and the target's zone 1/2
+			# contacts with sword material 2, every physics frame.
+			var target_body := body_of(str(step["sample"][0]))
+			var target_brain := brain_of(str(step["sample"][0]))
+			var hype_brain := brain_of("hype")
+			var sample_end := Time.get_ticks_msec() + int(float(step["sample"][1]) * 1000.0)
+			if target_body == null: ok = false
+			while ok and Time.get_ticks_msec() < sample_end:
+				await physics_frame
+				print("SAMPLE ", JSON.stringify({"ms": Time.get_ticks_msec(), "dsg_17": hype_brain.get("dsg_17") if hype_brain != null else null,
+					"zone1": target_body.call("source_collide_perso_zde_no_with_type_zde", 1, 2), "zone2": target_body.call("source_collide_perso_zde_no_with_type_zde", 2, 2),
+					"normal": target_brain.get("current_normal") if target_brain != null else null, "reflex": target_brain.get("current_reflex") if target_brain != null else null, "claimed": target_brain.get("reflex_rule_claimed") if target_brain != null else null, "dsg_0": target_brain.get("dsg_0") if target_brain != null else null, "clock": int(target_brain.get("clock_milliseconds")) if target_brain != null else null, "hp": int(target_body.get("source_hit_points").get("current")) if target_body.get("source_hit_points") != null else -1, "distance": snappedf(actor().global_position.distance_to(target_body.global_position), 0.01)}))
 		elif step.has("get"):
 			var target := brain_of(step["get"][0])
 			print("GET ", step["get"], " = ", target.get(step["get"][1]) if target != null else "no brain")
@@ -566,7 +579,7 @@ func run() -> void:
 					for shape in zone_area.find_children("*", "CollisionShape3D", true, false):
 						var p: Vector3 = shape.global_position
 						rows.append([int(shape.get_meta("source_zone", -1)), snappedf(p.x, 0.01), snappedf(-p.z, 0.01), snappedf(p.y, 0.01), snappedf(shape.shape.get("radius") if shape.shape is SphereShape3D else -1.0, 0.01), shape.disabled])
-					print("ZONES ", Time.get_ticks_msec() - started, " ", body.name, " ", JSON.stringify(rows))
+					print("ZONES ", Time.get_ticks_msec() - started, " ", body.name, " state=", body.get("current_state"), " ", JSON.stringify(rows))
 				await physics_frame
 		elif step.has("act"):
 			# Force an action on Hype and sample his heading: {"act": 370, "seconds": 8}

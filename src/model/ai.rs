@@ -120,6 +120,16 @@ pub enum Statement {
     Unsupported(UnsupportedFragment),
     /// Evaluate a source function for its side effects, discarding its result.
     Evaluate(Expression),
+    /// Fight_SubHitPointsEnemy (4-432, 0053dd60): the statement form of
+    /// Func225; same 00460b10 subtraction and 0040c4a0 meter refresh. Holds
+    /// the FightSubtractAndGetHitPoints expression whose result is dropped.
+    FightSubHitPointsEnemy(Expression),
+    /// Proc_SetActionReturn(1) before a procedure: the preceding statement's
+    /// control becomes "hold" (00522750 ORs in bit 1). In a rule, rules stop
+    /// for this frame, the schedule is skipped and the next frame starts at
+    /// this rule (00522840 storage+7); in a schedule, it resumes after the
+    /// statement next frame (00522930). Encoded before that statement.
+    HoldAfterPrevious,
     /// Actor-local life APIs; source byte narrowing happens at the native API.
     SetHitPointsMaximum {
         actor: Expression,
@@ -2014,6 +2024,7 @@ impl Script {
                         expression(milliseconds, variables, depth + 1, count)?
                     }
                     Statement::Evaluate(index)
+                    | Statement::FightSubHitPointsEnemy(index)
                     | Statement::SetMagicPointsMaximum(index)
                     | Statement::SelectArmor(index)
                     | Statement::SetArmorResistance(index) => {
