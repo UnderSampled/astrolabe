@@ -113,6 +113,11 @@ Remaining levels, cutscenes, UI flows and the remaining systems, then fidelity:
 the discrepancies that matter, visual parity, and timing. Recording and replay
 return here if they are worth their cost.
 
+First step (Stephen, scheduled after the 2026-11-03 round): convert every level,
+then build a full-game priority checklist that ranks unsupported or stand-in AI
+entries, record types, byte-coverage gaps and systems by how many levels and
+sites use them.
+
 Baked lighting from the level files (per-instance radiosity colors today; no
 lightmap textures have turned up) stays a proper optional layer: imported as
 real Godot data, on for the original look and off for Godot's modern lighting,
