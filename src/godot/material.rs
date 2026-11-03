@@ -29,6 +29,65 @@ fn full_mip_level_count(mut width: u32, mut height: u32) -> usize {
     levels
 }
 
+/// The next level of an RGBA8 chain, as Godot's Image::generate_mipmaps makes
+/// it: each output pixel averages a 2x2 block, rounding half up; a side of one
+/// pixel repeats its row or column.
+fn half_level(width: u32, height: u32, rgba: &[u8]) -> (u32, u32, Vec<u8>) {
+    let (w, h) = ((width / 2).max(1), (height / 2).max(1));
+    let (right, down) = (usize::from(width > 1), usize::from(height > 1));
+    let at = |x: usize, y: usize, c: usize| u32::from(rgba[(y * width as usize + x) * 4 + c]);
+    let mut out = Vec::with_capacity((w * h * 4) as usize);
+    for y in 0..h as usize {
+        for x in 0..w as usize {
+            let (x0, y0) = (x * 2, y * 2);
+            for c in 0..4 {
+                let sum = at(x0, y0, c)
+                    + at(x0 + right, y0, c)
+                    + at(x0, y0 + down, c)
+                    + at(x0 + right, y0 + down, c);
+                out.push(((sum + 2) >> 2) as u8);
+            }
+        }
+    }
+    (w, h, out)
+}
+
+/// An uncompressed RGBA8 DDS holding the whole chain. Godot loads it as a
+/// native texture with these exact levels; its importer would make its own.
+fn dds(levels: &[(u32, u32, Vec<u8>)]) -> Vec<u8> {
+    let (width, height) = (levels[0].0, levels[0].1);
+    let mut out = Vec::new();
+    let mut put = |value: u32| out.extend(value.to_le_bytes());
+    put(u32::from_le_bytes(*b"DDS "));
+    // Header: size, flags CAPS|HEIGHT|WIDTH|PITCH|PIXELFORMAT|MIPMAPCOUNT.
+    for value in [
+        124,
+        0x2100f,
+        height,
+        width,
+        width * 4,
+        0,
+        levels.len() as u32,
+    ] {
+        put(value);
+    }
+    for _ in 0..11 {
+        put(0);
+    }
+    // Pixel format: RGB|ALPHAPIXELS, 32 bits, byte order R, G, B, A.
+    for value in [32, 0x41, 0, 32, 0xff, 0xff00, 0xff0000, 0xff00_0000] {
+        put(value);
+    }
+    // Caps: COMPLEX|TEXTURE|MIPMAP.
+    for value in [0x401008, 0, 0, 0, 0] {
+        put(value);
+    }
+    for level in levels {
+        out.extend(&level.2);
+    }
+    out
+}
+
 /// The selected palette entry has identity even when another entry has the same
 /// RGB. Hype substitutes its GF color-key RGB into that entry on upload
 /// (00481310, 0049a2e0). Never erase all black pixels or alter canonical samples.
@@ -71,7 +130,7 @@ fn keyed_rgba_level(texture: &Texture, level_index: usize, rgba: &[u8]) -> Vec<u
 }
 
 impl Project {
-    /// Retain supplied source levels as a native Godot ImageTexture. 2D
+    /// Retain supplied source levels as a DDS mip chain. 2D
     /// consumers continue to use their existing base PNGs and filters.
     pub(super) fn retain_texture_mips(
         &mut self,
@@ -111,31 +170,21 @@ impl Project {
 
     fn stage_mip_inputs(
         &mut self,
-        path: &AssetPath,
+        _path: &AssetPath,
         texture: &Texture,
     ) -> Result<Vec<TextureMipInput>> {
-        let input_id = self.next_mip_input;
-        self.next_mip_input += 1;
-        let mut inputs = Vec::with_capacity(texture.levels.len());
-        for (index, level) in texture.levels.iter().enumerate() {
-            let base_path = disk_path(&self.selection, path, "png");
-            let relative = if index == 0 && self.generated.contains(&base_path) {
-                base_path
-            } else {
-                let rgba = texture.rgba8(index)?;
-                let png = png(level.width, level.height, &rgba)?;
-                let relative =
-                    format!("build_inputs/texture-mips/{input_id:06}/level-{index:02}.png");
-                self.write_build_input(&relative, &png)?;
-                relative
-            };
-            inputs.push(TextureMipInput {
-                width: level.width,
-                height: level.height,
-                path: relative,
-            });
-        }
-        Ok(inputs)
+        texture
+            .levels
+            .iter()
+            .enumerate()
+            .map(|(index, level)| {
+                Ok(TextureMipInput {
+                    width: level.width,
+                    height: level.height,
+                    rgba: texture.rgba8(index)?,
+                })
+            })
+            .collect()
     }
 
     fn ensure_mip_texture_resource(
@@ -169,25 +218,20 @@ impl Project {
         );
         let generated_levels = total_levels - inputs.len();
         let suffix = if use_keyed {
-            "color-key.mips.tres"
+            "color-key.mips.dds"
         } else {
-            "mips.tres"
+            "mips.dds"
         };
         let output = disk_path(&self.selection, path, suffix);
-        self.reserve(&output)?;
-        let input_paths = inputs
-            .iter()
-            .map(|input| quoted(&format!("res://{}", input.path)))
-            .collect::<Vec<_>>()
-            .join(", ");
-        let output_res = format!("res://{output}");
-        let append_tail = generated_levels > 0;
-        let expected_mips = total_levels - 1;
-        self.mip_texture_build_calls.push(format!(
-            "\tif not build_mip_texture(PackedStringArray([{input_paths}]), {}, {append_tail}, {expected_mips}):\n\t\tpush_error({})\n\t\tquit(1)\n\t\treturn",
-            quoted(&output_res),
-            quoted(&format!("Failed to build source mip resource for {path}")),
-        ));
+        let mut levels = inputs
+            .into_iter()
+            .map(|input| (input.width, input.height, input.rgba))
+            .collect::<Vec<_>>();
+        while levels.len() < total_levels {
+            let last = levels.last().expect("a chain has a base level");
+            levels.push(half_level(last.0, last.1, &last.2));
+        }
+        self.write(output.clone(), &dds(&levels))?;
         let source_kind = if use_keyed { "color-keyed " } else { "" };
         let tail_note = if generated_levels == 0 {
             "all supplied levels preserved"
@@ -195,8 +239,8 @@ impl Project {
             "missing tail generated from the last supplied level"
         };
         self.diagnostics.push(format!(
-            "{output}: {source_kind}ImageTexture retains {} supplied OpenSpace mip level(s); {generated_levels} tail level(s) generated ({tail_note})",
-            inputs.len()
+            "{output}: {source_kind}DDS retains {} supplied OpenSpace mip level(s); {generated_levels} tail level(s) generated ({tail_note})",
+            total_levels - generated_levels
         ));
         self.texture_mip_resources.insert(cache_key, output.clone());
         Ok(Some(output))
@@ -236,19 +280,16 @@ impl Project {
         texture: &Texture,
         levels: &[Vec<u8>],
     ) -> Result<Vec<TextureMipInput>> {
-        let input_id = self.next_mip_input;
-        self.next_mip_input += 1;
-        let mut inputs = Vec::with_capacity(texture.levels.len());
-        for (index, (level, rgba)) in texture.levels.iter().zip(levels).enumerate() {
-            let relative = format!("build_inputs/texture-mips/{input_id:06}/level-{index:02}.png");
-            self.write_build_input(&relative, &png(level.width, level.height, rgba)?)?;
-            inputs.push(TextureMipInput {
+        Ok(texture
+            .levels
+            .iter()
+            .zip(levels)
+            .map(|(level, rgba)| TextureMipInput {
                 width: level.width,
                 height: level.height,
-                path: relative,
-            });
-        }
-        Ok(inputs)
+                rgba: rgba.clone(),
+            })
+            .collect())
     }
 
     pub fn write_material(&mut self, material: &Material) -> Result<()> {

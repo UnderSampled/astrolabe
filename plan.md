@@ -113,6 +113,13 @@ Remaining levels, cutscenes, UI flows and the remaining systems, then fidelity:
 the discrepancies that matter, visual parity, and timing. Recording and replay
 return here if they are worth their cost.
 
+Baked lighting from the level files (per-instance radiosity colors today; no
+lightmap textures have turned up) stays a proper optional layer: imported as
+real Godot data, on for the original look and off for Godot's modern lighting,
+behind the existing `astrolabe/rendering/parity_lighting` switch. It is never
+dropped. Textures are already real files: base PNGs import normally and source
+mip chains are DDS files Godot loads directly.
+
 ## Working loop
 
 1. Pick the thing that most blocks play.

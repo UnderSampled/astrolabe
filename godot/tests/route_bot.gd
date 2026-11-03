@@ -357,11 +357,13 @@ func run() -> void:
 	else:
 		root.set_meta(load("res://game/save_state.gd").LOAD_SOURCE_META, route["start"])
 		menu.call("open_game", "res://game/game_session.tscn", menu.get("load_game"))
+	var opened := Time.get_ticks_msec()
 	var deadline := Time.get_ticks_msec() + 60000
 	while (current_scene == null or current_scene == menu or not bool(current_scene.get("ready_to_play"))) and Time.get_ticks_msec() < deadline:
 		await process_frame
 	game = current_scene
 	started = Time.get_ticks_msec()
+	print("LOADTIME ", JSON.stringify({"start": route.get("start", "new"), "ms": started - opened}))
 	for step: Dictionary in route["steps"]:
 		var ok := true
 		if step.has("plan"):
@@ -504,8 +506,13 @@ func run() -> void:
 			await create_timer(step["wait"]).timeout
 		elif step.has("until_level"):
 			var end := Time.get_ticks_msec() + int(step.get("timeout", 60.0) * 1000.0)
-			while str(game.get("level").get_meta("source_level_name", "")) != str(step["until_level"]) and Time.get_ticks_msec() < end: await physics_frame
+			var load_began := -1
+			while (str(game.get("level").get_meta("source_level_name", "")) != str(step["until_level"]) or not bool(game.get("ready_to_play"))) and Time.get_ticks_msec() < end:
+				if load_began < 0 and bool(game.get("loading")): load_began = Time.get_ticks_msec()
+				await physics_frame
 			ok = str(game.get("level").get_meta("source_level_name", "")) == str(step["until_level"])
+			# From the session's loading flag to play in the new level: the exit fade and the load.
+			if ok and load_began >= 0: print("LOADTIME ", JSON.stringify({"level": step["until_level"], "ms": Time.get_ticks_msec() - load_began}))
 		elif step.has("save"):
 			game.call("save_game")
 			await process_frame

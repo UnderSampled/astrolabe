@@ -28,6 +28,7 @@ window/size/viewport_height=768
 [editor]
 
 import/use_multiple_threads=false
+export/convert_text_resources_to_binary=true
 
 [rendering]
 

@@ -44,3 +44,4 @@ __pycache__/
 # Rust build artifacts
 /target/
 /godot/game/original_save_import.source-diagnostics.json
+/build/

@@ -321,8 +321,11 @@ publication, preserving consumer settings, authored files and unrelated levels.
 A failed scope leaves consumer generated content unchanged. Destination cache
 import occurs after publication; its failure is reported separately.
 
-Private raw mip PNGs have a `.gdignore` beneath `build_inputs/texture-mips/`;
-the conversion builder reads them directly with `Image.load_from_file`. Native
-Animation inputs and published resources retain ordinary resource visibility.
+Textures whose source supplies its own mip levels are written as uncompressed
+RGBA8 `*.mips.dds` files beside the base PNG; 3D materials use them. Godot loads
+DDS natively with the file's levels, where its PNG importer would make its own.
+A missing tail is averaged as Godot's `Image.generate_mipmaps` does
+(tests/texture_mips.rs checks both). Base PNGs stay imported textures for 2D use.
+Native Animation inputs and published resources retain ordinary resource visibility.
 Editor import gets one minute per2,000 declared outputs, bounded to one through
 ten minutes; the native resource builder has its separate360-second deadline.

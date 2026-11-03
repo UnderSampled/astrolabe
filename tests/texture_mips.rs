@@ -203,10 +203,10 @@ fn source_mip_chains_survive_rete_and_native_godot_projection() -> Result<()> {
     let preflight = temp.path().join("preflight");
     let syntax_probe = include_str!("check_texture_mips.gd")
         .replace("FULL_PNG", "res://placeholder.png")
-        .replace("FULL_MIPS", "res://placeholder.mips.tres")
-        .replace("PARTIAL_MIPS", "res://placeholder-partial.mips.tres")
-        .replace("BASE_MIPS", "res://placeholder-base.mips.tres")
-        .replace("KEYED_MIPS", "res://placeholder-keyed.mips.tres")
+        .replace("FULL_MIPS", "res://placeholder.mips.dds")
+        .replace("PARTIAL_MIPS", "res://placeholder-partial.mips.dds")
+        .replace("BASE_MIPS", "res://placeholder-base.mips.dds")
+        .replace("KEYED_MIPS", "res://placeholder-keyed.mips.dds")
         .replace("FULL_BYTES", "PackedByteArray()")
         .replace("PARTIAL_PREFIX", "PackedByteArray()")
         .replace("PARTIAL_LAST", "PackedByteArray()")
@@ -229,20 +229,20 @@ fn source_mip_chains_survive_rete_and_native_godot_projection() -> Result<()> {
     }
     let manifest = project.finish(&engine)?;
     assert!(manifest.diagnostics.iter().any(|note| {
-        note.contains("partial.gf.mips.tres") && note.contains("1 tail level(s) generated")
+        note.contains("partial.gf.mips.dds") && note.contains("1 tail level(s) generated")
     }));
     assert!(manifest.diagnostics.iter().any(|note| {
-        note.contains("base_only.gf.mips.tres") && note.contains("3 tail level(s) generated")
+        note.contains("base_only.gf.mips.dds") && note.contains("3 tail level(s) generated")
     }));
     assert!(manifest.diagnostics.iter().any(|note| {
-        note.contains("full.gf.mips.tres") && note.contains("0 tail level(s) generated")
+        note.contains("full.gf.mips.dds") && note.contains("0 tail level(s) generated")
     }));
 
     let full_png = asset_path(&manifest, "full.gf.png")?;
-    let full_mips = asset_path(&manifest, "full.gf.mips.tres")?;
-    let partial_mips = asset_path(&manifest, "partial.gf.mips.tres")?;
-    let base_mips = asset_path(&manifest, "base_only.gf.mips.tres")?;
-    let keyed_mips = asset_path(&manifest, "keyed.gf.color-key.mips.tres")?;
+    let full_mips = asset_path(&manifest, "full.gf.mips.dds")?;
+    let partial_mips = asset_path(&manifest, "partial.gf.mips.dds")?;
+    let base_mips = asset_path(&manifest, "base_only.gf.mips.dds")?;
+    let keyed_mips = asset_path(&manifest, "keyed.gf.color-key.mips.dds")?;
     let check = include_str!("check_texture_mips.gd")
         .replace("FULL_PNG", &format!("res://{full_png}"))
         .replace("FULL_MIPS", &format!("res://{full_mips}"))
