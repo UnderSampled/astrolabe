@@ -46,7 +46,14 @@ func _process(_delta: float) -> void:
     if _select_press_claimed and (not InputMap.has_action(&"Button_Hit") or not Input.is_action_pressed(&"Button_Hit")):
         _select_press_claimed = false
 
+var inventory_open := false
+
+func set_inventory_open(value: bool) -> void:
+    inventory_open = value
+    _layout()
+
 func _ready() -> void:
+    add_to_group(&"source_hud_screen")
     source_level = get_parent()
     hud_slots = (load("res://addons/astrolabe/ui/hud_slots.gd") as GDScript).new()
     hud.add_child(hud_slots)
@@ -104,9 +111,11 @@ func _register_catalogues() -> void:
 func _layout() -> void:
     canvas.scale = get_viewport().get_visible_rect().size / Vector2(640, 480)
     bars.visible = widescreen
-    hud.suppressed = widescreen
+    # The source inventory state draws its own panel instead of the HUD.
+    hud.suppressed = widescreen or inventory_open
     hud.refresh()
-    hud_slots.suppressed = widescreen
+    hud_slots.suppressed = widescreen or inventory_open
+    hud_slots.refresh()
     fade.position = Vector2(0, 60 if widescreen else 0)
     fade.size = Vector2(640, 360 if widescreen else 480)
 

@@ -54,6 +54,7 @@ func open_inventory() -> bool:
     owns_pause = true
     get_tree().paused = true
     view.show()
+    get_tree().call_group(&"source_hud_screen", "set_inventory_open", true)
     view.report("")
     view.focus_initial()
     return true
@@ -62,6 +63,7 @@ func close_inventory() -> void:
     if is_instance_valid(view):
         view.reset_motion()
         view.hide()
+    get_tree().call_group(&"source_hud_screen", "set_inventory_open", false)
     if owns_pause and is_inside_tree(): get_tree().paused = false
     owns_pause = false
 
