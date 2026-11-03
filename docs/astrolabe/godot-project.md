@@ -318,7 +318,11 @@ evidence, not a blanket waiting period for all adapters to finish.
 publishes their owned closures together only after all scopes succeed. The
 ordinary generated-file collision/sharing guards apply to this grouped
 publication, preserving consumer settings, authored files and unrelated levels.
-A failed scope leaves consumer generated content unchanged. Destination cache
+A failed scope leaves consumer generated content unchanged. When a publication changes a shared
+file that another selection also owns, that selection is listed under `stale` in
+the generated manifest (with a diagnostic) instead of blocking the publication;
+regenerating it (`astrolabe port --level <name>`) clears the mark, and the gate
+refuses stale content. Destination cache
 import occurs after publication; its failure is reported separately.
 
 Textures whose source supplies its own mip levels are written as uncompressed

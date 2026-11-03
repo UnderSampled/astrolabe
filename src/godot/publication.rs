@@ -78,6 +78,12 @@ pub(super) fn publish_scopes(
         diagnostics,
         support_interface: super::support::INTERFACE,
         selections,
+        stale: old
+            .stale
+            .iter()
+            .filter(|key| !selected.contains_key(*key))
+            .cloned()
+            .collect(),
     };
     for path in &retained {
         if !generated.contains(path) {
@@ -102,11 +108,16 @@ pub(super) fn publish_scopes(
                 destination.display()
             );
         }
-        if other.contains(path) {
-            ensure!(
-                old.files.get(path) == Some(&hash),
-                "shared generated resource changed while an unselected level depends on it: {path}; regenerate those levels together with compatible inputs"
-            );
+        if other.contains(path) && old.files.get(path) != Some(&hash) {
+            // The other owners keep their content, but it was built against the
+            // old shared file: mark them for regeneration instead of refusing.
+            for (key, owned) in &old.selections {
+                if !selected.contains_key(key) && owned.contains(path) && manifest.stale.insert(key.clone()) {
+                    manifest.diagnostics.push(format!(
+                        "shared generated resource {path} changed; regenerate selection {key}"
+                    ));
+                }
+            }
         }
         manifest.files.insert(path.clone(), hash);
     }
@@ -159,7 +170,7 @@ fn validate_output_path(root: &Path, path: &str) -> Result<()> {
 mod tests {
     use super::*;
     #[test]
-    fn selected_closures_preserve_unselected_content_and_preflight_shared_edits() -> Result<()> {
+    fn selected_closures_preserve_unselected_content_and_mark_shared_dependents_stale() -> Result<()> {
         let output = tempfile::tempdir()?;
         let stage = tempfile::tempdir()?;
         let shared = "generated/hype/shared/prop.tres";
@@ -184,13 +195,11 @@ mod tests {
         publish_selection("a", &[shared, a])?;
         assert_eq!(fs::read(output.path().join(b))?, b.as_bytes());
         write_atomic(&stage.path().join(shared), b"changed shared resource")?;
-        assert!(
-            publish_selection("a", &[shared, a])
-                .unwrap_err()
-                .to_string()
-                .contains("unselected level")
-        );
-        assert_eq!(fs::read(output.path().join(shared))?, shared.as_bytes());
+        let changed = publish_selection("a", &[shared, a])?;
+        assert_eq!(fs::read(output.path().join(shared))?, b"changed shared resource");
+        assert!(changed.stale.contains("b"), "level b was not marked for regeneration");
+        let refreshed = publish_selection("b", &[shared, b])?;
+        assert!(refreshed.stale.is_empty(), "regenerating b did not clear its mark");
         publish_selection("a", &[a])?;
         assert!(
             output.path().join(shared).exists(),

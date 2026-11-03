@@ -66,6 +66,10 @@ pub struct Manifest {
     /// Active-level closures; a shared resource can have several owners.
     #[serde(default)]
     pub selections: BTreeMap<String, std::collections::BTreeSet<String>>,
+    /// Selections whose shared files another publication changed; they must be
+    /// regenerated before their content is consistent again.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeSet::is_empty")]
+    pub stale: std::collections::BTreeSet<String>,
 }
 
 mod export;

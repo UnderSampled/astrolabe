@@ -125,6 +125,9 @@ def main():
     manifest = root/'godot/generated/astrolabe-manifest.json'
     if not manifest.is_file() or json.loads(manifest.read_text())['support_interface'] != version:
         sys.exit('generated content is missing or stale: run target/release/astrolabe prepare-game disc godot')
+    stale = json.loads(manifest.read_text()).get('stale', [])
+    if stale:
+        sys.exit(f'generated selections {stale} were built against older shared files: regenerate them (astrolabe port --level ...)')
     shutil.rmtree(work, ignore_errors=True)
     (work/'tmp').mkdir(parents=True)
     prepare_save()
