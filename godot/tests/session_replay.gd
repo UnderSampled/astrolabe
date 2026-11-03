@@ -350,6 +350,7 @@ func run() -> void:
         track_replay_anchors(elapsed_us())
         apply_resync(elapsed_us())
         if next_input >= source_inputs.size() and anchors.back()["port_us"] >= 0: break
+        if OS.has_environment("ASTROLABE_REPLAY_UNTIL_US") and entry_us >= 0 and elapsed_us() > entry_us + int(OS.get_environment("ASTROLABE_REPLAY_UNTIL_US")) - source_entry_us: break
         if entry_us < 0 and elapsed_us() >= ENTRY_DEADLINE_US: break
         var now := elapsed_us()
         if previous_iteration_us >= 0 and now - previous_iteration_us > 500000:
@@ -359,9 +360,17 @@ func run() -> void:
             })
         previous_iteration_us = now
         while next_input < source_inputs.size():
-            var due := scheduled_us(source_inputs[next_input])
+            var input: Dictionary = source_inputs[next_input]
+            # The original's opening can outlast the port's. A key pressed in its
+            # last dialogue would reach the port's gameplay, where it means
+            # something else, so it is dropped once the port has handed over.
+            if not anchors.is_empty() and anchors[0]["kind"] == "control" and int(anchors[0]["port_us"]) >= 0 and int(input["at_micros"]) < int(anchors[0]["source_us"]) and int(input["at_micros"]) > source_entry_us:
+                append_event("input_gap", {"reason": "pre-handoff input after the port's handoff", "source": input})
+                next_input += 1
+                continue
+            var due := scheduled_us(input)
             if due < 0 or due > now: break
-            dispatch_input(source_inputs[next_input])
+            dispatch_input(input)
             next_input += 1
         if now >= next_state_us:
             append_event("state", {"state": current_state(), "consistency": "process_frame_sample", "completed_update": false})
