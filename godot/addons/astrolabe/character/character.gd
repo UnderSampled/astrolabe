@@ -205,6 +205,10 @@ func _configure_motion() -> void:
         # The source actor rounds shallow contacts at finite wall edges.
         # Godot's default 15-degree minimum stops Hype at the manoir wall end.
         wall_min_slide_angle = 0.0
+        # Contacts count as ground above the card's slope limit, including the
+        # rounded normal of an edge: Hype stands on corners at nz 0.52 to 0.58.
+        if current_mechanics != null and float(current_mechanics.slope_limit) > 0.0:
+            floor_max_angle = acos(float(current_mechanics.slope_limit))
     if motion_enabled and physical_environment != null:
         var vertical: Vector3 = physical_environment.vertical
         assert(vertical.length_squared() > 0.0)
