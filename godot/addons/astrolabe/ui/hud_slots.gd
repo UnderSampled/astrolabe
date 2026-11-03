@@ -7,6 +7,7 @@ const ITEM_DIRECTORY := "res://generated/hype/shared/inventory/en/"
 ## Source rows 22 (Object) and 10 (Weapon): left, top, width, height.
 const OBJECT_RECT := Rect2(269, 404, 48, 60)
 const WEAPON_RECT := Rect2(10, 360, 48, 48)
+const COUNT_GLYPH_OFFSET := Vector2(5.6, -12.6)
 @export var actor: Node
 var suppressed: bool = false
 var _requested := {"selected_object": false, "weapon": false, "life": false, "armor": false, "magic": false, "cash": false}
@@ -37,10 +38,13 @@ func _ready() -> void:
         icon.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
         icon.visible = false
         add_child(icon)
-    # Stand-in: the source count text offsets live in Fix.gpt and are not yet
-    # extracted, so the count sits below the weapon image. Font: the HUD counter.
-    _weapon_count.position = WEAPON_RECT.position + Vector2(0, WEAPON_RECT.size.y)
-    _weapon_count.size = Vector2(WEAPON_RECT.size.x + 24, 28)
+    # FUN_0040ca40 anchors the count at the weapon row's corner plus the Fix.sda
+    # text offset, then FON projects it in 3D (not ported). Stand-in: the label
+    # sits at a measured offset from that anchor, matched to the linear take's
+    # frame 469 (glyph box within 1 px). Font: the HUD counter.
+    var anchor := get_parent().get_node_or_null("Source/WeaponCountAnchor") as Control
+    _weapon_count.position = (anchor.position if anchor != null else WEAPON_RECT.position) + COUNT_GLYPH_OFFSET
+    _weapon_count.size = Vector2(128, 28)
     _weapon_count.mouse_filter = Control.MOUSE_FILTER_IGNORE
     _weapon_count.visible = false
     var counter := get_parent().get_node_or_null("Source/CurrencyCount") as Label

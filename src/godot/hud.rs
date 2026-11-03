@@ -263,6 +263,17 @@ fn emit(
         None,
     )?;
 
+    // FUN_0040ca40 draws the weapon count at row 10's corner plus the second
+    // Fix.sda text offset (DAT_0060f5b0); hud_slots places its label there.
+    let weapon_row = table[10];
+    writeln!(
+        scene,
+        "\n[node name=\"WeaponCountAnchor\" type=\"Control\" parent=\"Source\"]\nlayout_mode = 0\noffset_left = {:?}\noffset_top = {:?}\noffset_right = {:?}\noffset_bottom = {:?}\nmouse_filter = 2",
+        weapon_row[0] + value.text_offsets[1][0],
+        weapon_row[1] + value.text_offsets[1][1],
+        weapon_row[0] + value.text_offsets[1][0],
+        weapon_row[1] + value.text_offsets[1][1],
+    )?;
     let currency_font = value
         .currency_font
         .as_ref()
@@ -300,6 +311,9 @@ fn emit(
     $Source/EnemyMeter1Fill,
     $Source/EnemyMeter2Fill,
 ]
+## Fix panel descriptor 1, the right-edge frame: FUN_0040c4a0 enables it with
+## the first enemy row and FUN_0040c8a0 disables it once no row remains.
+@onready var _enemy_panel: Control = $Source/Panel1
 var _life_fill_atlas: AtlasTexture
 var _life_remainder_atlas: AtlasTexture
 var _enemy_fill_atlases: Array[AtlasTexture] = []
@@ -367,6 +381,7 @@ func refresh() -> void:
     for slot in _enemy_fills.size():
         _enemy_backgrounds[slot].visible = _enemy_active[slot] and not suppressed
         _enemy_fills[slot].visible = _enemy_active[slot] and _enemy_fill_active[slot] and not suppressed
+    _enemy_panel.visible = _enemy_active.has(true) and not suppressed
     var show_cash := bool(_requested.get("cash", false)) and not suppressed
     _currency_icon.visible = show_cash
     _currency_label.visible = _last_currency_count >= 0 and show_cash
