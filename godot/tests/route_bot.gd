@@ -495,6 +495,16 @@ func run() -> void:
 					for info in emitter.get("voices"):
 						if is_instance_valid(info.player) and info.player.playing:
 							print("VOICE ", emitter.get_parent().name, " ", info.event, " db ", snappedf(info.player.volume_db, 0.1), " bus ", info.bus, " dist ", info.get("distance_volume", -1), " at ", snappedf(info.player.get_playback_position(), 0.1))
+		elif step.has("drops"):
+			# Generated objects of a family over time: {"drops": "fix:/families/23", "seconds": 6}.
+			var drop_end := Time.get_ticks_msec() + int(step.get("seconds", 6.0) * 1000.0)
+			while Time.get_ticks_msec() < drop_end:
+				for body in game.get("level").find_children("*", "CharacterBody3D", true, false):
+					if str(body.get_meta("source_family", "")).begins_with(str(step["drops"])):
+						var p: Vector3 = body.global_position
+						var b: Node = body.get_node_or_null("Brain")
+						print("DROP ", Time.get_ticks_msec() - started, " ", body.name, " ", JSON.stringify({"at": [snappedf(p.x, 0.01), snappedf(-p.z, 0.01), snappedf(p.y, 0.01)], "motion": body.get("motion_enabled"), "floor": body.is_on_floor(), "v": snappedf(body.velocity.y, 0.01), "ext": snappedf(body.get("external_velocity").y, 0.01), "visible": body.is_visible_in_tree(), "normal": b.get("current_normal") if b else -1, "dsg_0": b.get("dsg_0") if b else null, "contacts": body.get_slide_collision_count(), "layer": body.collision_layer, "mask": body.collision_mask}))
+				await create_timer(0.25).timeout
 		elif step.has("watch"):
 			await watch(float(step["watch"]), step.get("actors", []), step.get("press", ""), step.get("fields", []))
 		elif step.has("shot"):
