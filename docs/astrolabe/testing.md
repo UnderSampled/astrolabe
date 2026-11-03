@@ -183,3 +183,11 @@ that line keeps bytes opaque (it mentions unknown, preserved, opaque or raw). Si
 slice a whole block directly are listed per block rather than attributed per byte, so
 those blocks report some read bytes as untouched. Without the variable the parser
 records nothing.
+
+## Exported-build smoke check
+
+`tools/export_smoke.py [release|debug]` exports the Linux preset with the standard
+4.7.2 templates and runs the built game with `ASTROLABE_SMOKE=new`: the bootstrap
+starts a New Game and `game/smoke_check.gd` exits 0 once the Manoir is playable
+(1 after a minute). Exported templates ignore `--script`, so route-bot checks
+cannot drive an exported game; a game driven that way just sits at the main menu.

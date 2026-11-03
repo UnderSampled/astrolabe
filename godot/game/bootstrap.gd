@@ -84,6 +84,10 @@ func _ready() -> void:
         details.text = str(root.get_meta(LEVEL_END_META))
         root.remove_meta(LEVEL_END_META)
         status.show()
+    if OS.get_environment("ASTROLABE_SMOKE") == "new" and not new_game.disabled:
+        var check: Node = load("res://game/smoke_check.gd").new()
+        root.add_child.call_deferred(check)
+        open_game.call_deferred("res://game/new_game.tscn", new_game)
 
 func _show_menu_error() -> void:
     status.show()

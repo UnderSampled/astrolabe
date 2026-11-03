@@ -173,6 +173,8 @@ const STARTER: &[(&str, &[u8])] = assets![
     "game/level_transition.gd.uid",
     "game/script_warmup.gd",
     "game/script_warmup.gd.uid",
+    "game/smoke_check.gd",
+    "game/smoke_check.gd.uid",
     "game/inventory_host.gd",
     "game/inventory_host.gd.uid",
     "game/pause_host.gd",
