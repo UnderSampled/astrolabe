@@ -1069,6 +1069,25 @@ impl GameSession {
         Err(failure.context("no read attempted")?)
     }
 
+    /// The active viewport camera, read while the game keeps running, like the
+    /// actor sample: pose, field of view, clipping and the camera's address as
+    /// its identity. A torn read is retried up to three times.
+    pub fn observe_active_camera_running(
+        &self,
+    ) -> Result<astrolabe::openspace::level::live::ActiveCameraObservation> {
+        self.check()?;
+        let build = HypeBuild::verified(&self.config.exe_sha256)?;
+        let mut failure = None;
+        for _ in 0..3 {
+            let mut memory = crate::linux::RunningRead::new(&self.process);
+            match build.active_camera(&mut memory) {
+                Ok(camera) => return Ok(camera),
+                Err(error) => failure = Some(error),
+            }
+        }
+        Err(failure.context("no read attempted")?)
+    }
+
     /// Focus once before a functional input schedule. Gameplay events use the
     /// same guarded private-display XTest path as precision replay.
     pub fn prepare_physical_input(&mut self) -> Result<()> {

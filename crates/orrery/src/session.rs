@@ -1050,8 +1050,11 @@ fn run_loop(
                     if state["phase"] == 9 {
                         match game.observe_main_actor_with_ai_timed() {
                             Ok((sample, pause)) => {
+                                // Fixed-camera shots need the camera, not just Hype.
+                                let camera = game.observe_active_camera_running().ok();
                                 writer.append(game.elapsed().as_micros(), "actor", json!({
                                 "actor":sample.actor,
+                                "camera":camera,
                                 "normal_behavior":sample.normal,
                                 "reflex_behavior":sample.reflex,
                                 "ai_evidence":"sampled_selection_only; transient transitions unobserved",
