@@ -325,6 +325,12 @@ func sound_fade_in_object(actor: Node3D, target: int, duration_ms: int, event: R
 	if event != null: sound_requested.emit(event.identity)
 	return true
 
+## Fight_RemoveAndReadHitPointsEnemy refreshes the enemy health bars.
+func source_enemy_meter_hit(target: Variant) -> void:
+	var ui := source_ui()
+	if ui != null and ui.has_method("source_enemy_meter_hit") and typeof(target) == TYPE_OBJECT and is_instance_valid(target):
+		ui.call("source_enemy_meter_hit", target)
+
 func source_ui() -> Node:
 	var ancestor := get_parent()
 	while ancestor != null:

@@ -27,8 +27,22 @@ var _source_fade_direction: int = 0
 var _authored_items: Array[Resource] = []
 var _catalogues: Array[Translation] = []
 var _select_press_claimed: bool = false
+## Enemy health bars as the source keeps them (0040c4a0, 0040c8a0): at most
+## three rows of {actor, fraction, at}; a hit refreshes its row or appends one,
+## dropping the oldest at three; a row expires 5 s after its last hit.
+const ENEMY_METER_ROWS := 3
+const ENEMY_METER_TIMEOUT_MS := 5000
+var _enemy_rows: Array[Dictionary] = []
 
 func _process(_delta: float) -> void:
+    if not _enemy_rows.is_empty():
+        var now := Time.get_ticks_msec()
+        var kept: Array[Dictionary] = []
+        for row in _enemy_rows:
+            if now - int(row["at"]) <= ENEMY_METER_TIMEOUT_MS: kept.append(row)
+        if kept.size() != _enemy_rows.size():
+            _enemy_rows = kept
+            _show_enemy_rows()
     if _select_press_claimed and (not InputMap.has_action(&"Button_Hit") or not Input.is_action_pressed(&"Button_Hit")):
         _select_press_claimed = false
 
@@ -324,3 +338,27 @@ func _exit_tree() -> void:
     if is_instance_valid(adopted_screen): adopted_screen.release_level(source_level)
     elif is_instance_valid(dialogue) and is_instance_valid(location_title): source_cancel_dialog()
     for catalogue in _catalogues: TranslationServer.remove_translation(catalogue)
+
+## Fight_RemoveAndReadHitPointsEnemy: show the target's life on an enemy row.
+func source_enemy_meter_hit(target: Node) -> void:
+    if is_instance_valid(adopted_screen):
+        adopted_screen.source_enemy_meter_hit(target)
+        return
+    if not is_instance_valid(target) or not target.has_method("source_hit_points_ready") or not target.source_hit_points_ready(): return
+    var life: Resource = target.get("source_hit_points")
+    var fraction := float(int(life.current) & 0xff) / float(maxi(int(life.maximum) & 0xff, 1))
+    for row in _enemy_rows:
+        if row["actor"] == target:
+            row["fraction"] = fraction
+            row["at"] = Time.get_ticks_msec()
+            _show_enemy_rows()
+            return
+    if _enemy_rows.size() == ENEMY_METER_ROWS: _enemy_rows.pop_front()
+    _enemy_rows.append({"actor": target, "fraction": fraction, "at": Time.get_ticks_msec()})
+    _show_enemy_rows()
+
+func _show_enemy_rows() -> void:
+    if not hud.has_method("set_enemy_meter"): return
+    for slot in ENEMY_METER_ROWS:
+        if slot < _enemy_rows.size(): hud.call("set_enemy_meter", slot, float(_enemy_rows[slot]["fraction"]))
+        else: hud.call("clear_enemy_meter", slot)

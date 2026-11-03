@@ -1351,7 +1351,12 @@ fn guarded_expression(
             format!("distance_value_{id}")
         }
         Expression::FightSubtractAndGetHitPoints(inner) => {
-            guarded_expression(out, inner, model, depth, flow)?
+            // The inner subtraction captures its target as damage_actor_{id};
+            // the source then refreshes that enemy's health bar (0040c4a0).
+            let id = flow.local;
+            let remaining = guarded_expression(out, inner, model, depth, flow)?;
+            writeln!(out, "{pad}source_enemy_meter_hit(damage_actor_{id})")?;
+            remaining
         }
         Expression::SeePositionWithOffset { target, offset } => format!(
             "character().source_see_position(Vector3({}), Vector3({}))",
