@@ -1430,6 +1430,11 @@ func _collide_with_actor_zones() -> void:
 ## step. CharacterBody3D publishes the corresponding native result through its
 ## slide contacts; AI conditions run after _physics_process has moved the body.
 func source_collide_with_nothing() -> bool:
+    # 00533d20 reads the actor's dynamics collision report (0052ec80); an actor
+    # without one answers false to every collision condition, Nothing included.
+    # An actor the port does not simulate has no report either, so a standing
+    # thief is not taken for airborne.
+    if not motion_enabled: return false
     return get_slide_collision_count() == 0
 
 ## Resolve a compiled Perso identity in the active level's saved actor graph.

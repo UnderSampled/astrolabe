@@ -61,7 +61,7 @@ func snapshot(note: String) -> void:
 	log_rows.append(row)
 	print("ROUTE ", JSON.stringify(row))
 
-func go(target: Vector2, tolerance: float, timeout: float) -> bool:
+func go(target: Vector2, tolerance: float, timeout: float, follow: Node3D = null) -> bool:
 	var end := Time.get_ticks_msec() + int(timeout * 1000.0)
 	var held := ""
 	var turn := ""
@@ -69,6 +69,8 @@ func go(target: Vector2, tolerance: float, timeout: float) -> bool:
 	var last_check := Time.get_ticks_msec()
 	while Time.get_ticks_msec() < end:
 		await physics_frame
+		# A followed actor moves: aim at where it is now.
+		if follow != null and is_instance_valid(follow): target = Vector2(follow.global_position.x, -follow.global_position.z)
 		var to := target - position()
 		if to.length() < tolerance: break
 		var error := wrapf(to.angle() - heading(), -PI, PI)
@@ -383,6 +385,15 @@ func run() -> void:
 				if not failed or position().distance_to(target) < 2.5:
 					ok = true
 					break
+		elif step.has("chase"):
+			# Walk to a moving actor with the real controls: {"chase": ["iThievesCommun_Brigand_01", 1.3], "timeout": 10}
+			var chased := body_of(str(step["chase"][0]))
+			ok = chased != null
+			if ok:
+				ok = await go(Vector2(chased.global_position.x, -chased.global_position.z), float(step["chase"][1]), step.get("timeout", 10.0), chased)
+				var to_chased := Vector2(chased.global_position.x, -chased.global_position.z) - position()
+				actor().source_turn_to_heading(atan2(to_chased.x, -to_chased.y))
+				await physics_frame
 		elif step.has("go"):
 			ok = await go(Vector2(step["go"][0], step["go"][1]), step.get("tol", step["go"][2] if step["go"].size() > 2 else 1.5), step.get("timeout", 40.0))
 		elif step.has("key"):
@@ -453,7 +464,7 @@ func run() -> void:
 			if target_body == null: ok = false
 			while ok and Time.get_ticks_msec() < sample_end:
 				await physics_frame
-				print("SAMPLE ", JSON.stringify({"ms": Time.get_ticks_msec(), "dsg_17": hype_brain.get("dsg_17") if hype_brain != null else null, "dsg_114": hype_brain.get("dsg_114") if hype_brain != null else null, "hype_normal": hype_brain.get("current_normal") if hype_brain != null else null,
+				print("SAMPLE ", JSON.stringify({"ms": Time.get_ticks_msec(), "dsg_17": hype_brain.get("dsg_17") if hype_brain != null else null, "dsg_114": hype_brain.get("dsg_114") if hype_brain != null else null, "dsg_55": hype_brain.get("dsg_55") if hype_brain != null else null, "ref0_dsg_26": _linked_field(target_brain, "dsg_26"), "nothing": target_body.call("source_collide_with_nothing") if target_body.has_method("source_collide_with_nothing") else null, "z": snappedf(target_body.global_position.y, 0.01), "floor": target_body.is_on_floor() if target_body is CharacterBody3D else null, "hype_normal": hype_brain.get("current_normal") if hype_brain != null else null,
 					"zone1": target_body.call("source_collide_perso_zde_no_with_type_zde", 1, 2), "zone2": target_body.call("source_collide_perso_zde_no_with_type_zde", 2, 2),
 					"normal": target_brain.get("current_normal") if target_brain != null else null, "reflex": target_brain.get("current_reflex") if target_brain != null else null, "claimed": target_brain.get("reflex_rule_claimed") if target_brain != null else null, "dsg_0": target_brain.get("dsg_0") if target_brain != null else null, "clock": int(target_brain.get("clock_milliseconds")) if target_brain != null else null, "hp": int(target_body.get("source_hit_points").get("current")) if target_body.get("source_hit_points") != null else -1, "distance": snappedf(actor().global_position.distance_to(target_body.global_position), 0.01)}))
 		elif step.has("get"):
@@ -723,3 +734,9 @@ func _report_load_progress(path: String) -> void:
 	var fraction: Array = []
 	var status := ResourceLoader.load_threaded_get_status(path, fraction)
 	print("LOADPROGRESS ", JSON.stringify({"path": path.get_file(), "status": status, "fraction": fraction[0] if not fraction.is_empty() else -1.0, "ms": Time.get_ticks_msec()}))
+
+func _linked_field(brain: Node, field: String) -> Variant:
+	if brain == null or not ("actor_brain_0_path" in brain): return "n/a"
+	var path: NodePath = brain.get("actor_brain_0_path")
+	var linked := brain.get_node_or_null(path) if not path.is_empty() else null
+	return linked.get(field) if linked != null else "none"
