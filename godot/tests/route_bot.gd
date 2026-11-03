@@ -467,6 +467,10 @@ func run() -> void:
 			var target := brain_of(step["set"][0])
 			ok = target != null
 			if ok: target.set(step["set"][1], step["set"][2])
+		elif step.has("trace56"):
+			# Runs alongside the following steps: actors whose behavior changed
+			# within 300 ms before Hype's dsg_56 flips.
+			_trace56(float(step["trace56"]))
 		elif step.has("sample"):
 			# Combat probe: Hype's attack flag (dsg_17) and the target's zone 1/2
 			# contacts with sword material 2, every physics frame.
@@ -475,9 +479,23 @@ func run() -> void:
 			var hype_brain := brain_of("hype")
 			var sample_end := Time.get_ticks_msec() + int(float(step["sample"][1]) * 1000.0)
 			if target_body == null: ok = false
+			var brain_states := {}
+			var recent := []
+			var last_56: Variant = hype_brain.get("dsg_56") if hype_brain != null else null
 			while ok and Time.get_ticks_msec() < sample_end:
 				await physics_frame
-				print("SAMPLE ", JSON.stringify({"ms": Time.get_ticks_msec(), "dsg_17": hype_brain.get("dsg_17") if hype_brain != null else null, "dsg_114": hype_brain.get("dsg_114") if hype_brain != null else null, "dsg_55": hype_brain.get("dsg_55") if hype_brain != null else null, "dsg_56": hype_brain.get("dsg_56") if hype_brain != null else null, "dsg_48": hype_brain.get("dsg_48") if hype_brain != null else null, "dsg_70": hype_brain.get("dsg_70") if hype_brain != null else null, "ref0_dsg_26": _linked_field(target_brain, "dsg_26"), "nothing": target_body.call("source_collide_with_nothing") if target_body.has_method("source_collide_with_nothing") else null, "z": snappedf(target_body.global_position.y, 0.01), "floor": target_body.is_on_floor() if target_body is CharacterBody3D else null, "hype_normal": hype_brain.get("current_normal") if hype_brain != null else null,
+				# Which actors changed behavior just before Hype's dsg_56 flips.
+				for brain in game.get("level").find_children("Brain", "", true, false):
+					var key := str(brain.get_parent().get_meta("source_perso_name", brain.get_parent().name))
+					var state := [brain.get("current_normal"), brain.get("current_reflex")]
+					if brain_states.has(key) and brain_states[key] != state:
+						recent.append({"ms": Time.get_ticks_msec(), "actor": key, "from": brain_states[key], "to": state})
+					brain_states[key] = state
+				recent = recent.filter(func(row): return Time.get_ticks_msec() - int(row["ms"]) < 300)
+				if hype_brain != null and hype_brain.get("dsg_56") != last_56:
+					print("FLIP56 ", JSON.stringify({"ms": Time.get_ticks_msec(), "to": hype_brain.get("dsg_56"), "recent": recent}))
+					last_56 = hype_brain.get("dsg_56")
+				print("SAMPLE ", JSON.stringify({"ms": Time.get_ticks_msec(), "dsg_17": hype_brain.get("dsg_17") if hype_brain != null else null, "dsg_114": hype_brain.get("dsg_114") if hype_brain != null else null, "dsg_55": hype_brain.get("dsg_55") if hype_brain != null else null, "dsg_56": hype_brain.get("dsg_56") if hype_brain != null else null, "dsg_48": hype_brain.get("dsg_48") if hype_brain != null else null, "dsg_70": hype_brain.get("dsg_70") if hype_brain != null else null, "dsg_97": hype_brain.get("dsg_97") if hype_brain != null else null, "dsg_42": hype_brain.get("dsg_42") if hype_brain != null else null, "dsg_81": hype_brain.get("dsg_81") if hype_brain != null else null, "dsg_80": hype_brain.get("dsg_80") if hype_brain != null else null, "ref0_dsg_26": _linked_field(target_brain, "dsg_26"), "nothing": target_body.call("source_collide_with_nothing") if target_body.has_method("source_collide_with_nothing") else null, "z": snappedf(target_body.global_position.y, 0.01), "floor": target_body.is_on_floor() if target_body is CharacterBody3D else null, "hype_normal": hype_brain.get("current_normal") if hype_brain != null else null,
 					"zone1": target_body.call("source_collide_perso_zde_no_with_type_zde", 1, 2), "zone2": target_body.call("source_collide_perso_zde_no_with_type_zde", 2, 2),
 					"normal": target_brain.get("current_normal") if target_brain != null else null, "reflex": target_brain.get("current_reflex") if target_brain != null else null, "claimed": target_brain.get("reflex_rule_claimed") if target_brain != null else null, "dsg_0": target_brain.get("dsg_0") if target_brain != null else null, "clock": int(target_brain.get("clock_milliseconds")) if target_brain != null else null, "hp": int(target_body.get("source_hit_points").get("current")) if target_body.get("source_hit_points") != null else -1, "distance": snappedf(actor().global_position.distance_to(target_body.global_position), 0.01)}))
 		elif step.has("get"):
@@ -806,6 +824,17 @@ func follow(plan: Dictionary) -> bool:
 			# Modal keys wait for the port to be in the take's state (dialogue,
 			# inventory, menu): dialogue and load lengths differ slightly.
 			var wanted := _take_mode(track, landmarks, float(row[0]))
+			# Stand-in: the port has no save-point menu (the original names the
+			# save). Its quick save replaces the take's menu keys, once per menu.
+			if wanted == "menu" and _port_mode() != "menu":
+				if not _follow_menu_saved:
+					_follow_menu_saved = true
+					print("SAVE ", JSON.stringify({"take": float(row[0]), "port": "quick save (save-point menu not ported)"}))
+					_follow_key(KEY_F5, true)
+					_follow_key(KEY_F5, false)
+				next_key += 1
+				continue
+			if wanted != "menu": _follow_menu_saved = false
 			if bool(row[2]) and wanted != "play" and _port_mode() != wanted and _follow_hold < 6.0:
 				_follow_hold += 1.0 / Engine.physics_ticks_per_second
 				shift -= 1.0 / Engine.physics_ticks_per_second
@@ -815,6 +844,11 @@ func follow(plan: Dictionary) -> bool:
 				shift -= 1.0 / Engine.physics_ticks_per_second
 				break
 			_follow_hold = 0.0
+			# Inventory choices go by item identity: the take's cursor moves are
+			# dropped with its arrows, so its Enter becomes a request for the item.
+			if bool(row[2]) and int(row[1]) == KEY_ENTER and _port_mode() == "inventory" and _follow_select(plan.get("select", []), float(row[0])):
+				next_key += 1
+				continue
 			if int(row[1]) == KEY_SHIFT:
 				_follow_take_shift = bool(row[2])
 				next_key += 1
@@ -924,6 +958,7 @@ func _track_point(row: Array) -> Vector2:
 const ACTION_KEYS := [KEY_SPACE, KEY_CTRL, KEY_ENTER, KEY_Z]
 const DIALOGUE_NORMALS := [28, 48]
 var _follow_linger := 0.0
+var _follow_menu_saved := false
 var _follow_last_normal := -1
 var _follow_space_release := 0.0
 
@@ -941,6 +976,20 @@ func _take_mode(track: Array, landmarks: Array, t: float) -> String:
 		if float(track[mid][0]) <= t: lo = mid
 		else: hi = mid - 1
 	return "dialogue" if int(track[lo][4]) in DIALOGUE_NORMALS else "play"
+
+func _follow_select(selections: Array, t: float) -> bool:
+	for choice in selections:
+		if absf(float(choice[0]) - t) > 1.0: continue
+		var view: Node = game.get("inventory_host").get("view")
+		var inventory: Resource = view.get("inventory")
+		var item := int(choice[1])
+		var kind := ""
+		for definition in inventory.get("definitions"):
+			if definition != null and int(definition.item_id) == item: kind = str(definition.kind)
+		print("SELECT ", JSON.stringify({"take": t, "item": item, "kind": kind}))
+		view.emit_signal("item_requested", item, kind)
+		return true
+	return false
 
 func _port_mode() -> String:
 	var inventory_host: Node = game.get("inventory_host")
@@ -966,3 +1015,22 @@ func _follow_key(code: int, pressed: bool) -> void:
 	event.pressed = pressed
 	Input.parse_input_event(event)
 	Input.flush_buffered_events()
+
+func _trace56(seconds: float) -> void:
+	var hype_brain := brain_of("hype")
+	var brain_states := {}
+	var recent := []
+	var last_56: Variant = hype_brain.get("dsg_56")
+	var end := Time.get_ticks_msec() + int(seconds * 1000.0)
+	while Time.get_ticks_msec() < end:
+		await physics_frame
+		for brain in game.get("level").find_children("Brain", "", true, false):
+			var name_key := str(brain.get_parent().get_meta("source_perso_name", brain.get_parent().name))
+			var state := [brain.get("current_normal"), brain.get("current_reflex")]
+			if brain_states.has(name_key) and brain_states[name_key] != state:
+				recent.append({"ms": Time.get_ticks_msec(), "actor": name_key, "from": brain_states[name_key], "to": state})
+			brain_states[name_key] = state
+		recent = recent.filter(func(row): return Time.get_ticks_msec() - int(row["ms"]) < 300)
+		if hype_brain.get("dsg_56") != last_56:
+			print("FLIP56 ", JSON.stringify({"ms": Time.get_ticks_msec(), "to": hype_brain.get("dsg_56"), "hype_normal": hype_brain.get("current_normal"), "recent": recent}))
+			last_56 = hype_brain.get("dsg_56")

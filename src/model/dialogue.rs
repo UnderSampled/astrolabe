@@ -207,7 +207,6 @@ impl Content for Dialogue {
         if self.box_style == 5 {
             ensure!(
                 self.presentation.is_some()
-                    && self.lines.len() <= 6
                     && self.voice.is_none()
                     && self.lines.iter().all(|line| {
                         line.flags == 3

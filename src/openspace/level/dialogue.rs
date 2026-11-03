@@ -482,9 +482,10 @@ impl ItemDecoder<'_> {
             })
             .transpose()?
             .flatten();
+        // Style 5 pages at six rows, null padding included (dialogue_item.gd):
+        // pickup messages such as potion_bleue run to two pages.
         if h.box_style == 5
-            && (lines.len() > 6
-                || voice.is_some()
+            && (voice.is_some()
                 || lines.iter().any(|line| {
                     line.flags != 3
                         || line.layout.is_some()
@@ -492,7 +493,7 @@ impl ItemDecoder<'_> {
                 }))
         {
             return Ok(ItemImport::Unsupported(format!(
-                "{name}: style5 requires one unvoiced page of flags3, unanchored, untimed lines"
+                "{name}: style5 requires unvoiced pages of flags3, unanchored, untimed lines"
             )));
         }
         if h.box_style == 4
