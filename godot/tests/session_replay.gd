@@ -34,6 +34,10 @@ const ANCHOR_GRACE_US := 40000000
 ## ASTROLABE_REPLAY_RESYNC_US: open-loop input drifts within seconds. Each interval
 ## the port records how far Hype drifted, then is put back on the source pose.
 var resyncs: Array = []
+## Hype's scripted or locked normals in the manor and Brigand takes: dialogue
+## (28), cutscene lock (48), scripted walks (49, 50), item and key sequences
+## (33, 61, 74, 78, 81, 90, 91), the statue opening (16, 66 to 70) and 41.
+const SCRIPTED_NORMALS := [16, 28, 33, 41, 48, 49, 50, 61, 66, 67, 68, 69, 70, 74, 78, 81, 90, 91]
 ## Source pause/options spans after manor entry, as [start, end] micros.
 var menu_spans: Array = []
 var next_resync := 0
@@ -160,6 +164,14 @@ func load_source() -> bool:
             anchors.append({"source_us": int(JSON.parse_string(line).get("elapsed_micros", 0)), "kind": "level", "level": level, "port_us": -1})
         seen_level = level
     file2.close()
+    # The Esc that opens the pause menu lands a few tenths of a second before
+    # the source enters phase 16; it belongs to the menu span, or the port's
+    # own pause menu opens and later gameplay keys pick its entries.
+    for span in menu_spans:
+        for input in source_inputs:
+            var at := int(input["at_micros"])
+            if int(input["keysym"]) == 0xff1b and str(input["edge"]) == "press" and at < int(span[0]) and at >= int(span[0]) - 1000000:
+                span[0] = at
     if OS.has_environment("ASTROLABE_REPLAY_FROM_US"):
         # Segment replay: start from a save written at this take time.
         # Earlier inputs and anchors are dropped; resyncs start here.
@@ -235,6 +247,19 @@ func apply_resync(now: int) -> void:
         var want := source_to_native(mark["translation"])
         var state := current_state()
         append_event("resync", {"source_micros": mark["at_micros"], "gap": actor.global_position.distance_to(want), "source": mark["translation"], "port": state.get("actor", {}).get("translation"), "port_level": state.get("level"), "source_normal": mark["normal"], "port_normal": state.get("brain", {}).get("normal_behavior"), "source_action": mark["action"], "port_action": state.get("actor", {}).get("current_state")})
+        # A scripted walk or cutscene ends when Hype reaches its waypoint;
+        # teleporting him mid-script strands it (exit lock, endless stairs
+        # walk). Skip while either engine has Hype in a scripted behavior.
+        # The source's level at this mark: the last level anchor at or before it.
+        var source_level := "manoir"
+        for anchor in anchors:
+            if anchor["kind"] == "level" and int(anchor["source_us"]) <= int(mark["at_micros"]): source_level = str(anchor["level"])
+        if str(state.get("level", "")) != source_level:
+            append_event("resync_skipped", {"source_micros": mark["at_micros"], "reason": "different level", "source_level": source_level, "port_level": state.get("level")})
+            continue
+        if int(mark["normal"]) in SCRIPTED_NORMALS or int(state.get("brain", {}).get("normal_behavior", -1)) in SCRIPTED_NORMALS:
+            append_event("resync_skipped", {"source_micros": mark["at_micros"], "source_normal": mark["normal"], "port_normal": state.get("brain", {}).get("normal_behavior")})
+            continue
         var rows: Array = mark["basis"]
         var axes := Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0))
         var pose := Basis(Vector3(rows[0][0], rows[0][1], rows[0][2]), Vector3(rows[1][0], rows[1][1], rows[1][2]), Vector3(rows[2][0], rows[2][1], rows[2][2]))
@@ -285,6 +310,16 @@ func current_state() -> Dictionary:
             "reflex_behavior": int(brain.get("current_reflex")),
             "failure": str(brain.get("unsupported_failure")),
         }
+    # Global designer fields: ASTROLABE_REPLAY_GLOBAL_FIELDS=dsg_147,dsg_229
+    var level_node = scene.get("level")
+    if OS.has_environment("ASTROLABE_REPLAY_GLOBAL_FIELDS") and level_node is Node:
+        var paths: Dictionary = (level_node as Node).get_meta("source_actor_nodes", {})
+        var global_actor: Node = (level_node as Node).get_node_or_null(paths.get("fix:/persos/15", NodePath()))
+        var global_brain: Node = global_actor.get_node_or_null("Brain") if global_actor != null else null
+        if global_brain != null:
+            var fields := {}
+            for field in OS.get_environment("ASTROLABE_REPLAY_GLOBAL_FIELDS").split(","): fields[field] = global_brain.get(field)
+            result["global"] = fields
     # Watched actors' behavior, by source name: ASTROLABE_REPLAY_WATCH=a,b
     var level = scene.get("level")
     if OS.has_environment("ASTROLABE_REPLAY_WATCH") and level is Node:
