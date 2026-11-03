@@ -1243,6 +1243,18 @@ func source_execute_action_and_generate_object(template_path: String, action: in
         generated.set("source_return_suppressed", false)
         generated.set("source_object_active", not waits_for_release)
         generated.set("motion_enabled", true)
+        # Stand-in "item point contact": dropped items (families 21 to 25) carry
+        # no movement zone, yet bounce and rest on the floor in the source.
+        # A small sphere at the origin stops them falling through the world.
+        var item_mechanics: Resource = generated.get("current_mechanics")
+        if not generated.call("_has_movement_shape") and (item_mechanics == null or int(item_mechanics.mode) != 11):
+            var point := CollisionShape3D.new()
+            point.name = "ItemPointContact"
+            var sphere := SphereShape3D.new()
+            sphere.radius = ITEM_POINT_RADIUS
+            point.shape = sphere
+            point.position = Vector3.UP * ITEM_POINT_RADIUS
+            generated.add_child(point)
         generated.set("physical_environment", physical_environment)
         generated.set("source_inventory", source_inventory)
         generated.set("source_armor", source_armor)
@@ -1378,6 +1390,7 @@ func source_collide_with_perso() -> bool:
     return false
 
 const SOURCE_STEP_DOWN := 0.35
+const ITEM_POINT_RADIUS := 0.1
 
 func source_collide_with_ground() -> bool:
     if is_on_floor(): return true
