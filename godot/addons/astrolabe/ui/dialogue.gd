@@ -203,7 +203,9 @@ func _render_page() -> void:
                 if span.emphasis and item.box != 5:
                     view.add_theme_color_override("font_outline_color", style.emphasis_color)
                     view.add_theme_constant_override("outline_size", 1)
-                var span_x: float = style.chain_span_origin(span.source_offset) if item.box == 5 else style.span_origin(view.text, span.source_offset)
+                # Cinematic text (box 3) starts at its anchor like the style5 chain: the
+                # original's letterbox lines begin at x 22 of 1024, not half a glyph left.
+                var span_x: float = style.chain_span_origin(span.source_offset) if item.box in [3, 5] else style.span_origin(view.text, span.source_offset)
                 var line_pitch: float = style.chain_line_spacing() if item.box == 5 else style.line_spacing()
                 view.position = origin + Vector2(span_x, (index - page_start) * line_pitch)
                 if span.emphasis and item.box == 5:
