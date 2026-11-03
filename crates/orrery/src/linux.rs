@@ -290,6 +290,10 @@ impl Process {
         }
         Ok(())
     }
+    /// Stops every thread for good; teardown later continues and kills it.
+    pub(crate) fn freeze(&self) -> Result<()> {
+        self.signal(libc::SIGSTOP)
+    }
     pub(crate) fn resume_instrumentation(&self) -> Result<()> {
         self.signal(libc::SIGCONT)
     }

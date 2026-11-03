@@ -1049,6 +1049,11 @@ impl GameSession {
     /// normal/reflex choice but cannot establish transitions between samples.
     /// The game keeps running: a recording stops for nothing. A pointer chase
     /// that tears on a changing structure is read again, up to three times.
+    /// A stopped recording must not keep a playable game while it seals.
+    pub fn freeze(&self) -> Result<()> {
+        self.process.freeze()
+    }
+
     pub fn observe_main_actor_with_ai_timed(&self) -> Result<(ActorAiObservation, Duration)> {
         self.check()?;
         let build = HypeBuild::verified(&self.config.exe_sha256)?;

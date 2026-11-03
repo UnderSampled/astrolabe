@@ -182,7 +182,168 @@ func watch(seconds: float, names: Array, press: String, fields: Array = []) -> v
 			await physics_frame
 			key(press, false)
 
+## ASTROLABE_PERF=1 prints frame time, object counts and the node classes that
+## grow, twice a second, to find what accumulates.
+func perf_monitor() -> void:
+	var last_census := {}
+	var tick := 0
+	while true:
+		await create_timer(0.5).timeout
+		tick += 1
+		var row := {"t": Time.get_ticks_msec(), "fps": Engine.get_frames_per_second(),
+			"process_ms": Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+			"physics_ms": Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0,
+			"objects": Performance.get_monitor(Performance.OBJECT_COUNT),
+			"nodes": Performance.get_monitor(Performance.OBJECT_NODE_COUNT),
+			"orphans": Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT),
+			"draw_calls": Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
+			"primitives": Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME),
+			"physics_active": Performance.get_monitor(Performance.PHYSICS_3D_ACTIVE_OBJECTS),
+			"collision_pairs": Performance.get_monitor(Performance.PHYSICS_3D_COLLISION_PAIRS)}
+		if tick % 10 == 0:
+			var census := {}
+			for node in root.find_children("*", "", true, false):
+				var key: String = node.get_class() + ("/" + node.get_script().resource_path.get_file() if node.get_script() != null else "")
+				census[key] = int(census.get(key, 0)) + 1
+			var growth := []
+			for key in census:
+				var delta: int = int(census[key]) - int(last_census.get(key, 0))
+				if delta != 0: growth.append([delta, key, census[key]])
+			growth.sort_custom(func(a, b): return absi(a[0]) > absi(b[0]))
+			row["growth"] = growth.slice(0, 8)
+			last_census = census
+		if tick % 4 == 0 and Engine.has_meta(&"astrolabe_perf"):
+			var table: Dictionary = Engine.get_meta(&"astrolabe_perf")
+			var top := []
+			var total := 0
+			for key in table:
+				top.append([table[key], key])
+				total += int(table[key])
+			top.sort_custom(func(a, b): return a[0] > b[0])
+			row["spent_usec_2s"] = total
+			row["top"] = top.slice(0, 8)
+			Engine.set_meta(&"astrolabe_perf", {})
+		print("PERF ", JSON.stringify(row))
+
+## Turns off physics processing per actor subtree for a few ticks and prints how
+## much each one saves, to find what owns a slow physics step.
+func blame_physics() -> void:
+	var owners := {}
+	for node in root.find_children("*", "", true, false):
+		if not node.is_physics_processing(): continue
+		var owner_node: Node = node
+		while owner_node.get_parent() != null and not (owner_node is CharacterBody3D) and owner_node.get_parent() != root:
+			owner_node = owner_node.get_parent()
+		if not owners.has(owner_node): owners[owner_node] = []
+		owners[owner_node].append(node)
+	var measure := func() -> float:
+		var total := 0.0
+		for i in 8:
+			await physics_frame
+			total += Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
+		return total / 8.0
+	var base: float = await measure.call()
+	var rows := []
+	for owner_node in owners:
+		for node in owners[owner_node]: node.set_physics_process(false)
+		var cost: float = await measure.call()
+		for node in owners[owner_node]: if is_instance_valid(node): node.set_physics_process(true)
+		rows.append([base - cost, str(owner_node.name), owners[owner_node].size()])
+	rows.sort_custom(func(a, b): return a[0] > b[0])
+	print("BLAME ", JSON.stringify({"base_ms": base, "groups": owners.size(), "top": rows.slice(0, 12)}))
+
+## Takes each non-static collision object out of the physics space for a few
+## ticks, to find which one makes the server's step slow.
+func blame_bodies() -> void:
+	var measure := func() -> float:
+		var total := 0.0
+		for i in 16:
+			await physics_frame
+			total += Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
+		return total / 16.0
+	var bodies := []
+	for node in root.find_children("*", "CollisionObject3D", true, false):
+		if node is StaticBody3D: continue
+		var row := {"path": str(node.get_path()).right(60), "class": node.get_class()}
+		if node is CharacterBody3D: row["v"] = node.velocity.length(); row["floor"] = node.is_on_floor()
+		if node is Area3D: row["monitoring"] = node.monitoring; row["overlaps"] = node.get_overlapping_bodies().size() + node.get_overlapping_areas().size()
+		bodies.append([node, row])
+	var base: float = await measure.call()
+	var rows := []
+	for pair in bodies:
+		var node: Node = pair[0]
+		if not is_instance_valid(node): continue
+		var mode: Node.ProcessMode = node.process_mode
+		node.process_mode = Node.PROCESS_MODE_DISABLED
+		var cost: float = await measure.call()
+		if is_instance_valid(node): node.process_mode = mode
+		pair[1]["saves_ms"] = base - cost
+		rows.append(pair[1])
+	rows.sort_custom(func(a, b): return a["saves_ms"] > b["saves_ms"])
+	print("BODIES ", JSON.stringify({"base_ms": base, "count": rows.size(), "top": rows.slice(0, 10)}))
+
+## Halves the set of actors (nodes with a Brain) each round, disabling one half
+## entirely, and keeps whichever half holds the slow physics step.
+func bisect_actors() -> void:
+	var measure := func() -> float:
+		var total := 0.0
+		for i in 6:
+			await physics_frame
+			total += Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
+		return total / 6.0
+	var actors := []
+	for brain in root.find_children("Brain", "", true, false):
+		actors.append(brain.get_parent())
+	var base: float = await measure.call()
+	var set := actors
+	var trail := []
+	while set.size() > 1:
+		var half: Array = set.slice(0, set.size() / 2)
+		for node in half: node.process_mode = Node.PROCESS_MODE_DISABLED
+		var cost: float = await measure.call()
+		for node in half: if is_instance_valid(node): node.process_mode = Node.PROCESS_MODE_INHERIT
+		trail.append([set.size(), base - cost])
+		set = half if base - cost > (base - 10.0) * 0.5 else set.slice(set.size() / 2)
+	var last: Node = set[0]
+	last.process_mode = Node.PROCESS_MODE_DISABLED
+	var alone: float = await measure.call()
+	last.process_mode = Node.PROCESS_MODE_INHERIT
+	var info := {"name": str(last.name), "path": str(last.get_path()).right(80), "position": [last.global_position.x, -last.global_position.z, last.global_position.y] if last is Node3D else []}
+	if last is CharacterBody3D: info["velocity"] = last.velocity.length(); info["on_floor"] = last.is_on_floor(); info["slides"] = last.get_slide_collision_count()
+	print("BISECT ", JSON.stringify({"base_ms": base, "actors": actors.size(), "trail": trail, "culprit": info, "saves_ms": base - alone}))
+
+## Physics-processing nodes outside every actor, each switched off in turn.
+func blame_rest() -> void:
+	var actors := []
+	for brain in root.find_children("Brain", "", true, false): actors.append(brain.get_parent())
+	var nodes := []
+	for node in root.find_children("*", "", true, false):
+		if not (node.is_physics_processing() or node.is_processing()): continue
+		var inside := false
+		for actor in actors:
+			if actor == node or actor.is_ancestor_of(node): inside = true; break
+		if not inside: nodes.append(node)
+	var measure := func() -> Array:
+		var physics := 0.0
+		var process := 0.0
+		for i in 6:
+			await physics_frame
+			physics += Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
+			process += Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+		return [physics / 6.0, process / 6.0]
+	var base: Array = await measure.call()
+	var rows := []
+	for node in nodes:
+		var mode: Node.ProcessMode = node.process_mode
+		node.process_mode = Node.PROCESS_MODE_DISABLED
+		var cost: Array = await measure.call()
+		if is_instance_valid(node): node.process_mode = mode
+		rows.append([base[0] - cost[0], base[1] - cost[1], str(node.get_path()).right(70), node.get_class()])
+	rows.sort_custom(func(a, b): return a[0] + a[1] > b[0] + b[1])
+	print("REST ", JSON.stringify({"base": base, "count": nodes.size(), "top": rows.slice(0, 12)}))
+
 func run() -> void:
+	if OS.get_environment("ASTROLABE_PERF") == "1": perf_monitor()
 	var args := OS.get_cmdline_user_args()
 	var route: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(args[0]))
 	root.size = Vector2i(1024, 768)
@@ -365,6 +526,10 @@ func run() -> void:
 			quit(3)
 			return
 		if step.get("census", false): _census(step.get("census"))
+		if step.get("blame", false): await blame_physics()
+		if step.get("blame_bodies", false): await blame_bodies()
+		if step.get("bisect", false): await bisect_actors()
+		if step.get("blame_rest", false): await blame_rest()
 	var file := FileAccess.open(args[1], FileAccess.WRITE)
 	file.store_string(JSON.stringify(log_rows))
 	file.close()

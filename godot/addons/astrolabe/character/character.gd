@@ -1,4 +1,5 @@
 extends CharacterBody3D
+const BEHAVIOR := preload("res://addons/astrolabe/behavior/behavior.gd")
 ## Native character controls. Every part and pose already exists in the PackedScene.
 ## No frame tables, transform pools or object configurations are consumed here.
 signal cue_triggered(action: Resource, frame: int, channel: int, configuration_slot: int)
@@ -120,6 +121,8 @@ var root_motion_displacement: Vector3 = Vector3.ZERO
 var source_generator: Node3D
 @export var source_return_suppressed: bool = false
 @export var source_kill_resets_components: bool = false
+## Set when a kill deactivated this actor without its source component reset.
+var source_kill_reset_pending := false
 var restored_configuration: bool = false
 var suppress_cues: bool = false
 var playback_revision: int = 0
@@ -224,6 +227,14 @@ func _process(delta: float) -> void:
         source_camera_data3d_step(delta)
 
 func _physics_process(delta: float) -> void:
+    if not BEHAVIOR.PROFILED:
+        _physics_step(delta)
+        return
+    var started := Time.get_ticks_usec()
+    _physics_step(delta)
+    BEHAVIOR.profile_add(self, "motion", Time.get_ticks_usec() - started)
+
+func _physics_step(delta: float) -> void:
     _update_sector_ambient()
     if source_lift_motion.active:
         source_lift_motion.step(delta)
@@ -808,10 +819,13 @@ func source_kill() -> bool:
 
 ## KillSelf and named KillPerso share one actor-owned removal contract.
 ## Placed actors retain identity; generated scene instances release their node.
-## The source reset-on-kill policy requires a separate full component reset.
+## A kill always takes the actor out of the active world, as in the source.
+## Stand-in: an actor with unconverted activation, or a reset-on-kill policy, is
+## deactivated without the component reset its revival would perform.
 func source_kill_perso() -> bool:
     var generated := has_meta("astrolabe_generated_template")
-    if not generated and (not source_activation_known or source_kill_resets_components): return false
+    if not generated and (not source_activation_known or source_kill_resets_components):
+        source_kill_reset_pending = true
     source_set_object_active_state(false)
     source_return_suppressed = true
     if generated:

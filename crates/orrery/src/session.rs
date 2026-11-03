@@ -865,6 +865,8 @@ fn run_loop(
                 "interactive_stop_requested",
                 json!({"stop_request":stop_request}),
             )?;
+            // Sealing the video takes minutes; the game must not stay playable.
+            game.freeze()?;
             break;
         }
         let finished = pending_videos.iter().position(|pending| {

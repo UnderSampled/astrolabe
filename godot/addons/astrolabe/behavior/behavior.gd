@@ -97,7 +97,22 @@ func adopt_input(action: StringName, physical_key: Key = KEY_NONE) -> void:
 	InputMap.action_add_event(action, event)
 
 func _physics_process(delta: float) -> void:
-	if automatic and running: advance(delta)
+	if not (automatic and running): return
+	if not PROFILED:
+		advance(delta)
+		return
+	var started := Time.get_ticks_usec()
+	advance(delta)
+	profile_add(self, "ai", Time.get_ticks_usec() - started)
+
+## ASTROLABE_PERF=1: microseconds per actor and stage, summed in an Engine meta
+## dictionary that tests/route_bot.gd prints and clears.
+static var PROFILED := OS.get_environment("ASTROLABE_PERF") == "1"
+static func profile_add(node: Node, stage: String, usec: int) -> void:
+	var table: Dictionary = Engine.get_meta(&"astrolabe_perf", {})
+	var key := str(node.get_parent().name if stage == "ai" else node.name) + "/" + stage
+	table[key] = int(table.get(key, 0)) + usec
+	Engine.set_meta(&"astrolabe_perf", table)
 
 func _exit_tree() -> void:
 	if not _source_hierarchy_move: stop()

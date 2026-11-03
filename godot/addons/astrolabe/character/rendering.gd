@@ -5,6 +5,8 @@ var hidden_layers: Dictionary = {}
 var display_visible: bool = true
 var opacity: int = 255
 var transparent_display: bool = false
+## False whenever materials may have changed since opacity was last applied.
+var _opacity_applied := false
 var opacity_materials: Array[Dictionary] = []
 var opacity_meshes: Dictionary = {}
 var opacity_initialized: bool = false
@@ -28,15 +30,22 @@ func _apply_display_visible(actor: Node3D, subtree: Node3D) -> void:
 
 ## 00543130 clamps opacity separately from transparent/default display mode.
 ## Native material alpha supports the project's Compatibility renderer.
+## Fades and damage blinks call these every tick; unchanged state does no work.
 func set_transparency(actor: Node3D, value: int) -> bool:
-    opacity = clampi(value, 0, 255)
-    return _apply_opacity(actor)
+    var clamped := clampi(value, 0, 255)
+    if clamped == opacity and _opacity_applied: return true
+    opacity = clamped
+    _opacity_applied = _apply_opacity(actor)
+    return _opacity_applied
 
 func set_transparent_display(actor: Node3D, enabled: bool) -> bool:
+    if enabled == transparent_display and _opacity_applied: return true
     transparent_display = enabled
-    return _apply_opacity(actor)
+    _opacity_applied = _apply_opacity(actor)
+    return _opacity_applied
 
 func rebind_visual_material_variant(actor: Node3D, previous: Material, replacement: ShaderMaterial) -> void:
+    _opacity_applied = false
     for entry in opacity_materials:
         if entry.get("owned") != previous:
             continue
@@ -57,9 +66,19 @@ func rebind_visual_material_variant(actor: Node3D, previous: Material, replaceme
                 replacement.set_shader_parameter("source_alpha_scissor_threshold", original.alpha_scissor_threshold if original.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR else 0.0)
         entry["owned"] = replacement
 
+## One blended variant per source shader. Building a new Shader per call made
+## every fade tick compile shaders again.
+static var _blended_cache: Dictionary = {}
+
 func _alpha_blended_shader(source_shader: Shader) -> Shader:
     if source_shader == null:
         return null
+    if _blended_cache.has(source_shader): return _blended_cache[source_shader]
+    var result := _build_alpha_blended_shader(source_shader)
+    _blended_cache[source_shader] = result
+    return result
+
+func _build_alpha_blended_shader(source_shader: Shader) -> Shader:
     var code := source_shader.code
     # A zero scissor threshold still selects Godot's cutout pipeline, which
     # makes surviving texels fully opaque. Fading needs an alpha output without
@@ -79,6 +98,7 @@ func _alpha_blended_shader(source_shader: Shader) -> Shader:
 ## has already applied the active level's material variants. Register new actor
 ## copies without losing previously cached opacity or display-hidden layers.
 func prepare_payload(actor: Node3D, payload: Node3D) -> bool:
+    _opacity_applied = false
     _apply_display_visible(actor, payload)
     if opacity_initialized or (transparent_display and opacity < 254):
         if not _collect_opacity_materials(actor, payload): return false
