@@ -338,9 +338,12 @@ unsupported, so this is not a full-session gameplay match.
 
 State sampling currently covers phase/current/pending level and a typed main
 actor sample during gameplay. The actor sample includes current normal/reflex
-behavior selections, but cannot reveal transitions between samples. Actor
-sampling briefly stops the process and reports that pause; it does not claim a
-completed-update boundary. The frame sequence has no verified update/render
+behavior selections, but cannot reveal transitions between samples. It also
+carries `camera`: the active viewport camera's position and forward (OpenSpace
+axes), horizontal and vertical FoV, clipping planes and its address
+(`source_locator`) as the camera identity, or null when it could not be read.
+Actor and camera are read while the game keeps running, retried on a torn read;
+neither claims a completed-update boundary. The frame sequence has no verified update/render
 association. Full Orrery sessions record lossless game audio with a declared
 launch-relative start; sample-to-engine-update timing remains unverified.
 Event-level AI/API traces, mouse/gamepad input, focus changes, verified save-operation boundaries, and automatic first-divergence

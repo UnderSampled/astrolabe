@@ -21,13 +21,17 @@ in that take.
 ## Enemies and combat
 
 - [ ] Wild boars A and B (I_Wild_Boar_A/B): routes from Func_CloserWP, charge, damage, death.
-  They run in the port (profiled at 20 to 50 ms of AI per 2 s each); behavior not compared.
+  In the port boar A reacts to sword hits (normals 7, 1) and dies after three (normal 9);
+  it did not damage Hype in that run. Not compared with the original.
 - [ ] Wolves (I_Brigand_PJ_Wolf1/2): run in the port; together about 180 ms of AI per 2 s, the
   largest cost in Brigand. Fights not compared.
 - [ ] Bats (I_Brigand_Bat_1 to 6, I_Dummy_Brigand_Bats). Not checked.
 - [ ] Dagger thief (I_Brigand_Thief_Dagger_1) and its camera (I_Brigand_Camera_Theif_Cam). Not checked.
-- [ ] Enemy health bars: the HUD has three enemy meters (EnemyMeter0 to 2, FUN_0040c720); fill
-  and timeout follow the source, triggered by Fight_RemoveAndReadHitPointsEnemy. Not shown in a run yet.
+- [x] Enemy health bars: Fight_RemoveAndReadHitPointsEnemy (boars, bats, guards, thieves)
+  refreshes the HUD rows as 0040c4a0/0040c8a0 do: up to three rows, oldest dropped, fill is
+  life over maximum, a row expires 5 s after its last hit. Wild boar A, three sword hits:
+  fill 77, 51, 25, 0 px, death (normal 9), bar gone 5.0 s later. Not compared with the
+  original's pixels.
 - [ ] Respawn: leaving through the toras door and coming back reloads Brigand and respawns the
   mobs (650 to 660 s). Port: travel back into Brigand restores world records, so killed mobs may
   stay dead; needs the source rule.
