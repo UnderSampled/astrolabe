@@ -543,6 +543,26 @@ func run() -> void:
 						rows.append([int(shape.get_meta("source_zone", -1)), snappedf(p.x, 0.01), snappedf(-p.z, 0.01), snappedf(p.y, 0.01), snappedf(shape.shape.get("radius") if shape.shape is SphereShape3D else -1.0, 0.01), shape.disabled])
 					print("ZONES ", Time.get_ticks_msec() - started, " ", body.name, " ", JSON.stringify(rows))
 				await physics_frame
+		elif step.has("act"):
+			# Force an action on Hype and sample his heading: {"act": 370, "seconds": 8}
+			print("ACT ", step["act"], " accepted=", actor().call("request_action", int(step["act"]), true))
+			var act_end := Time.get_ticks_msec() + int(step.get("seconds", 6.0) * 1000.0)
+			while Time.get_ticks_msec() < act_end:
+				print("ACT_YAW ", Time.get_ticks_msec() - started, " ", int(actor().get("current_state")), " ", snappedf(rad_to_deg(heading()), 0.1))
+				await create_timer(0.25).timeout
+		elif step.has("hp"):
+			actor().get("source_hit_points").set("current", int(step["hp"]))
+			print("HP ", actor().get("source_hit_points").get("current"))
+		elif step.has("pickup"):
+			# Admit an item as a pickup would: {"pickup": [item, count, category_key]}.
+			var stock_inventory: Resource = actor().get("source_inventory")
+			var stock_definition: Resource = stock_inventory.call("_definition", int(step["pickup"][0]))
+			var stock: Resource = load("res://addons/astrolabe/character/inventory_stock.gd").new()
+			# A third value names the category, as the item's own pickup stock does.
+			stock.category_key = str(step["pickup"][2]) if step["pickup"].size() > 2 else stock_definition.pickup_category
+			stock.item_key = stock_definition.source_key
+			stock.count = int(step["pickup"][1])
+			print("PICKUP ", step["pickup"], " -> ", stock_inventory.call("add_object", stock), " ", stock_inventory.get("last_failure"))
 		elif step.has("drops"):
 			# Generated objects of a family over time: {"drops": "fix:/families/23", "seconds": 6}.
 			var drop_end := Time.get_ticks_msec() + int(step.get("seconds", 6.0) * 1000.0)

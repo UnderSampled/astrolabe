@@ -34,6 +34,8 @@ const ANCHOR_GRACE_US := 40000000
 ## ASTROLABE_REPLAY_RESYNC_US: open-loop input drifts within seconds. Each interval
 ## the port records how far Hype drifted, then is put back on the source pose.
 var resyncs: Array = []
+## Source pause/options spans after manor entry, as [start, end] micros.
+var menu_spans: Array = []
 var next_resync := 0
 
 func _initialize() -> void:
@@ -143,6 +145,15 @@ func load_source() -> bool:
                 resyncs.append({"at_micros": at, "translation": form["translation"], "basis": form["basis"], "normal": sample["data"]["normal_behavior"]["current"], "action": sample["data"]["actor"]["current_action"]})
         if not line.contains('"kind":"epoch"'): continue
         var data: Dictionary = JSON.parse_string(line).get("data", {})
+        # Pause (16) and options (38) after entry: the port's menus differ, so
+        # keys sent there would land somewhere else. Their spans are skipped.
+        var epoch_at := int(JSON.parse_string(line).get("elapsed_micros", 0))
+        var epoch_phase := int(data.get("phase", 0))
+        if epoch_at > source_entry_us:
+            if epoch_phase in [16, 38] and (menu_spans.is_empty() or int(menu_spans.back()[1]) >= 0):
+                menu_spans.append([epoch_at, -1])
+            elif not epoch_phase in [16, 38] and not menu_spans.is_empty() and int(menu_spans.back()[1]) < 0:
+                menu_spans.back()[1] = epoch_at
         if int(data.get("phase", 0)) != 9: continue
         var level := str(data.get("level", ""))
         if not seen_level.is_empty() and level != seen_level:
@@ -390,6 +401,14 @@ func run() -> void:
             # something else, so it is dropped once the port has handed over.
             if not anchors.is_empty() and anchors[0]["kind"] == "control" and int(anchors[0]["port_us"]) >= 0 and int(input["at_micros"]) < int(anchors[0]["source_us"]) and int(input["at_micros"]) > source_entry_us:
                 append_event("input_gap", {"reason": "pre-handoff input after the port's handoff", "source": input})
+                next_input += 1
+                continue
+            var in_menu := false
+            for span in menu_spans:
+                if int(input["at_micros"]) >= int(span[0]) and (int(span[1]) < 0 or int(input["at_micros"]) < int(span[1])): in_menu = true
+            # Releases still go out, so no key stays held into gameplay.
+            if in_menu and str(input["edge"]) == "press":
+                append_event("input_gap", {"reason": "source pause or options menu", "source": input})
                 next_input += 1
                 continue
             var due := scheduled_us(input)
