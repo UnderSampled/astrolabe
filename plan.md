@@ -134,11 +134,14 @@ quality, otherwise a fresh replay into a disposable original), an H.265 MKV of
 the port driven by the bot, composited side by side, synced and labeled, with the
 port's audio only. Building the bot is the next round after 2026-11-03's.
 
-Status (2026-11-03): `tools/take_route.py` plus the route bot's `follow` step. From New Game
-it stays within about 2 m of the take to 283 s (intro, barrels, mannequins, crossbow,
-Gogoud's dialogues). Open stalls: the bridge flask pickup sometimes leaves Hype in normal 48
-(the pickup's dsg_56 lock is not cleared); the inventory key use at 288-291 s does not open
-the exit gate; the Manoir exit, the Brigand fights and the save menu are untested.
+Status (2026-11-03, round 2): `tools/take_route.py` plus the route bot's `follow` step.
+From New Game it follows the take to the Manoir exit gate (about 298 s): intro, barrels,
+mannequins, crossbow, Gogoud's dialogues, the bridge potion (pickup lock fixed: two-page
+style-5 messages now export) and the key chosen in the inventory by item identity. Open:
+the key use at the exit gate does not fire (Hype reaches the gate late, so the take's Space
+lands elsewhere); the barrel hit that opens the mannequin door is still timing-sensitive
+(one run in three stalled there); the save-point menu is not ported (the bot quick-saves);
+Brigand and the toras load are unreached.
 
 First step (Stephen, scheduled after the 2026-11-03 round): convert every level,
 then build a full-game priority checklist that ranks unsupported or stand-in AI

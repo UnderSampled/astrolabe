@@ -817,7 +817,7 @@ func follow(plan: Dictionary) -> bool:
 				if level == "toras" or level.is_empty(): break
 		clock = now + shift
 		# Action keys at their take times. An action press waits (holding the
-		# take clock, up to 4 s) until Hype is on the take's track, so attacks
+		# take clock, up to 12 s) until Hype is on the take's track, so attacks
 		# and casts land where the original's did.
 		while next_key < keys.size() and float(keys[next_key][0]) <= clock:
 			var row: Array = keys[next_key]
@@ -839,7 +839,7 @@ func follow(plan: Dictionary) -> bool:
 				_follow_hold += 1.0 / Engine.physics_ticks_per_second
 				shift -= 1.0 / Engine.physics_ticks_per_second
 				break
-			if bool(row[2]) and int(row[1]) in ACTION_KEYS and _follow_gap > 1.0 and _follow_hold < 4.0:
+			if bool(row[2]) and int(row[1]) in ACTION_KEYS and _follow_gap > 1.0 and _follow_hold < 12.0:
 				_follow_hold += 1.0 / Engine.physics_ticks_per_second
 				shift -= 1.0 / Engine.physics_ticks_per_second
 				break
@@ -854,6 +854,9 @@ func follow(plan: Dictionary) -> bool:
 				next_key += 1
 				continue
 			_follow_key(int(row[1]), bool(row[2]))
+			if bool(row[2]) and (int(row[1]) in ACTION_KEYS or int(row[1]) in [KEY_TAB, KEY_ESCAPE]):
+				var inv: Resource = actor().get("source_inventory")
+				print("KEY ", JSON.stringify({"take": float(row[0]), "port_clock": snappedf(clock, 0.01), "code": int(row[1]), "gap": snappedf(_follow_gap, 0.1), "mode": _port_mode(), "normal": brain_of("hype").get("current_normal"), "object": inv.call("selected_object_value") if inv != null else null}))
 			if bool(row[2]): held[int(row[1])] = true
 			else: held.erase(int(row[1]))
 			next_key += 1
