@@ -49,6 +49,15 @@ through bindings and sprite lookups.
 - [ ] The inventory's own stone panel meters: in the original (take frame 284) it shows a
   gold sword life gauge, the gold count, a game timer (00:04), the selected armor in the
   right socket and a ring in the left socket. The port draws the panel empty.
+  Source (read-only disassembly of the state-0x29 frame callback LAB_0041aa00,
+  0x41aa00-0x41b3bc, set by state 0x28): it never calls the HUD (0040c1f0) but draws
+  0040c300 (life), 0043a6a0 (magic arc), 0043ac60 (armor icon, row 3) and 0043ab40
+  (armor pieces, row 2) unconditionally, after FUN_00419060 overrides the active
+  rectangle rows 0, 1, 2, 4 and 5-7 with inventory values read by 0041c290
+  (PresentationWire offsets 320-376 in inventory.rs). Gold (Inventory.isp Gold list,
+  element +10) and the game clock (TMR DAT_007474d8, "%02d:%02d", minutes unwrapped,
+  at text_position offset 76) are printed through 00419610 in InventoryFont. The left
+  socket is either the magic arc or the Joyaux sprites (00419540); not settled.
 - [ ] Armor in the inventory and on the HUD: geometry, artwork and damage arithmetic
   match the source (0043aa70, 0043ab40). Differences: piece choice uses Godot's RNG, not
   the seeded handle DAT_00610ba8; repair touches only the active armor; the port saves
