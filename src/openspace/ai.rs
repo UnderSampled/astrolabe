@@ -608,11 +608,17 @@ impl Parser<'_> {
                 },
                 (4, 136 | 157 | 160 | 163 | 166) => {
                     let operand = self.at;
-                    if !self
-                        .nodes
-                        .get(operand)
-                        .is_some_and(|child| child.kind == 24 && child.indent == indent + 1)
-                        || !self.codec.actors.contains_key(&operand)
+                    // The camera is a referenced camera actor or, in a camera
+                    // model (fix/437), its own Self keyword (kind 0, parameter 4).
+                    let self_camera = self.nodes.get(operand).is_some_and(|child| {
+                        child.kind == 0 && child.parameter == 4 && child.indent == indent + 1
+                    });
+                    if !self_camera
+                        && (!self
+                            .nodes
+                            .get(operand)
+                            .is_some_and(|child| child.kind == 24 && child.indent == indent + 1)
+                            || !self.codec.actors.contains_key(&operand))
                     {
                         let shape = self
                             .nodes
@@ -626,7 +632,11 @@ impl Parser<'_> {
                         continue;
                     }
                     self.take(indent + 1)?;
-                    let camera = self.codec.actors[&operand].clone();
+                    let camera = if self_camera {
+                        ActorTarget::Keyword(ActorKeyword::SelfActor)
+                    } else {
+                        ActorTarget::Reference(self.codec.actors[&operand].clone())
+                    };
                     if id == 136 {
                         Statement::CameraReset { camera }
                     } else if id == 166 {
@@ -2116,6 +2126,16 @@ struct Writer<'a> {
     codec: &'a AiScriptCodec,
 }
 impl Writer<'_> {
+    fn camera_node(&mut self, camera: &ActorTarget, indent: u8) -> Result<()> {
+        match camera {
+            ActorTarget::Reference(actor) => self.actor_node(actor, indent),
+            ActorTarget::Keyword(ActorKeyword::SelfActor) => {
+                self.node(0, 4, indent);
+                Ok(())
+            }
+            _ => bail!("camera operand must be a referenced actor or Self"),
+        }
+    }
     fn actor_node(&mut self, actor: &AssetRef<Perso>, indent: u8) -> Result<()> {
         let handle = self
             .codec
@@ -2561,15 +2581,8 @@ impl Writer<'_> {
                     self.expression(position, inner + 1)?;
                 }
                 Statement::CameraChangeTargetedPerso { camera, target } => {
-                    let handle = self
-                        .codec
-                        .actor_handles
-                        .iter()
-                        .find(|(reference, _)| reference == camera)
-                        .context("missing camera actor handle")?
-                        .1;
                     self.node(4, 160, indent);
-                    self.node(24, handle, indent + 1);
+                    self.camera_node(camera, indent + 1)?;
                     match target {
                         ActorTarget::Keyword(keyword) => self.node(
                             0,
@@ -2588,13 +2601,6 @@ impl Writer<'_> {
                 }
                 Statement::CameraResetTargetedPerso { camera }
                 | Statement::CameraReset { camera } => {
-                    let handle = self
-                        .codec
-                        .actor_handles
-                        .iter()
-                        .find(|(reference, _)| reference == camera)
-                        .context("missing camera actor handle")?
-                        .1;
                     self.node(
                         4,
                         if matches!(s, Statement::CameraReset { .. }) {
@@ -2604,11 +2610,11 @@ impl Writer<'_> {
                         },
                         indent,
                     );
-                    self.node(24, handle, indent + 1);
+                    self.camera_node(camera, indent + 1)?;
                 }
                 Statement::CameraChangeState { camera, state } => {
                     self.node(4, 157, indent);
-                    self.actor_node(camera, indent + 1)?;
+                    self.camera_node(camera, indent + 1)?;
                     self.expression(state, indent + 1)?;
                 }
                 Statement::CameraChangeFlag {
@@ -2618,7 +2624,7 @@ impl Writer<'_> {
                     selector,
                 } => {
                     self.node(4, 166, indent);
-                    self.actor_node(camera, indent + 1)?;
+                    self.camera_node(camera, indent + 1)?;
                     self.expression(group, indent + 1)?;
                     self.expression(operation, indent + 1)?;
                     self.expression(selector, indent + 1)?;
@@ -4684,8 +4690,23 @@ mod partial_tests {
             Statement::CameraChangeTargetedPerso {
                 camera: bound,
                 target: ActorTarget::Keyword(ActorKeyword::MainActor),
-            } if bound == &camera
+            } if bound == &ActorTarget::Reference(camera.clone())
         ));
+        assert_eq!(codec.write(&script)?, bytes);
+        Ok(())
+    }
+
+    #[test]
+    fn camera_procedure_on_self_keyword_reconstructs() -> Result<()> {
+        // fix/437's camera procedures name the camera as Self (kind 0, param 4).
+        let (codec, bytes) = partial(&[(4, 136, 1), (0, 4, 2), (8, 0, 0)]);
+        let script = codec.read(&bytes)?;
+        assert_eq!(
+            script.statements,
+            vec![Statement::CameraReset {
+                camera: ActorTarget::Keyword(ActorKeyword::SelfActor)
+            }]
+        );
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())
     }
@@ -4699,7 +4720,9 @@ mod partial_tests {
         let script = codec.read(&bytes)?;
         assert_eq!(
             script.statements,
-            vec![Statement::CameraResetTargetedPerso { camera }]
+            vec![Statement::CameraResetTargetedPerso {
+                camera: ActorTarget::Reference(camera)
+            }]
         );
         assert_eq!(codec.write(&script)?, bytes);
         Ok(())
@@ -4842,7 +4865,7 @@ mod partial_tests {
             script.statements,
             vec![
                 Statement::CameraChangeTargetedPerso {
-                    camera: camera.clone(),
+                    camera: ActorTarget::Reference(camera.clone()),
                     target: ActorTarget::Reference(target)
                 },
                 Statement::SetActorAbsolutePosition {
@@ -4850,7 +4873,7 @@ mod partial_tests {
                     position: Expression::WaypointPosition(point)
                 },
                 Statement::CameraChangeState {
-                    camera,
+                    camera: ActorTarget::Reference(camera),
                     state: Expression::Integer(3)
                 },
                 Statement::Wait {

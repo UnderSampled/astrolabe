@@ -1614,6 +1614,8 @@ func source_collide_with_nothing() -> bool:
 ## Resolve a compiled Perso identity in the active level's saved actor graph.
 ## The nearest owning index stays authoritative inside authored scene wrappers.
 func source_actor_node(actor_asset: String) -> Node3D:
+    # A camera model's own camera (Self keyword operand, e.g. fix/437).
+    if actor_asset == "self": return self
     var level: Node = self
     while level != null:
         if level.has_meta("source_actor_nodes"):

@@ -529,22 +529,30 @@ pub enum Statement {
     },
     /// Camera procedure 160 stores a keyword or referenced target actor.
     CameraChangeTargetedPerso {
-        camera: AssetRef<Perso>,
+        /// The camera actor: a referenced camera, or the calling actor (a
+        /// camera model's Self keyword, e.g. fix/437).
+        camera: ActorTarget,
         target: ActorTarget,
     },
     /// Source camera procedure 163 restores the component target to MainActor.
     CameraResetTargetedPerso {
-        camera: AssetRef<Perso>,
+        /// The camera actor: a referenced camera, or the calling actor (a
+        /// camera model's Self keyword, e.g. fix/437).
+        camera: ActorTarget,
     },
     /// Proc136 restores the camera's initial framing and local progress,
     /// preserving its selected target and session-owned controller state.
     CameraReset {
-        camera: AssetRef<Perso>,
+        /// The camera actor: a referenced camera, or the calling actor (a
+        /// camera model's Self keyword, e.g. fix/437).
+        camera: ActorTarget,
     },
     /// Proc166 evaluates camera, flag group, operation and selector in order.
     /// Operation -1 restores a bit from initial framing; 0 clears and 1 sets.
     CameraChangeFlag {
-        camera: AssetRef<Perso>,
+        /// The camera actor: a referenced camera, or the calling actor (a
+        /// camera model's Self keyword, e.g. fix/437).
+        camera: ActorTarget,
         group: Expression,
         operation: Expression,
         selector: Expression,
@@ -552,7 +560,9 @@ pub enum Statement {
     /// Source camera procedure 157 selects a motion mode; -1 restores the
     /// original preset's mode. Unsupported transitions fail at the target API.
     CameraChangeState {
-        camera: AssetRef<Perso>,
+        /// The camera actor: a referenced camera, or the calling actor (a
+        /// camera model's Self keyword, e.g. fix/437).
+        camera: ActorTarget,
         state: Expression,
     },
     /// Proc_SetPersoAbsolutePosition evaluated on a referenced Ultra receiver.
@@ -2219,7 +2229,9 @@ impl Script {
                         }
                     }
                     Statement::CameraChangeState { camera, state } => {
-                        ensure!(camera.path.member().is_none(), "camera is a member");
+                        if let ActorTarget::Reference(camera) = camera {
+                            ensure!(camera.path.member().is_none(), "camera is a member");
+                        }
                         expression(state, variables, depth + 1, count)?;
                     }
                     Statement::CameraChangeFlag {
@@ -2228,20 +2240,26 @@ impl Script {
                         operation,
                         selector,
                     } => {
-                        ensure!(camera.path.member().is_none(), "camera is a member");
+                        if let ActorTarget::Reference(camera) = camera {
+                            ensure!(camera.path.member().is_none(), "camera is a member");
+                        }
                         expression(group, variables, depth + 1, count)?;
                         expression(operation, variables, depth + 1, count)?;
                         expression(selector, variables, depth + 1, count)?;
                     }
                     Statement::CameraChangeTargetedPerso { camera, target } => {
-                        ensure!(camera.path.member().is_none(), "camera is a member");
+                        if let ActorTarget::Reference(camera) = camera {
+                            ensure!(camera.path.member().is_none(), "camera is a member");
+                        }
                         if let ActorTarget::Reference(actor) = target {
                             ensure!(actor.path.member().is_none(), "camera target is a member");
                         }
                     }
                     Statement::CameraResetTargetedPerso { camera }
                     | Statement::CameraReset { camera } => {
-                        ensure!(camera.path.member().is_none(), "camera is a member");
+                        if let ActorTarget::Reference(camera) = camera {
+                            ensure!(camera.path.member().is_none(), "camera is a member");
+                        }
                     }
                     Statement::SetActorAbsolutePosition { actor, position } => {
                         ensure!(

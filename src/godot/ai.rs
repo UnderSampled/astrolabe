@@ -3764,12 +3764,12 @@ fn statements(
             Statement::CameraChangeTargetedPerso { camera, target } => {
                 let failure = quoted(&format!(
                     "{} requires camera target state for {}",
-                    model.path, camera.path
+                    model.path, camera_asset(camera)?
                 ));
                 writeln!(
                     out,
                     "{pad}if not character().source_camera_prepare_target_change({}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}",
-                    quoted(camera.path.as_str())
+                    quoted(&camera_asset(camera)?)
                 )?;
                 let target = match target {
                     ActorTarget::Variable(index) => format!("dsg_{index}"),
@@ -3788,30 +3788,30 @@ fn statements(
                 };
                 let failure = quoted(&format!(
                     "{} requires camera target state for {}",
-                    model.path, camera.path
+                    model.path, camera_asset(camera)?
                 ));
                 writeln!(
                     out,
                     "{pad}if not is_instance_valid({target}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if not character().source_camera_change_targeted_perso({}, {target}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}",
-                    quoted(&camera.path.to_string())
+                    quoted(&camera_asset(camera)?)
                 )?;
             }
             Statement::CameraResetTargetedPerso { camera } => {
                 let failure = quoted(&format!(
                     "{} requires camera reset target state for {}",
-                    model.path, camera.path
+                    model.path, camera_asset(camera)?
                 ));
                 writeln!(
                     out,
                     "{pad}if not is_instance_valid(main_actor):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}if not character().source_camera_reset_targeted_perso({}, main_actor):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}",
-                    quoted(camera.path.as_str())
+                    quoted(&camera_asset(camera)?)
                 )?;
             }
             Statement::CameraReset { camera } => {
                 writeln!(
                     out,
                     "{pad}if not character().source_camera_reset({}):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
-                    quoted(camera.path.as_str()),
+                    quoted(&camera_asset(camera)?),
                     quoted(&format!(
                         "{} requires a native camera initial framing reset",
                         model.path
@@ -3823,10 +3823,10 @@ fn statements(
                 writeln!(
                     out,
                     "{pad}if not character().source_camera_change_state({}, int({value})):\n{pad}    fail_unsupported({})\n{pad}    {exit}",
-                    quoted(camera.path.as_str()),
+                    quoted(&camera_asset(camera)?),
                     quoted(&format!(
                         "{} requires supported camera state for {}",
-                        model.path, camera.path
+                        model.path, camera_asset(camera)?
                     ))
                 )?;
             }
@@ -3840,12 +3840,12 @@ fn statements(
                 flow.local += 1;
                 let failure = quoted(&format!(
                     "{} requires supported native camera flags for {}",
-                    model.path, camera.path
+                    model.path, camera_asset(camera)?
                 ));
                 writeln!(
                     out,
                     "{pad}var flag_actor_{id} := character().source_actor_node({})\n{pad}if not is_instance_valid(flag_actor_{id}):\n{pad}    fail_unsupported({failure})\n{pad}    {exit}\n{pad}var flag_camera_{id} := flag_actor_{id}.get_node_or_null(\"SourceCamera\")",
-                    quoted(camera.path.as_str())
+                    quoted(&camera_asset(camera)?)
                 )?;
                 let group = guarded_expression(out, group, model, depth, flow)?;
                 writeln!(out, "{pad}var flag_group_{id} := int({group})")?;
@@ -5922,4 +5922,14 @@ mod source_position_tests {
 /// The designer value variant, for diagnostics.
 fn designer_kind_name(value: &DesignerValue) -> String {
     format!("{value:?}").split(['(', ' ', '{']).next().unwrap_or("").to_string()
+}
+
+/// A camera statement's camera as the runtime resolves it: a referenced actor's
+/// asset path, or "self" for a camera model acting on its own actor.
+fn camera_asset(camera: &ActorTarget) -> Result<String> {
+    match camera {
+        ActorTarget::Reference(reference) => Ok(reference.path.to_string()),
+        ActorTarget::Keyword(ActorKeyword::SelfActor) => Ok("self".into()),
+        _ => anyhow::bail!("camera operand must be a referenced actor or Self"),
+    }
 }
