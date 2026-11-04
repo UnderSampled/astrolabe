@@ -2042,6 +2042,22 @@ impl Parser<'_> {
             }
             (1, 68) => Expression::RouteWaypointCount(self.route_slot(indent + 1, at)?),
             (3, 41) => Expression::GameTime,
+            (3, 220) => {
+                let origin = Box::new(self.expression(indent + 1)?);
+                let (array_at, array) = self.take(indent + 1)?;
+                // The source reads this node's id byte without evaluating it.
+                ensure!(
+                    array.kind == 11,
+                    "ReduceIndexOfVectorArray needs a designer variable operand at node {array_at}"
+                );
+                let array = u16::try_from(array.parameter & 0xff)?;
+                Expression::FirstVisibleArrayPoint {
+                    origin,
+                    array,
+                    offset: Box::new(self.expression(indent + 1)?),
+                    count: Box::new(self.expression(indent + 1)?),
+                }
+            }
             (1, 30) => Expression::CollideMovingZdm {
                 zone: Box::new(self.expression(indent + 1)?),
                 offset: Box::new(self.expression(indent + 1)?),
@@ -3798,6 +3814,18 @@ impl Writer<'_> {
                 self.expression(sector, indent + 1)?;
             }
             Expression::GameTime => self.node(3, 41, indent),
+            Expression::FirstVisibleArrayPoint {
+                origin,
+                array,
+                offset,
+                count,
+            } => {
+                self.node(3, 220, indent);
+                self.expression(origin, indent + 1)?;
+                self.node(11, u32::from(*array), indent + 1);
+                self.expression(offset, indent + 1)?;
+                self.expression(count, indent + 1)?;
+            }
             Expression::CollideMovingZdm { zone, offset } => {
                 self.node(1, 30, indent);
                 self.expression(zone, indent + 1)?;

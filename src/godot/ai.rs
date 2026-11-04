@@ -2244,6 +2244,17 @@ fn expression(e: &Expression, model: &AiModel) -> Result<String> {
         }
         Expression::WaypointPosition(reference) => waypoint_constant(reference),
         Expression::GameTime => "character().source_game_time()".into(),
+        Expression::FirstVisibleArrayPoint {
+            origin,
+            array,
+            offset,
+            count,
+        } => format!(
+            "character().source_first_visible_array_point(Vector3({}), dsg_{array}, Vector3({}), int({}))",
+            expression(origin, model)?,
+            expression(offset, model)?,
+            expression(count, model)?
+        ),
         Expression::CollideMovingZdm { zone, offset } => format!(
             "character().source_collide_moving_zdm(int({}), Vector3({}))",
             expression(zone, model)?,

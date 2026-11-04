@@ -457,6 +457,11 @@ impl<'a> Iterator for AstWalk<'a> {
                     zone: left,
                     offset: right,
                 }
+                | Expression::FirstVisibleArrayPoint {
+                    origin: left,
+                    offset: right,
+                    ..
+                }
                 | Expression::VectorMinus(left, right)
                 | Expression::VectorScale(left, right)
                 | Expression::SeePositionWithOffset {

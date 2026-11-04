@@ -803,6 +803,16 @@ pub enum Expression {
     /// Cond_CollideMovingZDM (1-30, 00533c90 -> 00430930): the caller's
     /// 1-based ZDM zone, moved to the actor matrix with translation M*offset,
     /// collides with its surroundings; also true when the zone is missing.
+    /// ReduceIndexOfVectorArray (3-220, 00536e60): the first index i < count
+    /// whose array point plus offset is visible from origin plus offset
+    /// (segment tests against the actor's sector and neighbours, 00536da0),
+    /// else count. The array operand is a raw designer-variable id byte.
+    FirstVisibleArrayPoint {
+        origin: Box<Expression>,
+        array: u16,
+        offset: Box<Expression>,
+        count: Box<Expression>,
+    },
     CollideMovingZdm {
         zone: Box<Expression>,
         offset: Box<Expression>,

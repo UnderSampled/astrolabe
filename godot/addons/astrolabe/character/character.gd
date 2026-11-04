@@ -1583,6 +1583,26 @@ func source_collide_moving_zdm(zone: int, offset: Vector3) -> bool:
         if not space.intersect_shape(query, 1).is_empty(): return true
     return false
 
+## ReduceIndexOfVectorArray (00536e60): the first i < count whose point plus
+## offset is visible from origin plus offset, else count; count <= 0 (and a
+## non-actor caller) give count. Source points are tested as segments against
+## the actor's sector and its neighbours (00536da0); natively a ray against
+## level collision, layer 1 (stand-in visible-point-segments). The source has
+## no bounds check; indices past the array end are treated as not visible.
+func source_first_visible_array_point(origin: Vector3, points: Variant, offset: Vector3, count: int) -> int:
+    if count <= 0 or not points is Array: return count
+    var space := get_world_3d().direct_space_state
+    var from := origin + offset
+    var from_native := Vector3(from.x, from.z, -from.y)
+    for i in mini(count, points.size()):
+        var point: Variant = points[i]
+        if not point is Vector3: continue
+        var to: Vector3 = point + offset
+        var query := PhysicsRayQueryParameters3D.create(from_native, Vector3(to.x, to.z, -to.y), 1)
+        query.exclude = [get_rid()]
+        if space.intersect_ray(query).is_empty(): return i
+    return count
+
 func source_collide_with_nothing() -> bool:
     # 00533d20 reads the actor's dynamics collision report (0052ec80); an actor
     # without one answers false to every collision condition, Nothing included.

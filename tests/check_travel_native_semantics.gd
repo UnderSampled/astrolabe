@@ -237,6 +237,12 @@ func check_point_requests() -> bool:
     var into: Vector3 = source_position(actor.global_basis.inverse() * Vector3(0.5, 0, 0))
     var away: Vector3 = source_position(actor.global_basis.inverse() * Vector3(-0.3, 0.3, 0))
     if not require(actor.source_collide_moving_zdm(1, into) and not actor.source_collide_moving_zdm(1, away) and actor.source_collide_moving_zdm(9, Vector3.ZERO), "moving ZDM query does not report wall contact, clearance and a missing zone"): return false
+    # ReduceIndexOfVectorArray: a point behind the wall is skipped, the clear
+    # one next is chosen; no clear point gives the count.
+    var here: Vector3 = source_position(actor.global_position + Vector3(0, 0.2, 0))
+    var behind: Vector3 = source_position(actor.global_position + Vector3(2.0, 0.2, 0))
+    var clear: Vector3 = source_position(actor.global_position + Vector3(-1.0, 0.2, 0))
+    if not require(actor.source_first_visible_array_point(here, [behind, clear], Vector3.ZERO, 2) == 1 and actor.source_first_visible_array_point(here, [behind], Vector3.ZERO, 1) == 1, "first visible array point is not the clear one, or no clear point did not give the count"): return false
     var ground_normal: Vector3 = actor.source_collide_normal(true)
     var wall_normal: Vector3 = actor.source_collide_normal(false)
     if not require(ground_normal.z > 0.99 and wall_normal.x < -0.9 and absf(wall_normal.z) < 0.01, "collide normals are not the floor and wall contact normals in source axes: ground=%s wall=%s" % [ground_normal, wall_normal]): return false
