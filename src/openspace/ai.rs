@@ -1793,13 +1793,19 @@ impl Parser<'_> {
                 left: Box::new(self.expression(indent + 1)?),
                 right: Box::new(self.expression(indent + 1)?),
             },
+            // 00537c20 evaluates its P operand with the script owner as caller,
+            // even under Ultra, so a designer variable is the owner's actor
+            // (notes/research/distance-to-perso-designer-actor.md).
             (3, 4) => {
-                let actor = self.expression(indent + 1)?;
-                let Expression::Actor(actor) = actor else {
-                    return Ok(Expression::Unsupported(self.unsupported(
-                        at,
-                        "distance requires an unsupported actor expression".into(),
-                    )?));
+                let actor = match self.expression(indent + 1)? {
+                    Expression::Actor(actor) => actor,
+                    Expression::Variable(index) => ActorTarget::Variable(index),
+                    _ => {
+                        return Ok(Expression::Unsupported(self.unsupported(
+                            at,
+                            "distance requires an unsupported actor expression".into(),
+                        )?));
+                    }
                 };
                 if actor == ActorTarget::Keyword(ActorKeyword::MainActor) {
                     Expression::MainActorDistance
@@ -5261,6 +5267,50 @@ mod partial_tests {
             rmp_serde::from_slice::<Script>(&rmp_serde::to_vec_named(&script)?)?,
             script
         );
+        Ok(())
+    }
+
+    #[test]
+    fn distance_to_designer_actor_reads_the_owners_variable() -> Result<()> {
+        let (codec, bytes) = partial(&[
+            (0, 0, 1),
+            (1, 0, 2),
+            (1, 5, 3),
+            (3, 4, 4),
+            (11, 7, 5),
+            (12, 5, 4),
+            (1, 5, 3),
+            (2, 24, 4),
+            (0, 5, 5),
+            (3, 4, 5),
+            (11, 11, 6),
+            (12, 5, 4),
+            (0, 1, 1),
+            (8, 0, 0),
+        ]);
+        let script = codec.read(&bytes)?;
+        let compare = |left| Expression::Compare {
+            operation: Comparison::Less,
+            left: Box::new(left),
+            right: Box::new(Expression::Integer(5)),
+        };
+        assert_eq!(
+            script.statements,
+            vec![Statement::If {
+                condition: Expression::And(
+                    Box::new(compare(Expression::ActorDistance(Box::new(Expression::Actor(
+                        ActorTarget::Variable(7)
+                    ))))),
+                    Box::new(compare(Expression::ActorDistanceFrom {
+                        receiver: ActorTarget::Keyword(ActorKeyword::MainActor),
+                        target: Box::new(Expression::Actor(ActorTarget::Variable(11))),
+                    })),
+                ),
+                then: Vec::new(),
+                otherwise: None,
+            }]
+        );
+        assert_eq!(codec.write(&script)?, bytes);
         Ok(())
     }
 

@@ -29,8 +29,8 @@ the `generic` stand-in, which skips the call and reads as zero.
 
 [stand-in-priorities.md](stand-in-priorities.md) lists what the Manoir to Brigand
 paths reach, from collect-mode runs, and orders the work. The most reached are
-the squirrels' untyped scripts (models 816 and 1862), the Brigand thieves'
-Ultra call (1060) and the pigeons (779).
+the squirrels' untyped scripts (models 816 and 1862); the thieves' (1060) and
+pigeons' (779) distance calls were ported on 2026-11-04.
 
 To retire a stand-in, implement the call, delete its table row and delete its
 row here. Replace them in order of what blocks play.
