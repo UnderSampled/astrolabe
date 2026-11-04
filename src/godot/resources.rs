@@ -35,7 +35,13 @@ impl Project {
             self.reserve(&mesh_path)?;
             writeln!(self.builder, "    var mesh_{n} = ArrayMesh.new()")?;
             let mut corner_count = 0;
+            // Godot rejects an empty surface. A zero-triangle source element
+            // draws nothing, so it gets no surface; names keep the source index.
+            let mut surface = 0usize;
             for (i, part) in model.submeshes.iter().enumerate() {
+                if part.triangles.is_empty() {
+                    continue;
+                }
                 let material = resolver.load(&part.material)?;
                 material.validate_reference(&part.material.path)?;
                 let material_path = disk_path(&self.selection, &material.path, "tres");
@@ -88,8 +94,8 @@ impl Project {
     arrays_{n}_{i}[Mesh.ARRAY_COLOR] = PackedColorArray([{}])
     arrays_{n}_{i}[Mesh.ARRAY_CUSTOM0] = PackedFloat32Array([{}])
     mesh_{n}.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays_{n}_{i}, [], {{}}, Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT)
-    mesh_{n}.surface_set_name({i}, "surface_{i}")
-    mesh_{n}.surface_set_material({i}, lighting_material({}, {}))"#,
+    mesh_{n}.surface_set_name({surface}, "surface_{i}")
+    mesh_{n}.surface_set_material({surface}, lighting_material({}, {}))"#,
                     vertices.join(","),
                     normals.join(","),
                     uvs.join(","),
@@ -98,6 +104,7 @@ impl Project {
                     quoted(&format!("res://{material_path}")),
                     if instance.radiosity.is_empty() { 2 } else { 0 }
                 )?;
+                surface += 1;
             }
             if !instance.radiosity.is_empty() {
                 let exact = instance

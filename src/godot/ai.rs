@@ -382,10 +382,20 @@ fn compile_with_bindings(
     configurations: &[(crate::model::AssetRef<ObjectList>, String)],
 ) -> Result<String> {
     model.validate()?;
+    // Action literals are emitted as state numbers and resolve in the family of
+    // whichever actor receives them, as the source's state pointers do when
+    // the receiver belongs to the literal's family. A model shared by several
+    // families (toras model 880: families 42 and 50) names states of each;
+    // foreign-family ones are checked against their own family at export.
     for action in model.state_references() {
-        action.validate_family(
-            family.ok_or_else(|| anyhow::anyhow!("AI action requires its receiving family"))?,
-        )?;
+        let receiving =
+            family.ok_or_else(|| anyhow::anyhow!("AI action requires its receiving family"))?;
+        if action.family.path != receiving.path {
+            continue;
+        }
+        action
+            .validate_family(receiving)
+            .with_context(|| format!("AI model {}", model.path))?;
     }
     let mut out = format!(
         "extends \"res://addons/astrolabe/behavior/behavior.gd\"\n## Compiled from {}. Edit the useful AI asset and regenerate.\n",
@@ -4695,11 +4705,23 @@ pub(super) fn component(
             );
         }
         for action in value.state_references() {
-            action.validate_family(&family)?;
+            action
+                .validate_family(&family)
+                .with_context(|| format!("designer value of {} ({})", perso.path, model.path))?;
         }
     }
+    // A source action is a state pointer, so a model may name another family's
+    // state (an action applied to, or tested on, another actor). Each reference
+    // must exist in its own family; only receiving-family ones are bound below.
     for action in model.state_references() {
-        action.validate_family(&family)?;
+        let owner = if action.family.path == family.path {
+            family.clone()
+        } else {
+            source.load(&action.family)?
+        };
+        action
+            .validate_family(&owner)
+            .with_context(|| format!("AI model {} on {}", model.path, perso.path))?;
     }
     let mut waypoints = Vec::new();
     let mut waypoint_references = model.waypoint_references();

@@ -136,10 +136,16 @@ impl CollisionImporter<'_> {
                             .map(|v| v[0])
                             .collect()
                     };
-                    let indices = self.session.short_arrays(
-                        self.session.required(element, TrianglesWire::TRIANGLES)?,
-                        h.triangle_count as usize,
-                    )?;
+                    // An element with no triangles may leave its index pointer
+                    // null (toras, village); a zero-count loop never reads it.
+                    let indices = if h.triangle_count == 0 {
+                        Vec::new()
+                    } else {
+                        self.session.short_arrays(
+                            self.session.required(element, TrianglesWire::TRIANGLES)?,
+                            h.triangle_count as usize,
+                        )?
+                    };
                     let normals = self
                         .session
                         .pointer(element, TrianglesWire::NORMALS)?

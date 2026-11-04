@@ -213,18 +213,32 @@ pub(super) fn import_physical_model(
         submeshes.push(Submesh {
             source_index: Some(i.try_into()?),
             material: m,
-            triangles: session.short_arrays::<3>(
-                session.required(element, TrianglesWire::TRIANGLES)?,
-                triangle_header.triangle_count as usize,
-            )?,
-            texcoords: session.floats::<2>(
-                session.required(element, TrianglesWire::UVS)?,
-                triangle_header.uv_count as usize,
-            )?,
-            uv_indices: session.short_arrays::<3>(
-                session.required(element, TrianglesWire::UV_INDICES)?,
-                triangle_header.triangle_count as usize,
-            )?,
+            // Zero-count arrays may have null pointers (tour); the source's
+            // zero-count loops never read them.
+            triangles: if triangle_header.triangle_count == 0 {
+                Vec::new()
+            } else {
+                session.short_arrays::<3>(
+                    session.required(element, TrianglesWire::TRIANGLES)?,
+                    triangle_header.triangle_count as usize,
+                )?
+            },
+            texcoords: if triangle_header.uv_count == 0 {
+                Vec::new()
+            } else {
+                session.floats::<2>(
+                    session.required(element, TrianglesWire::UVS)?,
+                    triangle_header.uv_count as usize,
+                )?
+            },
+            uv_indices: if triangle_header.triangle_count == 0 {
+                Vec::new()
+            } else {
+                session.short_arrays::<3>(
+                    session.required(element, TrianglesWire::UV_INDICES)?,
+                    triangle_header.triangle_count as usize,
+                )?
+            },
             face_normals: normals,
             vertex_indices: indices,
         });

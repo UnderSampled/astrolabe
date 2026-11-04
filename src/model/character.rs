@@ -32,7 +32,10 @@ impl StateRef {
     pub fn validate_family(&self, family: &Family) -> Result<()> {
         ensure!(
             self.family.path == family.path,
-            "action family identity differs"
+            "action family identity differs: action {} of {} checked against {}",
+            self.state,
+            self.family.path,
+            family.path
         );
         ensure!(
             family.states.iter().any(|s| s.id == self.state),
