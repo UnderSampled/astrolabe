@@ -90,6 +90,21 @@ pub(super) fn export(
         "[ext_resource type=\"Texture2D\" path={} id=\"bullet\"]",
         quoted(&format!("res://{bullet}"))
     )?;
+    let mut sounds = String::new();
+    for (sound, name) in [
+        (&value.cash_sound, "cash_sound"),
+        (&value.scroll_sound, "scroll_sound"),
+    ] {
+        if let Some(link) = sound {
+            let event = super::sound::export_event(project, source, link, written)?;
+            writeln!(
+                text,
+                "[ext_resource type=\"Resource\" path={} id=\"{name}\"]",
+                quoted(&event)
+            )?;
+            writeln!(sounds, "{name} = ExtResource(\"{name}\")")?;
+        }
+    }
     writeln!(
         text,
         "\n[resource]\nscript = ExtResource(\"script\")\nfont = ExtResource(\"font\")\nnormal_color = Color({},{},{},{})\nemphasis_color = Color({},{},{},{})\ncorner = ExtResource(\"corner\")\nborder = ExtResource(\"border\")\ncenter = ExtResource(\"center\")\nside = ExtResource(\"side\")\ncontinuation = ExtResource(\"continuation\")\nselection_color = Color({},{},{},{})\nbullet = ExtResource(\"bullet\")",
@@ -106,6 +121,7 @@ pub(super) fn export(
         value.selection_color[2],
         value.selection_color[3]
     )?;
+    text.push_str(&sounds);
     project.write(path.clone(), text.as_bytes())?;
     Ok(format!("res://{path}"))
 }

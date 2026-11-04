@@ -19,6 +19,9 @@ const SOURCE_EMPHASIS_OFFSET: float = 0.009999999776482582
 @export var selection_color: Color = Color(0.1, 0.1, 0.8)
 ## Stencil 5, beside each row of the selected answer.
 @export var bullet: Texture2D
+## SoundEffects:Dialog entries 0 (paid answer) and 2 (answer scroll).
+@export var cash_sound: Resource
+@export var scroll_sound: Resource
 ## 0056c8e0: answer rows are drawn 0.5 units right of the body text.
 const SOURCE_ANSWER_INDENT: float = 0.5
 

@@ -45,6 +45,13 @@ var answer_mode := false
 var selected_answer: int = 0
 var main_actor: Node
 var owner_emitter: Node
+## 0056cc70 letter reveal for items without speech: label index on the page
+## and characters shown of it; more than 2 ms permits one step per draw.
+const SOURCE_REVEAL_STEP_SECONDS: float = 0.002
+var _reveal_active := false
+var _reveal_index: int = 0
+var _reveal_characters: int = 1
+var _reveal_elapsed: float = 0.0
 ## AnswerDelete removals, kept for the loaded level's items.
 var _removed_answers := {}
 
@@ -168,7 +175,8 @@ func _process(delta: float) -> void:
     if _source_presentation:
         # The admitted style5 page bypasses partial reveal for every line.
         # Both null-text padding records count toward the source page draw.
-        _source_page_complete = true
+        if _reveal_active: _advance_reveal(delta)
+        _source_page_complete = not _reveal_active
         _refresh_continuation()
         # Mode 0 has no speech deadline: the answers wait for SelectDialog.
         if answer_mode: return
@@ -223,6 +231,9 @@ func _render_page() -> void:
                 if span.emphasis and item.box != 5:
                     view.add_theme_color_override("font_outline_color", style.emphasis_color)
                     view.add_theme_constant_override("outline_size", 1)
+                    # The exported outline atlas is straight alpha; only the
+                    # source glyph atlas stores premultiplied edges.
+                    view.material = null
                 # Text starts at its anchor in every box, as in the style5 chain: the
                 # original's lines begin at x 22 (letterbox) and 536 (framed, at
                 # PositionDialog 305) of 1024 and stay left-aligned; centring on the
@@ -230,6 +241,9 @@ func _render_page() -> void:
                 var span_x: float = style.chain_span_origin(span.source_offset)
                 var line_pitch: float = style.chain_line_spacing() if item.box == 5 else style.line_spacing()
                 view.position = origin + Vector2(span_x, (index - page_start) * line_pitch)
+                view.set_meta("line_anchor", line)
+                view.set_meta("span_origin", view.position)
+                view.position += style.line_origin(view.text, line.alignment, line.draw_offset)
                 if span.emphasis and item.box == 5:
                     # Source draws the four emphasis passes in this order,
                     # then the normal foreground. The native bitmap font has
@@ -250,6 +264,44 @@ func _render_page() -> void:
     # then draws every answer on the following rows.
     answer_mode = style != null and not item.answers.is_empty() and end >= item.lines.size()
     if answer_mode: _render_answers(end - page_start, origin)
+    # 0056c2d0 reveals letters only without item speech, on lines whose flag
+    # bit 0 does not ask for immediate drawing (style5's flags3 lines do).
+    _reveal_active = style != null and item.voice == null and item.box != 5 and source_text.get_child_count() > 0
+    for index in range(page_start, end):
+        if (item.lines[index].flags & 1) != 0: _reveal_active = false
+    _reveal_index = 0
+    _reveal_characters = 1
+    _reveal_elapsed = 0.0
+    if _reveal_active: _apply_reveal()
+
+func _apply_reveal() -> void:
+    var style: Resource = item.presentation
+    for index in range(source_text.get_child_count()):
+        var label := source_text.get_child(index) as Label
+        if label == null or not label.has_meta("line_anchor"): continue
+        if not _reveal_active or index < _reveal_index: label.visible_characters = -1
+        elif index == _reveal_index: label.visible_characters = _reveal_characters
+        else: label.visible_characters = 0
+        var line: Resource = label.get_meta("line_anchor")
+        var prefix: String = label.text if label.visible_characters < 0 else label.text.left(label.visible_characters)
+        # FON centres the string being drawn, so a centred line re-centres as
+        # it grows (the take's "Res historicae" title).
+        label.position = label.get_meta("span_origin") + style.line_origin(prefix, line.alignment, line.draw_offset)
+
+func _advance_reveal(delta: float) -> void:
+    _apply_reveal()
+    _reveal_elapsed += delta
+    if _reveal_elapsed <= SOURCE_REVEAL_STEP_SECONDS: return
+    _reveal_elapsed = 0.0
+    var label := source_text.get_child(_reveal_index) as Label if _reveal_index < source_text.get_child_count() else null
+    if label != null and _reveal_characters < label.text.length():
+        _reveal_characters += 1
+    elif _reveal_index + 1 < source_text.get_child_count():
+        _reveal_index += 1
+        _reveal_characters = 1
+    else:
+        _reveal_active = false
+    _apply_reveal()
 
 func _active_answers() -> Array:
     var removed: Array = _removed_answers.get(item.identity, [])
@@ -307,7 +359,7 @@ func scroll(direction: int) -> void:
         var count := _active_answers().size()
         if not answer_mode or count < 2: return
         selected_answer = posmod(selected_answer + (1 if direction > 0 else -1), count)
-        StandInReport.reached(self, "dialogue-ui-sound", "SoundEffects:Dialog answer scroll sound not ported")
+        _play_dialog_sound(item.presentation.scroll_sound)
         _render_page()
         return
     if not answers.visible or answers.item_count < 2: return
@@ -319,6 +371,12 @@ func select() -> void:
     if item == null or closing or modulate.a < 0.99: return
     if _source_presentation and not _source_opened: return
     if _source_presentation and page_start < item.lines.size() and (item.lines[page_start].flags & 2) != 0 and not _source_page_complete: return
+    if _reveal_active:
+        # 0056e510: a press during the reveal completes the page.
+        _reveal_active = false
+        _apply_reveal()
+        _source_page_complete = true
+        return
     if answer_mode:
         _choose_answer()
     elif page_start + item.lines_per_page() < item.lines.size():
@@ -365,8 +423,17 @@ func _answer_cost(answer: Resource) -> int:
     var paid: int = 1 if answer.gold >= 0 else int(inventory.subtract_gold(-answer.gold))
     if answer.gold >= 0: inventory.add_gold(answer.gold)
     if paid == 0: return 1
-    StandInReport.reached(self, "dialogue-ui-sound", "SoundEffects:Dialog cash sound not ported")
+    _play_dialog_sound(item.presentation.cash_sound)
     return -1
+
+## 004ec880(-1, effects, event): played without a position, through the main
+## actor's emitter for the mixer and buses.
+func _play_dialog_sound(event: Resource) -> void:
+    var emitter := main_speech_emitter
+    if event == null or not is_instance_valid(emitter) or not emitter.has_method("execute_global_event"):
+        StandInReport.reached(self, "guard", "SoundEffects:Dialog event or emitter unavailable")
+        return
+    emitter.execute_global_event(event)
 
 ## InitDraw on a following item: the box is cut and opens again with the
 ## source fade (the take shows Wellet's box vanish and fade back in), after

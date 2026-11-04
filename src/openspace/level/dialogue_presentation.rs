@@ -4,7 +4,7 @@ use super::{
     records::*,
     session::SourceSession,
 };
-use crate::model::{AssetPath, dialogue::*, io::Content};
+use crate::model::{AssetPath, audio::SoundEventLink, dialogue::*, io::Content};
 use anyhow::{Context, Result, ensure};
 use binrw::BinRead;
 
@@ -185,6 +185,32 @@ pub(super) fn font(s: &SourceSession, address: Address) -> Result<FontInputs> {
         color: color.context("font has no color")?,
     })
 }
+/// DLG_fn_vSNAWriteInFix (0056bbe0) writes the SoundEffects:Dialog table after
+/// the seven stencil materials. Its {event, 0} entries are SND sites: entry 0
+/// is the cash sound (0056e2c0), entry 2 the scroll sound (0056f3a0).
+pub(super) fn dialog_sounds(
+    s: &SourceSession,
+    game: &std::path::Path,
+    events: &std::collections::BTreeMap<Address, Option<SoundEventLink>>,
+) -> Result<[Option<SoundEventLink>; 2]> {
+    let gpt = file(&game.join("Gamedata/World/Levels/Fix.gpt"))?;
+    let refs = pointer_file(&file(&game.join("Gamedata/World/Levels/Fix.rtp"))?)?;
+    let word = u32_at(&gpt, 18084 + 7 * 4)?;
+    let key = *refs
+        .get(&word)
+        .context("Fix GPT Dialog sound table lacks RTP binding")?;
+    let table = s.resolve(Owner::Fix, key, word)?;
+    Ok([0, 8].map(|offset| {
+        events
+            .get(&Address {
+                offset: table.offset + offset,
+                ..table
+            })
+            .cloned()
+            .flatten()
+    }))
+}
+
 pub(super) fn import(
     s: &SourceSession,
     game: &std::path::Path,
@@ -254,6 +280,8 @@ pub(super) fn import(
         continuation,
         selection_color: selected.color,
         bullet,
+        cash_sound: None,
+        scroll_sound: None,
     };
     value.validate()?;
     Ok(value)

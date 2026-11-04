@@ -57,6 +57,13 @@ pub struct DialoguePresentation {
     pub selection_color: [f32; 4],
     /// Stencil 5 (`DLG_bullet`), drawn beside each selected answer row.
     pub bullet: DialogueTexture,
+    /// `Game.fix^SoundEffects:Dialog` (`DAT_00723b2c`, the eighth DLG Fix GPT
+    /// root, 0056bbe0): entry 0 after a paid answer (0056e2c0), entry 2 on an
+    /// answer scroll (0056f3a0).
+    #[serde(default)]
+    pub cash_sound: Option<SoundEventLink>,
+    #[serde(default)]
+    pub scroll_sound: Option<SoundEventLink>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DialogueTexture {
@@ -133,6 +140,9 @@ impl Content for DialoguePresentation {
                 .all(|v| v.is_finite() && (0.0..=1.0).contains(v)),
             "invalid dialogue font color"
         );
+        for sound in [&self.cash_sound, &self.scroll_sound].into_iter().flatten() {
+            sound.validate()?;
+        }
         for texture in std::iter::once(&self.atlas)
             .chain(&self.frame)
             .chain([&self.continuation, &self.bullet])
@@ -199,7 +209,7 @@ impl Content for Dialogue {
         for line in &self.lines {
             if let Some(layout) = &line.layout {
                 ensure!(
-                    self.box_style == 4
+                    matches!(self.box_style, 1 | 4)
                         && layout.alignment.iter().all(|v| *v <= 2)
                         && layout.offset.iter().all(|v| v.is_finite()),
                     "unsupported dialogue line layout"

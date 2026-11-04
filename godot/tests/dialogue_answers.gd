@@ -23,6 +23,9 @@ class EmitterProbe extends Node3D:
 	signal voice_completed(info: Dictionary)
 	var source_dialogue_record: Resource
 	var played: Array[String] = []
+	var globals: Array[String] = []
+	func execute_global_event(event: Resource) -> void:
+		globals.append(str(event.identity))
 	func play_dialogue_speech(record: Resource) -> void:
 		source_dialogue_record = record
 		played.append(str(record.get("identity")) if record.get("identity") != null else "answer")
@@ -53,6 +56,7 @@ var dialogue: Control
 var brain: BrainProbe
 var hype: HypeProbe
 var gameplay: GameplayInputProbe
+var hype_emitter: EmitterProbe
 
 func _initialize() -> void:
 	call_deferred("run")
@@ -88,7 +92,7 @@ func run() -> void:
 	hype = HypeProbe.new()
 	hype.name = "Hype"
 	level.add_child(hype)
-	var hype_emitter := EmitterProbe.new()
+	hype_emitter = EmitterProbe.new()
 	hype_emitter.name = "SoundEmitter"
 	hype.add_child(hype_emitter)
 	level.set_meta("source_actor_nodes", {intro.owner_identity: NodePath("Wellet"), "hype": NodePath("Hype")})
@@ -109,6 +113,8 @@ func run() -> void:
 	screen.call("source_scroll_dialog", -1)
 	if not expect(int(dialogue.get("selected_answer")) == 1, "scroll did not wrap back to No"): return
 	if not expect(bullet_rows() == [2], "bullet is not beside the No row"): return
+	var scroll_id := str(intro.presentation.scroll_sound.identity)
+	if not expect(hype_emitter.globals == [scroll_id, scroll_id, scroll_id], "answer scrolls did not request the Dialog scroll sound: %s" % [hype_emitter.globals]): return
 	await press_space()
 	if not expect(identity() == "wellet_refus" and int(dialogue.get("page_start")) == 0 and not bool(dialogue.get("closing")), "No did not continue with wellet_refus in the same box"): return
 	if not expect(dialogue.get_node("Panel").modulate.a < 0.5 and not dialogue.get_node("SourceText").visible, "the continued item did not reopen with the source fade"): return
@@ -126,6 +132,7 @@ func run() -> void:
 	if not await open_to_answers(intro): return
 	await press_space()
 	if not expect(identity() == "wellet_explicationcourse" and hype.source_inventory.gold == 50, "Yes did not spend 100 and explain the race"): return
+	if not expect(hype_emitter.globals.back() == str(intro.presentation.cash_sound.identity) and hype_emitter.globals.count(str(intro.presentation.cash_sound.identity)) == 1, "the paid answer did not request the Dialog cash sound once"): return
 	await settle()
 	while not bool(dialogue.get("answer_mode")):
 		await press_space()

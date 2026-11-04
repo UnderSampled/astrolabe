@@ -146,7 +146,7 @@ with a diagnostic. There is no runtime source opcode interpreter.
 | Proc_ToggleWideScreen, 323 | Toggle global presentation state |
 | Proc_EndDialog, 324 | Close active presentation and clear its pending callback |
 | Proc_RunDialog, 325(name, mode) | Select localized item and start its existing SoundEmitter event |
-| Proc_ScrollDialog, 326(direction) | On a question page only: move the selected answer, wrapping (0056f3a0); its SoundEffects:Dialog sound is the `dialogue-ui-sound` stand-in |
+| Proc_ScrollDialog, 326(direction) | On a question page only: move the selected answer, wrapping (0056f3a0); plays SoundEffects:Dialog entry 2 (Play_InvDepl1), restored from the eighth DLG Fix GPT root |
 | Proc_SelectDialog, 327 | Advance a page or finish |
 | Proc_PositionDialog, 328(x, y) | Set source screen-space position |
 | Proc_DLG_ChangeComport, 330 | Explicitly apply a pending owner/behavior callback |

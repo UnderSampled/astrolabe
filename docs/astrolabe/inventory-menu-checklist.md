@@ -87,10 +87,15 @@ through bindings and sprite lookups.
   0.5 units, the selected one in the third root font's blue halo with the bullet stencil;
   Button_Up/Down scroll (wrapping, answer page only), Button_Hit chooses; gold cost,
   AnswerBad and AnswerNext continue in the same box, which reopens with its fade
-  (notes/research/dialogue-answers.md; take 583-591 s). Scroll/cash sounds are the
-  `dialogue-ui-sound` stand-in; a faint dark fringe stays on the halo.
+  (notes/research/dialogue-answers.md; take 583-591 s). Scroll and cash play the
+  SoundEffects:Dialog events (Play_InvDepl1 matches the take at 587.80 and 588.20 s);
+  a faint dark fringe stays on the halo.
+- [x] Items without speech (the monastery plaque) reveal one letter per draw (0056cc70),
+  source line anchors apply (its centred title re-centres as it grows), a press during
+  the reveal completes the page and the next advances (take 499-507 s,
+  godot/tests/dialogue_plaque.gd).
 - [ ] Item icons, channel/state effects, inventory costs and one-shot answers in real
-  data (none in Manoir or Brigand); the monastery plaque's centred layout.
+  data (none in Manoir or Brigand).
 
 ## Main and pause menus
 

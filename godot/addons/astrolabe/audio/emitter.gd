@@ -15,6 +15,8 @@ var random := RandomNumberGenerator.new()
 ## Dialogue owns this record independently of ordinary effects/music voices.
 var source_dialogue_record: Resource
 var _dialogue_speech_request: bool = false
+## 004ec880 with object -1: no position and no object volume.
+var _global_request: bool = false
 ## Godot's panner keeps L^2+R^2 at 1, so a centred source is -3 dB a channel. The
 ## source mixes a centred mono sample at its full gain on both.
 const SOURCE_CENTER_GAIN := 1.41421356
@@ -205,6 +207,16 @@ func play_dialogue_speech(record: Resource) -> void:
     var voice: Resource = record.get("voice") as Resource
     execute_voice_event(voice)
 
+## Interface effects the source requests for object -1 (Dialog SoundEffects):
+## non-positional on the effects module, without this actor's object volume.
+func execute_global_event(event: Resource) -> void:
+    if event == null: return
+    _audio_mixer()
+    var previous_request := _global_request
+    _global_request = true
+    event.execute(self)
+    _global_request = previous_request
+
 ## The source module is request context, separate from the speech holder.
 ## Compiled STOP/PLAY events select voice without changing the effects module.
 func execute_voice_event(event: Resource) -> void:
@@ -333,7 +345,7 @@ func play_voice(voice: Resource, identity: String, pitch_variation: float, stopp
             return
     # Live capture: every dialogue line is equal in both channels at one level,
     # wherever the speaker stands, so speech skips the distance law and pan.
-    var spatial: bool = (voice.source_parameter_conversion or voice.spatial) and not is_music and not _dialogue_speech_request
+    var spatial: bool = (voice.source_parameter_conversion or voice.spatial) and not is_music and not _dialogue_speech_request and not _global_request
     _audio_mixer()
     var player: Node = AudioStreamPlayer3D.new() if spatial else AudioStreamPlayer.new()
     player.bus = &"Astrolabe Voice" if _dialogue_speech_request else voice_bus
@@ -348,7 +360,7 @@ func play_voice(voice: Resource, identity: String, pitch_variation: float, stopp
     if player is Node3D and not dynamic:
         player.top_level = true
         player.global_transform = global_transform
-    var info := {"event": identity, "stream": voice.stream.resource_path, "sample": voice.source_sample, "pitch": player.pitch_scale, "gain": voice.gain * SOURCE_SPEECH_GAIN if _dialogue_speech_request else voice.gain, "choices": voice.trace, "spatial": spatial, "source_parameter_conversion": voice.source_parameter_conversion, "stoppable": stoppable, "dynamic": dynamic, "player": player, "theme": voice.theme_identity, "uses_object_volume": not _dialogue_speech_request, "module": _request_module(), "bus": player.bus}
+    var info := {"event": identity, "stream": voice.stream.resource_path, "sample": voice.source_sample, "pitch": player.pitch_scale, "gain": voice.gain * SOURCE_SPEECH_GAIN if _dialogue_speech_request else voice.gain, "choices": voice.trace, "spatial": spatial, "source_parameter_conversion": voice.source_parameter_conversion, "stoppable": stoppable, "dynamic": dynamic, "player": player, "theme": voice.theme_identity, "uses_object_volume": not _dialogue_speech_request and not _global_request, "module": _request_module(), "bus": player.bus}
     if _dialogue_speech_request: StandInReport.reached(self, "speech-gain", "dialogue speech at 0.7 times resource gain")
     _publish_voice_gain(info)
     if spatial and voice.source_parameter_conversion and info.source_spatial_state == &"unbound_microphone":

@@ -254,15 +254,17 @@ pub(super) fn import(
     let normal_font = resolve(8)?;
     let emphasis = resolve(12)?;
     let selection_font = resolve(16)?;
-    let presentation =
+    let mut presentation =
         super::dialogue_presentation::import(s, game, normal_font, emphasis, selection_font)?;
+    let sounds = SoundSites::open(game, selection, s)?;
+    [presentation.cash_sound, presentation.scroll_sound] =
+        super::dialogue_presentation::dialog_sounds(s, game, &sounds.events)?;
     let presentation_ref = AssetRef::from_path(presentation.path.clone());
     result.dialogue_presentation = Some(presentation);
     // +0 is the text-name table; +4 is the circular dialogue catalogue.
     let root = resolve(4)?;
     let mut list = root;
     let mut seen = BTreeSet::new();
-    let sounds = SoundSites::open(game, selection, s)?;
     let mut names = BTreeSet::new();
     let mut omitted = 0;
     while seen.insert(list) {
@@ -627,7 +629,7 @@ impl ItemDecoder<'_> {
                 })
                 .transpose()?;
             if let Some(layout) = &layout
-                && (box_style != 4 || layout.alignment.iter().any(|v| *v > 2))
+                && (!matches!(box_style, 1 | 4) || layout.alignment.iter().any(|v| *v > 2))
             {
                 return Ok(Err(format!(
                     "{name}: unsupported line drawing layout {layout:?}"

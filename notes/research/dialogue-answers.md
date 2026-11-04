@@ -126,3 +126,12 @@ DAT_00735060), +0x10 font ON (default DAT_00735064), +0x18 next item ("AnswerNex
 - Item 0056c2d0 deadlines: no question page in Manoir/Brigand has a finite deadline.
 - Brigand Zatila 4/5 put 5 body rows plus 2 answers on the last page (7 rows); drawn as the
   source does, not compared with an original capture.
+- SoundEffects:Dialog: DLG_fn_vSNAWriteInFix (0056bbe0) writes DAT_00723b2c as the eighth
+  Fix GPT root (word 18084 + 7*4). Its {event, 0} entries are Fix SND sites: entry 0 bank 0
+  member 81 (Play_InvSelc1, cash), entry 2 member 80 (Play_InvDepl1, scroll). The decoded
+  scroll clip correlates with the take at 587.80 and 588.20 s (0.39, 0.49; ~0.05 elsewhere).
+  A peak near Select at 588.6 s is not attributed; Select plays no Dialog event in the port.
+- Plaque (brigand_monast_plaque_1): box 1, no speech, 11 untimed flags-0 lines, line 0
+  centred at x offset 1.8. 0056c2d0 types the current line with 0056cc70 (period 2 ms, one
+  step per draw); the take shows about two characters per 30 Hz frame and the centred title
+  re-centring on its prefix.

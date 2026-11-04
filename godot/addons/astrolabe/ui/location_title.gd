@@ -69,6 +69,8 @@ func refresh_layout() -> void:
             if span.emphasis:
                 view.add_theme_color_override("font_outline_color", style.emphasis_color)
                 view.add_theme_constant_override("outline_size", 1)
+                # The exported outline atlas is straight alpha.
+                view.material = null
             view.position = origin + Vector2(style.span_origin(view.text, span.source_offset), index * style.line_spacing())
             view.set_meta("line_anchor", item.lines[index])
             view.set_meta("span_origin", view.position)
