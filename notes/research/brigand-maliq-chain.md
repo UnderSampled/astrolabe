@@ -135,3 +135,12 @@ Corrections and conclusions:
     FUN_00443080, 00449cd0, 00449c60).
   - Live: watch 181's mind+0x10 when the race starts, and whether a ChangeComport alone starts it.
   - Then port that start rule. Until then the port starts every Brain at load.
+- Static pointers for that next step:
+  - Script activation: the procedure dispatch 0053fc30 (Proc_ActivateObject, id 3, and its group)
+    calls 00443080 at 0x53fcf8.
+  - Wake: 00449cd0, which calls 00449c60, which calls 00443080. It has no direct caller.
+    - Counted request helpers at 0x44edc0 and 0x44ede2 (in the 0044ecc0 cluster) call it while the
+      globals 0x5e9f08 and 0x5e9f0c are nonzero, decrementing them.
+    - 0x44edc0 is referenced as an immediate at VA 0x44ecd0.
+    - 00449cd0's address is stored in .data at VA 0x5e9fe4, a callback table.
+  - Who fills those counters and reads 0x5e9fe4 is the start/wake caller still to find.
