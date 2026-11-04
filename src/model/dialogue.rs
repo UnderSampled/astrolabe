@@ -125,6 +125,7 @@ pub struct DialogueLine {
     pub spans: Vec<DialogueSpan>,
     /// Loader-computed justification. The shipped FON renderer ignores the
     /// forwarded scalar; retain it without changing native glyph advances.
+    /// It may be non-finite: the source never reads it as a number.
     pub justification: f32,
     /// The installed English dialogue uses 3.4e38 as its untimed sentinel.
     pub end_seconds: f32,
@@ -176,10 +177,9 @@ impl Content for Dialogue {
                     "unsupported dialogue line layout"
                 );
             }
-            ensure!(
-                line.justification.is_finite(),
-                "invalid dialogue justification"
-            );
+            // The justification word is forwarded unread to the FON draw calls
+            // (0056c8e0 -> FON_fn_vDraw3DString's last argument), so the source
+            // accepts any bits, including non-finite ones (manoir3).
             ensure!(
                 line.end_seconds.is_finite() && line.end_seconds >= 0.0,
                 "invalid dialogue time"

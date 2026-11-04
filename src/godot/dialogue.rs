@@ -77,9 +77,9 @@ pub(super) fn export(
         count += 1;
         writeln!(
             resources,
-            "[sub_resource type=\"Resource\" id=\"{id}\"]\nscript = ExtResource(\"line\")\nspans = Array[Resource]([{}])\njustification = {:?}\nend_seconds = {:?}\nflags = {}\n{layout}",
+            "[sub_resource type=\"Resource\" id=\"{id}\"]\nscript = ExtResource(\"line\")\nspans = Array[Resource]([{}])\njustification = {}\nend_seconds = {:?}\nflags = {}\n{layout}",
             spans.join(", "),
-            line.justification,
+            GodotReal(line.justification),
             line.end_seconds,
             line.flags
         )?;
@@ -140,4 +140,21 @@ pub(super) fn export(
         project.diagnostic(format!("{}: native center-only style5; one flags3 page bypasses letter reveal, counts null padding, and waits for accepted selection before the existing owner callback; source pixel/control-release parity remains unverified", value.path));
     }
     Ok(())
+}
+
+/// A float in Godot text-resource syntax: `{:?}` when finite, else Godot's own
+/// `nan`, `inf` and `inf_neg` literals.
+struct GodotReal(f32);
+
+impl std::fmt::Display for GodotReal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let value = self.0;
+        if value.is_nan() {
+            f.write_str("nan")
+        } else if value.is_infinite() {
+            f.write_str(if value > 0.0 { "inf" } else { "inf_neg" })
+        } else {
+            write!(f, "{value:?}")
+        }
+    }
 }

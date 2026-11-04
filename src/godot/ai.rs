@@ -4211,7 +4211,11 @@ fn statements(
                     DesignerValue::IntegerArray(_) | DesignerValue::ActionArray(_) => "int",
                     DesignerValue::RealArray(_) => "float",
                     DesignerValue::VectorArray(_) => "Vector3",
-                    _ => anyhow::bail!("AI assignment target dsg_{variable} is not an array"),
+                    other => anyhow::bail!(
+                        "AI assignment target dsg_{variable} is not an array ({} in {})",
+                        designer_kind_name(other),
+                        model.path
+                    ),
                 };
                 let index = guarded_expression(out, index, model, depth, flow)?;
                 let value = guarded_expression(out, value, model, depth, flow)?;
@@ -5737,4 +5741,9 @@ mod source_position_tests {
         );
         Ok(())
     }
+}
+
+/// The designer value variant, for diagnostics.
+fn designer_kind_name(value: &DesignerValue) -> String {
+    format!("{value:?}").split(['(', ' ', '{']).next().unwrap_or("").to_string()
 }
